@@ -25,7 +25,19 @@ struct Step {
 ///
 /// Steps are added here as the gate grows. Order is presentation only: all of them run on every
 /// invocation, so that one pass reports every problem rather than only the first.
+///
+/// A step passes or fails on its exit code alone. This is a deliberate limit rather than an
+/// oversight, and it has known holes: `rustfmt` reports `can't set group_imports, unstable features
+/// are only available in nightly channel` and still exits 0, and Cargo reports a missing
+/// `workspace.resolver` the same way. In both cases the tool knows something is wrong, says so, and
+/// the gate does not notice. Closing that would mean matching on the text the tools print, which is
+/// brittle in a different and less obvious way.
 const GATE: &[Step] = &[
+    Step {
+        name: "fmt",
+        program: "cargo",
+        args: &["fmt", "--all", "--check"],
+    },
     Step {
         name: "build",
         program: "cargo",
