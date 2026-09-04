@@ -25,6 +25,12 @@ MSG_FILE="$1"
 # with a bracketed line appended after Co-Authored-By, `git interpret-trailers
 # --parse` reports no trailers at all, and the co-author attribution is lost.
 #
+# The key is Claude-Resume, not Claude-Session: Claude Code writes the latter itself
+# when Remote Control is on, carrying a browser URL. Those are different handles on
+# the same conversation, not two formats of one, so they get separate keys rather
+# than one key whose shape depends on a setting invisible from this repository.
+# See docs/decisions/0007-rename-the-session-trailer-to-claude-resume.md.
+#
 # --if-exists doNothing keeps `git commit --amend` idempotent, and keeps the session
 # that first wrote the commit rather than the one that touched it last.
 #
@@ -35,7 +41,7 @@ MSG_FILE="$1"
 case "$CLAUDE_CODE_SESSION_ID" in
 [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])
     git interpret-trailers --in-place --if-exists doNothing \
-        --trailer "Claude-Session: $CLAUDE_CODE_SESSION_ID" "$MSG_FILE"
+        --trailer "Claude-Resume: $CLAUDE_CODE_SESSION_ID" "$MSG_FILE"
     ;;
 esac
 

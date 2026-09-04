@@ -134,17 +134,25 @@ not.
 
 ### The session trailer
 
-A commit made from a Claude Code session carries a `Claude-Session` trailer holding that session's
-id. Reopen the conversation behind a change with `claude --resume <id>`, and list the ids across the
-history with:
+A commit made from a Claude Code session can carry two trailers, and they are different handles on
+the same conversation rather than the same one twice.
+
+- **`Claude-Resume`** holds the local session id. Reopen the conversation with
+  `claude --resume <id>`. The `commit-msg` hook writes it, so it is present whenever the hooks are.
+- **`Claude-Session`** holds a URL that opens the session in a browser. Claude Code writes it itself
+  when Remote Control is enabled, which is a setting outside this repository — so it is present
+  sometimes and absent otherwise.
+
+List them across the history with:
 
 ```sh
-git log --format='%h %(trailers:key=Claude-Session,valueonly)'
+git log --format='%h %(trailers:key=Claude-Resume,valueonly)'
 ```
 
-[ADR-0006](docs/decisions/0006-record-the-claude-session-in-commit-trailers.md) covers why it is a
-trailer rather than a plain line — a non-trailer line at the end of a message silently invalidates
-`Co-Authored-By` along with it.
+[ADR-0007](docs/decisions/0007-rename-the-session-trailer-to-claude-resume.md) covers why they have
+separate keys, and [ADR-0006](docs/decisions/0006-record-the-claude-session-in-commit-trailers.md),
+which it supersedes, covers why either is a trailer rather than a plain line — a non-trailer line at
+the end of a message silently invalidates `Co-Authored-By` along with it.
 
 It is a convenience, not a record. Transcripts live outside the repository and do not survive a new
 machine, so the reasoning that matters still belongs in the commit body or in an ADR. If a commit
