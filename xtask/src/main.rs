@@ -10,6 +10,18 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
+use std::time::SystemTime;
+
+/// The npm executable.
+///
+/// On Windows it has to be named with its extension: npm ships as a shell script plus `.cmd` and
+/// `.ps1` shims, and `Command::new` does not apply `PATHEXT` the way a shell does, so a bare `npm`
+/// is simply not found.
+#[cfg(windows)]
+const NPM: &str = "npm.cmd";
+/// The npm executable.
+#[cfg(not(windows))]
+const NPM: &str = "npm";
 
 /// One step of the quality gate: a label to report it by, and the command that implements it.
 struct Step {
@@ -93,6 +105,7 @@ fn main() -> ExitCode {
 
     match args.next().as_deref() {
         Some("check") => run_gate(),
+        Some("setup") => run_setup(),
         None | Some("help" | "--help" | "-h") => {
             print_usage();
             ExitCode::SUCCESS
@@ -111,6 +124,19 @@ fn main() -> ExitCode {
 /// commit into several round trips, and the steps here are cheap enough that finishing is free.
 fn run_gate() -> ExitCode {
     let root = workspace_root();
+
+    if let Err(problem) = node_tooling_state(&root) {
+        eprintln!("{problem}");
+        eprintln!();
+        eprintln!("    Run `cargo xtask setup` and try again.");
+        eprintln!();
+        eprintln!(
+            "Nothing was checked. Running only the Rust steps would print a passing summary for \
+             half a gate, which is worse than refusing to start."
+        );
+        return ExitCode::FAILURE;
+    }
+
     let mut failed = Vec::new();
 
     for step in GATE {
@@ -149,6 +175,66 @@ fn run(root: &Path, step: &Step) -> bool {
     }
 }
 
+/// Installs the Node tooling exactly as `package-lock.json` describes it.
+fn run_setup() -> ExitCode {
+    let root = workspace_root();
+    let step = Step {
+        name: "setup",
+        program: NPM,
+        // `npm ci` installs strictly from the lockfile and deletes anything that does not belong,
+        // so two machines end up with the same tree. `npm install` would quietly rewrite the
+        // lockfile instead, which is the opposite of what a pinned setup wants.
+        args: &["ci"],
+    };
+
+    println!("--- {} ---", step.name);
+    if !run(&root, &step) {
+        eprintln!(
+            "\nxtask: `{NPM} ci` failed. If it was not found at all, install Node first; the \
+             version this project expects is in .nvmrc."
+        );
+        return ExitCode::FAILURE;
+    }
+
+    println!("\nNode tooling installed");
+    ExitCode::SUCCESS
+}
+
+/// Checks that the Node tooling is installed and not older than `package-lock.json`.
+///
+/// npm records the tree it installed in `node_modules/.package-lock.json`, so comparing that file's
+/// timestamp against the lockfile is enough to notice a stale install. It costs two `stat` calls,
+/// which is why the gate can afford it on every run: a no-op `npm install` was measured at roughly
+/// two seconds, more than every Rust step put together.
+fn node_tooling_state(root: &Path) -> Result<(), String> {
+    let lockfile = root.join("package-lock.json");
+    let installed = root.join("node_modules").join(".package-lock.json");
+
+    if !installed.exists() {
+        return Err(format!(
+            "xtask: the Node tooling is not installed.\n\n    {} does not exist.",
+            installed.display()
+        ));
+    }
+
+    if modified_time(&lockfile)? > modified_time(&installed)? {
+        return Err(format!(
+            "xtask: the installed Node tooling is out of date.\n\n    {} is newer than {}.",
+            lockfile.display(),
+            installed.display()
+        ));
+    }
+
+    Ok(())
+}
+
+/// Last modification time of `path`, or a message naming the file that could not be read.
+fn modified_time(path: &Path) -> Result<SystemTime, String> {
+    path.metadata()
+        .and_then(|metadata| metadata.modified())
+        .map_err(|error| format!("xtask: could not read {}: {error}", path.display()))
+}
+
 /// The repository root, derived from this crate's own location rather than from the current
 /// directory, so that every step runs against the same paths no matter where it was invoked from.
 fn workspace_root() -> PathBuf {
@@ -165,5 +251,6 @@ fn print_usage() {
     println!();
     println!("Commands:");
     println!("  check    Run every quality gate step; this is what the hook and CI run");
+    println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
     println!("  help     Show this message");
 }
