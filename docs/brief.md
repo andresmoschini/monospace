@@ -1,8 +1,9 @@
 # Monospace — Initial Project Brief / Spec
 
-**Status:** Draft — pre-implementation
+**Status:** Living document — amended as decisions are taken. The tooling questions in section 8 are
+settled; no domain logic exists yet.
 
-**Data:** 2026-09-04
+**Created:** 2026-09-04
 
 **Purpose:** This document is the starting spec for Spec-Driven Development. It defines intent,
 scope, and constraints before any feature-level spec is written. Feature specs will branch off from
@@ -30,9 +31,10 @@ enough to raise real design questions (parsing, layout, rendering, extensibility
 These principles constrain every future spec and commit:
 
 1. **Demonstrable over complete.** Every commit that lands leaves the project building, with all
-   validations green and `cargo run` producing output. From the first commit this may be trivial (a
-   version banner); from the first domain increment onwards it should show real behavior, however
-   small.
+   validations green and `cargo run -p monospace-cli` producing output — a bare `cargo run` is
+   ambiguous once the workspace holds more than one binary. From the first commit this may be
+   trivial (a version banner); from the first domain increment onwards it should show real behavior,
+   however small.
 2. **Process over product.** When there's tension between "the fastest way to a feature" and "the
    way that teaches good Rust design or good spec-driven practice," prefer the latter.
 3. **Incremental scope.** Specs should be sliced thin. Prefer several small specs over one large
@@ -113,17 +115,27 @@ To be resolved in early feature specs, not here:
 - Which Rust TUI crate/framework (if any) will back the interactive application, and what does that
   imply for how the core library exposes mutable state for editing?
 
-## 8. Open Questions to Be Resolved in Early Feature Specs (tooling)
+## 8. Tooling Questions, Resolved
 
-- **MSRV:** what minimum supported Rust version will the project target, and how will it be enforced
-  (CI check, `rust-version` in `Cargo.toml`)?
-- **Toolchain:** which Rust toolchain channel (stable/beta/nightly) and edition will be used, and
-  will any nightly-only features be relied upon?
-- **`rust-toolchain.toml`:** will the repository pin an exact toolchain via `rust-toolchain.toml`,
-  and if so, how will it be kept in sync with MSRV?
-- **Workspace structure:** will `monospace-core`, `monospace-cli`, and `monospace` (and later the
-  WASM crate) live in a single Cargo workspace, and how will crates/directories be laid out (e.g.
-  `crates/monospace-core`, `crates/monospace-cli`, `crates/monospace-tui`)?
+These were open when the brief was written. Each is now settled by a record under `docs/decisions/`,
+which carries the options weighed and the cost accepted. Only the outcome is repeated here.
+
+- **MSRV:** none is declared. A minimum supported version is a promise to consumers, and there are
+  none yet. [ADR-0002](decisions/0002-no-minimum-supported-rust-version.md) names what reverses
+  this: publishing to crates.io, or anything outside the repository depending on these crates.
+- **Toolchain:** stable, edition 2024, no nightly-only features. The nightly-only `rustfmt` import
+  options were weighed and rejected, because they would need a second toolchain in every clean
+  environment. [ADR-0003](decisions/0003-pin-the-toolchain-exactly.md).
+- **`rust-toolchain.toml`:** yes, pinned to an exact version rather than a channel, together with
+  its components and the `wasm32-unknown-unknown` target. Keeping it in step with an MSRV is moot
+  while there is none. [ADR-0003](decisions/0003-pin-the-toolchain-exactly.md).
+- **Workspace structure:** a virtual workspace with members under `crates/`, and `xtask/` outside it
+  for repository tooling. `monospace-cli` ships a binary of its own name; `monospace` is reserved
+  for the phase-3 TUI. [ADR-0001](decisions/0001-virtual-cargo-workspace-under-crates.md).
+
+Questions that only appeared once work started — a second toolchain for the checks Rust cannot
+perform, how the git hooks get installed, how a commit points back at the conversation that produced
+it — are recorded the same way. [The index](decisions/README.md) lists all of them.
 
 ---
 
