@@ -51,6 +51,15 @@ const GATE: &[Step] = &[
         args: &["fmt", "--all", "--check"],
     },
     Step {
+        name: "prettier",
+        // Invoked from node_modules/.bin rather than through npx, which costs about a second per
+        // call for nothing. Formatting and line width for Markdown and JSON are decided here;
+        // .editorconfig supplies indentation and line endings, so the editor and this step read the
+        // same source.
+        program: "node_modules/.bin/prettier",
+        args: &["--check", "."],
+    },
+    Step {
         name: "clippy",
         program: "cargo",
         // The lints themselves live in [workspace.lints]; `-D warnings` is what turns the warnings
