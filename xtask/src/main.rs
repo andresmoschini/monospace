@@ -72,7 +72,12 @@ const GATE: &[Step] = &[
         // Everything tracked, not just Markdown and source. Restricting the glob was measured to
         // save nothing, and a narrower scope would have missed the placeholder left in LICENSE, as
         // well as the shell and YAML files added later.
-        args: &["--no-progress", "--gitignore", "**"],
+        //
+        // --cache takes this step from about 1500 ms to about 850 ms, which is the largest single
+        // saving available in the gate. It was checked for the failure that would matter: editing
+        // project-words.txt or cspell.jsonc invalidates the cache and every file is re-examined, so
+        // it cannot report success from a stale result after the rules change.
+        args: &["--no-progress", "--gitignore", "--cache", "**"],
     },
     Step {
         name: "clippy",
