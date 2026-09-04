@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/monospace-cli", "crates/monospace-core"]
+members = ["crates/monospace-cli", "crates/monospace-core", "xtask"]
 resolver = "3"
 
 [workspace.package]
