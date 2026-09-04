@@ -164,4 +164,5 @@ Architecture decisions are records under `docs/decisions/`, written when the dec
 rather than reconstructed later. [Its README](docs/decisions/README.md) has the procedure, the
 template and the rule that an accepted record is never edited to change its conclusion.
 
-Anything learned along the way that is not a decision goes in `docs/learning-log.md` instead.
+Anything learned along the way that is not a decision goes in
+[the learning log](docs/learning-log.md) instead, one entry per increment.

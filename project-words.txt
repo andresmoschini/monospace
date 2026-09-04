@@ -11,5 +11,6 @@ msvc
 nvmrc
 Nygard
 PATHEXT
+RUSTFLAGS
 valueonly
 xtask

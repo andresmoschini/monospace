@@ -44,4 +44,5 @@ most of what it is worth. Fixing a typo or a broken link is fine.
 
 **Not everything needs an ADR.** The test is whether the decision is expensive to undo, or whether
 someone will later ask "why is this like this?". If neither applies, it belongs in
-`docs/learning-log.md` instead, which is for what was learned rather than what was decided.
+[the learning log](../learning-log.md) instead, which is for what was learned rather than what was
+decided.
