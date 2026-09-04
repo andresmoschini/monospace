@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/monospace-cli"]
+members = ["crates/monospace-cli", "crates/monospace-core"]
 resolver = "3"
 
 [workspace.package]
@@ -7,3 +7,6 @@ version = "0.1.0"
 edition = "2024"
 authors = ["Andrés Moschini <andresmoschini@gmail.com>"]
 license = "MIT"
+
+[workspace.dependencies]
+monospace-core = { path = "crates/monospace-core" }
