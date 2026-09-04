@@ -8,9 +8,9 @@
 //! exit codes is what the standard library is for, and a tool whose job is to guard the project's
 //! dependency policy should not be the first thing to bend it.
 
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
-use std::time::SystemTime;
 
 /// The npm executable.
 ///
@@ -263,19 +263,39 @@ fn run_setup() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    // Record which lockfile this tree was installed from. `cargo xtask check` compares against this
+    // copy rather than against timestamps, so the answer survives a checkout or a rebase.
+    if let Err(error) = fs::copy(root.join("package-lock.json"), installed_lockfile(&root)) {
+        eprintln!(
+            "\nxtask: the tooling installed, but recording the lockfile failed: {error}\n\
+             The gate will keep asking for setup until this succeeds."
+        );
+        return ExitCode::FAILURE;
+    }
+
     println!("\nNode tooling installed");
     ExitCode::SUCCESS
 }
 
-/// Checks that the Node tooling is installed and not older than `package-lock.json`.
+/// Where `setup` records the lockfile it installed from.
 ///
-/// npm records the tree it installed in `node_modules/.package-lock.json`, so comparing that file's
-/// timestamp against the lockfile is enough to notice a stale install. It costs two `stat` calls,
-/// which is why the gate can afford it on every run: a no-op `npm install` was measured at roughly
-/// two seconds, more than every Rust step put together.
+/// It lives inside `node_modules` so that it shares that directory's lifetime: `npm ci` deletes the
+/// tree before reinstalling, and this record goes with it.
+fn installed_lockfile(root: &Path) -> PathBuf {
+    root.join("node_modules")
+        .join(".monospace-installed-lockfile.json")
+}
+
+/// Checks that the Node tooling is installed and matches `package-lock.json`.
+///
+/// The comparison is by content, not by timestamp. Git rewrites `package-lock.json` on checkout even
+/// when its content is identical, so comparing modification times reported a stale tree after every
+/// branch switch and every step of a rebase — a false alarm that costs a reinstall to clear and
+/// teaches people to ignore the message. Content answers the question actually being asked, and
+/// reading two files of about 128 KB costs nothing measurable next to the checks that follow.
 fn node_tooling_state(root: &Path) -> Result<(), String> {
     let lockfile = root.join("package-lock.json");
-    let installed = root.join("node_modules").join(".package-lock.json");
+    let installed = installed_lockfile(root);
 
     if !installed.exists() {
         return Err(format!(
@@ -284,22 +304,19 @@ fn node_tooling_state(root: &Path) -> Result<(), String> {
         ));
     }
 
-    if modified_time(&lockfile)? > modified_time(&installed)? {
+    if read_file(&lockfile)? != read_file(&installed)? {
         return Err(format!(
-            "xtask: the installed Node tooling is out of date.\n\n    {} is newer than {}.",
-            lockfile.display(),
-            installed.display()
+            "xtask: the installed Node tooling does not match the lockfile.\n\n    {} has changed since it was installed.",
+            lockfile.display()
         ));
     }
 
     Ok(())
 }
 
-/// Last modification time of `path`, or a message naming the file that could not be read.
-fn modified_time(path: &Path) -> Result<SystemTime, String> {
-    path.metadata()
-        .and_then(|metadata| metadata.modified())
-        .map_err(|error| format!("xtask: could not read {}: {error}", path.display()))
+/// Contents of `path`, or a message naming the file that could not be read.
+fn read_file(path: &Path) -> Result<Vec<u8>, String> {
+    fs::read(path).map_err(|error| format!("xtask: could not read {}: {error}", path.display()))
 }
 
 /// The repository root, derived from this crate's own location rather than from the current

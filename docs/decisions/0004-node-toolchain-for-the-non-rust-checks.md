@@ -50,10 +50,10 @@ Three details are fixed along with it, each of them measured rather than assumed
    unstable and it adds a step. The one thing npm is worst at — speed — is removed from the hot path
    by point 2.
 2. **The gate never installs; it verifies.** A no-op `npm install` was measured at 1.8–2.7 s, which
-   is more than every Rust check put together (1.3–1.5 s). Instead the gate compares the timestamp
-   of `package-lock.json` against `node_modules/.package-lock.json`, the record npm writes when it
-   installs. That is two `stat` calls and costs nothing measurable. When it finds the tree missing
-   or stale it refuses to run anything and says `cargo xtask setup`, which runs `npm ci`.
+   is more than every Rust check put together (1.3–1.5 s). Instead `cargo xtask setup` leaves a copy
+   of the lockfile it installed from inside `node_modules`, and the gate compares the two by
+   content. Reading 128 KB twice costs nothing measurable. When the copy is missing, or differs, the
+   gate refuses to run anything and says `cargo xtask setup`, which runs `npm ci`.
 3. **Tools are invoked as `node_modules/.bin/<tool>`, never through `npx`.** npx adds roughly a
    second per invocation — `prettier --version` takes 1.3 s through npx and 0.27 s directly. Across
    four tools that would be about four seconds of pure overhead, tripling the gate while checking
@@ -79,8 +79,8 @@ Three details are fixed along with it, each of them measured rather than assumed
 ### Confirmation
 
 Enforced by the entry point itself: `cargo xtask check` will not run a single step while the Node
-tree is missing or older than the lockfile, and says what to run instead. There is no way to get a
-green gate without the tools actually being installed at the pinned versions.
+tree is missing or does not match the lockfile, and says what to run instead. There is no way to get
+a green gate without the tools actually being installed at the pinned versions.
 
 ## Pros and Cons of the Options
 
