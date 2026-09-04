@@ -61,7 +61,15 @@ const GATE: &[Step] = &[
     Step {
         name: "test",
         program: "cargo",
+        // This also runs the doctests, so there is no separate step for them.
         args: &["test", "--workspace"],
+    },
+    Step {
+        name: "doc",
+        program: "cargo",
+        // The rustdoc lints are set to "deny" in [workspace.lints.rustdoc], so a broken intra-doc
+        // link fails here on its own; unlike clippy, this step needs no -D flag.
+        args: &["doc", "--workspace", "--no-deps"],
     },
 ];
 
