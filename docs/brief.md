@@ -31,7 +31,7 @@ These principles constrain every future spec and commit:
 
 1. **Demonstrable over complete.** Every commit that lands leaves the project building, with all
    validations green and `cargo run` producing output. From the first commit this may be trivial (a
-   version banner); from the first domain increment onwards it should show real behaviour, however
+   version banner); from the first domain increment onwards it should show real behavior, however
    small.
 2. **Process over product.** When there's tension between "the fastest way to a feature" and "the
    way that teaches good Rust design or good spec-driven practice," prefer the latter.

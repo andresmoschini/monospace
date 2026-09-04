@@ -38,9 +38,9 @@ deliberately out of scope.
 - Do not write code before the plan is agreed.
 - One task per commit.
 - Follow Kent Beck's rule: "for each desired change, make the change easy (warning: this may be
-  hard), then make the easy change." Split the preparatory refactor from the behavioural change, and
+  hard), then make the easy change." Split the preparatory refactor from the behavioral change, and
   never mix them in the same commit. Prefix messages so the distinction is visible in the log.
-- A structural commit must not change behaviour: the existing tests pass unchanged, and no test is
+- A structural commit must not change behavior: the existing tests pass unchanged, and no test is
   added or modified.
 - If the preparatory refactor turns out to be hard, stop and tell me before starting it. That is a
   design signal worth discussing, not something to push through.

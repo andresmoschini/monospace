@@ -37,7 +37,7 @@ or worse silently skips, anywhere else.
 ## Decision Outcome
 
 Chosen option: **A, an exact version**, because it is the only one under which the quality gate
-cannot change behaviour without a commit that says so.
+cannot change behavior without a commit that says so.
 
 The file fixes four things:
 
@@ -54,7 +54,7 @@ The file fixes four things:
    `imports_granularity` — are nightly-only, and using them would require a second toolchain in
    every clean environment and in CI. Nightly also cannot be pinned in an equivalent way: pinning a
    dated nightly produces a reference that rots, and the unstable options it enables can change
-   behaviour between dates. Spending the reproducibility this ADR buys in order to sort imports is a
+   behavior between dates. Spending the reproducibility this ADR buys in order to sort imports is a
    bad trade, so `rustfmt.toml` stays on defaults.
 
 ### Consequences
@@ -72,7 +72,7 @@ The file fixes four things:
 - Neutral, because rustup's auto-installation on a bare `rustup` subcommand is deprecated and warns
   that it may be removed. Cargo's proxies still install the pinned toolchain on demand, but the
   documented setup command should be `rustup toolchain install`, which reads this file and does not
-  rely on deprecated behaviour.
+  rely on deprecated behavior.
 
 ### Confirmation
 
