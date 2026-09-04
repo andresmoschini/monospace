@@ -60,6 +60,13 @@ const GATE: &[Step] = &[
         args: &["--check", "."],
     },
     Step {
+        name: "markdownlint",
+        // Globs and ignores live in .markdownlint-cli2.jsonc, so this takes no arguments and the
+        // configuration has one home. It checks structure only; prettier owns formatting.
+        program: "node_modules/.bin/markdownlint-cli2",
+        args: &[],
+    },
+    Step {
         name: "clippy",
         program: "cargo",
         // The lints themselves live in [workspace.lints]; `-D warnings` is what turns the warnings
