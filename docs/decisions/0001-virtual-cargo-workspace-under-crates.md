@@ -56,9 +56,10 @@ The decision fixes four things:
    for the interactive TUI application of phase 3. This resolves a collision between the brief, which
    named the phase-3 TUI `monospace`, and `CLAUDE.md`, which had `monospace-cli` shipping a binary
    called `monospace`; two crates in one workspace cannot both produce that binary.
-3. **No `default-members`.** Commands are explicit: `cargo run -p monospace-cli`,
-   `cargo test --workspace`. Setting `default-members` would make a bare `cargo test` cover a subset
-   while CI covers everything, which is the standard way a quality gate starts lying.
+3. **No `default-members`.** In a virtual manifest with no `default-members`, a bare `cargo build`,
+   `cargo test` or `cargo doc` already operates on every member, so local commands and the commands
+   CI runs cover the same set. Setting `default-members` would narrow the bare commands to a subset
+   while CI kept covering everything, which is the standard way a quality gate starts lying.
 4. **Shared metadata and lints** are centralized in `[workspace.package]` and `[workspace.lints]`,
    with members inheriting via `field.workspace = true`.
 
@@ -74,8 +75,11 @@ relaxed to `cargo run -p monospace-cli`, and the brief is amended accordingly.
   exactly one file.
 - Good, because it frees the crate name `monospace` for the TUI. Since publishing to crates.io is
   intended eventually, names are worth allocating deliberately.
-- Bad, because every cargo invocation now needs `-p` or `--workspace`. This is friction on every
-  command for the life of the project, and it is the main thing option A would have avoided.
+- Bad, because `cargo run` needs `-p`. Measured during the migration, this is narrower than it first
+  appeared: bare `cargo build`, `cargo test` and `cargo doc` cover every member already, and while
+  the workspace holds a single binary even a bare `cargo run` resolves it. It breaks as soon as a
+  second binary exists — which is when `xtask` lands — because Cargo can no longer determine which
+  binary to run. Option A would have avoided this for the life of the project.
 - Bad, because a virtual manifest has no edition to infer the dependency resolver from, so
   `resolver = "3"` has to be declared explicitly or Cargo falls back to the version 1 resolver. Cargo
   does warn when it is missing, so the mistake is visible rather than silent — but that warning comes
