@@ -13,6 +13,8 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | ---------------------------------------------------- | ---------------------------------------------------------------- | -------- |
 | [0000](0000-use-madr-for-architecture-decisions.md)  | Use MADR for architecture decision records                       | accepted |
 | [0001](0001-virtual-cargo-workspace-under-crates.md) | Lay out the project as a virtual Cargo workspace under `crates/` | accepted |
+| [0002](0002-no-minimum-supported-rust-version.md)    | Declare no minimum supported Rust version, for now               | accepted |
+| [0003](0003-pin-the-toolchain-exactly.md)            | Pin the Rust toolchain to an exact version                       | accepted |
 
 ## How to add one
 
