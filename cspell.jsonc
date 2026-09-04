@@ -1,11 +1,15 @@
 {
   "version": "0.2",
 
-  // Both dialects are accepted. The British spellings in the repository come from CLAUDE.md and
-  // docs/brief.md, so rejecting them would mean rewriting the project's own instructions to satisfy
-  // a spell checker. Enforcing one dialect is a style decision that cspell handles badly: it can
-  // only reject words, not tell which side of the Atlantic a document meant to be on.
-  "language": "en,en-GB",
+  // American English only. Accepting both dialects would let the two mix indefinitely, since a
+  // spell checker can reject a word but cannot tell which side of the Atlantic a document meant to
+  // be on. Dropping en-GB makes that a gate failure instead of a silent inconsistency, and was
+  // measured at roughly 180 ms faster.
+  //
+  // A British spelling will therefore be reported as unknown. It is a spelling to change, not a
+  // word to add to project-words.txt: adding them one at a time would rebuild the dictionary that
+  // was just removed, and badly.
+  "language": "en",
 
   // Kept to the minimum that makes the repository clean, verified by removing each one and
   // re-running. The "npm" dictionary was dropped even though it was needed: it covered exactly one
