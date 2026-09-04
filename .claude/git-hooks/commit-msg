@@ -7,7 +7,9 @@
 # it does. Keeping them apart is a rule in CLAUDE.md; the prefix is what makes
 # it visible in the log.
 #
-# Installed by: git config core.hooksPath .githooks
+# Installed by the SessionStart hook in .claude/settings.json. It therefore does not
+# run outside a Claude Code session; CI is what enforces the convention for everyone.
+# See docs/decisions/0005-install-the-git-hooks-from-claude-code.md.
 
 if [ ! -d node_modules ]; then
     echo "commit-msg: the Node tooling is not installed, so the message cannot be checked." >&2

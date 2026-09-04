@@ -16,17 +16,18 @@ that is a defect in the document.
 ## Setup
 
 ```sh
-rustup toolchain install              # reads rust-toolchain.toml
-cargo xtask setup                     # runs npm ci
-git config core.hooksPath .githooks   # activates the hooks
+rustup toolchain install # reads rust-toolchain.toml
+cargo xtask setup        # runs npm ci
 ```
 
-The first command downloads a toolchain even if you already have the same version under a different
-name, because rustup treats `stable` and `1.98.1` as different installations. The second takes about
-half a minute the first time.
+The first downloads a toolchain even if you already have the same version under a different name,
+because rustup treats `stable` and `1.98.1` as different installations. The second takes about half
+a minute the first time.
 
-The third is per clone. Hooks are not part of a checkout, so this is the one piece of setup Git
-cannot do for you. Undo it with `git config --unset core.hooksPath`.
+There is no third step for the hooks: opening a Claude Code session installs them, through a
+`SessionStart` entry in `.claude/settings.json`. Working another way, run
+`git config core.hooksPath .claude/git-hooks` yourself — and read the next section first, because
+without it nothing checks your commits until CI does.
 
 ## Everyday commands
 
@@ -91,7 +92,15 @@ owner.
 
 ## The hooks
 
-`pre-commit` runs the gate. `commit-msg` checks the message with commitlint.
+`pre-commit` runs the gate. `commit-msg` checks the message with commitlint. Both live in
+`.claude/git-hooks/`.
+
+**They only run if they were installed, and only a Claude Code session installs them.** A commit
+made from a plain terminal in a clone where no session has opened runs no hooks at all, and nothing
+says so — the commit simply succeeds. That is deliberate, not an oversight:
+[ADR-0005](docs/decisions/0005-install-the-git-hooks-from-claude-code.md) records the trade and the
+cost. CI runs the same gate on every push and pull request, so the boundary that actually holds is
+there; the hooks are fast feedback in front of it. Check yours with `git config core.hooksPath`.
 
 **The pre-commit hook checks your working tree, not what you staged.** With unstaged changes
 present, or after `git add -p`, it verifies files that are not the ones being committed, so a commit

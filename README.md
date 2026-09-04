@@ -49,12 +49,11 @@ stage 4 stays reachable instead of becoming a rewrite.
 ## Getting started
 
 ```sh
-rustup toolchain install            # reads rust-toolchain.toml
-cargo xtask setup                   # installs the Node tooling the gate needs
-git config core.hooksPath .githooks # activates the hooks
+rustup toolchain install   # reads rust-toolchain.toml
+cargo xtask setup          # installs the Node tooling the gate needs
 
-cargo run -p monospace-cli          # the one thing it can do so far
-cargo xtask check                   # the whole quality gate
+cargo run -p monospace-cli # the one thing it can do so far
+cargo xtask check          # the whole quality gate
 ```
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers all of it properly, including what each check owns and

@@ -12,7 +12,12 @@
 # broken. Stashing to fix that risks losing work when the hook is interrupted,
 # which is a worse failure than the one it prevents. See CONTRIBUTING.md.
 #
-# Installed by: git config core.hooksPath .githooks
+# Installed by the SessionStart hook in .claude/settings.json, which runs
+# `git config core.hooksPath .claude/git-hooks` when a Claude Code session opens.
+#
+# So this does not run for someone working outside Claude Code. That is deliberate:
+# CI is the enforcement boundary, and this hook is fast feedback rather than the
+# guarantee. See docs/decisions/0005-install-the-git-hooks-from-claude-code.md.
 
 if ! command -v cargo >/dev/null 2>&1; then
     echo "pre-commit: cargo was not found on PATH." >&2
