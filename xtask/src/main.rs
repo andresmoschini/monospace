@@ -39,6 +39,21 @@ const GATE: &[Step] = &[
         args: &["fmt", "--all", "--check"],
     },
     Step {
+        name: "clippy",
+        program: "cargo",
+        // The lints themselves live in [workspace.lints]; `-D warnings` is what turns the warnings
+        // they produce into a failure here without making the editor shout while code is half
+        // written.
+        args: &[
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings",
+        ],
+    },
+    Step {
         name: "build",
         program: "cargo",
         args: &["build", "--workspace", "--all-targets"],

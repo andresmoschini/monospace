@@ -8,3 +8,6 @@ license.workspace = true
 
 [dependencies]
 monospace-core.workspace = true
+
+[lints]
+workspace = true

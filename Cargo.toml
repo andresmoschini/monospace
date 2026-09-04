@@ -10,3 +10,12 @@ license = "MIT"
 
 [workspace.dependencies]
 monospace-core = { path = "crates/monospace-core" }
+
+# Lints are declared here rather than passed on the command line so that rust-analyzer shows them
+# while editing, and so that a crate added later inherits them instead of quietly opting out.
+# They sit at "warn" locally; `cargo xtask check` runs clippy with `-D warnings`, so anything that
+# warns fails the gate. To permit one, add it below with a comment saying why.
+[workspace.lints.clippy]
+# priority = -1 lets an individual lint added below override the group; Cargo rejects the
+# combination without it.
+pedantic = { level = "warn", priority = -1 }

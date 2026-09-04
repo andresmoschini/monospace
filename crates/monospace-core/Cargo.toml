@@ -7,3 +7,6 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+
+[lints]
+workspace = true
