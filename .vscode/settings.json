@@ -1,4 +1,15 @@
 {
+  "editor.formatOnSave": true,
+
+  "[rust]": { "editor.defaultFormatter": "rust-lang.rust-analyzer" },
+  "[markdown]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[jsonc]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[yaml]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+
+  "prettier.prettierPath": "./node_modules/prettier",
+  "rust-analyzer.check.command": "clippy",
+
   "workbench.colorCustomizations": {
     "activityBar.activeBackground": "#d3dd8a",
     "activityBar.background": "#d3dd8a",
