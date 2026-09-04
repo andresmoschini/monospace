@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# Runs the whole quality gate before a commit is created.
+#
+# It calls the same entry point CI calls, so what passes here passes there. If
+# this hook and CI ever disagree, one of them is invoking something other than
+# `cargo xtask check`, and that is the bug.
+#
+# KNOWN LIMITATION: this checks the working tree, not the staged snapshot. With
+# unstaged changes present, or after `git add -p`, it verifies files that are
+# not exactly the ones being committed, so a commit can pass here and still be
+# broken. Stashing to fix that risks losing work when the hook is interrupted,
+# which is a worse failure than the one it prevents. See CONTRIBUTING.md.
+#
+# Installed by: git config core.hooksPath .githooks
+
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "pre-commit: cargo was not found on PATH." >&2
+    echo "  A graphical git client may not share the PATH your shell has." >&2
+    exit 1
+fi
+
+exec cargo xtask check

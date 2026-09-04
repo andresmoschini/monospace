@@ -1,0 +1,18 @@
+#!/bin/sh
+#
+# Checks the commit message against Conventional Commits.
+#
+# The type carries the distinction the project cares about: `refactor` means the
+# change is structural and must not alter behavior, while `feat` and `fix` mean
+# it does. Keeping them apart is a rule in CLAUDE.md; the prefix is what makes
+# it visible in the log.
+#
+# Installed by: git config core.hooksPath .githooks
+
+if [ ! -d node_modules ]; then
+    echo "commit-msg: the Node tooling is not installed, so the message cannot be checked." >&2
+    echo "  Run: cargo xtask setup" >&2
+    exit 1
+fi
+
+exec ./node_modules/.bin/commitlint --edit "$1"
