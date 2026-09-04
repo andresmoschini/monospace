@@ -1,0 +1,10 @@
+{
+  "_comment": [
+    "IndentSize is disabled because it is incompatible with the output of this project's own formatters.",
+    "Both rustfmt and prettier use alignment as well as indentation, and an aligned continuation line is not a multiple of the indent size by definition.",
+    "rustfmt indents a wrapped string literal to sit under the opening quote; prettier indents a numbered list continuation by three spaces to sit under '1. '.",
+    "Measured: with this check on, the repository reports 23 errors and every one of them is formatter output, not a mistake.",
+    "What remains is still worth running: end-of-line, final newline and trailing whitespace on LICENSE, TOML files and dotfiles, which no formatter in the gate can even parse."
+  ],
+  "Disable": { "IndentSize": true }
+}

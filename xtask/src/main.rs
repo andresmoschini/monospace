@@ -67,6 +67,17 @@ const GATE: &[Step] = &[
         args: &[],
     },
     Step {
+        name: "editorconfig",
+        // With no file arguments it checks everything git tracks, so it needs no globs and no
+        // ignore list of its own. It is the only step that looks at LICENSE, the TOML files and the
+        // dotfiles: prettier cannot even infer a parser for those, and rustfmt does not see them.
+        //
+        // Its indent-size check is turned off in .editorconfig-checker.json, for the reason
+        // recorded there.
+        program: "node_modules/.bin/editorconfig-checker",
+        args: &[],
+    },
+    Step {
         name: "cspell",
         program: "node_modules/.bin/cspell",
         // Everything tracked, not just Markdown and source. Restricting the glob was measured to

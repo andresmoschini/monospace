@@ -11,7 +11,7 @@
     "@commitlint/cli": "21.2.2",
     "@commitlint/config-conventional": "21.2.2",
     "cspell": "10.1.1",
-    "editorconfig-checker": "7.0.0",
+    "editorconfig-checker": "6.2.0",
     "markdownlint-cli2": "0.23.2",
     "prettier": "3.9.6"
   }
