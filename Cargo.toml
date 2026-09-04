@@ -1,11 +1,9 @@
-[package]
-name = "monospace"
+[workspace]
+members = ["crates/monospace-cli"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 authors = ["Andrés Moschini <andresmoschini@gmail.com>"]
-
 license = "MIT"
-
-readme = "README.md"
-
-[dependencies]
