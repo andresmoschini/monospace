@@ -9,9 +9,10 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 
 ## Index
 
-| ADR                                                 | Title                                      | Status   |
-| --------------------------------------------------- | ------------------------------------------ | -------- |
-| [0000](0000-use-madr-for-architecture-decisions.md) | Use MADR for architecture decision records | accepted |
+| ADR                                                  | Title                                                            | Status   |
+| ---------------------------------------------------- | ---------------------------------------------------------------- | -------- |
+| [0000](0000-use-madr-for-architecture-decisions.md)  | Use MADR for architecture decision records                       | accepted |
+| [0001](0001-virtual-cargo-workspace-under-crates.md) | Lay out the project as a virtual Cargo workspace under `crates/` | accepted |
 
 ## How to add one
 
