@@ -8,10 +8,10 @@ decision-makers: Andrés Moschini
 
 ## Context and Problem Statement
 
-The repository is currently a single binary package named `monospace`, containing only `src/main.rs`.
-The brief commits to four artifacts across five phases: `monospace-core`, `monospace-cli`, an
-interactive TUI application, and a WebAssembly library compiled from the core. Only the first two are
-in scope now.
+The repository is currently a single binary package named `monospace`, containing only
+`src/main.rs`. The brief commits to four artifacts across five phases: `monospace-core`,
+`monospace-cli`, an interactive TUI application, and a WebAssembly library compiled from the core.
+Only the first two are in scope now.
 
 The brief also states a constraint that outlives this phase: because phases 4 and 5 will reuse
 `monospace-core`, the core must avoid letting CLI-specific, TUI-specific or terminal-specific
@@ -42,20 +42,21 @@ imports rewritten.
 
 ## Decision Outcome
 
-Chosen option: **B, a virtual workspace with members under `crates/`**, because it is the only option
-that makes the core's dependency isolation structural rather than a matter of discipline, and because
-`[workspace.lints]` is the right home for the quality gate this phase exists to build.
+Chosen option: **B, a virtual workspace with members under `crates/`**, because it is the only
+option that makes the core's dependency isolation structural rather than a matter of discipline, and
+because `[workspace.lints]` is the right home for the quality gate this phase exists to build.
 
 The decision fixes four things:
 
 1. **Layout.** The root `Cargo.toml` is a virtual manifest: `[workspace]` with no `[package]`.
    Publishable crates live in `crates/monospace-core` and `crates/monospace-cli`. Repository tooling
-   lives at `xtask/`, outside `crates/`, and is marked `publish = false` — `crates/` means "artifacts
-   that ship", and mixing tooling into it blurs that.
-2. **Names.** `monospace-cli` ships a binary called `monospace-cli`. The name `monospace` is reserved
-   for the interactive TUI application of phase 3. This resolves a collision between the brief, which
-   named the phase-3 TUI `monospace`, and `CLAUDE.md`, which had `monospace-cli` shipping a binary
-   called `monospace`; two crates in one workspace cannot both produce that binary.
+   lives at `xtask/`, outside `crates/`, and is marked `publish = false` — `crates/` means
+   "artifacts that ship", and mixing tooling into it blurs that.
+2. **Names.** `monospace-cli` ships a binary called `monospace-cli`. The name `monospace` is
+   reserved for the interactive TUI application of phase 3. This resolves a collision between the
+   brief, which named the phase-3 TUI `monospace`, and `CLAUDE.md`, which had `monospace-cli`
+   shipping a binary called `monospace`; two crates in one workspace cannot both produce that
+   binary.
 3. **No `default-members`.** In a virtual manifest with no `default-members`, a bare `cargo build`,
    `cargo test` or `cargo doc` already operates on every member, so local commands and the commands
    CI runs cover the same set. Setting `default-members` would narrow the bare commands to a subset
@@ -68,9 +69,9 @@ relaxed to `cargo run -p monospace-cli`, and the brief is amended accordingly.
 
 ### Consequences
 
-- Good, because the core's dependency list is enforced by Cargo rather than by review. A CLI argument
-  parser cannot reach the core's dependency graph by accident, which keeps the WebAssembly phase
-  reachable without feature gymnastics.
+- Good, because the core's dependency list is enforced by Cargo rather than by review. A CLI
+  argument parser cannot reach the core's dependency graph by accident, which keeps the WebAssembly
+  phase reachable without feature gymnastics.
 - Good, because lint configuration, shared metadata and, later, shared dependency versions live in
   exactly one file.
 - Good, because it frees the crate name `monospace` for the TUI. Since publishing to crates.io is
@@ -81,10 +82,10 @@ relaxed to `cargo run -p monospace-cli`, and the brief is amended accordingly.
   second binary exists — which is when `xtask` lands — because Cargo can no longer determine which
   binary to run. Option A would have avoided this for the life of the project.
 - Bad, because a virtual manifest has no edition to infer the dependency resolver from, so
-  `resolver = "3"` has to be declared explicitly or Cargo falls back to the version 1 resolver. Cargo
-  does warn when it is missing, so the mistake is visible rather than silent — but that warning comes
-  from Cargo rather than from `rustc`, so denying warnings in the quality gate will not turn it into a
-  failure.
+  `resolver = "3"` has to be declared explicitly or Cargo falls back to the version 1 resolver.
+  Cargo does warn when it is missing, so the mistake is visible rather than silent — but that
+  warning comes from Cargo rather than from `rustc`, so denying warnings in the quality gate will
+  not turn it into a failure.
 - Neutral, because `xtask` becomes a workspace member and is therefore formatted, linted and tested
   like production code. That is the intent, but it does mean tooling code is held to the same bar.
 
@@ -112,8 +113,8 @@ the compiler, not merely a convention.
   library's dependency graph. Reaching WebAssembly later would mean `default-features = false` and
   `#[cfg(feature = ...)]`, trading structural complexity for feature complexity — the worse of the
   two, because features are invisible in the file tree and combinatorial in testing.
-- Bad, because `[workspace.lints]` is unavailable, so the lint configuration has to move the moment a
-  second crate appears.
+- Bad, because `[workspace.lints]` is unavailable, so the lint configuration has to move the moment
+  a second crate appears.
 - Bad, because the crate name `monospace` stays bound to the CLI, which conflicts with the brief's
   plan for phase 3.
 
@@ -133,8 +134,8 @@ the compiler, not merely a convention.
 Identical to B in Cargo semantics; the difference is purely how the tree reads.
 
 - Good, because paths are shorter and there is no intermediate directory that holds nothing itself.
-- Bad, because with five crates plus `docs/`, `xtask/`, `.github/` and `.githooks/`, the root becomes
-  a flat list in which code and non-code are indistinguishable.
+- Bad, because with five crates plus `docs/`, `xtask/`, `.github/` and `.githooks/`, the root
+  becomes a flat list in which code and non-code are indistinguishable.
 
 ## Reversibility
 
@@ -143,8 +144,8 @@ there is no domain code. That cost grows with every file added, and grows discon
 anything is published.
 
 **Expensive later, but not permanent:** the dependency split. If the core accumulates CLI
-dependencies and stops compiling for WebAssembly, undoing that is a real refactor rather than a move.
-This is the risk the Confirmation check above exists to prevent.
+dependencies and stops compiling for WebAssembly, undoing that is a real refactor rather than a
+move. This is the risk the Confirmation check above exists to prevent.
 
 **Effectively permanent:** the crate names, from the moment anything is published to crates.io. The
 name reservation in point 2 above is made now specifically because it cannot be made later.
@@ -158,9 +159,9 @@ the brief's principle 1. That objection was resolved by relaxing the brief rathe
 the layout with `default-members`, which removes the reason the confidence was not higher.
 
 What remains unknown, and what it would change: whether the phase-3 TUI is a separate crate or the
-CLI grows into it. If the CLI grows into the TUI, the crate count drops from four to three and option
-A becomes more defensible — though not enough to reverse this, because the WebAssembly phase alone
-justifies keeping the core's dependency graph clean.
+CLI grows into it. If the CLI grows into the TUI, the crate count drops from four to three and
+option A becomes more defensible — though not enough to reverse this, because the WebAssembly phase
+alone justifies keeping the core's dependency graph clean.
 
 What would prove this wrong: the `-p` friction turning into a habit of running the wrong command, or
 `crates/` still holding exactly two members a year from now. Either would mean the structure was

@@ -8,8 +8,8 @@ decision-makers: Andrés Moschini
 
 ## Context and Problem Statement
 
-The project brief states that architectural and design choices should be documented as they are made,
-not reconstructed after the fact, and `CLAUDE.md` requires architecture decisions to live in
+The project brief states that architectural and design choices should be documented as they are
+made, not reconstructed after the fact, and `CLAUDE.md` requires architecture decisions to live in
 `docs/decisions/` as ADRs. Neither document says what an ADR should contain or look like.
 
 Without a fixed shape, each record captures whatever felt relevant on the day it was written. The
@@ -36,13 +36,13 @@ takes effort to write and feels redundant at the time.
 ## Decision Outcome
 
 Chosen option: **MADR 4.0, lightly tailored**, because it is the most widely adopted modern ADR
-template, it gives rejected options a first-class section instead of leaving them to prose, and it is
-still small enough to fill in without ceremony.
+template, it gives rejected options a first-class section instead of leaving them to prose, and it
+is still small enough to fill in without ceremony.
 
 Two tailoring changes:
 
-- The `consulted` and `informed` front-matter fields are dropped. This is a single-author project, and
-  fields that are always empty train the reader to skip the front matter.
+- The `consulted` and `informed` front-matter fields are dropped. This is a single-author project,
+  and fields that are always empty train the reader to skip the front matter.
 - Two sections are added: **Reversibility** (what undoing the decision costs, and what makes that
   cost grow) and **Confidence** (how sure the choice is, and what information would change it).
 
@@ -62,19 +62,19 @@ Two tailoring changes:
 
 ### Confirmation
 
-New records are created by copying `adr-template.md`. There is no automated check that an ADR follows
-the template: the quality gate validates Markdown formatting and spelling, not document structure.
-Conformance is a review concern, and deliberately so — a lint that enforced section headings would
-push toward filling sections with filler text to satisfy the shape.
+New records are created by copying `adr-template.md`. There is no automated check that an ADR
+follows the template: the quality gate validates Markdown formatting and spelling, not document
+structure. Conformance is a review concern, and deliberately so — a lint that enforced section
+headings would push toward filling sections with filler text to satisfy the shape.
 
 ## Pros and Cons of the Options
 
 ### MADR 4.0, lightly tailored
 
-- Good, because "Considered Options" and "Pros and Cons of the Options" are required sections, so the
-  alternatives cannot be quietly dropped.
-- Good, because status and date sit in machine-readable front matter, which makes a superseded record
-  obvious at a glance and leaves room for tooling later.
+- Good, because "Considered Options" and "Pros and Cons of the Options" are required sections, so
+  the alternatives cannot be quietly dropped.
+- Good, because status and date sit in machine-readable front matter, which makes a superseded
+  record obvious at a glance and leaves room for tooling later.
 - Good, because it is actively maintained and in wide use, so its conventions are already documented
   elsewhere and do not have to be explained here.
 - Bad, because a fully filled-in record is longer than many decisions warrant.
@@ -88,8 +88,8 @@ The 2011 format that started the practice: Title, Status, Context, Decision, Con
 - Good, because it is the format most people recognize by name.
 - Bad, because it has no section for rejected alternatives. In practice they get folded into Context
   as prose or omitted, which loses exactly what the brief asks to preserve.
-- Bad, because status is prose rather than structured, so superseding has no fixed convention and has
-  to be invented per project anyway.
+- Bad, because status is prose rather than structured, so superseding has no fixed convention and
+  has to be invented per project anyway.
 
 ### Free-form Markdown, no template
 
@@ -116,10 +116,10 @@ High (~85%).
 
 The residual doubt is not about MADR versus the alternatives; it is about whether any template
 survives contact with a solo project. What would change this decision: ADRs going unwritten because
-filling in the template feels like a chore. That is a signal to fall back to Nygard's shorter format,
-not to keep a template nobody completes. The opposite signal is worth watching for too — sections
-filled with restated context to satisfy the shape, which means the template is producing volume
-instead of reasoning.
+filling in the template feels like a chore. That is a signal to fall back to Nygard's shorter
+format, not to keep a template nobody completes. The opposite signal is worth watching for too —
+sections filled with restated context to satisfy the shape, which means the template is producing
+volume instead of reasoning.
 
 ## More Information
 
