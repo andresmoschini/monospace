@@ -1,0 +1,78 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+[*.rs]
+indent_style = space
+indent_size = 4
+
+[*.toml]
+indent_style = space
+indent_size = 2
+
+[*.{json,jsonc}]
+indent_style = space
+indent_size = 2
+
+[*.{yaml,yml}]
+indent_style = space
+indent_size = 2
+
+[*.{md,markdown,rst,txt}]
+indent_style = space
+indent_size = 2
+# Markdown preserve line breaks
+max_line_length = off
+
+[*.{sh,bash,zsh,fish}]
+indent_style = space
+indent_size = 2
+
+[{Makefile,makefile,*.make}]
+indent_style = tab
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[{Dockerfile,docker-compose.*,*.dockerfile}]
+indent_style = space
+indent_size = 2
+
+[.github/**]
+indent_style = space
+indent_size = 2
+
+[.{editorconfig,gitignore,gitattributes}]
+indent_style = space
+indent_size = 2
+
+[.env*]
+indent_style = space
+indent_size = 2
+
+[*.sql]
+indent_style = space
+indent_size = 2
+
+[*.{html,htm}]
+indent_style = space
+indent_size = 2
+
+[*.{css,scss,sass,less}]
+indent_style = space
+indent_size = 2
+
+[*.{js,jsx,ts,tsx}]
+indent_style = space
+indent_size = 2
+
+[*.vue]
+indent_style = space
+indent_size = 2
+
+[*.svg]
+indent_style = space
+indent_size = 2

@@ -1,0 +1,126 @@
+* text=auto
+
+*.rs              text eol=lf
+*.rs.in           text eol=lf
+Cargo.toml        text eol=lf
+Cargo.lock        text eol=lf
+build.rs          text eol=lf
+lib.rs            text eol=lf
+main.rs           text eol=lf
+
+*.toml            text eol=lf
+*.yaml            text eol=lf
+*.yml             text eol=lf
+*.json            text eol=lf
+*.jsonc           text eol=lf
+*.conf            text eol=lf
+*.config          text eol=lf
+.gitignore        text eol=lf
+.gitattributes    text eol=lf
+.editorconfig     text eol=lf
+.env              text eol=lf
+.env.example      text eol=lf
+*.env             text eol=lf
+clippy.toml       text eol=lf
+rustfmt.toml      text eol=lf
+
+*.md              text eol=lf
+*.markdown        text eol=lf
+*.txt             text eol=lf
+*.rst             text eol=lf
+LICENSE           text eol=lf
+LICENSE.*         text eol=lf
+README*           text eol=lf
+CHANGELOG*        text eol=lf
+CONTRIBUTING*     text eol=lf
+AUTHORS           text eol=lf
+NOTICE            text eol=lf
+HISTORY           text eol=lf
+
+*.sh              text eol=lf
+*.bash            text eol=lf
+*.zsh             text eol=lf
+*.fish            text eol=lf
+Makefile          text eol=lf
+makefile          text eol=lf
+*.make            text eol=lf
+*.ps1             text eol=lf diff=powershell
+*.bat             text eol=crlf
+*.cmd             text eol=crlf
+*.exe             binary
+
+.github/**/*.yml  text eol=lf
+.github/**/*.yaml text eol=lf
+.gitlab-ci.yml    text eol=lf
+.travis.yml       text eol=lf
+appveyor.yml      text eol=lf
+*.github-*.toml   text eol=lf
+
+*.html            text eol=lf
+*.htm             text eol=lf
+*.css             text eol=lf
+*.scss            text eol=lf
+*.sass            text eol=lf
+*.less            text eol=lf
+*.js              text eol=lf
+*.jsx             text eol=lf
+*.ts              text eol=lf
+*.tsx             text eol=lf
+*.vue             text eol=lf
+
+*.sql             text eol=lf
+*.sqlite          binary
+*.db              binary
+
+Dockerfile        text eol=lf
+Dockerfile.*      text eol=lf
+docker-compose.yml text eol=lf
+docker-compose.yaml text eol=lf
+.dockerignore     text eol=lf
+
+*.png             binary
+*.jpg             binary
+*.jpeg            binary
+*.gif             binary
+*.ico             binary
+*.webp            binary
+*.svg             text eol=lf
+
+*.o               binary
+*.so              binary
+*.a               binary
+*.dll             binary
+*.dylib           binary
+*.rlib            binary
+*.rmeta           binary
+
+*.zip             binary
+*.tar             binary
+*.tar.gz          binary
+*.tgz             binary
+*.7z              binary
+*.rar             binary
+
+*.exe             binary
+*.out             binary
+*.app             binary
+
+*.otf             binary
+*.ttf             binary
+*.woff            binary
+*.woff2           binary
+
+*.mp3             binary
+*.mp4             binary
+*.mov             binary
+*.wav             binary
+*.webm            binary
+
+*.pdf             binary
+
+.cargo/**         text eol=lf
+Cargo.lock        text eol=lf diff=rust
+
+*.rs              diff=rust
+*.toml            diff=toml
+*.json            diff=json
