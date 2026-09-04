@@ -67,6 +67,14 @@ const GATE: &[Step] = &[
         args: &[],
     },
     Step {
+        name: "cspell",
+        program: "node_modules/.bin/cspell",
+        // Everything tracked, not just Markdown and source. Restricting the glob was measured to
+        // save nothing, and a narrower scope would have missed the placeholder left in LICENSE, as
+        // well as the shell and YAML files added later.
+        args: &["--no-progress", "--gitignore", "**"],
+    },
+    Step {
         name: "clippy",
         program: "cargo",
         // The lints themselves live in [workspace.lints]; `-D warnings` is what turns the warnings
