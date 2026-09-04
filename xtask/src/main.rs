@@ -59,6 +59,21 @@ const GATE: &[Step] = &[
         args: &["build", "--workspace", "--all-targets"],
     },
     Step {
+        name: "wasm",
+        program: "cargo",
+        // ADR-0001 asks the core to stay free of terminal and command-line assumptions so it can
+        // back a WebAssembly build later. This is what turns that from a claim in a document into
+        // something the compiler refuses to let through. The target installs itself via
+        // rust-toolchain.toml, so this needs no setup.
+        args: &[
+            "check",
+            "-p",
+            "monospace-core",
+            "--target",
+            "wasm32-unknown-unknown",
+        ],
+    },
+    Step {
         name: "test",
         program: "cargo",
         // This also runs the doctests, so there is no separate step for them.
