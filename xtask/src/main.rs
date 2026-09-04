@@ -57,7 +57,12 @@ const GATE: &[Step] = &[
         // .editorconfig supplies indentation and line endings, so the editor and this step read the
         // same source.
         program: "node_modules/.bin/prettier",
-        args: &["--check", "."],
+        // --ignore-unknown makes prettier skip file types it has no parser for instead of failing
+        // on them. Given a directory it already only picks up what it understands, so this changes
+        // nothing today; it matters the moment anyone passes explicit paths, where prettier
+        // otherwise exits 2 with "No parser could be inferred" for a file like .nvmrc. Those files
+        // are not unchecked: the editorconfig step reads them.
+        args: &["--check", "--ignore-unknown", "."],
     },
     Step {
         name: "markdownlint",
