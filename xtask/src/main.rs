@@ -162,16 +162,38 @@ fn run_gate() -> ExitCode {
 
 /// Runs one step from the workspace root, returning whether it succeeded.
 fn run(root: &Path, step: &Step) -> bool {
-    match Command::new(step.program)
+    let program = program_path(root, step.program);
+
+    match Command::new(&program)
         .args(step.args)
         .current_dir(root)
         .status()
     {
         Ok(status) => status.success(),
         Err(error) => {
-            eprintln!("xtask: could not run `{}`: {error}", step.program);
+            eprintln!("xtask: could not run `{}`: {error}", program.display());
             false
         }
+    }
+}
+
+/// Resolves a step's executable, following the rule a shell already uses: a bare name is looked up
+/// on `PATH`, and anything containing a separator is a path relative to the workspace root.
+///
+/// The relative form is how the npm-installed tools under `node_modules/.bin` are reached. On
+/// Windows npm ships those as a shell script alongside `.cmd` and `.ps1` shims, and `Command::new`
+/// does not apply `PATHEXT` to an explicit path the way it would to a bare name, so the `.cmd` has
+/// to be spelled out.
+fn program_path(root: &Path, program: &str) -> PathBuf {
+    if !program.contains('/') {
+        return PathBuf::from(program);
+    }
+
+    let path = root.join(program);
+    if cfg!(windows) {
+        path.with_extension("cmd")
+    } else {
+        path
     }
 }
 
