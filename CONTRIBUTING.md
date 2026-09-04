@@ -132,6 +132,24 @@ tooling in this repository.
 Write the body for someone who was not there. What the diff does is visible; why it does that is
 not.
 
+### The session trailer
+
+A commit made from a Claude Code session carries a `Claude-Session` trailer holding that session's
+id. Reopen the conversation behind a change with `claude --resume <id>`, and list the ids across the
+history with:
+
+```sh
+git log --format='%h %(trailers:key=Claude-Session,valueonly)'
+```
+
+[ADR-0006](docs/decisions/0006-record-the-claude-session-in-commit-trailers.md) covers why it is a
+trailer rather than a plain line — a non-trailer line at the end of a message silently invalidates
+`Co-Authored-By` along with it.
+
+It is a convenience, not a record. Transcripts live outside the repository and do not survive a new
+machine, so the reasoning that matters still belongs in the commit body or in an ADR. If a commit
+body only makes sense with the transcript open, the body is wrong.
+
 ## Decisions and notes
 
 Architecture decisions are records under `docs/decisions/`, written when the decision is taken

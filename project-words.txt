@@ -11,4 +11,5 @@ msvc
 nvmrc
 Nygard
 PATHEXT
+valueonly
 xtask
