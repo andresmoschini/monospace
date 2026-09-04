@@ -1,0 +1,14 @@
+# Words this project uses that no dictionary knows. One per line, sorted, case as written.
+#
+# Add a word here only after checking it is not simply misspelled, and only if an existing
+# dictionary does not already cover it: every entry is a word the spell checker will stop
+# questioning forever. Prefer adding a dictionary to cspell.jsonc when one exists for the domain,
+# unless it is a large dictionary pulled in for a single word.
+Andrés
+doctests
+Moschini
+msvc
+nvmrc
+Nygard
+PATHEXT
+xtask
