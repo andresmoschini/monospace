@@ -151,3 +151,53 @@ slice of code. Still no domain logic: `monospace-cli` prints the same line it di
   correctly under the rules covering stamps and renders outside the window. The general form is that
   a rule requiring something to fail owes an answer about how, and if that answer is hard to give,
   the requirement is usually the thing to drop.
+
+## 2026-09-07 — Spec 0001 implemented: stamp cells and render them
+
+Eleven commits: `Pos`/`Size`, `Stroke`, `Arm`/`Cell`, `Buffer` with `stamp`, `GlyphKey` and
+`GlyphCatalog::light`, `render`, and the CLI switched from a placeholder greeting to the spec's own
+4×3 box. `cargo run -p monospace-cli` now draws something real.
+
+### Rust design and idiom
+
+- **A field split across two methods forces those methods into one commit.** The plan called for
+  `Buffer::new` and `cell` before `stamp`, on the theory that a fresh buffer answering `None`
+  everywhere was demonstrable on its own. It compiled and passed its test, and `clippy` still
+  failed: `origin` and `size` go unread until `stamp`'s window check exists, so `dead_code` fired on
+  fields nothing else touched yet. This is the same shape as the `enum Runner` case from the
+  previous increment, in a place the plan did not predict — splitting by _type_ (buffer vs. stamp)
+  does not always line up with splitting by _field usage_, and the gate is what catches the mismatch
+  before a reader does.
+- **Checked conversions sidestep a whole family of pedantic lints, and cost one documented edge
+  case.** `contains`'s window check uses `checked_sub` and `u32::try_from(..).ok()`; `render`'s loop
+  bounds use `i32::try_from(..).expect(..)`. Neither needed a single `#[allow]` for
+  `cast_sign_loss`, `cast_possible_wrap` or `cast_possible_truncation` — the usual `as` casts would
+  have needed at least one. The cost is honest rather than hidden: `render` now carries a `# Panics`
+  section for a width or height past `i32::MAX`, which `clippy::missing_panics_doc` demanded the
+  moment the `expect` existed, and no diagram this crate can address will ever reach it.
+- **A test helper is held to the same scrutiny as production code.** A `light() -> Option<Stroke>`
+  helper that only ever returned `Some(..)` failed `clippy::unnecessary_wraps` before a single test
+  ran against it. Inlining `Some(Stroke::from("light"))` at each call site was smaller than the
+  helper it replaced.
+
+### Working this way
+
+- **An example-heavy spec held up against implementation with zero surprises.** Every worked example
+  in spec 0001 was checked by hand against `docs/glyph-sets.md` before any code existed, and every
+  one matched once the code was written — no rule turned out to admit a second reading, and no
+  example needed correcting. `docs/specs/README.md` says the examples are "the section that does the
+  real work"; this increment is the first evidence that claim pays off rather than just reads well.
+- **The one real gap was worth asking about, and cheap to resolve.** The spec's acceptance list
+  asked `monospace-cli` to print "a box" without saying which one. Guessing would have picked
+  dimensions nobody agreed to; asking took one question with two options and was settled before any
+  code was written. Reusing the spec's own already-verified 4×3 example as the answer meant the
+  CLI's integration test asserts data that had already been checked twice, rather than inventing a
+  third copy of it.
+
+### Trade-offs worth remembering
+
+- **`Buffer` stores cells in a `HashMap<(i32, i32), Cell>`, unmeasured at any real size.** Fine for
+  a four-by-three demo. `docs/model.md` names being able to answer cheaply whether a cell is already
+  decided as what makes front-to-back stamping with early stopping worth using; a hash lookup per
+  cell does not yet give that for free. Worth revisiting once the `Below` mode spec asks for it, not
+  before.
