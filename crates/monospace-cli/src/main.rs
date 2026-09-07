@@ -4,10 +4,10 @@
 
 use monospace_core::{Arm, Buffer, Cell, GlyphCatalog, Pos, Size, StampMode, Stroke, render};
 
-/// Stamps the 4x3 box spec 0002 settled, with `origin` as its top-left corner: `Set` along the
-/// border, `Closed` facing the interior, and `Unset` facing outward so a later figure can join it
-/// rather than being refused by a border that means nothing by it.
-fn stamp_box(buffer: &mut Buffer, origin: Pos) {
+/// Stamps the 4x3 box spec 0002 settled, with `origin` as its top-left corner and `mode` as the
+/// stamp mode: `Set` along the border, `Closed` facing the interior, and `Unset` facing outward
+/// so a later figure can join it rather than being refused by a border that means nothing by it.
+fn stamp_box(buffer: &mut Buffer, origin: Pos, mode: StampMode) {
     let light = || Stroke::from("light");
     let cell = |top, right, bottom, left| Cell {
         base: light(),
@@ -24,53 +24,67 @@ fn stamp_box(buffer: &mut Buffer, origin: Pos) {
     buffer.stamp(
         at(0, 0),
         cell(Arm::Unset, Arm::Set, Arm::Set, Arm::Unset),
-        StampMode::Above,
+        mode,
     );
     buffer.stamp(
         at(1, 0),
         cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set),
-        StampMode::Above,
+        mode,
     );
     buffer.stamp(
         at(2, 0),
         cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set),
-        StampMode::Above,
+        mode,
     );
     buffer.stamp(
         at(3, 0),
         cell(Arm::Unset, Arm::Unset, Arm::Set, Arm::Set),
-        StampMode::Above,
+        mode,
     );
     buffer.stamp(
         at(0, 1),
         cell(Arm::Set, Arm::Closed, Arm::Set, Arm::Unset),
-        StampMode::Above,
+        mode,
     );
     buffer.stamp(
         at(3, 1),
         cell(Arm::Set, Arm::Unset, Arm::Set, Arm::Closed),
-        StampMode::Above,
+        mode,
     );
     buffer.stamp(
         at(0, 2),
         cell(Arm::Set, Arm::Set, Arm::Unset, Arm::Unset),
-        StampMode::Above,
+        mode,
     );
     buffer.stamp(
         at(1, 2),
         cell(Arm::Closed, Arm::Set, Arm::Unset, Arm::Set),
-        StampMode::Above,
+        mode,
     );
     buffer.stamp(
         at(2, 2),
         cell(Arm::Closed, Arm::Set, Arm::Unset, Arm::Set),
-        StampMode::Above,
+        mode,
     );
     buffer.stamp(
         at(3, 2),
         cell(Arm::Set, Arm::Unset, Arm::Unset, Arm::Set),
-        StampMode::Above,
+        mode,
     );
+}
+
+/// Draws the box at `(0, 0)` and again at `(2, 1)` into a 6x4 buffer, the second one stamped
+/// under `second_mode`. The first box's mode never matters: it lands on an undefined buffer,
+/// where every mode defines a cell the same way.
+fn render_pair(catalog: &GlyphCatalog, origin: Pos, second_mode: StampMode) -> String {
+    let size = Size {
+        width: 6,
+        height: 4,
+    };
+    let mut buffer = Buffer::new(origin, size);
+    stamp_box(&mut buffer, origin, StampMode::Above);
+    stamp_box(&mut buffer, Pos { x: 2, y: 1 }, second_mode);
+    render(&buffer, catalog, origin, size)
 }
 
 fn main() {
@@ -84,7 +98,7 @@ fn main() {
             height: 3,
         },
     );
-    stamp_box(&mut single, origin);
+    stamp_box(&mut single, origin, StampMode::Above);
     let single = render(
         &single,
         &catalog,
@@ -95,24 +109,8 @@ fn main() {
         },
     );
 
-    let mut pair = Buffer::new(
-        origin,
-        Size {
-            width: 6,
-            height: 4,
-        },
-    );
-    stamp_box(&mut pair, origin);
-    stamp_box(&mut pair, Pos { x: 2, y: 1 });
-    let pair = render(
-        &pair,
-        &catalog,
-        origin,
-        Size {
-            width: 6,
-            height: 4,
-        },
-    );
+    let above_pair = render_pair(&catalog, origin, StampMode::Above);
+    let below_pair = render_pair(&catalog, origin, StampMode::Below);
 
-    print!("{single}\n{pair}");
+    print!("{single}\nAbove:\n{above_pair}\nBelow:\n{below_pair}");
 }
