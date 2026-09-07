@@ -8,10 +8,12 @@
 //! build. That constraint is checked on every commit by compiling this crate for
 //! `wasm32-unknown-unknown`.
 
+mod buffer;
 mod cell;
 mod geometry;
 mod stroke;
 
+pub use buffer::Buffer;
 pub use cell::{Arm, Cell};
 pub use geometry::{Pos, Size};
 pub use stroke::Stroke;
