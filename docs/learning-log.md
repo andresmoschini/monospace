@@ -231,3 +231,53 @@ value instead of mutating one in place.
   the function needed. The fix also removed both `i32::try_from(..).expect(..)` calls and the
   `# Panics` section two entries above praised: that section documented a real panic, correctly, and
   is gone because the panic it documented is gone too.
+
+## 2026-09-07 — A border that could not be crossed, and a spec that was two
+
+No code. One amendment to the model, two specs where there was going to be one, and a decision
+record. The increment reached a demonstrable state on paper: a picture nobody had drawn yet turned
+out to be wrong, and it was wrong for a reason that no test in the repository could have reported.
+
+### Working this way
+
+- **The example caught the error, and a reader caught it in the example.** Drafting the second spec
+  meant specifying a demo of two overlapping boxes, with the expected output derived by hand. The
+  derivation said the two borders crossed as `─` and `│` — passing through each other, neither
+  joining. Everything about that was internally consistent: the rules were applied correctly, the
+  glyph lookups were right, and the quality gate was green because nothing had been written yet. It
+  was caught by looking at the picture and saying the lines should meet. Correcting it changed four
+  characters in a document, no code, and one paragraph of the model.
+
+- **Choosing `Closed` where `Unset` belonged was invisible by construction.** The box the front end
+  drew closed every side it did not use, which says nothing may ever connect here. At render time a
+  key carries a stroke or nothing, and `Closed` and `Unset` both give nothing, so a box spelled
+  either way draws the same three lines. No test, no lint and no render could report the difference:
+  the first thing that could was a second figure touching the border, which is exactly the demo that
+  had not been built yet. For state that is invisible at render time, the only instrument is another
+  figure.
+
+- **Needing to amend the model was the signal that the spec held two ideas.** The spec that had to
+  change `docs/model.md` in order to be writable was carrying both a convention for how a figure
+  declares its sides and a second stamp mode. Splitting them cost a rewrite of one document and
+  nothing else, because no code existed to move — which is most of the argument for writing specs at
+  all. It also made the second one a comparison against a picture already on screen: the same two
+  boxes, one argument different, two characters different.
+
+- **"Does this need an ADR?" was asked three times and answered three ways.** The stamp mode as a
+  parameter did not need one, because ADR-0008 had already named the operation
+  `stamp(x, y, cell, mode)` and the spec was following a decision rather than taking it. A
+  positional query on the buffer looked like it needed one, and then dissolved: dropping the method
+  removed the decision. The cell-level predicate and the skip did need one, and became ADR-0017.
+  What separated them was not size but whether a later spec would have to quote the reasoning — a
+  spec becomes history once implemented, and reasoning that outlives it has to live somewhere else.
+
+### Trade-offs worth remembering
+
+- **A requirement was accepted that nothing can verify.** Under `Below`, `stamp` skips a target
+  whose four arms are already decided. The resulting buffer is byte for byte what the merge would
+  have produced, so no test can fail for it and the branch can be deleted with the gate still green.
+  It is recorded in three places — ADR-0017, a paragraph outside spec 0003's numbered rules, and a
+  comment the acceptance list requires at the branch — and none of those three is a check. The only
+  real one is a benchmark, which needs a workload that does not exist. Worth watching: one such
+  branch is a considered cost, and a second arriving for the same reason would mean the practice is
+  accumulating rather than paying.
