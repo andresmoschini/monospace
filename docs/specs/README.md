@@ -48,6 +48,7 @@ Fixing a typo or a broken link is fine.
 
 ## Index
 
-| Spec                                        | Title                                     | Status      |
-| ------------------------------------------- | ----------------------------------------- | ----------- |
-| [0001](0001-stamp-cells-and-render-them.md) | Stamp cells into a buffer and render them | implemented |
+| Spec                                           | Title                                     | Status      |
+| ---------------------------------------------- | ----------------------------------------- | ----------- |
+| [0001](0001-stamp-cells-and-render-them.md)    | Stamp cells into a buffer and render them | implemented |
+| [0002](0002-make-a-box-that-can-be-crossed.md) | Make a box that can be crossed            | draft       |
