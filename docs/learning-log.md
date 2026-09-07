@@ -299,3 +299,34 @@ instead of closing, and draws a second, overlapping copy of itself.
   previous increment's entry says was invisible at render time. The single-box integration test's
   assertion was left untouched on purpose, and it still passed — the same test that could not have
   caught the original mistake is what confirms this fix didn't introduce a new one.
+
+## 2026-09-07 — Spec 0003 implemented: stamp below what is already there
+
+Six commits: `StampMode` threaded through every call site with `Above` unchanged, then `Below` and
+`Cell::is_decided` with their real behavior, then the front end drawing the pair a second time,
+labelled.
+
+### Rust design and idiom
+
+- **`Above` and `Below` are mirror images of the same three-line function.** `merge_arm_above`
+  checks the incoming arm; `merge_arm_below` checks the target's. Writing them side by side made the
+  symmetry ADR-0008 describes in prose — one mode overwrites what the stamp abstains on, the other
+  fills what the target left undecided — visible in the code, rather than one function with a mode
+  check buried inside it.
+- **A mechanical 31-call-site edit was worth scripting, not typing.** Adding a required parameter to
+  `stamp` meant touching every existing call site — 15 tests and the CLI — to keep compiling. A
+  small bracket-counting script did it in one pass. Its first version produced a double comma
+  wherever a call already ended in a trailing one, caught by reading the diff before running
+  `cargo fmt` and the gate, not by trusting the script.
+
+### Working this way
+
+- **A third spec in a row held up against implementation with no surprises.** Every value in spec
+  0003's worked examples — the two-mode comparison, the decided-cell test, the three-figure
+  equivalence — matched what the code produced on the first run, the same as spec 0001 and spec 0002
+  before it. The pattern is no longer a one-off: an example-heavy spec keeps paying for itself.
+- **The branch the drafting increment anticipated now exists, exactly as unverifiable as
+  predicted.** That increment's entry flagged a requirement accepted with nothing to verify it:
+  `stamp` skipping a decided target under `Below`. It is now real code, covered only by a comment,
+  an acceptance item read rather than run, and ADR-0017 — nothing about implementing it found a way
+  to test it. The prediction held.
