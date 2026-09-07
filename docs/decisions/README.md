@@ -20,6 +20,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0006](0006-record-the-claude-session-in-commit-trailers.md)    | Record the Claude Code session in a commit trailer                  | superseded by 0007 |
 | [0007](0007-rename-the-session-trailer-to-claude-resume.md)     | Rename the session trailer to `Claude-Resume`                       | accepted           |
 | [0008](0008-compose-overlapping-cells-with-three-state-arms.md) | Compose overlapping cells with three-state arms and two stamp modes | accepted           |
+| [0009](0009-degrade-a-cell-to-its-base-stroke.md)               | Degrade a cell to its base stroke when no character matches         | accepted           |
 
 ## How to add one
 
