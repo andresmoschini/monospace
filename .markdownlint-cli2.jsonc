@@ -11,6 +11,14 @@
   // "consistent" defaults, prettier's canonical output already satisfies them, so pre-silencing
   // them would only hide a real disagreement if one ever appeared.
   "config": {
+    // Scoped to siblings because the learning log is built out of repetition: one entry per
+    // increment, each with the same three category headings under its own date. At the default,
+    // MD024 compares every heading in a file against every other, so the second entry fails the
+    // gate for having a "Rust design and idiom" section like the first. Scoped this way it still
+    // catches the case it is for - the same heading twice under one parent - which is what makes a
+    // link fragment ambiguous.
+    "MD024": { "siblings_only": true },
+
     // Off because prettier's printWidth of 100 already guarantees the limit by construction.
     // This is not a relaxation: markdownlint cannot rewrap prose, so keeping it would mean
     // re-cutting paragraphs by hand while prettier did the same job automatically. Running both
