@@ -1,0 +1,5 @@
+# Generated: cargo doc writes HTML, CSS and JavaScript in here.
+target/
+
+# npm owns this file and rewrites it; formatting it would create churn on every install.
+package-lock.json

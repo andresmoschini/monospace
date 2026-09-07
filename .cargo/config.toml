@@ -1,0 +1,4 @@
+# `cargo xtask <command>` is the single entry point for the quality gate. The pre-commit hook and CI
+# both call it, so what they check cannot drift apart. See xtask/src/main.rs.
+[alias]
+xtask = "run --package xtask --"

@@ -1,0 +1,12 @@
+[package]
+name = "monospace-core"
+description = "Core library for Monospace: parsing, layout and ASCII rendering of diagrams"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

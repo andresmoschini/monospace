@@ -1,0 +1,10 @@
+# Pinned exactly, not tracked to a channel: the quality gate must fail because of a change made
+# here, never because a new stable release taught rustfmt or clippy a new opinion overnight.
+# Updating this file is its own task, with its own commit and learning-log entry.
+#
+# See docs/decisions/0003-pin-the-toolchain-exactly.md
+[toolchain]
+channel = "1.98.1"
+profile = "minimal"
+components = ["rustfmt", "clippy", "rust-src"]
+targets = ["wasm32-unknown-unknown"]

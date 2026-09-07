@@ -1,11 +1,32 @@
-[package]
-name = "monospace"
+[workspace]
+members = ["crates/monospace-cli", "crates/monospace-core", "xtask"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 authors = ["Andrés Moschini <andresmoschini@gmail.com>"]
-
 license = "MIT"
 
-readme = "README.md"
+[workspace.dependencies]
+monospace-core = { path = "crates/monospace-core" }
 
-[dependencies]
+# Lints are declared here rather than passed on the command line so that rust-analyzer shows them
+# while editing, and so that a crate added later inherits them instead of quietly opting out.
+# They sit at "warn" locally; `cargo xtask check` runs clippy with `-D warnings`, so anything that
+# warns fails the gate. To permit one, add it below with a comment saying why.
+[workspace.lints.clippy]
+# priority = -1 lets an individual lint added below override the group; Cargo rejects the
+# combination without it.
+pedantic = { level = "warn", priority = -1 }
+
+[workspace.lints.rust]
+missing_docs = "warn"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "deny"
+invalid_codeblock_attributes = "deny"
+invalid_rust_codeblocks = "deny"
+invalid_html_tags = "deny"
+bare_urls = "deny"

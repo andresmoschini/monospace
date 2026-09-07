@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# Records which Claude Code session produced the commit, then checks the message
+# against Conventional Commits.
+#
+# Installed by the SessionStart hook in .claude/settings.json. It therefore does not
+# run outside a Claude Code session; CI is what enforces the convention for everyone.
+# See docs/decisions/0005-install-the-git-hooks-from-claude-code.md.
+
+MSG_FILE="$1"
+
+[ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] || exit 0
+
+# --- Record the session -------------------------------------------------------
+#
+# The id comes from CLAUDE_CODE_SESSION_ID, which Claude Code exports into the
+# environment of its shell tools. `git commit` runs as a child of that shell and this
+# hook as a child of git, so the value is inherited and is always the session that is
+# committing. Reading it from ~/.claude/projects/ instead would be a guess: several
+# sessions can be open on one checkout, and "the newest transcript" is not the same
+# thing as "the one committing".
+#
+# It is written as a trailer rather than as a free-standing line because a line that
+# is not a trailer at the end of a message invalidates the entire block. Measured:
+# with a bracketed line appended after Co-Authored-By, `git interpret-trailers
+# --parse` reports no trailers at all, and the co-author attribution is lost.
+#
+# The key is Claude-Resume, not Claude-Session: Claude Code writes the latter itself
+# when Remote Control is on, carrying a browser URL. Those are different handles on
+# the same conversation, not two formats of one, so they get separate keys rather
+# than one key whose shape depends on a setting invisible from this repository.
+# See docs/decisions/0007-rename-the-session-trailer-to-claude-resume.md.
+#
+# --if-exists doNothing keeps `git commit --amend` idempotent, and keeps the session
+# that first wrote the commit rather than the one that touched it last.
+#
+# When the variable is absent or malformed - a commit made by hand, or a future
+# Claude Code that stops exporting it - nothing is stamped and the commit proceeds.
+# A commit with no session trailer is fine; one carrying somebody else's is not, and
+# a commit that fails over this is worse than either.
+case "$CLAUDE_CODE_SESSION_ID" in
+[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])
+    git interpret-trailers --in-place --if-exists doNothing \
+        --trailer "Claude-Resume: $CLAUDE_CODE_SESSION_ID" "$MSG_FILE"
+    ;;
+esac
+
+# --- Check the message --------------------------------------------------------
+#
+# Runs after the stamp, so what commitlint validates is what will be committed.
+if [ ! -d node_modules ]; then
+    echo "commit-msg: the Node tooling is not installed, so the message cannot be checked." >&2
+    echo "  Run: cargo xtask setup" >&2
+    exit 1
+fi
+
+exec ./node_modules/.bin/commitlint --edit "$MSG_FILE"
