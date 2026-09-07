@@ -46,13 +46,7 @@ impl Buffer {
             None => {
                 self.cells.insert((at.x, at.y), cell);
             }
-            Some(target) => {
-                target.base = cell.base;
-                merge_arm(&mut target.top, cell.top);
-                merge_arm(&mut target.right, cell.right);
-                merge_arm(&mut target.bottom, cell.bottom);
-                merge_arm(&mut target.left, cell.left);
-            }
+            Some(target) => *target = merge(target, cell),
         }
     }
 
@@ -83,11 +77,26 @@ impl Buffer {
     }
 }
 
-/// Writes `incoming` into `target`, unless `incoming` is `Unset`: an `Unset` arm on a stamp never
-/// writes anything, in either mode this crate implements.
-fn merge_arm(target: &mut Arm, incoming: Arm) {
-    if !matches!(incoming, Arm::Unset) {
-        *target = incoming;
+/// Builds the cell that results from stamping `incoming` onto an already-defined `target`: the
+/// incoming base stroke, and each arm `incoming` decides, with an `Unset` arm on `incoming`
+/// keeping whatever `target` already had on that side.
+fn merge(target: &Cell, incoming: Cell) -> Cell {
+    Cell {
+        base: incoming.base,
+        top: merge_arm(target.top, incoming.top),
+        right: merge_arm(target.right, incoming.right),
+        bottom: merge_arm(target.bottom, incoming.bottom),
+        left: merge_arm(target.left, incoming.left),
+    }
+}
+
+/// `incoming`, unless it is `Unset` — an `Unset` arm on a stamp never writes anything, so the
+/// side stays whatever `target` already had.
+fn merge_arm(target: Arm, incoming: Arm) -> Arm {
+    if matches!(incoming, Arm::Unset) {
+        target
+    } else {
+        incoming
     }
 }
 
