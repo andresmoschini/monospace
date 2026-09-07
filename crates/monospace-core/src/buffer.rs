@@ -47,8 +47,10 @@ impl Buffer {
     ///
     /// A position outside the window is left unchanged. Writing an undefined position defines it
     /// entirely, `Unset` arms included, whichever mode is given. Writing an already-defined
-    /// position follows `mode`: see [`StampMode`] for what each one does to the base stroke and
-    /// to the four arms.
+    /// position consults `mode` for which side decides: [`StampMode::Above`] overwrites the base
+    /// stroke and reads the *stamp's* arms, leaving alone whichever ones `cell` itself leaves
+    /// `Unset`; [`StampMode::Below`] leaves the base stroke alone and reads the *target's* arms
+    /// instead, writing only the sides the cell already stored has left `Unset`.
     pub fn stamp(&mut self, at: Pos, cell: Cell, mode: StampMode) {
         if !self.contains(at) {
             return;
