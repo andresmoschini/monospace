@@ -132,6 +132,26 @@ tooling in this repository.
 Write the body for someone who was not there. What the diff does is visible; why it does that is
 not.
 
+### Fixing a commit
+
+A correction that changes nothing for anyone belongs in the commit that got it wrong. A typo in a
+message, a status line set to the wrong value, a formatting slip: nobody acted on the intermediate
+state, and a commit that flips it only sends a reader looking for a change that is not there. When
+something was actually wrong — behavior, or a claim someone could have acted on — the fix is its own
+commit, and the message says what was wrong.
+
+That holds after pushing, which is not the usual convention. It works here because a feature branch
+has an owner, and whoever pulls someone else's branch accepts that it can be rewritten underneath
+them. The limits are `main`, which is never rewritten, and `--force-with-lease`, which aborts
+instead of clobbering an update you had not seen. The cost is that GitHub marks inline review
+comments on a rewritten commit as outdated.
+
+Rewriting means proving the branch green again. Neither `git rebase` nor `git cherry-pick` fires the
+pre-commit hook, so the gate has to run on each rewritten commit rather than on the tip alone.
+
+An accepted ADR is the exception: its conclusion is never edited, whatever the commit history does.
+[The decisions README](docs/decisions/README.md) owns that rule.
+
 ### The session trailer
 
 A commit made from a Claude Code session can carry two trailers, and they are different handles on

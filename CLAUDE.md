@@ -29,6 +29,8 @@ cargo test --workspace     # tests only, for a faster loop
 ## Quality gate
 
 - Every commit that lands must leave the build and all validations green.
+- `git rebase` and `git cherry-pick` do not fire the hook. After rewriting history, run the gate on
+  each rewritten commit, not only on the tip.
 - Never use `git commit --no-verify`. If the hook fails, fix the cause or stop and tell me — do not
   bypass it.
 - The pre-commit hook and CI run the same validation entrypoint.
@@ -68,6 +70,11 @@ cargo test --workspace     # tests only, for a faster loop
   you chose and why, and carry on. Do not invent something new because I did not know the ecosystem
   well enough to ask for the usual thing.
 - One task per commit.
+- Fix a mistake in the commit that made it whenever the intermediate state meant nothing to anyone:
+  a typo, a wrong status line, a formatting slip. A commit that flips it only sends a reader looking
+  for a change that is not there. When something was actually wrong — behavior, or a claim someone
+  could have acted on — the fix is its own commit and says what was wrong. This holds after pushing
+  too: never rewrite `main`, always use `--force-with-lease`.
 - Follow Kent Beck's rule: "for each desired change, make the change easy (warning: this may be
   hard), then make the easy change." Split the preparatory refactor from the behavioral change, and
   never mix them in the same commit. Prefix messages so the distinction is visible in the log.
