@@ -84,6 +84,11 @@ spec before implementation — they are listed here only to establish direction,
 - Read a diagram description from a file or stdin via the CLI.
 - Output the rendered diagram to stdout or a file.
 
+Underneath all of them sit two mechanisms that every one of those capabilities needs: a buffer of
+cells that figures write into, and the rendering of that buffer to characters. They are described in
+[`docs/model.md`](model.md), which feature specs slice up rather than restate. That document is
+design intent, not implemented behavior, and it owns the vocabulary the specs use.
+
 ## 5. Non-Functional Constraints
 
 - **Language:** Rust (stable toolchain).
@@ -136,6 +141,21 @@ which carries the options weighed and the cost accepted. Only the outcome is rep
 Questions that only appeared once work started — a second toolchain for the checks Rust cannot
 perform, how the git hooks get installed, how a commit points back at the conversation that produced
 it — are recorded the same way. [The index](decisions/README.md) lists all of them.
+
+## 9. Tooling Questions, Open
+
+Recorded here rather than left to memory, each with what would settle it.
+
+- **Nothing verifies links between documents.** `markdownlint` checks a link fragment against the
+  headings of the same file and stops there: a link to a file that does not exist, or to an anchor
+  in a different file that does not exist, passes the gate. Verified by making each of the three
+  cases fail on purpose. There are 59 cross-file links today and none of them carries an anchor, so
+  what rots first is a renamed or renumbered file. Two ways to close it. An npm link checker follows
+  the precedent of [ADR-0004](decisions/0004-node-toolchain-for-the-non-rust-checks.md), but has to
+  be configured to stay offline or it becomes the first step of the gate that can fail because of
+  the network. A step in `xtask` needs no dependency and is offline by construction, at the price of
+  owning GitHub's heading-slug rules. The trigger is a link actually rotting, or the first
+  cross-file reference that carries an anchor and therefore has something to verify.
 
 ---
 
