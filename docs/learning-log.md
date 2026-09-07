@@ -124,3 +124,30 @@ entry point, hooks, CI, and seven decision records. `monospace-cli` prints one l
   and says nothing about it. CI is the boundary that holds. ADR-0005 records this at ~60%
   confidence, lower than anything else here, because every other decision in the increment was made
   to stop a check from passing without running.
+
+## 2026-09-07 — The model, its records, and the first spec
+
+A buffer-and-render model written down, nine decision records, and a specification for the first
+slice of code. Still no domain logic: `monospace-cli` prints the same line it did before.
+
+### Rust design and idiom
+
+- **A weak test grew the public API, and a better test shrank it again.** The spec asked for a test
+  asserting that the built-in glyph rules numbered fifteen, which meant `GlyphCatalog` needed a
+  `len` — and then `is_empty` too, because clippy's `pedantic` set refuses one without the other.
+  Counting catches a rule that went missing but not one that is wrong, so it was replaced by the
+  property that every key a light cell can produce is answered. That test needs only the lookup, and
+  both accessors left the public surface with it. The API had grown to serve an assertion rather
+  than a caller, which is worth noticing early: the same pressure produces accessors nobody calls in
+  every codebase.
+
+### Working this way
+
+- **A rule that demands an error has to say which error.** A behavior rule said a zero width or
+  height was "rejected at construction" and stopped there. A panic and a `Result` are different
+  promises and the difference reaches every call site, so the rule was only half written — and
+  nobody had noticed, because it read like a decision. Allowing zero removed the rule, an
+  unspecified error path, and a paragraph justifying it: a buffer with no positions already behaves
+  correctly under the rules covering stamps and renders outside the window. The general form is that
+  a rule requiring something to fail owes an answer about how, and if that answer is hard to give,
+  the requirement is usually the thing to drop.

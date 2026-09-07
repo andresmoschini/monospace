@@ -178,6 +178,20 @@ It is a convenience, not a record. Transcripts live outside the repository and d
 machine, so the reasoning that matters still belongs in the commit body or in an ADR. If a commit
 body only makes sense with the transcript open, the body is wrong.
 
+## Cross-references
+
+Cite a section of another document by its name, not by its number. Inserting a section silently
+invalidates every number cited from every other file, while renaming one is a deliberate act by
+whoever is editing that heading, and far more likely to be noticed.
+
+Nothing checks either. `markdownlint` validates a link fragment against the headings of the same
+file and stops there, so a link to a file that does not exist, or to an anchor in a different file
+that does not exist, passes the gate. [The brief](docs/brief.md) records that gap as an open tooling
+question.
+
+Records under `docs/decisions/` written before this convention keep their numbered citations. They
+were true when written, and an accepted record is not edited for style.
+
 ## Decisions and notes
 
 Architecture decisions are records under `docs/decisions/`, written when the decision is taken
