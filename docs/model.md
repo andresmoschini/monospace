@@ -73,7 +73,14 @@ decide"**:
 - A horizontal segment is stamped with its left and right arms `Set` and its top and bottom `Unset`,
   so anything crossing it later can connect.
 - The top border of a filled shape is stamped with its inner side `Closed` on purpose, so that
-  nothing stamped afterwards connects into the fill.
+  nothing stamped afterwards connects into the fill, and with its outer side `Unset`, so that
+  anything arriving from outside still joins it.
+
+Closing a side a figure does not use is a decision too, and it says "nothing may ever connect here".
+A figure that closes every side it has no stroke on draws exactly like one that abstains on them —
+at render time `Closed` and `Unset` are the same — and refuses every junction from the moment a
+second figure reaches it. `Unset` is the default for a side a figure has no opinion about; `Closed`
+is for the sides it is protecting.
 
 An undefined cell and a cell with four `Closed` arms are **not the same thing**. The first is the
 absence of a cell; the second is a decision.
