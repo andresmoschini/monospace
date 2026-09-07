@@ -58,7 +58,15 @@ impl Buffer {
             None => {
                 self.cells.insert((at.x, at.y), cell);
             }
-            Some(target) => *target = merge(target, cell, mode),
+            Some(target) => {
+                // Below never changes a decided target: merging would reproduce it exactly, so
+                // this skips rebuilding and storing an identical cell. No test can fail for this
+                // branch either way (ADR-0017) — deleting it leaves every buffer byte-identical.
+                if mode == StampMode::Below && target.is_decided() {
+                    return;
+                }
+                *target = merge(target, cell, mode);
+            }
         }
     }
 
@@ -248,5 +256,195 @@ mod tests {
                 left: Arm::Set,
             })
         );
+    }
+
+    #[test]
+    fn stamping_outside_the_window_changes_nothing_under_below() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 2,
+                height: 1,
+            },
+        );
+
+        buffer.stamp(
+            Pos { x: 2, y: 0 },
+            Cell {
+                base: light(),
+                top: Arm::Set,
+                right: Arm::Set,
+                bottom: Arm::Set,
+                left: Arm::Set,
+            },
+            StampMode::Below,
+        );
+
+        assert!(buffer.cell(Pos { x: 2, y: 0 }).is_none());
+    }
+
+    #[test]
+    fn stamping_an_undefined_position_with_below_defines_it_entirely() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        let cell = Cell {
+            base: light(),
+            top: Arm::Unset,
+            right: Arm::Set,
+            bottom: Arm::Closed,
+            left: Arm::Unset,
+        };
+
+        buffer.stamp(Pos { x: 0, y: 0 }, cell.clone(), StampMode::Below);
+
+        assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&cell));
+    }
+
+    /// The example named "The two modes on identical input": with `Below`, the target's own base
+    /// stroke and already-decided arms win, and only the side it left `Unset` is written.
+    #[test]
+    fn below_writes_only_the_targets_unset_sides_and_leaves_the_base_stroke_alone() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            Cell {
+                base: light(),
+                top: Arm::Unset,
+                right: Arm::Set,
+                bottom: Arm::Closed,
+                left: Arm::Unset,
+            },
+            StampMode::Above,
+        );
+
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            Cell {
+                base: Stroke::from("double"),
+                top: Arm::Set,
+                right: Arm::Closed,
+                bottom: Arm::Set,
+                left: Arm::Unset,
+            },
+            StampMode::Below,
+        );
+
+        assert_eq!(
+            buffer.cell(Pos { x: 0, y: 0 }),
+            Some(&Cell {
+                base: light(),
+                top: Arm::Set,
+                right: Arm::Set,
+                bottom: Arm::Closed,
+                left: Arm::Unset,
+            })
+        );
+    }
+
+    /// The example named "A decided cell ignores a Below stamp": the merge that would produce
+    /// this cell is skipped, and the cell is the same as if it had run.
+    #[test]
+    fn below_onto_a_decided_cell_changes_nothing() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        let decided = Cell {
+            base: light(),
+            top: Arm::Set,
+            right: Arm::Closed,
+            bottom: Arm::Set,
+            left: Arm::Closed,
+        };
+        buffer.stamp(Pos { x: 0, y: 0 }, decided.clone(), StampMode::Above);
+
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            Cell {
+                base: Stroke::from("double"),
+                top: Arm::Set,
+                right: Arm::Set,
+                bottom: Arm::Set,
+                left: Arm::Set,
+            },
+            StampMode::Below,
+        );
+
+        assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&decided));
+    }
+
+    /// The example named "The two orders agree": three figures overlap at one position, front to
+    /// back with `Below` and back to front with `Above`, and ADR-0008's equivalence property says
+    /// the resulting cell must be the same either way.
+    #[test]
+    fn front_to_back_with_below_equals_back_to_front_with_above() {
+        let pos = Pos { x: 0, y: 0 };
+        let a = || Cell {
+            base: Stroke::from("double"),
+            top: Arm::Unset,
+            right: Arm::Set,
+            bottom: Arm::Unset,
+            left: Arm::Closed,
+        };
+        let b = || Cell {
+            base: Stroke::from("light"),
+            top: Arm::Set,
+            right: Arm::Closed,
+            bottom: Arm::Unset,
+            left: Arm::Set,
+        };
+        let c = || Cell {
+            base: Stroke::from("heavy"),
+            top: Arm::Closed,
+            right: Arm::Set,
+            bottom: Arm::Set,
+            left: Arm::Set,
+        };
+
+        let mut front_to_back = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        front_to_back.stamp(pos, a(), StampMode::Below);
+        front_to_back.stamp(pos, b(), StampMode::Below);
+        front_to_back.stamp(pos, c(), StampMode::Below);
+
+        let mut back_to_front = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        back_to_front.stamp(pos, c(), StampMode::Above);
+        back_to_front.stamp(pos, b(), StampMode::Above);
+        back_to_front.stamp(pos, a(), StampMode::Above);
+
+        let expected = Some(&Cell {
+            base: Stroke::from("double"),
+            top: Arm::Set,
+            right: Arm::Set,
+            bottom: Arm::Set,
+            left: Arm::Closed,
+        });
+        assert_eq!(front_to_back.cell(pos), back_to_front.cell(pos));
+        assert_eq!(front_to_back.cell(pos), expected);
     }
 }
