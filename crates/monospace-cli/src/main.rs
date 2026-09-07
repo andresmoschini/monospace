@@ -34,23 +34,45 @@ fn stamp_box(buffer: &mut Buffer, origin: Pos) {
 }
 
 fn main() {
-    let mut buffer = Buffer::new(
-        Pos { x: 0, y: 0 },
-        Size {
-            width: 4,
-            height: 3,
-        },
-    );
-    stamp_box(&mut buffer, Pos { x: 0, y: 0 });
+    let catalog = GlyphCatalog::light();
+    let origin = Pos { x: 0, y: 0 };
 
-    let text = render(
-        &buffer,
-        &GlyphCatalog::light(),
-        Pos { x: 0, y: 0 },
+    let mut single = Buffer::new(
+        origin,
         Size {
             width: 4,
             height: 3,
         },
     );
-    print!("{text}");
+    stamp_box(&mut single, origin);
+    let single = render(
+        &single,
+        &catalog,
+        origin,
+        Size {
+            width: 4,
+            height: 3,
+        },
+    );
+
+    let mut pair = Buffer::new(
+        origin,
+        Size {
+            width: 6,
+            height: 4,
+        },
+    );
+    stamp_box(&mut pair, origin);
+    stamp_box(&mut pair, Pos { x: 2, y: 1 });
+    let pair = render(
+        &pair,
+        &catalog,
+        origin,
+        Size {
+            width: 6,
+            height: 4,
+        },
+    );
+
+    print!("{single}\n{pair}");
 }
