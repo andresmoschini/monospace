@@ -9,8 +9,10 @@
 //! `wasm32-unknown-unknown`.
 
 mod geometry;
+mod stroke;
 
 pub use geometry::{Pos, Size};
+pub use stroke::Stroke;
 
 /// Returns the greeting that a front end shows when it has nothing else to display.
 ///
