@@ -2,7 +2,7 @@
 //!
 //! It holds no domain logic of its own: everything it draws comes from `monospace-core`.
 
-use monospace_core::{Arm, Buffer, Cell, GlyphCatalog, Pos, Size, Stroke, render};
+use monospace_core::{Arm, Buffer, Cell, GlyphCatalog, Pos, Size, StampMode, Stroke, render};
 
 /// Stamps the 4x3 box spec 0002 settled, with `origin` as its top-left corner: `Set` along the
 /// border, `Closed` facing the interior, and `Unset` facing outward so a later figure can join it
@@ -21,16 +21,56 @@ fn stamp_box(buffer: &mut Buffer, origin: Pos) {
         y: origin.y + dy,
     };
 
-    buffer.stamp(at(0, 0), cell(Arm::Unset, Arm::Set, Arm::Set, Arm::Unset));
-    buffer.stamp(at(1, 0), cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set));
-    buffer.stamp(at(2, 0), cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set));
-    buffer.stamp(at(3, 0), cell(Arm::Unset, Arm::Unset, Arm::Set, Arm::Set));
-    buffer.stamp(at(0, 1), cell(Arm::Set, Arm::Closed, Arm::Set, Arm::Unset));
-    buffer.stamp(at(3, 1), cell(Arm::Set, Arm::Unset, Arm::Set, Arm::Closed));
-    buffer.stamp(at(0, 2), cell(Arm::Set, Arm::Set, Arm::Unset, Arm::Unset));
-    buffer.stamp(at(1, 2), cell(Arm::Closed, Arm::Set, Arm::Unset, Arm::Set));
-    buffer.stamp(at(2, 2), cell(Arm::Closed, Arm::Set, Arm::Unset, Arm::Set));
-    buffer.stamp(at(3, 2), cell(Arm::Set, Arm::Unset, Arm::Unset, Arm::Set));
+    buffer.stamp(
+        at(0, 0),
+        cell(Arm::Unset, Arm::Set, Arm::Set, Arm::Unset),
+        StampMode::Above,
+    );
+    buffer.stamp(
+        at(1, 0),
+        cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set),
+        StampMode::Above,
+    );
+    buffer.stamp(
+        at(2, 0),
+        cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set),
+        StampMode::Above,
+    );
+    buffer.stamp(
+        at(3, 0),
+        cell(Arm::Unset, Arm::Unset, Arm::Set, Arm::Set),
+        StampMode::Above,
+    );
+    buffer.stamp(
+        at(0, 1),
+        cell(Arm::Set, Arm::Closed, Arm::Set, Arm::Unset),
+        StampMode::Above,
+    );
+    buffer.stamp(
+        at(3, 1),
+        cell(Arm::Set, Arm::Unset, Arm::Set, Arm::Closed),
+        StampMode::Above,
+    );
+    buffer.stamp(
+        at(0, 2),
+        cell(Arm::Set, Arm::Set, Arm::Unset, Arm::Unset),
+        StampMode::Above,
+    );
+    buffer.stamp(
+        at(1, 2),
+        cell(Arm::Closed, Arm::Set, Arm::Unset, Arm::Set),
+        StampMode::Above,
+    );
+    buffer.stamp(
+        at(2, 2),
+        cell(Arm::Closed, Arm::Set, Arm::Unset, Arm::Set),
+        StampMode::Above,
+    );
+    buffer.stamp(
+        at(3, 2),
+        cell(Arm::Set, Arm::Unset, Arm::Unset, Arm::Set),
+        StampMode::Above,
+    );
 }
 
 fn main() {

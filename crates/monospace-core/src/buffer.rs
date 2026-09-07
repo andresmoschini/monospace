@@ -5,6 +5,18 @@ use std::collections::HashMap;
 
 use crate::{Arm, Cell, Pos, Size};
 
+/// Which side of an already-defined cell decides when a stamp lands on it. See _Stamping_ in
+/// [`docs/model.md`](../../../docs/model.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StampMode {
+    /// Overwrites the base stroke and every arm the stamp decides. An arm the stamp leaves
+    /// `Unset` keeps whatever the target already had.
+    Above,
+    /// Leaves the base stroke alone. Writes only the sides the target has left `Unset`, taking
+    /// them from the stamp; a side the target has already decided keeps its value.
+    Below,
+}
+
 /// A window of cells, with an origin and a size.
 ///
 /// Every position in a freshly created buffer is undefined: it holds no cell until [`stamp`] is
@@ -31,13 +43,13 @@ impl Buffer {
         }
     }
 
-    /// Writes `cell` at the absolute position `at`.
+    /// Writes `cell` at the absolute position `at`, under `mode`.
     ///
     /// A position outside the window is left unchanged. Writing an undefined position defines it
-    /// entirely, `Unset` arms included. Writing an already-defined position overwrites its base
-    /// stroke and every arm `cell` decides, but leaves alone any arm `cell` leaves `Unset`: that
-    /// side is not this stamp's to decide, and keeps whatever the target already had.
-    pub fn stamp(&mut self, at: Pos, cell: Cell) {
+    /// entirely, `Unset` arms included, whichever mode is given. Writing an already-defined
+    /// position follows `mode`: see [`StampMode`] for what each one does to the base stroke and
+    /// to the four arms.
+    pub fn stamp(&mut self, at: Pos, cell: Cell, mode: StampMode) {
         if !self.contains(at) {
             return;
         }
@@ -46,7 +58,7 @@ impl Buffer {
             None => {
                 self.cells.insert((at.x, at.y), cell);
             }
-            Some(target) => *target = merge(target, cell),
+            Some(target) => *target = merge(target, cell, mode),
         }
     }
 
@@ -77,22 +89,30 @@ impl Buffer {
     }
 }
 
-/// Builds the cell that results from stamping `incoming` onto an already-defined `target`: the
-/// incoming base stroke, and each arm `incoming` decides, with an `Unset` arm on `incoming`
-/// keeping whatever `target` already had on that side.
-fn merge(target: &Cell, incoming: Cell) -> Cell {
-    Cell {
-        base: incoming.base,
-        top: merge_arm(target.top, incoming.top),
-        right: merge_arm(target.right, incoming.right),
-        bottom: merge_arm(target.bottom, incoming.bottom),
-        left: merge_arm(target.left, incoming.left),
+/// Builds the cell that results from stamping `incoming` onto an already-defined `target`, under
+/// `mode`.
+fn merge(target: &Cell, incoming: Cell, mode: StampMode) -> Cell {
+    match mode {
+        StampMode::Above => Cell {
+            base: incoming.base,
+            top: merge_arm_above(target.top, incoming.top),
+            right: merge_arm_above(target.right, incoming.right),
+            bottom: merge_arm_above(target.bottom, incoming.bottom),
+            left: merge_arm_above(target.left, incoming.left),
+        },
+        StampMode::Below => Cell {
+            base: target.base.clone(),
+            top: merge_arm_below(target.top, incoming.top),
+            right: merge_arm_below(target.right, incoming.right),
+            bottom: merge_arm_below(target.bottom, incoming.bottom),
+            left: merge_arm_below(target.left, incoming.left),
+        },
     }
 }
 
-/// `incoming`, unless it is `Unset` — an `Unset` arm on a stamp never writes anything, so the
-/// side stays whatever `target` already had.
-fn merge_arm(target: Arm, incoming: Arm) -> Arm {
+/// `incoming`, unless it is `Unset` — an `Unset` arm on an `Above` stamp never writes anything,
+/// so the side stays whatever `target` already had.
+fn merge_arm_above(target: Arm, incoming: Arm) -> Arm {
     if matches!(incoming, Arm::Unset) {
         target
     } else {
@@ -100,9 +120,19 @@ fn merge_arm(target: Arm, incoming: Arm) -> Arm {
     }
 }
 
+/// `incoming`, but only if `target` left this side `Unset`. A `Below` stamp never writes over a
+/// side the target has already decided.
+fn merge_arm_below(target: Arm, incoming: Arm) -> Arm {
+    if matches!(target, Arm::Unset) {
+        incoming
+    } else {
+        target
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Buffer;
+    use super::{Buffer, StampMode};
     use crate::{Arm, Cell, Pos, Size, Stroke};
 
     fn light() -> Stroke {
@@ -145,6 +175,7 @@ mod tests {
                 bottom: Arm::Set,
                 left: Arm::Set,
             },
+            StampMode::Above,
         );
 
         assert!(buffer.cell(Pos { x: 2, y: 0 }).is_none());
@@ -167,7 +198,7 @@ mod tests {
             left: Arm::Unset,
         };
 
-        buffer.stamp(Pos { x: 0, y: 0 }, cell.clone());
+        buffer.stamp(Pos { x: 0, y: 0 }, cell.clone(), StampMode::Above);
 
         assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&cell));
     }
@@ -192,6 +223,7 @@ mod tests {
                 bottom: Arm::Closed,
                 left: Arm::Closed,
             },
+            StampMode::Above,
         );
 
         buffer.stamp(
@@ -203,6 +235,7 @@ mod tests {
                 bottom: Arm::Closed,
                 left: Arm::Set,
             },
+            StampMode::Above,
         );
 
         assert_eq!(
