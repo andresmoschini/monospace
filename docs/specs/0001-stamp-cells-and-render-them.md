@@ -58,18 +58,8 @@ Every item names where it is handled instead.
 - **Arms carrying a stroke of their own.** The spec that brings degradation, since the two are one
   idea: an arm can differ from its cell only if something decides what to draw when the combination
   has no character. Until then a cell has exactly one stroke and `Arm::Set` carries no payload.
+  [ADR-0012](../decisions/0012-one-stroke-per-cell.md) records why, and what it costs.
 - **Text, arrows, diagonals, erase.** Out of the model itself, not just out of this slice.
-
-### Why that restriction is faithful
-
-Dropping the per-arm stroke is a restriction on what can be expressed, not a different rule. For
-every cell this spec can build, the equivalent cell in the full model renders the same character: if
-the key exists both find it, and if it does not, the model moves every connected arm to the base
-stroke and arrives at the key that just failed.
-
-So nothing here has to be unlearned. The base stroke is the only stroke a cell has, it is read on
-every render, and it is covered by tests from the first commit rather than carried inert until the
-spec that gives it meaning.
 
 ## Model slice
 
@@ -132,11 +122,8 @@ pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -
 
 Each of these shapes is deliberate:
 
-- **`Pos` and `Size` rather than loose integers, and rather than one rectangle.** The model already
-  separates them: a position is signed and may be negative, a size never is. Splitting them is what
-  lets the compiler refuse a size where a position belongs, which a single rectangle type cannot do.
-  There is no `Rect` because nothing here stores or passes a rectangle as one value; when something
-  does — clipping, the bounds of a shape — it is `Rect { pos, size }` built from these two.
+- **`Pos` and `Size` rather than loose integers, and rather than one rectangle.**
+  [ADR-0010](../decisions/0010-separate-position-and-size.md).
 - **Nothing about a size is rejected, so `Buffer::new` cannot fail.** Zero is allowed everywhere: a
   buffer with no width or no height has no positions, every stamp misses it by rule 3, and any area
   rendered over it is spaces by rule 7. Forbidding zero would need an error path, and the spec would
@@ -147,40 +134,22 @@ Each of these shapes is deliberate:
 - **`render` is a free function, not a method on `Buffer`.** The model says the buffer knows nothing
   about glyphs. A method would put glyph types in `Buffer`'s own interface and make that sentence
   false.
-- **`cell` exists so that stamping can be checked without rendering.** Every rule about stamping is
-  observable through `render`, so nothing forces the accessor — but a test that reaches the buffer
-  only through the renderer depends on the catalog and on the lookup, and then a wrong glyph fails a
-  test whose name claims to be about composition. Reading a cell back keeps those two apart.
+- **`cell` exists so that stamping can be checked without rendering.**
+  [ADR-0011](../decisions/0011-expose-cell-for-testing-stamping.md).
 - **`stamp` returns nothing.** Stamping outside the window is not an error and not interesting; a
   return value would invite callers to branch on it.
-- **`Arm::Set` carries no stroke.** The cell's base stroke is the one a reader has to find, and a
-  payload here would let a caller build cells this slice cannot render.
-- **A key carries a stroke per side, even though every key this slice builds is uniform.** That is
-  the shape the model gives it and the shape the data already has in
-  [`glyph-sets.md`](../glyph-sets.md), mixing sets included. It is not the inert generality the base
-  stroke would have been: all four sides are read on every lookup, they simply happen to hold the
-  same stroke while cells have only one. The restriction lives in the function that builds a key
-  from a cell, so loading a mixing set later changes no type.
-- **A catalog, not a set.** A set is a group of rules as someone writes or loads it; a catalog is
-  where they end up. The only thing a set ever decided was precedence, and that is settled while the
-  catalog is built, so nothing downstream has to know which set a rule came from.
+- **`Arm::Set` carries no stroke.** [ADR-0012](../decisions/0012-one-stroke-per-cell.md).
+- **A key carries a stroke per side, even though every key this slice builds is uniform.**
+  [ADR-0013](../decisions/0013-key-a-rule-by-stroke-per-side.md).
+- **A catalog, not a set.** [ADR-0014](../decisions/0014-collapse-glyph-sets-into-a-catalog.md).
 - **`light()` is the only constructor, and it is named after what the catalog holds.** It selects
   nothing, because there is nothing to select from yet; a catalog has to come from somewhere and
   there is one set. It is provisional: the spec that loads sets replaces it with construction from
   the sets a caller chooses. It is named `light` rather than `built_in` because `light` stays true
   when a second set ships, while `built_in` would have to either change what existing callers get or
   start lying.
-- **A stroke is a `String`.** The model says a stroke is only a name, and this is the least
-  committed thing that can be one. It costs an allocation per cell, which is invisible at the sizes
-  this handles; `&'static str` would avoid it but stops working the moment a set is loaded from a
-  file, and an interned id would put a registry in the public API before anything has shown it is
-  needed. The trigger to revisit is a measurement, not a feeling. `From<&str>` is part of the
-  surface because without it every construction site says `Stroke(String::from("light"))`.
-- **`render` returns a `String`.** `docs/brief.md`, under _Scope_, warns against the consuming
-  layer's assumptions reaching the core, and this is arguably one: writing into a `fmt::Write` would
-  let a caller avoid holding the whole diagram. It is deferred because the abstraction costs more
-  than it buys with a single consumer, and the second consumer — the phase 3 TUI — is the one that
-  will say whether it is needed.
+- **A stroke is a `String`.** [ADR-0015](../decisions/0015-represent-a-stroke-as-a-string.md).
+- **`render` returns a `String`.** [ADR-0016](../decisions/0016-return-a-string-from-render.md).
 - **A catalog cannot be counted or enumerated.** `glyph` is the whole interface. What is worth
   asserting is that every key a light cell can produce is answered, which `glyph` alone proves; a
   `len` would only invite a test that counts rules without checking any of them.
