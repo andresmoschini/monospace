@@ -8,6 +8,10 @@
 //! build. That constraint is checked on every commit by compiling this crate for
 //! `wasm32-unknown-unknown`.
 
+mod geometry;
+
+pub use geometry::{Pos, Size};
+
 /// Returns the greeting that a front end shows when it has nothing else to display.
 ///
 /// This is a placeholder. It exists so that the command-line application has something to ask the
