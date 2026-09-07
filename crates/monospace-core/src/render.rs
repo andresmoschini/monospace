@@ -12,21 +12,26 @@ use crate::{Arm, Buffer, Cell, GlyphCatalog, GlyphKey, Pos, Size, Stroke};
 /// since nothing could ever have been stamped there.
 #[must_use]
 pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -> String {
-    let mut out = String::new();
-    for dy in 0..size.height {
-        for dx in 0..size.width {
-            let glyph = origin
-                .x
-                .checked_add_unsigned(dx)
-                .zip(origin.y.checked_add_unsigned(dy))
-                .and_then(|(x, y)| buffer.cell(Pos { x, y }))
-                .and_then(|cell| glyphs.glyph(&key_of(cell)))
-                .unwrap_or(' ');
-            out.push(glyph);
-        }
-        out.push('\n');
-    }
-    out
+    (0..size.height)
+        .map(|dy| {
+            let row: String = (0..size.width)
+                .map(|dx| glyph_at(buffer, glyphs, origin, dx, dy))
+                .collect();
+            row + "\n"
+        })
+        .collect()
+}
+
+/// The glyph at the absolute position `origin` plus `(dx, dy)`, or a space if that position
+/// cannot be addressed as a `Pos`, holds no cell, or resolves to a key `glyphs` does not answer.
+fn glyph_at(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, dx: u32, dy: u32) -> char {
+    origin
+        .x
+        .checked_add_unsigned(dx)
+        .zip(origin.y.checked_add_unsigned(dy))
+        .and_then(|(x, y)| buffer.cell(Pos { x, y }))
+        .and_then(|cell| glyphs.glyph(&key_of(cell)))
+        .unwrap_or(' ')
 }
 
 /// Builds the exact key a cell resolves to: the cell's base stroke on every `Set` side, and
