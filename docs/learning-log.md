@@ -201,3 +201,33 @@ Eleven commits: `Pos`/`Size`, `Stroke`, `Arm`/`Cell`, `Buffer` with `stamp`, `Gl
   decided as what makes front-to-back stamping with early stopping worth using; a hash lookup per
   cell does not yet give that for free. Worth revisiting once the `Below` mode spec asks for it, not
   before.
+
+## 2026-09-07 — Hardening what spec 0001 already shipped
+
+Two commits, both found by questioning already-`implemented`, gate-green code rather than by a new
+spec: `render` no longer risks an overflow, and `Buffer::stamp` merges a cell by building a new
+value instead of mutating one in place.
+
+### Rust design and idiom
+
+- **Mutating a value field by field and replacing it outright cost the same, here.** `stamp`'s
+  already-defined branch used to write `target.base` and call a `&mut Arm`-mutating `merge_arm` four
+  times. A pure `merge(&Cell, Cell) -> Cell` plus one `*target = merge(target, cell)` needed no
+  extra allocation and no extra `HashMap` lookup to replace it — the more idiomatic-looking `Entry`
+  API (`and_modify`/`or_insert`) would have needed cloning the base stroke to satisfy the borrow
+  checker, since the same `cell` value cannot be borrowed by one closure and moved into the other.
+  All 15 existing tests passed unchanged, which is what let the commit land as `refactor` rather
+  than `fix`.
+
+### Working this way
+
+- **The gate passing had proven the paths the tests exercised, not the arithmetic itself.** A
+  question about `Buffer::stamp` led to one about `render`'s `origin.x + dx`, which turned out to
+  overflow `i32` for an origin close to `i32::MAX` — reproduced first with a regression test against
+  the unfixed code (`attempt to add with overflow`, under the same `dev` profile `cargo xtask check`
+  already runs), only then fixed with `i32::checked_add_unsigned`. Three narrower alternatives were
+  weighed first — shrinking `Size` to `u16`, widening the loop to `i64` — and rejected because each
+  either left a smaller version of the same overflow in place or introduced a type nothing else in
+  the function needed. The fix also removed both `i32::try_from(..).expect(..)` calls and the
+  `# Panics` section two entries above praised: that section documented a real panic, correctly, and
+  is gone because the panic it documented is gone too.
