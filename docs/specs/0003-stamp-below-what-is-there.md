@@ -1,5 +1,5 @@
 ---
-status: agreed
+status: implemented
 date: 2026-09-07
 ---
 
@@ -211,26 +211,26 @@ checks, not the record of a run.
 
 ## Acceptance
 
-- [ ] `cargo xtask check` passes.
-- [ ] `cargo run -p monospace-cli` prints the three blocks above, with the two pairs labelled.
-- [ ] `crates/monospace-cli/tests/cli.rs` asserts that whole output, trailing spaces included. The
+- [x] `cargo xtask check` passes.
+- [x] `cargo run -p monospace-cli` prints the three blocks above, with the two pairs labelled.
+- [x] `crates/monospace-cli/tests/cli.rs` asserts that whole output, trailing spaces included. The
       single box and the `Above` pair are unchanged character for character from what spec 0002
       asserted; what is added is a label line before each pair and the `Below` pair itself.
-- [ ] The pair is drawn by one piece of code taking a mode, called twice. Two copies would let the
+- [x] The pair is drawn by one piece of code taking a mode, called twice. Two copies would let the
       two pictures differ for a reason other than the mode, which is the only thing the pair of them
       is there to show.
-- [ ] One test per behavior rule, named after what it asserts. The tests for rules 1 to 7 read the
+- [x] One test per behavior rule, named after what it asserts. The tests for rules 1 to 7 read the
       buffer back through `cell`, per
       [ADR-0011](../decisions/0011-expose-cell-for-testing-stamping.md), so a fault in the catalog
       cannot fail a test whose name is about composition.
-- [ ] A test for rule 8 stamps the three figures above front to back with `Below` and back to front
+- [x] A test for rule 8 stamps the three figures above front to back with `Below` and back to front
       with `Above`, into two buffers, and asserts the cell at the shared position is equal in both.
       It compares cells rather than rendered text, since two of the three strokes have no rule in
       the light catalog and both buffers would render as a space whether or not they agreed.
-- [ ] `stamp` under `Below` returns without rebuilding the cell when the target is decided, and
+- [x] `stamp` under `Below` returns without rebuilding the cell when the target is decided, and
       carries a comment saying why the branch is there. Nothing observable changes, so no test can
       fail for it: this item is read, not run, and it is the confirmation ADR-0017 says it is.
-- [ ] Every new public item has rustdoc, and the rustdoc on `Buffer::stamp` says which side of the
+- [x] Every new public item has rustdoc, and the rustdoc on `Buffer::stamp` says which side of the
       merge each mode consults.
 
 ## Open questions
