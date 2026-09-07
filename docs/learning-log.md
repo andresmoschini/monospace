@@ -281,3 +281,21 @@ out to be wrong, and it was wrong for a reason that no test in the repository co
   real one is a benchmark, which needs a workload that does not exist. Worth watching: one such
   branch is a considered cost, and a second arriving for the same reason would mean the practice is
   accumulating rather than paying.
+
+## 2026-09-07 — Spec 0002 implemented: a box that can be crossed
+
+Three commits, none of them touching `monospace-core`: the front end's box now abstains outward
+instead of closing, and draws a second, overlapping copy of itself.
+
+### Working this way
+
+- **A spec that already pins the CLI's exact output leaves nothing to guess.** Spec 0001 left the
+  demo box unspecified and that turned into the one open question of that increment. Spec 0002 gives
+  the exact string in "The whole output," positions and buffer sizes included, and implementing it
+  took zero clarifying questions and zero surprises — the rendered text matched the spec's own
+  worked example on the first run.
+- **The claim that `Closed` and `Unset` render alike was checked by the existing test, not
+  assumed.** Switching the box's outward sides from `Closed` to `Unset` is exactly the change the
+  previous increment's entry says was invisible at render time. The single-box integration test's
+  assertion was left untouched on purpose, and it still passed — the same test that could not have
+  caught the original mistake is what confirms this fix didn't introduce a new one.
