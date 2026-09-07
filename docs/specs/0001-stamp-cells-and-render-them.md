@@ -1,5 +1,5 @@
 ---
-status: draft
+status: implemented
 date: 2026-09-07
 ---
 
@@ -287,22 +287,22 @@ part of the output, and rule 6 keeps them.
 
 ## Acceptance
 
-- [ ] `cargo xtask check` passes.
-- [ ] `cargo run -p monospace-cli` prints a box, drawn cell by cell through the public API. The
+- [x] `cargo xtask check` passes.
+- [x] `cargo run -p monospace-cli` prints a box, drawn cell by cell through the public API. The
       existing greeting is replaced, so `crates/monospace-cli/tests/cli.rs` changes with it.
-- [ ] One test per behavior rule, named after what it asserts, and one per example above. The tests
+- [x] One test per behavior rule, named after what it asserts, and one per example above. The tests
       for rules 3, 4 and 5 read the buffer back through `cell` rather than through `render`, so a
       fault in the lookup cannot fail a test whose name is about composition.
-- [ ] A test renders an undefined position and a position holding a cell with four `Closed` arms,
+- [x] A test renders an undefined position and a position holding a cell with four `Closed` arms,
       and asserts both are spaces. `docs/model.md` asks under _Properties worth testing_ for the
       behavior to be recorded, not decided; this is the test that will fail when it stops being
       true.
-- [ ] A test walks the 15 non-empty combinations of four sides carrying `light` and asserts that
+- [x] A test walks the 15 non-empty combinations of four sides carrying `light` and asserts that
       `GlyphCatalog::light()` answers every one. It is the invariant `docs/model.md` names under
       _Properties worth testing_, it is a property rather than a second copy of the table, and it
       catches the failure that would otherwise be silent: a missing rule draws a space and raises
       nothing. The characters themselves are covered by the examples above, through `render`.
-- [ ] Every public item has rustdoc. The gate's `doc` step already fails on broken intra-doc links.
+- [x] Every public item has rustdoc. The gate's `doc` step already fails on broken intra-doc links.
 
 ## Open questions
 

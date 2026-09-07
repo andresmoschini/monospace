@@ -48,6 +48,6 @@ Fixing a typo or a broken link is fine.
 
 ## Index
 
-| Spec                                        | Title                                     | Status |
-| ------------------------------------------- | ----------------------------------------- | ------ |
-| [0001](0001-stamp-cells-and-render-them.md) | Stamp cells into a buffer and render them | draft  |
+| Spec                                        | Title                                     | Status      |
+| ------------------------------------------- | ----------------------------------------- | ----------- |
+| [0001](0001-stamp-cells-and-render-them.md) | Stamp cells into a buffer and render them | implemented |

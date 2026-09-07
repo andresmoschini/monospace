@@ -2,13 +2,10 @@
 
 use std::process::Command;
 
-/// The binary must print exactly what the core library returns, and nothing else.
-///
-/// Comparing against `monospace_core::greeting()` rather than against a literal is deliberate: the
-/// point is to check that the two crates stay wired together, not to restate the greeting in a
-/// second place where it could drift.
+/// The binary must print exactly the 4x3 box from spec 0001's own "A box" example, drawn cell by
+/// cell through `monospace-core`'s public API, and nothing else.
 #[test]
-fn prints_the_greeting_from_the_core_library() {
+fn prints_the_box_from_the_public_api() {
     let output = Command::new(env!("CARGO_BIN_EXE_monospace-cli"))
         .output()
         .expect("the monospace-cli binary should be runnable");
@@ -16,7 +13,7 @@ fn prints_the_greeting_from_the_core_library() {
     assert!(output.status.success(), "exited with {}", output.status);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout).into_owned(),
-        format!("{}\n", monospace_core::greeting())
+        "┌──┐\n│  │\n└──┘\n"
     );
     assert!(output.stderr.is_empty(), "wrote to stderr");
 }
