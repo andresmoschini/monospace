@@ -12,12 +12,14 @@ mod buffer;
 mod cell;
 mod geometry;
 mod glyph;
+mod render;
 mod stroke;
 
 pub use buffer::Buffer;
 pub use cell::{Arm, Cell};
 pub use geometry::{Pos, Size};
 pub use glyph::{GlyphCatalog, GlyphKey};
+pub use render::render;
 pub use stroke::Stroke;
 
 /// Returns the greeting that a front end shows when it has nothing else to display.
