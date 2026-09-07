@@ -7,26 +7,19 @@ use crate::{Arm, Buffer, Cell, GlyphCatalog, GlyphKey, Pos, Size, Stroke};
 ///
 /// Each position is resolved by exact lookup only: a position with no cell, or whose key
 /// `glyphs` does not answer, renders as a space. A position inside the rendered rectangle but
-/// outside the buffer's window renders as a space too, since it never holds a cell either.
-///
-/// # Panics
-///
-/// Panics if `size.width` or `size.height` exceeds `i32::MAX`. No diagram this crate can address
-/// reaches that size.
+/// outside the buffer's window renders as a space too, since it never holds a cell either — and
+/// so does a position that `origin` and an offset within `size` cannot even address as a `Pos`,
+/// since nothing could ever have been stamped there.
 #[must_use]
 pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -> String {
-    let width = i32::try_from(size.width).expect("a width that fits in i32");
-    let height = i32::try_from(size.height).expect("a height that fits in i32");
-
     let mut out = String::new();
-    for dy in 0..height {
-        for dx in 0..width {
-            let pos = Pos {
-                x: origin.x + dx,
-                y: origin.y + dy,
-            };
-            let glyph = buffer
-                .cell(pos)
+    for dy in 0..size.height {
+        for dx in 0..size.width {
+            let glyph = origin
+                .x
+                .checked_add_unsigned(dx)
+                .zip(origin.y.checked_add_unsigned(dy))
+                .and_then(|(x, y)| buffer.cell(Pos { x, y }))
                 .and_then(|cell| glyphs.glyph(&key_of(cell)))
                 .unwrap_or(' ');
             out.push(glyph);
@@ -314,6 +307,23 @@ mod tests {
         );
 
         assert_eq!(text, "  \n");
+    }
+
+    #[test]
+    fn an_origin_near_i32_max_does_not_overflow() {
+        let origin = Pos {
+            x: i32::MAX - 1,
+            y: 0,
+        };
+        let size = Size {
+            width: 3,
+            height: 1,
+        };
+        let buffer = Buffer::new(origin, size);
+
+        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+
+        assert_eq!(text, "   \n");
     }
 
     #[test]
