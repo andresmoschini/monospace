@@ -50,4 +50,4 @@ Fixing a typo or a broken link is fine.
 
 | Spec                                        | Title                                     | Status |
 | ------------------------------------------- | ----------------------------------------- | ------ |
-| [0001](0001-stamp-cells-and-render-them.md) | Stamp cells into a buffer and render them | draft  |
+| [0001](0001-stamp-cells-and-render-them.md) | Stamp cells into a buffer and render them | agreed |
