@@ -142,6 +142,21 @@ Questions that only appeared once work started — a second toolchain for the ch
 perform, how the git hooks get installed, how a commit points back at the conversation that produced
 it — are recorded the same way. [The index](decisions/README.md) lists all of them.
 
+## 9. Tooling Questions, Open
+
+Recorded here rather than left to memory, each with what would settle it.
+
+- **Nothing verifies links between documents.** `markdownlint` checks a link fragment against the
+  headings of the same file and stops there: a link to a file that does not exist, or to an anchor
+  in a different file that does not exist, passes the gate. Verified by making each of the three
+  cases fail on purpose. There are 59 cross-file links today and none of them carries an anchor, so
+  what rots first is a renamed or renumbered file. Two ways to close it. An npm link checker follows
+  the precedent of [ADR-0004](decisions/0004-node-toolchain-for-the-non-rust-checks.md), but has to
+  be configured to stay offline or it becomes the first step of the gate that can fail because of
+  the network. A step in `xtask` needs no dependency and is offline by construction, at the price of
+  owning GitHub's heading-slug rules. The trigger is a link actually rotting, or the first
+  cross-file reference that carries an anchor and therefore has something to verify.
+
 ---
 
 _This brief sets direction, not final answers. It should be revisited and amended as the project's
