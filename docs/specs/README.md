@@ -54,3 +54,4 @@ Fixing a typo or a broken link is fine.
 | [0002](0002-make-a-box-that-can-be-crossed.md) | Make a box that can be crossed            | implemented |
 | [0003](0003-stamp-below-what-is-there.md)      | Stamp below what is already there         | implemented |
 | [0004](0004-give-a-glyph-a-type-of-its-own.md) | Give a glyph a type of its own            | draft       |
+| [0005](0005-hold-a-literal-glyph-in-a-cell.md) | Hold a literal glyph in a cell            | draft       |
