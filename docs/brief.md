@@ -84,6 +84,11 @@ spec before implementation — they are listed here only to establish direction,
 - Read a diagram description from a file or stdin via the CLI.
 - Output the rendered diagram to stdout or a file.
 
+Underneath all of them sit two mechanisms that every one of those capabilities needs: a buffer of
+cells that figures write into, and the rendering of that buffer to characters. They are described in
+[`docs/model.md`](model.md), which feature specs slice up rather than restate. That document is
+design intent, not implemented behavior, and it owns the vocabulary the specs use.
+
 ## 5. Non-Functional Constraints
 
 - **Language:** Rust (stable toolchain).
