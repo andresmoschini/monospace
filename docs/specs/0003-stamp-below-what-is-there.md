@@ -1,5 +1,5 @@
 ---
-status: draft
+status: agreed
 date: 2026-09-07
 ---
 
