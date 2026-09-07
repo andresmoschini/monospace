@@ -74,9 +74,7 @@ spec that gives it meaning.
 ## Model slice
 
 Implements [`docs/model.md`](../model.md) in full for _The buffer_, _The cell_ and _Stamping_, and
-in part for _Strokes, glyph sets and the catalog_ and _Rendering_. Sections are named rather than
-numbered throughout this spec: inserting a section into the model would silently invalidate every
-number cited here, while renaming one is a deliberate act by whoever is editing that heading.
+in part for _Strokes, glyph sets and the catalog_ and _Rendering_.
 
 - _Stamping_'s `Below` mode is out; `stamp` implements the `Above` column only.
 - _Strokes, glyph sets and the catalog_ is reduced to a catalog built from one set, with nothing
