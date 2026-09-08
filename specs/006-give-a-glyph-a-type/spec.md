@@ -173,11 +173,12 @@ one.
   Nothing observable changes in this slice, since every built-in glyph is one character; the slice
   that first stores a multi-character glyph is the one that would otherwise have broken the promise
   silently.
-- **FR-018** (P1): Text MUST NOT be normalized on construction. Two glyphs are equal when their text
-  is equal, so `é` as U+00E9 and `é` as `e` followed by U+0301 are two glyphs that render alike and
-  compare unequal. Which normal form text arrives in belongs to the caller, who knows where the text
-  came from; normalizing here would need a decision ADR-0019 did not take, and a second dependency
-  to carry it out.
+- **FR-018** (P1, P2): Text MUST NOT be normalized on construction. Two glyphs are equal when their
+  text is equal, so `é` as U+00E9 and `é` as `e` followed by U+0301 are two glyphs that render alike
+  and compare unequal. Which normal form text arrives in belongs to the caller, who knows where the
+  text came from; normalizing here would need a decision ADR-0019 did not take, and a second
+  dependency to carry it out. The rule holds from P1, but its assertion only becomes possible in P2:
+  the decomposed form is two characters, so P1 refuses it for an unrelated reason.
 
 ### Key Entities
 
@@ -278,8 +279,8 @@ This is the shape every existing assertion on a looked-up glyph takes after P1: 
 - **SC-007**: the dependency ADR-0019 accepts is added with an exact version whose publication date
   is at least seven days old, and the version and that date are named in the commit that adds it.
 - **SC-008**: the two boundary cases the clarifications settled each have a test naming them — a
-  cluster of format characters only is accepted, and the two normal forms of `é` both construct and
-  compare unequal.
+  zero-width joiner on its own, U+200D, is accepted as a glyph, and the two normal forms of `é` both
+  construct and compare unequal.
 
 ## Assumptions
 

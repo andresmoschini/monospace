@@ -85,12 +85,13 @@ than `Result`, a private payload with `new` as the only way in, and the derives
 _Examples_ table plus the format-character boundary from SC-008. The rustdoc says what is accepted
 and that neither width nor normal form is part of the invariant.
 
-**T003 covers**: FR-007 to FR-010. The rules map becomes `HashMap<GlyphKey, Glyph>`; the Light
-table's row type carries `&'static str` for the glyph so that no row moves in US2 (FR-014); `glyph`
-answers `Option<&Glyph>`; `light()` panics through an `expect` naming the offending rule and carries
-the `# Panics` section [research.md](research.md) R5 explains; `render` collects glyph text with
-`" "` as the fallback. The test walking all fifteen rules lands here (SC-003), and the existing
-catalog and rendering assertions are edited mechanically with no test added or removed (SC-004).
+**T003 covers**: FR-007 to FR-010, and FR-016 again for the items it adds. The rules map becomes
+`HashMap<GlyphKey, Glyph>`; the Light table's row type carries `&'static str` for the glyph so that
+no row moves in US2 (FR-014); `glyph` answers `Option<&Glyph>`; `light()` panics through an `expect`
+naming the offending rule and carries the `# Panics` section [research.md](research.md) R5 explains;
+`render` collects glyph text with `" "` as the fallback. The test walking all fifteen rules lands
+here (SC-003), and the existing catalog and rendering assertions are edited mechanically with no
+test added or removed (SC-004).
 
 **Checkpoint**: the gate is green, the front end's output is byte-for-byte identical to the T001
 baseline, and `crates/monospace-cli/` does not appear in the diff. US1 is a complete increment and
@@ -109,12 +110,18 @@ against the T001 baseline again.
 
 - [ ] T004 [US2] Widen the invariant to one grapheme cluster in
       `crates/monospace-core/src/glyph.rs`, adding `unicode-segmentation` to
-      `crates/monospace-core/Cargo.toml` and the tests for what the widening now accepts
+      `crates/monospace-core/Cargo.toml`, correcting `render`'s rustdoc in
+      `crates/monospace-core/src/render.rs`, and adding the tests for what the widening now accepts
 
 **T004 covers**: FR-011 to FR-014 and FR-017 to FR-018. The predicate becomes "exactly one extended
 grapheme cluster, with no `char` in Unicode's `Cc` category"; the storage does not change, which is
 why no call site and no table row moves. Its tests are the P2 rows of the spec's _Examples_ table
 plus the two normal forms of `é` comparing unequal (SC-008).
+
+FR-017 is the one part of this task that is not in `glyph.rs`. `render`'s rustdoc promises lines
+"exactly `size.width` characters wide", and this is the increment that makes the sentence false,
+since a glyph may now be several characters. It becomes a promise in glyphs — the same rectangle,
+and no longer the same character count.
 
 **The dependency and this task are one commit on purpose.** Splitting them would leave a commit
 carrying a dependency nothing uses, and would break the only claim this feature makes about its own
