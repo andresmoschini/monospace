@@ -54,42 +54,45 @@ pub struct GlyphKey {
 /// Every glyph rule in play. Answering a key is one lookup; nothing about a catalog says which
 /// set a rule came from.
 pub struct GlyphCatalog {
-    rules: HashMap<GlyphKey, char>,
+    rules: HashMap<GlyphKey, Glyph>,
 }
 
-/// A row of a glyph table: a stroke name or nothing on each side, and the character it draws.
+/// A row of a glyph table: a stroke name or nothing on each side, and the glyph it draws.
+///
+/// The glyph is `&'static str` rather than `Glyph` so that no row moves when the invariant widens
+/// past one character (FR-014).
 type Row = (
     Option<&'static str>,
     Option<&'static str>,
     Option<&'static str>,
     Option<&'static str>,
-    char,
+    &'static str,
 );
 
 /// The 15 rules of the Light table in [`docs/glyph-sets.md`](../../../docs/glyph-sets.md), held as
 /// data rather than parsed at run time.
 const LIGHT: &[Row] = &[
-    (None, None, Some("light"), None, '│'),
-    (None, None, Some("light"), Some("light"), '┐'),
-    (None, Some("light"), Some("light"), Some("light"), '┬'),
+    (None, None, Some("light"), None, "│"),
+    (None, None, Some("light"), Some("light"), "┐"),
+    (None, Some("light"), Some("light"), Some("light"), "┬"),
     (
         Some("light"),
         Some("light"),
         Some("light"),
         Some("light"),
-        '┼',
+        "┼",
     ),
-    (Some("light"), None, Some("light"), Some("light"), '┤'),
-    (None, Some("light"), Some("light"), None, '┌'),
-    (Some("light"), Some("light"), Some("light"), None, '├'),
-    (Some("light"), None, Some("light"), None, '│'),
-    (None, None, None, Some("light"), '─'),
-    (None, Some("light"), None, Some("light"), '─'),
-    (Some("light"), Some("light"), None, Some("light"), '┴'),
-    (Some("light"), None, None, Some("light"), '┘'),
-    (None, Some("light"), None, None, '─'),
-    (Some("light"), Some("light"), None, None, '└'),
-    (Some("light"), None, None, None, '│'),
+    (Some("light"), None, Some("light"), Some("light"), "┤"),
+    (None, Some("light"), Some("light"), None, "┌"),
+    (Some("light"), Some("light"), Some("light"), None, "├"),
+    (Some("light"), None, Some("light"), None, "│"),
+    (None, None, None, Some("light"), "─"),
+    (None, Some("light"), None, Some("light"), "─"),
+    (Some("light"), Some("light"), None, Some("light"), "┴"),
+    (Some("light"), None, None, Some("light"), "┘"),
+    (None, Some("light"), None, None, "─"),
+    (Some("light"), Some("light"), None, None, "└"),
+    (Some("light"), None, None, None, "│"),
 ];
 
 impl GlyphCatalog {
@@ -97,6 +100,11 @@ impl GlyphCatalog {
     ///
     /// Named after what the catalog holds, not where it comes from: it stays accurate once a
     /// second built-in table exists, which is why it is not called `built_in`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a row of the Light table is not a valid glyph. That is a bug in data this
+    /// library ships, never a condition a caller can trigger (FR-009).
     #[must_use]
     pub fn light() -> Self {
         let rules = LIGHT
@@ -108,6 +116,8 @@ impl GlyphCatalog {
                     bottom: bottom.map(Stroke::from),
                     left: left.map(Stroke::from),
                 };
+                let glyph = Glyph::new(glyph)
+                    .unwrap_or_else(|| panic!("Light table row {key:?} is not a valid glyph"));
                 (key, glyph)
             })
             .collect();
@@ -117,8 +127,8 @@ impl GlyphCatalog {
 
     /// Returns the glyph `key` answers to, or `None` if the catalog has no rule for it.
     #[must_use]
-    pub fn glyph(&self, key: &GlyphKey) -> Option<char> {
-        self.rules.get(key).copied()
+    pub fn glyph(&self, key: &GlyphKey) -> Option<&Glyph> {
+        self.rules.get(key)
     }
 }
 
@@ -171,7 +181,7 @@ mod tests {
             left: None,
         };
 
-        assert_eq!(catalog.glyph(&key), Some('│'));
+        assert_eq!(catalog.glyph(&key).map(Glyph::as_str), Some("│"));
     }
 
     /// The property `docs/model.md` names under _Properties worth testing_: a catalog built from

@@ -74,7 +74,7 @@ a light cell can produce; run `cargo run -p monospace-cli` and diff against the 
 
 - [x] T002 [US1] Add `Glyph` with `new` and `as_str`, its rustdoc and its unit tests, in
       `crates/monospace-core/src/glyph.rs`, and re-export it from `crates/monospace-core/src/lib.rs`
-- [ ] T003 [US1] Move the catalog and the renderer onto `Glyph` in
+- [x] T003 [US1] Move the catalog and the renderer onto `Glyph` in
       `crates/monospace-core/src/glyph.rs` and `crates/monospace-core/src/render.rs`, adapting the
       existing assertions through `as_str`
 
