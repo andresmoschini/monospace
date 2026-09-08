@@ -12,6 +12,11 @@ to work effectively with **Spec-Driven Development** using Claude, and in practi
 architecture, design, and idioms** along the way. The diagrams are the vehicle; the process is the
 point.
 
+The idea, part of the domain logic, the design and the model come from a private project of the same
+author that will not be published — see [the brief](docs/brief.md) for the full note. The Rust
+architecture, the implementation and the decisions recorded under `docs/decisions/` are this
+repository's own, even where some carry over an approach already worked out in that project.
+
 ## How we're building it
 
 - **Methodology:** Spec-Driven Development, iterating with Claude at every step.
