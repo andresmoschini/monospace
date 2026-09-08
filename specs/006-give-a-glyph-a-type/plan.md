@@ -87,6 +87,11 @@ Inside P1 the work still goes expand then migrate, as the principle asks of anyt
 `Glyph` with its own tests first, then move the catalog and the renderer onto it. Both steps are
 `feat`, both leave the gate green, and each is one task and one commit.
 
+**There is no foundational work.** Validating the fifteen Light rules cannot happen before `Glyph`
+exists, so it belongs to P1; the dependency serves the widened predicate and belongs to P2. A phase
+that ran before both would put the dependency ahead of the increment whose diff is supposed to
+measure what it bought, which is the one thing SC-006 is there to count.
+
 ## Project Structure
 
 ### Documentation (this feature)
