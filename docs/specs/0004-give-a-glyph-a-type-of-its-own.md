@@ -11,6 +11,11 @@ date: 2026-09-07
 > it, which is authored from this file rather than from scratch. See
 > [the directory's note](README.md) and
 > [ADR-0021](../decisions/0021-move-the-spec-home-to-spec-kit.md).
+>
+> **Replaced by [`specs/006-give-a-glyph-a-type/`](../../specs/006-give-a-glyph-a-type/spec.md).**
+> That feature is where the agreed rules live, and it supersedes what this file prescribes wherever
+> the two differ — including the shape of the increments below, which planning it found could not be
+> built as written. Read this one for what was wanted; read that one for what was agreed.
 
 ## Why now
 
