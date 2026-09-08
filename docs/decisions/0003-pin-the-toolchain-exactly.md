@@ -134,8 +134,9 @@ that bumping it is a normal task with a learning-log entry, not maintenance chor
 
 ## More Information
 
-- `docs/brief.md` sections 5 and 8, for the stable-channel constraint and the open question this
-  answers.
+- [Constraints and Dependencies](../../.specify/memory/constitution.md#constraints-and-dependencies)
+  for the stable-channel constraint, which was section 5 of the brief when this record was written.
+  The open question this answers was that brief's section 8, and exists only in git history now.
 - [ADR-0002](0002-no-minimum-supported-rust-version.md), which explains why pinning a development
   toolchain is not the same thing as promising a minimum supported version.
 - [ADR-0001](0001-virtual-cargo-workspace-under-crates.md), whose WebAssembly check is the reason

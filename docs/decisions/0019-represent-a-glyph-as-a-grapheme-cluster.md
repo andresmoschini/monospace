@@ -32,8 +32,9 @@ as `e` followed by a combining acute, a flag, and every emoji built from more th
   of output breaks a tested contract, not just the picture.
 - Glyphs are about to arrive from outside, so whatever the invariant is has to be checkable at a
   boundary rather than remembered.
-- [`docs/brief.md`](../brief.md) §5: prefer the standard library for domain logic, especially early
-  on, to maximize the design-learning value.
+- [Constraints and Dependencies](../../.specify/memory/constitution.md#constraints-and-dependencies):
+  prefer the standard library for domain logic, especially early on, to maximize the design-learning
+  value. The brief's §5 when this was written.
 - The vocabulary already has the word and no type behind it: [`docs/model.md`](../model.md) defines
   `Glyph` as what a cell renders to.
 
@@ -65,8 +66,8 @@ The dependency is `unicode-segmentation`, from `unicode-rs`, which has no runtim
 its own. Grapheme segmentation is UAX #29 — combining marks, ZWJ, variation selectors, regional
 indicators, Hangul, emoji modifiers — and its tables move with each Unicode release. Implementing it
 here would mean owning rules this project has no interest in owning, which is the same trade-off
-[`docs/brief.md`](../brief.md) §9 already weighs for link checking: a maintained table somewhere
-else, or a copy here that goes quietly stale.
+[issue #13](https://github.com/andresmoschini/monospace/issues/13) already weighs for link checking:
+a maintained table somewhere else, or a copy here that goes quietly stale.
 
 ### Consequences
 
@@ -153,6 +154,8 @@ after all, and bring D back with a real reason instead of a theoretical one.
 - [ADR-0015](0015-represent-a-stroke-as-a-string.md), the same shape of question one level down, and
   the reason a stroke is a public `String` while a glyph is not.
 - [`docs/model.md`](../model.md), whose vocabulary entry for `Glyph` this decision rewrites.
-- [`docs/brief.md`](../brief.md) §5 for the preference this dependency is weighed against, and §9
-  for the same trade-off arising over link checking.
+- [Constraints and Dependencies](../../.specify/memory/constitution.md#constraints-and-dependencies)
+  for the preference this dependency is weighed against, and
+  [issue #13](https://github.com/andresmoschini/monospace/issues/13) for the same trade-off arising
+  over link checking. Both were sections of the brief, §5 and §9, when this was written.
 - The slice that implements it: [spec 0004](../specs/0004-give-a-glyph-a-type-of-its-own.md).

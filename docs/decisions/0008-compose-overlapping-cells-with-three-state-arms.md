@@ -28,8 +28,9 @@ sometimes in the same cell, and neither figure knows the other exists.
 
 - A crossing has to resolve without either figure knowing about the other. Figures are produced
   independently by whatever layer sits above, and `monospace-core` must not require them to
-  coordinate ([`docs/brief.md`](../brief.md) §3: no assumptions from the consuming layer leaking
-  into the core).
+  coordinate
+  ([The core stays portable](../../.specify/memory/constitution.md#vii-the-core-stays-portable): no
+  assumptions from the consuming layer leaking into the core; the brief's §3 when this was written).
 - The order in which figures are drawn belongs to the caller. Drawing front to back allows skipping
   cells that are already decided; drawing back to front does not. The model should not force one.
 - A filled shape has to be able to refuse a connection into its interior. Otherwise anything drawn

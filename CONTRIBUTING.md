@@ -215,8 +215,8 @@ whoever is editing that heading, and far more likely to be noticed.
 
 Nothing checks either. `markdownlint` validates a link fragment against the headings of the same
 file and stops there, so a link to a file that does not exist, or to an anchor in a different file
-that does not exist, passes the gate. [The brief](docs/brief.md) records that gap as an open tooling
-question.
+that does not exist, passes the gate.
+[Issue #13](https://github.com/andresmoschini/monospace/issues/13) tracks closing it.
 
 Records under `docs/decisions/` written before this convention keep their numbered citations. They
 were true when written, and an accepted record is not edited for style.

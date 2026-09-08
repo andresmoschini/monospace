@@ -154,9 +154,10 @@ Each of these shapes is deliberate:
   asserting is that every key a light cell can produce is answered, which `glyph` alone proves; a
   `len` would only invite a test that counts rules without checking any of them.
 
-Every public item carries rustdoc as it is introduced, as `docs/brief.md` asks under _Non-Functional
-Constraints_. `Arm::Unset` documents what it means, since "not mine to decide" is the part a reader
-will get wrong.
+Every public item carries rustdoc as it is introduced, as
+[The core stays portable](../../.specify/memory/constitution.md#vii-the-core-stays-portable) asks —
+the brief's _Non-Functional Constraints_ when this spec was written. `Arm::Unset` documents what it
+means, since "not mine to decide" is the part a reader will get wrong.
 
 ## Behavior
 

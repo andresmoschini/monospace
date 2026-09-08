@@ -117,6 +117,8 @@ with a body of code that has drifted onto very recent APIs.
 
 ## More Information
 
-- `docs/brief.md` section 8, which raised MSRV as an open tooling question.
+- The brief's section 8, which raised MSRV as an open tooling question. That section had no
+  successor when the brief was removed: the question it asked is answered by this record, so nothing
+  inherited it. Git history is the only place it still exists.
 - [ADR-0003](0003-pin-the-toolchain-exactly.md), which pins the development toolchain and is the
   reason "which compiler builds this" already has an answer without an MSRV.

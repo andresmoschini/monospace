@@ -13,7 +13,7 @@ architecture, design, and idioms** along the way. The diagrams are the vehicle; 
 point.
 
 The idea, part of the domain logic, the design and the model come from a private project of the same
-author that will not be published — see [the brief](docs/brief.md) for the full note. The Rust
+author that will not be published — see [the model](docs/model.md) for the full note. The Rust
 architecture, the implementation and the decisions recorded under `docs/decisions/` are this
 repository's own, even where some carry over an approach already worked out in that project.
 
@@ -24,7 +24,8 @@ repository's own, even where some carry over an approach already worked out in t
 - **Cadence:** small, incremental commits. Each one aims to leave the project in a working,
   demonstrable state — no long-lived broken branches, no giant reveals.
 
-The scope, the constraints and what is deliberately left out are in [the brief](docs/brief.md).
+The scope, the constraints and what is deliberately left out are in
+[the constitution](.specify/memory/constitution.md).
 
 ## Roadmap
 
@@ -63,17 +64,16 @@ what to do when one fails.
 | `crates/monospace-core` | The library. All domain logic lives here, and nothing else.     |
 | `crates/monospace-cli`  | The command-line application. Holds no logic of its own.        |
 | `xtask/`                | Repository automation. `cargo xtask check` is the gate.         |
-| `docs/brief.md`         | Scope, principles, and what is deliberately out of scope.       |
+| `docs/model.md`         | The domain's design, its provenance, and its open questions.    |
+| `docs/roadmap.md`       | The phases, and the capabilities the work heads towards.        |
 | `docs/decisions/`       | Why things are the way they are, recorded as they were decided. |
 
 ## Guiding principles
 
-- **Demonstrable over complete.** Every commit should do _something_ you could show someone, even if
-  small.
-- **Process over product.** Getting good at Spec-Driven Development with Claude, and at writing
-  idiomatic, well-architected Rust, matters more than the diagramming tool itself.
-- **Iterate in the open.** Specs, decisions, and course corrections are part of the history, not
-  hidden behind a single squashed commit.
+Process over product, demonstrable increments, and claims that are measured rather than assumed.
+Seven of them, stated as rules a plan can be checked against, are in
+[the constitution](.specify/memory/constitution.md) — which is where they are enforced from, not
+merely listed.
 
 ## License
 

@@ -4,9 +4,9 @@ ASCII diagramming project. `monospace-core` is the library holding all domain lo
 layout, rendering); `monospace-cli` is a minimal non-interactive consumer that ships the
 `monospace-cli` binary. The name `monospace` is reserved for the interactive TUI of a later phase.
 
-Read `docs/brief.md` before proposing any change. It defines scope, principles and what is
-deliberately out of scope. When a decision contradicts it, amend the brief in the same increment and
-say so in the commit — never drift from it silently.
+Read `.specify/memory/constitution.md` before proposing any change. It defines the principles, the
+scope and the constraints. When a decision contradicts it, amend it in the same increment and say so
+in the commit — never drift from it silently.
 
 ## Language
 
