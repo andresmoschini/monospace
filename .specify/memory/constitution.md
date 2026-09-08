@@ -48,9 +48,10 @@ Follow-up TODOs:
     their own words. Reduce them to what only they own — CONTRIBUTING keeps how to run the tooling,
     CLAUDE.md keeps session guidance — and point the rest here. Two wordings of one rule is the
     failure this project already refuses to accept for the quality gate.
-  - TODO(ROADMAP_REMOVAL): docs/roadmap.md is still in the tree. Removing it, and creating the
-    Phase field and the capability issues the two redirects above now point at, are later commits
-    of this increment.
+
+Closed since 1.3.0 was written:
+  - TODO(ROADMAP_REMOVAL) — docs/roadmap.md is removed and the four references that pointed at it
+    are redirected. The Phase field and the capability issues exist.
 -->
 
 # Monospace Constitution

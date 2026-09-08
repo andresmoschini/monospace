@@ -68,12 +68,13 @@ decided.
 **Records written before the constitution cite `docs/brief.md`, which no longer exists.** The brief
 was this project's initial spec, and it held the principles, the scope and the constraints until
 [the constitution](../../.specify/memory/constitution.md) took them over. Its other content went to
-[the model](../model.md), which owns the domain's design, provenance and open questions, and to
-[the roadmap](../roadmap.md), which owns the phases. Where a record's citation pointed at a rule
-that still exists, it now points at that rule's home; where it pointed at a question the record
-itself answered, the link is gone and only git history has the original. The prose is untouched: a
-record saying "the brief requires a stable toolchain" is reporting what it weighed at the time, and
-that is not a reference to redirect.
+[the model](../model.md), which owns the domain's design, provenance and open questions, and to the
+phases, which have since moved from `docs/roadmap.md` to the
+[GitHub Project](https://github.com/users/andresmoschini/projects/2). Where a record's citation
+pointed at a rule that still exists, it now points at that rule's home; where it pointed at a
+question the record itself answered, the link is gone and only git history has the original. The
+prose is untouched: a record saying "the brief requires a stable toolchain" is reporting what it
+weighed at the time, and that is not a reference to redirect.
 
 **A feature's `research.md` is not a decision record.** Spec Kit writes one per feature in almost
 this shape — decision, rationale, alternatives considered — but scoped to that feature, with no
