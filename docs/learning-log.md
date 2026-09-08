@@ -330,3 +330,30 @@ labelled.
   `stamp` skipping a decided target under `Below`. It is now real code, covered only by a comment,
   an acceptance item read rather than run, and ADR-0017 — nothing about implementing it found a way
   to test it. The prediction held.
+
+## 2026-09-07 — Unifying merge, and the branch ADR-0017 saw coming
+
+Three commits: `merge_arm_above` and `merge_arm_below` collapsed into one function, a new ADR, and
+the branch that ADR predicted.
+
+### Rust design and idiom
+
+- **Two functions were one function with the arguments swapped, once written the other way around.**
+  `merge_arm_above(target, incoming)` and `merge_arm_below(target, incoming)` read as different
+  rules until `merge` was rewritten to take `(top, bottom)` instead of `(target, incoming, mode)`.
+  With that shape, both collapsed into a single `merge_arm(top, bottom)`, and the `match mode` moved
+  to the one call site that already had to choose an order — removing a whole duplicated `Cell`
+  literal, not just a duplicated three-line function.
+
+### Working this way
+
+- **All four branches were measured, not just the new one.** Before adding a fourth match arm to
+  `stamp`, each of the four was instrumented with a distinct panic and run against the full test
+  suite plus the CLI binary. Three were already reached by existing tests; the fourth — the one
+  about to be added — was reached by nothing at all, not even indirectly. The new test and its claim
+  of coverage came only after that measurement.
+- **An accepted ADR's own "what would change this" clause got exercised for real.** ADR-0017 named a
+  second unverifiable branch, arriving for the same reason, as the specific thing that would matter.
+  When unifying `merge` surfaced exactly that branch's mirror image, that sentence — not a fresh
+  argument — was what decided the question needed a new record (ADR-0018) rather than a silent
+  addition.
