@@ -330,11 +330,7 @@ the library can hold, not what it holds.
 
 ## Handoff to the plan
 
-Two things this spec surfaces and does not own:
+One thing this spec surfaces and does not own:
 
-- **P1 mechanically edits existing test assertions**, which _Structural and behavioral change never
-  share a commit_ in [the constitution](../../.specify/memory/constitution.md) does not allow of a
-  structural commit. The plan's Complexity Tracking is where that departure is justified, since the
-  constitution gives that table exactly one job.
 - **FR-009's loud failure requires a documented panic.** `clippy::missing_panics_doc` is enforced by
   the gate and will ask for it on catalog construction the moment the panic exists.
