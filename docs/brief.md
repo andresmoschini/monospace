@@ -17,6 +17,9 @@ Monospace is a set of applications and libraries for creating diagrams using ASC
 boxes, arrows, connectors, flowcharts, and simple architecture sketches, rendered entirely in plain
 monospaced text.
 
+The idea, part of the domain logic, the design and the model come from a private project of the same
+author that will not be published — this repository replaces it as the public implementation.
+
 The project's real objective is **not** to ship a polished diagramming tool. It exists to build
 hands-on proficiency in:
 
