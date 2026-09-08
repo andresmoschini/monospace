@@ -53,3 +53,4 @@ Fixing a typo or a broken link is fine.
 | [0001](0001-stamp-cells-and-render-them.md)    | Stamp cells into a buffer and render them | implemented |
 | [0002](0002-make-a-box-that-can-be-crossed.md) | Make a box that can be crossed            | implemented |
 | [0003](0003-stamp-below-what-is-there.md)      | Stamp below what is already there         | implemented |
+| [0004](0004-give-a-glyph-a-type-of-its-own.md) | Give a glyph a type of its own            | draft       |
