@@ -7,9 +7,11 @@ edited; this file is appended to, newest entry last, one entry per increment.
 An increment is a slice of work that reaches a demonstrable state. It is usually several commits,
 sometimes many.
 
-The categories come from section 6 of [the brief](brief.md): something about Rust design and idiom,
-something about working this way with Claude, and the trade-offs worth remembering. A lesson is only
-worth an entry if it came with evidence — what was tried, and what it turned out to be.
+The categories come from
+[Demonstrable increments](../.specify/memory/constitution.md#ii-demonstrable-increments) in the
+constitution: something about Rust design and idiom, something about working this way with Claude,
+and the trade-offs worth remembering. A lesson is only worth an entry if it came with evidence —
+what was tried, and what it turned out to be.
 
 ---
 

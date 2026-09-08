@@ -1,34 +1,44 @@
 <!--
 Sync Impact Report — 2026-09-08
 
-Version change: 1.0.0 → 1.1.0
+Version change: 1.1.0 → 1.2.0
 
-Rationale for MINOR: the Development Workflow section gains guidance it did not have — which
-artifact owns a rationale, now that a feature's research.md and a plan's Complexity Tracking can
-each hold one. No principle is added, redefined or removed.
+Rationale for MINOR: this file takes over the last rules docs/brief.md was still holding — what is
+in scope, what a spec must ask of its tests, and what a learning-log entry covers — and Governance
+now names itself, rather than the brief, as the owner of scope. Guidance is added, none redefined
+or removed.
 
 Modified sections:
-  - Development Workflow: added "Where a rationale goes", and named research.md in the layout.
+  - Principle II: a learning-log entry's three categories, and the evidence bar for one.
+  - Constraints and Dependencies: added "Testing" and "In scope for this phase"; the out-of-scope
+    paragraph now points at the roadmap instead of at the brief for where each item arrives.
+  - Governance: the constitution owns principles, scope and constraints. model.md owns the domain's
+    design and open questions, roadmap.md owns direction.
 
 Templates and commands reviewed: unchanged since 1.0.0. Of the four templates only
 plan-template.md refers to the constitution, and it reads this file at runtime.
 
 Prior versions:
+  - 1.1.0 (2026-09-08) — Development Workflow gained "Where a rationale goes": docs/decisions/ for
+    what outlives a feature, research.md for investigation local to it, Complexity Tracking for
+    justifying a departure from this file.
   - 1.0.0 (2026-09-08) — first ratified constitution. Principles I–VII, Constraints and
     Dependencies, Development Workflow and Governance, filled from the practice already recorded in
     docs/brief.md, CONTRIBUTING.md, CLAUDE.md, docs/specs/README.md and docs/decisions/README.md.
     Replaced the unfilled `[PLACEHOLDER]` scaffold from `specify init`.
 
 Follow-up TODOs:
-  - TODO(TRIM_DUPLICATION): this file now owns the process rules. docs/brief.md sections 2 and 6,
-    CONTRIBUTING.md and CLAUDE.md still state several of them in their own words. Reduce them to
-    what only they own — the brief keeps vision, scope and non-goals; CONTRIBUTING keeps how to run
-    the tooling; CLAUDE.md keeps session guidance — and point the rest here. Two wordings of one
-    rule is the failure this project already refuses to accept for the quality gate.
+  - TODO(TRIM_DUPLICATION): CONTRIBUTING.md and CLAUDE.md still state several of these rules in
+    their own words. Reduce them to what only they own — CONTRIBUTING keeps how to run the tooling,
+    CLAUDE.md keeps session guidance — and point the rest here. Two wordings of one rule is the
+    failure this project already refuses to accept for the quality gate.
 
 Closed since 1.0.0:
   - TODO(MIGRATION_ADR) — recorded as ADR-0021, which also settles that the numbering continues at
     006 rather than restarting.
+  - The brief's half of TODO(TRIM_DUPLICATION) — its principles, constraints and process are here;
+    its provenance and domain questions are in model.md; its phases and capabilities are in
+    roadmap.md. The file itself is removed in the commit after this one.
 -->
 
 # Monospace Constitution
@@ -57,7 +67,10 @@ point.
 - Specs MUST be sliced thin. Several small specs are preferred over one large one.
 - One task per commit.
 - An increment — a slice that reaches a demonstrable state, usually several commits — MUST end with
-  an appended entry in `docs/learning-log.md`.
+  an appended entry in `docs/learning-log.md`. The entry covers what was learned about Rust design
+  and idiom, what was learned about working this way, and optionally a trade-off worth remembering
+  later. A lesson earns an entry only if it came with evidence: what was tried, and what it turned
+  out to be.
 
 Rationale: a slice that cannot be shown to someone cannot be judged, and unjudged work accumulates
 silently.
@@ -155,9 +168,18 @@ or pinning any version, its publication date MUST be verified to be at least sev
 version and that date reported. Domain logic prefers the standard library; infrastructure concerns
 prefer idiomatic, well-established crates over reinvention.
 
+**Testing.** Each spec defines its own testing expectations, and unit tests for core logic are the
+minimum any of them may ask for. A behavior rule with no test named against it is an unfinished
+spec, not a finished feature.
+
+**In scope for this phase.** Two things, and their boundary is principle VII: `monospace-core`, the
+Rust library holding the diagramming logic — input parsing, layout and positioning, ASCII rendering
+— and `monospace-cli`, a minimal non-interactive consumer that produces diagrams from the terminal.
+
 **Out of scope for this phase**, and a plan proposing any of them MUST be stopped and renegotiated
-against `docs/brief.md` rather than quietly widened: WebAssembly bindings, a web front-end,
-non-terminal GUIs, persistence, collaboration, and export formats beyond plain text.
+rather than quietly widened: WebAssembly bindings, a web front-end, non-terminal GUIs, persistence,
+collaboration, and export formats beyond plain text. Where each of them is expected to arrive
+instead is in [the roadmap](../../docs/roadmap.md), which holds direction and no rules.
 
 ## Development Workflow
 
@@ -216,10 +238,12 @@ wrong. This holds after pushing: `main` is never rewritten, and every force push
 
 ## Governance
 
-This constitution supersedes prior practice wherever the two conflict. `docs/brief.md` remains the
-owner of vision, scope and non-goals; `CONTRIBUTING.md` of how to run the tooling; `CLAUDE.md` of
-session guidance. Where any of them restates a rule stated here, this file is the one to follow, and
-the duplication is a defect to remove.
+This constitution supersedes prior practice wherever the two conflict. It owns the principles, the
+scope and the constraints. [`docs/model.md`](../../docs/model.md) remains the owner of the domain's
+design and its open questions; [`docs/roadmap.md`](../../docs/roadmap.md) of direction;
+`CONTRIBUTING.md` of how to run the tooling; `CLAUDE.md` of session guidance. Where any of them
+restates a rule stated here, this file is the one to follow, and the duplication is a defect to
+remove.
 
 **Amendment procedure.** An amendment is made in the same increment as the decision that requires
 it, and the commit says so — never drifted from silently. An amendment that reverses a recorded
@@ -237,4 +261,4 @@ boundary, tests, docs — are enforced by `cargo xtask check` and are not a matt
 rest — thin slices, structural commits kept separate, decisions recorded when taken, claims
 measured — is checked by reading, at plan time and at review time.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-08
+**Version**: 1.2.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-08
