@@ -29,7 +29,7 @@ when no character matches.
 | `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`               |
 | `Stroke`        | A name, nothing more                                                          |
 | `BaseStroke`    | The cell's own stroke: what every arm is drawn in unless it carries one       |
-| `Glyph`         | The character a cell renders to                                               |
+| `Glyph`         | What a cell renders to: one grapheme cluster                                  |
 | `GlyphKey`      | The four sides of a rule: a stroke name on each, or nothing                   |
 | `GlyphRule`     | One `GlyphKey` mapped to a glyph                                              |
 | `GlyphSet`      | A group of rules as they are written or loaded: one table                     |
