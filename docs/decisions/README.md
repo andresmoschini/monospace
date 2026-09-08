@@ -36,6 +36,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0022](0022-non-interactive-cli-before-the-tui.md)              | Build the non-interactive CLI before the interactive TUI                        | accepted                             |
 | [0023](0023-direction-and-backlog-in-a-github-project.md)       | Keep direction and the backlog in a GitHub Project, and dissolve the roadmap    | accepted                             |
 | [0024](0024-take-the-feature-number-from-its-issue.md)          | Take a feature's number from its GitHub issue                                   | accepted                             |
+| [0025](0025-every-feature-has-a-parent-issue.md)                | Give every feature a parent issue, labeled `capability` or `foundational`       | accepted                             |
 
 ## How to add one
 
