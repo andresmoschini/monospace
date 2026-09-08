@@ -139,7 +139,7 @@ this commit touches no public signature and no call site T002 or T003 introduced
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T005 Observe FR-009's panic on purpose by breaking one row of the Light table in
+- [x] T005 Observe FR-009's panic on purpose by breaking one row of the Light table in
       `crates/monospace-core/src/glyph.rs`, then restoring it, following _Verifying the loud
       failure_ in [quickstart.md](quickstart.md)
 - [ ] T006 Append the increment's entry to `docs/learning-log.md`
