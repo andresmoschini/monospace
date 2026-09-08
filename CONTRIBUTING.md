@@ -33,6 +33,7 @@ without it nothing checks your commits until CI does.
 
 ```sh
 cargo xtask check          # the whole quality gate, about 3.5 seconds
+cargo xtask fix            # apply every automatic fix the gate knows about
 cargo run -p monospace-cli # run the command-line application
 cargo test --workspace     # tests only, when you want a faster loop
 ```
@@ -79,6 +80,34 @@ owner.
   unchecked.
 - **`.editorconfig`** is read by prettier and by `editorconfig-checker`, so indentation and line
   endings are configured once and obeyed by both.
+
+### Automatic fixes
+
+`cargo xtask fix` runs `fmt`, `prettier`, `markdownlint` and `editorconfig` in that order, each in
+its writing mode instead of its checking mode. Order is not incidental here the way it is for
+`check`: these steps rewrite the same files `check` only reads, so a formatter that ran last would
+win regardless of which one was "right". Content formatters run first; `editorconfig` runs last
+because it owns files none of the others touch — `LICENSE`, the TOML files, the dotfiles — and
+otherwise only confirms what the earlier steps already left clean.
+
+`clippy` and `cspell` have no fix step. `cspell` cannot fix a spelling on its own, and
+`clippy --fix` is deliberately left out of the automatic command:
+
+```sh
+cargo clippy --fix --workspace --all-targets --allow-dirty --allow-staged -- -D warnings
+```
+
+`--allow-dirty` and `--allow-staged` are required because clippy otherwise refuses to touch a
+working tree that is not clean, which it usually is mid-task. That refusal exists because a fix that
+turns out wrong should be a `git diff` away from undone, not mixed irreversibly into work already in
+progress — so run it on a tree you can afford to diff and revert, read the diff before committing,
+and expect it to leave some warnings behind: `pedantic`, which this project denies, includes lints
+that need a human judgment call rather than a mechanical rewrite. `cargo xtask check` afterward is
+what confirms which ones remain.
+
+`cargo xtask fix` does not guarantee `cargo xtask check` passes afterward — beyond what `clippy` and
+`cspell` never touch, `markdownlint` and `editorconfig` can both report violations they know about
+but cannot rewrite.
 
 ### When a check fails
 

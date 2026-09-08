@@ -145,11 +145,45 @@ const GATE: &[Step] = &[
     },
 ];
 
+/// The steps of the gate that can fix what they find, in the order they must run.
+///
+/// Unlike `GATE`, order here is not presentation: these steps mutate the same files, so a later
+/// step can undo or redo what an earlier one wrote. Content formatters run first; `editorconfig`
+/// runs last because it owns files none of the others touch (`LICENSE`, the TOML files, the
+/// dotfiles) and otherwise only confirms what the earlier steps already left clean.
+///
+/// `clippy` and `cspell` have no entry: `cspell` cannot fix a spelling at all, and `clippy --fix`
+/// can rewrite code in ways that need a human to read the diff, which does not fit a command meant
+/// to run unattended. `cargo clippy --fix` covers that case instead; see CONTRIBUTING.md.
+const FIX: &[Step] = &[
+    Step {
+        name: "fmt",
+        program: "cargo",
+        args: &["fmt", "--all"],
+    },
+    Step {
+        name: "prettier",
+        program: "node_modules/.bin/prettier",
+        args: &["--write", "--ignore-unknown", "."],
+    },
+    Step {
+        name: "markdownlint",
+        program: "node_modules/.bin/markdownlint-cli2",
+        args: &["--fix"],
+    },
+    Step {
+        name: "editorconfig",
+        program: "node_modules/.bin/editorconfig-checker",
+        args: &["-fix"],
+    },
+];
+
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
 
     match args.next().as_deref() {
         Some("check") => run_gate(),
+        Some("fix") => run_fix(),
         Some("setup") => run_setup(),
         None | Some("help" | "--help" | "-h") => {
             print_usage();
@@ -201,6 +235,52 @@ fn run_gate() -> ExitCode {
         failed.len(),
         GATE.len(),
         failed.join(", ")
+    );
+    ExitCode::FAILURE
+}
+
+/// Runs every step in `FIX`, in order, and reports which ones still have something left to fix by
+/// hand.
+///
+/// Steps run in sequence and each is given the chance to run even if an earlier one still has
+/// unfixed issues: a step's exit code reports what it could not fix automatically, not a broken
+/// intermediate state, so there is nothing later steps need protecting from. Run `cargo xtask
+/// check` afterward to see the full picture, including `clippy` and `cspell`, which this command
+/// does not touch.
+fn run_fix() -> ExitCode {
+    let root = workspace_root();
+
+    if let Err(problem) = node_tooling_state(&root) {
+        eprintln!("{problem}");
+        eprintln!();
+        eprintln!("    Run `cargo xtask setup` and try again.");
+        eprintln!();
+        eprintln!(
+            "Nothing was fixed. Running only the Rust steps would leave the Node-owned files \
+             untouched without saying so."
+        );
+        return ExitCode::FAILURE;
+    }
+
+    let mut remaining = Vec::new();
+
+    for step in FIX {
+        println!("\n--- {} ---", step.name);
+        if !run(&root, step) {
+            remaining.push(step.name);
+        }
+    }
+
+    if remaining.is_empty() {
+        println!("\nall {} fixers ran clean", FIX.len());
+        return ExitCode::SUCCESS;
+    }
+
+    eprintln!(
+        "\n{} of {} fixers still have something to fix by hand: {}",
+        remaining.len(),
+        FIX.len(),
+        remaining.join(", ")
     );
     ExitCode::FAILURE
 }
@@ -335,6 +415,7 @@ fn print_usage() {
     println!();
     println!("Commands:");
     println!("  check    Run every quality gate step; this is what the hook and CI run");
+    println!("  fix      Run every step of the gate that can fix what it finds");
     println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
     println!("  help     Show this message");
 }

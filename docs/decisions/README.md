@@ -31,6 +31,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0017](0017-ask-the-cell-whether-it-is-decided.md)              | Ask the cell whether it is decided, and let `stamp` skip a decided target       | accepted           |
 | [0018](0018-mirror-the-decided-skip-in-above.md)                | Mirror the decided-cell skip in `Above`, accepting a second unverifiable branch | accepted           |
 | [0019](0019-represent-a-glyph-as-a-grapheme-cluster.md)         | Represent a glyph as a validated grapheme cluster                               | accepted           |
+| [0020](0020-scope-cargo-xtask-fix-to-deterministic-fixers.md)   | Scope `cargo xtask fix` to deterministic fixers, and fix `clippy` by hand       | accepted           |
 
 ## How to add one
 
