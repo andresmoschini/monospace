@@ -41,7 +41,7 @@ module in the crate does — no test file is added.
 
 **Purpose**: capture the evidence that SC-001 is measured against, before anything changes.
 
-- [ ] T001 Capture the front end's current output to `../glyph-baseline.txt`, outside the
+- [x] T001 Capture the front end's current output to `../glyph-baseline.txt`, outside the
       repository, following _Capture the baseline first_ in [quickstart.md](quickstart.md)
 
 T001 produces no commit: its output is evidence for the pull request body, and committing it would
@@ -72,9 +72,9 @@ renderer speak in it. The rendered output does not move.
 in the spec and assert which are accepted; build the built-in Light catalog and ask it for every key
 a light cell can produce; run `cargo run -p monospace-cli` and diff against the T001 baseline.
 
-- [ ] T002 [US1] Add `Glyph` with `new` and `as_str`, its rustdoc and its unit tests, in
+- [x] T002 [US1] Add `Glyph` with `new` and `as_str`, its rustdoc and its unit tests, in
       `crates/monospace-core/src/glyph.rs`, and re-export it from `crates/monospace-core/src/lib.rs`
-- [ ] T003 [US1] Move the catalog and the renderer onto `Glyph` in
+- [x] T003 [US1] Move the catalog and the renderer onto `Glyph` in
       `crates/monospace-core/src/glyph.rs` and `crates/monospace-core/src/render.rs`, adapting the
       existing assertions through `as_str`
 
@@ -108,7 +108,7 @@ anything that occupies one cell — while every control character stays refused.
 table and assert it is accepted; assert `"\r\n"` is still refused; diff the front end's output
 against the T001 baseline again.
 
-- [ ] T004 [US2] Widen the invariant to one grapheme cluster in
+- [x] T004 [US2] Widen the invariant to one grapheme cluster in
       `crates/monospace-core/src/glyph.rs`, adding `unicode-segmentation` to
       `crates/monospace-core/Cargo.toml`, correcting `render`'s rustdoc in
       `crates/monospace-core/src/render.rs`, and adding the tests for what the widening now accepts
@@ -139,10 +139,10 @@ this commit touches no public signature and no call site T002 or T003 introduced
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T005 Observe FR-009's panic on purpose by breaking one row of the Light table in
+- [x] T005 Observe FR-009's panic on purpose by breaking one row of the Light table in
       `crates/monospace-core/src/glyph.rs`, then restoring it, following _Verifying the loud
       failure_ in [quickstart.md](quickstart.md)
-- [ ] T006 Append the increment's entry to `docs/learning-log.md`
+- [x] T006 Append the increment's entry to `docs/learning-log.md`
 
 T005 produces no commit either, and no test: a test that asserts the panic would have to ship a
 broken table to fire it. What it produces is an observation for the pull request body, and it is

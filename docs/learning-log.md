@@ -477,3 +477,58 @@ before any of it existed.
   the report to that same commit, so a number verified now is either re-verified later or stale.
   What `research.md` records instead is the part that does not perish: which crate, what it answers,
   and what the standard library already covers.
+
+## 2026-09-08 — Spec 006 implemented: give a glyph a type of its own
+
+Four commits: `Glyph` added and wired into `GlyphCatalog` and `render` in the same story, then the
+invariant widened from one `char` to one grapheme cluster behind `unicode-segmentation`, then
+FR-009's panic broken and restored on purpose. `cargo run -p monospace-cli` prints the same box it
+did before any of it, checked byte for byte after every commit.
+
+### Rust design and idiom
+
+- **The row type change bought exactly what it was supposed to, and the diff proved it.** The Light
+  table's row type carried `&'static str` for the glyph from the first commit, specifically so the
+  P2 widening would touch no row. `git diff` on the widening commit confirms it: the whole change is
+  the predicate inside `Glyph::new`, the dependency, four new tests, and one doc sentence — no line
+  of `LIGHT`, no call site, no public signature. SC-006 asked for exactly this to be counted rather
+  than assumed, and counting it found nothing to correct.
+- **A borrow with an explicit lifetime replaced a copy without changing a caller.**
+  `GlyphCatalog::glyph` moved from `Option<char>` to `Option<&Glyph>`, which meant `render`'s
+  `glyph_at` needed a lifetime of its own —
+  `fn glyph_at<'a>(.., glyphs: &'a GlyphCatalog, ..) -> &'a str` — to hand back a reference borrowed
+  from the catalog rather than from the buffer or the position. `Option::map_or(" ", Glyph::as_str)`
+  composed the fallback and the accessor in the same line the old `.unwrap_or(' ')` used, so the
+  shape of the call site did not change even though the value flowing through it did.
+
+### Working this way
+
+- **The org's dependency-freshness rule needs a live query, and the wrong source almost answered
+  it.** Verifying `unicode-segmentation`'s newest version was seven days old meant asking
+  crates.io's API directly — `curl` without a descriptive `User-Agent` gets a bare `403`,
+  undocumented in the moment it happens. A summarized fetch of docs.rs first offered "10 August
+  2026" for the same version that crates.io's own `created_at` field puts at 2026-06-01 — a docs
+  rebuild date standing in for a publish date, and wrong by two months in the direction that would
+  have blocked a compliant version for no reason. The number that shipped is the one read from the
+  registry's own JSON, not the one a secondary page summarized.
+- **A task list's own "produces no commit" note and a legible, checked-off task list turned out to
+  want different things, and splitting the difference took a real decision.** T001 and T005 are
+  evidence-gathering steps that `tasks.md` explicitly says leave no commit, and the first pass
+  through them respected that literally — both stayed unchecked. Asked to reconsider, T005 got a
+  small commit carrying only its checkbox and the observed panic text, which cost nothing since
+  nothing else had changed. T001 was different: its evidence had already been captured _inside_
+  T002's commit, so checking it off separately would have put the mark somewhere other than where
+  the evidence lives. The fix was `git rebase --onto` past that one commit, amending it to carry the
+  checkbox alongside the baseline it already recorded, then running `cargo xtask check` against each
+  of the three commits that had to be replayed on top of it — not just the new tip — per the
+  constitution's own rule for what a history rewrite owes. The branch had no upstream, so none of it
+  needed `--force-with-lease`.
+
+### Trade-offs worth remembering
+
+- **A fixture shared across two test modules turns one bad data row into a diagnostic, not just a
+  failure.** Breaking the first Light table row to observe FR-009's panic failed eleven of the
+  crate's thirty-one tests, across both `glyph` and `render` — every test that calls
+  `GlyphCatalog::light()` anywhere in its call graph, directly or through `render`. The panic
+  message named the one row that was actually wrong, which is what let restoring it be a one-line
+  diff instead of a search.

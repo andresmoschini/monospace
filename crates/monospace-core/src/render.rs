@@ -1,9 +1,10 @@
 //! Turning a buffer into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Arm, Buffer, Cell, GlyphCatalog, GlyphKey, Pos, Size, Stroke};
+use crate::{Arm, Buffer, Cell, Glyph, GlyphCatalog, GlyphKey, Pos, Size, Stroke};
 
 /// Renders a rectangle of `buffer` to a string of exactly `size.height` lines, each exactly
-/// `size.width` characters wide and ending in `\n`, the last line included.
+/// `size.width` glyphs wide and ending in `\n`, the last line included. A glyph may be more than
+/// one character, so the line is the same rectangle without being the same character count.
 ///
 /// Each position is resolved by exact lookup only: a position with no cell, or whose key
 /// `glyphs` does not answer, renders as a space. A position inside the rendered rectangle but
@@ -24,14 +25,20 @@ pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -
 
 /// The glyph at the absolute position `origin` plus `(dx, dy)`, or a space if that position
 /// cannot be addressed as a `Pos`, holds no cell, or resolves to a key `glyphs` does not answer.
-fn glyph_at(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, dx: u32, dy: u32) -> char {
+fn glyph_at<'a>(
+    buffer: &Buffer,
+    glyphs: &'a GlyphCatalog,
+    origin: Pos,
+    dx: u32,
+    dy: u32,
+) -> &'a str {
     origin
         .x
         .checked_add_unsigned(dx)
         .zip(origin.y.checked_add_unsigned(dy))
         .and_then(|(x, y)| buffer.cell(Pos { x, y }))
         .and_then(|cell| glyphs.glyph(&key_of(cell)))
-        .unwrap_or(' ')
+        .map_or(" ", Glyph::as_str)
 }
 
 /// Builds the exact key a cell resolves to: the cell's base stroke on every `Set` side, and
