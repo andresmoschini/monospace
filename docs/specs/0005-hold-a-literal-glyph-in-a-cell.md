@@ -1,9 +1,16 @@
 ---
-status: draft
+status: abandoned
 date: 2026-09-07
 ---
 
 # 0005 — Hold a literal glyph in a cell
+
+> **Abandoned, and kept as an input.** This spec was a draft when the project moved its spec home to
+> Spec Kit, so it was never agreed and never implemented. It is not extended or corrected from here.
+> What it asks for is still wanted: it is the raw material for the Spec Kit feature that replaces
+> it, which is authored from this file rather than from scratch. See
+> [the directory's note](README.md) and
+> [ADR-0021](../decisions/0021-move-the-spec-home-to-spec-kit.md).
 
 ## Why now
 

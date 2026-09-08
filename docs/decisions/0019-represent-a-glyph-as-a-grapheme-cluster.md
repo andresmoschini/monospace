@@ -158,4 +158,6 @@ after all, and bring D back with a real reason instead of a theoretical one.
   for the preference this dependency is weighed against, and
   [issue #13](https://github.com/andresmoschini/monospace/issues/13) for the same trade-off arising
   over link checking. Both were sections of the brief, §5 and §9, when this was written.
-- The slice that implements it: [spec 0004](../specs/0004-give-a-glyph-a-type-of-its-own.md).
+- The slice that implements it: [spec 0004](../specs/0004-give-a-glyph-a-type-of-its-own.md),
+  abandoned as a draft when the spec home moved and now the input to the Spec Kit feature that
+  replaces it. Nothing implements this decision yet.
