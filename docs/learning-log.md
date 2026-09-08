@@ -532,3 +532,78 @@ did before any of it, checked byte for byte after every commit.
   `GlyphCatalog::light()` anywhere in its call graph, directly or through `render`. The panic
   message named the one row that was actually wrong, which is what let restoring it be a one-line
   diff instead of a search.
+
+## 2026-09-08 — Direction to a board, and a feature's number to its issue
+
+Seven documentation commits and no code. Four ADRs — the CLI-before-TUI phasing rescued from the
+roadmap, the roadmap dissolved into a GitHub Project, a feature's number taken from its issue, and
+every feature given a parent issue — the constitution amended to 1.3.0, `docs/roadmap.md` removed
+with its four live references redirected, and `CONTRIBUTING.md` given the section on how a feature
+starts. No Rust was written, so this entry has nothing to say about Rust.
+
+### Working this way
+
+- **Four assumptions about the vendored scripts were checked before the record was written, and the
+  one that was false was the one that mattered.** Three held: the number comes from scanning the
+  local `specs/`, the auto-correction for an explicit `--number` sees only the local tree, and
+  nothing downstream parses the `NNN-` prefix. The fourth — that resolution in `common.sh` falls
+  back to the branch name — was wrong in both directions. `get_feature_paths` resolves
+  `SPECIFY_FEATURE_DIRECTORY`, then `feature_directory` in `.specify/feature.json`, then fails; and
+  `get_current_branch` returns `$SPECIFY_FEATURE` or the empty string, with zero occurrences of
+  `git rev-parse`, `symbolic-ref` or `git branch` anywhere under `.specify/scripts/`. The dependency
+  runs the other way: with no feature identifier set, `CURRENT_BRANCH` is filled from the feature
+  directory's basename. Had the assumption been true, the branch name would have been part of a
+  feature's identity rather than a convention beside it, and ADR-0024 would have had to promise
+  something different. One pass of reading bought that.
+- **Reading the allocator found a trap that no amount of designing would have.** `--number` is a
+  preference, not an instruction: when its prefix is already used, the script neither fails nor
+  takes the next free number above the one requested — it restarts from the highest existing prefix
+  and increments from there, warning on stderr. A mistyped `--number 31` in a repository whose
+  highest prefix is `006` yields `007`, and the directory stops naming its issue. That one fact is
+  what turned the constitution's new rule from "pass the number" into "invoke `/speckit-specify`
+  with the feature directory given explicitly", which is a stronger rule and was not available from
+  the design alone. It was also the correction to an amendment already committed, caught by
+  comparing the amendment against the row it was meant to implement rather than against itself.
+- **A decision that had been right stopped being right, and what ended it was a different
+  decision.** The earlier reasoning said not every feature sits under a wish — feature 006 was a
+  prerequisite nobody asked for, and inventing a wish for it would have made the board lie to look
+  tidy. That was correct while a feature's number was a local fact. Taking the number from the issue
+  removed the footing under it in one line, because a feature with no issue has nowhere to be
+  numbered from, and an allocator with exceptions is two conventions sharing a directory. ADR-0025
+  kept what the earlier reasoning was protecting by turning the absence of a parent into a label on
+  one. Nobody was looking for that; writing ADR-0024 is what surfaced it.
+- **The gate could not see any part of this increment, and the number is exact.** Ten steps — `fmt`,
+  `prettier`, `markdownlint`, `editorconfig`, `cspell`, `clippy`, `build`, `wasm`, `test`, `doc` —
+  and not one of them checks a link, a directory number, or anything on a board. Four live
+  references to a file that no longer exists had to be found and repaired by hand, and none of them
+  would have failed a run. [Issue #13](https://github.com/andresmoschini/monospace/issues/13) is
+  still the missing link check; issue #26 is now the missing duplicate-number check.
+- **Postponing a task turned it into a card, which is the first thing the new arrangement was
+  actually used for.** The duplicate-prefix check was deferred, and instead of a TODO in a file it
+  became issue #26 carrying the finding that blocks it: `Step` in `xtask/src/main.rs` is a
+  subprocess and nothing else, so a check written in Rust needs the shape of a step to change before
+  it can exist. That is one use and it proves something small — a postponement with state rather
+  than a line in a document nobody re-reads.
+
+### Trade-offs worth remembering
+
+- **A partial supersession needed a status the template does not have.** ADR-0021 was superseded in
+  the one part that settled the numbering and stands in the rest, so `superseded by ADR-0024` would
+  have been false about its conclusion and a bare `accepted` would have hidden the reversal. The
+  form used is `accepted; superseded in part by ADR-0024`, which the template's four listed values
+  do not include, and the cost is a status string no tool can reduce to one state. It is recorded as
+  a consequence in ADR-0024 rather than left as a silent local variation.
+- **Delegation split along "who decided it", not along "how hard it is".** Sonnet executed what an
+  artifact had already settled: eight `gh` calls with the wording fixed in advance, four link
+  redirects against a closed list, and a `CONTRIBUTING.md` section whose every claim traces to an
+  ADR or to the constitution. The instructive part is the four conventions it was told to leave out
+  — where issue-closing keywords live, milestone and branch name formats, whether closing every
+  sub-issue closes its parent — because none of them is decided anywhere, and a documented rule with
+  no record behind it is worse than a gap. They came back absent, which is what naming them bought.
+  What could not be delegated was choosing between options and writing the records.
+- **Two things this increment claims are still unobserved, and saying so is cheaper than finding out
+  later.** `gh` 2.100.0 has no subcommand for project views, so the view grouped by `Phase` — the
+  one ADR-0023 says reproduces the roadmap's phase table from the items themselves — does not exist
+  yet and has to be made in the web interface. And no feature has been created under the new
+  numbering: the collision that ADR-0024 prevents is a reading of the allocator, not an incident,
+  and the first real test of the arrangement is the next feature.
