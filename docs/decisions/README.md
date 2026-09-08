@@ -9,26 +9,27 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 
 ## Index
 
-| ADR                                                             | Title                                                                     | Status             |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------ |
-| [0000](0000-use-madr-for-architecture-decisions.md)             | Use MADR for architecture decision records                                | accepted           |
-| [0001](0001-virtual-cargo-workspace-under-crates.md)            | Lay out the project as a virtual Cargo workspace under `crates/`          | accepted           |
-| [0002](0002-no-minimum-supported-rust-version.md)               | Declare no minimum supported Rust version, for now                        | accepted           |
-| [0003](0003-pin-the-toolchain-exactly.md)                       | Pin the Rust toolchain to an exact version                                | accepted           |
-| [0004](0004-node-toolchain-for-the-non-rust-checks.md)          | Use a Node toolchain for the checks Rust cannot perform                   | accepted           |
-| [0005](0005-install-the-git-hooks-from-claude-code.md)          | Install the git hooks from the Claude Code session                        | accepted           |
-| [0006](0006-record-the-claude-session-in-commit-trailers.md)    | Record the Claude Code session in a commit trailer                        | superseded by 0007 |
-| [0007](0007-rename-the-session-trailer-to-claude-resume.md)     | Rename the session trailer to `Claude-Resume`                             | accepted           |
-| [0008](0008-compose-overlapping-cells-with-three-state-arms.md) | Compose overlapping cells with three-state arms and two stamp modes       | accepted           |
-| [0009](0009-degrade-a-cell-to-its-base-stroke.md)               | Degrade a cell to its base stroke when no character matches               | accepted           |
-| [0010](0010-separate-position-and-size.md)                      | Separate position and size instead of one rectangle                       | accepted           |
-| [0011](0011-expose-cell-for-testing-stamping.md)                | Expose `cell` so stamping can be checked without rendering                | accepted           |
-| [0012](0012-one-stroke-per-cell.md)                             | Give a cell one stroke, with none per arm                                 | accepted           |
-| [0013](0013-key-a-rule-by-stroke-per-side.md)                   | Key a glyph rule by a stroke per side                                     | accepted           |
-| [0014](0014-collapse-glyph-sets-into-a-catalog.md)              | Collapse glyph sets into a single catalog                                 | accepted           |
-| [0015](0015-represent-a-stroke-as-a-string.md)                  | Represent a stroke as an owned `String`                                   | accepted           |
-| [0016](0016-return-a-string-from-render.md)                     | Return a `String` from `render`                                           | accepted           |
-| [0017](0017-ask-the-cell-whether-it-is-decided.md)              | Ask the cell whether it is decided, and let `stamp` skip a decided target | accepted           |
+| ADR                                                             | Title                                                                           | Status             |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------ |
+| [0000](0000-use-madr-for-architecture-decisions.md)             | Use MADR for architecture decision records                                      | accepted           |
+| [0001](0001-virtual-cargo-workspace-under-crates.md)            | Lay out the project as a virtual Cargo workspace under `crates/`                | accepted           |
+| [0002](0002-no-minimum-supported-rust-version.md)               | Declare no minimum supported Rust version, for now                              | accepted           |
+| [0003](0003-pin-the-toolchain-exactly.md)                       | Pin the Rust toolchain to an exact version                                      | accepted           |
+| [0004](0004-node-toolchain-for-the-non-rust-checks.md)          | Use a Node toolchain for the checks Rust cannot perform                         | accepted           |
+| [0005](0005-install-the-git-hooks-from-claude-code.md)          | Install the git hooks from the Claude Code session                              | accepted           |
+| [0006](0006-record-the-claude-session-in-commit-trailers.md)    | Record the Claude Code session in a commit trailer                              | superseded by 0007 |
+| [0007](0007-rename-the-session-trailer-to-claude-resume.md)     | Rename the session trailer to `Claude-Resume`                                   | accepted           |
+| [0008](0008-compose-overlapping-cells-with-three-state-arms.md) | Compose overlapping cells with three-state arms and two stamp modes             | accepted           |
+| [0009](0009-degrade-a-cell-to-its-base-stroke.md)               | Degrade a cell to its base stroke when no character matches                     | accepted           |
+| [0010](0010-separate-position-and-size.md)                      | Separate position and size instead of one rectangle                             | accepted           |
+| [0011](0011-expose-cell-for-testing-stamping.md)                | Expose `cell` so stamping can be checked without rendering                      | accepted           |
+| [0012](0012-one-stroke-per-cell.md)                             | Give a cell one stroke, with none per arm                                       | accepted           |
+| [0013](0013-key-a-rule-by-stroke-per-side.md)                   | Key a glyph rule by a stroke per side                                           | accepted           |
+| [0014](0014-collapse-glyph-sets-into-a-catalog.md)              | Collapse glyph sets into a single catalog                                       | accepted           |
+| [0015](0015-represent-a-stroke-as-a-string.md)                  | Represent a stroke as an owned `String`                                         | accepted           |
+| [0016](0016-return-a-string-from-render.md)                     | Return a `String` from `render`                                                 | accepted           |
+| [0017](0017-ask-the-cell-whether-it-is-decided.md)              | Ask the cell whether it is decided, and let `stamp` skip a decided target       | accepted           |
+| [0018](0018-mirror-the-decided-skip-in-above.md)                | Mirror the decided-cell skip in `Above`, accepting a second unverifiable branch | accepted           |
 
 ## How to add one
 

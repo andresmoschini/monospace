@@ -281,3 +281,79 @@ out to be wrong, and it was wrong for a reason that no test in the repository co
   real one is a benchmark, which needs a workload that does not exist. Worth watching: one such
   branch is a considered cost, and a second arriving for the same reason would mean the practice is
   accumulating rather than paying.
+
+## 2026-09-07 — Spec 0002 implemented: a box that can be crossed
+
+Three commits, none of them touching `monospace-core`: the front end's box now abstains outward
+instead of closing, and draws a second, overlapping copy of itself.
+
+### Working this way
+
+- **A spec that already pins the CLI's exact output leaves nothing to guess.** Spec 0001 left the
+  demo box unspecified and that turned into the one open question of that increment. Spec 0002 gives
+  the exact string in "The whole output," positions and buffer sizes included, and implementing it
+  took zero clarifying questions and zero surprises — the rendered text matched the spec's own
+  worked example on the first run.
+- **The claim that `Closed` and `Unset` render alike was checked by the existing test, not
+  assumed.** Switching the box's outward sides from `Closed` to `Unset` is exactly the change the
+  previous increment's entry says was invisible at render time. The single-box integration test's
+  assertion was left untouched on purpose, and it still passed — the same test that could not have
+  caught the original mistake is what confirms this fix didn't introduce a new one.
+
+## 2026-09-07 — Spec 0003 implemented: stamp below what is already there
+
+Six commits: `StampMode` threaded through every call site with `Above` unchanged, then `Below` and
+`Cell::is_decided` with their real behavior, then the front end drawing the pair a second time,
+labelled.
+
+### Rust design and idiom
+
+- **`Above` and `Below` are mirror images of the same three-line function.** `merge_arm_above`
+  checks the incoming arm; `merge_arm_below` checks the target's. Writing them side by side made the
+  symmetry ADR-0008 describes in prose — one mode overwrites what the stamp abstains on, the other
+  fills what the target left undecided — visible in the code, rather than one function with a mode
+  check buried inside it.
+- **A mechanical 31-call-site edit was worth scripting, not typing.** Adding a required parameter to
+  `stamp` meant touching every existing call site — 15 tests and the CLI — to keep compiling. A
+  small bracket-counting script did it in one pass. Its first version produced a double comma
+  wherever a call already ended in a trailing one, caught by reading the diff before running
+  `cargo fmt` and the gate, not by trusting the script.
+
+### Working this way
+
+- **A third spec in a row held up against implementation with no surprises.** Every value in spec
+  0003's worked examples — the two-mode comparison, the decided-cell test, the three-figure
+  equivalence — matched what the code produced on the first run, the same as spec 0001 and spec 0002
+  before it. The pattern is no longer a one-off: an example-heavy spec keeps paying for itself.
+- **The branch the drafting increment anticipated now exists, exactly as unverifiable as
+  predicted.** That increment's entry flagged a requirement accepted with nothing to verify it:
+  `stamp` skipping a decided target under `Below`. It is now real code, covered only by a comment,
+  an acceptance item read rather than run, and ADR-0017 — nothing about implementing it found a way
+  to test it. The prediction held.
+
+## 2026-09-07 — Unifying merge, and the branch ADR-0017 saw coming
+
+Three commits: `merge_arm_above` and `merge_arm_below` collapsed into one function, a new ADR, and
+the branch that ADR predicted.
+
+### Rust design and idiom
+
+- **Two functions were one function with the arguments swapped, once written the other way around.**
+  `merge_arm_above(target, incoming)` and `merge_arm_below(target, incoming)` read as different
+  rules until `merge` was rewritten to take `(top, bottom)` instead of `(target, incoming, mode)`.
+  With that shape, both collapsed into a single `merge_arm(top, bottom)`, and the `match mode` moved
+  to the one call site that already had to choose an order — removing a whole duplicated `Cell`
+  literal, not just a duplicated three-line function.
+
+### Working this way
+
+- **All four branches were measured, not just the new one.** Before adding a fourth match arm to
+  `stamp`, each of the four was instrumented with a distinct panic and run against the full test
+  suite plus the CLI binary. Three were already reached by existing tests; the fourth — the one
+  about to be added — was reached by nothing at all, not even indirectly. The new test and its claim
+  of coverage came only after that measurement.
+- **An accepted ADR's own "what would change this" clause got exercised for real.** ADR-0017 named a
+  second unverifiable branch, arriving for the same reason, as the specific thing that would matter.
+  When unifying `merge` surfaced exactly that branch's mirror image, that sentence — not a fresh
+  argument — was what decided the question needed a new record (ADR-0018) rather than a silent
+  addition.

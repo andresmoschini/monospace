@@ -31,3 +31,41 @@ pub struct Cell {
     /// What the cell has on its left side.
     pub left: Arm,
 }
+
+impl Cell {
+    /// Whether every arm is decided: none of the four is `Unset`.
+    ///
+    /// A defined cell always has a base stroke, so nothing else enters the question, per
+    /// [ADR-0017](../../../docs/decisions/0017-ask-the-cell-whether-it-is-decided.md).
+    #[must_use]
+    pub fn is_decided(&self) -> bool {
+        !matches!(self.top, Arm::Unset)
+            && !matches!(self.right, Arm::Unset)
+            && !matches!(self.bottom, Arm::Unset)
+            && !matches!(self.left, Arm::Unset)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cell;
+    use crate::{Arm, Stroke};
+
+    fn cell(top: Arm, right: Arm, bottom: Arm, left: Arm) -> Cell {
+        Cell {
+            base: Stroke::from("light"),
+            top,
+            right,
+            bottom,
+            left,
+        }
+    }
+
+    /// The example named "The boundaries": one abstention is enough to make a cell not decided.
+    #[test]
+    fn a_cell_is_decided_only_when_no_arm_is_unset() {
+        assert!(cell(Arm::Set, Arm::Closed, Arm::Set, Arm::Closed).is_decided());
+        assert!(!cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set).is_decided());
+        assert!(!cell(Arm::Set, Arm::Set, Arm::Set, Arm::Unset).is_decided());
+    }
+}

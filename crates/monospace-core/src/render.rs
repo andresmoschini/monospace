@@ -55,7 +55,7 @@ fn side(arm: Arm, base: &Stroke) -> Option<Stroke> {
 #[cfg(test)]
 mod tests {
     use super::render;
-    use crate::{Arm, Buffer, Cell, GlyphCatalog, Pos, Size, Stroke};
+    use crate::{Arm, Buffer, Cell, GlyphCatalog, Pos, Size, StampMode, Stroke};
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -79,6 +79,7 @@ mod tests {
                 bottom: Arm::Set,
                 left: Arm::Set,
             },
+            StampMode::Above,
         );
 
         let text = render(
@@ -114,42 +115,52 @@ mod tests {
         buffer.stamp(
             Pos { x: 0, y: 0 },
             corner(Arm::Closed, Arm::Set, Arm::Set, Arm::Closed),
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 1, y: 0 },
             corner(Arm::Closed, Arm::Set, Arm::Closed, Arm::Set),
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 2, y: 0 },
             corner(Arm::Closed, Arm::Set, Arm::Closed, Arm::Set),
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 3, y: 0 },
             corner(Arm::Closed, Arm::Closed, Arm::Set, Arm::Set),
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 0, y: 1 },
             corner(Arm::Set, Arm::Closed, Arm::Set, Arm::Closed),
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 3, y: 1 },
             corner(Arm::Set, Arm::Closed, Arm::Set, Arm::Closed),
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 0, y: 2 },
             corner(Arm::Set, Arm::Set, Arm::Closed, Arm::Closed),
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 1, y: 2 },
             corner(Arm::Closed, Arm::Set, Arm::Closed, Arm::Set),
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 2, y: 2 },
             corner(Arm::Closed, Arm::Set, Arm::Closed, Arm::Set),
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 3, y: 2 },
             corner(Arm::Set, Arm::Closed, Arm::Closed, Arm::Set),
+            StampMode::Above,
         );
 
         let text = render(
@@ -185,6 +196,7 @@ mod tests {
                 bottom: Arm::Closed,
                 left: Arm::Closed,
             },
+            StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
@@ -195,6 +207,7 @@ mod tests {
                 bottom: Arm::Closed,
                 left: Arm::Set,
             },
+            StampMode::Above,
         );
 
         let text = render(
@@ -230,6 +243,7 @@ mod tests {
                 bottom: Arm::Closed,
                 left: Arm::Closed,
             },
+            StampMode::Above,
         );
 
         let text = render(
@@ -266,6 +280,7 @@ mod tests {
                 bottom: Arm::Closed,
                 left: Arm::Closed,
             },
+            StampMode::Above,
         );
 
         let text = render(
@@ -299,6 +314,7 @@ mod tests {
                 bottom: Arm::Set,
                 left: Arm::Set,
             },
+            StampMode::Above,
         );
 
         let text = render(
@@ -349,6 +365,7 @@ mod tests {
                 bottom: Arm::Set,
                 left: Arm::Closed,
             },
+            StampMode::Above,
         );
 
         let text = render(

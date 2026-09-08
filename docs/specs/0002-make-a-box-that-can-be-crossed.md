@@ -1,5 +1,5 @@
 ---
-status: draft
+status: implemented
 date: 2026-09-07
 ---
 
@@ -174,21 +174,21 @@ checks, not the record of a run.
 
 ## Acceptance
 
-- [ ] `cargo xtask check` passes.
-- [ ] `cargo run -p monospace-cli` prints the single box, a blank line, and the two overlapping
+- [x] `cargo xtask check` passes.
+- [x] `cargo run -p monospace-cli` prints the single box, a blank line, and the two overlapping
       boxes.
-- [ ] `crates/monospace-cli/tests/cli.rs` asserts that whole output, trailing spaces included. Its
+- [x] `crates/monospace-cli/tests/cli.rs` asserts that whole output, trailing spaces included. Its
       first three lines are byte-identical to what the test asserted before this spec, which is how
       rule 2 gets checked rather than believed.
-- [ ] No file under `crates/monospace-core/` changes. `git diff --stat` over the branch is the
+- [x] No file under `crates/monospace-core/` changes. `git diff --stat` over the branch is the
       check, and it is the one that would catch this slice quietly growing into the next one.
-- [ ] The box is built once and stamped twice, at two origins, rather than written out cell by cell
+- [x] The box is built once and stamped twice, at two origins, rather than written out cell by cell
       a second time. Two copies of the eight cells would let the pair drift from the single box, and
       rule 2 would then pass for a box nobody draws.
-- [ ] A comment in the test says which box each junction faces: `┴` and `┤` open towards the first
+- [x] A comment in the test says which box each junction faces: `┴` and `┤` open towards the first
       box because the second one abstains outwards. It goes there rather than in this spec, where it
       would be explaining rather than specifying.
-- [ ] `docs/model.md` carries the amendment described under _Model slice_.
+- [x] `docs/model.md` carries the amendment described under _Model slice_.
 
 ## Open questions
 

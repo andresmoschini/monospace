@@ -18,7 +18,7 @@ mod glyph;
 mod render;
 mod stroke;
 
-pub use buffer::Buffer;
+pub use buffer::{Buffer, StampMode};
 pub use cell::{Arm, Cell};
 pub use geometry::{Pos, Size};
 pub use glyph::{GlyphCatalog, GlyphKey};
