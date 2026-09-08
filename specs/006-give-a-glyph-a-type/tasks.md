@@ -41,7 +41,7 @@ module in the crate does — no test file is added.
 
 **Purpose**: capture the evidence that SC-001 is measured against, before anything changes.
 
-- [ ] T001 Capture the front end's current output to `../glyph-baseline.txt`, outside the
+- [x] T001 Capture the front end's current output to `../glyph-baseline.txt`, outside the
       repository, following _Capture the baseline first_ in [quickstart.md](quickstart.md)
 
 T001 produces no commit: its output is evidence for the pull request body, and committing it would
@@ -72,7 +72,7 @@ renderer speak in it. The rendered output does not move.
 in the spec and assert which are accepted; build the built-in Light catalog and ask it for every key
 a light cell can produce; run `cargo run -p monospace-cli` and diff against the T001 baseline.
 
-- [ ] T002 [US1] Add `Glyph` with `new` and `as_str`, its rustdoc and its unit tests, in
+- [x] T002 [US1] Add `Glyph` with `new` and `as_str`, its rustdoc and its unit tests, in
       `crates/monospace-core/src/glyph.rs`, and re-export it from `crates/monospace-core/src/lib.rs`
 - [ ] T003 [US1] Move the catalog and the renderer onto `Glyph` in
       `crates/monospace-core/src/glyph.rs` and `crates/monospace-core/src/render.rs`, adapting the

@@ -8,6 +8,36 @@ use std::collections::HashMap;
 
 use crate::Stroke;
 
+/// What a cell renders to: one character, never a control character.
+///
+/// A control character is one in Unicode's `Cc` category — what [`char::is_control`] answers.
+/// Width is not part of this invariant: a character wider than one column is accepted and shifts
+/// the rest of its row by a column. Equality is by text, not by appearance: two glyphs that render
+/// alike but are encoded differently compare unequal, because nothing here is normalized.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Glyph(String);
+
+impl Glyph {
+    /// `Some` when `text` is exactly one character that is not a control character, `None`
+    /// otherwise.
+    #[must_use]
+    pub fn new(text: &str) -> Option<Self> {
+        let mut chars = text.chars();
+        let only = chars.next()?;
+        if chars.next().is_some() || only.is_control() {
+            return None;
+        }
+
+        Some(Self(text.to_owned()))
+    }
+
+    /// The glyph's text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// The four sides of a glyph rule: a stroke name on each side, or nothing.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GlyphKey {
@@ -94,8 +124,40 @@ impl GlyphCatalog {
 
 #[cfg(test)]
 mod tests {
-    use super::{GlyphCatalog, GlyphKey};
+    use super::{Glyph, GlyphCatalog, GlyphKey};
     use crate::Stroke;
+
+    /// _Examples_: `"│"` is one cluster and one character, so it is accepted and reads back
+    /// unchanged.
+    #[test]
+    fn a_single_character_is_accepted_and_reads_back_unchanged() {
+        assert_eq!(Glyph::new("│").as_ref().map(Glyph::as_str), Some("│"));
+    }
+
+    /// _Examples_, FR-002: empty text is not a glyph.
+    #[test]
+    fn empty_text_is_refused() {
+        assert_eq!(Glyph::new(""), None);
+    }
+
+    /// _Examples_, FR-003: more than one character is refused in P1.
+    #[test]
+    fn more_than_one_character_is_refused() {
+        assert_eq!(Glyph::new("ab"), None);
+    }
+
+    /// _Examples_, FR-004: a control character on its own is refused.
+    #[test]
+    fn a_control_character_is_refused() {
+        assert_eq!(Glyph::new("\n"), None);
+    }
+
+    /// SC-008: a zero-width joiner is a format character, not a control character, so it is
+    /// accepted on its own even though it occupies no column.
+    #[test]
+    fn a_lone_format_character_is_accepted() {
+        assert!(Glyph::new("\u{200D}").is_some());
+    }
 
     /// The example named "From a cell to a character": the cell `(light; S, C, S, C)` builds a
     /// key with `light` on top and bottom and nothing on the sides, which answers `│`.

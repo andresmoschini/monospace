@@ -21,6 +21,6 @@ mod stroke;
 pub use buffer::{Buffer, StampMode};
 pub use cell::{Arm, Cell};
 pub use geometry::{Pos, Size};
-pub use glyph::{GlyphCatalog, GlyphKey};
+pub use glyph::{Glyph, GlyphCatalog, GlyphKey};
 pub use render::render;
 pub use stroke::Stroke;
