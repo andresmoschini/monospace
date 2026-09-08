@@ -28,17 +28,9 @@ The scope, the constraints and what is deliberately left out are in [the brief](
 
 ## Roadmap
 
-The plan is to grow outward from a solid core:
-
-1. **Core library (Rust)** — `monospace-core`, the diagramming engine.
-2. **Simple CLI application** — `monospace-cli`, a minimal, non-interactive console app to exercise
-   the library and produce diagrams from the terminal.
-3. **Interactive TUI application** — `monospace`, a richer terminal UI with mouse support, editing,
-   and drag-and-drop diagram manipulation.
-4. **WebAssembly library** — compile the core to WASM for use in the browser.
-5. **Web application** — a front-end built on top of the WASM library.
-
-Each stage builds on a working foundation from the one before it.
+Core library, then a minimal CLI, then an interactive TUI, then WebAssembly, then the web app — each
+stage on a working foundation from the one before it. [The roadmap](docs/roadmap.md) has the phases,
+why the CLI comes before the TUI, and the capabilities the work is heading towards.
 
 ## Current status
 
