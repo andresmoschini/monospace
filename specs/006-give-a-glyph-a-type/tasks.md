@@ -108,7 +108,7 @@ anything that occupies one cell — while every control character stays refused.
 table and assert it is accepted; assert `"\r\n"` is still refused; diff the front end's output
 against the T001 baseline again.
 
-- [ ] T004 [US2] Widen the invariant to one grapheme cluster in
+- [x] T004 [US2] Widen the invariant to one grapheme cluster in
       `crates/monospace-core/src/glyph.rs`, adding `unicode-segmentation` to
       `crates/monospace-core/Cargo.toml`, correcting `render`'s rustdoc in
       `crates/monospace-core/src/render.rs`, and adding the tests for what the widening now accepts

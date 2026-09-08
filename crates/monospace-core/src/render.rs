@@ -3,7 +3,8 @@
 use crate::{Arm, Buffer, Cell, Glyph, GlyphCatalog, GlyphKey, Pos, Size, Stroke};
 
 /// Renders a rectangle of `buffer` to a string of exactly `size.height` lines, each exactly
-/// `size.width` characters wide and ending in `\n`, the last line included.
+/// `size.width` glyphs wide and ending in `\n`, the last line included. A glyph may be more than
+/// one character, so the line is the same rectangle without being the same character count.
 ///
 /// Each position is resolved by exact lookup only: a position with no cell, or whose key
 /// `glyphs` does not answer, renders as a space. A position inside the rendered rectangle but
