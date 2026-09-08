@@ -273,7 +273,9 @@ This is the shape every existing assertion on a looked-up glyph takes after P1: 
 - **SC-004**: the existing catalog and rendering tests keep asserting what they assert, and no test
   is added or removed in the commit that mechanically edits them.
 - **SC-005**: `cargo xtask check` passes after each story, on a fresh clone as well as in the
-  working copy.
+  working copy. The fresh clone is CI's: the workflow checks the repository out from scratch and
+  runs that command and nothing else, which is what _Claims are measured, not assumed_ asks for and
+  what a working copy cannot provide. No task reproduces it by hand.
 - **SC-006**: the second story's diff touches no public signature and no call site introduced by the
   first — countable, and the measure of whether the split was worth taking.
 - **SC-007**: the dependency ADR-0019 accepts is added with an exact version whose publication date
