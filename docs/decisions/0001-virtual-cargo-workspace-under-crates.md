@@ -169,6 +169,9 @@ bought for a future that never arrived.
 
 ## More Information
 
-- `docs/brief.md` sections 3 and 5, for the phase plan and the constraint on the core's public API.
+- [The roadmap](../roadmap.md#phases) for the phase plan, and
+  [The core stays portable](../../.specify/memory/constitution.md#vii-the-core-stays-portable) for
+  the constraint on the core's public API. Both were sections 3 and 5 of the brief when this record
+  was written.
 - The WebAssembly check that enforces the core's isolation is part of the quality gate; see
   `CONTRIBUTING.md`.

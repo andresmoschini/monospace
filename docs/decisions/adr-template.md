@@ -13,7 +13,8 @@ decision is taken? Write it so that someone who was not there can follow it.}
 
 ## Decision Drivers
 
-- {The constraint or goal that actually shaped the choice, ideally traceable to `docs/brief.md`}
+- {The constraint or goal that actually shaped the choice, ideally traceable to
+  [the constitution](../../.specify/memory/constitution.md)}
 - {...}
 
 ## Considered Options

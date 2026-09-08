@@ -11,9 +11,9 @@ decision-makers: Andrés Moschini
 Rendering turns a buffer into text, and the text has to reach the caller somehow. Returning it
 builds the whole diagram in memory before anyone sees a character of it.
 
-[The brief](../brief.md), under _Scope_, warns against the consuming layer's assumptions reaching
-the core, and a `String` return is arguably one of them: it is the shape a command-line program
-wants, and the core has more consumers coming.
+The brief, under _Scope_, warns against the consuming layer's assumptions reaching the core, and a
+`String` return is arguably one of them: it is the shape a command-line program wants, and the core
+has more consumers coming.
 
 ## Decision Drivers
 
@@ -75,3 +75,6 @@ which is a fair guess about what an interactive application does.
 
 - Extracted from [spec 0001](../specs/0001-stamp-cells-and-render-them.md), which recorded it as an
   open question and then as a decision, inline, before this record existed.
+- The warning this record argues with is now
+  [The core stays portable](../../.specify/memory/constitution.md#vii-the-core-stays-portable). It
+  was the brief's _Scope_ section when this was written.

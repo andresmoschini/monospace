@@ -43,9 +43,10 @@ pick.
 
 ## The quality gate
 
-`cargo xtask check` is the only definition of "green". The pre-commit hook runs it, CI runs it, and
-neither adds anything of its own — if they could, passing locally and passing in CI would stop
-meaning the same thing.
+`cargo xtask check` is the whole gate. Why it is the only definition of "green", and why neither the
+hook nor CI may add a check of its own, is
+[One definition of green](.specify/memory/constitution.md#iii-one-definition-of-green-non-negotiable)
+in the constitution. What follows here is how it behaves.
 
 Every step runs even after one fails, so a single run reports everything wrong rather than making
 you fix problems one at a time. A step passes or fails on its exit code alone.
@@ -145,35 +146,33 @@ than no gate, because the log then claims a green history that was never checked
 Messages follow [Conventional Commits](https://www.conventionalcommits.org), enforced by the
 `commit-msg` hook.
 
-One task per commit, and the type carries a distinction the project cares about:
+Which prefix to use follows from
+[Structural and behavioral change never share a commit](.specify/memory/constitution.md#v-structural-and-behavioral-change-never-share-a-commit).
+The mapping is:
 
 - **`refactor`** — structural. Behavior does not change, the existing tests pass unchanged, and no
   test is added or modified.
 - **`feat`, `fix`** — behavioral. Something the program does is different.
-
-Keeping those apart is Kent Beck's rule: make the change easy, then make the easy change. They never
-share a commit, and the prefix is what makes the difference visible in the log without reading
-diffs.
-
-`build`, `ci`, `docs`, `style`, `chore` and `test` cover work that is neither, which is most of the
-tooling in this repository.
+- **`build`, `ci`, `docs`, `style`, `chore`, `test`** — neither, which is most of the tooling in
+  this repository.
 
 Write the body for someone who was not there. What the diff does is visible; why it does that is
 not.
 
+One thing to know about the body: do not let a colon-terminated word start a line. commitlint reads
+`word:` at the beginning of a line as a footer token, splits the message there, and warns that the
+footer has no blank line before it. It is only a warning, so it lands unnoticed. Reword with an em
+dash, or re-wrap so the word sits mid-line.
+
 ### Fixing a commit
 
-A correction that changes nothing for anyone belongs in the commit that got it wrong. A typo in a
-message, a status line set to the wrong value, a formatting slip: nobody acted on the intermediate
-state, and a commit that flips it only sends a reader looking for a change that is not there. When
-something was actually wrong — behavior, or a claim someone could have acted on — the fix is its own
-commit, and the message says what was wrong.
-
-That holds after pushing, which is not the usual convention. It works here because a feature branch
-has an owner, and whoever pulls someone else's branch accepts that it can be rewritten underneath
-them. The limits are `main`, which is never rewritten, and `--force-with-lease`, which aborts
-instead of clobbering an update you had not seen. The cost is that GitHub marks inline review
-comments on a rewritten commit as outdated.
+Which corrections belong in the commit that got them wrong, and which get a commit of their own, is
+[Fixing a commit](.specify/memory/constitution.md#development-workflow) in the constitution. What is
+specific to this repository is that the rule holds after pushing, which is not the usual convention.
+It works here because a feature branch has an owner, and whoever pulls someone else's branch accepts
+that it can be rewritten underneath them. The limits are `main`, which is never rewritten, and
+`--force-with-lease`, which aborts instead of clobbering an update you had not seen. The cost is
+that GitHub marks inline review comments on a rewritten commit as outdated.
 
 Rewriting means proving the branch green again. Neither `git rebase` nor `git cherry-pick` fires the
 pre-commit hook, so the gate has to run on each rewritten commit rather than on the tip alone.
@@ -209,23 +208,26 @@ body only makes sense with the transcript open, the body is wrong.
 
 ## Cross-references
 
-Cite a section of another document by its name, not by its number. Inserting a section silently
-invalidates every number cited from every other file, while renaming one is a deliberate act by
-whoever is editing that heading, and far more likely to be noticed.
+Cite a section of another document by name — in practice, by anchor — and not by number. The rule
+and its reasoning are in
+[Development Workflow](.specify/memory/constitution.md#development-workflow); records written before
+that convention keep their numbered citations, since an accepted record is not edited for style.
 
-Nothing checks either. `markdownlint` validates a link fragment against the headings of the same
+Nothing checks any of it. `markdownlint` validates a link fragment against the headings of the same
 file and stops there, so a link to a file that does not exist, or to an anchor in a different file
-that does not exist, passes the gate. [The brief](docs/brief.md) records that gap as an open tooling
-question.
+that does not exist, passes the gate.
+[Issue #13](https://github.com/andresmoschini/monospace/issues/13) tracks closing it.
 
 Records under `docs/decisions/` written before this convention keep their numbered citations. They
 were true when written, and an accepted record is not edited for style.
 
 ## Decisions and notes
 
-Architecture decisions are records under `docs/decisions/`, written when the decision is taken
-rather than reconstructed later. [Its README](docs/decisions/README.md) has the procedure, the
-template and the rule that an accepted record is never edited to change its conclusion.
+Three documents, and [Where a rationale goes](.specify/memory/constitution.md#development-workflow)
+says which takes what. The procedure and templates are in each:
+[`docs/decisions/`](docs/decisions/README.md) for decision records,
+[the learning log](docs/learning-log.md) for what was learned, and a feature's own `research.md` for
+investigation local to that slice.
 
-Anything learned along the way that is not a decision goes in
-[the learning log](docs/learning-log.md) instead, one entry per increment.
+Where specs live, and how a slice goes from spec to plan to tasks, is
+[Development Workflow](.specify/memory/constitution.md#development-workflow).

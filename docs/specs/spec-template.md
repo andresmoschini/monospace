@@ -1,9 +1,13 @@
 ---
-status: "draft | agreed | implemented"
+status: "draft | agreed | implemented | abandoned"
 date: YYYY-MM-DD
 ---
 
 # NNNN — {Short title, in the imperative: what the slice does}
+
+> **No longer in use.** New features are specified with Spec Kit, whose template is resolved from
+> `.specify/`. This file is kept because the five specs in this directory were written against it.
+> See [the directory's note](README.md).
 
 ## Why now
 

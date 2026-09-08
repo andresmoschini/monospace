@@ -32,6 +32,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0018](0018-mirror-the-decided-skip-in-above.md)                | Mirror the decided-cell skip in `Above`, accepting a second unverifiable branch | accepted           |
 | [0019](0019-represent-a-glyph-as-a-grapheme-cluster.md)         | Represent a glyph as a validated grapheme cluster                               | accepted           |
 | [0020](0020-scope-cargo-xtask-fix-to-deterministic-fixers.md)   | Scope `cargo xtask fix` to deterministic fixers, and fix `clippy` by hand       | accepted           |
+| [0021](0021-move-the-spec-home-to-spec-kit.md)                  | Move the spec home to Spec Kit's `specs/` and freeze `docs/specs/`              | accepted           |
 
 ## How to add one
 
@@ -59,3 +60,21 @@ most of what it is worth. Fixing a typo or a broken link is fine.
 someone will later ask "why is this like this?". If neither applies, it belongs in
 [the learning log](../learning-log.md) instead, which is for what was learned rather than what was
 decided.
+
+**Records written before the constitution cite `docs/brief.md`, which no longer exists.** The brief
+was this project's initial spec, and it held the principles, the scope and the constraints until
+[the constitution](../../.specify/memory/constitution.md) took them over. Its other content went to
+[the model](../model.md), which owns the domain's design, provenance and open questions, and to
+[the roadmap](../roadmap.md), which owns the phases. Where a record's citation pointed at a rule
+that still exists, it now points at that rule's home; where it pointed at a question the record
+itself answered, the link is gone and only git history has the original. The prose is untouched: a
+record saying "the brief requires a stable toolchain" is reporting what it weighed at the time, and
+that is not a reference to redirect.
+
+**A feature's `research.md` is not a decision record.** Spec Kit writes one per feature in almost
+this shape — decision, rationale, alternatives considered — but scoped to that feature, with no
+status and no way to supersede it. It owns investigation local to the slice: which crate, which
+version, what is idiomatic. The moment a finding will outlive the feature, the record is written
+here and `research.md` links to it. The full split, including what the Complexity Tracking table in
+a plan owns, is in [the constitution](../../.specify/memory/constitution.md) under "Development
+Workflow".
