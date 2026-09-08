@@ -34,6 +34,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0020](0020-scope-cargo-xtask-fix-to-deterministic-fixers.md)   | Scope `cargo xtask fix` to deterministic fixers, and fix `clippy` by hand       | accepted           |
 | [0021](0021-move-the-spec-home-to-spec-kit.md)                  | Move the spec home to Spec Kit's `specs/` and freeze `docs/specs/`              | accepted           |
 | [0022](0022-non-interactive-cli-before-the-tui.md)              | Build the non-interactive CLI before the interactive TUI                        | accepted           |
+| [0023](0023-direction-and-backlog-in-a-github-project.md)       | Keep direction and the backlog in a GitHub Project, and dissolve the roadmap    | accepted           |
 
 ## How to add one
 
