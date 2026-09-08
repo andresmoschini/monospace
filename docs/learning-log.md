@@ -412,3 +412,68 @@ roadmap. No Rust was written, so this entry has nothing to say about Rust.
   hidden the question; running the flow answers it. That is the second time in this increment that
   the cheaper move was to stop and get evidence, and both times the thing that made stopping
   possible was that nothing had been pushed yet.
+
+## 2026-09-08 — Specifying the glyph type, and running the flow for the first time
+
+Ten documentation commits and no code: the first feature to go through `/speckit-specify`,
+`/speckit-clarify`, `/speckit-plan`, `/speckit-tasks` and `/speckit-analyze` end to end, authored
+from the abandoned spec 0004. No Rust was written, and yet the type system settled a design question
+before any of it existed.
+
+### Rust design and idiom
+
+- **`-> &str` is a storage decision wearing an accessor's clothes.** Spec 0004 prescribed a first
+  commit holding a `char` inside the type, alongside a public `as_str(&self) -> &str`. Those cannot
+  coexist: `char::encode_utf8` writes into a buffer the caller owns, so there is no `&str` with the
+  lifetime of `&self` to return. The payload is a `String` from the first increment instead, which
+  made the second increment's diff smaller rather than larger — the widening became a change of
+  predicate and nothing else. What was tried was reading the agreed signature and the agreed
+  representation together, which is cheaper than discovering it in a compiler error a week later.
+- **The crate boundary in `unicode-rs` is by purpose, not by "Unicode things".**
+  `unicode-segmentation` answers UAX #29 — where the boundaries are — and carries no
+  General_Category data at all. So the cluster half of the invariant costs a dependency and the
+  control half is `char::is_control()`, already in the standard library and exactly the `Cc`
+  category. That is what made a two-increment split possible: the first needs no dependency
+  whatsoever. It also settled a clarification, since refusing format characters as well would have
+  needed a second crate and would have refused the joiner that holds a multi-code-point emoji
+  together.
+
+### Working this way
+
+- **The generated requirements checklist validates completeness, not decomposition.** The first
+  draft of the spec had three user stories and ticked all fourteen items the skill generates. One of
+  the three was an acceptance criterion wearing a story's clothes, and the tell was in the artifact
+  itself: its own "Why this priority" had to explain that it was not a capability. Nothing in the
+  checklist asks whether a story, shipped alone, leaves anything demonstrable — so the spec passed
+  its own review while carrying two stories that were one change split by technical layer. A Story
+  independence block went into this feature's checklist, and it dies with the feature.
+- **A prompt is not a home for a fact.** Before running `/speckit-tasks` there were five things to
+  tell it. Checked one by one: three were already in `plan.md` and `spec.md`, one was task
+  granularity that the command owns, and exactly one — that this feature has no foundational work —
+  was written nowhere. That one went into the plan and the command ran bare. The mechanism behind
+  the rule is concrete: `/speckit-analyze` cross-checks the spec, the plan and the tasks, so a fact
+  that lives only in a prompt is invisible to the step whose job is to find missing facts.
+- **The cross-check found what re-reading did not.** Before running it, the coverage was counted by
+  hand and declared closed. `/speckit-analyze` then surfaced ten findings, and the one that mattered
+  was a requirement whose work no task named: `render`'s rustdoc promises lines "exactly
+  `size.width` characters wide", and the second increment is what makes that sentence false. It
+  would have shipped as a public doc comment asserting something the code no longer did. Five
+  findings were fixed, five were left deliberately, and none was a constitution violation — the
+  value was not the volume, it was that the reader was not the author.
+
+### Trade-offs worth remembering
+
+- **The abandoned draft was an input, and treating it as agreed cost two corrections.** Its rules,
+  examples and public surface really were reusable, which is what made the rest feel trustworthy:
+  its increment shape could not be built, and its claim that the first commit was "a refactor rather
+  than a structural commit" was a misclassification with an apology attached. A commit that
+  introduces a type refusing `\n` adds behavior, so it is a `feat`, and a `feat` may edit the
+  assertions its own signature change forces. Both were found by planning the work rather than by
+  reading the document again, which is an argument for planning early rather than for reading
+  harder.
+- **Verifying a dependency's version at plan time would have been work with a shelf life.** It was
+  in the prompt until the maintainer asked why, given that implementation may be a week away. The
+  constitution attaches the seven-day rule to the act of adding or pinning, and the spec attaches
+  the report to that same commit, so a number verified now is either re-verified later or stale.
+  What `research.md` records instead is the part that does not perish: which crate, what it answers,
+  and what the standard library already covers.
