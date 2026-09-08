@@ -24,7 +24,7 @@ when no character matches.
 | Term            | Meaning                                                                       |
 | --------------- | ----------------------------------------------------------------------------- |
 | `Buffer`        | A window of cells, with an origin and a size                                  |
-| `Cell`          | A base stroke and four arms                                                   |
+| `Cell`          | Either a base stroke and four arms, or one literal glyph                      |
 | `Side`          | Top, right, bottom or left                                                    |
 | `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`               |
 | `Stroke`        | A name, nothing more                                                          |
@@ -85,20 +85,39 @@ is for the sides it is protecting.
 An undefined cell and a cell with four `Closed` arms are **not the same thing**. The first is the
 absence of a cell; the second is a decision.
 
+### A cell can be a literal instead
+
+Most cells are a base stroke and four arms, as above, and the character they draw is derived. A cell
+can instead hold **a literal glyph**: the character it renders to, chosen rather than derived. Text
+needs that, and so does a fill that hides what it covers rather than letting it show through.
+
+A literal has no arms of its own. For composing, it behaves as a cell whose four arms are `Closed`:
+nothing connects into a character. Which of the two kinds a cell ends up being belongs to the figure
+in front, exactly as the base stroke does.
+
 ## 4. Stamping
 
 The only write is `stamp(x, y, cell, mode)`. What is stamped has the same type as what is stored: a
 cell. That works because `Unset` means the same thing on both sides of the operation — "not mine to
 decide" — so there is no state the stamp needs and the stored cell cannot hold.
 
-| Target               | `Above`                                                                        | `Below`                                                                   |
-| -------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| Undefined cell       | Defines it entirely                                                            | Defines it entirely                                                       |
-| Already defined cell | Writes the base stroke and every arm, except the arms the stamp leaves `Unset` | Leaves the base stroke alone; writes only the arms the target has `Unset` |
+| Target                        | `Above`                                                                        | `Below`                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| Undefined cell                | Defines it entirely                                                            | Defines it entirely                                                       |
+| Arms, stamping arms           | Writes the base stroke and every arm, except the arms the stamp leaves `Unset` | Leaves the base stroke alone; writes only the arms the target has `Unset` |
+| Arms, stamping a literal      | Becomes the literal                                                            | Stays arms, and its `Unset` sides close                                   |
+| A literal, stamping arms      | Becomes arms; the sides the stamp leaves `Unset` come out `Closed`             | Unchanged                                                                 |
+| A literal, stamping a literal | Becomes the incoming literal                                                   | Unchanged                                                                 |
 
 An `Unset` arm on the stamp never writes anything, in either mode. A `Closed` arm does write:
 closing is a decision, and it is what lets a filled shape stamped below stop a later one from
 connecting into it.
+
+The last three rows are one rule seen from four sides: a literal composes as a cell with four
+`Closed` arms, and which kind the cell ends up being belongs to the figure in front, exactly as the
+base stroke does. The `Closed` arms are not decoration. Without them a literal would be opaque in
+one order and transparent in the other, and the equivalence below would stop holding the moment a
+literal sat between two figures.
 
 ### The two orders are equivalent
 
@@ -157,6 +176,9 @@ For each position in the rectangle:
    Arms with no stroke stay without one.
 5. If that is not there either, there is no glyph.
 
+That list is for a cell of arms. A cell holding a literal glyph renders as that glyph: no key is
+built, no lookup happens, and degradation never applies to one.
+
 There are no further attempts and no special conventions: two lookups. When a combination does not
 exist, the whole cell is drawn with the stroke the topmost figure imposed.
 
@@ -193,6 +215,8 @@ not.
 - A single-stroke set covers all 15 of its combinations, so a catalog built from one answers every
   key a cell of that stroke can produce.
 - Front to back with `Below` and back to front with `Above` produce the same buffer.
+- That equivalence survives a literal in the middle of the stack, which is what the literal's four
+  `Closed` arms are for.
 - Stamping outside the window changes nothing.
 - `Below` on a fully decided cell changes nothing.
 - The exact key wins over the degraded one; with neither, a space.
