@@ -359,3 +359,56 @@ the branch that ADR predicted.
   When unifying `merge` surfaced exactly that branch's mirror image, that sentence — not a fresh
   argument — was what decided the question needed a new record (ADR-0018) rather than a silent
   addition.
+
+## 2026-09-08 — Migrating to Spec Kit, and dissolving the brief
+
+Nine documentation commits and no code. spec-kit installed, a constitution ratified and amended
+twice, the spec home moved to `specs/` with `docs/specs/` closed, and `docs/brief.md` gone — its
+rules to the constitution, its provenance and domain questions to the model, its phases to a new
+roadmap. No Rust was written, so this entry has nothing to say about Rust.
+
+### Working this way
+
+- **Citations by name survived the move; citations by number did not.** The specs cited the model by
+  section name and the ADRs cited the brief by number, and only the second group broke: five records
+  pointed at `§3`, `§5`, `§8`, `§9` of a file that stopped existing, while every citation of
+  `docs/model.md` still resolved. Measured before converting anything: 139 relative links between
+  Markdown files, none of them carrying an anchor. There are 17 anchors now, all verified against
+  their target headings, and one of them was wrong on the first attempt because the heading reads
+  "III. One definition of green (NON-NEGOTIABLE)" and the slug keeps the parenthetical. The rule the
+  repository already had — cite by name, not by number — turns out to be worth an enforcing check
+  rather than a convention, which is
+  [issue #13](https://github.com/andresmoschini/monospace/issues/13).
+- **A rule written down did not prevent the slip it described.** commitlint reads a body line
+  starting with `word:` as a footer token and warns. It happened, it was documented in
+  CONTRIBUTING.md as a thing to avoid, and then it happened again two commits later — in the commit
+  that closed the specs directory. Two amends, same cause. What would have prevented it is a check,
+  and the warning that already exists cannot become one: as an error it would reject legitimate
+  prose. So this one stays a habit, and the honest conclusion is that writing a rule down is weaker
+  than it feels while writing it.
+- **A mechanism beat a reminder, and the difference was measurable.** CLAUDE.md held the project's
+  rules in its own words because it is the only file loaded into every session, and the constitution
+  then restated all of it. Replacing that with `@.specify/memory/constitution.md` removed the
+  duplication rather than managing it: `/context` in a fresh session lists the constitution at 4.6k
+  tokens. A line saying "read the constitution first" depends on remembering to; an import does not.
+  It buys no tokens — the documentation is explicit that imported files load in full — only one
+  source of truth.
+
+### Trade-offs worth remembering
+
+- **Estimating what a tool costs was worse than reading the tool.** ADR-0021 recorded the cost of
+  adopting Spec Kit's spec template as one thing: no counterpart to the Examples section. Reading
+  the template and the tasks skill later showed the estimate was wrong in both directions. Worse
+  than recorded: three sections have no home at all — scope with a destination per item, open
+  questions parked with what would settle them, and why this slice before the others — and
+  `/speckit-tasks` is structurally organized by user story, so the override that record named as the
+  escape hatch would have needed a second override to stay usable. Better than recorded: the "no
+  implementation details, written for non-technical stakeholders" constraint that looked
+  disqualifying for a library's public API is not in the template at all. It lives in a checklist
+  the skill generates for itself, in the feature's own directory, which is ours to write. An ADR's
+  Consequences section is the part most likely to be an estimate dressed as an observation.
+- **The two drafts were abandoned rather than translated, which reverses a decision made two days
+  earlier in this same migration.** Rewriting them by hand would have produced the artifact and
+  hidden the question; running the flow answers it. That is the second time in this increment that
+  the cheaper move was to stop and get evidence, and both times the thing that made stopping
+  possible was that nothing had been pushed yet.
