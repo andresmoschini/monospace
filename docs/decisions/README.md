@@ -60,3 +60,11 @@ most of what it is worth. Fixing a typo or a broken link is fine.
 someone will later ask "why is this like this?". If neither applies, it belongs in
 [the learning log](../learning-log.md) instead, which is for what was learned rather than what was
 decided.
+
+**A feature's `research.md` is not a decision record.** Spec Kit writes one per feature in almost
+this shape — decision, rationale, alternatives considered — but scoped to that feature, with no
+status and no way to supersede it. It owns investigation local to the slice: which crate, which
+version, what is idiomatic. The moment a finding will outlive the feature, the record is written
+here and `research.md` links to it. The full split, including what the Complexity Tracking table in
+a plan owns, is in [the constitution](../../.specify/memory/constitution.md) under "Development
+Workflow".

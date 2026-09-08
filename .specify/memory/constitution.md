@@ -1,38 +1,34 @@
 <!--
 Sync Impact Report — 2026-09-08
 
-Version change: unfilled template → 1.0.0
+Version change: 1.0.0 → 1.1.0
 
-Rationale for 1.0.0: the file shipped by `specify init` still held every `[PLACEHOLDER]`, so no
-principle existed to redefine or remove. This is the first ratified constitution, not an amendment.
+Rationale for MINOR: the Development Workflow section gains guidance it did not have — which
+artifact owns a rationale, now that a feature's research.md and a plan's Complexity Tracking can
+each hold one. No principle is added, redefined or removed.
 
-Modified principles: none. `[PRINCIPLE_1..5]` were placeholders, never filled in.
+Modified sections:
+  - Development Workflow: added "Where a rationale goes", and named research.md in the layout.
 
-Added sections:
-  - Core Principles I–VII, derived from the practice already recorded in docs/brief.md section 2,
-    CONTRIBUTING.md, CLAUDE.md, docs/specs/README.md and docs/decisions/README.md
-  - Constraints and Dependencies (fills [SECTION_2_NAME])
-  - Development Workflow (fills [SECTION_3_NAME])
-  - Governance
+Templates and commands reviewed: unchanged since 1.0.0. Of the four templates only
+plan-template.md refers to the constitution, and it reads this file at runtime.
 
-Removed sections: none.
+Prior versions:
+  - 1.0.0 (2026-09-08) — first ratified constitution. Principles I–VII, Constraints and
+    Dependencies, Development Workflow and Governance, filled from the practice already recorded in
+    docs/brief.md, CONTRIBUTING.md, CLAUDE.md, docs/specs/README.md and docs/decisions/README.md.
+    Replaced the unfilled `[PLACEHOLDER]` scaffold from `specify init`.
 
-Templates and commands reviewed:
-  - .specify/templates/plan-template.md — its "Constitution Check" section now has concrete,
-    checkable gates instead of an empty placeholder. No edit needed; it reads this file at runtime.
-  - .specify/templates/spec-template.md — no constitution reference. Unchanged.
-  - .specify/templates/tasks-template.md — no constitution reference. Unchanged.
-  - .specify/templates/checklist-template.md — no constitution reference. Unchanged.
-
-Follow-up TODOs, each outside this command's scope:
+Follow-up TODOs:
   - TODO(TRIM_DUPLICATION): this file now owns the process rules. docs/brief.md sections 2 and 6,
     CONTRIBUTING.md and CLAUDE.md still state several of them in their own words. Reduce them to
     what only they own — the brief keeps vision, scope and non-goals; CONTRIBUTING keeps how to run
     the tooling; CLAUDE.md keeps session guidance — and point the rest here. Two wordings of one
     rule is the failure this project already refuses to accept for the quality gate.
-  - TODO(MIGRATION_ADR): the move of the spec home from docs/specs/ to specs/ is expensive to undo
-    and someone will ask why the numbering restarts. Record it as the next ADR under
-    docs/decisions/, per the rule in that directory's README.
+
+Closed since 1.0.0:
+  - TODO(MIGRATION_ADR) — recorded as ADR-0021, which also settles that the numbering continues at
+    006 rather than restarting.
 -->
 
 # Monospace Constitution
@@ -177,11 +173,26 @@ same reason an ADR is superseded rather than deleted.
 
 ```text
 docs/specs/          # 0001-0005, frozen history
-specs/NNN-slug/      # spec.md, plan.md, tasks.md — where new work lives
+specs/NNN-slug/      # spec.md, research.md, plan.md, tasks.md — where new work lives
 docs/decisions/      # ADRs, MADR 4.0, written when the decision is taken
 docs/model.md        # the design, sliced by specs rather than restated
 docs/learning-log.md # one entry per increment
 ```
+
+**Where a rationale goes.** Three artifacts can hold one, and they are not interchangeable.
+
+- `docs/decisions/` owns every decision that outlives the feature which surfaced it. It is
+  append-only history: an accepted record is superseded, never edited to change its conclusion.
+- A feature's `research.md` owns investigation local to that feature — which crate, which version,
+  what is idiomatic. When a finding turns out to be durable, the ADR is written and `research.md`
+  links to it instead of standing in for it. Spec Kit's format for that file — decision, rationale,
+  alternatives considered — carries no status, no consequences and no supersession, so it cannot
+  serve as the history however well it is written.
+- The Complexity Tracking table in a `plan.md` owns one thing: justifying a departure from this
+  constitution, in that plan, for that feature.
+
+Rationale: a rationale with three possible homes has none, and principle VI is unenforceable while
+"where is this recorded?" has more than one answer.
 
 **The model owns the design.** `docs/model.md` is design intent and owns the domain vocabulary. A
 spec names the sections of the model it implements and MUST NOT restate them. If a slice needs a
@@ -226,4 +237,4 @@ boundary, tests, docs — are enforced by `cargo xtask check` and are not a matt
 rest — thin slices, structural commits kept separate, decisions recorded when taken, claims
 measured — is checked by reading, at plan time and at review time.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-08
+**Version**: 1.1.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-08
