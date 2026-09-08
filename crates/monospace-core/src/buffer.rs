@@ -61,14 +61,17 @@ impl Buffer {
                 self.cells.insert((at.x, at.y), cell);
             }
             Some(target) => {
-                // Below never changes a decided target: merging would reproduce it exactly, so
-                // this skips rebuilding and storing an identical cell. No test can fail for this
-                // branch either way (ADR-0017) — deleting it leaves every buffer byte-identical.
-                if mode == StampMode::Below && target.is_decided() {
-                    return;
-                }
                 *target = match mode {
+                    // Above onto a decided stamp always reproduces the stamp itself: every arm
+                    // it names wins outright, so the merge that would compute the same thing is
+                    // skipped. Mirrors the Below branch below it, per ADR-0018.
+                    StampMode::Above if cell.is_decided() => cell,
                     StampMode::Above => merge(cell, target),
+                    // Below never changes a decided target: merging would reproduce it exactly,
+                    // so this returns instead of rebuilding and storing an identical cell. No
+                    // test can fail for this arm either way (ADR-0017) — deleting the guard
+                    // leaves every buffer byte-identical.
+                    StampMode::Below if target.is_decided() => return,
                     StampMode::Below => merge(target.clone(), &cell),
                 };
             }
@@ -375,6 +378,42 @@ mod tests {
             },
             StampMode::Below,
         );
+
+        assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&decided));
+    }
+
+    /// The mirror of the example above, per ADR-0018: a fully decided `Above` stamp wins
+    /// outright, whatever the target already had — the merge that would produce this cell is
+    /// skipped, and the cell is the same as if it had run.
+    #[test]
+    fn above_with_a_decided_stamp_wins_outright() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            Cell {
+                base: Stroke::from("double"),
+                top: Arm::Unset,
+                right: Arm::Set,
+                bottom: Arm::Unset,
+                left: Arm::Closed,
+            },
+            StampMode::Above,
+        );
+
+        let decided = Cell {
+            base: light(),
+            top: Arm::Set,
+            right: Arm::Closed,
+            bottom: Arm::Set,
+            left: Arm::Closed,
+        };
+        buffer.stamp(Pos { x: 0, y: 0 }, decided.clone(), StampMode::Above);
 
         assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&decided));
     }
