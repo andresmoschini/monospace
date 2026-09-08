@@ -41,6 +41,55 @@ cargo test --workspace     # tests only, when you want a faster loop
 `cargo run` without `-p` does not work: the workspace has more than one binary, so Cargo cannot
 pick.
 
+## Starting a feature
+
+Work starts from an issue on the board, not from a branch. Every feature has a parent issue:
+`capability` when it carries a wish someone had, `foundational` when the design demands it and
+nobody asked ([ADR-0025](docs/decisions/0025-every-feature-has-a-parent-issue.md)).
+
+That issue's number _is_ the feature's number — the directory, the branch and the milestone all
+share it ([ADR-0024](docs/decisions/0024-take-the-feature-number-from-its-issue.md)). The numbering
+therefore skips wherever an issue was not a feature, and that is expected.
+
+`/speckit-specify` has to be invoked with the feature directory given explicitly, through
+`SPECIFY_FEATURE_DIRECTORY` — not left to assign a number of its own, and not merely handed one as a
+preference, because a preference is replaced with a warning the moment its prefix is already taken
+([the constitution](.specify/memory/constitution.md#development-workflow); the mechanism behind the
+warning is in ADR-0024).
+
+```sh
+git checkout -b 023-read-a-diagram-description
+export SPECIFY_FEATURE_DIRECTORY=specs/023-read-a-diagram-description
+```
+
+Then, in the session rather than in a shell — issue #23, "Read a diagram description from a file or
+from stdin", is what `/speckit-specify` reads as its input:
+
+```text
+/speckit-specify
+/speckit-clarify   # only if the spec leaves open questions
+/speckit-plan
+/speckit-tasks
+/speckit-implement
+```
+
+The parent issue is the spec's input. Once the spec exists, the spec is the source of truth and the
+issue becomes a pointer back to where the wish was first stated
+([ADR-0023](docs/decisions/0023-direction-and-backlog-in-a-github-project.md)).
+
+A parent issue does not grow: a title and two or three sentences, never acceptance criteria,
+requirements or examples. ADR-0023 names this as the failure mode to watch, and ADR-0025 says the
+pressure is worse on a `foundational` issue, where "why this is needed" sits one sentence away from
+"what it must do". A parent issue that accumulates them is a spec written where no Spec Kit command
+will read it.
+
+Stories are sub-issues of the parent, opened once the spec is stable, labeled `story`, and closed by
+the pull request that delivers them (ADR-0023, ADR-0025). Closing the parent issue is a separate,
+manual act: it is not the same event as its stories being merged, but the moment someone decides the
+wish is met (ADR-0023).
+
+Features 001 to 006 predate all of this and keep the numbers they were given (ADR-0024, ADR-0025).
+
 ## The quality gate
 
 `cargo xtask check` is the whole gate. Why it is the only definition of "green", and why neither the
