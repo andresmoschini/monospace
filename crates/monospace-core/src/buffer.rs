@@ -67,7 +67,10 @@ impl Buffer {
                 if mode == StampMode::Below && target.is_decided() {
                     return;
                 }
-                *target = merge(target, cell, mode);
+                *target = match mode {
+                    StampMode::Above => merge(cell, target),
+                    StampMode::Below => merge(target.clone(), &cell),
+                };
             }
         }
     }
@@ -99,44 +102,31 @@ impl Buffer {
     }
 }
 
-/// Builds the cell that results from stamping `incoming` onto an already-defined `target`, under
-/// `mode`.
-fn merge(target: &Cell, incoming: Cell, mode: StampMode) -> Cell {
-    match mode {
-        StampMode::Above => Cell {
-            base: incoming.base,
-            top: merge_arm_above(target.top, incoming.top),
-            right: merge_arm_above(target.right, incoming.right),
-            bottom: merge_arm_above(target.bottom, incoming.bottom),
-            left: merge_arm_above(target.left, incoming.left),
-        },
-        StampMode::Below => Cell {
-            base: target.base.clone(),
-            top: merge_arm_below(target.top, incoming.top),
-            right: merge_arm_below(target.right, incoming.right),
-            bottom: merge_arm_below(target.bottom, incoming.bottom),
-            left: merge_arm_below(target.left, incoming.left),
-        },
+/// Builds the cell that results from merging `top` onto `bottom`: `top`'s base stroke, and each
+/// arm `top` decides, with an arm `top` leaves `Unset` falling through to `bottom`'s side.
+///
+/// Which cell plays `top` is the caller's choice, not this function's: an `Above` stamp is `top`
+/// over the target, and a `Below` stamp puts the target itself in that role. Either way the rule
+/// reads the same, per _Stamping_ in [`docs/model.md`](../../../docs/model.md): "the base stroke
+/// ends up owned by the topmost figure, and each arm ends up owned by the topmost figure that
+/// decided it, with abstentions falling through to the ones behind."
+fn merge(top: Cell, bottom: &Cell) -> Cell {
+    Cell {
+        base: top.base,
+        top: merge_arm(top.top, bottom.top),
+        right: merge_arm(top.right, bottom.right),
+        bottom: merge_arm(top.bottom, bottom.bottom),
+        left: merge_arm(top.left, bottom.left),
     }
 }
 
-/// `incoming`, unless it is `Unset` — an `Unset` arm on an `Above` stamp never writes anything,
-/// so the side stays whatever `target` already had.
-fn merge_arm_above(target: Arm, incoming: Arm) -> Arm {
-    if matches!(incoming, Arm::Unset) {
-        target
+/// `top`, unless it is `Unset` — an abstaining arm never writes anything, so the side falls
+/// through to whatever `bottom` has.
+fn merge_arm(top: Arm, bottom: Arm) -> Arm {
+    if matches!(top, Arm::Unset) {
+        bottom
     } else {
-        incoming
-    }
-}
-
-/// `incoming`, but only if `target` left this side `Unset`. A `Below` stamp never writes over a
-/// side the target has already decided.
-fn merge_arm_below(target: Arm, incoming: Arm) -> Arm {
-    if matches!(target, Arm::Unset) {
-        incoming
-    } else {
-        target
+        top
     }
 }
 
