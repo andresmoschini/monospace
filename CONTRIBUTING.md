@@ -90,6 +90,48 @@ wish is met (ADR-0023).
 
 Features 001 to 006 predate all of this and keep the numbers they were given (ADR-0024, ADR-0025).
 
+### Names that carry the number
+
+The branch, the spec directory and the milestone all carry the feature's number, so that one string
+finds every part of it:
+
+```sh
+git checkout -b 023-read-a-diagram-description
+# the directory is specs/023-read-a-diagram-description/
+
+gh api repos/:owner/:repo/milestones   -f title="023 — Read a diagram description"   -f description="specs/023-read-a-diagram-description/"
+```
+
+A story is opened as a sub-issue of the parent, and its body points at the spec rather than
+repeating it:
+
+```sh
+gh issue create --parent 23   --title "023 US1 — A caller can render a diagram described in a file"   --label story --milestone "023 — Read a diagram description" --project "Monospace"   --body "US1 (P1) of specs/023-read-a-diagram-description/spec.md.
+
+The spec is the source of truth for the acceptance scenarios; this issue is a pointer."
+```
+
+### Closing the work
+
+The keywords that close an issue go in the pull request's body, never in a commit message. Three
+reasons, and the third is the one that decides it:
+
+- The link is visible before the merge. Only the pull request gives you that; a keyword in a commit
+  is invisible until it lands.
+- A wrong number is edited out of a body. In a commit it is a history rewrite, and a rewrite here
+  owes the gate a run on **every** rewritten commit rather than only the tip.
+- No single commit is "the" one that closes a story that took several.
+
+```sh
+gh pr edit N --milestone "023 — Read a diagram description"
+gh pr view N --json closingIssuesReferences   # confirm GitHub parsed them
+gh pr merge --merge --delete-branch
+```
+
+The stories then close themselves and their cards move to `Done`. **The parent issue is closed by
+hand**, deliberately: nothing here relies on sub-issues closing it, and closing it is the moment
+someone decides the wish is met, which is not the same event as its stories being merged.
+
 ## The quality gate
 
 `cargo xtask check` is the whole gate. Why it is the only definition of "green", and why neither the

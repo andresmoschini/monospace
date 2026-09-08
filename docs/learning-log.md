@@ -597,10 +597,13 @@ starts. No Rust was written, so this entry has nothing to say about Rust.
   artifact had already settled: eight `gh` calls with the wording fixed in advance, four link
   redirects against a closed list, and a `CONTRIBUTING.md` section whose every claim traces to an
   ADR or to the constitution. The instructive part is the four conventions it was told to leave out
-  — where issue-closing keywords live, milestone and branch name formats, whether closing every
-  sub-issue closes its parent — because none of them is decided anywhere, and a documented rule with
-  no record behind it is worse than a gap. They came back absent, which is what naming them bought.
-  What could not be delegated was choosing between options and writing the records.
+  — where issue-closing keywords live, milestone and branch name formats, and whether closing every
+  sub-issue closes its parent — because none of them was decided anywhere at the time. They came
+  back absent, which is what naming them bought, and the absence is what made the decision visible
+  enough to take: all four were settled in the next exchange and went into `CONTRIBUTING.md` as
+  procedure carrying its own reasoning, rather than as a record, on the grounds that where a keyword
+  goes is how the tooling is used and not an architecture decision. What could not be delegated was
+  choosing between the options and writing the records.
 - **Two things this increment claims are still unobserved, and saying so is cheaper than finding out
   later.** `gh` 2.100.0 has no subcommand for project views, so the view grouped by `Phase` — the
   one ADR-0023 says reproduces the roadmap's phase table from the items themselves — does not exist
