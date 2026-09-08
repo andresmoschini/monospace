@@ -12,5 +12,6 @@ nvmrc
 Nygard
 PATHEXT
 RUSTFLAGS
+speckit
 valueonly
 xtask
