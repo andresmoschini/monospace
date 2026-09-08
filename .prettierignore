@@ -3,3 +3,8 @@ target/
 
 # npm owns this file and rewrites it; formatting it would create churn on every install.
 package-lock.json
+
+# spec-kit owns these; it rewrites them on every `specify update`, and they are not ours to
+# reformat.
+.claude/skills/speckit-*/
+.specify/
