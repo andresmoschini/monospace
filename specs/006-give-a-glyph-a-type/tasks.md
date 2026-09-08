@@ -142,7 +142,7 @@ this commit touches no public signature and no call site T002 or T003 introduced
 - [x] T005 Observe FR-009's panic on purpose by breaking one row of the Light table in
       `crates/monospace-core/src/glyph.rs`, then restoring it, following _Verifying the loud
       failure_ in [quickstart.md](quickstart.md)
-- [ ] T006 Append the increment's entry to `docs/learning-log.md`
+- [x] T006 Append the increment's entry to `docs/learning-log.md`
 
 T005 produces no commit either, and no test: a test that asserts the panic would have to ship a
 broken table to fire it. What it produces is an observation for the pull request body, and it is
