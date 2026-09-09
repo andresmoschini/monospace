@@ -170,7 +170,7 @@ in the other.
 - [x] T008 [P] Point the frozen `docs/specs/0005-hold-a-literal-glyph-in-a-cell.md` at
       `specs/028-hold-a-literal-glyph-in-a-cell/` with a "Replaced by" note, as
       `docs/specs/0004-give-a-glyph-a-type-of-its-own.md` already does for feature 006
-- [ ] T009 Append the increment's entry to `docs/learning-log.md`
+- [x] T009 Append the increment's entry to `docs/learning-log.md`
 
 T006 and T007 produce no commit and no test. What they produce is an observation for the pull
 request body, and they are there because _Claims are measured, not assumed_ asks a new failure path

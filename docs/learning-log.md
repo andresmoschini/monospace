@@ -610,3 +610,71 @@ starts. No Rust was written, so this entry has nothing to say about Rust.
   yet and has to be made in the web interface. And no feature has been created under the new
   numbering: the collision that ADR-0024 prevents is a reading of the allocator, not an incident,
   and the first real test of the arrangement is the next feature.
+
+## 2026-09-09 — Feature 028 implemented: hold a literal glyph in a cell
+
+Seven commits: an ADR, a structural rename behind a type alias, the sum type with its composition
+rules and tests, the front end's fill, two follow-up refactors found by reading the diff rather than
+by any check, and two checklist commits recording a guard deleted on purpose and restored.
+`cargo run -p monospace-cli` now draws a filled box and shows occlusion next to the junctions it
+already showed.
+
+### Rust design and idiom
+
+- **A type alias turned a 33-call-site rename into a commit that touches zero tests.**
+  `pub type Cell = StrokeCell;` for exactly one commit let `cell.rs`, `buffer.rs`, `render.rs` and
+  `lib.rs` rename the struct while every call site — 32 of them in test modules — kept compiling
+  unchanged. `git show --stat` on that commit confirmed no file under a `tests` module or `tests/`
+  directory appeared in the diff, which is what let it land as `refactor` rather than needing an
+  exception in Complexity Tracking.
+- **A cell being decided by definition turned three of five composition rows into branches that
+  already existed.** `Cell::is_decided` answering `true` for a literal meant the two `is_decided`
+  shortcuts already in `Buffer::stamp` (ADR-0017, ADR-0018) caught every row with a literal on the
+  decided side for free — verified in T007 by deleting each shortcut and running the whole suite,
+  literal cases included, with nothing failing either time. The only new arithmetic was the fourth
+  row, a stroke cell over a literal, closing whichever sides it left `Unset`.
+- **A design review after the type already compiled found two things the type system did not
+  force.** `render::glyph_at` matched on `Cell::Strokes`/`Cell::Literal` from outside to decide how
+  to resolve a position's text; moving that decision onto `StrokeCell::key()` and
+  `Cell::glyph_str()` collapsed it back to one chain of `and_then` calls with no match at all — the
+  same shape `render.rs` had before the feature existed. Separately, `merge`'s arm-by-arm loop fed a
+  literal's absence of arms through `bottom_arm` as a constant `Closed` value, so `merge_arm` — a
+  function about two stroke cells falling through to each other — ended up processing a cell with no
+  arms at all. Both were numerically correct before the fix; both were caught by a maintainer
+  reading the diff and asking why a piece of code was speaking for a type it wasn't, not by any
+  check, and both landed as their own `refactor` commits with the 40-plus-1 tests passing unchanged
+  and no test added.
+- **The renderer's lifetime unification cost one annotation and no allocation.** `glyph_at`'s buffer
+  and catalog borrows share one `'a` now, so either can flow out as the return value; `render`
+  itself needed no lifetime of its own, which is the fallback R4 in `research.md` named in case the
+  annotation alone was not enough.
+
+### Working this way
+
+- **The plan's own Scale/Scope section had the right count before its own checkpoint prose did.**
+  Phase 3's checkpoint claimed "`crates/monospace-cli/` is absent from the diff", but `Cell` leaving
+  struct shape meant the CLI's one `Cell { .. }` construction site could not compile unchanged
+  either — and `plan.md`'s Scale/Scope already said so: "33 construction sites across four files —
+  32 of them in test modules, one in the front end." The one-line fix in `main.rs` was decided from
+  that existing scope and from the fact that the workspace would not build otherwise, not from
+  renegotiating with the maintainer mid-task.
+- **A committed feature improving further is not the same event as more of the feature.** Two design
+  concerns arrived after the feature's own commit had already landed and the gate was green. Both
+  became separate `refactor` commits — never squashed into the `feat` that was already pushed — each
+  running the full gate on its own and changing no test, which is what let "the feature is already
+  committed" and "the feature got better" both stay true without touching history.
+- **A fourth spec in a row held up against implementation with zero surprises.** The CLI's predicted
+  output in `quickstart.md`, explicitly marked as derived and never observed, matched
+  `cargo run -p monospace-cli`'s real output byte for byte, trailing spaces included, confirmed with
+  a `diff` rather than by eye before it went into the test.
+
+### Trade-offs worth remembering
+
+- **An optimization confirmed once does not need re-confirming per new kind of input, but it does
+  need re-confirming per new case.** ADR-0017 and ADR-0018 recorded their shortcuts as unverifiable
+  by any test, with confidence tied to no second such branch ever arriving for the same reason. A
+  literal is a second kind of decided cell, not a second unverifiable branch — the existing
+  shortcuts extend to it because they never asked what kind of cell they were skipping, only whether
+  it was decided. What did need a fresh check was the specific claim "deleting this changes no
+  buffer", which T007 ran again as a measurement, not as an inference from the ADRs' prior
+  confidence.
