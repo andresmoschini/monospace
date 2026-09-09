@@ -54,8 +54,8 @@ therefore skips wherever an issue was not a feature, and that is expected.
 `/speckit-specify` has to be invoked with the feature directory given explicitly, through
 `SPECIFY_FEATURE_DIRECTORY` — not left to assign a number of its own, and not merely handed one as a
 preference, because a preference is replaced with a warning the moment its prefix is already taken
-([the constitution](.specify/memory/constitution.md#development-workflow); the mechanism behind the
-warning is in ADR-0024).
+([Spec Kit is the workflow](.specify/memory/constitution.md#spec-kit-is-the-workflow); the mechanism
+behind the warning is in ADR-0024).
 
 ```sh
 git checkout -b 023-read-a-diagram-description
@@ -229,8 +229,10 @@ can pass and still be broken. Stashing to close that gap risks losing work if th
 interrupted, which is the worse failure. If you stage selectively, run `cargo xtask check` on a
 clean tree before trusting it.
 
-Never commit with `--no-verify`. If a hook fails, fix the cause or say so — a bypassed gate is worse
-than no gate, because the log then claims a green history that was never checked.
+Never commit with `--no-verify`;
+[One definition of green](.specify/memory/constitution.md#iii-one-definition-of-green-non-negotiable)
+makes that a rule. What is worth adding here is why it bites: a bypassed gate is worse than no gate,
+because the log then claims a green history that was never checked.
 
 ## Commits
 
@@ -258,15 +260,16 @@ dash, or re-wrap so the word sits mid-line.
 ### Fixing a commit
 
 Which corrections belong in the commit that got them wrong, and which get a commit of their own, is
-[Fixing a commit](.specify/memory/constitution.md#development-workflow) in the constitution. What is
+[Fixing a commit](.specify/memory/constitution.md#fixing-a-commit) in the constitution. What is
 specific to this repository is that the rule holds after pushing, which is not the usual convention.
 It works here because a feature branch has an owner, and whoever pulls someone else's branch accepts
 that it can be rewritten underneath them. The limits are `main`, which is never rewritten, and
 `--force-with-lease`, which aborts instead of clobbering an update you had not seen. The cost is
 that GitHub marks inline review comments on a rewritten commit as outdated.
 
-Rewriting means proving the branch green again. Neither `git rebase` nor `git cherry-pick` fires the
-pre-commit hook, so the gate has to run on each rewritten commit rather than on the tip alone.
+Rewriting means proving the branch green again, on each rewritten commit rather than on the tip
+alone, because neither rebase nor cherry-pick fires the hook —
+[One definition of green](.specify/memory/constitution.md#iii-one-definition-of-green-non-negotiable).
 
 An accepted ADR is the exception: its conclusion is never edited, whatever the commit history does.
 [The decisions README](docs/decisions/README.md) owns that rule.
@@ -300,9 +303,7 @@ body only makes sense with the transcript open, the body is wrong.
 ## Cross-references
 
 Cite a section of another document by name — in practice, by anchor — and not by number. The rule
-and its reasoning are in
-[Development Workflow](.specify/memory/constitution.md#development-workflow); records written before
-that convention keep their numbered citations, since an accepted record is not edited for style.
+and its reasoning are in [Cross-references](.specify/memory/constitution.md#cross-references).
 
 Nothing checks any of it. `markdownlint` validates a link fragment against the headings of the same
 file and stops there, so a link to a file that does not exist, or to an anchor in a different file
@@ -314,11 +315,11 @@ were true when written, and an accepted record is not edited for style.
 
 ## Decisions and notes
 
-Three documents, and [Where a rationale goes](.specify/memory/constitution.md#development-workflow)
-says which takes what. The procedure and templates are in each:
-[`docs/decisions/`](docs/decisions/README.md) for decision records,
-[the learning log](docs/learning-log.md) for what was learned, and a feature's own `research.md` for
-investigation local to that slice.
+Three documents, and
+[Where a rationale goes](.specify/memory/constitution.md#where-a-rationale-goes) says which takes
+what. The procedure and templates are in each: [`docs/decisions/`](docs/decisions/README.md) for
+decision records, [the learning log](docs/learning-log.md) for what was learned, and a feature's own
+`research.md` for investigation local to that slice.
 
 Where specs live, and how a slice goes from spec to plan to tasks, is
-[Development Workflow](.specify/memory/constitution.md#development-workflow).
+[Spec Kit is the workflow](.specify/memory/constitution.md#spec-kit-is-the-workflow).
