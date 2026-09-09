@@ -710,6 +710,14 @@ answer contradicted the hypothesis it started from.
   the constitution, which names the file by path. A reading habit bought the same saving for
   nothing, and writing this entry used it — `sed -n '536,$p'` for the shape of the previous two
   entries, rather than opening the file.
+- **Asked whether the governing documents could be shorter, the useful answer turned out to be a
+  different one.** The hypothesis was duplication between the constitution and `CONTRIBUTING.md`,
+  and it was wrong: `CONTRIBUTING.md` links rather than repeats in seven of its nine references, and
+  only two restatements existed. The real defect was addressability. Seventeen rules had names, in
+  bold, inside three headings, and thirty-two links across the repository resolved to those coarse
+  anchors — five of them into one section holding eight unrelated rules — while the constitution's
+  own Cross-references rule asks for citation by name. Promoting the names to headings took the
+  citable anchors from 12 to 29 and the body from 2,240 words to 2,238.
 
 ### Trade-offs worth remembering
 
@@ -723,3 +731,8 @@ answer contradicted the hypothesis it started from.
   than letting a reader assume a check exists. The honest substitute for enforcement is a
   measurement that can be repeated: the transcripts carry per-call token counts, so a later
   increment can recompute the average context per call and find out whether the habit held.
+- **Two words is a result, not a disappointment.** The amendment that made the constitution precise
+  changed its length by -2 words, which settles that precision and token cost are separate problems
+  rather than one problem with one fix. Had the cleanup been sold as a saving, the number would have
+  been an embarrassment; measured first and framed as addressability, it is the confirmation. The
+  order matters — measure, then decide what the change is for.
