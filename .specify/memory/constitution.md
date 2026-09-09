@@ -1,35 +1,28 @@
 <!--
-Sync Impact Report — 2026-09-08
+Sync Impact Report — 2026-09-09
 
-Version change: 1.2.0 → 1.3.0
+Version change: 1.3.0 → 1.3.1
 
-Rationale for MINOR: the file gains a rule it did not hold — a feature's number is the number of the
-GitHub issue it implements — which is guidance a plan can be checked against and a constraint on how
-/speckit-specify is invoked. The other two edits would be PATCH on their own: they redirect the two
-pointers that named docs/roadmap.md as the owner of direction, following ADR-0023. No principle is
-touched, and nothing is removed or redefined.
+Rationale for PATCH: clarification and wording only. No principle is added, removed or redefined,
+and no rule changes what it requires.
 
-Decisions this amendment implements:
-  - ADR-0023, which dissolves docs/roadmap.md and puts direction and the backlog on a GitHub
-    Project. It named the two pointers in this file as references to redirect; these are them.
-  - ADR-0024, which takes a feature's number from its issue, and which supersedes the part of
-    ADR-0021 that settled the sequence continuing at 006 — that part only.
+Decisions this amendment implements: none, and it carries no ADR because it reverses nothing
+recorded. What prompted it is the measurement in ADR-0027.
 
 Modified sections:
-  - Constraints and Dependencies, "Out of scope for this phase": where an out-of-scope item is
-    expected to arrive instead is the Phase field of its capability issue, not the roadmap. The
-    paragraph now says outright that it is the whole of the rule.
-  - Development Workflow, "Spec Kit is the workflow" and the artifact tree: NNN in specs/NNN-slug/
-    is the feature's issue number rather than a local sequence position, /speckit-specify must be
-    invoked with the feature directory given explicitly rather than left to assign a number, and
-    features 001 to 006 are named as predating the rule.
-  - Governance: the GitHub Project replaces docs/roadmap.md as the owner of direction and of the
-    backlog.
+  - Constraints and Dependencies, Development Workflow, Governance: the seventeen rules already
+    named in bold are headings, so each can be cited on its own instead of through the section
+    holding it. The three parent anchors are unchanged, so existing links still resolve.
+  - I. Process over product, III. One definition of green: one pair of bullets in each stated a
+    single rule twice, and each pair is now one sentence.
 
 Templates and commands reviewed: unchanged since 1.0.0. Of the four templates only
 plan-template.md refers to the constitution, and it reads this file at runtime.
 
 Prior versions:
+  - 1.3.0 (2026-09-08) — a feature's number became the number of the GitHub issue it implements,
+    per ADR-0024, and the two pointers naming docs/roadmap.md as the owner of direction were
+    redirected to the GitHub Project, per ADR-0023.
   - 1.2.0 (2026-09-08) — took over the last rules docs/brief.md still held: what is in scope, what
     a spec must ask of its tests, and what a learning-log entry covers, with Governance naming
     itself rather than the brief as the owner of scope. It closed TODO(MIGRATION_ADR), recorded as
@@ -65,9 +58,8 @@ architecture. ASCII diagramming is the vehicle, not the goal.
 
 - When the fastest route to a feature conflicts with the route that teaches better Rust design or
   better spec-driven practice, the second MUST be taken.
-- Shipping more surface area is never on its own a reason to skip a spec, an ADR or a learning-log
-  entry.
-- A plan that saves effort by collapsing the process MUST be rejected, however small the feature.
+- Neither more surface area shipped nor a smaller feature excuses skipping a spec, an ADR or a
+  learning-log entry: a plan that saves effort by collapsing the process MUST be rejected.
 
 Rationale: every other principle here costs time. They are affordable only because the time is the
 point.
@@ -91,8 +83,7 @@ silently.
 ### III. One definition of green (NON-NEGOTIABLE)
 
 - `cargo xtask check` is the only definition of green. The pre-commit hook runs it, CI runs it, and
-  neither MAY add a check of its own.
-- A new check MUST be added to that entrypoint, never to CI or to a hook directly.
+  a new check MUST be added to that entrypoint rather than to either of them.
 - Adding a check is two commits: first fix what it finds, then enable it. If it finds nothing, say
   so — a fix MUST NOT be manufactured to fill the commit.
 - `git commit --no-verify` MUST NOT be used. When the hook fails, fix the cause or stop and report
@@ -167,37 +158,51 @@ not.
 
 ## Constraints and Dependencies
 
-**Language of the artifacts.** Code identifiers, comments, doc comments, README, `docs/`, specs,
+### Language of the artifacts
+
+Code identifiers, comments, doc comments, README, `docs/`, specs,
 ADRs, commit messages, PR descriptions, CLI output, error messages and help text are all in English.
 Conversation with the maintainer may be in any language; what lands in the repository is English.
 
-**Toolchain.** Rust, edition 2024, pinned to an exact version in `rust-toolchain.toml` together with
+### Toolchain
+
+Rust, edition 2024, pinned to an exact version in `rust-toolchain.toml` together with
 its components and the `wasm32-unknown-unknown` target. No nightly-only features. No minimum
 supported Rust version is declared while nothing outside this repository depends on these crates.
 Node, at the version in `.nvmrc`, backs the checks Rust cannot perform.
 
-**Dependencies.** A dependency MUST NOT be added without asking the maintainer first. Before adding
+### Dependencies
+
+A dependency MUST NOT be added without asking the maintainer first. Before adding
 or pinning any version, its publication date MUST be verified to be at least seven days old, and the
 version and that date reported. Domain logic prefers the standard library; infrastructure concerns
 prefer idiomatic, well-established crates over reinvention.
 
-**Testing.** Each spec defines its own testing expectations, and unit tests for core logic are the
+### Testing
+
+Each spec defines its own testing expectations, and unit tests for core logic are the
 minimum any of them may ask for. A behavior rule with no test named against it is an unfinished
 spec, not a finished feature.
 
-**In scope for this phase.** Two things, and their boundary is principle VII: `monospace-core`, the
+### In scope for this phase
+
+Two things, and their boundary is principle VII: `monospace-core`, the
 Rust library holding the diagramming logic — input parsing, layout and positioning, ASCII rendering
 — and `monospace-cli`, a minimal non-interactive consumer that produces diagrams from the terminal.
 
-**Out of scope for this phase**, and a plan proposing any of them MUST be stopped and renegotiated
-rather than quietly widened: WebAssembly bindings, a web front-end, non-terminal GUIs, persistence,
+### Out of scope for this phase
+
+A plan proposing any of these MUST be stopped and renegotiated rather than quietly widened:
+WebAssembly bindings, a web front-end, non-terminal GUIs, persistence,
 collaboration, and export formats beyond plain text. Where each of them is expected to arrive
 instead is the `Phase` field of its capability issue in the GitHub Project, which holds direction
-and no rules. This paragraph is the whole of the rule: nothing on the board widens it.
+and no rules. This section is the whole of the rule: nothing on the board widens it.
 
 ## Development Workflow
 
-**Spec Kit is the workflow.** New work goes through `/speckit-specify`, then `/speckit-clarify` when
+### Spec Kit is the workflow
+
+New work goes through `/speckit-specify`, then `/speckit-clarify` when
 the spec has open questions, then `/speckit-plan`, `/speckit-tasks` and `/speckit-implement`.
 Artifacts live under `specs/NNN-slug/`, where `NNN` is the number of the GitHub issue the feature
 implements rather than a position in a local sequence, so the numbering skips. `/speckit-specify`
@@ -206,7 +211,9 @@ its own: an assigned number is a local sequence position, and a number merely of
 preference is replaced by one, with a warning, whenever its prefix is already taken. Features 001 to
 006 predate the rule and keep the numbers they were given.
 
-**The previous spec home is history.** `docs/specs/` holds specs 0001–0005 and is frozen: it is not
+### The previous spec home is history
+
+`docs/specs/` holds specs 0001–0005 and is frozen: it is not
 extended, and its numbering does not continue. Specs 0001–0003 are implemented and stay as the
 record of what was asked for and when. Specs 0004 and 0005 were still drafts at the migration and
 are re-authored as Spec Kit features; the frozen files stay in place, marked as superseded, for the
@@ -220,7 +227,9 @@ docs/model.md        # the design, sliced by specs rather than restated
 docs/learning-log.md # one entry per increment
 ```
 
-**Where a rationale goes.** Three artifacts can hold one, and they are not interchangeable.
+### Where a rationale goes
+
+Three artifacts can hold one, and they are not interchangeable.
 
 - `docs/decisions/` owns every decision that outlives the feature which surfaced it. It is
   append-only history: an accepted record is superseded, never edited to change its conclusion.
@@ -235,25 +244,35 @@ docs/learning-log.md # one entry per increment
 Rationale: a rationale with three possible homes has none, and principle VI is unenforceable while
 "where is this recorded?" has more than one answer.
 
-**The model owns the design.** `docs/model.md` is design intent and owns the domain vocabulary. A
+### The model owns the design
+
+`docs/model.md` is design intent and owns the domain vocabulary. A
 spec names the sections of the model it implements and MUST NOT restate them. If a slice needs a
 rule the model does not have, the model changes first.
 
-**No code before the plan is agreed.** A plan is agreed by the maintainer, not assumed.
+### No code before the plan is agreed
 
-**Whose decision it is.** When a decision belongs to the maintainer — cost, scope, taste, or a risk
+A plan is agreed by the maintainer, not assumed.
+
+### Whose decision it is
+
+When a decision belongs to the maintainer — cost, scope, taste, or a risk
 they carry — the real options MUST be presented with their trade-offs, what is reversible and what
 is not, a recommendation with a confidence level, and what information would change it. When it is
 settled practice and the maintainer has no stake, choose the conventional answer, say what was
 chosen and why, and carry on.
 
-**Fixing a commit.** A correction that changed nothing for anyone — a typo, a wrong status line, a
+### Fixing a commit
+
+A correction that changed nothing for anyone — a typo, a wrong status line, a
 formatting slip — belongs in the commit that got it wrong. When something was actually wrong, in
 behavior or in a claim someone could have acted on, the fix is its own commit and says what was
 wrong. This holds after pushing: `main` is never rewritten, and every force push uses
 `--force-with-lease`.
 
-**Cross-references.** Cite a section of another document by its name, not by its number.
+### Cross-references
+
+Cite a section of another document by its name, not by its number.
 
 ## Governance
 
@@ -264,20 +283,26 @@ of how to run the tooling; `CLAUDE.md` of session guidance. Where any of them
 restates a rule stated here, this file is the one to follow, and the duplication is a defect to
 remove.
 
-**Amendment procedure.** An amendment is made in the same increment as the decision that requires
+### Amendment procedure
+
+An amendment is made in the same increment as the decision that requires
 it, and the commit says so — never drifted from silently. An amendment that reverses a recorded
 decision also needs the ADR that reverses it. Every amendment updates the version line and the Sync
 Impact Report at the top of this file.
 
-**Versioning policy.** Semantic versioning of governance: MAJOR for a backward-incompatible removal
+### Versioning policy
+
+Semantic versioning of governance: MAJOR for a backward-incompatible removal
 or redefinition of a principle, MINOR for a new principle or materially expanded guidance, PATCH for
 clarifications and wording.
 
-**Compliance review.** Every `/speckit-plan` run MUST fill its Constitution Check against these
+### Compliance review
+
+Every `/speckit-plan` run MUST fill its Constitution Check against these
 principles, and a plan that cannot pass one MUST record the violation in its Complexity Tracking
 with the reason, or be changed. The mechanical parts — formatting, lints, spelling, the WebAssembly
 boundary, tests, docs — are enforced by `cargo xtask check` and are not a matter of review. The
 rest — thin slices, structural commits kept separate, decisions recorded when taken, claims
 measured — is checked by reading, at plan time and at review time.
 
-**Version**: 1.3.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-08
+**Version**: 1.3.1 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-09
