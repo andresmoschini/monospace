@@ -3,12 +3,14 @@
 //! It holds no domain logic of its own: everything it draws comes from `monospace-core`.
 
 use monospace_core::{
-    Arm, Buffer, Cell, GlyphCatalog, Pos, Size, StampMode, Stroke, StrokeCell, render,
+    Arm, Buffer, Cell, Glyph, GlyphCatalog, Pos, Size, StampMode, Stroke, StrokeCell, render,
 };
 
 /// Stamps the 4x3 box spec 0002 settled, with `origin` as its top-left corner and `mode` as the
 /// stamp mode: `Set` along the border, `Closed` facing the interior, and `Unset` facing outward
 /// so a later figure can join it rather than being refused by a border that means nothing by it.
+/// The two interior positions are stamped with a literal fill, so a figure behind the box no
+/// longer shows through it.
 fn stamp_box(buffer: &mut Buffer, origin: Pos, mode: StampMode) {
     let light = || Stroke::from("light");
     let cell = |top, right, bottom, left| -> Cell {
@@ -21,6 +23,7 @@ fn stamp_box(buffer: &mut Buffer, origin: Pos, mode: StampMode) {
         }
         .into()
     };
+    let fill = || Cell::Literal(Glyph::new("░").expect("\"░\" is one glyph"));
     let at = |dx: i32, dy: i32| Pos {
         x: origin.x + dx,
         y: origin.y + dy,
@@ -51,6 +54,8 @@ fn stamp_box(buffer: &mut Buffer, origin: Pos, mode: StampMode) {
         cell(Arm::Set, Arm::Closed, Arm::Set, Arm::Unset),
         mode,
     );
+    buffer.stamp(at(1, 1), fill(), mode);
+    buffer.stamp(at(2, 1), fill(), mode);
     buffer.stamp(
         at(3, 1),
         cell(Arm::Set, Arm::Unset, Arm::Set, Arm::Closed),

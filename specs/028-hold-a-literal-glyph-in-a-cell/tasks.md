@@ -138,7 +138,7 @@ junctions it already showed, once per stamp mode.
 **Independent Test**: run `cargo run -p monospace-cli` and compare the whole output, trailing spaces
 included, against the assertion in `crates/monospace-cli/tests/cli.rs`.
 
-- [ ] T005 [US2] Stamp the two interior positions of the box with a literal `░` in
+- [x] T005 [US2] Stamp the two interior positions of the box with a literal `░` in
       `crates/monospace-cli/src/main.rs`, keeping the box built once and stamped twice, and update
       the asserted output in `crates/monospace-cli/tests/cli.rs` from a real run
 
