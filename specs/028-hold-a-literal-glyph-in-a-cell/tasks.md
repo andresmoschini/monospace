@@ -93,7 +93,7 @@ text; stamp a figure and a chosen glyph onto one position in both modes and both
 cells back; stamp three figures with a chosen glyph in the middle both ways and compare the buffers;
 then diff the front end's output against the T001 baseline.
 
-- [ ] T004 [US1] Make `Cell` the sum of `Strokes(StrokeCell)` and `Literal(Glyph)` in
+- [x] T004 [US1] Make `Cell` the sum of `Strokes(StrokeCell)` and `Literal(Glyph)` in
       `crates/monospace-core/src/cell.rs`, deleting the alias and adding
       `From<StrokeCell> for Cell`, the widened `is_decided` and their rustdoc; add the literal's
       case to `merge` in `crates/monospace-core/src/buffer.rs`; add the literal's branch and the

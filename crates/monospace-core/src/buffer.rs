@@ -50,7 +50,10 @@ impl Buffer {
     /// position consults `mode` for which side decides: [`StampMode::Above`] overwrites the base
     /// stroke and reads the *stamp's* arms, leaving alone whichever ones `cell` itself leaves
     /// `Unset`; [`StampMode::Below`] leaves the base stroke alone and reads the *target's* arms
-    /// instead, writing only the sides the cell already stored has left `Unset`.
+    /// instead, writing only the sides the cell already stored has left `Unset`. A cell holding a
+    /// literal glyph is decided on every side either way, so it behaves as the fully decided case
+    /// throughout — see _A cell can be a literal instead_ in
+    /// [`docs/model.md`](../../../docs/model.md).
     pub fn stamp(&mut self, at: Pos, cell: Cell, mode: StampMode) {
         if !self.contains(at) {
             return;
@@ -64,13 +67,15 @@ impl Buffer {
                 *target = match mode {
                     // Above onto a decided stamp always reproduces the stamp itself: every arm
                     // it names wins outright, so the merge that would compute the same thing is
-                    // skipped. Mirrors the Below branch below it, per ADR-0018.
+                    // skipped. Mirrors the Below branch below it, per ADR-0018. A literal is
+                    // decided by definition, so this is also where it wins outright.
                     StampMode::Above if cell.is_decided() => cell,
                     StampMode::Above => merge(cell, target),
                     // Below never changes a decided target: merging would reproduce it exactly,
                     // so this returns instead of rebuilding and storing an identical cell. No
                     // test can fail for this arm either way (ADR-0017) — deleting the guard
-                    // leaves every buffer byte-identical.
+                    // leaves every buffer byte-identical. A literal target is decided too, so
+                    // this is also where it is left alone.
                     StampMode::Below if target.is_decided() => return,
                     StampMode::Below => merge(target.clone(), &cell),
                 };
@@ -113,13 +118,36 @@ impl Buffer {
 /// reads the same, per _Stamping_ in [`docs/model.md`](../../../docs/model.md): "the base stroke
 /// ends up owned by the topmost figure, and each arm ends up owned by the topmost figure that
 /// decided it, with abstentions falling through to the ones behind."
-fn merge(top: StrokeCell, bottom: &StrokeCell) -> StrokeCell {
+///
+/// `top` arriving as a literal always wins outright, exactly as a fully decided stroke cell does.
+/// That case is unreachable through [`Buffer::stamp`] today, because its two `is_decided` shortcuts
+/// (ADR-0017, ADR-0018) catch every decided cell before this function is called — it is written as
+/// a returning branch rather than `unreachable!()` so those shortcuts stay deletable optimizations
+/// instead of becoming load-bearing.
+fn merge(top: Cell, bottom: &Cell) -> Cell {
+    let stroke = match top {
+        Cell::Strokes(stroke) => stroke,
+        literal @ Cell::Literal(_) => return literal,
+    };
+
     StrokeCell {
-        base: top.base,
-        top: merge_arm(top.top, bottom.top),
-        right: merge_arm(top.right, bottom.right),
-        bottom: merge_arm(top.bottom, bottom.bottom),
-        left: merge_arm(top.left, bottom.left),
+        base: stroke.base,
+        top: merge_arm(stroke.top, bottom_arm(bottom, |cell| cell.top)),
+        right: merge_arm(stroke.right, bottom_arm(bottom, |cell| cell.right)),
+        bottom: merge_arm(stroke.bottom, bottom_arm(bottom, |cell| cell.bottom)),
+        left: merge_arm(stroke.left, bottom_arm(bottom, |cell| cell.left)),
+    }
+    .into()
+}
+
+/// The arm `bottom` offers to a merge on the side `arm` reads. A literal offers `Closed` on every
+/// side: it has no arms of its own, and nothing may connect into it, per _A cell can be a literal
+/// instead_ in [`docs/model.md`](../../../docs/model.md). A stroke cell offers whatever `arm` reads
+/// off it.
+fn bottom_arm(bottom: &Cell, arm: impl Fn(&StrokeCell) -> Arm) -> Arm {
+    match bottom {
+        Cell::Strokes(cell) => arm(cell),
+        Cell::Literal(_) => Arm::Closed,
     }
 }
 
@@ -136,10 +164,14 @@ fn merge_arm(top: Arm, bottom: Arm) -> Arm {
 #[cfg(test)]
 mod tests {
     use super::{Buffer, StampMode};
-    use crate::{Arm, Cell, Pos, Size, Stroke};
+    use crate::{Arm, Cell, Glyph, Pos, Size, Stroke, StrokeCell};
 
     fn light() -> Stroke {
         Stroke::from("light")
+    }
+
+    fn glyph(text: &str) -> Glyph {
+        Glyph::new(text).unwrap_or_else(|| panic!("{text:?} is one glyph"))
     }
 
     #[test]
@@ -171,13 +203,14 @@ mod tests {
 
         buffer.stamp(
             Pos { x: 2, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Set,
                 right: Arm::Set,
                 bottom: Arm::Set,
                 left: Arm::Set,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
@@ -193,13 +226,14 @@ mod tests {
                 height: 1,
             },
         );
-        let cell = Cell {
+        let cell: Cell = StrokeCell {
             base: light(),
             top: Arm::Unset,
             right: Arm::Set,
             bottom: Arm::Closed,
             left: Arm::Unset,
-        };
+        }
+        .into();
 
         buffer.stamp(Pos { x: 0, y: 0 }, cell.clone(), StampMode::Above);
 
@@ -219,37 +253,39 @@ mod tests {
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Set,
                 right: Arm::Closed,
                 bottom: Arm::Closed,
                 left: Arm::Closed,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Unset,
                 right: Arm::Set,
                 bottom: Arm::Closed,
                 left: Arm::Set,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
         assert_eq!(
             buffer.cell(Pos { x: 0, y: 0 }),
-            Some(&Cell {
+            Some(&Cell::from(StrokeCell {
                 base: light(),
                 top: Arm::Set,
                 right: Arm::Set,
                 bottom: Arm::Closed,
                 left: Arm::Set,
-            })
+            }))
         );
     }
 
@@ -265,13 +301,14 @@ mod tests {
 
         buffer.stamp(
             Pos { x: 2, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Set,
                 right: Arm::Set,
                 bottom: Arm::Set,
                 left: Arm::Set,
-            },
+            }
+            .into(),
             StampMode::Below,
         );
 
@@ -287,13 +324,14 @@ mod tests {
                 height: 1,
             },
         );
-        let cell = Cell {
+        let cell: Cell = StrokeCell {
             base: light(),
             top: Arm::Unset,
             right: Arm::Set,
             bottom: Arm::Closed,
             left: Arm::Unset,
-        };
+        }
+        .into();
 
         buffer.stamp(Pos { x: 0, y: 0 }, cell.clone(), StampMode::Below);
 
@@ -313,37 +351,39 @@ mod tests {
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Unset,
                 right: Arm::Set,
                 bottom: Arm::Closed,
                 left: Arm::Unset,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: Stroke::from("double"),
                 top: Arm::Set,
                 right: Arm::Closed,
                 bottom: Arm::Set,
                 left: Arm::Unset,
-            },
+            }
+            .into(),
             StampMode::Below,
         );
 
         assert_eq!(
             buffer.cell(Pos { x: 0, y: 0 }),
-            Some(&Cell {
+            Some(&Cell::from(StrokeCell {
                 base: light(),
                 top: Arm::Set,
                 right: Arm::Set,
                 bottom: Arm::Closed,
                 left: Arm::Unset,
-            })
+            }))
         );
     }
 
@@ -358,24 +398,26 @@ mod tests {
                 height: 1,
             },
         );
-        let decided = Cell {
+        let decided: Cell = StrokeCell {
             base: light(),
             top: Arm::Set,
             right: Arm::Closed,
             bottom: Arm::Set,
             left: Arm::Closed,
-        };
+        }
+        .into();
         buffer.stamp(Pos { x: 0, y: 0 }, decided.clone(), StampMode::Above);
 
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: Stroke::from("double"),
                 top: Arm::Set,
                 right: Arm::Set,
                 bottom: Arm::Set,
                 left: Arm::Set,
-            },
+            }
+            .into(),
             StampMode::Below,
         );
 
@@ -396,23 +438,25 @@ mod tests {
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: Stroke::from("double"),
                 top: Arm::Unset,
                 right: Arm::Set,
                 bottom: Arm::Unset,
                 left: Arm::Closed,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
-        let decided = Cell {
+        let decided: Cell = StrokeCell {
             base: light(),
             top: Arm::Set,
             right: Arm::Closed,
             bottom: Arm::Set,
             left: Arm::Closed,
-        };
+        }
+        .into();
         buffer.stamp(Pos { x: 0, y: 0 }, decided.clone(), StampMode::Above);
 
         assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&decided));
@@ -424,26 +468,32 @@ mod tests {
     #[test]
     fn front_to_back_with_below_equals_back_to_front_with_above() {
         let pos = Pos { x: 0, y: 0 };
-        let a = || Cell {
-            base: Stroke::from("double"),
-            top: Arm::Unset,
-            right: Arm::Set,
-            bottom: Arm::Unset,
-            left: Arm::Closed,
+        let a = || {
+            Cell::from(StrokeCell {
+                base: Stroke::from("double"),
+                top: Arm::Unset,
+                right: Arm::Set,
+                bottom: Arm::Unset,
+                left: Arm::Closed,
+            })
         };
-        let b = || Cell {
-            base: Stroke::from("light"),
-            top: Arm::Set,
-            right: Arm::Closed,
-            bottom: Arm::Unset,
-            left: Arm::Set,
+        let b = || {
+            Cell::from(StrokeCell {
+                base: Stroke::from("light"),
+                top: Arm::Set,
+                right: Arm::Closed,
+                bottom: Arm::Unset,
+                left: Arm::Set,
+            })
         };
-        let c = || Cell {
-            base: Stroke::from("heavy"),
-            top: Arm::Closed,
-            right: Arm::Set,
-            bottom: Arm::Set,
-            left: Arm::Set,
+        let c = || {
+            Cell::from(StrokeCell {
+                base: Stroke::from("heavy"),
+                top: Arm::Closed,
+                right: Arm::Set,
+                bottom: Arm::Set,
+                left: Arm::Set,
+            })
         };
 
         let mut front_to_back = Buffer::new(
@@ -468,13 +518,262 @@ mod tests {
         back_to_front.stamp(pos, b(), StampMode::Above);
         back_to_front.stamp(pos, a(), StampMode::Above);
 
-        let expected = Some(&Cell {
+        let expected = Some(&Cell::from(StrokeCell {
             base: Stroke::from("double"),
             top: Arm::Set,
             right: Arm::Set,
             bottom: Arm::Set,
             left: Arm::Closed,
-        });
+        }));
+        assert_eq!(front_to_back.cell(pos), back_to_front.cell(pos));
+        assert_eq!(front_to_back.cell(pos), expected);
+    }
+
+    /// _Stamping_'s row "Arms, stamping a literal" under `Above`: the literal wins outright.
+    #[test]
+    fn a_literal_stamped_above_a_stroke_cell_replaces_it() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            StrokeCell {
+                base: light(),
+                top: Arm::Unset,
+                right: Arm::Set,
+                bottom: Arm::Set,
+                left: Arm::Set,
+            }
+            .into(),
+            StampMode::Above,
+        );
+
+        let literal = Cell::Literal(glyph("A"));
+        buffer.stamp(Pos { x: 0, y: 0 }, literal.clone(), StampMode::Above);
+
+        assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&literal));
+    }
+
+    /// _Stamping_'s row "Arms, stamping a literal" under `Below`: the target stays a stroke cell,
+    /// and the sides it left `Unset` come out `Closed`, inherited from the literal.
+    #[test]
+    fn a_literal_stamped_below_a_stroke_cell_closes_its_unset_sides() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            StrokeCell {
+                base: light(),
+                top: Arm::Unset,
+                right: Arm::Set,
+                bottom: Arm::Closed,
+                left: Arm::Set,
+            }
+            .into(),
+            StampMode::Above,
+        );
+
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            Cell::Literal(glyph("A")),
+            StampMode::Below,
+        );
+
+        assert_eq!(
+            buffer.cell(Pos { x: 0, y: 0 }),
+            Some(&Cell::from(StrokeCell {
+                base: light(),
+                top: Arm::Closed,
+                right: Arm::Set,
+                bottom: Arm::Closed,
+                left: Arm::Set,
+            }))
+        );
+    }
+
+    /// _Stamping_'s row "A literal, stamping arms" under `Above`: the target becomes a stroke
+    /// cell, and the sides the stamp leaves `Unset` come out `Closed`, inherited from the literal
+    /// it replaced.
+    #[test]
+    fn a_stroke_cell_stamped_above_a_literal_inherits_its_closed_sides_where_it_abstains() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            Cell::Literal(glyph("A")),
+            StampMode::Above,
+        );
+
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            StrokeCell {
+                base: light(),
+                top: Arm::Unset,
+                right: Arm::Set,
+                bottom: Arm::Closed,
+                left: Arm::Set,
+            }
+            .into(),
+            StampMode::Above,
+        );
+
+        assert_eq!(
+            buffer.cell(Pos { x: 0, y: 0 }),
+            Some(&Cell::from(StrokeCell {
+                base: light(),
+                top: Arm::Closed,
+                right: Arm::Set,
+                bottom: Arm::Closed,
+                left: Arm::Set,
+            }))
+        );
+    }
+
+    /// _Stamping_'s row "A literal, stamping arms" under `Below`: the literal target is decided,
+    /// so it is left alone.
+    #[test]
+    fn a_stroke_cell_stamped_below_a_literal_changes_nothing() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        let literal = Cell::Literal(glyph("A"));
+        buffer.stamp(Pos { x: 0, y: 0 }, literal.clone(), StampMode::Above);
+
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            StrokeCell {
+                base: Stroke::from("double"),
+                top: Arm::Set,
+                right: Arm::Set,
+                bottom: Arm::Set,
+                left: Arm::Set,
+            }
+            .into(),
+            StampMode::Below,
+        );
+
+        assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&literal));
+    }
+
+    /// _Stamping_'s row "A literal, stamping a literal" under `Above`: the incoming literal wins
+    /// outright.
+    #[test]
+    fn a_literal_stamped_above_a_literal_replaces_it() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            Cell::Literal(glyph("A")),
+            StampMode::Above,
+        );
+
+        let incoming = Cell::Literal(glyph("B"));
+        buffer.stamp(Pos { x: 0, y: 0 }, incoming.clone(), StampMode::Above);
+
+        assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&incoming));
+    }
+
+    /// _Stamping_'s row "A literal, stamping a literal" under `Below`: the target is decided, so
+    /// it is left alone.
+    #[test]
+    fn a_literal_stamped_below_a_literal_changes_nothing() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        let original = Cell::Literal(glyph("A"));
+        buffer.stamp(Pos { x: 0, y: 0 }, original.clone(), StampMode::Above);
+
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            Cell::Literal(glyph("B")),
+            StampMode::Below,
+        );
+
+        assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&original));
+    }
+
+    /// The example named "Why the closed sides matter": a literal between two stroke figures in a
+    /// stack. Without the literal's four `Closed` sides the two orders would disagree — the front
+    /// figure would reach through it and fill a side the other order had already sealed.
+    #[test]
+    fn front_to_back_with_below_equals_back_to_front_with_above_with_a_literal_in_the_middle() {
+        let pos = Pos { x: 0, y: 0 };
+        let s1 = || {
+            Cell::from(StrokeCell {
+                base: light(),
+                top: Arm::Unset,
+                right: Arm::Set,
+                bottom: Arm::Set,
+                left: Arm::Set,
+            })
+        };
+        let literal = || Cell::Literal(glyph("A"));
+        let s2 = || {
+            Cell::from(StrokeCell {
+                base: light(),
+                top: Arm::Set,
+                right: Arm::Set,
+                bottom: Arm::Set,
+                left: Arm::Set,
+            })
+        };
+
+        let mut front_to_back = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        front_to_back.stamp(pos, s1(), StampMode::Below);
+        front_to_back.stamp(pos, literal(), StampMode::Below);
+        front_to_back.stamp(pos, s2(), StampMode::Below);
+
+        let mut back_to_front = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        back_to_front.stamp(pos, s2(), StampMode::Above);
+        back_to_front.stamp(pos, literal(), StampMode::Above);
+        back_to_front.stamp(pos, s1(), StampMode::Above);
+
+        let expected = Some(&Cell::from(StrokeCell {
+            base: light(),
+            top: Arm::Closed,
+            right: Arm::Set,
+            bottom: Arm::Set,
+            left: Arm::Set,
+        }));
         assert_eq!(front_to_back.cell(pos), back_to_front.cell(pos));
         assert_eq!(front_to_back.cell(pos), expected);
     }

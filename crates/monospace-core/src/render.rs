@@ -1,16 +1,17 @@
 //! Turning a buffer into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Arm, Buffer, Glyph, GlyphCatalog, GlyphKey, Pos, Size, Stroke, StrokeCell};
+use crate::{Arm, Buffer, Cell, Glyph, GlyphCatalog, GlyphKey, Pos, Size, Stroke, StrokeCell};
 
 /// Renders a rectangle of `buffer` to a string of exactly `size.height` lines, each exactly
 /// `size.width` glyphs wide and ending in `\n`, the last line included. A glyph may be more than
 /// one character, so the line is the same rectangle without being the same character count.
 ///
-/// Each position is resolved by exact lookup only: a position with no cell, or whose key
-/// `glyphs` does not answer, renders as a space. A position inside the rendered rectangle but
-/// outside the buffer's window renders as a space too, since it never holds a cell either — and
-/// so does a position that `origin` and an offset within `size` cannot even address as a `Pos`,
-/// since nothing could ever have been stamped there.
+/// A cell holding a literal glyph renders as that glyph directly: no key is built and no catalog
+/// lookup happens. A cell of arms is resolved by exact lookup only: a position with no cell, or
+/// whose key `glyphs` does not answer, renders as a space. A position inside the rendered
+/// rectangle but outside the buffer's window renders as a space too, since it never holds a cell
+/// either — and so does a position that `origin` and an offset within `size` cannot even address
+/// as a `Pos`, since nothing could ever have been stamped there.
 #[must_use]
 pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -> String {
     (0..size.height)
@@ -24,25 +25,34 @@ pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -
 }
 
 /// The glyph at the absolute position `origin` plus `(dx, dy)`, or a space if that position
-/// cannot be addressed as a `Pos`, holds no cell, or resolves to a key `glyphs` does not answer.
+/// cannot be addressed as a `Pos` or holds no cell. A cell holding a literal glyph answers with
+/// its own text; a cell of arms answers through `glyphs`, or a space if it resolves to a key
+/// `glyphs` does not answer.
 fn glyph_at<'a>(
-    buffer: &Buffer,
+    buffer: &'a Buffer,
     glyphs: &'a GlyphCatalog,
     origin: Pos,
     dx: u32,
     dy: u32,
 ) -> &'a str {
-    origin
+    let Some(cell) = origin
         .x
         .checked_add_unsigned(dx)
         .zip(origin.y.checked_add_unsigned(dy))
         .and_then(|(x, y)| buffer.cell(Pos { x, y }))
-        .and_then(|cell| glyphs.glyph(&key_of(cell)))
-        .map_or(" ", Glyph::as_str)
+    else {
+        return " ";
+    };
+
+    match cell {
+        Cell::Literal(glyph) => glyph.as_str(),
+        Cell::Strokes(cell) => glyphs.glyph(&key_of(cell)).map_or(" ", Glyph::as_str),
+    }
 }
 
-/// Builds the exact key a cell resolves to: the cell's base stroke on every `Set` side, and
-/// nothing where the arm is `Closed` or `Unset` — the two read the same at render time.
+/// Builds the exact key a stroke cell resolves to: its base stroke on every `Set` side, and
+/// nothing where the arm is `Closed` or `Unset` — the two read the same at render time. A literal
+/// never reaches this: it renders as itself, without a key.
 fn key_of(cell: &StrokeCell) -> GlyphKey {
     GlyphKey {
         top: side(cell.top, &cell.base),
@@ -62,7 +72,7 @@ fn side(arm: Arm, base: &Stroke) -> Option<Stroke> {
 #[cfg(test)]
 mod tests {
     use super::render;
-    use crate::{Arm, Buffer, Cell, GlyphCatalog, Pos, Size, StampMode, Stroke};
+    use crate::{Arm, Buffer, Cell, Glyph, GlyphCatalog, Pos, Size, StampMode, Stroke, StrokeCell};
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -79,13 +89,14 @@ mod tests {
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Set,
                 right: Arm::Set,
                 bottom: Arm::Set,
                 left: Arm::Set,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
@@ -111,12 +122,15 @@ mod tests {
                 height: 3,
             },
         );
-        let corner = |top, right, bottom, left| Cell {
-            base: light(),
-            top,
-            right,
-            bottom,
-            left,
+        let corner = |top, right, bottom, left| -> Cell {
+            StrokeCell {
+                base: light(),
+                top,
+                right,
+                bottom,
+                left,
+            }
+            .into()
         };
 
         buffer.stamp(
@@ -196,24 +210,26 @@ mod tests {
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Set,
                 right: Arm::Closed,
                 bottom: Arm::Closed,
                 left: Arm::Closed,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Unset,
                 right: Arm::Set,
                 bottom: Arm::Closed,
                 left: Arm::Set,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
@@ -243,13 +259,14 @@ mod tests {
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: Stroke::from("double"),
                 top: Arm::Set,
                 right: Arm::Closed,
                 bottom: Arm::Closed,
                 left: Arm::Closed,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
@@ -280,13 +297,14 @@ mod tests {
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Closed,
                 right: Arm::Closed,
                 bottom: Arm::Closed,
                 left: Arm::Closed,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
@@ -314,13 +332,14 @@ mod tests {
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Set,
                 right: Arm::Set,
                 bottom: Arm::Set,
                 left: Arm::Set,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
@@ -365,13 +384,14 @@ mod tests {
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            Cell {
+            StrokeCell {
                 base: light(),
                 top: Arm::Set,
                 right: Arm::Closed,
                 bottom: Arm::Set,
                 left: Arm::Closed,
-            },
+            }
+            .into(),
             StampMode::Above,
         );
 
@@ -386,5 +406,35 @@ mod tests {
         );
 
         assert_eq!(text, " │  \n");
+    }
+
+    /// The rule after _Rendering_'s numbered list: a literal renders as itself, with no key built
+    /// and no lookup — a catalog with no rule at all still answers it.
+    #[test]
+    fn a_literal_renders_as_itself_with_a_catalog_that_has_no_rule_for_it() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        buffer.stamp(
+            Pos { x: 0, y: 0 },
+            Cell::Literal(Glyph::new("A").expect("\"A\" is one glyph")),
+            StampMode::Above,
+        );
+
+        let text = render(
+            &buffer,
+            &GlyphCatalog::light(),
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+
+        assert_eq!(text, "A\n");
     }
 }

@@ -1,7 +1,7 @@
-//! A cell: a base stroke and four arms. See _The cell_ in
+//! A cell: either a base stroke and four arms, or one chosen glyph. See _The cell_ in
 //! [`docs/model.md`](../../../docs/model.md).
 
-use crate::Stroke;
+use crate::{Glyph, Stroke};
 
 /// What a cell has on one of its four sides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,10 +32,6 @@ pub struct StrokeCell {
     pub left: Arm,
 }
 
-/// A cell, until [feature 028](../../../specs/028-hold-a-literal-glyph-in-a-cell/spec.md) widens it
-/// to a sum that can also be a literal glyph.
-pub type Cell = StrokeCell;
-
 impl StrokeCell {
     /// Whether every arm is decided: none of the four is `Unset`.
     ///
@@ -50,13 +46,50 @@ impl StrokeCell {
     }
 }
 
+/// A cell: either a base stroke with four arms, or one chosen glyph, rendered as itself rather
+/// than derived from arms. The two kinds are mutually exclusive — no cell is both and none is
+/// neither — per _A cell can be a literal instead_ in
+/// [`docs/model.md`](../../../docs/model.md).
+///
+/// Where a figure in front stamps over one behind, **the kind on top decides which kind the
+/// position ends up being**, exactly as it decides the base stroke of a [`StrokeCell`]: see
+/// _Stamping_ in [`docs/model.md`](../../../docs/model.md).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Cell {
+    /// A base stroke and four arms.
+    Strokes(StrokeCell),
+    /// One chosen glyph. Nothing connects into it, and it renders as itself without consulting
+    /// any catalog.
+    Literal(Glyph),
+}
+
+impl From<StrokeCell> for Cell {
+    fn from(cell: StrokeCell) -> Self {
+        Cell::Strokes(cell)
+    }
+}
+
+impl Cell {
+    /// Whether the cell is already decided. For [`Cell::Strokes`] this is
+    /// [`StrokeCell::is_decided`]; a [`Cell::Literal`] is decided on all four sides by
+    /// definition, since it has no arms to leave undecided. See
+    /// [ADR-0017](../../../docs/decisions/0017-ask-the-cell-whether-it-is-decided.md).
+    #[must_use]
+    pub fn is_decided(&self) -> bool {
+        match self {
+            Cell::Strokes(cell) => cell.is_decided(),
+            Cell::Literal(_) => true,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Cell;
-    use crate::{Arm, Stroke};
+    use super::{Cell, StrokeCell};
+    use crate::{Arm, Glyph, Stroke};
 
-    fn cell(top: Arm, right: Arm, bottom: Arm, left: Arm) -> Cell {
-        Cell {
+    fn cell(top: Arm, right: Arm, bottom: Arm, left: Arm) -> StrokeCell {
+        StrokeCell {
             base: Stroke::from("light"),
             top,
             right,
@@ -66,10 +99,19 @@ mod tests {
     }
 
     /// The example named "The boundaries": one abstention is enough to make a cell not decided.
+    /// Unchanged from before the literal existed: a stroke cell is decided by its arms alone.
     #[test]
-    fn a_cell_is_decided_only_when_no_arm_is_unset() {
+    fn a_stroke_cell_is_decided_only_when_no_arm_is_unset() {
         assert!(cell(Arm::Set, Arm::Closed, Arm::Set, Arm::Closed).is_decided());
         assert!(!cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set).is_decided());
         assert!(!cell(Arm::Set, Arm::Set, Arm::Set, Arm::Unset).is_decided());
+    }
+
+    /// A literal has no arms to leave `Unset`, so it is decided by definition.
+    #[test]
+    fn a_literal_is_always_decided() {
+        let literal = Cell::Literal(Glyph::new("A").expect("\"A\" is one glyph"));
+
+        assert!(literal.is_decided());
     }
 }

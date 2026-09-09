@@ -2,19 +2,24 @@
 //!
 //! It holds no domain logic of its own: everything it draws comes from `monospace-core`.
 
-use monospace_core::{Arm, Buffer, Cell, GlyphCatalog, Pos, Size, StampMode, Stroke, render};
+use monospace_core::{
+    Arm, Buffer, Cell, GlyphCatalog, Pos, Size, StampMode, Stroke, StrokeCell, render,
+};
 
 /// Stamps the 4x3 box spec 0002 settled, with `origin` as its top-left corner and `mode` as the
 /// stamp mode: `Set` along the border, `Closed` facing the interior, and `Unset` facing outward
 /// so a later figure can join it rather than being refused by a border that means nothing by it.
 fn stamp_box(buffer: &mut Buffer, origin: Pos, mode: StampMode) {
     let light = || Stroke::from("light");
-    let cell = |top, right, bottom, left| Cell {
-        base: light(),
-        top,
-        right,
-        bottom,
-        left,
+    let cell = |top, right, bottom, left| -> Cell {
+        StrokeCell {
+            base: light(),
+            top,
+            right,
+            bottom,
+            left,
+        }
+        .into()
     };
     let at = |dx: i32, dy: i32| Pos {
         x: origin.x + dx,
