@@ -58,7 +58,7 @@ are measured, not assumed_ forbids.
 **Purpose**: the decision on the record, and the rename that makes the change easy — neither of them
 delivers anything a reader can see, and nothing else can start until both are done.
 
-- [ ] T002 Write ADR-0026 in
+- [x] T002 Write ADR-0026 in
       `docs/decisions/0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md` and add its row to
       `docs/decisions/README.md`
 - [ ] T003 Rename `Cell` to `StrokeCell` in `crates/monospace-core/src/cell.rs`, leave
