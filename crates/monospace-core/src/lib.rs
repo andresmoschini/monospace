@@ -19,7 +19,7 @@ mod render;
 mod stroke;
 
 pub use buffer::{Buffer, StampMode};
-pub use cell::{Arm, Cell};
+pub use cell::{Arm, Cell, StrokeCell};
 pub use geometry::{Pos, Size};
 pub use glyph::{Glyph, GlyphCatalog, GlyphKey};
 pub use render::render;

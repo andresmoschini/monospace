@@ -11,6 +11,18 @@ date: 2026-09-07
 > it, which is authored from this file rather than from scratch. See
 > [the directory's note](README.md) and
 > [ADR-0021](../decisions/0021-move-the-spec-home-to-spec-kit.md).
+>
+> **Replaced by
+> [`specs/028-hold-a-literal-glyph-in-a-cell/`](../../specs/028-hold-a-literal-glyph-in-a-cell/spec.md).**
+> That feature is where the agreed rules live, and it supersedes what this file prescribes wherever
+> the two differ — which planning found in three places. The first story became a chosen glyph
+> rather than a letter, since a letter was only one of the two examples in the wish, and holding and
+> occluding merged into one story rather than staying two, since a cell that can be one of two
+> things forces every stamp to answer where they meet. The two commits below became three: the
+> rename below stays its own commit, but a type alias lets it compile every call site unchanged,
+> including every test, which is not how the rename below is written; and the fill moved into a
+> third commit of its own, since it is the second story rather than part of the second commit. Read
+> this one for what was wanted; read that one for what was agreed.
 
 ## Why now
 
