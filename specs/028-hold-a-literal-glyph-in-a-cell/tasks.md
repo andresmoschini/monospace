@@ -164,7 +164,7 @@ in the other.
 - [x] T006 Make the equivalence test fail on purpose by letting a literal contribute `Unset` instead
       of `Closed` in `crates/monospace-core/src/buffer.rs`, then restore, following _Verify the
       equivalence test actually bites_ in [quickstart.md](quickstart.md)
-- [ ] T007 Delete each `is_decided` shortcut from `Buffer::stamp` in
+- [x] T007 Delete each `is_decided` shortcut from `Buffer::stamp` in
       `crates/monospace-core/src/buffer.rs` in turn, confirm the suite still passes, then restore,
       following _Verify the two shortcuts are still optimizations_ in [quickstart.md](quickstart.md)
 - [ ] T008 [P] Point the frozen `docs/specs/0005-hold-a-literal-glyph-in-a-cell.md` at
