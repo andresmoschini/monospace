@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; superseded in part by ADR-0024
 date: 2026-09-08
 decision-makers: Andrés Moschini
 ---

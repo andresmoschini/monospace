@@ -30,8 +30,10 @@ The scope, the constraints and what is deliberately left out are in
 ## Roadmap
 
 Core library, then a minimal CLI, then an interactive TUI, then WebAssembly, then the web app — each
-stage on a working foundation from the one before it. [The roadmap](docs/roadmap.md) has the phases,
-why the CLI comes before the TUI, and the capabilities the work is heading towards.
+stage on a working foundation from the one before it. The phases and the capabilities the work is
+heading towards live on the [GitHub Project](https://github.com/users/andresmoschini/projects/2);
+why the CLI comes before the TUI is
+[ADR-0022](docs/decisions/0022-non-interactive-cli-before-the-tui.md).
 
 ## Current status
 
@@ -65,7 +67,6 @@ what to do when one fails.
 | `crates/monospace-cli`  | The command-line application. Holds no logic of its own.        |
 | `xtask/`                | Repository automation. `cargo xtask check` is the gate.         |
 | `docs/model.md`         | The domain's design, its provenance, and its open questions.    |
-| `docs/roadmap.md`       | The phases, and the capabilities the work heads towards.        |
 | `docs/decisions/`       | Why things are the way they are, recorded as they were decided. |
 
 ## Guiding principles

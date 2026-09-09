@@ -1,24 +1,40 @@
 <!--
 Sync Impact Report — 2026-09-08
 
-Version change: 1.1.0 → 1.2.0
+Version change: 1.2.0 → 1.3.0
 
-Rationale for MINOR: this file takes over the last rules docs/brief.md was still holding — what is
-in scope, what a spec must ask of its tests, and what a learning-log entry covers — and Governance
-now names itself, rather than the brief, as the owner of scope. Guidance is added, none redefined
-or removed.
+Rationale for MINOR: the file gains a rule it did not hold — a feature's number is the number of the
+GitHub issue it implements — which is guidance a plan can be checked against and a constraint on how
+/speckit-specify is invoked. The other two edits would be PATCH on their own: they redirect the two
+pointers that named docs/roadmap.md as the owner of direction, following ADR-0023. No principle is
+touched, and nothing is removed or redefined.
+
+Decisions this amendment implements:
+  - ADR-0023, which dissolves docs/roadmap.md and puts direction and the backlog on a GitHub
+    Project. It named the two pointers in this file as references to redirect; these are them.
+  - ADR-0024, which takes a feature's number from its issue, and which supersedes the part of
+    ADR-0021 that settled the sequence continuing at 006 — that part only.
 
 Modified sections:
-  - Principle II: a learning-log entry's three categories, and the evidence bar for one.
-  - Constraints and Dependencies: added "Testing" and "In scope for this phase"; the out-of-scope
-    paragraph now points at the roadmap instead of at the brief for where each item arrives.
-  - Governance: the constitution owns principles, scope and constraints. model.md owns the domain's
-    design and open questions, roadmap.md owns direction.
+  - Constraints and Dependencies, "Out of scope for this phase": where an out-of-scope item is
+    expected to arrive instead is the Phase field of its capability issue, not the roadmap. The
+    paragraph now says outright that it is the whole of the rule.
+  - Development Workflow, "Spec Kit is the workflow" and the artifact tree: NNN in specs/NNN-slug/
+    is the feature's issue number rather than a local sequence position, /speckit-specify must be
+    invoked with the feature directory given explicitly rather than left to assign a number, and
+    features 001 to 006 are named as predating the rule.
+  - Governance: the GitHub Project replaces docs/roadmap.md as the owner of direction and of the
+    backlog.
 
 Templates and commands reviewed: unchanged since 1.0.0. Of the four templates only
 plan-template.md refers to the constitution, and it reads this file at runtime.
 
 Prior versions:
+  - 1.2.0 (2026-09-08) — took over the last rules docs/brief.md still held: what is in scope, what
+    a spec must ask of its tests, and what a learning-log entry covers, with Governance naming
+    itself rather than the brief as the owner of scope. It closed TODO(MIGRATION_ADR), recorded as
+    ADR-0021, and the brief's half of TODO(TRIM_DUPLICATION); the brief itself was removed in the
+    commit after it. Its note that the numbering continues at 006 is superseded as of this version.
   - 1.1.0 (2026-09-08) — Development Workflow gained "Where a rationale goes": docs/decisions/ for
     what outlives a feature, research.md for investigation local to it, Complexity Tracking for
     justifying a departure from this file.
@@ -33,12 +49,9 @@ Follow-up TODOs:
     CLAUDE.md keeps session guidance — and point the rest here. Two wordings of one rule is the
     failure this project already refuses to accept for the quality gate.
 
-Closed since 1.0.0:
-  - TODO(MIGRATION_ADR) — recorded as ADR-0021, which also settles that the numbering continues at
-    006 rather than restarting.
-  - The brief's half of TODO(TRIM_DUPLICATION) — its principles, constraints and process are here;
-    its provenance and domain questions are in model.md; its phases and capabilities are in
-    roadmap.md. The file itself is removed in the commit after this one.
+Closed since 1.3.0 was written:
+  - TODO(ROADMAP_REMOVAL) — docs/roadmap.md is removed and the four references that pointed at it
+    are redirected. The Phase field and the capability issues exist.
 -->
 
 # Monospace Constitution
@@ -179,13 +192,19 @@ Rust library holding the diagramming logic — input parsing, layout and positio
 **Out of scope for this phase**, and a plan proposing any of them MUST be stopped and renegotiated
 rather than quietly widened: WebAssembly bindings, a web front-end, non-terminal GUIs, persistence,
 collaboration, and export formats beyond plain text. Where each of them is expected to arrive
-instead is in [the roadmap](../../docs/roadmap.md), which holds direction and no rules.
+instead is the `Phase` field of its capability issue in the GitHub Project, which holds direction
+and no rules. This paragraph is the whole of the rule: nothing on the board widens it.
 
 ## Development Workflow
 
 **Spec Kit is the workflow.** New work goes through `/speckit-specify`, then `/speckit-clarify` when
 the spec has open questions, then `/speckit-plan`, `/speckit-tasks` and `/speckit-implement`.
-Artifacts live under `specs/NNN-slug/`.
+Artifacts live under `specs/NNN-slug/`, where `NNN` is the number of the GitHub issue the feature
+implements rather than a position in a local sequence, so the numbering skips. `/speckit-specify`
+MUST be invoked with the feature directory given explicitly rather than left to assign a number of
+its own: an assigned number is a local sequence position, and a number merely offered as a
+preference is replaced by one, with a warning, whenever its prefix is already taken. Features 001 to
+006 predate the rule and keep the numbers they were given.
 
 **The previous spec home is history.** `docs/specs/` holds specs 0001–0005 and is frozen: it is not
 extended, and its numbering does not continue. Specs 0001–0003 are implemented and stay as the
@@ -195,7 +214,7 @@ same reason an ADR is superseded rather than deleted.
 
 ```text
 docs/specs/          # 0001-0005, frozen history
-specs/NNN-slug/      # spec.md, research.md, plan.md, tasks.md — where new work lives
+specs/NNN-slug/      # where new work lives; NNN is the feature's issue number
 docs/decisions/      # ADRs, MADR 4.0, written when the decision is taken
 docs/model.md        # the design, sliced by specs rather than restated
 docs/learning-log.md # one entry per increment
@@ -240,8 +259,8 @@ wrong. This holds after pushing: `main` is never rewritten, and every force push
 
 This constitution supersedes prior practice wherever the two conflict. It owns the principles, the
 scope and the constraints. [`docs/model.md`](../../docs/model.md) remains the owner of the domain's
-design and its open questions; [`docs/roadmap.md`](../../docs/roadmap.md) of direction;
-`CONTRIBUTING.md` of how to run the tooling; `CLAUDE.md` of session guidance. Where any of them
+design and its open questions; the GitHub Project of direction and of the backlog; `CONTRIBUTING.md`
+of how to run the tooling; `CLAUDE.md` of session guidance. Where any of them
 restates a rule stated here, this file is the one to follow, and the duplication is a defect to
 remove.
 
@@ -261,4 +280,4 @@ boundary, tests, docs — are enforced by `cargo xtask check` and are not a matt
 rest — thin slices, structural commits kept separate, decisions recorded when taken, claims
 measured — is checked by reading, at plan time and at review time.
 
-**Version**: 1.2.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-08
+**Version**: 1.3.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-08

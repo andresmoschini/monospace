@@ -169,7 +169,7 @@ bought for a future that never arrived.
 
 ## More Information
 
-- [The roadmap](../roadmap.md#phases) for the phase plan, and
+- [The GitHub Project](https://github.com/users/andresmoschini/projects/2) for the phase plan, and
   [The core stays portable](../../.specify/memory/constitution.md#vii-the-core-stays-portable) for
   the constraint on the core's public API. Both were sections 3 and 5 of the brief when this record
   was written.
