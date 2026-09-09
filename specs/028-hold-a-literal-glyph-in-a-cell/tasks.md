@@ -61,7 +61,7 @@ delivers anything a reader can see, and nothing else can start until both are do
 - [x] T002 Write ADR-0026 in
       `docs/decisions/0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md` and add its row to
       `docs/decisions/README.md`
-- [ ] T003 Rename `Cell` to `StrokeCell` in `crates/monospace-core/src/cell.rs`, leave
+- [x] T003 Rename `Cell` to `StrokeCell` in `crates/monospace-core/src/cell.rs`, leave
       `pub type Cell = StrokeCell;` in its place, re-export `StrokeCell` from
       `crates/monospace-core/src/lib.rs`, and move `merge` and `key_of` onto the new name in
       `crates/monospace-core/src/buffer.rs` and `crates/monospace-core/src/render.rs`

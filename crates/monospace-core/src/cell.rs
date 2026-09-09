@@ -19,7 +19,7 @@ pub enum Arm {
 /// Every arm draws in the cell's own stroke; an arm carrying a stroke of its own is a later
 /// addition, per [ADR-0012](../../../docs/decisions/0012-one-stroke-per-cell.md).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Cell {
+pub struct StrokeCell {
     /// The stroke every `Set` arm draws in.
     pub base: Stroke,
     /// What the cell has on its top side.
@@ -32,7 +32,11 @@ pub struct Cell {
     pub left: Arm,
 }
 
-impl Cell {
+/// A cell, until [feature 028](../../../specs/028-hold-a-literal-glyph-in-a-cell/spec.md) widens it
+/// to a sum that can also be a literal glyph.
+pub type Cell = StrokeCell;
+
+impl StrokeCell {
     /// Whether every arm is decided: none of the four is `Unset`.
     ///
     /// A defined cell always has a base stroke, so nothing else enters the question, per

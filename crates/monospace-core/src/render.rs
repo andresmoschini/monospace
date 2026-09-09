@@ -1,6 +1,6 @@
 //! Turning a buffer into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Arm, Buffer, Cell, Glyph, GlyphCatalog, GlyphKey, Pos, Size, Stroke};
+use crate::{Arm, Buffer, Glyph, GlyphCatalog, GlyphKey, Pos, Size, Stroke, StrokeCell};
 
 /// Renders a rectangle of `buffer` to a string of exactly `size.height` lines, each exactly
 /// `size.width` glyphs wide and ending in `\n`, the last line included. A glyph may be more than
@@ -43,7 +43,7 @@ fn glyph_at<'a>(
 
 /// Builds the exact key a cell resolves to: the cell's base stroke on every `Set` side, and
 /// nothing where the arm is `Closed` or `Unset` — the two read the same at render time.
-fn key_of(cell: &Cell) -> GlyphKey {
+fn key_of(cell: &StrokeCell) -> GlyphKey {
     GlyphKey {
         top: side(cell.top, &cell.base),
         right: side(cell.right, &cell.base),

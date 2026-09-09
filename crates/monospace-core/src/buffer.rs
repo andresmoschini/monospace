@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::{Arm, Cell, Pos, Size};
+use crate::{Arm, Cell, Pos, Size, StrokeCell};
 
 /// Which side of an already-defined cell decides when a stamp lands on it. See _Stamping_ in
 /// [`docs/model.md`](../../../docs/model.md).
@@ -113,8 +113,8 @@ impl Buffer {
 /// reads the same, per _Stamping_ in [`docs/model.md`](../../../docs/model.md): "the base stroke
 /// ends up owned by the topmost figure, and each arm ends up owned by the topmost figure that
 /// decided it, with abstentions falling through to the ones behind."
-fn merge(top: Cell, bottom: &Cell) -> Cell {
-    Cell {
+fn merge(top: StrokeCell, bottom: &StrokeCell) -> StrokeCell {
+    StrokeCell {
         base: top.base,
         top: merge_arm(top.top, bottom.top),
         right: merge_arm(top.right, bottom.right),
