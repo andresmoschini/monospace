@@ -43,7 +43,7 @@ No test file is added.
 
 **Purpose**: capture the evidence FR-004 and SC-005 are measured against, before anything changes.
 
-- [ ] T001 Capture the front end's current output to `../literal-baseline.txt`, outside the
+- [x] T001 Capture the front end's current output to `../literal-baseline.txt`, outside the
       repository, following _Capture the baseline first_ in [quickstart.md](quickstart.md)
 
 T001 produces no commit: its output is evidence for the pull request body, and committing it would
