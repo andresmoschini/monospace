@@ -1,7 +1,7 @@
 //! A cell: either a base stroke and four arms, or one chosen glyph. See _The cell_ in
 //! [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Glyph, Stroke};
+use crate::{Glyph, GlyphCatalog, GlyphKey, Stroke};
 
 /// What a cell has on one of its four sides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,6 +44,23 @@ impl StrokeCell {
             && !matches!(self.bottom, Arm::Unset)
             && !matches!(self.left, Arm::Unset)
     }
+
+    /// The exact key this cell resolves to in a catalog: its base stroke on every `Set` side, and
+    /// nothing where the arm is `Closed` or `Unset` — the two read the same at render time.
+    #[must_use]
+    pub fn key(&self) -> GlyphKey {
+        let side = |arm| match arm {
+            Arm::Set => Some(self.base.clone()),
+            Arm::Closed | Arm::Unset => None,
+        };
+
+        GlyphKey {
+            top: side(self.top),
+            right: side(self.right),
+            bottom: side(self.bottom),
+            left: side(self.left),
+        }
+    }
 }
 
 /// A cell: either a base stroke with four arms, or one chosen glyph, rendered as itself rather
@@ -79,6 +96,18 @@ impl Cell {
         match self {
             Cell::Strokes(cell) => cell.is_decided(),
             Cell::Literal(_) => true,
+        }
+    }
+
+    /// The text this cell renders to. A literal answers with its own text directly, without
+    /// consulting `glyphs`; a stroke cell is looked up by [`StrokeCell::key`], answering `None`
+    /// if `glyphs` has no rule for it. See _Rendering_ in
+    /// [`docs/model.md`](../../../docs/model.md).
+    #[must_use]
+    pub fn glyph_str<'a>(&'a self, glyphs: &'a GlyphCatalog) -> Option<&'a str> {
+        match self {
+            Cell::Literal(glyph) => Some(glyph.as_str()),
+            Cell::Strokes(cell) => glyphs.glyph(&cell.key()).map(Glyph::as_str),
         }
     }
 }

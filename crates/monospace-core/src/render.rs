@@ -1,17 +1,18 @@
 //! Turning a buffer into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Arm, Buffer, Cell, Glyph, GlyphCatalog, GlyphKey, Pos, Size, Stroke, StrokeCell};
+use crate::{Buffer, GlyphCatalog, Pos, Size};
 
 /// Renders a rectangle of `buffer` to a string of exactly `size.height` lines, each exactly
 /// `size.width` glyphs wide and ending in `\n`, the last line included. A glyph may be more than
 /// one character, so the line is the same rectangle without being the same character count.
 ///
-/// A cell holding a literal glyph renders as that glyph directly: no key is built and no catalog
-/// lookup happens. A cell of arms is resolved by exact lookup only: a position with no cell, or
-/// whose key `glyphs` does not answer, renders as a space. A position inside the rendered
-/// rectangle but outside the buffer's window renders as a space too, since it never holds a cell
-/// either — and so does a position that `origin` and an offset within `size` cannot even address
-/// as a `Pos`, since nothing could ever have been stamped there.
+/// Each position asks its own cell for the text it renders to — see [`Cell::glyph_str`] — and
+/// falls back to a space when there is no cell, or the cell has none to give. A position inside
+/// the rendered rectangle but outside the buffer's window renders as a space too, since it never
+/// holds a cell either — and so does a position that `origin` and an offset within `size` cannot
+/// even address as a `Pos`, since nothing could ever have been stamped there.
+///
+/// [`Cell::glyph_str`]: crate::Cell::glyph_str
 #[must_use]
 pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -> String {
     (0..size.height)
@@ -25,9 +26,7 @@ pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -
 }
 
 /// The glyph at the absolute position `origin` plus `(dx, dy)`, or a space if that position
-/// cannot be addressed as a `Pos` or holds no cell. A cell holding a literal glyph answers with
-/// its own text; a cell of arms answers through `glyphs`, or a space if it resolves to a key
-/// `glyphs` does not answer.
+/// cannot be addressed as a `Pos`, holds no cell, or the cell there has no text to give.
 fn glyph_at<'a>(
     buffer: &'a Buffer,
     glyphs: &'a GlyphCatalog,
@@ -35,38 +34,13 @@ fn glyph_at<'a>(
     dx: u32,
     dy: u32,
 ) -> &'a str {
-    let Some(cell) = origin
+    origin
         .x
         .checked_add_unsigned(dx)
         .zip(origin.y.checked_add_unsigned(dy))
         .and_then(|(x, y)| buffer.cell(Pos { x, y }))
-    else {
-        return " ";
-    };
-
-    match cell {
-        Cell::Literal(glyph) => glyph.as_str(),
-        Cell::Strokes(cell) => glyphs.glyph(&key_of(cell)).map_or(" ", Glyph::as_str),
-    }
-}
-
-/// Builds the exact key a stroke cell resolves to: its base stroke on every `Set` side, and
-/// nothing where the arm is `Closed` or `Unset` — the two read the same at render time. A literal
-/// never reaches this: it renders as itself, without a key.
-fn key_of(cell: &StrokeCell) -> GlyphKey {
-    GlyphKey {
-        top: side(cell.top, &cell.base),
-        right: side(cell.right, &cell.base),
-        bottom: side(cell.bottom, &cell.base),
-        left: side(cell.left, &cell.base),
-    }
-}
-
-fn side(arm: Arm, base: &Stroke) -> Option<Stroke> {
-    match arm {
-        Arm::Set => Some(base.clone()),
-        Arm::Closed | Arm::Unset => None,
-    }
+        .and_then(|cell| cell.glyph_str(glyphs))
+        .unwrap_or(" ")
 }
 
 #[cfg(test)]
