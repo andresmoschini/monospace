@@ -161,7 +161,7 @@ in the other.
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T006 Make the equivalence test fail on purpose by letting a literal contribute `Unset` instead
+- [x] T006 Make the equivalence test fail on purpose by letting a literal contribute `Unset` instead
       of `Closed` in `crates/monospace-core/src/buffer.rs`, then restore, following _Verify the
       equivalence test actually bites_ in [quickstart.md](quickstart.md)
 - [ ] T007 Delete each `is_decided` shortcut from `Buffer::stamp` in
