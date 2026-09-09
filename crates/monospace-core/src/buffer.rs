@@ -110,49 +110,69 @@ impl Buffer {
     }
 }
 
-/// Builds the cell that results from merging `top` onto `bottom`: `top`'s base stroke, and each
-/// arm `top` decides, with an arm `top` leaves `Unset` falling through to `bottom`'s side.
+/// Builds the cell that results from merging `top` onto `bottom`, per _Stamping_ in
+/// [`docs/model.md`](../../../docs/model.md). Which cell plays `top` is the caller's choice, not
+/// this function's: an `Above` stamp is `top` over the target, and a `Below` stamp puts the target
+/// itself in that role.
 ///
-/// Which cell plays `top` is the caller's choice, not this function's: an `Above` stamp is `top`
-/// over the target, and a `Below` stamp puts the target itself in that role. Either way the rule
-/// reads the same, per _Stamping_ in [`docs/model.md`](../../../docs/model.md): "the base stroke
-/// ends up owned by the topmost figure, and each arm ends up owned by the topmost figure that
-/// decided it, with abstentions falling through to the ones behind."
+/// Three cases, matched explicitly rather than folded into one arm-by-arm loop — a literal has no
+/// arms, so [`merge_arm`] never sees one:
 ///
-/// `top` arriving as a literal always wins outright, exactly as a fully decided stroke cell does.
-/// That case is unreachable through [`Buffer::stamp`] today, because its two `is_decided` shortcuts
-/// (ADR-0017, ADR-0018) catch every decided cell before this function is called — it is written as
-/// a returning branch rather than `unreachable!()` so those shortcuts stay deletable optimizations
-/// instead of becoming load-bearing.
+/// - **A literal on top** always wins outright, whatever `bottom` is. Unreachable through
+///   [`Buffer::stamp`] today, because its two `is_decided` shortcuts (ADR-0017, ADR-0018) catch
+///   every decided cell first — written as a returning branch rather than `unreachable!()` so
+///   those shortcuts stay deletable optimizations instead of becoming load-bearing.
+/// - **A stroke cell over a literal** wins as a stroke cell, with every side it left `Unset`
+///   closed: a literal has no arms to fall through to, only a refusal on every side, per _A cell
+///   can be a literal instead_ in [`docs/model.md`](../../../docs/model.md).
+/// - **Two stroke cells** merge arm by arm: `top`'s base stroke, and each arm `top` decides, with
+///   an arm `top` leaves `Unset` falling through to `bottom`'s side.
 fn merge(top: Cell, bottom: &Cell) -> Cell {
-    let stroke = match top {
-        Cell::Strokes(stroke) => stroke,
-        literal @ Cell::Literal(_) => return literal,
+    match (top, bottom) {
+        (literal @ Cell::Literal(_), _) => literal,
+        (Cell::Strokes(stroke), Cell::Literal(_)) => close_unset_sides(stroke).into(),
+        (Cell::Strokes(top), Cell::Strokes(bottom)) => merge_strokes(top, bottom).into(),
+    }
+}
+
+/// `cell`, with every `Unset` arm closed. A literal refuses every side it meets rather than
+/// leaving any open, per _A cell can be a literal instead_ in
+/// [`docs/model.md`](../../../docs/model.md) — there is no arm of its own to fall through to.
+fn close_unset_sides(cell: StrokeCell) -> StrokeCell {
+    let close = |arm| {
+        if matches!(arm, Arm::Unset) {
+            Arm::Closed
+        } else {
+            arm
+        }
     };
 
     StrokeCell {
-        base: stroke.base,
-        top: merge_arm(stroke.top, bottom_arm(bottom, |cell| cell.top)),
-        right: merge_arm(stroke.right, bottom_arm(bottom, |cell| cell.right)),
-        bottom: merge_arm(stroke.bottom, bottom_arm(bottom, |cell| cell.bottom)),
-        left: merge_arm(stroke.left, bottom_arm(bottom, |cell| cell.left)),
+        base: cell.base,
+        top: close(cell.top),
+        right: close(cell.right),
+        bottom: close(cell.bottom),
+        left: close(cell.left),
     }
-    .into()
 }
 
-/// The arm `bottom` offers to a merge on the side `arm` reads. A literal offers `Closed` on every
-/// side: it has no arms of its own, and nothing may connect into it, per _A cell can be a literal
-/// instead_ in [`docs/model.md`](../../../docs/model.md). A stroke cell offers whatever `arm` reads
-/// off it.
-fn bottom_arm(bottom: &Cell, arm: impl Fn(&StrokeCell) -> Arm) -> Arm {
-    match bottom {
-        Cell::Strokes(cell) => arm(cell),
-        Cell::Literal(_) => Arm::Closed,
+/// `top`'s base stroke, and each arm `top` decides, with an arm `top` leaves `Unset` falling
+/// through to `bottom`'s side — per _Stamping_ in [`docs/model.md`](../../../docs/model.md): "the
+/// base stroke ends up owned by the topmost figure, and each arm ends up owned by the topmost
+/// figure that decided it, with abstentions falling through to the ones behind."
+fn merge_strokes(top: StrokeCell, bottom: &StrokeCell) -> StrokeCell {
+    StrokeCell {
+        base: top.base,
+        top: merge_arm(top.top, bottom.top),
+        right: merge_arm(top.right, bottom.right),
+        bottom: merge_arm(top.bottom, bottom.bottom),
+        left: merge_arm(top.left, bottom.left),
     }
 }
 
 /// `top`, unless it is `Unset` — an abstaining arm never writes anything, so the side falls
-/// through to whatever `bottom` has.
+/// through to whatever `bottom` has. Only [`merge_strokes`] calls this: a literal has no arm to
+/// offer either side of the comparison.
 fn merge_arm(top: Arm, bottom: Arm) -> Arm {
     if matches!(top, Arm::Unset) {
         bottom
