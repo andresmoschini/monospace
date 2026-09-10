@@ -674,7 +674,7 @@ goes. The caller still says where.
 
 ## Handoff to the plan
 
-Two things settled since this spec was written, and three it surfaces and does not own.
+Five things settled since this spec was written, and two it surfaces and does not own.
 
 - **The three decisions of the second clarification session are recorded, and the model is amended
   for them.** ADR-0028, ADR-0029 and ADR-0030 were written before the plan was agreed and before any
@@ -684,8 +684,27 @@ Two things settled since this spec was written, and three it surfaces and does n
 - **The model amendment is done and is no longer the plan's to schedule.** It was the first commit
   of this work, as this spec asked: _Shapes_ names the vocabulary, arrows left _Deliberately
   unresolved_, and the open question about the initial set is answered for these three figures. The
-  plan starts from a model that already owns the words it will use. What the plan inherits is the
-  three items below.
+  plan starts from a model that already owns the words it will use.
+- **A shape draws into a surface, not into a buffer.** Taken by the maintainer on the first plan,
+  before this spec was amended: what a shape is handed has one write operation and no reader, so
+  FR-015's "a fragment MUST NOT inspect the buffer" holds structurally rather than by review, and
+  the buffer that counts writes per position for FR-020 is a second implementation in a test module
+  rather than a change to `Buffer`. The name and the shape of that trait are still the plan's; that
+  a shape is not handed a `Buffer` is not.
+- **The box shape is not called `Box`.** Taken by the maintainer on the first plan. `Box` is in the
+  prelude, so a public type of that name would shadow it for anyone who imported it, and `box` is a
+  reserved keyword, so the module could not carry the word either. `box` stays the word in
+  `docs/model.md`, in this spec and in every doc comment. Measured on the pinned toolchain, since
+  `clippy::pedantic` runs at `-D warnings`: `module_name_repetitions` does not fire on a suffixed
+  type inside a module of the same stem, and the probe that showed it was made to fail on purpose
+  before the clean run was believed.
+- **`monospace-cli` redraws its box through the box shape.** Taken by the maintainer on the first
+  plan, in a `refactor` commit that changes no output: it is the only call site the repository has,
+  so it is the only place FR-001 can be shown rather than asserted, and _Structural and behavioral
+  change never share a commit_ keeps it separable. The twelve stamps `stamp_box` writes by hand
+  agree cell for cell with a box's decomposition, checked against
+  `crates/monospace-cli/src/main.rs`, so the refactor is byte-identical by construction and
+  `crates/monospace-cli/tests/cli.rs` passing unchanged is what confirms it.
 - **The complete/fragment distinction is where the design decision lives.** Whether it is two types,
   one type with a parameter, or a convention, is the plan's. Two things narrowed it since: ADR-0028
   fixed what a fragment is described by, and ADR-0030 left a shape with drawing and nothing else, so
@@ -693,7 +712,3 @@ Two things settled since this spec was written, and three it surfaces and does n
 - **How a fragment learns about its surroundings, and how a route learns where it starts.** FR-015
   and FR-016 state what must be true and deliberately not how. Whether those two are one mechanism
   or two is worth answering explicitly rather than by accident.
-- **Whether `monospace-cli` redraws its box through the box shape.** Recommended, in a `refactor`
-  commit that changes no output: it is the only call site the repository has, so it is the only
-  place FR-001 can be shown rather than asserted, and _Structural and behavioral change never share
-  a commit_ keeps it separable. Cheap, reversible, and the maintainer's to decline.
