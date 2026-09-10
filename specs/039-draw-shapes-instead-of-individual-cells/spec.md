@@ -33,33 +33,23 @@ or a head is represented, whether the complete/fragment distinction is a type or
 whether a route is resolved before or during drawing. None of them is decided here, and the absence
 is deliberate rather than an omission.
 
-## What the model owes this feature
+## What the model owns
 
-This section is a prerequisite, not context. [`docs/model.md`](../../docs/model.md) owns the
-domain's design, and a slice that needs a rule it does not have amends it first — _The model owns
-the design_ in the constitution, and the model's own header.
+[`docs/model.md`](../../docs/model.md) owns the domain's design, and a slice needing a rule it does
+not have amends it first — _The model owns the design_ in the constitution, and _Open questions_ in
+the model itself. That amendment is done, and it is what this spec is written against rather than a
+prerequisite still outstanding.
 
-Measured by reading it today:
+_Shapes_ is where the vocabulary this spec uses lives: shape, extent, piece and partition, the
+complete and fragment distinction, the initial set of three figures, an arrow's starting positions
+and route rectangle, and the rule that a degenerate arrangement follows the general rule rather than
+an exception of its own. Arrows moved out of _Deliberately unresolved_ in the same amendment, and
+the open question asking for the initial set of shapes is answered for these three.
 
-- The model describes **two mechanisms and nothing else**: how cells accumulate in a buffer, and how
-  a buffer becomes characters. Its opening paragraph names "placement, the shapes themselves" as
-  belonging to "layers that do not exist yet and are not described here".
-- _Open questions_ asks **"What is the initial set of shapes and connectors?"** and answers it with
-  the rule that anything with a shape of its own — it names an arrowhead — "needs its rule keyed
-  like the rest before it can be specified". FR-027 takes the other route the model already
-  provides: a head and a line's end are chosen glyphs, and a chosen glyph is never keyed. So the
-  amendment does not have to key an arrowhead in order for this feature to exist; what it still owes
-  is the vocabulary and the move of arrows out of _Deliberately unresolved_.
-- _Deliberately unresolved_ puts **arrows** "out of the model, not merely out of the first slice".
-
-So this feature cannot reach `/speckit-plan` on the strength of this spec alone. It needs the model
-to gain a shape-layer section that owns the vocabulary this spec borrows — shape, piece, extent,
-partition, complete, fragment — and to move arrows from _Deliberately unresolved_ into it. That
-amendment is where the decisions the brief defers will land, and it is the maintainer's to approve;
-_Handoff to the plan_ says what it has to answer.
-
-What this spec does in the meantime is use the brief's words as provisional, and say so once, here,
-rather than in every requirement that uses one.
+So no requirement below defines any of those terms. Each names the section that does and states what
+this feature owes against it. Where a requirement looks like a definition, it is a testable
+obligation phrased in the model's words, which is the distinction the constitution draws between
+naming a section and restating it.
 
 ## Clarifications
 
@@ -394,11 +384,11 @@ The rest:
 | A stroke from another figure reaching a box's border       | It joins the border, exactly as two boxes join today                                                                | Spec 0002, and _The cell_                  |
 | A stroke reaching the interior side of a box's border      | It stops: a border closes the side facing its own interior                                                          | Spec 0002, and _The cell_                  |
 | A stroke reaching an arrow's head, or a line's end         | It stops against it, because nothing connects into a chosen glyph                                                   | Feature 028, and _A cell can be a literal_ |
-| An unfilled box's interior                                 | Inside the box's extent, and written by nothing: a piece may write no cells at all                                  | This spec, FR-012                          |
+| An unfilled box's interior                                 | Inside the box's extent, and written by nothing: a piece may write no cells at all                                  | _Extent and pieces_                        |
 | Two shapes overlapping in one buffer                       | Composed by the stamp, in the caller's order. A shape has no opinion about another shape                            | _Stamping_ in `docs/model.md`              |
-| A shape drawn twice, or drawn after another shape          | The same as any two stamps at those positions. "No position written twice" is a promise per drawing, not per buffer | This spec, FR-020                          |
+| A shape drawn twice, or drawn after another shape          | The same as any two stamps at those positions. "No position written twice" is a promise per drawing, not per buffer | _Shapes_, and _Stamping_                   |
 | A box, line or arrow whose fill or ends have no glyph rule | Cannot arise: what a shape draws is either derived through the catalog or a chosen glyph                            | _Rendering_, and feature 028               |
-| A shape asked for its extent before being drawn            | Answers from its description alone, having drawn nothing                                                            | This spec, FR-010                          |
+| A shape asked for its extent before being drawn            | Answers from its description alone, having drawn nothing                                                            | _Extent and pieces_                        |
 
 ## Requirements _(mandatory)_
 
@@ -429,37 +419,33 @@ Composition:
 
 Extent and partition:
 
-- **FR-010** (P1): Every shape MUST declare an extent — the set of positions it may write —
-  derivable from its description alone, without drawing. A shape MUST NOT write outside its extent.
-- **FR-011** (P1): A shape made of other shapes MUST partition its extent among its pieces: every
-  position of the extent belongs to exactly one piece, with no overlap and no gap. A piece MUST
-  receive its portion as part of its description rather than choosing it.
-- **FR-012** (P1): A **complete** shape MUST be expressible: its description defines the finished
-  figure, its extent covers everything visible in it — ends, corners, heads, fill — it draws
-  finished with no further intervention, and its extent can be read from outside. This is what a
-  library user sees. A complete shape MAY leave positions of its extent unwritten: an unfilled box's
-  interior is inside its extent, belongs to a piece, and is written by nothing.
-- **FR-013** (P1): A **fragment** shape MUST be expressible: its description defines only the
-  positions it writes, it adds no end and no decoration of its own accord, and it exists to be
-  placed by a shape that has already decided the partition.
+- **FR-010** (P1): Every shape MUST be able to report its extent, as _Extent and pieces_ defines
+  one, from its description alone and without drawing. A shape MUST NOT write outside it.
+- **FR-011** (P1): A shape made of other shapes MUST partition its extent among its pieces, as
+  _Extent and pieces_ requires, and MUST give each piece its portion as part of that piece's
+  description.
+- **FR-012** (P1): A **complete** shape, as _Complete and fragment_ defines one, MUST be
+  expressible: this is what a library user sees, so if the abstraction cannot express it the feature
+  has not landed. An unfilled box is the case that exercises the model's rule that a complete shape
+  may leave positions of its extent unwritten.
+- **FR-013** (P1): A **fragment**, as _Complete and fragment_ defines one, MUST be expressible
+  alongside it.
 - **FR-014** (P1): One shape MUST be able to be complete to its caller and a compositor to its own
-  pieces at the same time.
-- **FR-015** (P1): Where a fragment needs something about its immediate surroundings to choose what
-  to write in a position — whether the position next to it belongs to a sibling of the same figure,
-  for instance — that MUST arrive as part of its description. A fragment MUST NOT inspect the buffer
+  pieces at the same time, which the model allows and which the box is the first to need.
+- **FR-015** (P1): What a fragment needs to know about its surroundings MUST reach it the way
+  _Complete and fragment_ says: as part of its description. A fragment MUST NOT inspect the buffer
   and MUST NOT inspect its siblings.
-- **FR-016** (P1): An arrow's route MUST be derived from the two endpoint positions and the two
-  directions, and from nothing else — not from the head glyphs, which change no position the route
-  occupies. Deriving it needs to know where it starts, and the head occupies the endpoint position;
-  whatever mechanism supplies that is the plan's to choose and MUST NOT be decided here.
+- **FR-016** (P1): An arrow's route MUST be what _The route of an arrow_ describes, derived from the
+  two endpoint positions and the two directions and from nothing else. Deriving it needs to know
+  where it starts; whatever mechanism supplies that is the plan's to choose and MUST NOT be decided
+  here.
 
 Degenerate input and case coverage:
 
-- **FR-017** (P1): A shape whose parameters are degenerate or describe an impossible configuration
-  MUST NOT fail: no error result, no panic, and the call returns normally. What it draws is whatever
-  the shape's general rule yields for those parameters, and a degenerate arrangement MUST NOT
-  acquire an exception of its own to make it draw something else. Drawing nothing is a valid outcome
-  where the rule yields nothing — a box below 2 in either dimension, FR-021.
+- **FR-017** (P1): Degenerate and impossible parameters MUST behave as _Degenerate arrangements_
+  says: never failing, and drawing whatever the general rule yields rather than what an exception
+  written for them would. Drawing nothing is a valid outcome where the rule yields nothing — a box
+  below 2 in either dimension, FR-021.
 - **FR-018** (P1): Every guard for a degenerate or impossible configuration MUST be reachable, and
   MUST have a test that exercises it. A guard no test reaches MUST be removed rather than kept.
 - **FR-019** (P1): Case coverage MUST be exhaustive by rule rather than by enumeration. There MUST
@@ -495,12 +481,12 @@ The figures, and the workspace:
   the documentation of a shape MUST say what its extent is, because that is the sentence a caller
   would otherwise reconstruct from the code.
 - **FR-027** (P2, P3): The character at a line's end and at an arrow's head MUST come from the
-  caller, as part of the shape's description. Each is a chosen glyph in the sense of feature 028: it
-  is written as itself and nothing connects into it. No glyph set gains a rule, and
-  `docs/glyph-sets.md` MUST be unchanged by this feature. This is measured rather than assumed: `╾`
-  and `╼` are already claimed, in both mixing sets that hold them, by keys meaning heavy on one side
-  and light on the other, so they could not also be keyed as the end of a light line, and `▲ ► ◄ ▼`
-  appear in no set at all.
+  caller, as _The glyph at an end and at a head_ requires, and MUST be a chosen glyph in the sense
+  of feature 028. No glyph set gains a rule and `docs/glyph-sets.md` MUST be unchanged by this
+  feature. The measurement behind that rule, taken while writing this spec: `╾` and `╼` are already
+  claimed, in both mixing sets that hold them, by keys meaning heavy on one side and light on the
+  other, so they could not also be keyed as the end of a light line, and `▲ ► ◄ ▼` appear in no set
+  at all.
 - **FR-028** (P2, P3): The pictures in this spec MUST be read as the output for one particular
   choice of those glyphs — `╾` and `╼` for a horizontal line's ends, `╿` and `╽` for a vertical
   one's, and `▲ ► ◄ ▼` for a head pointing up, right, left and down. A test asserting a picture MUST
@@ -508,15 +494,11 @@ The figures, and the workspace:
 
 ### Key Entities
 
-- **Shape**: a value describing a figure, which can be drawn into a buffer and asked for its extent.
-  Provisional vocabulary until the model amendment owns it — see _What the model owes this feature_.
-- **Extent**: the set of positions a shape may write, derivable from its description alone.
-- **Piece**: a shape placed by another shape, with its portion of the extent given to it.
-- **Endpoint**: a position, the direction an arrow leaves it in, and the glyph of the head that sits
-  at that position. The two positions and the two directions, and nothing else, determine an arrow's
-  route; the glyphs determine only what those two positions render as.
+- **Shape**, **Extent**, **Piece**, **Endpoint**: all four are the model's, defined in _Shapes_ and
+  listed in its _Vocabulary_. This feature introduces no entity of its own and redefines none of
+  them.
 - **Buffer**, **Cell**, **Stroke**, **Arm**, **Glyph**, **GlyphCatalog**: unchanged, all of them.
-  This feature adds a layer above the buffer and changes nothing in it.
+  This feature builds the layer above the buffer and changes nothing in it.
 
 ## Success Criteria _(mandatory)_
 
@@ -574,8 +556,8 @@ The figures, and the workspace:
   differ by one column.
 - **A single-arm cell is not an end.** Measured in the Light table of
   [`docs/glyph-sets.md`](../../docs/glyph-sets.md): a cell with only a right arm renders `─`, the
-  same as a segment. So a line's ends are not a by-product of its arms, and something has to put a
-  character there deliberately. FR-027 says the caller does.
+  same as a segment. That measurement is why _The glyph at an end and at a head_ exists in the
+  model; this spec records where it came from rather than restating what it concluded.
 - **No decision is taken here.** _Decisions recorded when taken_ owns that. The decisions already in
   force are inputs: ADR-0008 for composition, ADR-0009 for degradation, ADR-0010 for keeping
   position and size apart, ADR-0019 for what a glyph is, ADR-0026 for what a cell is.
@@ -616,13 +598,13 @@ goes. The caller still says where.
 
 ## Handoff to the plan
 
-Four things this spec surfaces and does not own.
+One thing settled since this spec was written, and three it surfaces and does not own.
 
-- **The model amendment is the first commit of this work, not part of the plan's preamble.** It has
-  to name the shape layer's vocabulary, move arrows out of _Deliberately unresolved_, and answer
-  _Open questions_' "What is the initial set of shapes and connectors?" for these three figures. The
-  questions this spec leaves open are answered there or in the ADRs it needs, and `/speckit-clarify`
-  is where they are put to the maintainer.
+- **The model amendment is done and is no longer the plan's to schedule.** It was the first commit
+  of this work, as this spec asked: _Shapes_ names the vocabulary, arrows left _Deliberately
+  unresolved_, and the open question about the initial set is answered for these three figures. The
+  plan starts from a model that already owns the words it will use. What the plan inherits is the
+  three items below.
 - **The complete/fragment distinction is where the design decision lives.** Whether it is two types,
   one type with a parameter, or a convention, is the plan's — and it is the choice most likely to be
   expensive to undo, so the one most likely to need an ADR of its own.
