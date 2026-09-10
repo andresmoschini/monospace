@@ -42,6 +42,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0028](0028-give-each-fragment-its-own-cell-rule.md)               | Give each fragment its own cell rule instead of a cell parameter                | accepted                             |
 | [0029](0029-draw-a-line-end-as-one-arm.md)                         | Draw a line's end as one arm, and keep an arrow's head a chosen glyph           | accepted                             |
 | [0030](0030-drop-extent-until-a-caller-needs-it.md)                | Drop extent from the shape abstraction until a caller needs it                  | accepted                             |
+| [0031](0031-a-shape-draws-into-a-surface.md)                       | A shape draws into a surface, not into a buffer                                 | accepted                             |
 
 ## How to add one
 
