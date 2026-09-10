@@ -98,54 +98,66 @@ output against the T001 baseline.
       (`pub`); add the `Surface` trait, the `Shape` trait and the `Layer<'a>` adapter to a new
       `crates/monospace-core/src/shape.rs`; re-export `Shape`, `Surface`, `Layer`, `Direction` and
       `Orientation` from `crates/monospace-core/src/lib.rs`, each with rustdoc — `Side` moved to
-      T006, the first task that constructs one: a `pub(crate)` type with no reader is dead code
+      T005, the first task that constructs one: a `pub(crate)` type with no reader is dead code
       under `clippy::pedantic -D warnings`, so it lands with its first fragment instead
-- [ ] T005 [US1] Add `crates/monospace-core/src/shape/fragment.rs` with the run-loop and
-      rectangle-loop helpers the fragments in data-model.md's "The fragments" share, and declare the
-      `fragment` and `shape` submodules from `shape.rs`
-- [ ] T006 [US1] Add `Side` to `crates/monospace-core/src/cell.rs` (`pub(crate)`); implement the
-      `Corner` fragment (`pub(crate)`) in `crates/monospace-core/src/shape/fragment/corner.rs`: one
-      cell, `Set` on the two `Side`s it opens toward and `Unset` on the other two, with a unit test
-      per cell rule — no longer `[P]`, since it is now what introduces `Side`
-- [ ] T007 [P] [US1] Implement the `Segment` fragment (`pub(crate)`) in
-      `crates/monospace-core/src/shape/fragment/segment.rs`: a run, `Set` on both sides along it and
-      `Unset` on the two across it, with a unit test
-- [ ] T008 [P] [US1] Implement the `End` fragment (`pub(crate)`) in
+- [ ] T005 [US1] Add `Side` to `crates/monospace-core/src/cell.rs` (`pub(crate)`); add
+      `crates/monospace-core/src/shape/fragment.rs`, declared as `mod fragment;` from `shape.rs`,
+      declaring `pub(crate) mod corner;`; implement the `Corner` fragment (`pub(crate)`) in
+      `crates/monospace-core/src/shape/fragment/corner.rs`: one cell, `Set` on the two `Side`s it
+      opens toward and `Unset` on the other two, with a unit test per cell rule — folded together
+      because a `pub(crate)` module tree with nothing in it yet, and a `Side` nothing constructs,
+      are both dead code under `clippy::pedantic -D warnings` until something uses them
+- [ ] T006 [US1] Add the run-loop helper to `crates/monospace-core/src/shape/fragment.rs`; declare
+      `pub(crate) mod segment;` there; implement the `Segment` fragment (`pub(crate)`) in
+      `crates/monospace-core/src/shape/fragment/segment.rs`, built on the helper: a run, `Set` on
+      both sides along it and `Unset` on the two across it, with a unit test
+- [ ] T007 [US1] Declare `pub(crate) mod end;` in `crates/monospace-core/src/shape/fragment.rs`;
+      implement the `End` fragment (`pub(crate)`) in
       `crates/monospace-core/src/shape/fragment/end.rs`: one cell, `Set` on the one side the stroke
       runs toward and `Unset` on the other three, with a unit test — ADR-0029
-- [ ] T009 [P] [US1] Implement the `Border` fragment (`pub(crate)`) in
-      `crates/monospace-core/src/shape/fragment/border.rs`: a run, `Set` along it, `Closed` facing
-      the interior side it derives from the one `Side` it is told, `Unset` outward, with a unit test
-- [ ] T010 [P] [US1] Implement the `Fill` fragment (`pub(crate)`) in
-      `crates/monospace-core/src/shape/fragment/fill.rs`: a rectangle written as `Cell::Literal`,
-      with a unit test
-- [ ] T011 [P] [US1] Implement the `Head` fragment (`pub(crate)`) in
+- [ ] T008 [US1] Declare `pub(crate) mod border;` in `crates/monospace-core/src/shape/fragment.rs`;
+      implement the `Border` fragment (`pub(crate)`) in
+      `crates/monospace-core/src/shape/fragment/border.rs`, reusing the run-loop helper: a run,
+      `Set` along it, `Closed` facing the interior side it derives from the one `Side` it is told,
+      `Unset` outward, with a unit test
+- [ ] T009 [US1] Add the rectangle-loop helper to `crates/monospace-core/src/shape/fragment.rs`;
+      declare `pub(crate) mod fill;` there; implement the `Fill` fragment (`pub(crate)`) in
+      `crates/monospace-core/src/shape/fragment/fill.rs`, built on the helper: a rectangle written
+      as `Cell::Literal`, with a unit test
+- [ ] T010 [US1] Declare `pub(crate) mod head;` in `crates/monospace-core/src/shape/fragment.rs`;
+      implement the `Head` fragment (`pub(crate)`) in
       `crates/monospace-core/src/shape/fragment/head.rs`: one cell written as `Cell::Literal`, with
       a unit test — ADR-0029
-- [ ] T012 [US1] Implement `BoxShape` (`pub`) in `crates/monospace-core/src/shape/box_shape.rs`:
+- [ ] T011 [US1] Implement `BoxShape` (`pub`) in `crates/monospace-core/src/shape/box_shape.rs`:
       compose `Corner`, `Border` and `Fill` per data-model.md's decomposition table, with no pieces
       at all below 2 in either dimension (FR-021); add a test-only `Surface` that counts writes per
       position in `shape.rs`'s test module (FR-020); assert user story 1's scenarios 1 through 5 —
       the 6×3 box unfilled and filled, the 2×2 box, the undersized box drawing nothing, and the
       write count staying at 1 for all of them — with rustdoc saying `BoxShape` is complete
-- [ ] T013 [US1] Refactor `crates/monospace-cli/src/main.rs` so `stamp_box` draws a `BoxShape`
+- [ ] T012 [US1] Refactor `crates/monospace-cli/src/main.rs` so `stamp_box` draws a `BoxShape`
       instead of its twelve hand-written stamps, leaving `crates/monospace-cli/tests/cli.rs`
       unedited
 
-**T004 and T005 lay the skeleton** every fragment and figure depends on and change no existing
-behavior — a `feat` commit, since nothing in the crate uses these types yet, but still one that must
-compile and pass the gate.
+**T004 lays the skeleton** every fragment and figure depends on and changes no existing behavior — a
+`feat` commit, since nothing in the crate uses these types yet, but still one that must compile and
+pass the gate.
 
-**T006 through T011 are marked `[P]`**: six separate files, none naming another, each depending only
-on T004 and T005. FR-029 is why none of them constructs a cell it was not told to: each derives the
-one rule ADR-0028 assigns it and nothing else.
+**T005 through T010 are the six fragments, none marked `[P]`.** Each fragment's own file is
+independent of the others, as planned, but every one of them also adds its own `pub(crate) mod` line
+to the shared `crates/monospace-core/src/shape/fragment.rs` — the file that declares which fragment
+modules exist — so the six are ordered rather than parallel in practice. `Side`, and the run-loop
+and rectangle-loop helpers `fragment.rs` was to carry on its own (originally T005), are folded into
+whichever fragment first needs them instead, for the same reason `Side` moved out of T004: an item
+nothing yet constructs or calls is dead code under `clippy::pedantic -D warnings`, and there is no
+fragment before the first one to construct or call it. FR-029 is why none of the six constructs a
+cell it was not told to: each derives the one rule ADR-0028 assigns it and nothing else.
 
-**T012 is one task rather than several** because `BoxShape` cannot be shown to draw anything until
+**T011 is one task rather than several** because `BoxShape` cannot be shown to draw anything until
 its three fragments, its guard and its tests all exist together — the same reasoning feature 028's
 T004 recorded for its sum type. Splitting it would mean shipping a box that draws corners but not
 borders, which is a wrong behavior invented to make a commit boundary.
 
-**T013 is the feature's `refactor` commit for this story**: it changes no output, by construction
+**T012 is the feature's `refactor` commit for this story**: it changes no output, by construction
 per the byte-for-byte correspondence research.md already checked between `stamp_box`'s twelve stamps
 and `BoxShape`'s decomposition, and it edits no test — `git show --stat` on this commit must show no
 file under `crates/monospace-cli/tests/`. If it does, stop rather than argue the commit is
@@ -168,17 +180,17 @@ vertical line whose ends land on one position and confirm that position renders 
 make, in both drawing orders and under both stamp modes; draw lines of length 2, 1 and 0 and confirm
 each returns normally and writes no position more than once.
 
-- [ ] T014 [US2] Implement `Line` (`pub`) in `crates/monospace-core/src/shape/line.rs`: an `End`
+- [ ] T013 [US2] Implement `Line` (`pub`) in `crates/monospace-core/src/shape/line.rs`: an `End`
       toward the forward side, a `Segment` when the length allows one, an `End` toward the backward
       side, per data-model.md's decomposition table; assert scenarios 1, 2, 3, 5, 6, 7 and 8 of user
       story 2 — the horizontal and vertical pictures, the arm inspection at `(0, 0)`, lengths 2, 1
-      and 0, and the write count via the counting surface from T012 — with rustdoc saying `Line` is
+      and 0, and the write count via the counting surface from T011 — with rustdoc saying `Line` is
       complete
-- [ ] T015 [US2] Add the join test to `crates/monospace-core/src/shape/line.rs`'s test module: a
+- [ ] T014 [US2] Add the join test to `crates/monospace-core/src/shape/line.rs`'s test module: a
       horizontal line and a vertical line whose ends land on `(0, 0)` render `┌` there, in both
       drawing orders and under both `StampMode`s (scenario 4) — what confirms ADR-0029
 
-**T015 is a separate task from T014** because it exercises `Line` against itself rather than adding
+**T014 is a separate task from T013** because it exercises `Line` against itself rather than adding
 anything to what `Line` draws: it is the scenario a caller-supplied end glyph could not satisfy, and
 splitting it out is what makes that comparison visible in the log as its own commit.
 
@@ -198,29 +210,29 @@ and `(8, 2)`, and confirm the texts within each group differ; for every row of t
 families table, either compare against a picture or confirm the buffer is untouched; draw every
 arrow above against the counting surface and confirm no position is written more than once.
 
-- [ ] T016 [US3] Implement `Endpoint` and `Arrow` (both `pub`) in
+- [ ] T015 [US3] Implement `Endpoint` and `Arrow` (both `pub`) in
       `crates/monospace-core/src/shape/arrow.rs` — deriving the route path per research.md Q5's
       lattice enumeration, fewest-bends and nearest-middle tie-break — and `Route` (`pub(crate)`) in
       `crates/monospace-core/src/shape/route.rs`, turning the derived path into `Corner` and
       `Segment` pieces per data-model.md's bend rule; assert user story 3's scenarios 1, 2, 4, 5, 6,
       7, 8, 9 and 10 — the nine pinned pictures — and scenarios 3 and 11, the two comparisons SC-002
       requires, with rustdoc saying `Arrow` is complete and `Route` is a compositor
-- [ ] T017 [US3] Add the direction families table's two remaining rows to
+- [ ] T016 [US3] Add the direction families table's two remaining rows to
       `crates/monospace-core/src/shape/arrow.rs`'s test module: the identical-directions row,
       covering both the geometry where a path fits and the one where the route comes out empty, with
       its expected picture produced by running the code rather than pinned in advance; and the
       same-position row (scenario 13), asserting only that the call returns normally — completing
       the seven-row coverage SC-003 requires
-- [ ] T018 [US3] Add the write-count test to `crates/monospace-core/src/shape/arrow.rs`'s test
+- [ ] T017 [US3] Add the write-count test to `crates/monospace-core/src/shape/arrow.rs`'s test
       module: every arrow above, drawn against the counting surface, reports a maximum of 1 per
       position, including at the positions where a route bends (scenario 12, FR-020)
 
-**T016 is one task** for the same reason T012 was: `Arrow` cannot be shown to draw anything until
+**T015 is one task** for the same reason T011 was: `Arrow` cannot be shown to draw anything until
 its path derivation, `Route` and its two heads all exist together, and SC-005 forbids a test that
 inspects a raw path instead of a rendered picture, so there is no smaller commit whose tests assert
 anything meaningful.
 
-**T017's expected picture for the identical-directions row is written from a real run**, per _Claims
+**T016's expected picture for the identical-directions row is written from a real run**, per _Claims
 are measured, not assumed_ and per quickstart.md: write the test with an empty expectation, run it,
 read what came out, and only then paste it in.
 
@@ -232,27 +244,27 @@ at least once.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T019 Verify the box's one guard is reached: delete the "below 2 in either dimension" condition
+- [ ] T018 Verify the box's one guard is reached: delete the "below 2 in either dimension" condition
       in `crates/monospace-core/src/shape/box_shape.rs`, confirm user story 1's fourth scenario test
       fails, then restore (SC-004)
-- [ ] T020 Verify the write counter can fail: change `Route`'s draw in
+- [ ] T019 Verify the write counter can fail: change `Route`'s draw in
       `crates/monospace-core/src/shape/route.rs` so two of its pieces share a bend, confirm the
       counting surface reports 2 at that position, then restore (SC-006)
-- [ ] T021 Verify the gate on a fresh clone: `git clone` this repository elsewhere, run
+- [ ] T020 Verify the gate on a fresh clone: `git clone` this repository elsewhere, run
       `cargo xtask setup && cargo xtask check` there, and confirm it passes (SC-009)
-- [ ] T022 Append this increment's entry to `docs/learning-log.md`
+- [ ] T021 Append this increment's entry to `docs/learning-log.md`
 
-T019 and T020 produce no commit and no test of their own. What they produce is an observation for
+T018 and T019 produce no commit and no test of their own. What they produce is an observation for
 the pull request body: _Claims are measured, not assumed_ asks a guard to be shown reachable and a
-counter to be shown able to fail, rather than assumed to work because the code compiles. T019 also
+counter to be shown able to fail, rather than assumed to work because the code compiles. T018 also
 has a second use: if the guard turns out to reach nothing, FR-018 requires it be removed rather than
 kept.
 
-T021 produces no commit either. It is the fresh-clone run SC-009 asks for specifically because files
+T020 produces no commit either. It is the fresh-clone run SC-009 asks for specifically because files
 written by hand skip the transformations Git applies on checkout, so a working copy can be green
 while the repository is broken.
 
-T022 is what ends the increment, per _Demonstrable increments_. Candidates the increment actually
+T021 is what ends the increment, per _Demonstrable increments_. Candidates the increment actually
 produced: what the lattice tie-break in research.md Q5 turned out to need in practice, what the
 counting `Surface` caught or failed to catch, and whether the six-fragment split paid for itself the
 way ADR-0028 predicted.
@@ -263,31 +275,36 @@ way ADR-0028 predicted.
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: no dependencies, and it must happen before T013 or the baseline is worthless
+- **Setup (Phase 1)**: no dependencies, and it must happen before T012 or the baseline is worthless
 - **Foundational (Phase 2)**: after T001, and it blocks every task in Phase 3 onward
 - **US1 (Phase 3)**: after T003
-- **US2 (Phase 4)**: after T012 and T004/T005, but not after T013 — `Line` shares no file with the
-  CLI refactor and needs only the skeleton and the counting surface US1 built
-- **US3 (Phase 5)**: after T004/T005 and after T006/T007 (`Corner` and `Segment`, which `Route`
-  places); not after `Line` — US3 has no dependency on US2, per the spec's own priority ordering
-- **Polish (Phase 6)**: T019 after T012; T020 after T016; T021 and T022 after every prior task
+- **US2 (Phase 4)**: after T011 and T004, but not after T012 — `Line` shares no file with the CLI
+  refactor and needs only the skeleton and the counting surface US1 built
+- **US3 (Phase 5)**: after T004 and after T005/T006 (`Corner` and `Segment`, which `Route` places);
+  not after `Line` — US3 has no dependency on US2, per the spec's own priority ordering
+- **Polish (Phase 6)**: T018 after T011; T019 after T015; T020 and T021 after every prior task
 
 ### Within and between the stories
 
-T001 is independent of T002–T003. T004 and T005 gate T006 through T012. T006–T011 gate T012. T012
-gates T013, T014 and T019. T016 gates T017, T018 and T020. T022 is last.
+T001 is independent of T002–T003. T004 gates T005 through T011. T005 through T010 gate one another
+in file order, each adding its own line to `fragment.rs` after the last one's. T011 gates T012, T013
+and T018. T015 gates T016, T017 and T019. T021 is last.
 
-- T013 must not run before T001, or there is nothing to compare the output against.
-- T012 needs every fragment T006–T011 add and the skeleton T004–T005 add.
-- T014 needs `End` (T008) and `Segment` (T007), and the counting surface T012 introduces.
-- T016 needs `Corner` (T006) and `Segment` (T007), and `Head` (T011).
-- T019 needs the guard T012 writes; T020 needs the `Route` T016 writes.
+- T012 must not run before T001, or there is nothing to compare the output against.
+- T011 needs every fragment T005–T010 add and the skeleton T004 adds.
+- T013 needs `End` (T007) and `Segment` (T006), and the counting surface T011 introduces.
+- T015 needs `Corner` (T005) and `Segment` (T006), and `Head` (T010).
+- T018 needs the guard T011 writes; T019 needs the `Route` T015 writes.
 
 ### Parallel Opportunities
 
-**T006 through T011**, the six fragments: different files, each depending only on T004 and T005 and
-on none of the others. This is the feature's one real opportunity for several people or several
-agents to work at once; every other task is ordered by what it composes.
+**None inside the fragments.** Each of T005 through T010 is otherwise a self-contained file, but
+every one of them also adds its own `pub(crate) mod` line to the shared
+`crates/monospace-core/src/shape/fragment.rs`, so two of them worked on at once would conflict on
+that file. That is the price of introducing `Side` and the two shared loops lazily, alongside
+whichever fragment first needs them, rather than up front in an unused module — see the note under
+Phase 3. Every task outside the fragments is already ordered by what it composes, so there is no
+other opportunity in this feature either.
 
 ---
 
@@ -298,11 +315,11 @@ agents to work at once; every other task is ordered by what it composes.
 1. T001, to have something to compare against.
 2. T002, then T003 — the decision on the record before any code depends on it, and the model amended
    for it.
-3. T004, T005, then T006–T011 (in parallel if staffed), then T012, each with `cargo xtask check`
-   green and each its own commit.
-4. T013, the refactor.
+3. T004, then T005 through T010 in order, then T011, each with `cargo xtask check` green and each
+   its own commit.
+4. T012, the refactor.
 5. **Stop and validate**: diff `cargo run -p monospace-cli`'s output against the T001 baseline,
-   confirm T013 touched no test, and confirm the counting surface reports 1 everywhere T012 draws.
+   confirm T012 touched no test, and confirm the counting surface reports 1 everywhere T011 draws.
 6. This is a complete increment: a box draws itself, and the one place the repository draws a box
    already goes through it.
 
@@ -318,7 +335,7 @@ agents to work at once; every other task is ordered by what it composes.
 
 ### One task, one commit
 
-Every task except T001, T019, T020 and T021 is one commit that leaves `cargo xtask check` green.
-T013 is this feature's only `refactor` and edits no test; T002, T003 and T022 are `docs`; every
+Every task except T001, T018, T019 and T020 is one commit that leaves `cargo xtask check` green.
+T012 is this feature's only `refactor` and edits no test; T002, T003 and T021 are `docs`; every
 other task is `feat`. No task mixes a structural change with a behavioral one, so none of them owes
 _Structural and behavioral change never share a commit_ an exception.
