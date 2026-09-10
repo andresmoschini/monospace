@@ -94,17 +94,19 @@ the buffer stays empty; draw each of those against a buffer that counts writes p
 confirm no position is written more than once; then run `cargo run -p monospace-cli` and diff its
 output against the T001 baseline.
 
-- [ ] T004 [US1] Add `Side` to `crates/monospace-core/src/cell.rs` (`pub(crate)`); add `Direction`
-      and `Orientation` to `crates/monospace-core/src/geometry.rs` (`pub`); add the `Surface` trait,
-      the `Shape` trait and the `Layer<'a>` adapter to a new `crates/monospace-core/src/shape.rs`;
-      re-export `Shape`, `Surface`, `Layer`, `Direction` and `Orientation` from
-      `crates/monospace-core/src/lib.rs`, each with rustdoc
+- [x] T004 [US1] Add `Direction` and `Orientation` to `crates/monospace-core/src/geometry.rs`
+      (`pub`); add the `Surface` trait, the `Shape` trait and the `Layer<'a>` adapter to a new
+      `crates/monospace-core/src/shape.rs`; re-export `Shape`, `Surface`, `Layer`, `Direction` and
+      `Orientation` from `crates/monospace-core/src/lib.rs`, each with rustdoc — `Side` moved to
+      T006, the first task that constructs one: a `pub(crate)` type with no reader is dead code
+      under `clippy::pedantic -D warnings`, so it lands with its first fragment instead
 - [ ] T005 [US1] Add `crates/monospace-core/src/shape/fragment.rs` with the run-loop and
       rectangle-loop helpers the fragments in data-model.md's "The fragments" share, and declare the
       `fragment` and `shape` submodules from `shape.rs`
-- [ ] T006 [P] [US1] Implement the `Corner` fragment (`pub(crate)`) in
-      `crates/monospace-core/src/shape/fragment/corner.rs`: one cell, `Set` on the two `Side`s it
-      opens toward and `Unset` on the other two, with a unit test per cell rule
+- [ ] T006 [US1] Add `Side` to `crates/monospace-core/src/cell.rs` (`pub(crate)`); implement the
+      `Corner` fragment (`pub(crate)`) in `crates/monospace-core/src/shape/fragment/corner.rs`: one
+      cell, `Set` on the two `Side`s it opens toward and `Unset` on the other two, with a unit test
+      per cell rule — no longer `[P]`, since it is now what introduces `Side`
 - [ ] T007 [P] [US1] Implement the `Segment` fragment (`pub(crate)`) in
       `crates/monospace-core/src/shape/fragment/segment.rs`: a run, `Set` on both sides along it and
       `Unset` on the two across it, with a unit test

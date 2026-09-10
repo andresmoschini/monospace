@@ -16,11 +16,13 @@ mod cell;
 mod geometry;
 mod glyph;
 mod render;
+mod shape;
 mod stroke;
 
 pub use buffer::{Buffer, StampMode};
 pub use cell::{Arm, Cell, StrokeCell};
-pub use geometry::{Pos, Size};
+pub use geometry::{Direction, Orientation, Pos, Size};
 pub use glyph::{Glyph, GlyphCatalog, GlyphKey};
 pub use render::render;
+pub use shape::{Layer, Shape, Surface};
 pub use stroke::Stroke;
