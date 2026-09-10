@@ -46,7 +46,7 @@ No dependency is added by this feature (Technical Context, plan.md) and the tool
 version already in place cover it, so there is nothing else to initialize — inventing a task here
 would be the removal test in _One definition of green_ applied to a task instead of a check.
 
-- [ ] T001 Capture `cargo run -p monospace-cli`'s current output to `../draw-shapes-baseline.txt`,
+- [x] T001 Capture `cargo run -p monospace-cli`'s current output to `../draw-shapes-baseline.txt`,
       outside the repository, to diff against after the refactor commit that ends Phase 3
 
 T001 produces no commit: its output is evidence for the pull request body, and committing it would
@@ -62,10 +62,10 @@ forbids.
 the first line of shape code — the decision on the record, then the model amended for it. Neither
 delivers anything a reader can see, and nothing in Phase 3 onward can start until both are done.
 
-- [ ] T002 Write ADR-0031 in `docs/decisions/0031-a-shape-draws-into-a-surface.md` — what a shape
+- [x] T002 Write ADR-0031 in `docs/decisions/0031-a-shape-draws-into-a-surface.md` — what a shape
       draws into, carrying the `Surface` trait's shape from research.md Q1 and the dispatch choice
       from Q3 — and add its row to `docs/decisions/README.md`
-- [ ] T003 Amend `docs/model.md` so a shape draws into a `Surface` rather than a buffer: the
+- [x] T003 Amend `docs/model.md` so a shape draws into a `Surface` rather than a buffer: the
       _Vocabulary_ row for `Shape`, the second paragraph of _Shapes_, and the last sentence of the
       fragment paragraph in _Complete and fragment_, and add `Surface`'s own row to _Vocabulary_
 
