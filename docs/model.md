@@ -15,12 +15,13 @@ argued in [ADR-0008](decisions/0008-compose-overlapping-cells-with-three-state-a
 [ADR-0009](decisions/0009-degrade-a-cell-to-its-base-stroke.md) instead of asserted here. No code
 carried over.
 
-This document describes two mechanisms and nothing else: how cells accumulate in a buffer, and how a
-buffer becomes characters. Everything above it — an input format, parsing, placement, the shapes
-themselves — belongs to layers that do not exist yet and are not described here. Text, arrows and
-diagonals are out of the model entirely; they will be designed when they arrive.
+This document describes three mechanisms: how cells accumulate in a buffer, how a buffer becomes
+characters, and how a shape puts cells in both without its caller computing any of them. Everything
+above those — an input format, parsing, deciding where a figure goes — belongs to layers that do not
+exist yet and are not described here. Text and diagonals are out of the model entirely; they will be
+designed when they arrive.
 
-What this document owns beyond those two mechanisms is the domain's **open questions**, including
+What this document owns beyond those three mechanisms is the domain's **open questions**, including
 the ones about layers it does not describe yet. They are collected under _Open questions_, because
 each of them is answered by writing model for the layer it belongs to, and answering it anywhere
 else would leave the answer somewhere a spec has no reason to look. _Deliberately unresolved_ is a
@@ -50,6 +51,10 @@ when no character matches.
 | `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it |
 | `stamp`         | The single write operation                                                    |
 | `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided  |
+| `Shape`         | A value describing a figure, which draws itself into a buffer                 |
+| `Extent`        | The set of positions a shape may write, known from its description alone      |
+| `Piece`         | A shape placed by another shape, given its portion of the extent              |
+| `Endpoint`      | Where an arrow ends: a position, the direction it leaves in, and a head       |
 
 `Arm` names both the concept and its three-state value. `Side` names the four positions. If
 implementing shows they need separating, `ArmState` is the obvious name for the value.
@@ -204,7 +209,101 @@ was never loaded.
 The text output is a rectangle of exactly `width` × `height`: trailing spaces are not trimmed, the
 last line ends with a newline, and positions falling outside the buffer's window are spaces.
 
-## 7. Worked examples
+## 7. Shapes
+
+A **shape** is a value describing a figure: constructed where it is used, drawn, discarded. It has
+no mutable state and no lifecycle, so drawing the same shape twice produces the same writes. It has
+no opinion about any other shape either — two that overlap compose through the stamp, in the order
+the caller draws them, exactly as any two stamps at those positions would.
+
+Shapes are the layer directly above the buffer, and they exist so that a caller describes a figure
+instead of computing positions and characters. Every position and every character inside a figure is
+the figure's own business. Deciding _where_ a figure goes is still not: the caller says where.
+
+### Extent and pieces
+
+Every shape declares an **extent**: the set of positions it may write, derivable from its
+description alone, without drawing. A shape never writes outside its extent, and it may leave
+positions inside it unwritten — an unfilled box's interior is inside the box's extent and is written
+by nothing, because an interior is the absence of a figure rather than a figure covering something.
+
+A shape is made either of cells or of other shapes, and a caller cannot tell which from the outside:
+both are drawn the same way. One made of other shapes places **pieces** and writes no position
+itself; the pieces write. It computes the concrete geometry of every piece it places, and it
+**partitions** its extent among them — every position of the extent belongs to exactly one piece,
+with no overlap and no gap. A piece receives its portion as part of its description rather than
+choosing it, and that is what makes "no position written twice" a property of the decomposition
+instead of something a guard has to enforce.
+
+Composition goes to arbitrary depth and no shape depends on knowing how deep it sits: one placed as
+a piece is drawable the same way at the top level. Defining a new kind of shape touches no existing
+shape, because there is no central list of them to touch.
+
+### Complete and fragment
+
+Two kinds, and one shape can be both at once — complete to its caller and a compositor to its own
+pieces.
+
+A **complete** shape's description defines the finished figure. Its extent covers everything visible
+in it — ends, corners, heads, fill — it draws finished with no further intervention, and its extent
+can be read from outside. This is what a library user sees.
+
+A **fragment**'s description defines only the positions it writes. It adds no end and no decoration
+of its own accord, and it exists to be placed by a shape that has already decided the partition.
+Where a fragment needs something about its surroundings in order to choose what to write — whether
+the position beside it belongs to a sibling of the same figure, say — that arrives as part of its
+description. A fragment never inspects the buffer and never inspects its siblings.
+
+### The initial set
+
+Three figures.
+
+A **box** is a position and a size, with a fill as an option: corners, border runs and an interior,
+placed correctly. Which pieces it has depends on its size rather than on its kind, so a 2×2 box is
+four corners with no run at all. Its arms are the ones _The cell_ already fixes — `Set` along the
+run, `Closed` on the side facing its own interior, `Unset` outward — so a stroke reaching a box from
+outside joins its border and one reaching the interior side stops.
+
+A **line** is a position, a length, an orientation and the glyph at each of its two ends.
+
+An **arrow** is two **endpoints**. An endpoint is a position, the direction the arrow leaves it in,
+and the glyph of the head that sits there. A head occupies the endpoint position itself and points
+opposite to the direction that endpoint leaves in.
+
+### The glyph at an end and at a head
+
+A single-arm cell is not an end: a cell with only a right arm renders `─`, the same as a segment, so
+an end is not a by-product of a line's arms and something has to put a character there deliberately.
+Ends and heads are therefore chosen glyphs, in the sense of _A cell can be a literal instead_, and
+the caller supplies them. No glyph set holds a rule for one, and nothing connects into one.
+
+That is a scope cut rather than a conclusion. Ends and heads that follow the glyph set — so that a
+diagram drawn with the ASCII set gets ASCII ones instead of whatever its caller passed — would be
+the better answer, and nothing here precludes arriving at it.
+
+### The route of an arrow
+
+An arrow's route is derived from the two endpoint positions and the two directions, and from nothing
+else. The head glyphs change no position it occupies.
+
+Each endpoint has a **starting position**: one step from it in that endpoint's own leaving
+direction. That step goes into the figure when the direction heads toward the other end, and out of
+it when the direction heads away. The route runs between the two starting positions and stays inside
+the **route rectangle**, the smallest rectangle containing both of them — which exceeds the
+rectangle the two endpoints span by exactly one cell on each side a direction points away from, and
+by nothing anywhere else. Within that bound the route takes the fewest bends its two directions
+allow.
+
+### Degenerate arrangements
+
+A shape whose parameters are degenerate, or describe something impossible, never fails: no error, no
+panic, and the call returns. What it draws is whatever the general rule yields for those parameters,
+and a degenerate arrangement does not acquire an exception of its own in order to draw something
+else. A line of length 1, an arrow whose two endpoints coincide: each is permitted rather than
+rejected, and what comes out follows the rule rather than a guard. Restricting one later is a change
+to the rule, made when it turns out to cause a problem — not a case bolted on in advance.
+
+## 8. Worked examples
 
 All four are verified against [`glyph-sets.md`](glyph-sets.md).
 
@@ -224,7 +323,7 @@ stroke `light`. That mixture has no character: everything moves to `light` and i
 a `double` base stroke it would have rendered `╦`. The detail of the mixture is lost, the shape is
 not.
 
-## 8. Properties worth testing
+## 9. Properties worth testing
 
 - A single-stroke set covers all 15 of its combinations, so a catalog built from one answers every
   key a cell of that stroke can produce.
@@ -237,17 +336,22 @@ not.
 - An undefined cell and a cell with four `Closed` arms render the same unless a set defines the
   empty key. The test records the behavior; the question of whether that is wanted is deliberately
   left open.
+- A shape writes no position more than once in one drawing. The partition is what produces that, so
+  a counter per position tests the partition rather than a guard.
+- A shape answers what its extent is without having drawn anything.
+- A filled figure and an unfilled one of the same position and size have the same extent.
 
-## 9. Deliberately unresolved
+## 10. Deliberately unresolved
 
 - **Fallback chains between strokes.** ADR-0009 lists them as the rejected option and says what
   would bring them back.
-- **Text, arrows and diagonals.** Out of the model, not merely out of the first slice.
+- **Text and diagonals.** Out of the model, not merely out of the first slice. Arrows were on this
+  list until _Shapes_ was written and are not on it any more.
 - **A coordinate-and-glyph output**, as an alternative to the string.
 - **Color.** It fits the degradation rule — one owner imposes, the rest yield — and would be a good
   way to test whether that rule generalizes.
 
-## 10. Open questions
+## 11. Open questions
 
 Unlike the list above, these are open rather than closed: each is waiting for an answer, and the
 answer is model prose for the layer it belongs to. A feature spec that needs one of them answered
@@ -259,9 +363,11 @@ amends this document first and then implements the slice, the same way spec 0002
 - **How is layout computed?** A fixed grid the caller places figures on, or positions computed from
   the description. The buffer takes coordinates either way, so this is a question about the layer
   above it, not about stamping.
-- **What is the initial set of shapes and connectors?** The model has one box's worth of vocabulary
-  today: strokes, arms and junctions. Anything with a shape of its own — a rounded corner, a double
-  line, an arrowhead — needs its rule keyed like the rest before it can be specified.
+- **What comes after the first three shapes?** _Shapes_ answers the initial set — a box, a line and
+  an arrow — and the question that is left is everything with a shape of its own that is not one of
+  them: a rounded corner, a double line. Each needs either its rule keyed like the rest or a chosen
+  glyph, which is the route an end and a head took. What would settle it: the first slice that needs
+  one of them.
 - **How does the core expose mutable state for editing?** Phase 3 edits a diagram interactively, and
   today's buffer is a write-once working surface. Whether editing mutates cells in place, rebuilds
   the buffer from a description, or keeps both, is a model question and not an implementation detail
