@@ -46,7 +46,10 @@ Measured by reading it today:
   belonging to "layers that do not exist yet and are not described here".
 - _Open questions_ asks **"What is the initial set of shapes and connectors?"** and answers it with
   the rule that anything with a shape of its own — it names an arrowhead — "needs its rule keyed
-  like the rest before it can be specified".
+  like the rest before it can be specified". FR-027 takes the other route the model already
+  provides: a head and a line's end are chosen glyphs, and a chosen glyph is never keyed. So the
+  amendment does not have to key an arrowhead in order for this feature to exist; what it still owes
+  is the vocabulary and the move of arrows out of _Deliberately unresolved_.
 - _Deliberately unresolved_ puts **arrows** "out of the model, not merely out of the first slice".
 
 So this feature cannot reach `/speckit-plan` on the strength of this spec alone. It needs the model
@@ -57,6 +60,35 @@ _Handoff to the plan_ says what it has to answer.
 
 What this spec does in the meantime is use the brief's words as provisional, and say so once, here,
 rather than in every requirement that uses one.
+
+## Clarifications
+
+### Session 2026-09-10
+
+- Q: May an arrow's route leave the rectangle its two endpoints span, when the leaving directions
+  force it to go around? → A: Yes. The route starts one position from each endpoint in that
+  endpoint's own leaving direction — outward when the direction points away from the other end — and
+  stays inside the rectangle those two starting positions span. Nothing goes further out than a
+  starting position, so the route reaches one cell beyond the endpoint rectangle on each side a
+  direction points away from, and no further.
+- Q: What does an arrow do when both endpoints are at the same position? → A: It is left
+  indeterminate on purpose. The general routing rule decides it, as it decides every other
+  degenerate combination, and no exception is written for it. What such an arrow draws is not pinned
+  by this spec and is free to change when the rule changes; what is required is only that the call
+  returns normally.
+- Q: Which glyphs draw a line's ends and an arrow's heads? → A: The caller supplies them, as part of
+  the line's and the arrow's description. They are chosen glyphs in the sense of feature 028, so no
+  glyph set gains a rule and `docs/glyph-sets.md` is unchanged. Deliberately a scope cut: ends and
+  heads that follow the glyph set are a later feature, and this answer does not preclude one.
+- Q: What is the minimum valid length of a straight line? → A: None is declared. A line of any
+  length is accepted and the general rule decides what it draws, on the same reasoning as the
+  degenerate arrow: permit it first, and restrict it later if it turns out to cause problems. A
+  length of 0 has an empty extent and so draws nothing; a length of 1 draws its one position, and
+  which of the two end glyphs lands there is the rule's business and is not pinned here.
+- Q: Where does a two-bend route bend when its span is even and the midpoint falls between two
+  columns? → A: Not pinned. The general rule decides, and whatever it produces becomes the expected
+  picture of the test that covers an even span. An arrow and its reverse are therefore permitted to
+  differ by one column, and this spec does not require them to match.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -131,9 +163,9 @@ and testable before the box exists, and a box built on top of it later changes n
 promises.
 
 **Independent Test**: draw a horizontal line of length 5 and compare the rendered text; confirm the
-position one past the end holds no cell at all; draw a vertical line and compare; draw the shortest
-line the answer to the open question below allows, and the one below that, and confirm each either
-matches its picture or leaves the buffer empty.
+position one past the end holds no cell at all; draw a vertical line and compare; draw a line of
+length 2, and one of length 1, and one of length 0, and confirm each returns normally and writes no
+position more than once.
 
 **Acceptance Scenarios**:
 
@@ -145,12 +177,18 @@ matches its picture or leaves the buffer empty.
    `(0, 4)` holds no cell.
 3. **Given** an empty buffer, **When** a line of length 3 is drawn, **Then** it is two ends with
    exactly one segment between them.
-4. **Given** an empty buffer, **When** a line shorter than the minimum valid length is drawn,
-   **Then** nothing is drawn and the call returns normally. The minimum is [NEEDS CLARIFICATION:
-   what is the minimum valid length of a straight line? At 2 it would be two ends with no interior;
-   at 1 and 0 it is unclear whether the answer is a single cell, one end, or nothing].
-5. **Given** a buffer that counts writes per position, **When** any line above is drawn, **Then** no
-   position has a count above 1.
+4. **Given** an empty buffer, **When** a line of length 2 is drawn, **Then** it is the two end
+   glyphs side by side with no interior between them.
+5. **Given** an empty buffer, **When** a line of length 1 is drawn, **Then** the call returns
+   normally and exactly one position is written. Which of the two end glyphs it holds is the general
+   rule's business and is not asserted: no minimum length is declared, and a length below 2 is
+   permitted rather than rejected.
+6. **Given** an empty buffer, **When** a line of length 0 is drawn, **Then** its extent is empty,
+   nothing is drawn, and the call returns normally.
+7. **Given** a buffer that counts writes per position, **When** any line above is drawn — the
+   length-1 line included — **Then** no position has a count above 1. No guard produces that at
+   length 1: FR-011's partition gives the single position to exactly one piece, so only one thing
+   writes it.
 
 ---
 
@@ -164,14 +202,14 @@ two different drawings, and the route has to be derived before it can be placed.
 
 **Why this priority**: it is the part of the wish with the most in it, and the part that most needs
 the two stories before it to have settled how composition works. It is last because a derived route
-is worth attempting only once placing known geometry is proven, and because it is the story whose
-behavior is still partly open — the direction families below are not all answered, and the ones that
-are not cannot be implemented from this spec as it stands.
+is worth attempting only once placing known geometry is proven, and because it is the story with the
+most cases to get right: every row of the direction families table below is one of its outcomes.
 
-**Independent Test**: draw each of the four pictured arrows into an empty buffer and compare the
-rendered text; draw the first two, which share endpoint positions and differ only in direction, and
-confirm the two texts differ; then, for every direction family in the table under _Edge Cases_,
-either compare against a picture or confirm the buffer is untouched.
+**Independent Test**: draw each of the seven pictured arrows into an empty buffer and compare the
+rendered text; draw the first two, and separately the three that share the endpoint positions
+`(2, 0)` and `(8, 2)`, and confirm the texts within each group differ; then, for every direction
+family in the table under _Edge Cases_, either compare against a picture or confirm the buffer is
+untouched.
 
 **Acceptance Scenarios**:
 
@@ -210,11 +248,77 @@ either compare against a picture or confirm the buffer is untouched.
       └──►
    ```
 
-6. **Given** a buffer that counts writes per position, **When** any arrow above is drawn, **Then**
-   no position has a count above 1 — including the positions where the route bends, which is where a
-   route drawn as two overlapping runs would write twice.
-7. **Given** any arrow whose description is degenerate or impossible, **When** it is drawn, **Then**
-   nothing is drawn and the call returns normally: no error result and no panic.
+6. **Given** an empty buffer 9 wide and 3 high, **When** an arrow from `(2, 0)` leaving `Right` to
+   `(8, 2)` leaving `Left` is drawn, **Then** the text is exactly:
+
+   ```text
+     ◄──┐
+        │
+        └──►
+   ```
+
+   Both directions head toward the other end, so the starting positions `(3, 0)` and `(7, 2)` are
+   inside the endpoint rectangle and the route never leaves it.
+
+7. **Given** an empty buffer 10 wide and 3 high, **When** an arrow from `(2, 0)` leaving `Left` to
+   `(8, 2)` leaving `Right` is drawn, **Then** the text is exactly:
+
+   ```text
+    ┌►
+    └───────┐
+           ◄┘
+   ```
+
+   Both directions head away, so the starting positions are `(1, 0)` and `(9, 2)`, one cell outside
+   the endpoint rectangle on each side. The route occupies the columns `x = 1` and `x = 9` and the
+   row `y = 1`, and nothing lies beyond a starting position.
+
+8. **Given** an empty buffer 9 wide and 4 high, **When** an arrow from `(2, 0)` leaving `Left` to
+   `(8, 2)` leaving `Down` is drawn, **Then** the text is exactly:
+
+   ```text
+    ┌►
+    │
+    │      ▲
+    └──────┘
+   ```
+
+   The starting positions are `(1, 0)` and `(8, 3)`, one cell outside the endpoint rectangle to the
+   left and below. The route occupies the column `x = 1` and the row `y = 3`, and nothing lies
+   beyond a starting position.
+
+9. **Given** an empty buffer 5 wide and 2 high, **When** an arrow from `(2, 0)` leaving `Right` to
+   `(4, 1)` leaving `Left` is drawn, **Then** the text is exactly:
+
+   ```text
+     ◄┐
+      └►
+   ```
+
+   The tightest arrangement the two-bend family has: the starting positions `(3, 0)` and `(3, 1)`
+   share a column, so the two bends are adjacent and there is no run between them.
+
+10. **Given** an empty buffer 5 wide and 3 high, **When** an arrow from `(2, 0)` leaving `Left` to
+    `(3, 2)` leaving `Right` is drawn, **Then** the text is exactly:
+
+    ```text
+     ┌►
+     └──┐
+       ◄┘
+    ```
+
+    The tightest arrangement of the facing-away family: the route rectangle is one cell wider than
+    the endpoint rectangle on each side, and the endpoint rectangle is two columns across.
+
+11. **Given** the three arrows of scenarios 6, 7 and 8, **When** their rendered texts are compared,
+    **Then** all three differ. They share the endpoint positions `(2, 0)` and `(8, 2)` and differ
+    only in the two directions.
+12. **Given** a buffer that counts writes per position, **When** any arrow above is drawn, **Then**
+    no position has a count above 1 — including the positions where the route bends, which is where
+    a route drawn as two overlapping runs would write twice.
+13. **Given** an arrow whose two endpoints are at the same position, **When** it is drawn, **Then**
+    the call returns normally: no error result and no panic. What it draws is the general rule's
+    business and is not asserted.
 
 ---
 
@@ -225,28 +329,62 @@ exhaustively: each row ends in a picture or in a declared no-op, and a row that 
 unfinished spec. The second is everything else.
 
 A head points opposite to the direction its endpoint leaves in and occupies the endpoint position
-itself, so the route runs between the two positions one step inward from each end. "Inward" below
-means that step; "the endpoint rectangle" means the smallest rectangle containing both endpoints.
+itself, so the route runs between the two **starting positions**: one step from each endpoint in
+that endpoint's own leaving direction. That step goes into the figure when the direction heads
+toward the other end and out of it when the direction heads away. "The endpoint rectangle" below
+means the smallest rectangle containing both endpoints, and "the route rectangle" the smallest
+rectangle containing both starting positions; the second exceeds the first by exactly one cell on
+each side a direction points away from. A route stays inside the route rectangle.
 
-| Direction family                                | Geometry                                      | Expected                                                            |
-| ----------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------- |
-| Opposite, endpoints aligned on the axis         | Inward positions on one row or column         | A straight run, no bend. Scenario 4 above                           |
-| Opposite, endpoints not aligned                 | Both inward steps head toward each other      | Two bends. Scenario 5 above                                         |
-| Perpendicular                                   | Both inward steps head toward the other end   | One bend, where the two axes meet. Scenarios 1 and 2 above          |
-| Perpendicular                                   | One inward step heads away from the other end | Unsettled: the route has to leave the endpoint rectangle. See below |
-| Opposite, endpoints facing away from each other | Both inward steps head away                   | Unsettled: the route has to leave the endpoint rectangle. See below |
-| Identical at both endpoints                     | Any                                           | Unsettled: one inward step heads away. See below                    |
-| Both endpoints at the same position             | Zero distance                                 | Unsettled: two heads want the same position. See below              |
+| Direction family                                 | Geometry                                                 | Expected                                                                                                                                                        |
+| ------------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Opposite, endpoints aligned on the axis          | Starting positions on one row or column                  | A straight run, no bend. Scenario 4 above                                                                                                                       |
+| Opposite, endpoints not aligned                  | Both directions head toward the other end                | Two bends. Scenarios 5, 6 and 9 above                                                                                                                           |
+| Perpendicular, both heading toward the other end | Both directions head toward the other end                | One bend, where the two axes meet. Scenarios 1 and 2 above                                                                                                      |
+| Opposite, endpoints facing away from each other  | Both directions head away                                | Two starting positions outside the endpoint rectangle, three bends, the route rectangle one cell wider on each side. Scenarios 7 and 10 above                   |
+| Perpendicular, at least one heading away         | One or both directions head away                         | The route rectangle grows one cell on each side pointed away from, and the route stays inside it. Scenario 8 above                                              |
+| Identical at both endpoints                      | One direction heads toward the other end, one heads away | The same rule, with the route rectangle one cell longer on the side the far endpoint points away toward. Not pinned here; SC-003 requires the test that pins it |
+| Both endpoints at the same position              | Zero distance                                            | Whatever the general rule yields. Not pinned here, illustrated below, and MUST NOT be special-cased. Scenario 13 above                                          |
 
-The four unsettled rows are one question rather than four: [NEEDS CLARIFICATION: may an arrow's
-route leave the rectangle its endpoints span? Every family whose route is not settled above —
-perpendicular directions with one endpoint facing away, opposite directions facing away from each
-other, and identical directions at both endpoints — needs a route that goes out and around, and each
-is otherwise a valid description. A prior implementation silently drew nothing for the facing-away
-case; the maintainer suspects that was a defect rather than a decision, so drawing nothing must not
-be adopted as the answer without one]. And separately: [NEEDS CLARIFICATION: what does an arrow do
-when both endpoints are at the same position? Both heads claim that one position, there is no route,
-and the two directions may still differ].
+The three families that need a route going out and around — opposite directions facing away from
+each other, perpendicular directions with an endpoint facing away, and identical directions at both
+endpoints — are one rule rather than three, and the _Clarifications_ session above records it: the
+route rectangle, not the endpoint rectangle, is the bound. Drawing nothing was rejected as the
+answer; a prior implementation that silently drew nothing for the facing-away case was a defect.
+
+No row is left open. The last one is settled by not being pinned: an arrow whose endpoints coincide
+is drawn by the same rule as every other arrow, and whatever that produces is the answer. The rule
+is what this feature owes; an exception written for a degenerate arrangement is what it owes not to
+write.
+
+**Illustrative, not asserted.** The pictures below show a general arrangement collapsing step by
+step into its degenerate one, twice. Only the two general arrangements are acceptance scenarios —
+they are scenarios 9 and 10 above. The rest are what the rule is expected to produce, they are
+excluded from SC-001, and an implementation that produces something else from the same general rule
+has not broken this spec.
+
+Toward each other, collapsing:
+
+```text
+(2, 0) Right → (4, 1) Left      (2, 0) Right → (3, 1) Left      (2, 0) Right → (3, 0) Left
+  ◄┐                              ◄┐                              ◄►
+   └►                              ►
+
+(2, 0) Right → (2, 0) Left
+  ►
+```
+
+Away from each other, collapsing:
+
+```text
+(2, 0) Left → (3, 2) Right      (2, 0) Left → (3, 1) Right      (2, 0) Left → (2, 1) Right
+ ┌►                              ┌►                              ┌►
+ └──┐                              ◄┘                             ◄┘
+   ◄┘
+
+(2, 0) Left → (2, 0) Right
+  ◄
+```
 
 The rest:
 
@@ -255,7 +393,7 @@ The rest:
 | A figure drawn partly or wholly outside the buffer         | The positions inside are drawn, the rest do nothing, and it is not an error                                         | _The buffer_ in `docs/model.md`            |
 | A stroke from another figure reaching a box's border       | It joins the border, exactly as two boxes join today                                                                | Spec 0002, and _The cell_                  |
 | A stroke reaching the interior side of a box's border      | It stops: a border closes the side facing its own interior                                                          | Spec 0002, and _The cell_                  |
-| A stroke reaching an arrow's head                          | It stops against it, because nothing connects into a chosen glyph                                                   | Feature 028, and _A cell can be a literal_ |
+| A stroke reaching an arrow's head, or a line's end         | It stops against it, because nothing connects into a chosen glyph                                                   | Feature 028, and _A cell can be a literal_ |
 | An unfilled box's interior                                 | Inside the box's extent, and written by nothing: a piece may write no cells at all                                  | This spec, FR-012                          |
 | Two shapes overlapping in one buffer                       | Composed by the stamp, in the caller's order. A shape has no opinion about another shape                            | _Stamping_ in `docs/model.md`              |
 | A shape drawn twice, or drawn after another shape          | The same as any two stamps at those positions. "No position written twice" is a promise per drawing, not per buffer | This spec, FR-020                          |
@@ -311,21 +449,25 @@ Extent and partition:
   for instance — that MUST arrive as part of its description. A fragment MUST NOT inspect the buffer
   and MUST NOT inspect its siblings.
 - **FR-016** (P1): An arrow's route MUST be derived from the two endpoint positions and the two
-  directions, and from nothing else. Deriving it needs to know where it starts, and the head
-  occupies the endpoint position; whatever mechanism supplies that is the plan's to choose and MUST
-  NOT be decided here.
+  directions, and from nothing else — not from the head glyphs, which change no position the route
+  occupies. Deriving it needs to know where it starts, and the head occupies the endpoint position;
+  whatever mechanism supplies that is the plan's to choose and MUST NOT be decided here.
 
 Degenerate input and case coverage:
 
 - **FR-017** (P1): A shape whose parameters are degenerate or describe an impossible configuration
-  MUST draw nothing and MUST NOT fail. Drawing nothing is a valid outcome: no error result, no
-  panic, and the call returns normally.
+  MUST NOT fail: no error result, no panic, and the call returns normally. What it draws is whatever
+  the shape's general rule yields for those parameters, and a degenerate arrangement MUST NOT
+  acquire an exception of its own to make it draw something else. Drawing nothing is a valid outcome
+  where the rule yields nothing — a box below 2 in either dimension, FR-021.
 - **FR-018** (P1): Every guard for a degenerate or impossible configuration MUST be reachable, and
   MUST have a test that exercises it. A guard no test reaches MUST be removed rather than kept.
-- **FR-019** (P1): Case coverage MUST be exhaustive and explicit. There MUST be no combination of
-  otherwise valid parameters that produces neither a drawing nor a declared no-op — the direction
-  families table is where that is discharged for the arrow, and it MUST have no unsettled row left
-  when this feature is implemented.
+- **FR-019** (P1): Case coverage MUST be exhaustive by rule rather than by enumeration. There MUST
+  be no combination of otherwise valid parameters that panics or returns an error, and every
+  combination MUST be an outcome of the shape's general rule. Where this spec pins no picture for a
+  combination, the rule's output is the answer and is free to change when the rule does. The
+  direction families table is where that is discharged for the arrow, and it MUST have no row
+  without a test when this feature is implemented.
 
 The figures, and the workspace:
 
@@ -333,12 +475,16 @@ The figures, and the workspace:
   than asserted: the tests draw against a buffer that counts writes per position.
 - **FR-021** (P1): A box MUST be described by a position and a size, and MUST draw borders and
   corners, with a fill as an option. Below 2 in either dimension it MUST draw nothing.
-- **FR-022** (P2): A straight line MUST be described by a position, a length and an orientation, and
-  MUST occupy exactly the requested length, ending in something distinguishable from a segment at
-  each end.
-- **FR-023** (P3): An arrow MUST be described by two endpoints, each a position and the direction
-  the arrow leaves it in. A head MUST sit at each endpoint pointing outward, opposite to that
-  endpoint's outgoing direction, and the route MUST start one position inward from it.
+- **FR-022** (P2): A straight line MUST be described by a position, a length, an orientation and the
+  glyph at each of its two ends, and MUST occupy exactly the requested length, ending in something
+  distinguishable from a segment at each end. No minimum length MUST be declared and no length MUST
+  be rejected: a length below 2 is an outcome of the rule under FR-017, not a guard.
+- **FR-023** (P3): An arrow MUST be described by two endpoints, each a position, the direction the
+  arrow leaves it in, and the glyph of the head that sits there. A head MUST sit at each endpoint
+  pointing outward, opposite to that endpoint's outgoing direction. The route MUST start one
+  position from each endpoint in that endpoint's own leaving direction — outside the endpoint
+  rectangle when that direction heads away from the other end — and MUST stay inside the rectangle
+  the two starting positions span.
 - **FR-024** (P1): `Buffer`, `stamp`, `Cell` and the renderer MUST be unchanged in what they do.
   This feature sits above them; a diagram drawn by stamping cells directly MUST render byte for byte
   as it does today.
@@ -348,13 +494,17 @@ The figures, and the workspace:
 - **FR-026** (P1): Every public item this feature adds MUST carry rustdoc as it is introduced, and
   the documentation of a shape MUST say what its extent is, because that is the sentence a caller
   would otherwise reconstruct from the code.
-- **FR-027** (P1): The pictures' characters are placeholders. [NEEDS CLARIFICATION: which glyphs
-  draw a line's ends and an arrow's heads? Measured against `docs/glyph-sets.md`: `╾` and `╼` are
-  already claimed, in both mixing sets that hold them, by keys meaning heavy on one side and light
-  on the other, so they cannot also be keyed as the end of a light line; and `▲ ► ◄ ▼` appear in no
-  set at all. So an end and a head are each either a chosen glyph in the sense of feature 028 or a
-  new keyed rule, which _Open questions_ in `docs/model.md` requires before an arrowhead can be
-  specified].
+- **FR-027** (P2, P3): The character at a line's end and at an arrow's head MUST come from the
+  caller, as part of the shape's description. Each is a chosen glyph in the sense of feature 028: it
+  is written as itself and nothing connects into it. No glyph set gains a rule, and
+  `docs/glyph-sets.md` MUST be unchanged by this feature. This is measured rather than assumed: `╾`
+  and `╼` are already claimed, in both mixing sets that hold them, by keys meaning heavy on one side
+  and light on the other, so they could not also be keyed as the end of a light line, and `▲ ► ◄ ▼`
+  appear in no set at all.
+- **FR-028** (P2, P3): The pictures in this spec MUST be read as the output for one particular
+  choice of those glyphs — `╾` and `╼` for a horizontal line's ends, `╿` and `╽` for a vertical
+  one's, and `▲ ► ◄ ▼` for a head pointing up, right, left and down. A test asserting a picture MUST
+  pass that choice in, and MUST NOT depend on a default.
 
 ### Key Entities
 
@@ -362,8 +512,9 @@ The figures, and the workspace:
   Provisional vocabulary until the model amendment owns it — see _What the model owes this feature_.
 - **Extent**: the set of positions a shape may write, derivable from its description alone.
 - **Piece**: a shape placed by another shape, with its portion of the extent given to it.
-- **Endpoint**: a position and the direction an arrow leaves it in. The pair of them, and nothing
-  else, determines an arrow's route.
+- **Endpoint**: a position, the direction an arrow leaves it in, and the glyph of the head that sits
+  at that position. The two positions and the two directions, and nothing else, determine an arrow's
+  route; the glyphs determine only what those two positions render as.
 - **Buffer**, **Cell**, **Stroke**, **Arm**, **Glyph**, **GlyphCatalog**: unchanged, all of them.
   This feature adds a layer above the buffer and changes nothing in it.
 
@@ -371,14 +522,19 @@ The figures, and the workspace:
 
 ### Measurable Outcomes
 
-- **SC-001**: every picture in this spec has a test asserting the rendered text equals it exactly,
-  trailing spaces and final newline included, and every one of those pictures has been produced by
-  running the code rather than derived on paper — _Claims are measured, not assumed_.
+- **SC-001**: every picture in an acceptance scenario has a test asserting the rendered text equals
+  it exactly, trailing spaces and final newline included, and every one of those pictures has been
+  produced by running the code rather than derived on paper — _Claims are measured, not assumed_.
+  The pictures marked illustrative under _Edge Cases_ are excluded: they show what the general rule
+  is expected to produce and are asserted by nothing.
 - **SC-002**: the arrow of scenario 1 and the arrow of scenario 2 are asserted to differ, in one
-  test that builds both from the same two positions.
-- **SC-003**: the direction families table has no unsettled row: each row is either a test with an
-  exact expected picture or a test asserting the buffer is untouched. Countable — seven rows, seven
-  tests, no row without one.
+  test that builds both from the same two positions; and the arrows of scenarios 6, 7 and 8 are
+  asserted to differ from one another, in one test that builds all three from `(2, 0)` and `(8, 2)`.
+- **SC-003**: the direction families table has no row without a test. A row this spec pins with a
+  picture is a test asserting that exact text; the identical-directions row is a test whose expected
+  picture is produced at implementation rather than pinned here; the same-position row is a test
+  asserting only that the call returns normally. Countable — seven rows, seven tests, no row without
+  one.
 - **SC-004**: every degenerate-input guard has a test that reaches it. Verified by removing each
   guard in turn and confirming a test fails, then restoring: a guard nothing reaches is deleted
   rather than documented.
@@ -391,6 +547,8 @@ The figures, and the workspace:
   the diff of the commit that adds it contains no change to any file defining another shape, and no
   change to any list of shapes, because there is none.
 - **SC-008**: rendering a diagram made by stamping cells directly is byte for byte what it is today.
+- **SC-010**: `docs/glyph-sets.md` is unchanged by this feature. Countable: the diff of every commit
+  in it touches that file zero times.
 - **SC-009**: `cargo xtask check` passes at every commit, and on a fresh clone rather than only in
   the working copy.
 
@@ -409,15 +567,15 @@ The figures, and the workspace:
 - **A box's arms are already settled and are not revisited.** `Set` along the run, `Closed` on the
   side facing its own interior, `Unset` outward, from spec 0002 and _The cell_. The box shape
   reproduces that; it does not choose it.
-- **Where a two-bend route bends is the midpoint of the span, rounded toward the first endpoint.**
-  Scenario 5 pins the odd case — inward span `x = 1` to `x = 5`, bend at `x = 3` — and says nothing
-  about an even span, where the midpoint falls between two columns. Rounding toward the first
-  endpoint is a default chosen for having an answer, is the maintainer's to overrule, and changes
-  only the pictures of the even-span tests.
+- **A two-bend route bends at the midpoint of the span when the span is odd, and where the rule puts
+  it when the span is even.** Scenarios 5 and 6 pin the odd case — starting span `x = 1` to `x = 5`,
+  bend at `x = 3`, and `x = 3` to `x = 7`, bend at `x = 5`. The even case is deliberately unpinned,
+  per _Clarifications_: no rounding rule is chosen here, and an arrow and its reverse are allowed to
+  differ by one column.
 - **A single-arm cell is not an end.** Measured in the Light table of
   [`docs/glyph-sets.md`](../../docs/glyph-sets.md): a cell with only a right arm renders `─`, the
-  same as a segment. So a line's ends are not a by-product of its arms, which is why FR-027 has to
-  ask what draws them.
+  same as a segment. So a line's ends are not a by-product of its arms, and something has to put a
+  character there deliberately. FR-027 says the caller does.
 - **No decision is taken here.** _Decisions recorded when taken_ owns that. The decisions already in
   force are inputs: ADR-0008 for composition, ADR-0009 for degradation, ADR-0010 for keeping
   position and size apart, ADR-0019 for what a glyph is, ADR-0026 for what a cell is.
@@ -440,6 +598,11 @@ Every item names where it is handled instead.
   here takes two positions and two directions and nothing else.
 - **Text, and anything that places many chosen glyphs.** Feature 028 gave a cell one chosen glyph;
   what puts a word anywhere is still nobody's job.
+- **Ends and heads that follow the glyph set.** Deliberately cut here: FR-027 has the caller supply
+  them, so a diagram drawn with the ASCII set gets whatever characters its caller passed rather than
+  ASCII ones of its own. A later feature may give each set its own ends and heads, and nothing here
+  precludes it — but nothing here provides it either, and that is a known limitation rather than an
+  oversight.
 - **An input format, and layout computed from a description.** Both are _Open questions_ in
   `docs/model.md`. A caller here supplies concrete positions and sizes.
 - **Diagonals, rounded corners as a shape's own choice, and a second stroke style per figure.** Out
