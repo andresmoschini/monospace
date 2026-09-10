@@ -39,6 +39,9 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0025](0025-every-feature-has-a-parent-issue.md)                   | Give every feature a parent issue, labeled `capability` or `foundational`       | accepted                             |
 | [0026](0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md) | Represent a cell as a sum of a stroke cell and a literal glyph                  | accepted                             |
 | [0027](0027-control-token-cost-through-session-discipline.md)      | Control token cost through session discipline, not by trimming artifacts        | accepted                             |
+| [0028](0028-give-each-fragment-its-own-cell-rule.md)               | Give each fragment its own cell rule instead of a cell parameter                | accepted                             |
+| [0029](0029-draw-a-line-end-as-one-arm.md)                         | Draw a line's end as one arm, and keep an arrow's head a chosen glyph           | accepted                             |
+| [0030](0030-drop-extent-until-a-caller-needs-it.md)                | Drop extent from the shape abstraction until a caller needs it                  | accepted                             |
 
 ## How to add one
 
