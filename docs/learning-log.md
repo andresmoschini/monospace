@@ -678,3 +678,61 @@ already showed.
   it was decided. What did need a fresh check was the specific claim "deleting this changes no
   buffer", which T007 ran again as a measurement, not as an inference from the ADRs' prior
   confidence.
+
+## 2026-09-09 — What the process costs, measured
+
+Two commits and no code: an ADR recording what a session costs and why the obvious economies are the
+wrong ones, and the habits that follow from it in `CLAUDE.md`. Issue #29 asked the question, and the
+answer contradicted the hypothesis it started from.
+
+### Working this way
+
+- **The first hypothesis was wrong by two orders of magnitude, and only a measurement could say
+  so.** The suspicion was that the constitution imported into `CLAUDE.md` was the cost, because it
+  is visible, it is ours, and it is in every session. It is about 5k tokens against an average
+  context of 264k over roughly 4,250 calls — 1.5% of a call, 1.2% of the total. Removing it would
+  have felt like progress, would have cost the rule that makes the other rules apply, and would have
+  changed nothing.
+- **Cost is quadratic in session length, which is invisible from inside a session.** Every call
+  re-reads the whole context, so the total is roughly `base x n + g x n^2 / 2`. Fitted to the
+  longest session measured — 658 calls, starting at 55k of context and ending at 755k — that
+  reproduces its measured total within 10%. The consequence is counter-intuitive: the same work
+  split across four sessions costs about a third, because the `base x n` term is identical either
+  way and only the squared term gets divided.
+- **The objection to clearing context is measurable, and it is noise.** A cold start costs about 53k
+  tokens of cache creation. Three extra starts against a saving three orders of magnitude larger is
+  not a trade-off, it is a rounding error. But that is exactly the objection that stops anyone from
+  clearing, and nobody could have dismissed it honestly without the number.
+- **A restructuring proposed for a good reason died to its own evidence.** Splitting
+  `docs/learning-log.md` per increment looked obviously right: it is 49KB, and it was read eleven
+  times in a single session. It was read in full every time, though, and reading only its last entry
+  costs a few hundred tokens instead of twelve thousand. The split would also have required amending
+  the constitution, which names the file by path. A reading habit bought the same saving for
+  nothing, and writing this entry used it — `sed -n '536,$p'` for the shape of the previous two
+  entries, rather than opening the file.
+- **Asked whether the governing documents could be shorter, the useful answer turned out to be a
+  different one.** The hypothesis was duplication between the constitution and `CONTRIBUTING.md`,
+  and it was wrong: `CONTRIBUTING.md` links rather than repeats in seven of its nine references, and
+  only two restatements existed. The real defect was addressability. Seventeen rules had names, in
+  bold, inside three headings, and thirty-two links across the repository resolved to those coarse
+  anchors — five of them into one section holding eight unrelated rules — while the constitution's
+  own Cross-references rule asks for citation by name. Promoting the names to headings took the
+  citable anchors from 12 to 29 and the body from 2,240 words to 2,238.
+
+### Trade-offs worth remembering
+
+- **The artifact volume was examined and kept.** A recent feature produced about 70KB of
+  specification artifacts against a workspace of some 2,260 lines of Rust. That ratio is principle I
+  working as intended rather than a defect, and the decision to keep paying it is now on the record.
+  The value of writing it down is not the decision, which changed nothing, but that the next person
+  to notice the ratio finds a decision there instead of an oversight.
+- **The cheapest lever is the one nothing can enforce.** The gate sees commits, not sessions, so
+  every rule this increment produced is a habit. ADR-0027 says so in its Confirmation section rather
+  than letting a reader assume a check exists. The honest substitute for enforcement is a
+  measurement that can be repeated: the transcripts carry per-call token counts, so a later
+  increment can recompute the average context per call and find out whether the habit held.
+- **Two words is a result, not a disappointment.** The amendment that made the constitution precise
+  changed its length by -2 words, which settles that precision and token cost are separate problems
+  rather than one problem with one fix. Had the cleanup been sold as a saving, the number would have
+  been an embarrassment; measured first and framed as addressability, it is the confirmation. The
+  order matters — measure, then decide what the change is for.

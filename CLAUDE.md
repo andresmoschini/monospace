@@ -28,6 +28,23 @@ restated here — two wordings of one rule is a rule that gets followed at rando
   thing. When it is settled practice, the conventional answer is the answer.
 - Talk to me in whatever language I write in. What lands in the repository is English regardless.
 
+## Running a session
+
+Every call re-reads the whole context, so a session costs its length squared rather than its length.
+[ADR-0027](docs/decisions/0027-control-token-cost-through-session-discipline.md) holds the
+measurement and the options it rejected. These are the habits it asks for, and nothing in the gate
+can check them — the gate sees commits, not sessions.
+
+- **One Spec Kit phase per session.** Clear the context between `/speckit-specify`, `/speckit-plan`,
+  `/speckit-tasks` and `/speckit-implement`. Each of them re-reads what it needs from the feature
+  directory anyway, so the artifacts are the handoff and the conversation is not.
+- **Read the part, not the file.** `docs/learning-log.md`, `docs/model.md`, `docs/glyph-sets.md` and
+  a feature's `spec.md` are large enough that opening one in full is a decision rather than a
+  reflex. Take a line range, or grep with context, unless the whole file is the subject. Appending
+  needs no read at all.
+- **Delegate a lookup that spans files.** When answering means opening several files and only the
+  conclusion matters, send a subagent, so the files never enter this context.
+
 ## Commands
 
 ```sh

@@ -38,6 +38,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0024](0024-take-the-feature-number-from-its-issue.md)             | Take a feature's number from its GitHub issue                                   | accepted                             |
 | [0025](0025-every-feature-has-a-parent-issue.md)                   | Give every feature a parent issue, labeled `capability` or `foundational`       | accepted                             |
 | [0026](0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md) | Represent a cell as a sum of a stroke cell and a literal glyph                  | accepted                             |
+| [0027](0027-control-token-cost-through-session-discipline.md)      | Control token cost through session discipline, not by trimming artifacts        | accepted                             |
 
 ## How to add one
 
