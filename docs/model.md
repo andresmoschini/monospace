@@ -51,7 +51,8 @@ when no character matches.
 | `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it |
 | `stamp`         | The single write operation                                                    |
 | `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided  |
-| `Shape`         | A value describing a figure, which draws itself into a buffer                 |
+| `Surface`       | One write operation and no reader; what a shape draws into                    |
+| `Shape`         | A value describing a figure, which draws itself into a surface                |
 | `Piece`         | A shape placed by another shape, given the positions it is to write           |
 | `Direction`     | Up, right, down or left: a way to move in the plane                           |
 | `Endpoint`      | Where an arrow ends: a position, the direction it leaves in, and a head       |
@@ -221,9 +222,13 @@ no mutable state and no lifecycle, so drawing the same shape twice produces the 
 no opinion about any other shape either — two that overlap compose through the stamp, in the order
 the caller draws them, exactly as any two stamps at those positions would.
 
-Shapes are the layer directly above the buffer, and they exist so that a caller describes a figure
-instead of computing positions and characters. Every position and every character inside a figure is
-the figure's own business. Deciding _where_ a figure goes is still not: the caller says where.
+Shapes are the layer directly above the buffer, and a shape draws into a **surface** rather than
+into the buffer itself: one write operation and no reader, so a fragment cannot inspect what lies
+beneath it even by accident. [ADR-0031](decisions/0031-a-shape-draws-into-a-surface.md) records the
+trait, and the one adapter the crate ships that binds a buffer to a stamp mode for it. Shapes exist
+so that a caller describes a figure instead of computing positions and characters. Every position
+and every character inside a figure is the figure's own business. Deciding _where_ a figure goes is
+still not: the caller says where.
 
 ### Pieces
 
@@ -261,7 +266,7 @@ A **fragment**'s description defines only the cells it writes. It adds no end an
 its own accord, and it exists to be placed by a shape that has already decided the geometry. Where a
 fragment needs something about its surroundings in order to choose what to write — whether the
 position beside it belongs to a sibling of the same figure, say — that arrives as part of its
-description. A fragment never inspects the buffer and never inspects its siblings.
+description. A fragment never inspects the surface it draws into and never inspects its siblings.
 
 What a fragment writes follows from what it is — a corner, a border run, an interior, an end, a head
 — rather than from a cell handed to it. The arms of a border run are _The cell_'s decision already,
