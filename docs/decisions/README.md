@@ -45,6 +45,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0031](0031-a-shape-draws-into-a-surface.md)                       | A shape draws into a surface, not into a buffer                                 | accepted                             |
 | [0032](0032-split-a-spec-into-three-staged-branches.md)            | Split a spec into three staged branches                                         | accepted                             |
 | [0033](0033-keep-the-flow-state-in-labels-on-one-issue.md)         | Keep the flow state in labels on one issue                                      | accepted                             |
+| [0034](0034-let-xtask-own-the-feature-branch.md)                   | Let xtask own the feature branch                                                | accepted                             |
 
 ## How to add one
 
