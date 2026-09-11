@@ -1031,3 +1031,47 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   the call site (`closes_interior: self.fill.is_some()`) reads as what it means without a second
   type; the "boolean blindness" argument research.md raised would earn its keep only once a second
   independent flag showed up on the same struct, which this feature doesn't add.
+
+## 2026-09-11 — Feature 054 implemented: glyph tables can come from outside the core
+
+### Rust design and idiom
+
+- **A table and a catalog turned out to be the same type once `from_rules` existed, and `light()`
+  collapsing to one line against it is the proof.** Research had already dropped a separate
+  `GlyphSet` type in favor of two associated functions on `GlyphCatalog`; implementing confirmed the
+  saving was real rather than theoretical — `light()` went from building a `HashMap` by hand to
+  `Self::from_rules(LIGHT.iter().map(...))`, and `monospace-glyph-sets::ascii()` is the identical
+  one-liner over a different table, in a crate that imports nothing from the core but public types.
+- **`HashMap::entry(..).or_insert(..)` is the one line that makes "first claim wins" true in both
+  `from_rules` and `union` without either function knowing about the other.** `union` folds each
+  catalog's already-built `rules` map through the same call `from_rules` uses on raw rows, so the
+  ordering rule is stated once, not twice, and there was nothing to reconcile between the two
+  functions' behavior when they were written independently.
+- **The demo's two crossings needed no new code to make one figure win over the other — the existing
+  `StampMode` semantics from feature 039 already decided it, and only measuring the actual output
+  showed which cells did the deciding.** A box's border only occupies its perimeter, not the
+  corner-to-corner rectangle it appears to span, so the shared cell between an overlapping ASCII and
+  Light box was not where a rectangle-intersection would suggest; running the built binary and
+  reading character positions found the real crossing cells before any test assertion was written
+  against them, which is what constitution principle IV asks for and what would have gone wrong from
+  reasoning about the geometry alone.
+
+### Working this way
+
+- **Implementing every phase before committing any of them meant the constitution's
+  structural-commit boundary had to be reconstructed after the fact, and reconstructing it once lost
+  a file's content.** `git stash push --keep-index` to isolate the crate-scaffold commit from the
+  CLI changes already written on top of it stashed nothing for `lib.rs`, because the file had
+  already been staged in its stub form with no unstaged diff left to capture — the full ASCII table
+  and its tests had to be retyped from what was still in this conversation's own context. Committing
+  after each `tasks.md` checkpoint, in the order the checkpoints are written, avoids the rewrite
+  entirely; writing the whole feature first and slicing commits afterward does not.
+
+### Trade-offs worth remembering
+
+- **The demo's two crossing cells are asserted at hand-found coordinates — `(28, 2)` and `(36, 2)` —
+  with nothing in the code tying them to the shapes that produce them.** A future edit to
+  `assets/demo.json` that moves either box changes what SC-009's test needs to point at, and the
+  test will fail loudly rather than silently pass on the wrong cell, which is the property that made
+  hand-found coordinates an acceptable trade against a more general "find any crossing" assertion
+  that FR-017 does not ask for.

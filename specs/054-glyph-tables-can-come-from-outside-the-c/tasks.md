@@ -30,23 +30,23 @@ land as one `feat`, the CLI switch and demo as a separate `feat`, kept apart).
 match before code relies on it — plan.md Summary), and scaffold the new crate the later phases fill
 in.
 
-- [ ] T001 Correct §5 _Strokes, glyph sets and the catalog_ in `docs/model.md`: it currently says
+- [x] T001 Correct §5 _Strokes, glyph sets and the catalog_ in `docs/model.md`: it currently says
       the common sets "ship with the library" (singular); amend it to say a set may ship with
       whichever library holds it, since `monospace-glyph-sets` now ships one too (FR-020)
-- [ ] T002 [P] Correct the opening note of `docs/glyph-sets.md` (currently "Nothing loads them yet")
+- [x] T002 [P] Correct the opening note of `docs/glyph-sets.md` (currently "Nothing loads them yet")
       to say the ASCII table is now carried as data by `monospace-glyph-sets` and Light by
       `monospace-core`, while Double, Heavy, Light Round and the mixing sets remain reference only
       (FR-021)
-- [ ] T003 Create `crates/monospace-glyph-sets/Cargo.toml`: package metadata matching
+- [x] T003 Create `crates/monospace-glyph-sets/Cargo.toml`: package metadata matching
       `crates/monospace-cli/Cargo.toml`'s shape (`name = "monospace-glyph-sets"`, a one-line
       `description`, `version.workspace = true`, `edition.workspace = true`,
       `authors.workspace = true`, `license.workspace = true`), a `monospace-core.workspace = true`
       dependency, and `[lints] workspace = true`
-- [ ] T004 Register `monospace-glyph-sets` in the root `Cargo.toml`: add
+- [x] T004 Register `monospace-glyph-sets` in the root `Cargo.toml`: add
       `"crates/monospace-glyph-sets"` to `[workspace].members` and
       `monospace-glyph-sets = { path = "crates/monospace-glyph-sets" }` to
       `[workspace.dependencies]` (depends on T003)
-- [ ] T005 Create `crates/monospace-glyph-sets/src/lib.rs` with a crate-level (`//!`) doc comment
+- [x] T005 Create `crates/monospace-glyph-sets/src/lib.rs` with a crate-level (`//!`) doc comment
       describing what the crate holds, so `cargo build --workspace` succeeds with the new empty
       member (depends on T004)
 
@@ -67,7 +67,7 @@ contracts/glyph-set-extension-point.md.
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T006 [P] [US1] In `crates/monospace-core/src/glyph.rs`'s `tests` module, add unit tests for
+- [x] T006 [P] [US1] In `crates/monospace-core/src/glyph.rs`'s `tests` module, add unit tests for
       `GlyphCatalog::from_rules` and `GlyphCatalog::union` using rules defined in the test module
       itself (not `LIGHT`): a key only one side holds answers from that side regardless of union
       order (Acceptance Scenario 1.3); a key two catalogs both claim answers from whichever was
@@ -77,14 +77,14 @@ contracts/glyph-set-extension-point.md.
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Implement
+- [x] T007 [US1] Implement
       `GlyphCatalog::from_rules(rules: impl IntoIterator<Item = (GlyphKey, Glyph)>) -> Self` in
       `crates/monospace-core/src/glyph.rs`: first claim wins within `rules`, via
       `HashMap::entry(..).or_insert(..)` (FR-001, FR-002)
-- [ ] T008 [US1] Implement `GlyphCatalog::union(catalogs: impl IntoIterator<Item = Self>) -> Self`
+- [x] T008 [US1] Implement `GlyphCatalog::union(catalogs: impl IntoIterator<Item = Self>) -> Self`
       in `crates/monospace-core/src/glyph.rs`, `#[must_use]`: folds each catalog's rules into one
       map in the order given, first claim wins across catalogs (FR-002, FR-003)
-- [ ] T009 [US1] Reimplement `GlyphCatalog::light()` in `crates/monospace-core/src/glyph.rs` to read
+- [x] T009 [US1] Reimplement `GlyphCatalog::light()` in `crates/monospace-core/src/glyph.rs` to read
       `Self::from_rules(LIGHT.iter().map(...))` (converting each `Row` into a `(GlyphKey, Glyph)`
       pair the way it does today), keeping its signature, its doc comment and its `#[must_use]`
       unchanged, so every existing caller keeps compiling and keeps producing the same catalog
@@ -107,7 +107,7 @@ space.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T010 [P] [US2] In `crates/monospace-glyph-sets/src/lib.rs`, add a `tests` module mirroring
+- [x] T010 [P] [US2] In `crates/monospace-glyph-sets/src/lib.rs`, add a `tests` module mirroring
       `monospace-core`'s Light tests: `ascii()` answers all fifteen non-empty combinations of the
       `ascii` stroke (SC-005, mirrors `light_answers_every_non_empty_combination_of_its_own_stroke`
       in `crates/monospace-core/src/glyph.rs`); a box drawn with `monospace_core::BoxShape` and
@@ -117,17 +117,17 @@ space.
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] In `crates/monospace-glyph-sets/src/lib.rs`, add a private `const ASCII: &[Row]`
+- [x] T011 [US2] In `crates/monospace-glyph-sets/src/lib.rs`, add a private `const ASCII: &[Row]`
       table (reusing `monospace-core`'s private `Row` tuple shape —
       `(Option<&'static str>, Option<&'static str>, Option<&'static str>, Option<&'static str>, &'static str)`
       — declared locally since it is not exported by `monospace-core`) holding the fifteen rows
       `docs/glyph-sets.md`'s _ASCII_ table records, verbatim and in the same order, with `"ascii"`
       as the stroke name (FR-011)
-- [ ] T012 [US2] In `crates/monospace-glyph-sets/src/lib.rs`, implement
+- [x] T012 [US2] In `crates/monospace-glyph-sets/src/lib.rs`, implement
       `pub fn ascii() -> monospace_core::GlyphCatalog`, `#[must_use]`, built via
       `GlyphCatalog::from_rules` over `ASCII` the same way `monospace-core::glyph::light()` builds
       its catalog over `LIGHT` (FR-007, FR-009, FR-012)
-- [ ] T013 [US2] Extend the `wasm` step's package list in `xtask/src/main.rs` with
+- [x] T013 [US2] Extend the `wasm` step's package list in `xtask/src/main.rs` with
       `"-p", "monospace-glyph-sets"` alongside `"monospace-core"`, so `cargo xtask check` proves
       this crate builds for `wasm32-unknown-unknown` too (FR-010)
 
@@ -148,21 +148,21 @@ whichever figure is in front.
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Add `monospace-glyph-sets.workspace = true` to `[dependencies]` in
+- [x] T014 [US3] Add `monospace-glyph-sets.workspace = true` to `[dependencies]` in
       `crates/monospace-cli/Cargo.toml`
-- [ ] T015 [US3] In `crates/monospace-cli/src/description.rs`, change `Description::render` to build
+- [x] T015 [US3] In `crates/monospace-cli/src/description.rs`, change `Description::render` to build
       its catalog with `GlyphCatalog::union([GlyphCatalog::light(), monospace_glyph_sets::ascii()])`
       instead of `GlyphCatalog::light()` alone (FR-014)
-- [ ] T016 [US3] Add shapes whose `"stroke"` is `"ascii"` to
+- [x] T016 [US3] Add shapes whose `"stroke"` is `"ascii"` to
       `crates/monospace-cli/assets/demo.json`, on the existing canvas alongside the current
       `"light"` shapes, growing `canvas.size` if needed to fit them (FR-015, FR-016); leave every
       existing shape's position, size and stroke unchanged (FR-018)
-- [ ] T017 [US3] Add two crossings between an ASCII figure and a Light figure to
+- [x] T017 [US3] Add two crossings between an ASCII figure and a Light figure to
       `crates/monospace-cli/assets/demo.json`: one where the ASCII figure's `"mode"` is `"above"`
       relative to a Light figure already on the canvas, one where a Light figure's `"mode"` is
       `"above"` relative to an ASCII figure, so each shared cell is decided by which figure is in
       front (FR-017)
-- [ ] T018 [US3] Extend `crates/monospace-cli/tests/cli.rs`: assert the no-argument run's stdout
+- [x] T018 [US3] Extend `crates/monospace-cli/tests/cli.rs`: assert the no-argument run's stdout
       contains at least one box-drawing character and at least one of `+`, `-`, `|` (SC-003), and
       assert the two crossing cells added in T017 — at their known positions in the demo's output —
       hold the front figure's table's character (SC-009): the ASCII-in-front crossing is `+`, `-` or
@@ -178,11 +178,11 @@ and the new assertions from T018 passing.
 
 **Purpose**: close the increment per constitution principle II.
 
-- [ ] T019 Run the whole gate on a fresh clone (`cargo xtask check`, per constitution principle IV)
+- [x] T019 Run the whole gate on a fresh clone (`cargo xtask check`, per constitution principle IV)
       and the manual checks in `quickstart.md` (`cargo build --workspace`, `cargo test --workspace`,
       `cargo run -p monospace-cli`,
       `cargo check -p monospace-core -p monospace-glyph-sets --target wasm32-unknown-unknown`)
-- [ ] T020 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T020 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design (the no-new-type decision in research.md — a table and a catalog sharing one contract)
       and about working this way, with evidence from what was tried
 
