@@ -4,9 +4,10 @@ A glyph set maps a combination of four arms to the character that draws it. The 
 the top, right, bottom and left sides of a cell; each holds the name of the stroke that runs to that
 side, or nothing when no stroke does. The fifth column is the character.
 
-These are the sets the project starts from. Nothing loads them yet: this file is the reference data
-for the spec that introduces the built-in sets, and for the one that adds loading from a file. Users
-will be able to add their own, and a set may hold any combination it has a character for.
+These are the sets the project starts from. The ASCII table below is carried as data by
+`monospace-glyph-sets`, and Light by `monospace-core`; Double, Heavy, Light Round and the mixing
+sets remain reference only, with nothing loading them yet. Users will be able to add their own, and
+a set may hold any combination it has a character for.
 
 The five single-stroke sets are complete. Each holds 15 rows, which is every combination of four
 sides except the empty one. That completeness is what the rule in
