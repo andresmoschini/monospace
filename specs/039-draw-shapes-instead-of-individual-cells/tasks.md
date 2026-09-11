@@ -229,13 +229,13 @@ at least once.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T012 Verify the box's one guard is reached: delete the "below 2 in either dimension" condition
+- [x] T012 Verify the box's one guard is reached: delete the "below 2 in either dimension" condition
       in `crates/monospace-core/src/shape/box_shape.rs`, confirm user story 1's fourth scenario test
       fails, then restore (SC-004)
-- [ ] T013 Verify the write counter can fail: change `Route`'s draw in
+- [x] T013 Verify the write counter can fail: change `Route`'s draw in
       `crates/monospace-core/src/shape/route.rs` so two of its pieces share a bend, confirm the
       counting surface reports 2 at that position, then restore (SC-006)
-- [ ] T014 Verify the gate on a fresh clone: `git clone` this repository elsewhere, run
+- [x] T014 Verify the gate on a fresh clone: `git clone` this repository elsewhere, run
       `cargo xtask setup && cargo xtask check` there, and confirm it passes (SC-009)
 - [ ] T015 Append this increment's entry to `docs/learning-log.md`
 
