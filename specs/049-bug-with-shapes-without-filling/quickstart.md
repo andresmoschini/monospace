@@ -56,6 +56,27 @@ see the table above for the two expected outputs (both unfilled → crossings; t
 the fill's own interior stays closed, at the two cells this feature is about, and elsewhere the
 border is exactly the same run of glyphs the box always renders alone).
 
+## A horizontal overlap, for good measure
+
+`quickstart-example-adjacent-boxes.json` places two unfilled 4×3 boxes at the same row, the second
+shifted two columns into the first instead of offset diagonally like the main example above:
+
+```sh
+cargo run -q -p monospace-cli -- specs/049-bug-with-shapes-without-filling/quickstart-example-adjacent-boxes.json
+```
+
+```text
+┌─┬┬─┐
+│ ││ │
+└─┴┴─┘
+```
+
+Each of the two overlapping cells is where one box's corner lands on the other's border, and both
+merge into a T-junction rather than either box drawing its own edge on top of the other's — an
+unfilled shape's interior side stays open to whatever else needs that cell, exactly as at the
+diagonal overlap above, just along one row instead of across two. Backed by
+`two_unfilled_boxes_overlapping_horizontally_merge_into_t_junctions` in `box_shape.rs`.
+
 ## What must not change
 
 ```sh

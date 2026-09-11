@@ -361,13 +361,15 @@ mod tests {
         );
     }
 
-    /// Two unfilled boxes placed side by side, sharing no cell, render exactly as each would
-    /// alone — being next to another shape is not the same as overlapping it.
+    /// Two unfilled boxes at the same row, overlapping horizontally by two columns, merge cleanly
+    /// into T-junctions at both cells where one's corner lands on the other's border — an
+    /// unfilled shape's interior side stays open to whatever else needs that cell, here as much
+    /// as at the diagonal overlap the bug was reported against.
     #[test]
-    fn two_adjacent_unfilled_boxes_render_independently() {
+    fn two_unfilled_boxes_overlapping_horizontally_merge_into_t_junctions() {
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
-            width: 8,
+            width: 6,
             height: 3,
         };
         let mut buffer = Buffer::new(origin, size);
@@ -383,7 +385,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
         BoxShape {
-            at: Pos { x: 4, y: 0 },
+            at: Pos { x: 2, y: 0 },
             size: Size {
                 width: 4,
                 height: 3,
@@ -395,6 +397,6 @@ mod tests {
 
         let text = render(&buffer, &GlyphCatalog::light(), origin, size);
 
-        assert_eq!(text, "┌──┐┌──┐\n│  ││  │\n└──┘└──┘\n");
+        assert_eq!(text, "┌─┬┬─┐\n│ ││ │\n└─┴┴─┘\n");
     }
 }

@@ -96,12 +96,12 @@ before this feature) still passes unchanged, confirming FR-003 / SC-002.
 
 ## Phase 4: Polish & Cross-Cutting Concerns
 
-- [ ] T005 [P] Run `quickstart.md`'s validation by running `monospace-cli` against
+- [x] T005 [P] Run `quickstart.md`'s validation by running `monospace-cli` against
       `specs/049-bug-with-shapes-without-filling/quickstart-example.json` (see quickstart.md for the
       exact command); it must print the crossing output quickstart.md records under "After the fix".
       Then add `"fill": "░"` to the second shape in that file and re-run: it must print the
       closed-junction output instead.
-- [ ] T006 [P] Run `cargo test --workspace` and confirm all pre-existing tests plus T002's and
+- [x] T006 [P] Run `cargo test --workspace` and confirm all pre-existing tests plus T002's and
       T003's new ones pass, with no other test's expected output changed (SC-002).
 - [ ] T007 Append an entry to `docs/learning-log.md` for this increment, per constitution principle
       II: what was learned about Rust design (giving an existing fragment one more caller-supplied
