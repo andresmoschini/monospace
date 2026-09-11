@@ -193,7 +193,7 @@ and `(8, 2)`, and confirm the texts within each group differ; for every row of t
 families table, either compare against a picture or confirm the buffer is untouched; draw every
 arrow above against the counting surface and confirm no position is written more than once.
 
-- [ ] T009 [US3] Add the `head` submodule to `crates/monospace-core/src/shape/fragment.rs`,
+- [x] T009 [US3] Add the `head` submodule to `crates/monospace-core/src/shape/fragment.rs`,
       implementing `Head` (`pub(crate)`) per data-model.md's cell rule, with a unit test — ADR-0029;
       implement `Endpoint` and `Arrow` (both `pub`) in `crates/monospace-core/src/shape/arrow.rs` —
       deriving the route path per research.md Q5's lattice enumeration, fewest-bends and
