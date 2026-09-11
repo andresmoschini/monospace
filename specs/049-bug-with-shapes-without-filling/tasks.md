@@ -41,7 +41,7 @@ with each other (research.md, "`docs/model.md` disagrees with itself"). The mode
 so this is corrected before the code that follows it, per the constitution's "if a slice needs a
 rule the model does not have, the model changes first."
 
-- [ ] T001 In `docs/model.md`, section 7 ("The initial set"), correct the box's description
+- [x] T001 In `docs/model.md`, section 7 ("The initial set"), correct the box's description
       (currently: "`Set` along the run, `Closed` on the side facing its own interior, `Unset`
       outward") to state that the interior-facing side is `Closed` only when the box has a fill, and
       `Unset` otherwise — matching section 3 ("The cell")'s already-correct statement about a filled
