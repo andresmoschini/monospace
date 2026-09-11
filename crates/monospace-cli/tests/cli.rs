@@ -254,3 +254,53 @@ fn more_than_one_argument_prints_usage_and_fails() {
     assert!(output.stdout.is_empty(), "printed to stdout");
     assert!(!output.stderr.is_empty(), "wrote nothing to stderr");
 }
+
+/// Returns the character at `(x, y)` in `output`, treating each line as a row and each `char` as
+/// a column, the same coordinates the demo's `canvas` uses.
+fn char_at(output: &str, x: usize, y: usize) -> char {
+    output
+        .lines()
+        .nth(y)
+        .and_then(|line| line.chars().nth(x))
+        .unwrap_or_else(|| panic!("no character at ({x}, {y}) in {output:?}"))
+}
+
+/// User story 3, SC-003: with no arguments, the demonstration contains both a box-drawing
+/// character (from Light) and one of `+`, `-`, `|` (from ASCII).
+#[test]
+fn the_demonstration_contains_both_light_and_ascii_characters() {
+    let output = run(&[]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains(['┌', '┐', '└', '┘', '│', '─', '┬', '┴', '├', '┤', '┼']),
+        "no box-drawing character in {stdout:?}"
+    );
+    assert!(
+        stdout.contains(['+', '-', '|']),
+        "no ASCII box character in {stdout:?}"
+    );
+}
+
+/// User story 3, FR-017, SC-009: at the two crossings between an ASCII figure and a Light figure
+/// added to the demo, the shared cell reads from whichever figure is in front. `(28, 2)` is where
+/// an ASCII box, drawn with `mode: "above"` after a Light box already on the canvas, shares a
+/// border cell with it; `(36, 2)` is where a Light box, drawn with `mode: "above"` after an ASCII
+/// box, shares a border cell with it.
+#[test]
+fn the_two_crossings_read_from_whichever_figure_is_in_front() {
+    let output = run(&[]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    let ascii_in_front = char_at(&stdout, 28, 2);
+    assert!(
+        matches!(ascii_in_front, '+' | '-' | '|'),
+        "expected an ASCII character at (28, 2), got {ascii_in_front:?}"
+    );
+
+    let light_in_front = char_at(&stdout, 36, 2);
+    assert_eq!(
+        light_in_front, '┼',
+        "expected the Light crossing character at (36, 2)"
+    );
+}

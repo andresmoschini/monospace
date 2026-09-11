@@ -246,7 +246,8 @@ impl Description {
         for shape in &self.shapes {
             shape.draw(&mut buffer);
         }
-        monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
+        let catalog = GlyphCatalog::union([GlyphCatalog::light(), monospace_glyph_sets::ascii()]);
+        monospace_core::render(&buffer, &catalog, origin, size)
     }
 }
 
