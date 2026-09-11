@@ -143,11 +143,11 @@ diagram shows all three shapes, a filled interior, and both stamp modes.
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Write `crates/monospace-cli/assets/demo.json`: a `Description` exercising all three
+- [x] T014 [US2] Write `crates/monospace-cli/assets/demo.json`: a `Description` exercising all three
       shapes, a filled box interior, overlap, and both stamp modes shown as two overlapping
       arrangements side by side on one canvas (FR-010), in the format
       contracts/description-format.md states. Depends on Phase 2 (T002–T011).
-- [ ] T015 [US2] In `crates/monospace-cli/src/main.rs`, embed that file with
+- [x] T015 [US2] In `crates/monospace-cli/src/main.rs`, embed that file with
       `include_str!("../assets/demo.json")` (FR-022, FR-023) as the description text used when no
       argument is given, parsed and rendered through the same path as T012; remove `stamp_box`,
       `render_pair` and every other hardcoded shape from `main.rs` (FR-018, SC-006). Depends on
@@ -155,7 +155,7 @@ diagram shows all three shapes, a filled interior, and both stamp modes.
 
 ### Tests for User Story 2
 
-- [ ] T016 [US2] Replace `crates/monospace-cli/tests/cli.rs`'s `prints_the_box_then_both_pairs` test
+- [x] T016 [US2] Replace `crates/monospace-cli/tests/cli.rs`'s `prints_the_box_then_both_pairs` test
       with subprocess tests asserting: no arguments prints the demonstration and exits successfully
       (acceptance scenario 1); running from a different working directory prints the same diagram
       (acceptance scenario 2, FR-022); passing `crates/monospace-cli/assets/demo.json` explicitly

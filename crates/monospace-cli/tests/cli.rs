@@ -25,28 +25,49 @@ fn run(args: &[&str]) -> Output {
         .expect("the monospace-cli binary should be runnable")
 }
 
-/// The binary must print the single 4x3 box with its interior filled, then the same pair of
-/// overlapping filled boxes stamped two ways: the second box `Above`, then `Below`, each pair
-/// labelled.
-///
-/// In the `Above` pair, `┴` and `┤` open toward the first box: the second box abstains outward,
-/// so the first box's stroke survives on the side facing away from the second — and the second
-/// box's fill (`░`) covers the first box's corner, since the second box is in front. In the
-/// `Below` pair the roles swap — `├` and `┬` open toward the second box, because `Below` only
-/// writes the sides the first box left `Unset`, and the first box's fill survives over the second
-/// box's corner instead, since the first box is in front there.
+/// The shipped demonstration's path, relative to the workspace root, so a test can pass it
+/// explicitly the same way a user would.
+const DEMO_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/demo.json");
+
+/// User story 2, acceptance scenario 1: with no arguments, the binary prints the shipped
+/// demonstration and exits successfully, with nothing on stderr.
 #[test]
-fn prints_the_box_then_both_pairs() {
-    let output = Command::new(env!("CARGO_BIN_EXE_monospace-cli"))
-        .output()
-        .expect("the monospace-cli binary should be runnable");
+fn no_arguments_prints_the_demonstration_and_exits_successfully() {
+    let output = run(&[]);
 
     assert!(output.status.success(), "exited with {}", output.status);
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout).into_owned(),
-        "┌──┐\n│░░│\n└──┘\n\nAbove:\n┌──┐  \n│░┌┴─┐\n└─┤░░│\n  └──┘\n\nBelow:\n┌──┐  \n│░░├─┐\n└─┬┘░│\n  └──┘\n"
-    );
+    assert!(!output.stdout.is_empty(), "printed nothing");
     assert!(output.stderr.is_empty(), "wrote to stderr");
+}
+
+/// User story 2, acceptance scenario 2, FR-022: running with no arguments from a different
+/// working directory prints the same diagram, since the demonstration is embedded in the binary
+/// rather than read from a path relative to the working directory.
+#[test]
+fn running_from_a_different_working_directory_prints_the_same_diagram() {
+    let from_temp_dir = Command::new(env!("CARGO_BIN_EXE_monospace-cli"))
+        .current_dir(std::env::temp_dir())
+        .output()
+        .expect("the monospace-cli binary should be runnable from the temp directory");
+    let from_manifest_dir = Command::new(env!("CARGO_BIN_EXE_monospace-cli"))
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("the monospace-cli binary should be runnable from its manifest directory");
+
+    assert_eq!(from_temp_dir.stdout, from_manifest_dir.stdout);
+}
+
+/// User story 2, acceptance scenario 3: passing the shipped demonstration's own path explicitly
+/// produces byte-identical output to no arguments, since both parse the same text through the
+/// same `Description::render` path.
+#[test]
+fn the_demo_path_passed_explicitly_matches_no_arguments() {
+    let no_arguments = run(&[]);
+    let explicit_path = run(&[DEMO_PATH]);
+
+    assert!(no_arguments.status.success());
+    assert!(explicit_path.status.success());
+    assert_eq!(no_arguments.stdout, explicit_path.stdout);
 }
 
 /// User story 1, acceptance scenario 1: an explicit path to a hand-written single-box file
