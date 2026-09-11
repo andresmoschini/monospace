@@ -103,7 +103,7 @@ before this feature) still passes unchanged, confirming FR-003 / SC-002.
       closed-junction output instead.
 - [x] T006 [P] Run `cargo test --workspace` and confirm all pre-existing tests plus T002's and
       T003's new ones pass, with no other test's expected output changed (SC-002).
-- [ ] T007 Append an entry to `docs/learning-log.md` for this increment, per constitution principle
+- [x] T007 Append an entry to `docs/learning-log.md` for this increment, per constitution principle
       II: what was learned about Rust design (giving an existing fragment one more caller-supplied
       fact instead of inventing a new fragment or a post-hoc pass) and about working this way
       (measuring the bug and the fix with a reverted probe test before writing the plan, per
