@@ -736,3 +736,80 @@ answer contradicted the hypothesis it started from.
   rather than one problem with one fix. Had the cleanup been sold as a saving, the number would have
   been an embarrassment; measured first and framed as addressability, it is the confirmation. The
   order matters — measure, then decide what the change is for.
+
+## 2026-09-10 — Reviewing feature 039's research, before agreeing the plan
+
+Three commits and no code: three ADRs, the model amended for them, and the spec amended after them.
+The plan for feature 039 had been written and was waiting to be agreed; reading its Phase 0 research
+critically instead of accepting it found one design defect, one reversed conclusion, one abstraction
+nobody used, and two miscounts in a spec that had already been through `/speckit-clarify`.
+
+### Design and idiom
+
+- **A leaf that takes a `Cell` is a leaf that has no rule, and the rule then gets restated at every
+  call site.** The plan's single geometric fragment — position, size and a `Cell`, with three named
+  constructors — looked like good factoring: it removes the loop over a rectangle, which is the only
+  duplication a leaf has. The evidence that it was wrong was in the plan's own `data-model.md`: the
+  box's decomposition table had nine rows and a column giving the four arms of each, which is one
+  rule of _The cell_ written out nine times. Six fragments named for their role, each deriving its
+  own cell, made the same table two columns narrower and moved the rule to where the model already
+  said it lived.
+- **The reason to split a type is which decision it owns, not how much code it saves.** The research
+  had considered three named types and rejected them on the ground that their `draw` bodies would be
+  the same loop. That measured the wrong axis. The loop survives as one private helper either way;
+  what only a named type can carry is that a border run closes the side facing its interior and a
+  free segment does not.
+- **Two enums for four values is right when the four values mean two different things.** `Side` and
+  `Direction` are top/right/bottom/left and up/right/down/left. Collapsing them was proposed and
+  refused: a side is a place on a cell, a direction is a way to move. Keeping them apart turned out
+  to name a layering rule as well — a piece is told sides and positions already computed, and the
+  figure above it is the only thing that reasons in directions.
+- **A one-armed cell was the answer to a question nobody had asked it.** The model had measured that
+  a single-arm cell renders as a segment, concluded that an end must therefore be a chosen glyph,
+  and stopped. The measurement was right and the conclusion was not: what an end is for is the join,
+  not the character. Two lines meeting at right angles with an arm each render the corner they make,
+  which a literal cannot do, because nothing connects into a literal. The visible end was the thing
+  being optimized for, and it was the thing least worth having.
+
+### Working this way
+
+- **The review that pays is the one before the plan is agreed.** _No code before the plan is agreed_
+  reads like a formality until the plan is read for what it decided rather than for whether it looks
+  complete. Four of the five findings were invisible in the spec and visible in the plan, because a
+  plan has to name types and a spec does not. All of them would have been code by the time anyone
+  noticed.
+- **"What reads this?" removed an abstraction that three requirements were built on.** `Extent` had
+  a row in the model's _Vocabulary_, a subsection of its own, two functional requirements, an
+  acceptance scenario and a line in the trait. Asked what would break if it went, the answer was two
+  tests and a restatement of "no position is written twice" — and one of the two tests existed only
+  to justify a piece that writes nothing. The removal took a documented model concept with it, which
+  is why it needed a record rather than a deletion.
+- **A number the spec already recorded was the thing that decided the argument.** "A single-arm cell
+  is not an end" was sitting in the spec's _Assumptions_, sourced to the Light table. Re-reading the
+  table rather than the assumption showed the measurement held across every single-stroke set and
+  that the four half-line characters are in no set at all — which is what made the choice concrete:
+  an end costs a picture, and the alternative costs rewriting four keys that already answer.
+- **Answers to questions about a prior implementation were worth more than its diagrams.** Four
+  Mermaid files gave the module structure; two sentences about what distinguished
+  `connectors::Corner` from `corners::TopLeft`, and what `terminals::Line` delegated to, gave the
+  layering rule and the join semantics. The diagrams said what the parts were, and only the prose
+  said why.
+
+### Trade-offs worth remembering
+
+- **A rule with no answer for one input is not total, however exhaustive its cases look.** The
+  research claimed its routing rule landed every pair of directions in a branch. Working the
+  alternating-polyline rule by hand against the unpinned families found two arrangements where the
+  route rectangle is one cell thick and no alternating path fits at all — which is the same class of
+  hole as the `_ => draw nothing` arm that the spec already records as a defect in an earlier
+  implementation. The fix was to make the empty route an outcome of the rule and say so, not to add
+  a branch.
+- **Reversing a conclusion is cheaper than reversing a decision, and the model is where conclusions
+  live.** _The glyph at an end and at a head_ was prose in `docs/model.md`, not an ADR, so reversing
+  half of it cost one amendment and one new record rather than a supersession chain. That is the
+  split working as intended: the model holds design intent that is expected to move, and
+  `decisions/` holds what must not be edited.
+- **Numbers were retired rather than reused.** FR-010 and FR-011 are gone from the spec and their
+  numbers stay empty, because the ADR that withdrew them cites them by number. A renumbered spec
+  would have been tidier to read and would have made three references in `decisions/` point at
+  requirements that mean something else.
