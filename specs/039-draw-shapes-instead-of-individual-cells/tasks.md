@@ -163,7 +163,7 @@ each returns normally and writes no position more than once.
       8 of user story 2 — the horizontal and vertical pictures, the arm inspection at `(0, 0)`,
       lengths 2, 1 and 0, and the write count via the counting surface from T005 — with rustdoc
       saying `Line` is complete
-- [ ] T008 [US2] Add the join test to `crates/monospace-core/src/shape/line.rs`'s test module: a
+- [x] T008 [US2] Add the join test to `crates/monospace-core/src/shape/line.rs`'s test module: a
       horizontal line and a vertical line whose ends land on `(0, 0)` render `┌` there, in both
       drawing orders and under both `StampMode`s (scenario 4) — what confirms ADR-0029
 
