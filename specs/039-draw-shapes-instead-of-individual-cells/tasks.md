@@ -154,7 +154,7 @@ vertical line whose ends land on one position and confirm that position renders 
 make, in both drawing orders and under both stamp modes; draw lines of length 2, 1 and 0 and confirm
 each returns normally and writes no position more than once.
 
-- [ ] T007 [US2] Add the `end` and `segment` submodules to
+- [x] T007 [US2] Add the `end` and `segment` submodules to
       `crates/monospace-core/src/shape/fragment.rs`, implementing `End` and `Segment` (both
       `pub(crate)`) per data-model.md's per-fragment cell rules, each with its own unit test —
       ADR-0029 for `End`; implement `Line` (`pub`) in `crates/monospace-core/src/shape/line.rs`: an
