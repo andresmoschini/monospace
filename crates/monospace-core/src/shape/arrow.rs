@@ -536,4 +536,58 @@ mod tests {
         assert_ne!(six, eight);
         assert_ne!(seven, eight);
     }
+
+    /// The direction families table's identical-directions row, the geometry where a path fits:
+    /// both endpoints leaving `Right`, one heading toward the other end and one heading away.
+    /// Produced by running the code, per _Claims are measured, not assumed_ — the row is
+    /// deliberately not pinned by the spec.
+    #[test]
+    fn identical_directions_where_a_path_fits() {
+        let text = render_arrow(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 8,
+                height: 3,
+            },
+            endpoint(Pos { x: 2, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 6, y: 2 }, Direction::Right),
+        );
+
+        assert_eq!(text, "  ◄────┐\n       │\n      ◄┘\n");
+    }
+
+    /// The direction families table's identical-directions row, the geometry where the two
+    /// endpoints are in line on that axis: the route rectangle is one cell thick, no alternating
+    /// path fits inside it, and the route is empty — the arrow is its two heads, per _The route
+    /// of an arrow_.
+    #[test]
+    fn identical_directions_in_line_gives_an_empty_route() {
+        let text = render_arrow(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 5,
+                height: 1,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 4, y: 0 }, Direction::Right),
+        );
+
+        assert_eq!(text, "◄   ◄\n");
+    }
+
+    /// The direction families table's last row and user story 3's scenario 13: an arrow whose
+    /// two endpoints coincide returns normally — no error, no panic. What it draws is the general
+    /// rule's business and is deliberately not asserted here.
+    #[test]
+    fn both_endpoints_at_the_same_position_returns_normally() {
+        let _ = render_arrow(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 0, y: 0 }, Direction::Left),
+        );
+    }
 }
