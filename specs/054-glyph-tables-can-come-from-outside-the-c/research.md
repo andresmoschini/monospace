@@ -6,72 +6,75 @@ file covers exactly the open question and the small choices it drags in.
 
 ## The extension point's shape
 
-**Decision**: Add a `GlyphSet` value type to `monospace-core`, holding an ordered group of
-`(GlyphKey, Glyph)` rows, and a `GlyphCatalogBuilder` that consumes `GlyphSet` values one at a time,
-in the order they are given, inserting each row only when its key is not already claimed.
+**Decision**: Add no new type. A table and a catalog already answer to the same contract — a lookup
+from a `GlyphKey` to a `Glyph` — so a table from outside is just a `GlyphCatalog` built from its own
+rows, and combining tables is building one `GlyphCatalog` out of others. Two associated functions on
+the existing type carry the whole extension point:
 
 ```rust
-pub struct GlyphSet { /* private: Vec<(GlyphKey, Glyph)> */ }
-impl GlyphSet {
-    pub fn new(rows: impl IntoIterator<Item = (GlyphKey, Glyph)>) -> Self;
-    pub fn light() -> Self; // the table monospace-core already ships
-}
-
-pub struct GlyphCatalogBuilder { /* private: HashMap<GlyphKey, Glyph> */ }
-impl GlyphCatalogBuilder {
-    #[must_use] pub fn with(self, set: GlyphSet) -> Self; // first claim wins
-    #[must_use] pub fn build(self) -> GlyphCatalog;
-}
-
 impl GlyphCatalog {
-    pub fn builder() -> GlyphCatalogBuilder;
-    pub fn light() -> Self; // unchanged signature; now Self::builder().with(GlyphSet::light()).build()
+    /// Builds a catalog from an ordered group of rules. First claim wins.
+    pub fn from_rules(rules: impl IntoIterator<Item = (GlyphKey, Glyph)>) -> Self;
+
+    /// Builds a catalog by merging other catalogs, in the order given. Where two claim the same
+    /// key, the earlier one in the order wins.
+    #[must_use]
+    pub fn union(catalogs: impl IntoIterator<Item = Self>) -> Self;
+
+    // Existing, unchanged signature; now `Self::from_rules(LIGHT)`.
+    pub fn light() -> Self;
 }
 ```
 
-`monospace-glyph-sets` then needs nothing from the core beyond `GlyphKey`, `Glyph`, `Stroke` and
-`GlyphSet`, all already public or made public by this feature, to expose its own:
+`monospace-glyph-sets` needs nothing from the core beyond `GlyphKey` (public fields), `Glyph::new`
+(already public) and `GlyphCatalog::from_rules`, to expose its own:
 
 ```rust
-pub fn ascii() -> monospace_core::GlyphSet;
+pub fn ascii() -> monospace_core::GlyphCatalog;
+```
+
+and the CLI combines the two by:
+
+```rust
+GlyphCatalog::union([GlyphCatalog::light(), monospace_glyph_sets::ascii()])
 ```
 
 **Rationale**:
 
-- It names the thing the model already names. `docs/model.md` calls the entity `GlyphSet`; giving it
-  a concrete Rust type lets `monospace-glyph-sets` return something with a name in its own public
-  API instead of an opaque `impl Iterator<Item = (GlyphKey, Glyph)>` the caller would have to spell
-  out.
-- The builder is the settled shape for "assemble a value from a variable number of parts, in an
-  order the caller states" in Rust — nothing here invents a pattern the ecosystem does not already
-  use for this.
-- `GlyphSet` stays opaque: it exposes no accessor to its rows or their origin, so there is no way to
-  ask a `GlyphSet` — let alone a built `GlyphCatalog` — which table a rule came from (FR-003). Rows
-  go in through `new`, a `GlyphCatalogBuilder` drains them into one `HashMap`, and nothing
-  downstream keeps the grouping.
-- First-claim-wins falls out of `HashMap::entry(..).or_insert(..)` for free: exactly the rule
-  `docs/model.md` already states under _Strokes, glyph sets and the catalog_, so the builder
-  implements an existing decision rather than making a new one.
-- `GlyphSet::light()` is added so the CLI can put the core's own table into the same builder as an
-  outside one (FR-014); `GlyphCatalog::light()` keeps its signature and existing callers, now
-  implemented in terms of it, so nothing that calls it today needs to change.
+- No new type earns its keep here. A "table" and a "catalog" already have the same shape — a set of
+  rules answering one lookup — so giving the table its own type (`GlyphSet`, considered and dropped;
+  see below) would be two names for one contract. `GlyphCatalog` already documents "answering a key
+  is one lookup" and already hides where a rule came from; a single-table catalog is not a special
+  case of that, it is the ordinary case with one contributor instead of several.
+- `union` replaces a builder. A builder earns its keep when construction has to happen in steps
+  interleaved with other logic (conditionally adding sets, say); this feature always builds the same
+  two-catalog list at once, so a plain function over an ordered collection says the same thing with
+  one call instead of a chain, and with one fewer type to document and test.
+- First-claim-wins falls out of `HashMap::entry(..).or_insert(..)` in both `from_rules` (across a
+  single table's own rows) and `union` (across catalogs), so both functions implement the one rule
+  `docs/model.md` already states under _Strokes, glyph sets and the catalog_ rather than inventing a
+  second one.
+- Nothing new is added to answer "which rule came from where": a `GlyphCatalog` built by `union`
+  looks exactly like one built by `from_rules` or by `light()`, because it is the same type built
+  the same way, which is the simplest way to keep FR-003 true.
 
 **Alternatives considered**:
 
-- **A free function taking an ordered `Vec<GlyphSet>`** (`GlyphCatalog::from_sets(sets)`) — rejected
-  because a caller who wants to add sets conditionally (a feature flag, a CLI option added later)
-  would have to build the `Vec` by hand first; the builder chains that construction instead, and
-  costs nothing extra for the CLI's fixed two-table case.
-- **A trait such as `IntoGlyphSet`** implemented by whatever an outside crate wants to contribute —
-  rejected as a concept with no behavior it doesn't already have: `GlyphSet::new` from an iterator
-  of `(GlyphKey, Glyph)` is already everything a table needs to hand over, since `GlyphKey`'s fields
-  are public and `Glyph::new` is already the public way to make one. A trait would add a name to
-  learn without adding a capability.
-- **No `GlyphSet` type at all**, just
-  `GlyphCatalogBuilder::with(rows: impl IntoIterator<Item = (GlyphKey, Glyph)>)` — rejected because
-  it leaves the model's `GlyphSet` entity with no corresponding type in the one crate that could
-  give it one, and because `monospace-glyph-sets`'s public API would then have to write out the
-  iterator type inline rather than naming what it returns.
+- **A distinct `GlyphSet` type, with a `GlyphCatalogBuilder` to assemble a `GlyphCatalog` from
+  several of them** — the design this research originally landed on. Dropped: it adds two public
+  types to express what `from_rules` and `union` on the one existing type already express, and a
+  `GlyphSet` would carry no capability a `GlyphCatalog` doesn't already have — it would just be a
+  `GlyphCatalog` with a different name and a narrower job. Two types are a cost that has to buy
+  something; here it bought nothing.
+- **A trait such as `IntoGlyphSet`**, implemented by whatever an outside crate wants to contribute —
+  rejected for the same reason it was rejected before: `(GlyphKey, Glyph)` pairs are already
+  everything a table needs to hand over, through types that are already public.
+- **`GlyphCatalog::from_rules` alone, no `union`**, leaving the CLI to build one catalog directly
+  from the concatenation of Light's rows and ASCII's rows — rejected because it would need a way to
+  get at Light's rows outside of a full catalog (the very thing dropping `GlyphSet` avoids
+  reintroducing), and because "merge catalogs that already exist" is the operation the spec's
+  acceptance scenarios actually describe (a catalog built from each of two _tables_, not from one
+  concatenated list).
 
 ## No new dependency
 
@@ -85,5 +88,5 @@ The fifteen rows are copied verbatim from `docs/glyph-sets.md`'s _ASCII_ table, 
 order, using the same private `Row` tuple pattern `monospace-core` already uses for `LIGHT` — a
 `const` array of
 `(Option<&'static str>, Option<&'static str>, Option<&'static str>, Option<&'static str>, &'static str)`
-converted into a `GlyphSet` once. This is the existing, settled pattern in the codebase; nothing new
-is invented for it.
+converted into a `GlyphCatalog` once via `GlyphCatalog::from_rules`. This is the existing, settled
+pattern in the codebase; nothing new is invented for it.

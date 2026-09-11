@@ -7,15 +7,17 @@
 
 ## Summary
 
-`monospace-core` gains a small extension point — a `GlyphSet` value and a `GlyphCatalogBuilder` — so
-a catalog can be assembled from more than one table in a stated order, first claim wins, with no way
-to ask afterwards which table answered a key. A new crate, `monospace-glyph-sets`, depends on the
-core through that public API alone and holds the ASCII table verbatim from `docs/glyph-sets.md`. The
-CLI builds its catalog from the core's Light table and the new crate's ASCII table together, and the
-shipped demo description gains ASCII shapes and two crossings — ASCII in front once, Light in front
-once — so a no-argument run shows both tables answering from one catalog. `docs/model.md` and
-`docs/glyph-sets.md` are corrected first, since the constitution requires the model to match before
-code relies on it.
+`monospace-core` gains a small extension point on the type it already has:
+`GlyphCatalog::from_rules` builds a catalog from one ordered group of rules, and
+`GlyphCatalog::union` merges several catalogs into one, first claim wins, with no way to ask
+afterwards which one answered a key. No new type is introduced — a table from outside the core is
+simply a `GlyphCatalog` built from its own rows, since a table and a catalog already answer to the
+same contract. A new crate, `monospace-glyph-sets`, depends on the core through that public API
+alone and holds the ASCII table verbatim from `docs/glyph-sets.md`. The CLI builds its catalog by
+union-ing the core's Light table and the new crate's ASCII table, and the shipped demo description
+gains ASCII shapes and two crossings — ASCII in front once, Light in front once — so a no-argument
+run shows both tables answering from one catalog. `docs/model.md` and `docs/glyph-sets.md` are
+corrected first, since the constitution requires the model to match before code relies on it.
 
 ## Technical Context
 
@@ -28,10 +30,11 @@ has nothing to check this time.
 
 **Storage**: N/A.
 
-**Testing**: `cargo test --workspace` — unit tests in `monospace-core` for the builder's ordering
-and first-claim-wins rule, unit tests in `monospace-glyph-sets` mirroring the Light table's existing
-completeness test, and the existing subprocess tests in `crates/monospace-cli/tests/cli.rs` extended
-to cover the demo's new ASCII shapes and its two crossings.
+**Testing**: `cargo test --workspace` — unit tests in `monospace-core` for `from_rules` and
+`union`'s ordering and first-claim-wins rule, unit tests in `monospace-glyph-sets` mirroring the
+Light table's existing completeness test, and the existing subprocess tests in
+`crates/monospace-cli/tests/cli.rs` extended to cover the demo's new ASCII shapes and its two
+crossings.
 
 **Target Platform**: The CLI runs natively, as it does today. `monospace-core` and
 `monospace-glyph-sets` both compile for `wasm32-unknown-unknown`, extending the gate's existing
@@ -62,17 +65,17 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
   second `-p`, not a new kind of check — nothing to prove by disabling it first.
 - **IV. Claims are measured, not assumed**: SC-001 through SC-009 are all run, not asserted, at
   implementation and review time; none of them is recorded as satisfied before that.
-- **V. Structural vs. behavioral**: the core's new `GlyphSet` / `GlyphCatalogBuilder` are additive —
-  existing tests and existing output are unchanged — so they land as a `feat` commit (new public
-  surface, new tests) rather than a `refactor`, since a `refactor` commit may add no test. The CLI's
-  switch to a two-table catalog and the demo's new shapes are a separate `feat`, kept apart from the
-  extension-point commit.
+- **V. Structural vs. behavioral**: the core's new `GlyphCatalog::from_rules` and
+  `GlyphCatalog::union` are additive — existing tests and existing output are unchanged — so they
+  land as a `feat` commit (new public surface, new tests) rather than a `refactor`, since a
+  `refactor` commit may add no test. The CLI's switch to a union of two catalogs and the demo's new
+  shapes are a separate `feat`, kept apart from the extension-point commit.
 - **VI. Decisions recorded when taken**: the only architectural decision this feature needs — Light
   stays in the core, everything else moves out — is already
   [ADR-0036](../../docs/decisions/0036-hold-every-table-but-light-outside-the-core.md), recorded in
-  the spec stage. The shape of the extension point itself (a builder, not a free function or a
-  trait) is cheap to change later and carries no consequence beyond this crate, so it is recorded in
-  `research.md` rather than a new ADR, per the spec's own Assumptions.
+  the spec stage. The shape of the extension point itself (two functions on the existing catalog
+  type, not a new type or a builder) is cheap to change later and carries no consequence beyond this
+  crate, so it is recorded in `research.md` rather than a new ADR, per the spec's own Assumptions.
 - **VII. The core stays portable**: the new public items add no CLI or terminal assumption; the
   `wasm` step is extended to prove it of both libraries rather than one.
 
@@ -104,10 +107,10 @@ specs/054-glyph-tables-can-come-from-outside-the-c/
 crates/
 ├── monospace-cli/
 │   ├── assets/demo.json          # gains ASCII shapes and two crossings (FR-015..FR-018)
-│   ├── src/description.rs        # builds its catalog from Light + ASCII (FR-014)
+│   ├── src/description.rs        # builds its catalog by union of Light + ASCII (FR-014)
 │   └── tests/cli.rs              # extended for the new demo content
 ├── monospace-core/
-│   └── src/glyph.rs               # gains GlyphSet and GlyphCatalogBuilder (FR-001..FR-005)
+│   └── src/glyph.rs               # GlyphCatalog gains from_rules and union (FR-001..FR-005)
 └── monospace-glyph-sets/          # NEW — holds the ASCII table (FR-007, FR-011..FR-013)
     ├── Cargo.toml
     └── src/lib.rs

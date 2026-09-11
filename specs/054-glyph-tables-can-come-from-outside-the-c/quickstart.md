@@ -11,15 +11,16 @@ cargo test --workspace
 ```
 
 Expected: everything compiles, and the new unit tests pass alongside the existing ones —
-`monospace-core`'s builder tests (ordering, first-claim-wins) and `monospace-glyph-sets`'s table
-test (the ASCII table answers all fifteen of its own non-empty combinations, the same shape as
-`monospace-core`'s existing Light test). No existing test in either crate changes.
+`monospace-core`'s tests for `from_rules` and `union` (ordering, first-claim-wins) and
+`monospace-glyph-sets`'s table test (the ASCII table answers all fifteen of its own non-empty
+combinations, the same shape as `monospace-core`'s existing Light test). No existing test in either
+crate changes.
 
 ## User Story 1 — a table from outside answers keys like any other
 
-Covered by unit tests in `monospace-core` that build a `GlyphCatalog` from a `GlyphSet` defined in
-the test module itself (not `monospace-core`'s own data) together with `GlyphSet::light()`, per
-`contracts/glyph-set-extension-point.md`. Run:
+Covered by unit tests in `monospace-core` that build a catalog with `GlyphCatalog::from_rules` from
+rows defined in the test module itself (not `monospace-core`'s own data) and `union` it with
+`GlyphCatalog::light()`, per `contracts/glyph-set-extension-point.md`. Run:
 
 ```sh
 cargo test -p monospace-core

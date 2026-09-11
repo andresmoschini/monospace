@@ -4,71 +4,48 @@ This feature's "data" is a small set of Rust types, not persisted records. This 
 one holds, where it lives, and what it does and doesn't let a caller do — the field-by-field mapping
 `research.md`'s decision needs before code exists.
 
-## `GlyphSet` (new, `monospace-core::glyph`)
+## `GlyphCatalog` (existing type, gains two constructors)
 
-A group of glyph rules, in the order they were given — the model's `GlyphSet` entity, now a type.
+No field change: still a `HashMap<GlyphKey, Glyph>` behind an opaque type, still answering a key
+with one lookup. A table from outside the core and a catalog several tables were merged into are
+both values of this one type — that is the whole of `research.md`'s decision, so nothing new is
+added alongside it.
 
-| Field          | Type                     | Notes                                                                      |
-| -------------- | ------------------------ | -------------------------------------------------------------------------- |
-| (private) rows | `Vec<(GlyphKey, Glyph)>` | Not exposed. No accessor reads a `GlyphSet`'s rows or its origin (FR-003). |
+**New constructors**:
 
-**Construction**:
+- `GlyphCatalog::from_rules(rules: impl IntoIterator<Item = (GlyphKey, Glyph)>) -> Self` — the
+  extension point (FR-001). Builds a catalog from one ordered group of rules, first claim wins
+  across that group. Everything on the right-hand side of a call — `GlyphKey`'s public fields,
+  `Glyph::new` — is already public, so this is usable from outside `monospace-core` with no private
+  item.
+- `GlyphCatalog::union(catalogs: impl IntoIterator<Item = Self>) -> Self` — combines already-built
+  catalogs in the order given; where two claim the same key, the earlier one in the order wins
+  (FR-002). Implemented by folding each catalog's rules into one `HashMap` with
+  `entry(key).or_insert(glyph)`, so a catalog already built by `from_rules`, by `light()`, or by an
+  earlier `union` composes the same way as any other.
 
-- `GlyphSet::new(rows: impl IntoIterator<Item = (GlyphKey, Glyph)>) -> Self` — the only way anything
-  outside `monospace-core` builds one, using only `GlyphKey` (public fields) and `Glyph::new`
-  (already public). This is the whole of FR-001's extension point.
-- `GlyphSet::light() -> Self` — the fifteen rows of the Light table in
-  [`docs/glyph-sets.md`](../../docs/glyph-sets.md), the same data `LIGHT` already holds today, now
-  reachable as a `GlyphSet` rather than only as a whole built catalog.
+**Existing constructor, reimplemented**:
 
-**Invariants**: every row's glyph is already a valid `Glyph`, so a `GlyphSet` cannot hold an invalid
-one — there is nothing left to validate at this layer. A `GlyphSet` with no rows is valid and
-contributes nothing (Edge Case: "a table with no rows").
+- `GlyphCatalog::light() -> Self` keeps its signature; now reads `Self::from_rules(LIGHT)` where
+  `LIGHT` is the private row table already in `monospace-core` (FR-006). Every existing caller keeps
+  compiling and keeps producing the same catalog (FR-005, SC-008).
 
-**Relationships**: consumed by `GlyphCatalogBuilder::with`, which drains a `GlyphSet`'s rows into
-the catalog being built and then discards the grouping.
+**Invariants**: every row handed to `from_rules` is already a valid `(GlyphKey, Glyph)` pair — a
+`Glyph` cannot be invalid by construction — so there is nothing to validate at this layer. An empty
+`rules` iterator, or a `catalogs` list of zero or one catalog, is valid and produces a catalog that
+answers accordingly (Edge Cases: "a catalog built from no tables at all", "a table with no rows").
 
-## `GlyphCatalogBuilder` (new, `monospace-core::glyph`)
-
-Assembles a `GlyphCatalog` from `GlyphSet` values added in a stated order.
-
-| Field           | Type                       | Notes                                                                            |
-| --------------- | -------------------------- | -------------------------------------------------------------------------------- |
-| (private) rules | `HashMap<GlyphKey, Glyph>` | The catalog under construction; same representation `GlyphCatalog` already uses. |
-
-**Operations**:
-
-- `GlyphCatalog::builder() -> GlyphCatalogBuilder` — the only way to get one; starts empty.
-- `GlyphCatalogBuilder::with(self, set: GlyphSet) -> Self` — consumes `self` and `set`, inserts each
-  of the set's rows via `HashMap::entry(key).or_insert(glyph)`, and returns the builder so calls
-  chain. A key already present from an earlier `with` call keeps its earlier answer (FR-002, Edge
-  Cases: "two tables that claim the same key", "the same table put into one catalog twice").
-- `GlyphCatalogBuilder::build(self) -> GlyphCatalog` — consumes the builder, producing a
-  `GlyphCatalog` indistinguishable in shape from one built any other way.
-
-**State transitions**: none — a builder is built up once, by value, through owned `self` in every
-method, and consumed by `build`. There is no way to inspect or reuse a builder after `build` is
-called, and no way to ask which `with` call answered a given key once built (FR-003, SC-007).
-
-## `GlyphCatalog` (existing, unchanged in shape)
-
-No field changes. `GlyphCatalog::light()` keeps its existing signature and now reads:
-
-```rust
-pub fn light() -> Self {
-    Self::builder().with(GlyphSet::light()).build()
-}
-```
-
-so every existing caller — `monospace-core`'s own tests, `monospace-cli`'s test module — keeps
-compiling and keeps producing the same catalog (FR-005, SC-008).
+**What stays impossible**: no operation on `GlyphCatalog` reports which `from_rules` call or which
+element of a `union` answered a given key (FR-003, SC-007) — merging happens by draining one
+`HashMap` into another, and nothing is kept that could answer that question.
 
 ## `monospace_glyph_sets::ascii` (new crate, sole public item)
 
-`pub fn ascii() -> monospace_core::GlyphSet` — the ASCII table's fifteen rows from
-[`docs/glyph-sets.md`](../../docs/glyph-sets.md), _ASCII_, built the same way `GlyphSet::light()` is
-built inside the core: a private `const` row table converted once. No type is defined in this crate;
-it reaches everything it needs through `monospace-core`'s public API (FR-007, FR-009, FR-011).
+`pub fn ascii() -> monospace_core::GlyphCatalog` — a catalog built from exactly the fifteen rows
+[`docs/glyph-sets.md`](../../docs/glyph-sets.md) records under _ASCII_ — no row added, none omitted,
+none altered (FR-011). Built the same way `GlyphCatalog::light()` is built inside the core: a
+private `const` row table converted once via `GlyphCatalog::from_rules`. No type is defined in this
+crate; it reaches everything it needs through `monospace-core`'s public API (FR-007, FR-009).
 
 ## The demo description (`crates/monospace-cli/assets/demo.json`)
 
@@ -89,18 +66,14 @@ No schema change — `description.rs`'s JSON format already accepts any stroke n
 ```text
 monospace-core::glyph
   GlyphKey  (existing, public fields) ──┐
-  Glyph     (existing, ::new)          ─┼──> GlyphSet::new(rows) ──> GlyphSet
-  GlyphSet::light()                    ─┘
+  Glyph     (existing, ::new)          ─┴──> GlyphCatalog::from_rules(rows) ──> GlyphCatalog
+  GlyphCatalog::light()                 ──> GlyphCatalog::from_rules(LIGHT)
 
-GlyphSet ──> GlyphCatalogBuilder::with(set) [repeatable, ordered] ──> GlyphCatalogBuilder::build()
-          ──> GlyphCatalog (unchanged shape)
+monospace_glyph_sets::ascii() ──> GlyphCatalog::from_rules(ASCII) ──> GlyphCatalog
 
-monospace_glyph_sets::ascii() ──> GlyphSet   (built the same way GlyphSet::light() is)
+GlyphCatalog::union([ GlyphCatalog::light(), monospace_glyph_sets::ascii() ])  ──> GlyphCatalog
 
 monospace-cli::description::Description::render()
-  GlyphCatalog::builder()
-    .with(GlyphSet::light())
-    .with(monospace_glyph_sets::ascii())
-    .build()
+  GlyphCatalog::union([GlyphCatalog::light(), monospace_glyph_sets::ascii()])
   ──> used by monospace_core::render(...)
 ```
