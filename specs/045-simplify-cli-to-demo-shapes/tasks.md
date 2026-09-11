@@ -202,11 +202,11 @@ panics, exits successfully with no diagram, or prints a partial diagram alongsid
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T020 [P] Run every scenario in `specs/045-simplify-cli-to-demo-shapes/quickstart.md` by hand
+- [x] T020 [P] Run every scenario in `specs/045-simplify-cli-to-demo-shapes/quickstart.md` by hand
       and confirm the actual output, not an assumed one (constitution, principle IV).
-- [ ] T021 Run `cargo xtask check` on a fresh clone and confirm it is green (constitution, principle
+- [x] T021 Run `cargo xtask check` on a fresh clone and confirm it is green (constitution, principle
       III and IV).
-- [ ] T022 [P] Append an entry to `docs/learning-log.md` for this increment: what was learned about
+- [x] T022 [P] Append an entry to `docs/learning-log.md` for this increment: what was learned about
       Rust design and idiom, what was learned about working this way, and optionally a trade-off
       worth remembering (constitution, principle II).
 
