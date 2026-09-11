@@ -43,6 +43,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0029](0029-draw-a-line-end-as-one-arm.md)                         | Draw a line's end as one arm, and keep an arrow's head a chosen glyph           | accepted                             |
 | [0030](0030-drop-extent-until-a-caller-needs-it.md)                | Drop extent from the shape abstraction until a caller needs it                  | accepted                             |
 | [0031](0031-a-shape-draws-into-a-surface.md)                       | A shape draws into a surface, not into a buffer                                 | accepted                             |
+| [0032](0032-split-a-spec-into-three-staged-branches.md)            | Split a spec into three staged branches                                         | accepted                             |
 
 ## How to add one
 
