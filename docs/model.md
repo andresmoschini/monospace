@@ -285,9 +285,10 @@ could reach.
 A **box** is a position, a size and a stroke, with a fill as an option: corners, border runs and an
 interior, placed correctly. Which pieces it has depends on its size rather than on its kind, so a
 2×2 box is four corners with no run at all. Its arms are the ones _The cell_ already fixes — `Set`
-along the run, `Closed` on the side facing its own interior, `Unset` outward — so a stroke reaching
-a box from outside joins its border and one reaching the interior side stops. A fill is a chosen
-glyph, in the sense of _A cell can be a literal instead_.
+along the run, `Unset` outward, and `Closed` on the side facing its own interior only when the box
+carries a fill, `Unset` there too when it does not — so a stroke reaching a box from outside always
+joins its border, and one reaching the interior side stops only when the box is filled. A fill is a
+chosen glyph, in the sense of _A cell can be a literal instead_.
 
 A **line** is a position, a length, an orientation and a stroke. It names no glyph of its own; what
 its two end cells hold is the next section.

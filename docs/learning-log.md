@@ -993,3 +993,41 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   conversions, and one field-by-field match in `ShapeDescription::draw` — small enough that the
   duplication reads as the format's own contract (`contracts/description-format.md`) rather than as
   drift waiting to happen.
+
+## 2026-09-11 — Feature 049 implemented: fix shapes without filling closing their inner arms
+
+### Rust design and idiom
+
+- **The fix was one caller-supplied `bool` on an existing fragment, not a new fragment or a post-hoc
+  pass.** `Border` already took `side` from whichever figure placed it, per
+  [ADR-0028](decisions/0028-give-each-fragment-its-own-cell-rule.md); `closes_interior` is one more
+  fact of the same kind, so `BoxShape::draw` computing `self.fill.is_some()` once and handing it to
+  all four `Border`s needed no new type. The two alternatives research.md set aside — a second
+  fragment, or a post-hoc pass reopening arms after every shape had drawn — would each have bought
+  nothing this single field didn't already buy, at the cost of a second geometry or a new draw-order
+  dependency.
+- **Widening a `pub(crate)` struct's field list is a compile error at every call site, which is what
+  made the change safe to make in the wrong order and still land correctly.** Adding
+  `closes_interior` to `Border` before touching `BoxShape` broke the build immediately — four
+  missing-field errors, not a silent behavior change — so the two files could only ever ship
+  together, and the compiler said so before a test needed to.
+
+### Working this way
+
+- **`docs/model.md` disagreeing with itself was found by reading, not by running anything** — _The
+  cell_ already stated the fill-conditioned rule; _The initial set_ didn't. Constitution principle
+  IV asks that claims be measured, but a documentation inconsistency has nothing to run; the check
+  here was cross-reading two sections against each other, and the constitution's own "the model
+  changes first" rule is what made that the first task rather than a footnote.
+- **A commit that adds a failing test and a commit that makes it pass cannot be split** without
+  breaking "every commit MUST leave the gate green": `git bisect` would land on a red commit either
+  way it's cut, so T002 (the tests), T003 and T004 (the field and its use) landed together in one
+  `fix` commit, tests included, rather than as the three separate tasks.md entries they started as.
+
+### Trade-offs worth remembering
+
+- **A plain `bool` for `closes_interior` instead of a two-value `Interior` enum was a judgment call
+  left open at plan time, and it stayed a `bool`.** `Border` has exactly one flag of this kind, and
+  the call site (`closes_interior: self.fill.is_some()`) reads as what it means without a second
+  type; the "boolean blindness" argument research.md raised would earn its keep only once a second
+  independent flag showed up on the same struct, which this feature doesn't add.
