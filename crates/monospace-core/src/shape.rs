@@ -4,10 +4,13 @@
 
 use crate::{Buffer, Cell, Pos, StampMode};
 
+mod arrow;
 mod box_shape;
 pub(crate) mod fragment;
 mod line;
+mod route;
 
+pub use arrow::{Arrow, Endpoint};
 pub use box_shape::BoxShape;
 pub use line::Line;
 
