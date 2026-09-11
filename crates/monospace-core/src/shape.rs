@@ -4,6 +4,11 @@
 
 use crate::{Buffer, Cell, Pos, StampMode};
 
+mod box_shape;
+pub(crate) mod fragment;
+
+pub use box_shape::BoxShape;
+
 /// One write operation and no reader. What a shape draws into.
 ///
 /// A fragment cannot inspect what lies beneath it or what a sibling has already written, because
@@ -50,4 +55,33 @@ impl Surface for Layer<'_> {
 pub trait Shape {
     /// Draws this shape's cells into `surface`.
     fn draw(&self, surface: &mut dyn Surface);
+}
+
+/// A [`Surface`] that counts writes per position, so a test can observe FR-020: no shape writes
+/// any position more than once in one drawing. Second only to [`Layer`] as an implementation of
+/// this trait, and it exists only in tests — see ADR-0031 and research.md Q8.
+#[cfg(test)]
+pub(crate) mod counting {
+    use std::collections::HashMap;
+
+    use super::{Cell, Pos, Surface};
+
+    /// See the module's own documentation.
+    #[derive(Default)]
+    pub(crate) struct CountingSurface {
+        counts: HashMap<(i32, i32), u32>,
+    }
+
+    impl CountingSurface {
+        /// The largest number of times any single position has been stamped so far.
+        pub(crate) fn max_writes(&self) -> u32 {
+            self.counts.values().copied().max().unwrap_or(0)
+        }
+    }
+
+    impl Surface for CountingSurface {
+        fn stamp(&mut self, at: Pos, _cell: Cell) {
+            *self.counts.entry((at.x, at.y)).or_default() += 1;
+        }
+    }
 }
