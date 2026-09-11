@@ -39,6 +39,7 @@ impl Shape for BoxShape {
         let x0 = self.at.x;
         let y0 = self.at.y;
         let stroke = || self.stroke.clone();
+        let closes_interior = self.fill.is_some();
 
         Corner {
             at: Pos { x: x0, y: y0 },
@@ -71,6 +72,7 @@ impl Shape for BoxShape {
                 len: width - 2,
                 side: Side::Top,
                 stroke: stroke(),
+                closes_interior,
             }
             .draw(surface);
             Border {
@@ -78,6 +80,7 @@ impl Shape for BoxShape {
                 len: width - 2,
                 side: Side::Bottom,
                 stroke: stroke(),
+                closes_interior,
             }
             .draw(surface);
         }
@@ -87,6 +90,7 @@ impl Shape for BoxShape {
                 len: height - 2,
                 side: Side::Left,
                 stroke: stroke(),
+                closes_interior,
             }
             .draw(surface);
             Border {
@@ -94,6 +98,7 @@ impl Shape for BoxShape {
                 len: height - 2,
                 side: Side::Right,
                 stroke: stroke(),
+                closes_interior,
             }
             .draw(surface);
         }
@@ -273,5 +278,123 @@ mod tests {
                 "size {size:?} wrote a position more than once"
             );
         }
+    }
+
+    /// Bug 049, acceptance scenarios 1 and 3: two unfilled boxes positioned so one's border
+    /// crosses into the other's interior render a crossing (`┼`) at every cell where that
+    /// happens, not a closed junction.
+    #[test]
+    fn two_unfilled_boxes_render_a_crossing_at_every_cell_their_borders_overlap() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 9,
+            height: 5,
+        };
+        let mut buffer = Buffer::new(origin, size);
+
+        BoxShape {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 6,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        BoxShape {
+            at: Pos { x: 4, y: 2 },
+            size: Size {
+                width: 6,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+
+        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+
+        assert_eq!(
+            text,
+            "┌────┐   \n│    │   \n│   ┌┼───\n└───┼┘   \n    │    \n"
+        );
+    }
+
+    /// Bug 049, FR-002 and acceptance scenario 2: a fill keeps closing its own interior side, even
+    /// while an unfilled box elsewhere still lets a crossing show through.
+    #[test]
+    fn a_filled_box_among_unfilled_ones_still_closes_its_interior() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 9,
+            height: 5,
+        };
+        let mut buffer = Buffer::new(origin, size);
+
+        BoxShape {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 6,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        BoxShape {
+            at: Pos { x: 4, y: 2 },
+            size: Size {
+                width: 6,
+                height: 4,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+
+        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+
+        assert_eq!(
+            text,
+            "┌────┐   \n│    │   \n│   ┌┴───\n└───┤░░░░\n    │░░░░\n"
+        );
+    }
+
+    /// Two unfilled boxes placed side by side, sharing no cell, render exactly as each would
+    /// alone — being next to another shape is not the same as overlapping it.
+    #[test]
+    fn two_adjacent_unfilled_boxes_render_independently() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 8,
+            height: 3,
+        };
+        let mut buffer = Buffer::new(origin, size);
+
+        BoxShape {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        BoxShape {
+            at: Pos { x: 4, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+
+        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+
+        assert_eq!(text, "┌──┐┌──┐\n│  ││  │\n└──┘└──┘\n");
     }
 }

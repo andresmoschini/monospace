@@ -6,17 +6,23 @@ use super::run;
 use crate::cell::Side;
 use crate::{Arm, Cell, Orientation, Pos, Shape, Stroke, StrokeCell, Surface};
 
-/// A border run: `Set` along it, `Closed` facing the figure's interior, `Unset` outward.
+/// A border run: `Set` along it, `Unset` outward, and `Closed` facing the figure's interior only
+/// when the figure closes that interior.
 ///
 /// `side` names which side of the figure this border sits on, and both its orientation and its
-/// closed side follow from that alone — a horizontal border whose interior is to its left cannot
-/// be constructed. A fragment in the sense of _Complete and fragment_ in
-/// [`docs/model.md`](../../../../../docs/model.md).
+/// interior-facing side follow from that alone — a horizontal border whose interior is to its left
+/// cannot be constructed. Whether that interior-facing side is `Closed` or `Unset` is not derivable
+/// from `side` alone, so the figure placing this border names it via `closes_interior`. A fragment
+/// in the sense of _Complete and fragment_ in [`docs/model.md`](../../../../../docs/model.md).
 pub(crate) struct Border {
     pub(crate) from: Pos,
     pub(crate) len: u32,
     pub(crate) side: Side,
     pub(crate) stroke: Stroke,
+    /// Whether the side facing the figure's interior stamps `Arm::Closed` (`true`) or
+    /// `Arm::Unset` (`false`) — "not mine to decide", per _The cell_ in
+    /// [`docs/model.md`](../../../../../docs/model.md).
+    pub(crate) closes_interior: bool,
 }
 
 impl Shape for Border {
@@ -35,7 +41,11 @@ impl Shape for Border {
             if side == self.side {
                 Arm::Unset
             } else if side == opposite {
-                Arm::Closed
+                if self.closes_interior {
+                    Arm::Closed
+                } else {
+                    Arm::Unset
+                }
             } else {
                 Arm::Set
             }
@@ -79,6 +89,7 @@ mod tests {
             len: 1,
             side: Side::Top,
             stroke: Stroke::from("light"),
+            closes_interior: true,
         }
         .draw(&mut layer);
 
@@ -112,6 +123,7 @@ mod tests {
             len: 1,
             side: Side::Left,
             stroke: Stroke::from("light"),
+            closes_interior: true,
         }
         .draw(&mut layer);
 
@@ -144,6 +156,7 @@ mod tests {
             len: 3,
             side: Side::Top,
             stroke: Stroke::from("light"),
+            closes_interior: true,
         }
         .draw(&mut layer);
 
@@ -160,5 +173,39 @@ mod tests {
                 "position ({x}, 0)"
             );
         }
+    }
+
+    /// `closes_interior: false` leaves the interior-facing side `Unset`, "not mine to decide", so a
+    /// stroke crossing into it is free to connect instead of being refused.
+    #[test]
+    fn a_border_with_no_interior_to_close_leaves_that_side_unset() {
+        let mut buffer = Buffer::new(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+        );
+        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+
+        Border {
+            from: Pos { x: 0, y: 0 },
+            len: 1,
+            side: Side::Top,
+            stroke: Stroke::from("light"),
+            closes_interior: false,
+        }
+        .draw(&mut layer);
+
+        assert_eq!(
+            buffer.cell(Pos { x: 0, y: 0 }),
+            Some(&Cell::from(StrokeCell {
+                base: Stroke::from("light"),
+                top: Arm::Unset,
+                right: Arm::Set,
+                bottom: Arm::Unset,
+                left: Arm::Set,
+            }))
+        );
     }
 }

@@ -67,7 +67,7 @@ appropriate), exactly as they do before this fix.
 > Write these first; both must fail against the code as it stands today (research.md's reverted
 > probe already measured what "fail" looks like: `┴` and `┤` instead of `┼`).
 
-- [ ] T002 [US1] In `crates/monospace-core/src/shape/box_shape.rs`, add two tests to the existing
+- [x] T002 [US1] In `crates/monospace-core/src/shape/box_shape.rs`, add two tests to the existing
       `tests` module using only `BoxShape`'s current public API (no new field yet). First: two
       unfilled 6×4 boxes at `(0, 0)` and `(4, 2)` on a 9×5 buffer, both drawn `Above`, render `┼` at
       both cells where their borders overlap (acceptance scenario 1 and 3, SC-001, SC-003). Second:
@@ -77,14 +77,14 @@ appropriate), exactly as they do before this fix.
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] In `crates/monospace-core/src/shape/fragment/border.rs`, give `Border` a new field,
+- [x] T003 [US1] In `crates/monospace-core/src/shape/fragment/border.rs`, give `Border` a new field,
       `closes_interior`, of type `bool`. In `Border::draw`'s `arm_toward`, change the branch for the
       side opposite `self.side` so it stamps `Arm::Closed` when `closes_interior` is true and
       `Arm::Unset` when it is false, instead of always `Arm::Closed`. Update this file's three
       existing `Border` test literals to set `closes_interior: true`, so they keep asserting today's
       filled-interior behavior unchanged. Add one new test in the same module asserting that
       `closes_interior: false` stamps `Arm::Unset` on the interior-facing side.
-- [ ] T004 [US1] In `crates/monospace-core/src/shape/box_shape.rs`, in `BoxShape::draw`, compute
+- [x] T004 [US1] In `crates/monospace-core/src/shape/box_shape.rs`, in `BoxShape::draw`, compute
       whether the box closes its interior from `self.fill.is_some()` once, and pass that value as
       `closes_interior` to all four `Border` placements (top, bottom, left, right). Depends on T003
       for the field to exist. This is what makes T002's two tests pass.
