@@ -17,7 +17,7 @@
 
 use std::fs;
 use std::path::Path;
-use std::process::{Command, ExitCode};
+use std::process::{Command, ExitCode, Stdio};
 
 /// One of the three stages a spec crosses, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -353,6 +353,10 @@ fn file_exists_in_origin_main(root: &Path, path: &str) -> Result<bool, String> {
     let status = Command::new("git")
         .args(["cat-file", "-e", &object])
         .current_dir(root)
+        // A missing file is the answer this asks for, not a failure to report, and git prints its
+        // own `fatal: path ... does not exist` to stderr on the way to saying so. Silencing it
+        // leaves the caller's message as the only one the operator reads.
+        .stderr(Stdio::null())
         .status()
         .map_err(|error| format!("xtask: could not run `git cat-file`: {error}"))?;
     Ok(status.success())
