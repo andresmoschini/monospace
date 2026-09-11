@@ -108,7 +108,7 @@ output against the T001 baseline.
       assert user story 1's scenarios 1 through 5 — the 6×3 box unfilled and filled, the 2×2 box,
       the undersized box drawing nothing, and the write count staying at 1 for all of them — with
       rustdoc saying `BoxShape` is complete and each fragment a fragment
-- [ ] T006 [US1] Refactor `crates/monospace-cli/src/main.rs` so `stamp_box` draws a `BoxShape`
+- [x] T006 [US1] Refactor `crates/monospace-cli/src/main.rs` so `stamp_box` draws a `BoxShape`
       instead of its twelve hand-written stamps, leaving `crates/monospace-cli/tests/cli.rs`
       unedited
 
