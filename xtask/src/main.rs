@@ -12,6 +12,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod spec;
+
 /// The npm executable.
 ///
 /// On Windows it has to be named with its extension: npm ships as a shell script plus `.cmd` and
@@ -185,6 +187,7 @@ fn main() -> ExitCode {
         Some("check") => run_gate(),
         Some("fix") => run_fix(),
         Some("setup") => run_setup(),
+        Some("spec") => spec::run(args),
         None | Some("help" | "--help" | "-h") => {
             print_usage();
             ExitCode::SUCCESS
@@ -417,5 +420,8 @@ fn print_usage() {
     println!("  check    Run every quality gate step; this is what the hook and CI run");
     println!("  fix      Run every step of the gate that can fix what it finds");
     println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
+    println!(
+        "  spec     Manage a feature's branch lifecycle; `cargo xtask spec help` lists its verbs"
+    );
     println!("  help     Show this message");
 }

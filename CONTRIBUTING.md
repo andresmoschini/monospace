@@ -12,6 +12,9 @@ that is a defect in the document.
 - **Node.** The version is in `.nvmrc`. Four of the checks are npm packages with no Rust equivalent;
   [ADR-0004](docs/decisions/0004-node-toolchain-for-the-non-rust-checks.md) explains how a Rust
   project ended up with a second toolchain.
+- **[GitHub CLI](https://cli.github.com).** `gh`, authenticated with `gh auth login`.
+  `cargo xtask spec` drives it to read an issue, open a branch linked to that issue and move the
+  issue's label ([ADR-0034](docs/decisions/0034-let-xtask-own-the-feature-branch.md)).
 
 ## Setup
 
@@ -34,6 +37,7 @@ without it nothing checks your commits until CI does.
 ```sh
 cargo xtask check          # the whole quality gate, about 3.5 seconds
 cargo xtask fix            # apply every automatic fix the gate knows about
+cargo xtask spec use 23    # put this clone on the active branch of feature 23
 cargo run -p monospace-cli # run the command-line application
 cargo test --workspace     # tests only, when you want a faster loop
 ```
@@ -41,77 +45,130 @@ cargo test --workspace     # tests only, when you want a faster loop
 `cargo run` without `-p` does not work: the workspace has more than one binary, so Cargo cannot
 pick.
 
-## Starting a feature
+## Starting work
 
-Work starts from an issue on the board, not from a branch. Every feature has a parent issue:
-`capability` when it carries a wish someone had, `foundational` when the design demands it and
-nobody asked ([ADR-0025](docs/decisions/0025-every-feature-has-a-parent-issue.md)).
+Two flows live here, and the first thing to settle is which one you are in.
 
-That issue's number _is_ the feature's number — the directory, the branch and the milestone all
-share it ([ADR-0024](docs/decisions/0024-take-the-feature-number-from-its-issue.md)). The numbering
-therefore skips wherever an issue was not a feature, and that is expected.
+- **A feature** is something the tool will be able to do that it cannot do today. It goes through
+  Spec Kit: an issue, a directory under `specs/`, and three staged branches.
+- **A tooling change** is anything about how the repository is worked on — the gate, the hooks, CI,
+  these documents, the workflow itself. It goes through an ADR and a series of commits. No spec
+  directory, no stage branches, no Spec Kit command.
 
-`/speckit-specify` has to be invoked with the feature directory given explicitly, through
-`SPECIFY_FEATURE_DIRECTORY` — not left to assign a number of its own, and not merely handed one as a
-preference, because a preference is replaced with a warning the moment its prefix is already taken
-([Spec Kit is the workflow](.specify/memory/constitution.md#spec-kit-is-the-workflow); the mechanism
-behind the warning is in ADR-0024).
+The question that decides it: does this change what `monospace` can draw, or does it change how we
+work on it? Both still start from an issue and end in a pull request; only the middle differs.
 
-```sh
-git checkout -b 023-read-a-diagram-description
-export SPECIFY_FEATURE_DIRECTORY=specs/023-read-a-diagram-description
-```
+### One issue, and the labels on it
 
-Then, in the session rather than in a shell — issue #23, "Read a diagram description from a file or
-from stdin", is what `/speckit-specify` reads as its input:
+A feature is represented by exactly one issue. There is no parent issue and there are no story
+sub-issues ([ADR-0033](docs/decisions/0033-keep-the-flow-state-in-labels-on-one-issue.md)). That
+issue's number _is_ the feature's number, shared by the directory and by all three branches
+([ADR-0024](docs/decisions/0024-take-the-feature-number-from-its-issue.md)). The numbering skips
+wherever an issue was not a feature, and that is expected.
 
-```text
-/speckit-specify
-/speckit-clarify   # only if the spec leaves open questions
-/speckit-plan
-/speckit-tasks
-/speckit-implement
-```
+Labels carry the state of the flow, and they are the only place it lives: not a board field, not a
+milestone. The board reads the issue.
 
-The parent issue is the spec's input. Once the spec exists, the spec is the source of truth and the
-issue becomes a pointer back to where the wish was first stated
-([ADR-0023](docs/decisions/0023-direction-and-backlog-in-a-github-project.md)).
+| Label   | What it means                                               |
+| ------- | ----------------------------------------------------------- |
+| `wish`  | Someone wants this. Nothing is specified yet.               |
+| `spec`  | The spec branch is open, or its pull request is in review.  |
+| `plan`  | The spec merged. The plan branch is open.                   |
+| `doing` | The plan and the tasks merged. Implementation is under way. |
 
-A parent issue does not grow: a title and two or three sentences, never acceptance criteria,
-requirements or examples. ADR-0023 names this as the failure mode to watch, and ADR-0025 says the
-pressure is worse on a `foundational` issue, where "why this is needed" sits one sentence away from
-"what it must do". A parent issue that accumulates them is a spec written where no Spec Kit command
+There is no label for finished work: the implementation pull request closes the issue, and a closed
+issue is the end state.
+
+These four are one axis. The kind labels — `capability` for a wish someone had, `foundational` for
+what the design demands and nobody asked for, `tooling` for the repository itself — are another, and
+the two coexist on the same issue. A `tooling` issue never enters the spec flow, so it never carries
+a state label.
+
+An issue does not grow. A title and two or three sentences, never acceptance criteria, requirements
+or examples ([ADR-0023](docs/decisions/0023-direction-and-backlog-in-a-github-project.md)). Once the
+spec exists the spec is the source of truth, and the issue is a pointer back to where the wish was
+first stated. An issue that accumulates requirements is a spec written where no Spec Kit command
 will read it.
 
-Stories are sub-issues of the parent, opened once the spec is stable, labeled `story`, and closed by
-the pull request that delivers them (ADR-0023, ADR-0025). Closing the parent issue is a separate,
-manual act: it is not the same event as its stories being merged, but the moment someone decides the
-wish is met (ADR-0023).
+### The three stages
 
-Features 001 to 006 predate all of this and keep the numbers they were given (ADR-0024, ADR-0025).
+A spec crosses three stages, potentially with three different people. Each stage is its own branch
+and its own pull request against `main`, and the merge of each one is the handoff to the next
+([ADR-0032](docs/decisions/0032-split-a-spec-into-three-staged-branches.md)).
+
+| Stage          | Branch          | Label   | Requires in `main`    |
+| -------------- | --------------- | ------- | --------------------- |
+| Spec           | `NNN-slug-spec` | `spec`  | —                     |
+| Plan           | `NNN-slug-plan` | `plan`  | `spec.md`             |
+| Implementation | `NNN-slug-impl` | `doing` | `plan.md`, `tasks.md` |
+
+`cargo xtask spec` opens each of them: it creates the branch, links it to the issue, moves the
+label, and points Spec Kit at the feature directory
+([ADR-0034](docs/decisions/0034-let-xtask-own-the-feature-branch.md)). It never writes the spec
+itself — `/speckit-specify` creates the directory and the file, as it always did.
+
+```sh
+cargo xtask spec new 23          # opens the spec stage for issue #23
+cargo xtask spec stage 23 plan   # after the spec pull request merged
+cargo xtask spec stage 23 impl   # after the plan pull request merged
+```
+
+`stage` refuses to open a stage whose predecessor has not merged, and says which file it could not
+find in `origin/main`. That refusal is the whole point of the handoff: the precondition is a fact
+about `main`, not a judgement about a branch.
+
+Inside each stage, the Spec Kit commands that belong to it, one per session:
+
+```text
+spec branch   /speckit-specify   then /speckit-clarify if the spec leaves open questions
+plan branch   /speckit-plan      then /speckit-tasks
+impl branch   /speckit-implement
+```
+
+The plan stage runs two of them, which is why the implementation stage requires two files in `main`
+rather than one.
+
+Someone who has just cloned, or who is coming back to a feature after working on another, does not
+need to know any of the branch names:
+
+```sh
+cargo xtask spec use 23
+```
+
+It reads the issue's label, checks out the branch of whatever stage is active, and prints what to
+run next. It touches no label and creates no remote branch.
+
+Features 001 to 006 predate all of this and keep the numbers they were given.
 
 ### Names that carry the number
 
-The branch, the spec directory and the milestone all carry the feature's number, so that one string
-finds every part of it:
+The directory and all three branches carry the feature's number, so that one string finds every part
+of it:
 
-```sh
-git checkout -b 023-read-a-diagram-description
-# the directory is specs/023-read-a-diagram-description/
-
-gh api repos/:owner/:repo/milestones   -f title="023 — Read a diagram description"   -f description="specs/023-read-a-diagram-description/"
+```text
+issue     #23
+branches  023-read-a-diagram-description-spec
+          023-read-a-diagram-description-plan
+          023-read-a-diagram-description-impl
+directory specs/023-read-a-diagram-description/
 ```
 
-A story is opened as a sub-issue of the parent, and its body points at the spec rather than
-repeating it:
+The slug comes from the issue title, lowercased and hyphenated, at most forty characters. `xtask`
+derives it once, when the spec stage is opened, and reads it back from the directory afterwards, so
+renaming the issue later does not rename anything.
 
-```sh
-gh issue create --parent 23   --title "023 US1 — A caller can render a diagram described in a file"   --label story --milestone "023 — Read a diagram description" --project "Monospace"   --body "US1 (P1) of specs/023-read-a-diagram-description/spec.md.
+Nothing yet checks that every directory under `specs/` is named this way and that no two share a
+number. That check belongs in `cargo xtask check` and is tracked by issue #26.
 
-The spec is the source of truth for the acceptance scenarios; this issue is a pointer."
-```
+### Commits during implementation
 
-### Closing the work
+Each commit ticks exactly the checkboxes in `tasks.md` that it completed, and leaves
+`cargo xtask check` passing. Those two rules together decide how big a commit is, and you do not get
+to choose: the hooks run the gate and `--no-verify` is forbidden, so a commit can only exist at a
+boundary where the tree is green. A task that is green on its own gets a commit. A group of tasks
+that only reaches green together gets one commit for the group, ticking all of their boxes.
+
+### Opening and closing the pull request
 
 The keywords that close an issue go in the pull request's body, never in a commit message. Three
 reasons, and the third is the one that decides it:
@@ -120,17 +177,20 @@ reasons, and the third is the one that decides it:
   is invisible until it lands.
 - A wrong number is edited out of a body. In a commit it is a history rewrite, and a rewrite here
   owes the gate a run on **every** rewritten commit rather than only the tip.
-- No single commit is "the" one that closes a story that took several.
+- No single commit is "the" one that closes work that took several.
+
+Which keyword depends on the stage. Only the last pull request of a feature finishes the issue:
+
+- **Spec and plan** pull requests say `Refs #N`. The stage is done; the issue is not.
+- **Implementation** pull requests say `Closes #N`.
 
 ```sh
-gh pr edit N --milestone "023 — Read a diagram description"
-gh pr view N --json closingIssuesReferences   # confirm GitHub parsed them
+gh pr create --base main --title "..." --body "Refs #23"
+gh pr view N --json closingIssuesReferences   # confirm GitHub parsed a Closes
 gh pr merge --merge --delete-branch
 ```
 
-The stories then close themselves and their cards move to `Done`. **The parent issue is closed by
-hand**, deliberately: nothing here relies on sub-issues closing it, and closing it is the moment
-someone decides the wish is met, which is not the same event as its stories being merged.
+A tooling change has one pull request and therefore one keyword: `Closes #N`.
 
 ## The quality gate
 
@@ -248,6 +308,9 @@ The mapping is:
 - **`feat`, `fix`** — behavioral. Something the program does is different.
 - **`build`, `ci`, `docs`, `style`, `chore`, `test`** — neither, which is most of the tooling in
   this repository.
+
+How much goes in one commit, while implementing a spec, is settled by
+[Commits during implementation](#commits-during-implementation) rather than by taste.
 
 Write the body for someone who was not there. What the diff does is visible; why it does that is
 not.

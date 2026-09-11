@@ -34,15 +34,18 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0020](0020-scope-cargo-xtask-fix-to-deterministic-fixers.md)      | Scope `cargo xtask fix` to deterministic fixers, and fix `clippy` by hand       | accepted                             |
 | [0021](0021-move-the-spec-home-to-spec-kit.md)                     | Move the spec home to Spec Kit's `specs/` and freeze `docs/specs/`              | accepted; superseded in part by 0024 |
 | [0022](0022-non-interactive-cli-before-the-tui.md)                 | Build the non-interactive CLI before the interactive TUI                        | accepted                             |
-| [0023](0023-direction-and-backlog-in-a-github-project.md)          | Keep direction and the backlog in a GitHub Project, and dissolve the roadmap    | accepted                             |
+| [0023](0023-direction-and-backlog-in-a-github-project.md)          | Keep direction and the backlog in a GitHub Project, and dissolve the roadmap    | accepted; superseded in part by 0033 |
 | [0024](0024-take-the-feature-number-from-its-issue.md)             | Take a feature's number from its GitHub issue                                   | accepted                             |
-| [0025](0025-every-feature-has-a-parent-issue.md)                   | Give every feature a parent issue, labeled `capability` or `foundational`       | accepted                             |
+| [0025](0025-every-feature-has-a-parent-issue.md)                   | Give every feature a parent issue, labeled `capability` or `foundational`       | superseded by 0033                   |
 | [0026](0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md) | Represent a cell as a sum of a stroke cell and a literal glyph                  | accepted                             |
 | [0027](0027-control-token-cost-through-session-discipline.md)      | Control token cost through session discipline, not by trimming artifacts        | accepted                             |
 | [0028](0028-give-each-fragment-its-own-cell-rule.md)               | Give each fragment its own cell rule instead of a cell parameter                | accepted                             |
 | [0029](0029-draw-a-line-end-as-one-arm.md)                         | Draw a line's end as one arm, and keep an arrow's head a chosen glyph           | accepted                             |
 | [0030](0030-drop-extent-until-a-caller-needs-it.md)                | Drop extent from the shape abstraction until a caller needs it                  | accepted                             |
 | [0031](0031-a-shape-draws-into-a-surface.md)                       | A shape draws into a surface, not into a buffer                                 | accepted                             |
+| [0032](0032-split-a-spec-into-three-staged-branches.md)            | Split a spec into three staged branches                                         | accepted                             |
+| [0033](0033-keep-the-flow-state-in-labels-on-one-issue.md)         | Keep the flow state in labels on one issue                                      | accepted                             |
+| [0034](0034-let-xtask-own-the-feature-branch.md)                   | Let xtask own the feature branch                                                | accepted                             |
 
 ## How to add one
 

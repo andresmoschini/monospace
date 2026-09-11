@@ -813,3 +813,57 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   numbers stay empty, because the ADR that withdrew them cites them by number. A renumbered spec
   would have been tidier to read and would have made three references in `decisions/` point at
   requirements that mean something else.
+
+## 2026-09-11 — Splitting the flow into three stages, and giving the branches to xtask
+
+### Rust design and idiom
+
+- **A `const` table of steps is the right shape for a fixed gate and the wrong one for a command
+  built at runtime.** `GATE` and `FIX` hold `Step { args: &'static [&'static str] }`, which is
+  exactly right for ten invocations known at compile time. The `spec` subcommand builds its
+  arguments from an issue number and a slug, so none of them can be `'static`, and trying to reuse
+  `Step` would have meant making the whole table generic over a lifetime to serve one caller. Two
+  small free functions taking `&[&str]` — one inheriting stdio, one capturing stdout — cost less
+  than that and left `GATE` untouched.
+- **Shelling out to `gh --jq` is how a program with no JSON dependency reads JSON.** `gh` bundles
+  jq, so `gh issue view N --json labels --jq '.labels[].name'` returns one bare label per line and
+  the parsing problem disappears. The alternative on offer was a hand-rolled JSON parser inside a
+  tool whose own doc comment says it should not be the first to bend the dependency policy.
+- **Keeping the pure logic in functions that take plain values is what made any of it testable.**
+  Fourteen unit tests cover the slug, the zero-padded number, the branch names, picking the single
+  `specs/NNN-*` match and mapping labels to a stage. Everything that touches the network or the
+  repository is a thin wrapper around those, and none of it is tested — which is visible rather than
+  hidden, because the untested part is the part with no logic in it.
+
+### Working this way
+
+- **A precondition read from a remote is a fact with a timestamp, not a fact.** `spec stage 39 impl`
+  created the branch and set `doing`, which looked like the precondition had failed to fire. It had
+  not: `origin/main` moved between the session's first fetch, where feature 039 had only `spec.md`,
+  and the test's own fetch, where the plan pull request had merged. The tool was right and the
+  expectation was stale. Ten minutes went into reading correct code looking for the bug.
+- **Making a check fail on purpose needed a repository built for the purpose.** After that merge no
+  directory under `specs/` was missing a required file, so there was no natural way to see the
+  refusal. A bare clone with `main` moved back to the commit before the merge, and a working clone
+  from it, produced the failure in one command — and the failure showed that `git cat-file -e`
+  prints its own `fatal:` line before xtask's explanation, which is now silenced. The check would
+  have shipped unverified and slightly wrong without the clone.
+- **An index that is not derived from the files is not updated by whoever writes the files.** The
+  table in `docs/decisions/README.md` lists every ADR with its status. Three ADRs were written and
+  two statuses changed; the table knew about none of it until it was edited by hand. Nothing in the
+  gate reads that table, which is the same gap issue #26 already names for `specs/`.
+
+### Trade-offs worth remembering
+
+- **Delegating the writing moves the review from the prose to the behavior, it does not remove it.**
+  Two subagents produced the three ADRs and the whole subcommand, and the instruction was not to
+  read what they wrote. Everything that then needed fixing was found by running things rather than
+  by reading them: a test fixture written in Spanish that `cspell` rejected, `/speckit.plan` where
+  the installed skill is `speckit-plan`, and git's stderr leaking through a probe. The gate and the
+  binary caught all three; a careful read of the diff would have caught two of them and cost more
+  than both agents did.
+- **A rule that the change introducing it would break is the wrong rule.** The instruction was that
+  a tooling change takes a branch without a number, and this work landed on `034-workflow`. What is
+  actually load-bearing is that a tooling change takes no `specs/` directory and no stage suffix, so
+  that is what CONTRIBUTING.md says. Writing down the literal version would have shipped a document
+  violated by its own commit.

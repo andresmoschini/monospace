@@ -1,4 +1,30 @@
 <!--
+Sync Impact Report — 2026-09-11
+
+Version change: 1.3.1 → 1.4.0
+
+Rationale for MINOR: materially expanded guidance. Spec Kit is the workflow gains the staged flow,
+the single issue and its labels, and the rule that a tooling change is not a feature. No principle
+is added, removed or redefined. Demonstrable increments keeps its subject and its rationale; the
+rule inside it that said "One task per commit" is refined rather than dropped, because the gate and
+the ban on --no-verify already decided where a commit may fall.
+
+Decisions this amendment implements: ADR-0032 (three staged branches), ADR-0033 (the flow's state
+in labels on one issue, superseding ADR-0025 and part of ADR-0023) and ADR-0034 (xtask owns the
+feature branch).
+
+Modified sections:
+  - II. Demonstrable increments: "One task per commit" becomes the rule that a commit ticks the
+    checkboxes it completed and leaves the gate green, which is one commit per task only when a
+    task reaches green alone.
+  - Spec Kit is the workflow: the requirement to invoke /speckit-specify with the feature directory
+    given explicitly is gone, because cargo xtask spec writes .specify/feature.json, which is the
+    file Spec Kit's own scripts read. The staged flow, the single issue and its labels, and the
+    tooling-is-not-a-feature rule are added.
+
+Templates and commands reviewed: unchanged. Of the four templates only plan-template.md refers to
+the constitution, and it reads this file at runtime.
+
 Sync Impact Report — 2026-09-09
 
 Version change: 1.3.0 → 1.3.1
@@ -70,7 +96,10 @@ point.
   `cargo run -p monospace-cli` producing output. A bare `cargo run` is ambiguous once the workspace
   holds more than one binary and MUST NOT be used as the acceptance command.
 - Specs MUST be sliced thin. Several small specs are preferred over one large one.
-- One task per commit.
+- A commit MUST tick exactly the checkboxes in `tasks.md` that it completed, and MUST leave the
+  gate green. Since the hook runs the gate and `--no-verify` is forbidden, a commit can only
+  exist where the tree is green: that is one commit per task where a task reaches green on its
+  own, and one per group where it does not.
 - An increment — a slice that reaches a demonstrable state, usually several commits — MUST end with
   an appended entry in `docs/learning-log.md`. The entry covers what was learned about Rust design
   and idiom, what was learned about working this way, and optionally a trade-off worth remembering
@@ -205,11 +234,14 @@ and no rules. This section is the whole of the rule: nothing on the board widens
 New work goes through `/speckit-specify`, then `/speckit-clarify` when
 the spec has open questions, then `/speckit-plan`, `/speckit-tasks` and `/speckit-implement`.
 Artifacts live under `specs/NNN-slug/`, where `NNN` is the number of the GitHub issue the feature
-implements rather than a position in a local sequence, so the numbering skips. `/speckit-specify`
-MUST be invoked with the feature directory given explicitly rather than left to assign a number of
-its own: an assigned number is a local sequence position, and a number merely offered as a
-preference is replaced by one, with a warning, whenever its prefix is already taken. Features 001 to
-006 predate the rule and keep the numbers they were given.
+implements rather than a position in a local sequence, so the numbering skips. Exactly one issue
+represents one spec, and the labels on it — `wish`, `spec`, `plan`, `doing` — are the only record of
+where the work stands. A spec crosses three stages, each on its own branch and its own pull request
+against `main`, and a stage MUST NOT be opened before the previous one has merged. The branch, the
+label and the pointer to the feature directory are created by `cargo xtask spec`, and none of the
+three may be done by hand. A change to the repository's own tooling is not a feature: it needs an
+ADR and commits, and MUST NOT take a spec directory or a stage branch. Features 001 to 006 predate
+the rule and keep the numbers they were given.
 
 ### The previous spec home is history
 
@@ -305,4 +337,4 @@ boundary, tests, docs — are enforced by `cargo xtask check` and are not a matt
 rest — thin slices, structural commits kept separate, decisions recorded when taken, claims
 measured — is checked by reading, at plan time and at review time.
 
-**Version**: 1.3.1 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-09
+**Version**: 1.4.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-11
