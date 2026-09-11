@@ -32,7 +32,7 @@ crates/monospace-cli/
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `serde` (`=1.0.229`, `derive` feature) and `serde_json` (`=1.0.151`) as dependencies
+- [x] T001 Add `serde` (`=1.0.229`, `derive` feature) and `serde_json` (`=1.0.151`) as dependencies
       of `crates/monospace-cli/Cargo.toml` only, matching research.md's versions and rationale.
 
 **Checkpoint**: The workspace still builds; `monospace-cli` has the two new dependencies and uses
