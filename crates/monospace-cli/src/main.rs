@@ -6,6 +6,10 @@ use monospace_core::{
     BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
 };
 
+mod description;
+
+use description::Description;
+
 /// Draws the 4x3 filled box spec 0002 settled, with `origin` as its top-left corner and `mode`
 /// as the stamp mode. `BoxShape` computes the same border and fill this function used to stamp
 /// by hand — the feature 039 plan checked the two byte for byte before this refactor landed.
@@ -37,6 +41,15 @@ fn render_pair(catalog: &GlyphCatalog, origin: Pos, second_mode: StampMode) -> S
 }
 
 fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if let [path] = args.as_slice() {
+        let text = std::fs::read_to_string(path).expect("path should be readable");
+        let description: Description =
+            serde_json::from_str(&text).expect("file should hold a well-formed description");
+        print!("{}", description.render());
+        return;
+    }
+
     let catalog = GlyphCatalog::light();
     let origin = Pos { x: 0, y: 0 };
 
