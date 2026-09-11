@@ -208,7 +208,7 @@ arrow above against the counting surface and confirm no position is written more
       its expected picture produced by running the code rather than pinned in advance; and the
       same-position row (scenario 13), asserting only that the call returns normally — completing
       the seven-row coverage SC-003 requires
-- [ ] T011 [US3] Add the write-count test to `crates/monospace-core/src/shape/arrow.rs`'s test
+- [x] T011 [US3] Add the write-count test to `crates/monospace-core/src/shape/arrow.rs`'s test
       module: every arrow above, drawn against the counting surface, reports a maximum of 1 per
       position, including at the positions where a route bends (scenario 12, FR-020)
 
