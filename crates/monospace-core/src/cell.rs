@@ -3,6 +3,24 @@
 
 use crate::{Glyph, GlyphCatalog, GlyphKey, Stroke};
 
+/// A place on a cell: one of its four sides.
+///
+/// Not the same thing as [`Direction`](crate::Direction), which is a way to move across the
+/// plane rather than a place on a cell — see _Vocabulary_ in
+/// [`docs/model.md`](../../../docs/model.md). Only the fragments in `crate::shape::fragment` name
+/// a `Side`; the figures above them reason in `Direction`s instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Side {
+    /// The top of a cell.
+    Top,
+    /// The right of a cell.
+    Right,
+    /// The bottom of a cell.
+    Bottom,
+    /// The left of a cell.
+    Left,
+}
+
 /// What a cell has on one of its four sides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Arm {

@@ -3,84 +3,23 @@
 //! It holds no domain logic of its own: everything it draws comes from `monospace-core`.
 
 use monospace_core::{
-    Arm, Buffer, Cell, Glyph, GlyphCatalog, Pos, Size, StampMode, Stroke, StrokeCell, render,
+    BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
 };
 
-/// Stamps the 4x3 box spec 0002 settled, with `origin` as its top-left corner and `mode` as the
-/// stamp mode: `Set` along the border, `Closed` facing the interior, and `Unset` facing outward
-/// so a later figure can join it rather than being refused by a border that means nothing by it.
-/// The two interior positions are stamped with a literal fill, so a figure behind the box no
-/// longer shows through it.
+/// Draws the 4x3 filled box spec 0002 settled, with `origin` as its top-left corner and `mode`
+/// as the stamp mode. `BoxShape` computes the same border and fill this function used to stamp
+/// by hand — the feature 039 plan checked the two byte for byte before this refactor landed.
 fn stamp_box(buffer: &mut Buffer, origin: Pos, mode: StampMode) {
-    let light = || Stroke::from("light");
-    let cell = |top, right, bottom, left| -> Cell {
-        StrokeCell {
-            base: light(),
-            top,
-            right,
-            bottom,
-            left,
-        }
-        .into()
-    };
-    let fill = || Cell::Literal(Glyph::new("░").expect("\"░\" is one glyph"));
-    let at = |dx: i32, dy: i32| Pos {
-        x: origin.x + dx,
-        y: origin.y + dy,
-    };
-
-    buffer.stamp(
-        at(0, 0),
-        cell(Arm::Unset, Arm::Set, Arm::Set, Arm::Unset),
-        mode,
-    );
-    buffer.stamp(
-        at(1, 0),
-        cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set),
-        mode,
-    );
-    buffer.stamp(
-        at(2, 0),
-        cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set),
-        mode,
-    );
-    buffer.stamp(
-        at(3, 0),
-        cell(Arm::Unset, Arm::Unset, Arm::Set, Arm::Set),
-        mode,
-    );
-    buffer.stamp(
-        at(0, 1),
-        cell(Arm::Set, Arm::Closed, Arm::Set, Arm::Unset),
-        mode,
-    );
-    buffer.stamp(at(1, 1), fill(), mode);
-    buffer.stamp(at(2, 1), fill(), mode);
-    buffer.stamp(
-        at(3, 1),
-        cell(Arm::Set, Arm::Unset, Arm::Set, Arm::Closed),
-        mode,
-    );
-    buffer.stamp(
-        at(0, 2),
-        cell(Arm::Set, Arm::Set, Arm::Unset, Arm::Unset),
-        mode,
-    );
-    buffer.stamp(
-        at(1, 2),
-        cell(Arm::Closed, Arm::Set, Arm::Unset, Arm::Set),
-        mode,
-    );
-    buffer.stamp(
-        at(2, 2),
-        cell(Arm::Closed, Arm::Set, Arm::Unset, Arm::Set),
-        mode,
-    );
-    buffer.stamp(
-        at(3, 2),
-        cell(Arm::Set, Arm::Unset, Arm::Unset, Arm::Set),
-        mode,
-    );
+    BoxShape {
+        at: origin,
+        size: Size {
+            width: 4,
+            height: 3,
+        },
+        stroke: Stroke::from("light"),
+        fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+    }
+    .draw(&mut Layer::new(buffer, mode));
 }
 
 /// Draws the box at `(0, 0)` and again at `(2, 1)` into a 6x4 buffer, the second one stamped

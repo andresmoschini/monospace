@@ -867,3 +867,74 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   actually load-bearing is that a tooling change takes no `specs/` directory and no stage suffix, so
   that is what CONTRIBUTING.md says. Writing down the literal version would have shipped a document
   violated by its own commit.
+
+## 2026-09-10 — Feature 039 implemented: draw shapes instead of individual cells
+
+### Rust design and idiom
+
+- **A fragment nothing outside its own unit test constructs is dead code, and the compiler means it
+  literally.** The plan gave each of the six fragments its own commit, built ahead of the figure
+  that would place it. `cargo clippy --all-targets -D warnings` rejected the first one: `Corner`
+  compiled and its test passed, but the library's own non-test build never constructed it, which is
+  exactly what `dead_code` is for. `--all-targets` runs the test build too, and a fragment used only
+  there is still dead in the build that ships. There was no lint to configure around this — the fix
+  was to stop pretending a fragment can be shown to work before something draws it, and fold each
+  one into the commit of the figure that does. The six fragments and their six cell rules are
+  unchanged; only which commit they arrive in moved.
+- **The same cell rule serves a corner and a straight run, and `Route` spends that for free.**
+  `Corner{ opens: (Side, Side) }` was written for two perpendicular sides and, on inspection, does
+  exactly the right thing for two opposite ones too — `Set` on both named sides, `Unset` on the
+  rest, which is what a straight-through cell already is. `Route` never asks "is this a bend": it
+  compares the orientation of the side facing the predecessor against the one facing the successor,
+  and places a `Corner` when they differ, a `Segment` when they don't. The distinction the model
+  draws in prose — a bend belongs to one piece, a run to another — fell out of one comparison
+  instead of needing a case for each.
+- **`checked_add_unsigned` is the idiom for combining an absolute `i32` position with a `u32` extent
+  without a cast.** `render.rs` already used it for one offset; this feature reused it for every
+  place a position needed to move by a length or a loop index — the box's far corner, a line's `n`th
+  cell, a run's or a rectangle's positions — rather than writing `as i32` and inviting
+  `clippy::cast_possible_wrap` to say why not.
+- **A let-chain collapsed a nested `if let` that `collapsible_if` refused to leave alone.**
+  `if width > 2 && height > 2 { if let Some(glyph) = &self.fill { ... } }` became one condition,
+  `if width > 2 && height > 2 && let Some(glyph) = &self.fill { ... }`, on the edition's own
+  suggestion. Confirmed on the pinned toolchain rather than assumed from the edition number.
+
+### Working this way
+
+- **The general rule, run against the pictures, beat hand-deriving each family.** Research described
+  a lattice search — enumerate candidate paths, score by fewest bends, break ties by distance from
+  the route rectangle's middle — rather than a switch over the seven direction families. Implemented
+  once, as written, it matched all nine pinned pictures on the first test run; the only failure was
+  a trailing-space count mistyped by hand while copying a picture out of the spec, caught by running
+  the test rather than by proofreading the transcription.
+  [ADR-0028](decisions/0028-give-each-fragment-its-own-cell-rule.md)'s reasoning about a vocabulary
+  named by role rather than by case held one layer up too: a general search has no family to miss.
+- **The dead-code constraint was found by running the gate, not by reading the plan again.**
+  `tasks.md` was rewritten twice during implementation, once to fold a scaffold commit into the
+  first fragment and once to fold every remaining fragment into its figure — both times because
+  `cargo xtask check` failed, not because a re-read of the plan predicted it. A plan reviewed before
+  code exists catches a design mistake; it does not catch a commit boundary the compiler will not
+  allow, because nothing compiles yet to ask it.
+- **The one tie-break the spec built a scenario to test, tested correctly on the first run.**
+  Scenario 5 exists because three two-bend candidates tie on bend count and only one is pinned;
+  research.md's tie-break — sum of distance from the route rectangle's middle — picked the pinned
+  candidate without adjustment. A rule written from a description and checked against the one case
+  designed to distinguish it from a simpler rule is a stronger claim than a rule that merely passes
+  every test it was fitted to.
+
+### Trade-offs worth remembering
+
+- **Fragment-level commit granularity looked appealing on paper and wasn't buildable.** The tasks
+  plan gave `Corner`, `Border` and `Fill` a commit each, ahead of `BoxShape`; all three collapsed
+  into `BoxShape`'s own commit once the dead-code constraint was found, and the same happened for
+  `Line` and for `Arrow`. The design the six fragments express is unchanged — three figures, six
+  single-purpose leaves, one cell rule apiece — but the unit of delivery turned out to be the
+  figure, not the fragment, because nothing shorter than a figure gives a fragment a reason to exist
+  outside its own test.
+- **A general search costs more code than a per-family switch and buys totality instead of
+  coverage.** The previous entry recorded a routing rule that had no answer for two arrangements
+  because its cases were enumerated by hand and two were missed. The lattice search this feature
+  implements has no case list to be incomplete: every candidate the model permits is either found or
+  the search correctly reports none exist. The trade is a longer function that searches a nine-point
+  lattice instead of a short one that recognizes seven shapes, paid once so that no future family
+  can go missing the way two already did.
