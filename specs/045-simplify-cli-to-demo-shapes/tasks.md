@@ -32,7 +32,7 @@ crates/monospace-cli/
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `serde` (`=1.0.229`, `derive` feature) and `serde_json` (`=1.0.151`) as dependencies
+- [x] T001 Add `serde` (`=1.0.229`, `derive` feature) and `serde_json` (`=1.0.151`) as dependencies
       of `crates/monospace-cli/Cargo.toml` only, matching research.md's versions and rationale.
 
 **Checkpoint**: The workspace still builds; `monospace-cli` has the two new dependencies and uses
@@ -46,49 +46,49 @@ neither yet.
 conversion into `monospace_core` shapes (data-model.md), all private to `monospace-cli` (FR-019). No
 user story can be implemented before this phase, since all three read a `Description`.
 
-- [ ] T002 In `crates/monospace-cli/src/description.rs`, define `Pos { x: i32, y: i32 }` and
+- [x] T002 In `crates/monospace-cli/src/description.rs`, define `Pos { x: i32, y: i32 }` and
       `Size { width: u32, height: u32 }` deriving `serde::Deserialize`, plus
       `From<Pos> for     monospace_core::Pos` and `From<Size> for monospace_core::Size`
       (data-model.md: Pos, Size).
-- [ ] T003 In `crates/monospace-cli/src/description.rs`, define an `Orientation` mirror enum
+- [x] T003 In `crates/monospace-cli/src/description.rs`, define an `Orientation` mirror enum
       (`"horizontal"` / `"vertical"`) and a `Leaving` mirror enum (`"up"` / `"right"` / `"down"` /
       `"left"`), each deriving `Deserialize` with `#[serde(rename_all = "lowercase")]`, plus
       conversions into `monospace_core::Orientation` and `monospace_core::Direction` (data-model.md:
       Line, Endpoint). Depends on T002 being in the same file.
-- [ ] T004 In `crates/monospace-cli/src/description.rs`, define a `StampMode` mirror enum (`"above"`
+- [x] T004 In `crates/monospace-cli/src/description.rs`, define a `StampMode` mirror enum (`"above"`
       / `"below"`) deriving `Deserialize` with `#[serde(rename_all = "lowercase")]`, plus a
       conversion into `monospace_core::StampMode`; any other string is already a data error by
       construction (FR-014, data-model.md: StampMode).
-- [ ] T005 In `crates/monospace-cli/src/description.rs`, add a `deserialize_glyph` function usable
+- [x] T005 In `crates/monospace-cli/src/description.rs`, add a `deserialize_glyph` function usable
       with `#[serde(deserialize_with = "deserialize_glyph")]` that calls
       `monospace_core::Glyph::new` on the deserialized string and reports a `None` result via
       `serde::de::Error::custom`, so a `fill` or `head` that is not exactly one grapheme cluster
       fails during the same `serde_json::from_str` call as every other data error (data-model.md:
       BoxShape.fill, Endpoint.head; research.md, "one `serde_json::Error` covers every failure path
       except a missing file").
-- [ ] T006 In `crates/monospace-cli/src/description.rs`, define `Canvas { origin: Pos, size: Size }`
+- [x] T006 In `crates/monospace-cli/src/description.rs`, define `Canvas { origin: Pos, size: Size }`
       deriving `Deserialize` (data-model.md: Canvas). Depends on T002.
-- [ ] T007 In `crates/monospace-cli/src/description.rs`, define
+- [x] T007 In `crates/monospace-cli/src/description.rs`, define
       `Endpoint { at: Pos, leaving: Leaving, head: Glyph }` (the `head` field using T005's
       `deserialize_glyph`) deriving `Deserialize`, plus its conversion into
       `monospace_core::Endpoint` (data-model.md: Endpoint). Depends on T002, T003, T005.
-- [ ] T008 In `crates/monospace-cli/src/description.rs`, define `ShapeDescription` as an internally
+- [x] T008 In `crates/monospace-cli/src/description.rs`, define `ShapeDescription` as an internally
       tagged enum (`#[serde(tag = "kind", rename_all = "lowercase")]`) with `Box`, `Line` and
       `Arrow` variants matching contracts/description-format.md field-for-field (each variant
       carries its own `mode: StampMode`), deriving `Deserialize` — an unrecognized `kind` is then
       reported by name (FR-014). Depends on T002–T007.
-- [ ] T009 In `crates/monospace-cli/src/description.rs`, implement
+- [x] T009 In `crates/monospace-cli/src/description.rs`, implement
       `ShapeDescription::draw(&self, buffer: &mut monospace_core::Buffer)`: convert the matched
       variant into the corresponding `monospace_core::{BoxShape, Line, Arrow}` and stamp it via
       `monospace_core::Layer::new(buffer, mode)` using that variant's own stamp mode (FR-008,
       FR-009). Depends on T008.
-- [ ] T010 In `crates/monospace-cli/src/description.rs`, define
+- [x] T010 In `crates/monospace-cli/src/description.rs`, define
       `Description { canvas: Canvas, shapes: Vec<ShapeDescription> }` deriving `Deserialize`, and
       `Description::render(&self) -> String`: build a `monospace_core::Buffer` from `canvas`, call
       `ShapeDescription::draw` for every shape in `shapes`, in order, then return
       `monospace_core::render` of that buffer with `monospace_core::GlyphCatalog::light()`
       (data-model.md: Description; FR-005, FR-009). Depends on T006, T009.
-- [ ] T011 In `crates/monospace-cli/src/description.rs`, add unit tests next to the conversions
+- [x] T011 In `crates/monospace-cli/src/description.rs`, add unit tests next to the conversions
       (plan.md, Technical Context: Testing): a one-box `Description` renders the same text as a
       `BoxShape` drawn directly with the same parameters; an unrecognized `kind` fails to
       deserialize; an unrecognized `mode` fails to deserialize; a `fill` or `head` of more than one
@@ -113,7 +113,7 @@ previous hardcoded demo drew it.
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] In `crates/monospace-cli/src/main.rs`, add `mod description;` and, when
+- [x] T012 [US1] In `crates/monospace-cli/src/main.rs`, add `mod description;` and, when
       `std::env::args().skip(1)` yields exactly one argument, read that path with
       `std::fs::read_to_string`, parse it with `serde_json::from_str::<description::Description>`,
       and `print!` the result of `.render()` — leaving the existing no-argument hardcoded demo in
@@ -121,7 +121,7 @@ previous hardcoded demo drew it.
 
 ### Tests for User Story 1
 
-- [ ] T013 [US1] Add subprocess tests to `crates/monospace-cli/tests/cli.rs`: an explicit path to a
+- [x] T013 [US1] Add subprocess tests to `crates/monospace-cli/tests/cli.rs`: an explicit path to a
       hand-written single-box file prints exactly that box (acceptance scenario 1); a file with a
       box, a line and an arrow at stated positions prints all three composed (acceptance scenario
       2); the same file with its shapes reordered changes which one is drawn on top where they
@@ -143,11 +143,11 @@ diagram shows all three shapes, a filled interior, and both stamp modes.
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Write `crates/monospace-cli/assets/demo.json`: a `Description` exercising all three
+- [x] T014 [US2] Write `crates/monospace-cli/assets/demo.json`: a `Description` exercising all three
       shapes, a filled box interior, overlap, and both stamp modes shown as two overlapping
       arrangements side by side on one canvas (FR-010), in the format
       contracts/description-format.md states. Depends on Phase 2 (T002–T011).
-- [ ] T015 [US2] In `crates/monospace-cli/src/main.rs`, embed that file with
+- [x] T015 [US2] In `crates/monospace-cli/src/main.rs`, embed that file with
       `include_str!("../assets/demo.json")` (FR-022, FR-023) as the description text used when no
       argument is given, parsed and rendered through the same path as T012; remove `stamp_box`,
       `render_pair` and every other hardcoded shape from `main.rs` (FR-018, SC-006). Depends on
@@ -155,7 +155,7 @@ diagram shows all three shapes, a filled interior, and both stamp modes.
 
 ### Tests for User Story 2
 
-- [ ] T016 [US2] Replace `crates/monospace-cli/tests/cli.rs`'s `prints_the_box_then_both_pairs` test
+- [x] T016 [US2] Replace `crates/monospace-cli/tests/cli.rs`'s `prints_the_box_then_both_pairs` test
       with subprocess tests asserting: no arguments prints the demonstration and exits successfully
       (acceptance scenario 1); running from a different working directory prints the same diagram
       (acceptance scenario 2, FR-022); passing `crates/monospace-cli/assets/demo.json` explicitly
@@ -176,19 +176,19 @@ text, and check each prints a message naming the problem and exits with a failur
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] In `crates/monospace-cli/src/main.rs`, handle the two failures the pipeline can
+- [x] T017 [US3] In `crates/monospace-cli/src/main.rs`, handle the two failures the pipeline can
       produce without printing anything to stdout first: a `std::fs::read_to_string` error prints a
       message naming the path to stderr and exits with a failure status (FR-012); a
       `serde_json::from_str` error prints its `Display` message to stderr and exits with a failure
       status (FR-013, FR-014, FR-016); success alone reaches the `print!` call (FR-015). Depends on
       T015.
-- [ ] T018 [US3] In `crates/monospace-cli/src/main.rs`, when more than one command-line argument is
+- [x] T018 [US3] In `crates/monospace-cli/src/main.rs`, when more than one command-line argument is
       given, print a usage message to stderr and exit with a failure status instead of matching on
       it as a path (Edge Cases: "More than one command-line argument"). Depends on T012.
 
 ### Tests for User Story 3
 
-- [ ] T019 [US3] Add subprocess tests to `crates/monospace-cli/tests/cli.rs`: a path that does not
+- [x] T019 [US3] Add subprocess tests to `crates/monospace-cli/tests/cli.rs`: a path that does not
       exist prints nothing to stdout, names the path on stderr, and fails (acceptance scenario 1);
       malformed JSON prints nothing to stdout, locates the problem on stderr, and fails (acceptance
       scenario 2); an unrecognized shape kind prints nothing to stdout, names the kind on stderr,
@@ -202,11 +202,11 @@ panics, exits successfully with no diagram, or prints a partial diagram alongsid
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T020 [P] Run every scenario in `specs/045-simplify-cli-to-demo-shapes/quickstart.md` by hand
+- [x] T020 [P] Run every scenario in `specs/045-simplify-cli-to-demo-shapes/quickstart.md` by hand
       and confirm the actual output, not an assumed one (constitution, principle IV).
-- [ ] T021 Run `cargo xtask check` on a fresh clone and confirm it is green (constitution, principle
+- [x] T021 Run `cargo xtask check` on a fresh clone and confirm it is green (constitution, principle
       III and IV).
-- [ ] T022 [P] Append an entry to `docs/learning-log.md` for this increment: what was learned about
+- [x] T022 [P] Append an entry to `docs/learning-log.md` for this increment: what was learned about
       Rust design and idiom, what was learned about working this way, and optionally a trade-off
       worth remembering (constitution, principle II).
 

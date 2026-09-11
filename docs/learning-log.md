@@ -938,3 +938,58 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   the search correctly reports none exist. The trade is a longer function that searches a nine-point
   lattice instead of a short one that recognizes seven shapes, paid once so that no future family
   can go missing the way two already did.
+
+## 2026-09-11 — Feature 045 implemented: read shapes from a JSON file
+
+### Rust design and idiom
+
+- **An internally tagged enum turns "name the unrecognized kind" into a property of the derive, not
+  a branch someone writes.** `ShapeDescription`'s `#[serde(tag = "kind", rename_all = "lowercase")]`
+  was the whole of FR-014's "unrecognized kind is a data error naming the value": `serde`'s own
+  `unknown variant` message already carries `triangle` and the three names it isn't, because the tag
+  is matched before any variant's fields are. No code in this crate checks `kind` against a list.
+- **One glyph-validating function served both a required field and an optional one, by wrapping it
+  in a one-field struct instead of writing it twice.** `head: Glyph` uses `deserialize_glyph`
+  directly; `fill: Option<Glyph>` needed the same one-grapheme check to run only when the field is
+  present. Rather than a second function duplicating the `Glyph::new`/`serde::de::Error::custom`
+  logic, a local `struct Wrapper(#[serde(deserialize_with = "deserialize_glyph")] Glyph)` let
+  `Option::<Wrapper>::deserialize` reuse the exact same function for the "when present" half of an
+  optional field.
+- **`ShapeDescription::draw(&self, ...)` taking a shared reference meant every mirror type needed
+  `Clone` (and `Copy` where cheap) before conversion into a `monospace_core` value, which consumes
+  its arguments.** `Pos`, `Size` and the three small enums derive `Copy`; `Endpoint`, carrying a
+  `Glyph`, derives `Clone` instead. Deriving `Debug` cascaded the same way once one test used
+  `expect_err`, which requires it on the `Ok` type — a reminder that a derive requirement on one
+  type is often a derive requirement on everything it contains.
+- **`main` returning `ExitCode` instead of unwinding replaced three `.expect()` calls with three
+  `return ExitCode::FAILURE` arms.** Each of the two `Result`s the pipeline produces — a read, then
+  a parse — gets matched explicitly, printing to stderr and returning before anything reaches
+  `print!`; success is the only path that falls through to it. FR-016 ("no panic on any input file")
+  became a property of there being no `.expect()` or `.unwrap()` left in `main`, not a claim to take
+  on faith.
+
+### Working this way
+
+- **Two fixtures with the same shapes in reversed order, run and diffed, is what actually confirmed
+  "draw order changes what's on top" — describing it would not have.** Two temp files, one array
+  reversed, run through the built binary and `diff`'d: the outputs differed, and reading them back
+  showed which corner glyph each order produced. The reordering assertion in `tests/cli.rs`
+  (acceptance scenario 3) is the output `diff` actually printed, not a guess about what stamping
+  order ought to do.
+- **The Phase 2 checkpoint's "this must land with T012 in one commit" was exactly right, and the
+  reason recurred from feature 039: an unreached module compiles clean, so nothing forces the
+  grouping except reading the task list before staging.** `description.rs` alone, without
+  `mod description;` in `main.rs`, is invisible to `cargo build` — no dead-code warning, no error,
+  just a file cargo never looks at. The commit that added it also added the one line that made it
+  part of the binary, matching the plan rather than discovering the same constraint the hard way a
+  third time.
+
+### Trade-offs worth remembering
+
+- **Mirroring every public field of three core shape types by hand, instead of deriving
+  `Deserialize` on the core types themselves, kept `serde` out of `monospace-core` at the cost of
+  one duplicate struct per shape.** FR-019 and ADR-0035 already settled this trade before
+  implementation; what implementation confirmed is its actual size — four mirror types, three
+  conversions, and one field-by-field match in `ShapeDescription::draw` — small enough that the
+  duplication reads as the format's own contract (`contracts/description-format.md`) rather than as
+  drift waiting to happen.
