@@ -286,6 +286,7 @@ fn compare_lexicographically(left: &[Pos], right: &[Pos]) -> std::cmp::Ordering 
 #[cfg(test)]
 mod tests {
     use super::{Arrow, Endpoint};
+    use crate::shape::counting::CountingSurface;
     use crate::{
         Buffer, Direction, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
     };
@@ -589,5 +590,66 @@ mod tests {
             endpoint(Pos { x: 0, y: 0 }, Direction::Right),
             endpoint(Pos { x: 0, y: 0 }, Direction::Left),
         );
+    }
+
+    /// User story 3, scenario 12: none of the ten pinned arrows writes any position more than
+    /// once — including where a route bends, which is where a route drawn as two overlapping
+    /// runs would write twice (FR-020).
+    #[test]
+    fn no_pinned_arrow_writes_any_position_more_than_once() {
+        let pairs = [
+            (
+                endpoint(Pos { x: 0, y: 0 }, Direction::Down),
+                endpoint(Pos { x: 4, y: 3 }, Direction::Left),
+            ),
+            (
+                endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+                endpoint(Pos { x: 4, y: 3 }, Direction::Up),
+            ),
+            (
+                endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+                endpoint(Pos { x: 6, y: 0 }, Direction::Left),
+            ),
+            (
+                endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+                endpoint(Pos { x: 6, y: 2 }, Direction::Left),
+            ),
+            (
+                endpoint(Pos { x: 2, y: 0 }, Direction::Right),
+                endpoint(Pos { x: 8, y: 2 }, Direction::Left),
+            ),
+            (
+                endpoint(Pos { x: 2, y: 0 }, Direction::Left),
+                endpoint(Pos { x: 8, y: 2 }, Direction::Right),
+            ),
+            (
+                endpoint(Pos { x: 2, y: 0 }, Direction::Left),
+                endpoint(Pos { x: 8, y: 2 }, Direction::Down),
+            ),
+            (
+                endpoint(Pos { x: 2, y: 0 }, Direction::Right),
+                endpoint(Pos { x: 4, y: 1 }, Direction::Left),
+            ),
+            (
+                endpoint(Pos { x: 2, y: 0 }, Direction::Left),
+                endpoint(Pos { x: 3, y: 2 }, Direction::Right),
+            ),
+        ];
+
+        for (index, (from, to)) in pairs.into_iter().enumerate() {
+            let mut surface = CountingSurface::default();
+            Arrow {
+                from,
+                to,
+                stroke: light(),
+            }
+            .draw(&mut surface);
+
+            assert!(
+                surface.max_writes() <= 1,
+                "pinned arrow {} wrote a position more than once",
+                index + 1
+            );
+        }
     }
 }
