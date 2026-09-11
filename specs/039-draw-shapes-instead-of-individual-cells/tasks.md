@@ -237,7 +237,7 @@ at least once.
       counting surface reports 2 at that position, then restore (SC-006)
 - [x] T014 Verify the gate on a fresh clone: `git clone` this repository elsewhere, run
       `cargo xtask setup && cargo xtask check` there, and confirm it passes (SC-009)
-- [ ] T015 Append this increment's entry to `docs/learning-log.md`
+- [x] T015 Append this increment's entry to `docs/learning-log.md`
 
 T012 and T013 produce no commit and no test of their own. What they produce is an observation for
 the pull request body: _Claims are measured, not assumed_ asks a guard to be shown reachable and a
