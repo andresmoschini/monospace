@@ -105,6 +105,32 @@ const LIGHT: &[Row] = &[
 ];
 
 impl GlyphCatalog {
+    /// Builds a catalog from an ordered group of rules. Where two rules claim the same key, the
+    /// first one in `rules` wins.
+    #[must_use]
+    pub fn from_rules(rules: impl IntoIterator<Item = (GlyphKey, Glyph)>) -> Self {
+        let mut map = HashMap::new();
+        for (key, glyph) in rules {
+            map.entry(key).or_insert(glyph);
+        }
+
+        Self { rules: map }
+    }
+
+    /// Builds a catalog by merging other catalogs, in the order given. Where two claim the same
+    /// key, the earlier one in `catalogs` wins.
+    #[must_use]
+    pub fn union(catalogs: impl IntoIterator<Item = Self>) -> Self {
+        let mut map = HashMap::new();
+        for catalog in catalogs {
+            for (key, glyph) in catalog.rules {
+                map.entry(key).or_insert(glyph);
+            }
+        }
+
+        Self { rules: map }
+    }
+
     /// Builds a catalog from the Light table alone.
     ///
     /// Named after what the catalog holds, not where it comes from: it stays accurate once a
@@ -116,22 +142,17 @@ impl GlyphCatalog {
     /// library ships, never a condition a caller can trigger (FR-009).
     #[must_use]
     pub fn light() -> Self {
-        let rules = LIGHT
-            .iter()
-            .map(|&(top, right, bottom, left, glyph)| {
-                let key = GlyphKey {
-                    top: top.map(Stroke::from),
-                    right: right.map(Stroke::from),
-                    bottom: bottom.map(Stroke::from),
-                    left: left.map(Stroke::from),
-                };
-                let glyph = Glyph::new(glyph)
-                    .unwrap_or_else(|| panic!("Light table row {key:?} is not a valid glyph"));
-                (key, glyph)
-            })
-            .collect();
-
-        Self { rules }
+        Self::from_rules(LIGHT.iter().map(|&(top, right, bottom, left, glyph)| {
+            let key = GlyphKey {
+                top: top.map(Stroke::from),
+                right: right.map(Stroke::from),
+                bottom: bottom.map(Stroke::from),
+                left: left.map(Stroke::from),
+            };
+            let glyph = Glyph::new(glyph)
+                .unwrap_or_else(|| panic!("Light table row {key:?} is not a valid glyph"));
+            (key, glyph)
+        }))
     }
 
     /// Returns the glyph `key` answers to, or `None` if the catalog has no rule for it.
@@ -261,5 +282,89 @@ mod tests {
         };
 
         assert_eq!(catalog.glyph(&key), None);
+    }
+
+    /// A key with the given stroke on its top side and nothing else, so two distinct keys are
+    /// cheap to build for the `from_rules`/`union` tests below.
+    fn key_with_top(stroke: &str) -> GlyphKey {
+        GlyphKey {
+            top: Some(Stroke::from(stroke)),
+            right: None,
+            bottom: None,
+            left: None,
+        }
+    }
+
+    /// Acceptance Scenario 1.3: a key only one side holds answers from that side regardless of
+    /// union order.
+    #[test]
+    fn a_key_only_one_catalog_holds_answers_the_same_regardless_of_union_order() {
+        let mine_key = key_with_top("mine");
+        let mine = Glyph::new("m").expect("\"m\" is one glyph");
+        let other_key = key_with_top("other");
+        let other = Glyph::new("o").expect("\"o\" is one glyph");
+        let mine_catalog = GlyphCatalog::from_rules([(mine_key.clone(), mine.clone())]);
+        let other_catalog = GlyphCatalog::from_rules([(other_key.clone(), other.clone())]);
+
+        let mine_first = GlyphCatalog::union([
+            GlyphCatalog::from_rules([(mine_key.clone(), mine.clone())]),
+            GlyphCatalog::from_rules([(other_key.clone(), other.clone())]),
+        ]);
+        let other_first = GlyphCatalog::union([other_catalog, mine_catalog]);
+
+        assert_eq!(mine_first.glyph(&mine_key), Some(&mine));
+        assert_eq!(mine_first.glyph(&other_key), Some(&other));
+        assert_eq!(other_first.glyph(&mine_key), Some(&mine));
+        assert_eq!(other_first.glyph(&other_key), Some(&other));
+    }
+
+    /// Acceptance Scenario 1.4, SC-006: a key two catalogs both claim answers from whichever was
+    /// given first to `union`, and reversing the order reverses the answer.
+    #[test]
+    fn a_key_two_catalogs_both_claim_answers_from_whichever_came_first() {
+        let key = key_with_top("shared");
+        let first = Glyph::new("1").expect("\"1\" is one glyph");
+        let second = Glyph::new("2").expect("\"2\" is one glyph");
+
+        let first_wins = GlyphCatalog::union([
+            GlyphCatalog::from_rules([(key.clone(), first.clone())]),
+            GlyphCatalog::from_rules([(key.clone(), second.clone())]),
+        ]);
+        let second_wins = GlyphCatalog::union([
+            GlyphCatalog::from_rules([(key.clone(), second.clone())]),
+            GlyphCatalog::from_rules([(key.clone(), first.clone())]),
+        ]);
+
+        assert_eq!(first_wins.glyph(&key), Some(&first));
+        assert_eq!(second_wins.glyph(&key), Some(&second));
+    }
+
+    /// Edge Cases: an empty `rules` iterator produces a valid catalog that answers nothing.
+    #[test]
+    fn an_empty_rules_iterator_produces_a_catalog_with_no_answers() {
+        let catalog = GlyphCatalog::from_rules(std::iter::empty());
+
+        assert_eq!(catalog.glyph(&key_with_top("anything")), None);
+    }
+
+    /// Edge Cases: a zero-element `catalogs` list produces a valid catalog that answers nothing.
+    #[test]
+    fn a_union_of_no_catalogs_produces_a_catalog_with_no_answers() {
+        let catalog = GlyphCatalog::union(std::iter::empty());
+
+        assert_eq!(catalog.glyph(&key_with_top("anything")), None);
+    }
+
+    /// Edge Cases: a one-element `catalogs` list answers exactly as that catalog does on its own.
+    #[test]
+    fn a_union_of_a_single_catalog_answers_the_same_as_that_catalog_alone() {
+        let key = key_with_top("solo");
+        let glyph = Glyph::new("s").expect("\"s\" is one glyph");
+        let alone = GlyphCatalog::from_rules([(key.clone(), glyph.clone())]);
+        let merged =
+            GlyphCatalog::union([GlyphCatalog::from_rules([(key.clone(), glyph.clone())])]);
+
+        assert_eq!(alone.glyph(&key), merged.glyph(&key));
+        assert_eq!(merged.glyph(&key), Some(&glyph));
     }
 }
