@@ -47,6 +47,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0033](0033-keep-the-flow-state-in-labels-on-one-issue.md)         | Keep the flow state in labels on one issue                                      | accepted                             |
 | [0034](0034-let-xtask-own-the-feature-branch.md)                   | Let xtask own the feature branch                                                | accepted                             |
 | [0035](0035-keep-the-cli-demo-format-out-of-the-model.md)          | Keep the CLI's demo file format out of the model                                | accepted                             |
+| [0036](0036-hold-every-table-but-light-outside-the-core.md)        | Hold every glyph table but Light in a crate outside the core                    | accepted                             |
 
 ## How to add one
 

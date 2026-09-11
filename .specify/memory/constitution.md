@@ -1,6 +1,26 @@
 <!--
 Sync Impact Report — 2026-09-11
 
+Version change: 1.4.0 → 1.5.0
+
+Rationale for MINOR: materially expanded guidance. In scope for this phase admits a third crate, a
+library of glyph sets that depends on the core. No principle is added, removed or redefined, and
+principle VII is untouched: the new crate respects the boundary that section cites rather than
+crossing it, since it holds domain data and assumes no CLI, TUI or terminal. Out of scope for this
+phase is unchanged, and nothing on it is widened.
+
+Decisions this amendment implements: ADR-0036 (every glyph table but Light lives outside the core).
+
+Modified sections:
+  - In scope for this phase: "Two things" becomes three. monospace-glyph-sets is named, with the
+    rule that its presence is about where a table may come from and not about what the phase
+    builds, so a crate proposed for any other reason is still a scope change to renegotiate.
+
+Templates and commands reviewed: unchanged. plan-template.md is the only one that refers to this
+file and it reads it at runtime.
+
+Sync Impact Report — 2026-09-11
+
 Version change: 1.3.1 → 1.4.0
 
 Rationale for MINOR: materially expanded guidance. Spec Kit is the workflow gains the staged flow,
@@ -215,9 +235,16 @@ spec, not a finished feature.
 
 ### In scope for this phase
 
-Two things, and their boundary is principle VII: `monospace-core`, the
+Three things, and their boundary is principle VII: `monospace-core`, the
 Rust library holding the diagramming logic — input parsing, layout and positioning, ASCII rendering
-— and `monospace-cli`, a minimal non-interactive consumer that produces diagrams from the terminal.
+— `monospace-cli`, a minimal non-interactive consumer that produces diagrams from the terminal, and
+`monospace-glyph-sets`, a library of the glyph sets the core does not ship, depending on the core
+and privileged no further than any other crate that depends on it
+([ADR-0036](../../docs/decisions/0036-hold-every-table-but-light-outside-the-core.md)).
+
+The third one is here to make a claim checkable — that a glyph set can come from outside the core —
+and not because the phase builds three things. A further crate proposed for any other reason is a
+widening of this section, to be renegotiated rather than assumed.
 
 ### Out of scope for this phase
 
@@ -337,4 +364,4 @@ boundary, tests, docs — are enforced by `cargo xtask check` and are not a matt
 rest — thin slices, structural commits kept separate, decisions recorded when taken, claims
 measured — is checked by reading, at plan time and at review time.
 
-**Version**: 1.4.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-11
+**Version**: 1.5.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-11
