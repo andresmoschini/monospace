@@ -13,6 +13,18 @@ Light, depends on the core, and is no more privileged than a crate somebody else
 command-line application builds one catalog out of both and renders with it. The table it brings is
 ASCII. User description: "Ensure to add demonstration shapes in the CLI with the default JSON file."
 
+## Clarifications
+
+### Session 2026-09-11
+
+- Q: What should the second library be called? → A: `monospace-glyph-sets`, the model's own word,
+  rather than the issue's `styles`
+- Q: Should the constitution's _In scope for this phase_ be amended in this increment to admit a
+  third crate? → A: Yes, amended here to 1.5.0, naming ADR-0036 as the decision it implements
+- Q: What should the feature do about a cell where an ASCII figure and a Light one meet? → A:
+  Nothing new — one stroke per cell (ADR-0012) means the front figure's base stroke answers the
+  whole cell. The demonstration shows it both ways round, ASCII in front and Light in front
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - A table written outside the core answers keys like any other (Priority: P1)
@@ -97,16 +109,22 @@ file.
    no other shape's do, with no code changed.
 3. **Given** the shapes that were already in the shipped description, **When** the application is
    run after this feature, **Then** those shapes render exactly as they did before it.
+4. **Given** an ASCII figure crossing a Light one with the ASCII figure in front, **When** the
+   application is run, **Then** the shared cell is the ASCII table's character for that junction.
+5. **Given** the same crossing with the Light figure in front instead, **When** the application is
+   run, **Then** the shared cell is the Light table's character for that junction, so the two
+   crossings differ only by what is in front.
 
 ---
 
 ### Edge Cases
 
-- **A cell where a stroke from one table meets a stroke from another.** The key names both stroke
-  names, and no single-stroke table holds it. The renderer's existing answer for a key nothing holds
-  stands; this is not an error, and nothing in this feature changes it. The rule the model describes
-  for this case under _Rendering_ — degrading to the cell's base stroke — is not implemented today
-  and is not implemented here.
+- **A cell two figures share, each drawn from a different table.** Already settled, and settled
+  twice over. A cell holds one base stroke and four arms that all draw in it, per
+  [ADR-0012](../../docs/decisions/0012-one-stroke-per-cell.md), so a key never names two stroke
+  names; and where figures overlap, the one in front owns the base stroke, per _Stamping_ in
+  `docs/model.md`. The shared cell therefore renders wholly from the front figure's table. This is
+  the behavior the demonstration has to show rather than avoid, which is FR-017.
 - **A catalog built from no tables at all.** Every key misses, every cell renders as the miss
   already renders, and this is not an error.
 - **A table with no rows.** Contributes nothing and changes nothing about the catalog it goes into.
@@ -139,9 +157,10 @@ file.
 #### Where tables live
 
 - **FR-006**: `monospace-core` MUST keep the Light table and MUST NOT gain a second one.
-- **FR-007**: Every other table the project ships MUST live in a second library that depends on
-  `monospace-core`, as decided in
-  [ADR-0036](../../docs/decisions/0036-hold-every-table-but-light-outside-the-core.md).
+- **FR-007**: Every other table the project ships MUST live in a second library,
+  `monospace-glyph-sets`, which depends on `monospace-core`, as decided in
+  [ADR-0036](../../docs/decisions/0036-hold-every-table-but-light-outside-the-core.md). The name is
+  the model's word for what the library holds, so the project gains no second word for a set.
 - **FR-008**: `monospace-core` MUST NOT depend on that library, directly or transitively, and MUST
   contain no reference to any table that library holds.
 - **FR-009**: That library MUST reach `monospace-core` through its public interface only, so that it
@@ -169,9 +188,11 @@ file.
   so that a no-argument run shows both tables answering from one catalog.
 - **FR-016**: Those shapes MUST be added to the shipped description file and nowhere else, keeping
   feature 045's rule that the file is the only place the demonstration's content lives.
-- **FR-017**: The demonstration MUST NOT place a cell where an ASCII stroke meets a Light stroke,
-  because no table in its catalog holds that key and the cell would render as a hole in a diagram
-  whose purpose is to be looked at.
+- **FR-017**: The demonstration MUST show a figure drawn from each table crossing the other, twice:
+  once with the ASCII figure in front and once with the Light figure in front. The two crossings
+  MUST render from the front figure's table in each case — the first as ASCII, the second as Light —
+  so the demonstration shows that which table answers a shared cell is decided by what is in front,
+  and by nothing about where the table came from.
 - **FR-018**: The shapes already in the shipped description MUST render exactly as they do today.
 - **FR-019**: The application MUST NOT gain a command-line way to choose a table or a style in this
   feature. Which tables go into its catalog is stated in the application, and which stroke a shape
@@ -189,10 +210,12 @@ file.
 ### Key Entities
 
 - **Glyph table**: a group of rules as somebody writes them — one of the tables in
-  `docs/glyph-sets.md`. It is data, and it is what a library contributes.
+  `docs/glyph-sets.md`. It is data, and it is what a library contributes. A table and a glyph set
+  are the same thing: the model's vocabulary names the entity `GlyphSet` and calls its written form
+  a table, and this spec uses whichever of the two reads better in the sentence.
 - **Catalog**: what a renderer answers keys from, built from tables in an order. Already owned by
   the model and by ADR-0014; this feature gives it a second source, not a new meaning.
-- **The glyph-table library**: the second library. It depends on `monospace-core`, holds the tables
+- **`monospace-glyph-sets`**: the second library. It depends on `monospace-core`, holds the tables
   that are not Light, and has no privilege the core does not give every dependent. It is the
   stand-in for a library somebody else would write, and the evidence that writing one is possible.
 - **Demonstration description**: the shipped description file the application renders when given no
@@ -219,27 +242,27 @@ file.
 - **SC-007**: The number of public operations that report where a rule came from is zero.
 - **SC-008**: Every diagram the project rendered before this feature renders byte-identically after
   it, except the shipped demonstration, which gains shapes and nothing else.
+- **SC-009**: The demonstration holds two crossings of a Light figure and an ASCII one, and the
+  shared cell of each is read off the printed diagram: the one with ASCII in front is a character
+  the ASCII table holds, and the one with Light in front is a character the Light table holds.
 
 ## Assumptions
 
-- **The second library's name follows the issue's sketch.** The issue calls it `styles`, which the
-  workspace's convention makes `monospace-styles`. This is recorded as an assumption rather than a
-  requirement because the word is new: the model's vocabulary has _glyph set_ and no notion of a
-  style, and ADR-0014's own driver was that two words for one thing is a vocabulary to keep true in
-  two places. Confirming the name, or choosing one built on the model's word, is the maintainer's
-  call and does not block the plan.
 - **How a table is expressed and handed to a catalog is a plan decision.** This spec requires that a
   table from outside can be contributed and that order decides contested keys; the shape of the
   interface that does it — a type, a constructor, a builder — is not taken here, because a spec must
   not take a decision.
-- **Degradation stays unimplemented.** `docs/model.md` describes falling back to a cell's base
-  stroke when no rule matches, and nothing implements it. This feature makes mixed-stroke cells
-  easier to reach, which is worth noting, but implementing that fallback is its own slice.
+- **Degradation is not needed and is not in scope.** `docs/model.md` describes, under _Rendering_,
+  falling back to a cell's base stroke when no rule matches. That step is for a representation where
+  an arm carries a stroke of its own, which ADR-0012 declined; with one stroke per cell, every `Set`
+  arm already draws in the base stroke, so a key that mixes stroke names cannot be built and the
+  fallback has nothing to catch. Two tables in one catalog do not change that, which is why FR-017
+  can require the crossings rather than forbid them.
 - **The demonstration's canvas may grow.** Fitting ASCII shapes beside the existing ones may need a
   wider or taller canvas; that is a value in the shipped file, not a behavior change.
 - **No new dependency.** Nothing in this feature needs a crate the workspace does not already have.
-- **A scope question is raised and not answered here.** The constitution's _In scope for this phase_
-  names two crates, `monospace-core` and `monospace-cli`, and this feature makes three. The new
-  crate is on none of the _Out of scope_ list, and it respects principle VII's boundary rather than
-  crossing it, so this spec proceeds. Whether the scope section needs an amendment is the
-  maintainer's decision, and the plan stage's Constitution Check is where it has to be settled.
+- **The constitution already admits the third crate.** Its _In scope for this phase_ was amended to
+  1.5.0 in this same increment, naming `monospace-glyph-sets` and ADR-0036 as the decision that
+  required it, so the plan stage's Constitution Check has something to point at rather than a
+  contradiction to argue around. The amendment admits this crate for this reason and no other: a
+  further crate is still a widening to renegotiate.

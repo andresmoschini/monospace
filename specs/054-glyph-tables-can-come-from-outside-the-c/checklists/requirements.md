@@ -39,7 +39,9 @@
 - **The WebAssembly target and `cargo xtask check` appear in FR-010 for the same reason.** Principle
   VII says the portability boundary is enforced by the gate rather than by prose, so a requirement
   that the new library stays portable has nowhere else to point.
-- **Two things are deliberately left open for review rather than marked as clarifications.** The
-  second library's name, and whether the constitution's scope section needs an amendment to admit a
-  third crate. Both are the maintainer's to decide, neither blocks planning, and both are recorded
-  in the Assumptions section and raised on the pull request.
+- **Three questions were opened for review and all three are now answered**, in the Clarifications
+  section: the library is `monospace-glyph-sets`, the constitution's scope section was amended to
+  1.5.0 to admit it, and the crossing of a Light figure with an ASCII one needs nothing new because
+  one stroke per cell already decides it. The third answer replaced a requirement that was wrong:
+  FR-017 forbade the crossing on the belief that it would render as a hole, and it now requires the
+  demonstration to show it both ways round.
