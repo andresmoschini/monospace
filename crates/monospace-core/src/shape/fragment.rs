@@ -7,7 +7,9 @@ use crate::{Orientation, Pos, Size};
 
 pub(crate) mod border;
 pub(crate) mod corner;
+pub(crate) mod end;
 pub(crate) mod fill;
+pub(crate) mod segment;
 
 /// The `len` positions of a run starting at `from` and continuing in `orientation`.
 ///

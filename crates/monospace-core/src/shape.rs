@@ -6,8 +6,10 @@ use crate::{Buffer, Cell, Pos, StampMode};
 
 mod box_shape;
 pub(crate) mod fragment;
+mod line;
 
 pub use box_shape::BoxShape;
+pub use line::Line;
 
 /// One write operation and no reader. What a shape draws into.
 ///
