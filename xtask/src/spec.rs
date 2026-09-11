@@ -66,10 +66,10 @@ impl Stage {
     fn next_step(self) -> &'static str {
         match self {
             Stage::Spec => {
-                "run `/speckit.specify`, then `/speckit.clarify` if the spec leaves open questions"
+                "run `/speckit-specify`, then `/speckit-clarify` if the spec leaves open questions"
             }
-            Stage::Plan => "run `/speckit.plan`, then `/speckit.tasks`",
-            Stage::Impl => "run `/speckit.implement`",
+            Stage::Plan => "run `/speckit-plan`, then `/speckit-tasks`",
+            Stage::Impl => "run `/speckit-implement`",
         }
     }
 }
