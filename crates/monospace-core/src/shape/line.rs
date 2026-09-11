@@ -266,4 +266,50 @@ mod tests {
             );
         }
     }
+
+    /// User story 2, scenario 4: a horizontal line and a vertical line whose ends land on
+    /// `(0, 0)` render `┌` there — the corner the two make, not a segment, a T or a cross — in
+    /// both drawing orders and under both stamp modes. This is the scenario a caller-supplied end
+    /// glyph could not satisfy; ADR-0029 is confirmed by it.
+    #[test]
+    fn two_lines_sharing_an_end_compose_into_the_corner_they_make() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 1,
+            height: 1,
+        };
+        let horizontal = || Line {
+            at: origin,
+            len: 3,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        let vertical = || Line {
+            at: origin,
+            len: 3,
+            orientation: Orientation::Vertical,
+            stroke: light(),
+        };
+
+        for mode in [StampMode::Above, StampMode::Below] {
+            let mut horizontal_first = Buffer::new(origin, size);
+            horizontal().draw(&mut Layer::new(&mut horizontal_first, StampMode::Above));
+            vertical().draw(&mut Layer::new(&mut horizontal_first, mode));
+
+            let mut vertical_first = Buffer::new(origin, size);
+            vertical().draw(&mut Layer::new(&mut vertical_first, StampMode::Above));
+            horizontal().draw(&mut Layer::new(&mut vertical_first, mode));
+
+            for (label, buffer) in [
+                ("horizontal first", &horizontal_first),
+                ("vertical first", &vertical_first),
+            ] {
+                assert_eq!(
+                    render(buffer, &GlyphCatalog::light(), origin, size),
+                    "┌\n",
+                    "{label}, second stamp under {mode:?}"
+                );
+            }
+        }
+    }
 }
