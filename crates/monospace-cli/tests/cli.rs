@@ -189,3 +189,68 @@ fn running_the_same_file_twice_produces_identical_output() {
 
     assert_eq!(first.stdout, second.stdout);
 }
+
+/// User story 3, acceptance scenario 1: a path that does not exist prints nothing to stdout,
+/// names the path on stderr, and fails.
+#[test]
+fn a_missing_path_names_it_on_stderr_and_fails() {
+    let path = std::env::temp_dir().join(format!(
+        "monospace-cli-test-does-not-exist-{}.json",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&path);
+
+    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty(), "printed to stdout");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(path.to_str().expect("temp path should be valid UTF-8")),
+        "{stderr}"
+    );
+}
+
+/// User story 3, acceptance scenario 2: malformed JSON prints nothing to stdout, locates the
+/// problem on stderr, and fails.
+#[test]
+fn malformed_json_locates_the_problem_on_stderr_and_fails() {
+    let path = write_description("broken", r#"{ "canvas": "#);
+
+    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty(), "printed to stdout");
+    assert!(!output.stderr.is_empty(), "wrote nothing to stderr");
+}
+
+/// User story 3, acceptance scenario 3: an unrecognized shape kind prints nothing to stdout,
+/// names the kind on stderr, and fails.
+#[test]
+fn an_unrecognized_kind_names_it_on_stderr_and_fails() {
+    let path = write_description(
+        "bad-kind",
+        r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "shapes": [ { "kind": "triangle", "mode": "above" } ]
+        }"#,
+    );
+
+    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty(), "printed to stdout");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("triangle"), "{stderr}");
+}
+
+/// Edge case: more than one command-line argument prints a usage message and fails, instead of
+/// being matched on as a path.
+#[test]
+fn more_than_one_argument_prints_usage_and_fails() {
+    let output = run(&["one.json", "two.json"]);
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty(), "printed to stdout");
+    assert!(!output.stderr.is_empty(), "wrote nothing to stderr");
+}

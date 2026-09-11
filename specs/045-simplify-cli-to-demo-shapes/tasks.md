@@ -176,19 +176,19 @@ text, and check each prints a message naming the problem and exits with a failur
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] In `crates/monospace-cli/src/main.rs`, handle the two failures the pipeline can
+- [x] T017 [US3] In `crates/monospace-cli/src/main.rs`, handle the two failures the pipeline can
       produce without printing anything to stdout first: a `std::fs::read_to_string` error prints a
       message naming the path to stderr and exits with a failure status (FR-012); a
       `serde_json::from_str` error prints its `Display` message to stderr and exits with a failure
       status (FR-013, FR-014, FR-016); success alone reaches the `print!` call (FR-015). Depends on
       T015.
-- [ ] T018 [US3] In `crates/monospace-cli/src/main.rs`, when more than one command-line argument is
+- [x] T018 [US3] In `crates/monospace-cli/src/main.rs`, when more than one command-line argument is
       given, print a usage message to stderr and exit with a failure status instead of matching on
       it as a path (Edge Cases: "More than one command-line argument"). Depends on T012.
 
 ### Tests for User Story 3
 
-- [ ] T019 [US3] Add subprocess tests to `crates/monospace-cli/tests/cli.rs`: a path that does not
+- [x] T019 [US3] Add subprocess tests to `crates/monospace-cli/tests/cli.rs`: a path that does not
       exist prints nothing to stdout, names the path on stderr, and fails (acceptance scenario 1);
       malformed JSON prints nothing to stdout, locates the problem on stderr, and fails (acceptance
       scenario 2); an unrecognized shape kind prints nothing to stdout, names the kind on stderr,
