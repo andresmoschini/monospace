@@ -202,7 +202,7 @@ arrow above against the counting surface and confirm no position is written more
       bend rule; assert user story 3's scenarios 1, 2, 4, 5, 6, 7, 8, 9 and 10 — the nine pinned
       pictures — and scenarios 3 and 11, the two comparisons SC-002 requires, with rustdoc saying
       `Arrow` is complete and `Route` is a compositor
-- [ ] T010 [US3] Add the direction families table's two remaining rows to
+- [x] T010 [US3] Add the direction families table's two remaining rows to
       `crates/monospace-core/src/shape/arrow.rs`'s test module: the identical-directions row,
       covering both the geometry where a path fits and the one where the route comes out empty, with
       its expected picture produced by running the code rather than pinned in advance; and the
