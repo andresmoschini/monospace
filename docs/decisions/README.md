@@ -46,6 +46,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0032](0032-split-a-spec-into-three-staged-branches.md)            | Split a spec into three staged branches                                         | accepted                             |
 | [0033](0033-keep-the-flow-state-in-labels-on-one-issue.md)         | Keep the flow state in labels on one issue                                      | accepted                             |
 | [0034](0034-let-xtask-own-the-feature-branch.md)                   | Let xtask own the feature branch                                                | accepted                             |
+| [0035](0035-keep-the-cli-demo-format-out-of-the-model.md)          | Keep the CLI's demo file format out of the model                                | accepted                             |
 
 ## How to add one
 
