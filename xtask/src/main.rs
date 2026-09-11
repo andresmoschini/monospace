@@ -128,6 +128,8 @@ const GATE: &[Step] = &[
             "check",
             "-p",
             "monospace-core",
+            "-p",
+            "monospace-glyph-sets",
             "--target",
             "wasm32-unknown-unknown",
         ],
