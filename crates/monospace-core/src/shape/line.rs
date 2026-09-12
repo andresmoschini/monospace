@@ -171,7 +171,7 @@ mod tests {
         let Some(crate::Cell::Strokes(cell)) = buffer.cell(origin) else {
             panic!("expected a stroke cell at the line's first position");
         };
-        assert_eq!(cell.right, Arm::Set);
+        assert_eq!(cell.right, Arm::Set(Stroke::from("light")));
         assert_eq!(cell.top, Arm::Unset);
         assert_eq!(cell.bottom, Arm::Unset);
         assert_eq!(cell.left, Arm::Unset);

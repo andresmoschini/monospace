@@ -5,9 +5,8 @@ the top, right, bottom and left sides of a cell; each holds the name of the stro
 side, or nothing when no stroke does. The fifth column is the character.
 
 These are the sets the project starts from. Light is carried as data by `monospace-core`, and ASCII,
-Double, Heavy and Light Round by `monospace-glyph-sets`; the mixing sets remain reference only, with
-nothing loading them yet. Users will be able to add their own, and a set may hold any combination it
-has a character for.
+Double, Heavy, Light Round and the four mixing sets below by `monospace-glyph-sets`. Users will be
+able to add their own, and a set may hold any combination it has a character for.
 
 The five single-stroke sets are complete. Each holds 15 rows, which is every combination of four
 sides except the empty one. That completeness is what the rule in

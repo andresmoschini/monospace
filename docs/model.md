@@ -174,10 +174,11 @@ is precisely why someone can write one by hand.
 
 Sets reach a catalog two ways. The common ones ship with whichever library holds them, built in as
 data rather than parsed at startup — `monospace-core` ships Light, `monospace-glyph-sets` ships
-ASCII, Double, Heavy and Light Round; only the mixing sets are left loaded from a file when someone
-asks for them. That difference is about where a set comes from, not about how its rules behave: once
-a set is in a catalog, nothing tells a built-in rule from a loaded one, and nothing tells which
-library a built-in rule shipped from either.
+ASCII, Double, Heavy, Light Round and the four sets that mix two strokes. A set someone writes for
+their own diagrams is the other way: loaded from a file when they ask for it. That difference is
+about where a set comes from, not about how its rules behave: once a set is in a catalog, nothing
+tells a built-in rule from a loaded one, and nothing tells which library a built-in rule shipped
+from either.
 
 The catalog is where rules end up. Sets go into it in order, the first rule to claim a key keeps it,
 and answering a key afterwards is one lookup. The grouping does not survive that: once a catalog is

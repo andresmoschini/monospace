@@ -327,23 +327,55 @@ fn the_demonstration_contains_double_heavy_and_light_round_characters() {
 }
 
 /// Each pair of overlapping boxes below the original demonstration crosses two single-stroke
-/// tables that have no mixing set loaded (only Light+ASCII and Light+Heavy are documented, and
-/// neither is loaded by the CLI). Per ADR-0009, a key missing from the catalog degrades every
-/// connected arm to one base stroke — whichever figure was stamped last, since both boxes use
-/// `mode: "above"`. Each crossing cell below is the same position the original two crossings use:
-/// where the first box's bottom border meets the second box's left side.
+/// tables. Feature 060 loads mixing tables for two of the six pairs here — Light with Double and
+/// Light with Heavy — so their crossing now draws the character the exact mixed arms produce
+/// instead of degrading. The other two pairs (Light Round with Light, Double with Heavy) still
+/// have no mixing table pairing them, so per ADR-0009 they still degrade every connected arm to
+/// one base stroke — whichever figure was stamped last, since both boxes use `mode: "above"`.
+/// Each crossing cell below is the same position the original two crossings use: where the first
+/// box's bottom border meets the second box's left side.
 #[test]
-fn crossings_between_the_new_tables_degrade_to_whichever_figure_is_in_front() {
+fn crossings_between_the_new_tables_mix_or_degrade_depending_on_table_coverage() {
     let output = run(&[]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     for (x, y, expected, label) in [
-        (2, 11, '╬', "Double in front of Light"),
-        (10, 11, '┼', "Light in front of Double"),
-        (18, 11, '╋', "Heavy in front of Light"),
-        (26, 11, '┼', "Light in front of Heavy"),
-        (34, 11, '┼', "Light Round in front of Light"),
-        (42, 11, '╬', "Double in front of Heavy"),
+        (
+            2,
+            11,
+            '╫',
+            "Double in front of Light: covered by Light/Double, mixes instead of degrading",
+        ),
+        (
+            10,
+            11,
+            '╪',
+            "Light in front of Double: covered by Light/Double, mixes instead of degrading",
+        ),
+        (
+            18,
+            11,
+            '╂',
+            "Heavy in front of Light: covered by Light/Heavy, mixes instead of degrading",
+        ),
+        (
+            26,
+            11,
+            '┿',
+            "Light in front of Heavy: covered by Light/Heavy, mixes instead of degrading",
+        ),
+        (
+            34,
+            11,
+            '┼',
+            "Light Round in front of Light: no mixing table pairs them, still degrades",
+        ),
+        (
+            42,
+            11,
+            '╬',
+            "Double in front of Heavy: no mixing table pairs them, still degrades",
+        ),
     ] {
         let ch = char_at(&stdout, x, y);
         assert_eq!(ch, expected, "{label}: expected {expected:?} at ({x}, {y})");

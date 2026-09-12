@@ -22,10 +22,10 @@ pub(crate) enum Side {
 }
 
 /// What a cell has on one of its four sides.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Arm {
-    /// A stroke runs to this side, drawn in the cell's base stroke.
-    Set,
+    /// A stroke runs to this side, drawn in the stroke it carries.
+    Set(Stroke),
     /// No stroke runs to this side, and that is decided.
     Closed,
     /// Not this stamp's to decide: whichever stamp writes here next chooses this side.
@@ -34,8 +34,10 @@ pub enum Arm {
 
 /// A base stroke, always present, and four arms — one per side.
 ///
-/// Every arm draws in the cell's own stroke; an arm carrying a stroke of its own is a later
-/// addition, per [ADR-0012](../../../docs/decisions/0012-one-stroke-per-cell.md).
+/// Each arm carries its own stroke, per
+/// [ADR-0037](../../../docs/decisions/0037-give-each-arm-its-own-stroke.md), which superseded the
+/// one-stroke-per-cell restriction [ADR-0012](../../../docs/decisions/0012-one-stroke-per-cell.md)
+/// described as temporary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StrokeCell {
     /// The stroke every `Set` arm draws in.
@@ -63,20 +65,40 @@ impl StrokeCell {
             && !matches!(self.left, Arm::Unset)
     }
 
-    /// The exact key this cell resolves to in a catalog: its base stroke on every `Set` side, and
-    /// nothing where the arm is `Closed` or `Unset` — the two read the same at render time.
+    /// The exact key this cell resolves to in a catalog: each arm's own stroke on every `Set`
+    /// side, and nothing where the arm is `Closed` or `Unset` — the two read the same at render
+    /// time.
     #[must_use]
     pub fn key(&self) -> GlyphKey {
-        let side = |arm| match arm {
-            Arm::Set => Some(self.base.clone()),
+        let side = |arm: &Arm| match arm {
+            Arm::Set(stroke) => Some(stroke.clone()),
             Arm::Closed | Arm::Unset => None,
         };
 
         GlyphKey {
-            top: side(self.top),
-            right: side(self.right),
-            bottom: side(self.bottom),
-            left: side(self.left),
+            top: side(&self.top),
+            right: side(&self.right),
+            bottom: side(&self.bottom),
+            left: side(&self.left),
+        }
+    }
+
+    /// The degraded key this cell falls back to when [`key`](Self::key) matches nothing: the
+    /// cell's own base stroke on every `Set` side, regardless of what that arm itself carries, and
+    /// nothing where the arm is `Closed` or `Unset`. This is the second lookup
+    /// [ADR-0009](../../../docs/decisions/0009-degrade-a-cell-to-its-base-stroke.md) describes.
+    #[must_use]
+    pub fn degraded_key(&self) -> GlyphKey {
+        let side = |arm: &Arm| match arm {
+            Arm::Set(_) => Some(self.base.clone()),
+            Arm::Closed | Arm::Unset => None,
+        };
+
+        GlyphKey {
+            top: side(&self.top),
+            right: side(&self.right),
+            bottom: side(&self.bottom),
+            left: side(&self.left),
         }
     }
 }
@@ -118,14 +140,17 @@ impl Cell {
     }
 
     /// The text this cell renders to. A literal answers with its own text directly, without
-    /// consulting `glyphs`; a stroke cell is looked up by [`StrokeCell::key`], answering `None`
-    /// if `glyphs` has no rule for it. See _Rendering_ in
-    /// [`docs/model.md`](../../../docs/model.md).
+    /// consulting `glyphs`; a stroke cell is looked up by [`StrokeCell::key`] first and
+    /// [`StrokeCell::degraded_key`] second, answering `None` if `glyphs` has no rule for either.
+    /// See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
     #[must_use]
     pub fn glyph_str<'a>(&'a self, glyphs: &'a GlyphCatalog) -> Option<&'a str> {
         match self {
             Cell::Literal(glyph) => Some(glyph.as_str()),
-            Cell::Strokes(cell) => glyphs.glyph(&cell.key()).map(Glyph::as_str),
+            Cell::Strokes(cell) => glyphs
+                .glyph(&cell.key())
+                .or_else(|| glyphs.glyph(&cell.degraded_key()))
+                .map(Glyph::as_str),
         }
     }
 }
@@ -133,7 +158,7 @@ impl Cell {
 #[cfg(test)]
 mod tests {
     use super::{Cell, StrokeCell};
-    use crate::{Arm, Glyph, Stroke};
+    use crate::{Arm, Glyph, GlyphCatalog, Stroke};
 
     fn cell(top: Arm, right: Arm, bottom: Arm, left: Arm) -> StrokeCell {
         StrokeCell {
@@ -149,9 +174,10 @@ mod tests {
     /// Unchanged from before the literal existed: a stroke cell is decided by its arms alone.
     #[test]
     fn a_stroke_cell_is_decided_only_when_no_arm_is_unset() {
-        assert!(cell(Arm::Set, Arm::Closed, Arm::Set, Arm::Closed).is_decided());
-        assert!(!cell(Arm::Unset, Arm::Set, Arm::Closed, Arm::Set).is_decided());
-        assert!(!cell(Arm::Set, Arm::Set, Arm::Set, Arm::Unset).is_decided());
+        let light = || Arm::Set(Stroke::from("light"));
+        assert!(cell(light(), Arm::Closed, light(), Arm::Closed).is_decided());
+        assert!(!cell(Arm::Unset, light(), Arm::Closed, light()).is_decided());
+        assert!(!cell(light(), light(), light(), Arm::Unset).is_decided());
     }
 
     /// A literal has no arms to leave `Unset`, so it is decided by definition.
@@ -160,5 +186,135 @@ mod tests {
         let literal = Cell::Literal(Glyph::new("A").expect("\"A\" is one glyph"));
 
         assert!(literal.is_decided());
+    }
+
+    fn mixed_cell() -> StrokeCell {
+        StrokeCell {
+            base: Stroke::from("light"),
+            top: Arm::Set(Stroke::from("light")),
+            right: Arm::Set(Stroke::from("heavy")),
+            bottom: Arm::Set(Stroke::from("light")),
+            left: Arm::Set(Stroke::from("heavy")),
+        }
+    }
+
+    /// FR-002: `key()` reads each arm's own stroke, not the cell's `base`.
+    #[test]
+    fn key_reads_each_arms_own_stroke() {
+        let key = mixed_cell().key();
+
+        assert_eq!(key.top, Some(Stroke::from("light")));
+        assert_eq!(key.bottom, Some(Stroke::from("light")));
+        assert_eq!(key.right, Some(Stroke::from("heavy")));
+        assert_eq!(key.left, Some(Stroke::from("heavy")));
+    }
+
+    /// FR-004: `degraded_key()` names the cell's `base` stroke on every `Set` side regardless of
+    /// what that arm itself carries.
+    #[test]
+    fn degraded_key_collapses_every_set_arm_to_the_base_stroke() {
+        let key = mixed_cell().degraded_key();
+
+        assert_eq!(key.top, Some(Stroke::from("light")));
+        assert_eq!(key.bottom, Some(Stroke::from("light")));
+        assert_eq!(key.right, Some(Stroke::from("light")));
+        assert_eq!(key.left, Some(Stroke::from("light")));
+    }
+
+    /// Acceptance Scenario 1, FR-002, FR-004: `glyph_str` tries the exact key, then the degraded
+    /// key, then answers `None`.
+    #[test]
+    fn glyph_str_tries_the_exact_key_then_the_degraded_key_then_none() {
+        let mixed_glyph = Glyph::new("┿").expect("\"┿\" is one glyph");
+        let degraded_glyph = Glyph::new("┼").expect("\"┼\" is one glyph");
+        let cell: Cell = mixed_cell().into();
+
+        let exact = GlyphCatalog::from_rules([(mixed_cell().key(), mixed_glyph.clone())]);
+        assert_eq!(cell.glyph_str(&exact), Some(mixed_glyph.as_str()));
+
+        let degraded_only =
+            GlyphCatalog::from_rules([(mixed_cell().degraded_key(), degraded_glyph.clone())]);
+        assert_eq!(
+            cell.glyph_str(&degraded_only),
+            Some(degraded_glyph.as_str())
+        );
+
+        let neither = GlyphCatalog::from_rules([]);
+        assert_eq!(cell.glyph_str(&neither), None);
+    }
+
+    /// Acceptance Scenario 4, SC-006's invariant: a cell whose arms all carry the base stroke
+    /// resolves the same key from both methods.
+    #[test]
+    fn a_cell_whose_arms_all_carry_the_base_stroke_resolves_the_same_key_from_both_methods() {
+        let uniform = cell(
+            Arm::Set(Stroke::from("light")),
+            Arm::Set(Stroke::from("light")),
+            Arm::Set(Stroke::from("light")),
+            Arm::Set(Stroke::from("light")),
+        );
+
+        assert_eq!(uniform.key(), uniform.degraded_key());
+    }
+
+    /// User Story 4 Acceptance Scenario 1: an uncovered mixture degrades to the base stroke
+    /// regardless of a partial mixing rule set covering some, but not this, combination.
+    #[test]
+    fn an_uncovered_mixture_degrades_to_the_base_stroke_regardless_of_a_partial_mixing_rule_set() {
+        let base_glyph = Glyph::new("┼").expect("\"┼\" is one glyph");
+        let cell: Cell = mixed_cell().into();
+
+        let without_partial_rules =
+            GlyphCatalog::from_rules([(mixed_cell().degraded_key(), base_glyph.clone())]);
+        let without_result = cell.glyph_str(&without_partial_rules);
+
+        let unrelated_key = crate::GlyphKey {
+            top: Some(Stroke::from("double")),
+            right: Some(Stroke::from("double")),
+            bottom: Some(Stroke::from("double")),
+            left: Some(Stroke::from("double")),
+        };
+        let with_partial_rules = GlyphCatalog::from_rules([
+            (mixed_cell().degraded_key(), base_glyph.clone()),
+            (unrelated_key, Glyph::new("╬").expect("\"╬\" is one glyph")),
+        ]);
+        let with_result = cell.glyph_str(&with_partial_rules);
+
+        assert_eq!(without_result, Some(base_glyph.as_str()));
+        assert_eq!(with_result, without_result);
+    }
+
+    /// User Story 4 Acceptance Scenario 2: `light` and `light-round` degrade with no mixing table
+    /// pairing them.
+    #[test]
+    fn light_and_light_round_degrade_with_no_mixing_table_pairing_them() {
+        let mixed = cell(
+            Arm::Set(Stroke::from("light")),
+            Arm::Set(Stroke::from("light-round")),
+            Arm::Set(Stroke::from("light")),
+            Arm::Set(Stroke::from("light-round")),
+        );
+        let cell_value: Cell = mixed.clone().into();
+        let base_glyph = Glyph::new("┼").expect("\"┼\" is one glyph");
+        let catalog = GlyphCatalog::from_rules([(mixed.degraded_key(), base_glyph.clone())]);
+
+        assert_eq!(cell_value.glyph_str(&catalog), Some(base_glyph.as_str()));
+    }
+
+    /// User Story 4 Acceptance Scenario 3: `heavy` and `double` degrade with no mixing table
+    /// pairing them.
+    #[test]
+    fn heavy_and_double_degrade_with_no_mixing_table_pairing_them() {
+        let mixed = cell(
+            Arm::Set(Stroke::from("heavy")),
+            Arm::Set(Stroke::from("double")),
+            Arm::Set(Stroke::from("heavy")),
+            Arm::Set(Stroke::from("double")),
+        );
+        let cell_value: Cell = mixed.clone().into();
+        let base_glyph = Glyph::new("┼").expect("\"┼\" is one glyph");
+        let catalog = GlyphCatalog::from_rules([(mixed.degraded_key(), base_glyph.clone())]);
+
+        assert_eq!(cell_value.glyph_str(&catalog), Some(base_glyph.as_str()));
     }
 }

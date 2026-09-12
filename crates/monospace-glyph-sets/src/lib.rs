@@ -144,6 +144,478 @@ const LIGHT_ROUND: &[Row] = &[
     (Some("light-round"), None, None, None, "│"),
 ];
 
+/// The 18 rules of the Mixing Light and Double table in
+/// [`docs/glyph-sets.md`](../../../docs/glyph-sets.md), held as data rather than parsed at run
+/// time.
+const LIGHT_DOUBLE: &[Row] = &[
+    (None, None, Some("double"), Some("light"), "╖"),
+    (None, Some("light"), Some("double"), Some("light"), "╥"),
+    (
+        Some("double"),
+        Some("light"),
+        Some("double"),
+        Some("light"),
+        "╫",
+    ),
+    (Some("double"), None, Some("double"), Some("light"), "╢"),
+    (None, Some("light"), Some("double"), None, "╓"),
+    (Some("double"), Some("light"), Some("double"), None, "╟"),
+    (None, None, Some("light"), Some("double"), "╕"),
+    (None, Some("double"), Some("light"), Some("double"), "╤"),
+    (
+        Some("light"),
+        Some("double"),
+        Some("light"),
+        Some("double"),
+        "╪",
+    ),
+    (Some("light"), None, Some("light"), Some("double"), "╡"),
+    (None, Some("double"), Some("light"), None, "╒"),
+    (Some("light"), Some("double"), Some("light"), None, "╞"),
+    (Some("light"), Some("double"), None, Some("double"), "╧"),
+    (Some("light"), None, None, Some("double"), "╛"),
+    (Some("double"), Some("light"), None, Some("light"), "╨"),
+    (Some("double"), None, None, Some("light"), "╜"),
+    (Some("double"), Some("light"), None, None, "╙"),
+    (Some("light"), Some("double"), None, None, "╘"),
+];
+
+/// The 50 rules of the Mixing Light and Heavy table in
+/// [`docs/glyph-sets.md`](../../../docs/glyph-sets.md), held as data rather than parsed at run
+/// time.
+const LIGHT_HEAVY: &[Row] = &[
+    (None, None, Some("heavy"), Some("light"), "┒"),
+    (None, Some("light"), Some("heavy"), None, "┎"),
+    (Some("light"), None, Some("heavy"), None, "╽"),
+    (None, Some("light"), None, Some("heavy"), "╾"),
+    (Some("light"), None, None, Some("heavy"), "┙"),
+    (Some("light"), Some("heavy"), None, None, "┕"),
+    (None, None, Some("light"), Some("heavy"), "┑"),
+    (None, Some("heavy"), Some("light"), None, "┍"),
+    (Some("heavy"), None, Some("light"), None, "╿"),
+    (None, Some("heavy"), None, Some("light"), "╼"),
+    (Some("heavy"), None, None, Some("light"), "┚"),
+    (Some("heavy"), Some("light"), None, None, "┖"),
+    (None, Some("light"), Some("heavy"), Some("heavy"), "┱"),
+    (Some("light"), None, Some("heavy"), Some("heavy"), "┪"),
+    (None, Some("heavy"), Some("heavy"), Some("light"), "┲"),
+    (Some("heavy"), None, Some("heavy"), Some("light"), "┨"),
+    (None, Some("light"), Some("heavy"), Some("light"), "┰"),
+    (Some("light"), None, Some("heavy"), Some("light"), "┧"),
+    (Some("heavy"), Some("light"), Some("heavy"), None, "┠"),
+    (Some("light"), Some("light"), Some("heavy"), None, "┟"),
+    (Some("light"), Some("heavy"), Some("heavy"), None, "┢"),
+    (Some("light"), Some("heavy"), None, Some("heavy"), "┷"),
+    (Some("heavy"), Some("light"), None, Some("heavy"), "┹"),
+    (Some("light"), Some("light"), None, Some("heavy"), "┵"),
+    (None, Some("heavy"), Some("light"), Some("heavy"), "┯"),
+    (Some("heavy"), None, Some("light"), Some("heavy"), "┩"),
+    (None, Some("light"), Some("light"), Some("heavy"), "┭"),
+    (Some("light"), None, Some("light"), Some("heavy"), "┥"),
+    (Some("heavy"), Some("heavy"), Some("light"), None, "┡"),
+    (Some("light"), Some("heavy"), Some("light"), None, "┝"),
+    (None, Some("heavy"), Some("light"), Some("light"), "┮"),
+    (Some("heavy"), None, Some("light"), Some("light"), "┦"),
+    (Some("heavy"), Some("light"), Some("light"), None, "┞"),
+    (Some("heavy"), Some("heavy"), None, Some("light"), "┺"),
+    (Some("light"), Some("heavy"), None, Some("light"), "┶"),
+    (Some("heavy"), Some("light"), None, Some("light"), "┸"),
+    (
+        Some("light"),
+        Some("heavy"),
+        Some("heavy"),
+        Some("heavy"),
+        "╈",
+    ),
+    (
+        Some("heavy"),
+        Some("light"),
+        Some("heavy"),
+        Some("heavy"),
+        "╉",
+    ),
+    (
+        Some("light"),
+        Some("light"),
+        Some("heavy"),
+        Some("heavy"),
+        "╅",
+    ),
+    (
+        Some("heavy"),
+        Some("heavy"),
+        Some("heavy"),
+        Some("light"),
+        "╊",
+    ),
+    (
+        Some("light"),
+        Some("heavy"),
+        Some("heavy"),
+        Some("light"),
+        "╆",
+    ),
+    (
+        Some("heavy"),
+        Some("light"),
+        Some("heavy"),
+        Some("light"),
+        "╂",
+    ),
+    (
+        Some("light"),
+        Some("light"),
+        Some("heavy"),
+        Some("light"),
+        "╁",
+    ),
+    (
+        Some("heavy"),
+        Some("heavy"),
+        Some("light"),
+        Some("heavy"),
+        "╇",
+    ),
+    (
+        Some("light"),
+        Some("heavy"),
+        Some("light"),
+        Some("heavy"),
+        "┿",
+    ),
+    (
+        Some("heavy"),
+        Some("light"),
+        Some("light"),
+        Some("heavy"),
+        "╃",
+    ),
+    (
+        Some("light"),
+        Some("light"),
+        Some("light"),
+        Some("heavy"),
+        "┽",
+    ),
+    (
+        Some("heavy"),
+        Some("heavy"),
+        Some("light"),
+        Some("light"),
+        "╄",
+    ),
+    (
+        Some("light"),
+        Some("heavy"),
+        Some("light"),
+        Some("light"),
+        "┾",
+    ),
+    (
+        Some("heavy"),
+        Some("light"),
+        Some("light"),
+        Some("light"),
+        "╀",
+    ),
+];
+
+/// The 18 rules of the Mixing Light Round and Double table in
+/// [`docs/glyph-sets.md`](../../../docs/glyph-sets.md), held as data rather than parsed at run
+/// time. The same combinations as `LIGHT_DOUBLE`, with `light` replaced by `light-round`.
+const LIGHT_ROUND_DOUBLE: &[Row] = &[
+    (None, None, Some("double"), Some("light-round"), "╖"),
+    (
+        None,
+        Some("light-round"),
+        Some("double"),
+        Some("light-round"),
+        "╥",
+    ),
+    (
+        Some("double"),
+        Some("light-round"),
+        Some("double"),
+        Some("light-round"),
+        "╫",
+    ),
+    (
+        Some("double"),
+        None,
+        Some("double"),
+        Some("light-round"),
+        "╢",
+    ),
+    (None, Some("light-round"), Some("double"), None, "╓"),
+    (
+        Some("double"),
+        Some("light-round"),
+        Some("double"),
+        None,
+        "╟",
+    ),
+    (None, None, Some("light-round"), Some("double"), "╕"),
+    (
+        None,
+        Some("double"),
+        Some("light-round"),
+        Some("double"),
+        "╤",
+    ),
+    (
+        Some("light-round"),
+        Some("double"),
+        Some("light-round"),
+        Some("double"),
+        "╪",
+    ),
+    (
+        Some("light-round"),
+        None,
+        Some("light-round"),
+        Some("double"),
+        "╡",
+    ),
+    (None, Some("double"), Some("light-round"), None, "╒"),
+    (
+        Some("light-round"),
+        Some("double"),
+        Some("light-round"),
+        None,
+        "╞",
+    ),
+    (
+        Some("light-round"),
+        Some("double"),
+        None,
+        Some("double"),
+        "╧",
+    ),
+    (Some("light-round"), None, None, Some("double"), "╛"),
+    (
+        Some("double"),
+        Some("light-round"),
+        None,
+        Some("light-round"),
+        "╨",
+    ),
+    (Some("double"), None, None, Some("light-round"), "╜"),
+    (Some("double"), Some("light-round"), None, None, "╙"),
+    (Some("light-round"), Some("double"), None, None, "╘"),
+];
+
+/// The 50 rules of the Mixing Light Round and Heavy table in
+/// [`docs/glyph-sets.md`](../../../docs/glyph-sets.md), held as data rather than parsed at run
+/// time. The same combinations as `LIGHT_HEAVY`, with `light` replaced by `light-round`.
+const LIGHT_ROUND_HEAVY: &[Row] = &[
+    (None, None, Some("heavy"), Some("light-round"), "┒"),
+    (None, Some("light-round"), Some("heavy"), None, "┎"),
+    (Some("light-round"), None, Some("heavy"), None, "╽"),
+    (None, Some("light-round"), None, Some("heavy"), "╾"),
+    (Some("light-round"), None, None, Some("heavy"), "┙"),
+    (Some("light-round"), Some("heavy"), None, None, "┕"),
+    (None, None, Some("light-round"), Some("heavy"), "┑"),
+    (None, Some("heavy"), Some("light-round"), None, "┍"),
+    (Some("heavy"), None, Some("light-round"), None, "╿"),
+    (None, Some("heavy"), None, Some("light-round"), "╼"),
+    (Some("heavy"), None, None, Some("light-round"), "┚"),
+    (Some("heavy"), Some("light-round"), None, None, "┖"),
+    (None, Some("light-round"), Some("heavy"), Some("heavy"), "┱"),
+    (Some("light-round"), None, Some("heavy"), Some("heavy"), "┪"),
+    (None, Some("heavy"), Some("heavy"), Some("light-round"), "┲"),
+    (Some("heavy"), None, Some("heavy"), Some("light-round"), "┨"),
+    (
+        None,
+        Some("light-round"),
+        Some("heavy"),
+        Some("light-round"),
+        "┰",
+    ),
+    (
+        Some("light-round"),
+        None,
+        Some("heavy"),
+        Some("light-round"),
+        "┧",
+    ),
+    (Some("heavy"), Some("light-round"), Some("heavy"), None, "┠"),
+    (
+        Some("light-round"),
+        Some("light-round"),
+        Some("heavy"),
+        None,
+        "┟",
+    ),
+    (Some("light-round"), Some("heavy"), Some("heavy"), None, "┢"),
+    (Some("light-round"), Some("heavy"), None, Some("heavy"), "┷"),
+    (Some("heavy"), Some("light-round"), None, Some("heavy"), "┹"),
+    (
+        Some("light-round"),
+        Some("light-round"),
+        None,
+        Some("heavy"),
+        "┵",
+    ),
+    (None, Some("heavy"), Some("light-round"), Some("heavy"), "┯"),
+    (Some("heavy"), None, Some("light-round"), Some("heavy"), "┩"),
+    (
+        None,
+        Some("light-round"),
+        Some("light-round"),
+        Some("heavy"),
+        "┭",
+    ),
+    (
+        Some("light-round"),
+        None,
+        Some("light-round"),
+        Some("heavy"),
+        "┥",
+    ),
+    (Some("heavy"), Some("heavy"), Some("light-round"), None, "┡"),
+    (
+        Some("light-round"),
+        Some("heavy"),
+        Some("light-round"),
+        None,
+        "┝",
+    ),
+    (
+        None,
+        Some("heavy"),
+        Some("light-round"),
+        Some("light-round"),
+        "┮",
+    ),
+    (
+        Some("heavy"),
+        None,
+        Some("light-round"),
+        Some("light-round"),
+        "┦",
+    ),
+    (
+        Some("heavy"),
+        Some("light-round"),
+        Some("light-round"),
+        None,
+        "┞",
+    ),
+    (Some("heavy"), Some("heavy"), None, Some("light-round"), "┺"),
+    (
+        Some("light-round"),
+        Some("heavy"),
+        None,
+        Some("light-round"),
+        "┶",
+    ),
+    (
+        Some("heavy"),
+        Some("light-round"),
+        None,
+        Some("light-round"),
+        "┸",
+    ),
+    (
+        Some("light-round"),
+        Some("heavy"),
+        Some("heavy"),
+        Some("heavy"),
+        "╈",
+    ),
+    (
+        Some("heavy"),
+        Some("light-round"),
+        Some("heavy"),
+        Some("heavy"),
+        "╉",
+    ),
+    (
+        Some("light-round"),
+        Some("light-round"),
+        Some("heavy"),
+        Some("heavy"),
+        "╅",
+    ),
+    (
+        Some("heavy"),
+        Some("heavy"),
+        Some("heavy"),
+        Some("light-round"),
+        "╊",
+    ),
+    (
+        Some("light-round"),
+        Some("heavy"),
+        Some("heavy"),
+        Some("light-round"),
+        "╆",
+    ),
+    (
+        Some("heavy"),
+        Some("light-round"),
+        Some("heavy"),
+        Some("light-round"),
+        "╂",
+    ),
+    (
+        Some("light-round"),
+        Some("light-round"),
+        Some("heavy"),
+        Some("light-round"),
+        "╁",
+    ),
+    (
+        Some("heavy"),
+        Some("heavy"),
+        Some("light-round"),
+        Some("heavy"),
+        "╇",
+    ),
+    (
+        Some("light-round"),
+        Some("heavy"),
+        Some("light-round"),
+        Some("heavy"),
+        "┿",
+    ),
+    (
+        Some("heavy"),
+        Some("light-round"),
+        Some("light-round"),
+        Some("heavy"),
+        "╃",
+    ),
+    (
+        Some("light-round"),
+        Some("light-round"),
+        Some("light-round"),
+        Some("heavy"),
+        "┽",
+    ),
+    (
+        Some("heavy"),
+        Some("heavy"),
+        Some("light-round"),
+        Some("light-round"),
+        "╄",
+    ),
+    (
+        Some("light-round"),
+        Some("heavy"),
+        Some("light-round"),
+        Some("light-round"),
+        "┾",
+    ),
+    (
+        Some("heavy"),
+        Some("light-round"),
+        Some("light-round"),
+        Some("light-round"),
+        "╀",
+    ),
+];
+
 /// Converts one glyph table into a catalog: each row's stroke names become a `GlyphKey`, and its
 /// character a `Glyph`.
 ///
@@ -189,11 +661,54 @@ pub fn light_round() -> GlyphCatalog {
     build("Light Round", LIGHT_ROUND)
 }
 
+/// Builds a catalog from the Mixing Light and Double table alone.
+#[must_use]
+pub fn light_double() -> GlyphCatalog {
+    build("Mixing Light and Double", LIGHT_DOUBLE)
+}
+
+/// Builds a catalog from the Mixing Light and Heavy table alone.
+#[must_use]
+pub fn light_heavy() -> GlyphCatalog {
+    build("Mixing Light and Heavy", LIGHT_HEAVY)
+}
+
+/// Builds a catalog from the Mixing Light Round and Double table alone.
+#[must_use]
+pub fn light_round_double() -> GlyphCatalog {
+    build("Mixing Light Round and Double", LIGHT_ROUND_DOUBLE)
+}
+
+/// Builds a catalog from the Mixing Light Round and Heavy table alone.
+#[must_use]
+pub fn light_round_heavy() -> GlyphCatalog {
+    build("Mixing Light Round and Heavy", LIGHT_ROUND_HEAVY)
+}
+
 #[cfg(test)]
 mod tests {
     use monospace_core::{BoxShape, Buffer, Layer, Pos, Shape, Size, StampMode};
 
-    use super::{ascii, double, heavy, light_round};
+    use super::{
+        ascii, double, heavy, light_double, light_heavy, light_round, light_round_double,
+        light_round_heavy,
+    };
+
+    /// Builds a `GlyphKey` from plain stroke names, `None` where no arm runs — a shorter spelling
+    /// for the mixing-table spot checks below.
+    fn mixed_key(
+        top: Option<&str>,
+        right: Option<&str>,
+        bottom: Option<&str>,
+        left: Option<&str>,
+    ) -> monospace_core::GlyphKey {
+        monospace_core::GlyphKey {
+            top: top.map(monospace_core::Stroke::from),
+            right: right.map(monospace_core::Stroke::from),
+            bottom: bottom.map(monospace_core::Stroke::from),
+            left: left.map(monospace_core::Stroke::from),
+        }
+    }
 
     /// The property `docs/model.md` names under _Properties worth testing_: a catalog built from
     /// one stroke's complete set answers every key a cell of that stroke can produce. Mirrors
@@ -500,33 +1015,284 @@ mod tests {
         }
     }
 
-    /// FR-008, SC-006: a catalog built from two or more of the four single-stroke tables this
-    /// crate ships answers a key from each correctly, regardless of the order the tables went in.
+    /// FR-011, SC-007: a catalog built from all nine tables this project ships — the five
+    /// single-stroke ones (`monospace_core::GlyphCatalog::light()` plus this crate's `ascii()`,
+    /// `double()`, `heavy()`, `light_round()`) and the four mixing ones this feature adds —
+    /// answers a key from each correctly, regardless of the order the tables went in. Extends
+    /// what was originally a four single-stroke-table check (FR-008, SC-006 from feature 056).
     #[test]
-    fn a_catalog_built_from_two_or_more_single_stroke_tables_answers_each_regardless_of_order() {
-        let key_for = |stroke: &str| monospace_core::GlyphKey {
-            top: Some(monospace_core::Stroke::from(stroke)),
-            right: None,
-            bottom: Some(monospace_core::Stroke::from(stroke)),
-            left: None,
-        };
+    fn a_catalog_built_from_all_nine_tables_answers_each_regardless_of_order() {
+        let checks = [
+            (
+                "ascii",
+                mixed_key(Some("ascii"), None, Some("ascii"), None),
+                "|",
+            ),
+            (
+                "double",
+                mixed_key(Some("double"), None, Some("double"), None),
+                "║",
+            ),
+            (
+                "heavy",
+                mixed_key(Some("heavy"), None, Some("heavy"), None),
+                "┃",
+            ),
+            (
+                "light-round",
+                mixed_key(Some("light-round"), None, Some("light-round"), None),
+                "│",
+            ),
+            (
+                "light_double",
+                mixed_key(None, Some("light"), Some("double"), None),
+                "╓",
+            ),
+            (
+                "light_heavy",
+                mixed_key(None, None, Some("heavy"), Some("light")),
+                "┒",
+            ),
+            (
+                "light_round_double",
+                mixed_key(None, Some("light-round"), Some("double"), None),
+                "╓",
+            ),
+            (
+                "light_round_heavy",
+                mixed_key(None, None, Some("heavy"), Some("light-round")),
+                "┒",
+            ),
+        ];
 
-        let forward =
-            monospace_core::GlyphCatalog::union([ascii(), double(), heavy(), light_round()]);
-        let reverse =
-            monospace_core::GlyphCatalog::union([light_round(), heavy(), double(), ascii()]);
+        // `monospace_core::GlyphCatalog::light()` is the ninth table this project ships; the
+        // other eight come from this crate.
+        let forward = monospace_core::GlyphCatalog::union([
+            monospace_core::GlyphCatalog::light(),
+            ascii(),
+            double(),
+            heavy(),
+            light_round(),
+            light_double(),
+            light_heavy(),
+            light_round_double(),
+            light_round_heavy(),
+        ]);
+        let reverse = monospace_core::GlyphCatalog::union([
+            light_round_heavy(),
+            light_round_double(),
+            light_heavy(),
+            light_double(),
+            light_round(),
+            heavy(),
+            double(),
+            ascii(),
+            monospace_core::GlyphCatalog::light(),
+        ]);
 
-        for stroke in ["ascii", "double", "heavy", "light-round"] {
-            let key = key_for(stroke);
+        for (name, key, expected) in checks {
+            assert_eq!(
+                forward.glyph(&key).map(monospace_core::Glyph::as_str),
+                Some(expected),
+                "{name} answered wrong in forward order"
+            );
             assert_eq!(
                 forward.glyph(&key),
                 reverse.glyph(&key),
-                "{stroke} answered differently depending on union order"
-            );
-            assert!(
-                forward.glyph(&key).is_some(),
-                "no glyph for {stroke} in the union catalog"
+                "{name} answered differently depending on union order"
             );
         }
+    }
+
+    /// SC-001, SC-002: `light_double()` holds exactly the 18 rows _Mixing Light and Double_
+    /// records, and its spot-checked rows — a three-armed junction, a four-armed crossing, a
+    /// corner, and that crossing with its two strokes exchanged between sides — render the
+    /// characters that section publishes, `╪` and `╫` (the demonstration's own crossings) among
+    /// them.
+    #[test]
+    fn light_double_has_exactly_its_documented_rows_and_spot_checks_match() {
+        assert_eq!(super::LIGHT_DOUBLE.len(), 18);
+
+        let catalog = light_double();
+        let spot_checks = [
+            (
+                mixed_key(None, Some("light"), Some("double"), Some("light")),
+                "╥",
+            ),
+            (
+                mixed_key(Some("double"), Some("light"), Some("double"), Some("light")),
+                "╫",
+            ),
+            (mixed_key(None, Some("light"), Some("double"), None), "╓"),
+            (
+                mixed_key(Some("light"), Some("double"), Some("light"), Some("double")),
+                "╪",
+            ),
+        ];
+        for (key, expected) in spot_checks {
+            assert_eq!(
+                catalog.glyph(&key).map(monospace_core::Glyph::as_str),
+                Some(expected),
+                "unexpected glyph for {key:?}"
+            );
+        }
+    }
+
+    /// SC-001, SC-002: `light_heavy()` holds exactly the 50 rows _Mixing Light and Heavy_
+    /// records, and its spot-checked rows — a corner, a three-armed junction, a four-armed
+    /// crossing, and that crossing with its two strokes exchanged between sides — render the
+    /// characters that section publishes, `┿` and `╂` (the demonstration's own crossings) among
+    /// them.
+    #[test]
+    fn light_heavy_has_exactly_its_documented_rows_and_spot_checks_match() {
+        assert_eq!(super::LIGHT_HEAVY.len(), 50);
+
+        let catalog = light_heavy();
+        let spot_checks = [
+            (mixed_key(None, None, Some("heavy"), Some("light")), "┒"),
+            (
+                mixed_key(Some("heavy"), Some("light"), Some("heavy"), None),
+                "┠",
+            ),
+            (
+                mixed_key(Some("heavy"), Some("light"), Some("heavy"), Some("light")),
+                "╂",
+            ),
+            (
+                mixed_key(Some("light"), Some("heavy"), Some("light"), Some("heavy")),
+                "┿",
+            ),
+        ];
+        for (key, expected) in spot_checks {
+            assert_eq!(
+                catalog.glyph(&key).map(monospace_core::Glyph::as_str),
+                Some(expected),
+                "unexpected glyph for {key:?}"
+            );
+        }
+    }
+
+    /// SC-001, SC-002: `light_round_double()` holds exactly the 18 rows _Mixing Light Round and
+    /// Double_ records — the same shapes as _Mixing Light and Double_ with `light` replaced by
+    /// `light-round` — and its spot-checked rows render the same characters.
+    #[test]
+    fn light_round_double_has_exactly_its_documented_rows_and_spot_checks_match() {
+        assert_eq!(super::LIGHT_ROUND_DOUBLE.len(), 18);
+
+        let catalog = light_round_double();
+        let spot_checks = [
+            (
+                mixed_key(
+                    None,
+                    Some("light-round"),
+                    Some("double"),
+                    Some("light-round"),
+                ),
+                "╥",
+            ),
+            (
+                mixed_key(
+                    Some("double"),
+                    Some("light-round"),
+                    Some("double"),
+                    Some("light-round"),
+                ),
+                "╫",
+            ),
+            (
+                mixed_key(None, Some("light-round"), Some("double"), None),
+                "╓",
+            ),
+            (
+                mixed_key(
+                    Some("light-round"),
+                    Some("double"),
+                    Some("light-round"),
+                    Some("double"),
+                ),
+                "╪",
+            ),
+        ];
+        for (key, expected) in spot_checks {
+            assert_eq!(
+                catalog.glyph(&key).map(monospace_core::Glyph::as_str),
+                Some(expected),
+                "unexpected glyph for {key:?}"
+            );
+        }
+    }
+
+    /// SC-001, SC-002: `light_round_heavy()` holds exactly the 50 rows _Mixing Light Round and
+    /// Heavy_ records — the same shapes as _Mixing Light and Heavy_ with `light` replaced by
+    /// `light-round` — and its spot-checked rows render the same characters.
+    #[test]
+    fn light_round_heavy_has_exactly_its_documented_rows_and_spot_checks_match() {
+        assert_eq!(super::LIGHT_ROUND_HEAVY.len(), 50);
+
+        let catalog = light_round_heavy();
+        let spot_checks = [
+            (
+                mixed_key(None, None, Some("heavy"), Some("light-round")),
+                "┒",
+            ),
+            (
+                mixed_key(Some("heavy"), Some("light-round"), Some("heavy"), None),
+                "┠",
+            ),
+            (
+                mixed_key(
+                    Some("heavy"),
+                    Some("light-round"),
+                    Some("heavy"),
+                    Some("light-round"),
+                ),
+                "╂",
+            ),
+            (
+                mixed_key(
+                    Some("light-round"),
+                    Some("heavy"),
+                    Some("light-round"),
+                    Some("heavy"),
+                ),
+                "┿",
+            ),
+        ];
+        for (key, expected) in spot_checks {
+            assert_eq!(
+                catalog.glyph(&key).map(monospace_core::Glyph::as_str),
+                Some(expected),
+                "unexpected glyph for {key:?}"
+            );
+        }
+    }
+
+    /// SC-005: `top: light, right: light, bottom: double, left: double` is one of the thirty-two
+    /// light/double combinations _Mixing Light and Double_ does not record. It degrades the same
+    /// whether or not `light_double()` is in the catalog.
+    #[test]
+    fn an_uncovered_light_double_combination_degrades_the_same_with_or_without_the_mixing_table() {
+        let cell = monospace_core::StrokeCell {
+            base: monospace_core::Stroke::from("light"),
+            top: monospace_core::Arm::Set(monospace_core::Stroke::from("light")),
+            right: monospace_core::Arm::Set(monospace_core::Stroke::from("light")),
+            bottom: monospace_core::Arm::Set(monospace_core::Stroke::from("double")),
+            left: monospace_core::Arm::Set(monospace_core::Stroke::from("double")),
+        };
+        let cell_value = monospace_core::Cell::from(cell);
+
+        let without_mixing_table =
+            monospace_core::GlyphCatalog::union([monospace_core::GlyphCatalog::light(), double()]);
+        let with_mixing_table = monospace_core::GlyphCatalog::union([
+            monospace_core::GlyphCatalog::light(),
+            double(),
+            light_double(),
+        ]);
+
+        assert_eq!(
+            cell_value.glyph_str(&without_mixing_table),
+            cell_value.glyph_str(&with_mixing_table)
+        );
+        assert!(cell_value.glyph_str(&without_mixing_table).is_some());
     }
 }

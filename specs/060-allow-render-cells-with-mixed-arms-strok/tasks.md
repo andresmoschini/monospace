@@ -45,33 +45,39 @@ through FR-005. This is plan.md's first commit.
 **⚠️ CRITICAL**: No user story task can begin until this phase is complete — no mixed `GlyphKey` can
 even be built, and no test below compiles, until `Arm::Set` carries a `Stroke`.
 
-- [ ] T001 In `crates/monospace-core/src/cell.rs`, change `Arm::Set` to `Arm::Set(Stroke)`; drop
+- [x] T001 In `crates/monospace-core/src/cell.rs`, change `Arm::Set` to `Arm::Set(Stroke)`; drop
       `Copy` from `Arm`'s derive, keeping `Debug, Clone, PartialEq, Eq` (FR-001, data-model.md)
-- [ ] T002 In `crates/monospace-core/src/cell.rs`, update `StrokeCell::key()` to read each arm's own
+- [x] T002 In `crates/monospace-core/src/cell.rs`, update `StrokeCell::key()` to read each arm's own
       stroke (`Arm::Set(stroke) => Some(stroke.clone())`) instead of `self.base` (FR-002) (depends
       on T001)
-- [ ] T003 In `crates/monospace-core/src/cell.rs`, add `StrokeCell::degraded_key()`: the same shape
+- [x] T003 In `crates/monospace-core/src/cell.rs`, add `StrokeCell::degraded_key()`: the same shape
       as `key()`, but every `Set` side answers `Some(self.base.clone())` regardless of its own
       stroke; `Closed` and `Unset` stay `None` on both methods (FR-004) (depends on T001)
-- [ ] T004 In `crates/monospace-core/src/cell.rs`, update `Cell::glyph_str` to try
+- [x] T004 In `crates/monospace-core/src/cell.rs`, update `Cell::glyph_str` to try
       `glyphs.glyph(&cell.key())` first and fall back to `glyphs.glyph(&cell.degraded_key())` on a
       miss, mirroring the two lookups in `docs/model.md`'s _Rendering_ (FR-002, FR-004) (depends on
       T002, T003)
-- [ ] T005 Update every `Arm::Set` construction site in `crates/monospace-core/src/cell.rs`'s own
+- [x] T005 Update every `Arm::Set` construction site in `crates/monospace-core/src/cell.rs`'s own
       `tests` module to `Arm::Set(stroke)`, supplying the same stroke the cell's `base` already uses
       at each site — mechanical, no site changes which sides are `Set`/`Closed`/`Unset` (depends on
-      T001)
-- [ ] T006 [P] Update every `Arm::Set` construction site in `crates/monospace-core/src/buffer.rs`
-      (including its stamping tests) to `Arm::Set(stroke)` (depends on T001)
-- [ ] T007 [P] Update every `Arm::Set` construction site in
+      T001). `crates/monospace-core/src/render.rs`'s own `tests` module carries the same `Arm::Set`
+      construction sites tasks.md did not enumerate separately (it renders through `cell.rs`);
+      updated alongside this task for the same mechanical reason.
+- [x] T006 [P] Update every `Arm::Set` construction site in `crates/monospace-core/src/buffer.rs`
+      (including its stamping tests) to `Arm::Set(stroke)` (depends on T001). `merge_strokes` also
+      needed `bottom.<arm>.clone()` in place of a move, since `Arm` is no longer `Copy`; test
+      assertions that compare a cell produced by an actual stamp/merge (not a bare input literal)
+      were given the stroke each surviving arm actually carries after the merge, traced by hand
+      against `merge_arm`/`merge_strokes`, rather than always the cell's own `base`.
+- [x] T007 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/line.rs` to `Arm::Set(stroke)` (depends on T001)
-- [ ] T008 [P] Update every `Arm::Set` construction site in
+- [x] T008 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/fragment/segment.rs` to `Arm::Set(stroke)` (depends on T001)
-- [ ] T009 [P] Update every `Arm::Set` construction site in
+- [x] T009 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/fragment/corner.rs` to `Arm::Set(stroke)` (depends on T001)
-- [ ] T010 [P] Update every `Arm::Set` construction site in
+- [x] T010 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/fragment/border.rs` to `Arm::Set(stroke)` (depends on T001)
-- [ ] T011 [P] Update every `Arm::Set` construction site in
+- [x] T011 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/fragment/end.rs` to `Arm::Set(stroke)` (depends on T001)
 
 **Checkpoint**: `cargo test -p monospace-core` is green; every existing test's expected output is
@@ -92,26 +98,30 @@ glyph rather than either stroke's own cross.
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T012 [P] [US1] In `crates/monospace-core/src/cell.rs`'s `tests` module, add
+- [x] T012 [P] [US1] In `crates/monospace-core/src/cell.rs`'s `tests` module, add
       `key_reads_each_arms_own_stroke`: a cell with `light` top/bottom and `heavy` left/right arms
       produces a `GlyphKey` naming `light`/`heavy` on their own sides, not the cell's `base`
       (Acceptance Scenarios 1-2, FR-002)
-- [ ] T013 [P] [US1] Add `degraded_key_collapses_every_set_arm_to_the_base_stroke`: the same mixed
+- [x] T013 [P] [US1] Add `degraded_key_collapses_every_set_arm_to_the_base_stroke`: the same mixed
       cell's `degraded_key()` names the cell's `base` stroke on every `Set` side regardless of what
       that arm itself carries (FR-004)
-- [ ] T014 [P] [US1] Add `glyph_str_tries_the_exact_key_then_the_degraded_key_then_none`: build an
+- [x] T014 [P] [US1] Add `glyph_str_tries_the_exact_key_then_the_degraded_key_then_none`: build an
       ad hoc `GlyphCatalog::from_rules` with one rule for the mixed key and confirm `glyph_str`
       finds it; rebuild with only a rule for the uniform base-stroke key and confirm the fallback
       finds that instead; rebuild with neither rule and confirm `None` (Acceptance Scenario 1,
       FR-002, FR-004)
-- [ ] T015 [P] [US1] Add
+- [x] T015 [P] [US1] Add
       `a_cell_whose_arms_all_carry_the_base_stroke_resolves_the_same_key_from_both_methods`: `key()`
       and `degraded_key()` produce equal `GlyphKey`s when every `Set` arm already carries the cell's
       own `base` stroke (Acceptance Scenario 4, SC-006's invariant)
-- [ ] T016 [US1] In `crates/monospace-core/src/buffer.rs`'s `tests` module, add a stamping test: two
+- [x] T016 [US1] In `crates/monospace-core/src/buffer.rs`'s `tests` module, add a stamping test: two
       overlapping shapes of different strokes, stamped front-to-back and again back-to-front,
       produce the same buffer even though the cells involved end up with arms of two different
-      strokes (Acceptance Scenario 5, FR-003, FR-005)
+      strokes (Acceptance Scenario 5, FR-003, FR-005). Satisfied by the existing
+      `front_to_back_with_below_equals_back_to_front_with_above` test: it already stamps three
+      shapes of three different strokes (`double`/`light`/`heavy`) in both orders, and now that
+      `Arm::Set` carries a `Stroke`, its assertion already proves the merged cell's arms carry two
+      different strokes and both orders agree — no separate test needed.
 
 **Checkpoint**: `cargo test -p monospace-core` is green, including T012-T016. The two-lookup
 mechanism is proven; nothing yet has a real mixing table to draw from (that is User Story 3).
@@ -131,53 +141,58 @@ Heavy_, and its spot-checked rows render the character that section publishes.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T017 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
+- [x] T017 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
       `light_double_has_exactly_its_documented_rows_and_spot_checks_match` (18 rows; spot-check at
       least a four-armed crossing, a three-armed junction, a corner, one row with its two strokes
       exchanged between sides, and — per SC-002 — the two crossing characters the demonstration
       draws, `╪` and `╫`) (SC-001, SC-002). Fails to compile until T022-T023 land.
-- [ ] T018 [P] [US3] Add `light_heavy_has_exactly_its_documented_rows_and_spot_checks_match` (50
+- [x] T018 [P] [US3] Add `light_heavy_has_exactly_its_documented_rows_and_spot_checks_match` (50
       rows; same spot-check shape, including `┿` and `╂`) (SC-001, SC-002). Fails to compile until
       T024-T025 land.
-- [ ] T019 [P] [US3] Add `light_round_double_has_exactly_its_documented_rows_and_spot_checks_match`
+- [x] T019 [P] [US3] Add `light_round_double_has_exactly_its_documented_rows_and_spot_checks_match`
       (18 rows; same spot-check shape) (SC-001, SC-002). Fails to compile until T026-T027 land.
-- [ ] T020 [P] [US3] Add `light_round_heavy_has_exactly_its_documented_rows_and_spot_checks_match`
+- [x] T020 [P] [US3] Add `light_round_heavy_has_exactly_its_documented_rows_and_spot_checks_match`
       (50 rows; same spot-check shape) (SC-001, SC-002). Fails to compile until T028-T029 land.
-- [ ] T021 [US3] Extend the existing union-order-independence test (currently over `ascii()`,
+- [x] T021 [US3] Extend the existing union-order-independence test (currently over `ascii()`,
       `double()`, `heavy()`, `light_round()`) to build `GlyphCatalog::union` from all nine tables —
       the five single-stroke ones plus the four mixing ones from this feature — in at least two
       different orders, asserting a key from each of the nine answers correctly in both (FR-011,
-      SC-007). Fails to compile until T022-T029 land.
+      SC-007). Fails to compile until T022-T029 land. Renamed to
+      `a_catalog_built_from_all_nine_tables_answers_each_regardless_of_order` since it no longer
+      names only the single-stroke tables it started from.
 
 ### Implementation for User Story 3
 
-- [ ] T022 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
+- [x] T022 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
       `const LIGHT_DOUBLE: &[Row]` holding exactly the eighteen rows `docs/glyph-sets.md`'s _Mixing
       Light and Double_ section records, verbatim and in the same order (FR-006)
-- [ ] T023 [US3] Add `#[must_use] pub fn light_double() -> GlyphCatalog` as
+- [x] T023 [US3] Add `#[must_use] pub fn light_double() -> GlyphCatalog` as
       `build("Mixing Light and Double", LIGHT_DOUBLE)` (FR-010) (depends on T022)
-- [ ] T024 [P] [US3] Add a private `const LIGHT_HEAVY: &[Row]` holding exactly the fifty rows under
+- [x] T024 [P] [US3] Add a private `const LIGHT_HEAVY: &[Row]` holding exactly the fifty rows under
       _Mixing Light and Heavy_, verbatim and in the same order (FR-007)
-- [ ] T025 [US3] Add `#[must_use] pub fn light_heavy() -> GlyphCatalog` as
+- [x] T025 [US3] Add `#[must_use] pub fn light_heavy() -> GlyphCatalog` as
       `build("Mixing Light and Heavy", LIGHT_HEAVY)` (FR-010) (depends on T024)
-- [ ] T026 [P] [US3] Add a private `const LIGHT_ROUND_DOUBLE: &[Row]` holding exactly the eighteen
+- [x] T026 [P] [US3] Add a private `const LIGHT_ROUND_DOUBLE: &[Row]` holding exactly the eighteen
       rows under _Mixing Light Round and Double_, verbatim and in the same order (FR-008)
-- [ ] T027 [US3] Add `#[must_use] pub fn light_round_double() -> GlyphCatalog` as
+- [x] T027 [US3] Add `#[must_use] pub fn light_round_double() -> GlyphCatalog` as
       `build("Mixing Light Round and Double", LIGHT_ROUND_DOUBLE)` (FR-010) (depends on T026)
-- [ ] T028 [P] [US3] Add a private `const LIGHT_ROUND_HEAVY: &[Row]` holding exactly the fifty rows
+- [x] T028 [P] [US3] Add a private `const LIGHT_ROUND_HEAVY: &[Row]` holding exactly the fifty rows
       under _Mixing Light Round and Heavy_, verbatim and in the same order (FR-009)
-- [ ] T029 [US3] Add `#[must_use] pub fn light_round_heavy() -> GlyphCatalog` as
+- [x] T029 [US3] Add `#[must_use] pub fn light_round_heavy() -> GlyphCatalog` as
       `build("Mixing Light Round and Heavy", LIGHT_ROUND_HEAVY)` (FR-010) (depends on T028)
-- [ ] T030 [US3] Manually check every row of `LIGHT_DOUBLE`, `LIGHT_HEAVY`, `LIGHT_ROUND_DOUBLE` and
+- [x] T030 [US3] Manually check every row of `LIGHT_DOUBLE`, `LIGHT_HEAVY`, `LIGHT_ROUND_DOUBLE` and
       `LIGHT_ROUND_HEAVY` (T022, T024, T026, T028) against `docs/glyph-sets.md`'s matching row, key
       by key — the property the row-count and spot-check tests don't verify directly, since they
       prove completeness and a sample of characters but not that every character is the transcribed
-      one (quickstart.md's "Row-for-row against the document")
-- [ ] T031 [P] [US3] Correct `docs/model.md`'s _Strokes, glyph sets and the catalog_ sentence "only
+      one (quickstart.md's "Row-for-row against the document"). Done with a throwaway script parsing
+      both the Markdown tables and the Rust `const` arrays and diffing them row by row, rather than
+      eyeballing four hundred-plus cells by hand — a stronger check of the same property, not a
+      different one; every row matched.
+- [x] T031 [P] [US3] Correct `docs/model.md`'s _Strokes, glyph sets and the catalog_ sentence "only
       the mixing sets are left loaded from a file when someone asks for them" to name the four
       mixing tables alongside ASCII, Double, Heavy and Light Round as data `monospace-glyph-sets`
       ships (FR-012, research.md)
-- [ ] T032 [P] [US3] Correct `docs/glyph-sets.md`'s opening note ("the mixing sets remain reference
+- [x] T032 [P] [US3] Correct `docs/glyph-sets.md`'s opening note ("the mixing sets remain reference
       only, with nothing loading them yet") the same way (FR-012)
 
 **Checkpoint**: `cargo test -p monospace-glyph-sets` is green, including T017-T021. All nine tables
@@ -195,17 +210,17 @@ mixture no table pairs at all, still degrades to the cell's base stroke exactly 
 records, once with `light_double()` in the catalog and once without it; both renders produce the
 same character.
 
-- [ ] T033 [P] [US4] In `crates/monospace-core/src/cell.rs`'s `tests` module, add
+- [x] T033 [P] [US4] In `crates/monospace-core/src/cell.rs`'s `tests` module, add
       `an_uncovered_mixture_degrades_to_the_base_stroke_regardless_of_a_partial_mixing_rule_set`:
       build an ad hoc catalog covering only some combinations of two strokes plus the base-stroke
       fallback rule; a combination it does not cover renders the same with and without that partial
       rule set present (Acceptance Scenario 1 mechanism, FR-004)
-- [ ] T034 [P] [US4] Add `light_and_light_round_degrade_with_no_mixing_table_pairing_them`: a cell
+- [x] T034 [P] [US4] Add `light_and_light_round_degrade_with_no_mixing_table_pairing_them`: a cell
       mixing `light` and `light-round` arms, rendered against a catalog holding both single-stroke
       tables but no table pairing them, degrades to the cell's base stroke (Acceptance Scenario 2)
-- [ ] T035 [P] [US4] Add `heavy_and_double_degrade_with_no_mixing_table_pairing_them`: mirrors T034
+- [x] T035 [P] [US4] Add `heavy_and_double_degrade_with_no_mixing_table_pairing_them`: mirrors T034
       for `heavy` and `double` (Acceptance Scenario 3)
-- [ ] T036 [US4] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
+- [x] T036 [US4] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
       `an_uncovered_light_double_combination_degrades_the_same_with_or_without_the_mixing_table`:
       pick one of the light/double per-arm combinations `LIGHT_DOUBLE`'s eighteen rows do not
       record; render it against a catalog including `light_double()` and against one without it;
@@ -226,17 +241,20 @@ four functions already existing.
 **Independent Test**: run `cargo run -p monospace-cli` with no arguments before and after this story
 lands; the two outputs differ only at the eight crossing positions named in spec.md's User Story 2.
 
-- [ ] T037 [US2] In `crates/monospace-cli/src/description.rs`, add
+- [x] T037 [US2] In `crates/monospace-cli/src/description.rs`, add
       `monospace_glyph_sets::light_double()`, `light_heavy()`, `light_round_double()` and
       `light_round_heavy()` to `Description::render()`'s `GlyphCatalog::union([...])` list,
       alongside the five tables already there (FR-013) (depends on T023, T025, T027, T029)
-- [ ] T038 [US2] Run `cargo run -p monospace-cli` with no arguments; compare the last figure group
+- [x] T038 [US2] Run `cargo run -p monospace-cli` with no arguments; compare the last figure group
       of its output to the "prints instead" block in spec.md's User Story 2, and confirm every other
       character is byte-identical to before this feature — accepted on observation, not pinned by a
-      test (FR-014, SC-003)
-- [ ] T039 [US2] Run `git diff --stat crates/monospace-cli/assets/demo.json` and confirm it prints
+      test (FR-014, SC-003). Observed by running the binary both before and after this task's change
+      (via `git stash`) and diffing the two outputs byte for byte: exactly 8 character positions
+      differ, all within the last figure group, and the new text matches spec.md's "prints instead"
+      block exactly.
+- [x] T039 [US2] Run `git diff --stat crates/monospace-cli/assets/demo.json` and confirm it prints
       nothing — the shipped demo file is unchanged (FR-015, SC-004)
-- [ ] T040 [US2] Append an entry to `docs/learning-log.md` for this increment: what was learned
+- [x] T040 [US2] Append an entry to `docs/learning-log.md` for this increment: what was learned
       about Rust design (the missing second lookup, per-arm strokes) and about working this way,
       with the observation from T038 as evidence, per constitution principle II
 
@@ -249,12 +267,14 @@ the observation is recorded. This is plan.md's third and final `feat` commit bou
 
 **Purpose**: the whole-workspace and portability checks that no single story owns.
 
-- [ ] T041 Run `cargo xtask check` on a fresh clone (constitution principle IV) and
+- [x] T041 Run `cargo xtask check` on a fresh clone (constitution principle IV) and
       `cargo test --workspace`, confirming every phase above is still green together, not only in
-      isolation
-- [ ] T042 [P] Run `cargo check -p monospace-core --target wasm32-unknown-unknown`, confirming the
+      isolation. Both green: a `git clone` of this branch, followed by `cargo xtask setup` and
+      `cargo xtask check`, passes all 10 checks; `cargo test --workspace` passes 127 tests across
+      `monospace-core`, `monospace-glyph-sets`, `monospace-cli` and `xtask`.
+- [x] T042 [P] Run `cargo check -p monospace-core --target wasm32-unknown-unknown`, confirming the
       owned `Stroke` per arm compiles for the WebAssembly target as it did before (principle VII)
-- [ ] T043 [P] Run `cargo check -p monospace-glyph-sets --target wasm32-unknown-unknown`, confirming
+- [x] T043 [P] Run `cargo check -p monospace-glyph-sets --target wasm32-unknown-unknown`, confirming
       the four new tables compile for the same target
 
 ## Dependencies & Execution Order

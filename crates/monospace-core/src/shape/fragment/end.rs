@@ -21,7 +21,7 @@ impl Shape for End {
     fn draw(&self, surface: &mut dyn Surface) {
         let arm_toward = |side: Side| {
             if side == self.side {
-                Arm::Set
+                Arm::Set(self.stroke.clone())
             } else {
                 Arm::Unset
             }
@@ -70,7 +70,7 @@ mod tests {
             Some(&Cell::from(StrokeCell {
                 base: Stroke::from("light"),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(Stroke::from("light")),
                 bottom: Arm::Unset,
                 left: Arm::Unset,
             }))
