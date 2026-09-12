@@ -67,6 +67,32 @@ const DOUBLE: &[Row] = &[
     (Some("double"), None, None, None, "║"),
 ];
 
+/// The 15 rules of the Heavy table in [`docs/glyph-sets.md`](../../../docs/glyph-sets.md), held as
+/// data rather than parsed at run time.
+const HEAVY: &[Row] = &[
+    (None, None, Some("heavy"), None, "┃"),
+    (None, None, Some("heavy"), Some("heavy"), "┓"),
+    (None, Some("heavy"), Some("heavy"), Some("heavy"), "┳"),
+    (
+        Some("heavy"),
+        Some("heavy"),
+        Some("heavy"),
+        Some("heavy"),
+        "╋",
+    ),
+    (Some("heavy"), None, Some("heavy"), Some("heavy"), "┫"),
+    (None, Some("heavy"), Some("heavy"), None, "┏"),
+    (Some("heavy"), Some("heavy"), Some("heavy"), None, "┣"),
+    (Some("heavy"), None, Some("heavy"), None, "┃"),
+    (None, None, None, Some("heavy"), "━"),
+    (None, Some("heavy"), None, Some("heavy"), "━"),
+    (Some("heavy"), Some("heavy"), None, Some("heavy"), "┻"),
+    (Some("heavy"), None, None, Some("heavy"), "┛"),
+    (None, Some("heavy"), None, None, "━"),
+    (Some("heavy"), Some("heavy"), None, None, "┗"),
+    (Some("heavy"), None, None, None, "┃"),
+];
+
 /// Converts one glyph table into a catalog: each row's stroke names become a `GlyphKey`, and its
 /// character a `Glyph`.
 ///
@@ -100,11 +126,17 @@ pub fn double() -> GlyphCatalog {
     build("Double", DOUBLE)
 }
 
+/// Builds a catalog from the Heavy table alone.
+#[must_use]
+pub fn heavy() -> GlyphCatalog {
+    build("Heavy", HEAVY)
+}
+
 #[cfg(test)]
 mod tests {
     use monospace_core::{BoxShape, Buffer, Layer, Pos, Shape, Size, StampMode};
 
-    use super::{ascii, double};
+    use super::{ascii, double, heavy};
 
     /// The property `docs/model.md` names under _Properties worth testing_: a catalog built from
     /// one stroke's complete set answers every key a cell of that stroke can produce. Mirrors
@@ -219,6 +251,73 @@ mod tests {
                         | '╩'
                         | '╝'
                         | '╚'
+                        | ' '
+                        | '\n'
+                ),
+                "unexpected character {ch:?} in {output:?}"
+            );
+        }
+    }
+
+    /// Mirrors `ascii_answers_every_non_empty_combination_of_its_own_stroke` for the Heavy table
+    /// (SC-002).
+    #[test]
+    fn heavy_answers_every_non_empty_combination_of_its_own_stroke() {
+        let catalog = heavy();
+
+        for mask in 1u8..16 {
+            let side = |bit: u8| {
+                if mask & bit == 0 {
+                    None
+                } else {
+                    Some(monospace_core::Stroke::from("heavy"))
+                }
+            };
+            let key = monospace_core::GlyphKey {
+                top: side(0b0001),
+                right: side(0b0010),
+                bottom: side(0b0100),
+                left: side(0b1000),
+            };
+
+            assert!(catalog.glyph(&key).is_some(), "no glyph for {key:?}");
+        }
+    }
+
+    /// Mirrors `a_box_rendered_with_ascii_alone_uses_only_ascii_box_characters` for the Heavy
+    /// table (SC-005).
+    #[test]
+    fn a_box_rendered_with_heavy_alone_uses_only_heavy_box_characters() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 4,
+            height: 3,
+        };
+        let mut buffer = Buffer::new(origin, size);
+        BoxShape {
+            at: origin,
+            size,
+            stroke: monospace_core::Stroke::from("heavy"),
+            fill: None,
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+
+        let output = monospace_core::render(&buffer, &heavy(), origin, size);
+
+        for ch in output.chars() {
+            assert!(
+                matches!(
+                    ch,
+                    '┃' | '┓'
+                        | '┳'
+                        | '╋'
+                        | '┫'
+                        | '┏'
+                        | '┣'
+                        | '━'
+                        | '┻'
+                        | '┛'
+                        | '┗'
                         | ' '
                         | '\n'
                 ),

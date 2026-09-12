@@ -116,7 +116,7 @@ table's own characters and space.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T007 [P] [US2] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
+- [x] T007 [P] [US2] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
       `heavy_answers_every_non_empty_combination_of_its_own_stroke` and
       `a_box_rendered_with_heavy_alone_uses_only_heavy_box_characters` (asserting every character is
       one of `┃┓┳╋┫┏┣━┻┛┗`, space or newline), the same shape as T004 (SC-002, SC-005). Both fail to
@@ -124,10 +124,10 @@ table's own characters and space.
 
 ### Implementation for User Story 2
 
-- [ ] T008 [P] [US2] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
+- [x] T008 [P] [US2] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
       `const HEAVY: &[Row]` table holding exactly the fifteen rows `docs/glyph-sets.md`'s _Heavy_
       table records, verbatim and in the same order, with `"heavy"` as the stroke name (FR-002)
-- [ ] T009 [US2] In `crates/monospace-glyph-sets/src/lib.rs`, implement
+- [x] T009 [US2] In `crates/monospace-glyph-sets/src/lib.rs`, implement
       `#[must_use] pub fn heavy() -> GlyphCatalog` as `build("Heavy", HEAVY)` (FR-005, FR-007)
       (depends on T003, T008)
 
