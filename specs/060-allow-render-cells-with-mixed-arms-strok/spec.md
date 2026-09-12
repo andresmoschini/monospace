@@ -17,6 +17,19 @@ Light with Heavy, Light Round with Double, Light Round with Heavy. The issue ask
 both figures imply to be drawn where such a character exists, and for the difference to be visible
 by running the command-line demonstration on its shipped demo file, with no change to that file.
 
+## Clarifications
+
+### Session 2026-09-12
+
+- Q: How should the shipped demonstration's output be checked automatically once the feature lands?
+  → A: No new automated test; the difference is observed by running it and recorded in the learning
+  log.
+- Q: How should the four mixing tables be checked against the rows `docs/glyph-sets.md` records? →
+  A: Row counts asserted per table, plus spot checks on a few rows each — not a row-by-row test.
+- Q: Should the spec call the three-state thing on each of a cell's four positions an arm, the word
+  `docs/model.md` defines for it, rather than a side? → A: Yes — "arm" for the three-state thing,
+  "side" for the four positions.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Draw the junction two strokes make (Priority: P1)
@@ -30,22 +43,22 @@ vertical crossing a double horizontal drawn as such, not as a double cross.
 visible without it, and it is what the four mixing tables exist to serve.
 
 **Independent Test**: with a catalog holding Light, Heavy and their mixing table, build a cell whose
-top and bottom sides carry `light` and whose left and right sides carry `heavy`, and render it. It
+top and bottom arms carry `light` and whose left and right arms carry `heavy`, and render it. It
 must produce `┿`, the character _Mixing Light and Heavy_ publishes for that combination, rather than
 the cross of either stroke alone.
 
 **Acceptance Scenarios**:
 
 1. **Given** a catalog holding Light, Heavy and the Light-with-Heavy mixing table, **When** a cell
-   whose sides carry `light` on top and bottom and `heavy` on left and right is rendered, **Then**
-   it produces `┿`.
+   whose arms carry `light` on top and bottom and `heavy` on left and right is rendered, **Then** it
+   produces `┿`.
 2. **Given** the same catalog, **When** the same cell is rendered with `heavy` on top and bottom and
    `light` on left and right, **Then** it produces `╂` — the mixture is read per side, not as an
    unordered pair of strokes.
-3. **Given** a catalog holding Light, Double and the Light-with-Double mixing table, **When** each
-   of the eighteen combinations _Mixing Light and Double_ records is rendered, **Then** every one
-   produces the character that table publishes for it.
-4. **Given** any catalog, **When** a cell whose sides all carry one stroke is rendered, **Then** it
+3. **Given** a catalog holding Light, Double and the Light-with-Double mixing table, **When** the
+   spot-checked rows of _Mixing Light and Double_ are rendered, **Then** every one produces the
+   character that table publishes for it.
+4. **Given** any catalog, **When** a cell whose arms all carry one stroke is rendered, **Then** it
    produces exactly the character it produces today.
 5. **Given** two figures of different strokes overlapping, **When** they are drawn front to back and
    again back to front, **Then** both orders produce the same buffer, as they do today.
@@ -64,8 +77,10 @@ should be visible running the CLI with the demo JSON file without making changes
 only end-to-end evidence that the capability of Story 1 reaches a user.
 
 **Independent Test**: run the application with no arguments before and after the feature and compare
-the two outputs. They must differ only in the eight characters at the crossings of the light/double
-and light/heavy pairs, and match the expected block below.
+the two outputs by hand. They must differ only in the eight characters at the crossings of the
+light/double and light/heavy pairs, and match the expected block below. This comparison is an
+observation made once, at delivery, and is not pinned by an automated test — see **Accepted on
+observation** under Success Criteria.
 
 **Acceptance Scenarios**:
 
@@ -106,9 +121,10 @@ single-stroke tables they already use, and the catalog answers accordingly.
 but a caller choosing among them is a use the demonstration does not exercise, so it is worth
 stating and testing separately.
 
-**Independent Test**: build a catalog from Light Round, Heavy and their mixing table, render all
-fifty combinations that table records, and check each against the character it publishes. Then build
-one without the mixing table and confirm the same fifty degrade.
+**Independent Test**: build a catalog from Light Round, Heavy and their mixing table, count the rows
+it holds against the fifty _Mixing Light Round and Heavy_ records, render the spot-checked rows and
+check each against the character it publishes. Then build one without the mixing table and confirm
+the same rows degrade.
 
 **Acceptance Scenarios**:
 
@@ -156,15 +172,15 @@ base stroke draws.
 
 ### Edge Cases
 
-- **A side with no stroke.** A side that is closed, and a side left for a later figure to decide,
+- **An arm with no stroke.** An arm that is closed, and an arm left for a later figure to decide,
   both mean "no stroke runs here" when the character is chosen. That does not change: a mixture is
-  read from the sides that do carry a stroke.
+  read from the arms that do carry a stroke.
 - **A cell holding a literal character.** It renders as that character, with no junction chosen and
   no degradation, exactly as today.
 - **A figure drawn over a junction that already mixes two strokes.** The figure on top decides every
-  side it claims and imposes its own stroke there; sides it leaves for others keep the stroke they
-  were drawn with, which may be a third one. Nothing caps how many strokes one cell's sides may
-  name; what caps the result is whether a table has a character for it.
+  arm it claims and imposes its own stroke there; arms it leaves for others keep the stroke they
+  were drawn with, which may be a third one. Nothing caps how many strokes one cell's arms may name;
+  what caps the result is whether a table has a character for it.
 - **A mixture of three or more strokes.** No table this project ships records one, so it degrades.
   That is the same rule as any other uncovered mixture, not a special case.
 - **The two drawing orders.** Front to back and back to front must still produce the same buffer.
@@ -177,19 +193,19 @@ base stroke draws.
 
 #### The cell
 
-- **FR-001**: A cell MUST be able to carry a different stroke on each of its four sides, per
-  [ADR-0037](../../docs/decisions/0037-give-each-arm-its-own-stroke.md).
-- **FR-002**: The character chosen for a cell MUST be looked up from the stroke each side actually
+- **FR-001**: A cell MUST be able to carry a different stroke on each of its four arms, one per
+  side, per [ADR-0037](../../docs/decisions/0037-give-each-arm-its-own-stroke.md).
+- **FR-002**: The character chosen for a cell MUST be looked up from the stroke each arm actually
   carries, rather than from the cell's base stroke, so that a cell mixing two strokes asks for a
   mixed character.
-- **FR-003**: When a figure is drawn over another, a side the upper figure does not claim MUST keep
+- **FR-003**: When a figure is drawn over another, an arm the upper figure does not claim MUST keep
   the stroke it was drawn with, instead of being redrawn in the upper figure's stroke.
 - **FR-004**: The base stroke MUST keep exactly the role
   [ADR-0009](../../docs/decisions/0009-degrade-a-cell-to-its-base-stroke.md) gives it: the stroke
-  every side with a stroke moves to when no character matches the exact mixture. Degradation MUST
-  NOT change in any other way.
-- **FR-005**: Which figure decides a side, and which figure sets the base stroke, MUST NOT change:
-  the two stamp modes and the three states of a side are untouched, and drawing front to back MUST
+  every arm with a stroke moves to when no character matches the exact mixture. Degradation MUST NOT
+  change in any other way.
+- **FR-005**: Which figure decides an arm, and which figure sets the base stroke, MUST NOT change:
+  the two stamp modes and the three states of an arm are untouched, and drawing front to back MUST
   still produce the same buffer as drawing back to front.
 
 #### The tables
@@ -217,7 +233,9 @@ base stroke draws.
   four mixing tables in addition to the five single-stroke tables it already uses.
 - **FR-014**: Running the application with no arguments MUST produce the expected block in User
   Story 2, differing from today's output at exactly the eight crossing positions of its light/double
-  and light/heavy figure pairs and nowhere else.
+  and light/heavy figure pairs and nowhere else. This requirement is accepted on observation: it is
+  checked by running the application and comparing the output before and after, and no test pins the
+  demonstration's output.
 - **FR-015**: The shipped demo file MUST NOT be modified. The difference MUST come from the
   rendering and the catalog, not from moving, adding or removing a figure.
 
@@ -229,8 +247,9 @@ base stroke draws.
 
 ### Key Entities
 
-- **A side of a cell**: today it says whether a stroke runs that way; it gains the stroke that runs
-  there. The three states — claimed, closed, left to others — are unchanged.
+- **An arm of a cell**: one on each of the cell's four sides. Today it says whether a stroke runs
+  that way; it gains the stroke that runs there. The three states — claimed, closed, left to others
+  — are unchanged.
 - **Base stroke**: unchanged in meaning, narrowed in use. It is now read only when the exact mixture
   has no character.
 - **Mixing table**: a group of rules keyed on two stroke names at once, already written in
@@ -241,13 +260,19 @@ base stroke draws.
 
 ### Measurable Outcomes
 
-- **SC-001**: All fifty combinations _Mixing Light and Heavy_ records, and all fifty _Mixing Light
-  Round and Heavy_ records, render the character their table publishes.
-- **SC-002**: All eighteen combinations _Mixing Light and Double_ records, and all eighteen _Mixing
-  Light Round and Double_ records, render the character their table publishes.
+- **SC-001**: Each of the four mixing tables holds exactly the number of rows its section of
+  `docs/glyph-sets.md` records — fifty for _Mixing Light and Heavy_, fifty for _Mixing Light Round
+  and Heavy_, eighteen for _Mixing Light and Double_, eighteen for _Mixing Light Round and Double_.
+- **SC-002**: The spot-checked rows of every mixing table render the character that table publishes.
+  A table's spot checks are at least four of its rows, chosen to include a four-armed crossing, a
+  three-armed junction, a corner, and one row that is another spot check with the two strokes
+  exchanged between sides. The spot checks also include the four characters the demonstration's
+  crossings draw — `╪` and `╫` from _Mixing Light and Double_, `┿` and `╂` from _Mixing Light and
+  Heavy_ — so that the one thing no test pins is made of characters that are tested.
 - **SC-003**: Running the command-line application with no arguments produces output that differs
   from today's at exactly eight character positions, all of them crossings between two figures of
-  different strokes, and matches the expected block in User Story 2 byte for byte.
+  different strokes, and matches the expected block in User Story 2 byte for byte — observed once at
+  delivery, not pinned by a test.
 - **SC-004**: The shipped demo file is identical before and after the feature, verified by diff.
 - **SC-005**: At least one light/double combination the mixing table does not record renders the
   same character with and without that table in the catalog.
@@ -256,20 +281,29 @@ base stroke draws.
 - **SC-007**: Building a catalog from all nine shipped tables in any order answers every key the
   same way, checked across at least two different orders.
 
+**Accepted on observation.** SC-003 and FR-014 are checked by running the application before and
+after the feature and comparing the two outputs by hand, and by recording what was seen in
+`docs/learning-log.md`. No test pins the demonstration's output, so nothing in `cargo xtask check`
+will catch a later change to it. They are named here as accepted on observation rather than
+described as tested, per [principle IV](../../.specify/memory/constitution.md). What does carry
+tests is the behavior underneath them: SC-001, SC-002, SC-005, SC-006 and SC-007 cover the row
+counts, a sample of the rows, and the degradation the demonstration's eight crossings are made of.
+SC-002 names the four characters those crossings draw among its spot checks for that reason.
+
 ## Assumptions
 
-- **The decision to give each side its own stroke is already recorded.** It is
+- **The decision to give each arm its own stroke is already recorded.** It is
   [ADR-0037](../../docs/decisions/0037-give-each-arm-its-own-stroke.md), which supersedes ADR-0012.
   This spec applies it rather than taking it.
 - **`docs/model.md` needs no change.** Under _Rendering_ and _Worked examples_ it already describes
   the mixed key, the two lookups and this exact light-over-double crossing. What changes is that the
   code catches up with it.
-- **The shape of the interface is a plan decision.** How a side carries its stroke, and how each of
+- **The shape of the interface is a plan decision.** How an arm carries its stroke, and how each of
   the four tables is exposed to a caller, are left to `/speckit-plan`, as features 054 and 056 left
   the same question.
 - **No new dependency and no new crate.** `monospace-glyph-sets` already exists and already holds
   the four single-stroke tables the core does not ship.
-- **This cannot be a structural commit.** Giving a side its own stroke changes how junctions render
+- **This cannot be a structural commit.** Giving an arm its own stroke changes how junctions render
   and touches every place a cell is built, tests included, so it is behavioral work under
   [principle V](../../.specify/memory/constitution.md) — a cost ADR-0012 recorded in advance.
 - **No command-line surface is added.** Showing the same crossing with and without a mixing table in
