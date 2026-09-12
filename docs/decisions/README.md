@@ -23,7 +23,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0009](0009-degrade-a-cell-to-its-base-stroke.md)                  | Degrade a cell to its base stroke when no character matches                     | accepted                             |
 | [0010](0010-separate-position-and-size.md)                         | Separate position and size instead of one rectangle                             | accepted                             |
 | [0011](0011-expose-cell-for-testing-stamping.md)                   | Expose `cell` so stamping can be checked without rendering                      | accepted                             |
-| [0012](0012-one-stroke-per-cell.md)                                | Give a cell one stroke, with none per arm                                       | accepted                             |
+| [0012](0012-one-stroke-per-cell.md)                                | Give a cell one stroke, with none per arm                                       | superseded by 0037                   |
 | [0013](0013-key-a-rule-by-stroke-per-side.md)                      | Key a glyph rule by a stroke per side                                           | accepted                             |
 | [0014](0014-collapse-glyph-sets-into-a-catalog.md)                 | Collapse glyph sets into a single catalog                                       | accepted                             |
 | [0015](0015-represent-a-stroke-as-a-string.md)                     | Represent a stroke as an owned `String`                                         | accepted                             |
@@ -48,6 +48,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0034](0034-let-xtask-own-the-feature-branch.md)                   | Let xtask own the feature branch                                                | accepted                             |
 | [0035](0035-keep-the-cli-demo-format-out-of-the-model.md)          | Keep the CLI's demo file format out of the model                                | accepted                             |
 | [0036](0036-hold-every-table-but-light-outside-the-core.md)        | Hold every glyph table but Light in a crate outside the core                    | accepted                             |
+| [0037](0037-give-each-arm-its-own-stroke.md)                       | Give each arm its own stroke, ending one stroke per cell                        | accepted                             |
 
 ## How to add one
 
