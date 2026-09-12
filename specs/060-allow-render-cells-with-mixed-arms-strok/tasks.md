@@ -267,12 +267,14 @@ the observation is recorded. This is plan.md's third and final `feat` commit bou
 
 **Purpose**: the whole-workspace and portability checks that no single story owns.
 
-- [ ] T041 Run `cargo xtask check` on a fresh clone (constitution principle IV) and
+- [x] T041 Run `cargo xtask check` on a fresh clone (constitution principle IV) and
       `cargo test --workspace`, confirming every phase above is still green together, not only in
-      isolation
-- [ ] T042 [P] Run `cargo check -p monospace-core --target wasm32-unknown-unknown`, confirming the
+      isolation. Both green: a `git clone` of this branch, followed by `cargo xtask setup` and
+      `cargo xtask check`, passes all 10 checks; `cargo test --workspace` passes 127 tests across
+      `monospace-core`, `monospace-glyph-sets`, `monospace-cli` and `xtask`.
+- [x] T042 [P] Run `cargo check -p monospace-core --target wasm32-unknown-unknown`, confirming the
       owned `Stroke` per arm compiles for the WebAssembly target as it did before (principle VII)
-- [ ] T043 [P] Run `cargo check -p monospace-glyph-sets --target wasm32-unknown-unknown`, confirming
+- [x] T043 [P] Run `cargo check -p monospace-glyph-sets --target wasm32-unknown-unknown`, confirming
       the four new tables compile for the same target
 
 ## Dependencies & Execution Order
