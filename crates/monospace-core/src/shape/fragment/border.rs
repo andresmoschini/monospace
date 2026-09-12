@@ -47,7 +47,7 @@ impl Shape for Border {
                     Arm::Unset
                 }
             } else {
-                Arm::Set
+                Arm::Set(self.stroke.clone())
             }
         };
         let cell: Cell = StrokeCell {
@@ -98,9 +98,9 @@ mod tests {
             Some(&Cell::from(StrokeCell {
                 base: Stroke::from("light"),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(Stroke::from("light")),
                 bottom: Arm::Closed,
-                left: Arm::Set,
+                left: Arm::Set(Stroke::from("light")),
             }))
         );
     }
@@ -131,9 +131,9 @@ mod tests {
             buffer.cell(Pos { x: 0, y: 0 }),
             Some(&Cell::from(StrokeCell {
                 base: Stroke::from("light"),
-                top: Arm::Set,
+                top: Arm::Set(Stroke::from("light")),
                 right: Arm::Closed,
-                bottom: Arm::Set,
+                bottom: Arm::Set(Stroke::from("light")),
                 left: Arm::Unset,
             }))
         );
@@ -166,9 +166,9 @@ mod tests {
                 Some(&Cell::from(StrokeCell {
                     base: Stroke::from("light"),
                     top: Arm::Unset,
-                    right: Arm::Set,
+                    right: Arm::Set(Stroke::from("light")),
                     bottom: Arm::Closed,
-                    left: Arm::Set,
+                    left: Arm::Set(Stroke::from("light")),
                 })),
                 "position ({x}, 0)"
             );
@@ -202,9 +202,9 @@ mod tests {
             Some(&Cell::from(StrokeCell {
                 base: Stroke::from("light"),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(Stroke::from("light")),
                 bottom: Arm::Unset,
-                left: Arm::Set,
+                left: Arm::Set(Stroke::from("light")),
             }))
         );
     }

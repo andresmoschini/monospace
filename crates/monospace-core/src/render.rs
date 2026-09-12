@@ -65,10 +65,10 @@ mod tests {
             Pos { x: 0, y: 0 },
             StrokeCell {
                 base: light(),
-                top: Arm::Set,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                top: Arm::Set(light()),
+                right: Arm::Set(light()),
+                bottom: Arm::Set(light()),
+                left: Arm::Set(light()),
             }
             .into(),
             StampMode::Above,
@@ -107,54 +107,56 @@ mod tests {
             .into()
         };
 
+        let set = || Arm::Set(light());
+
         buffer.stamp(
             Pos { x: 0, y: 0 },
-            corner(Arm::Closed, Arm::Set, Arm::Set, Arm::Closed),
+            corner(Arm::Closed, set(), set(), Arm::Closed),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 1, y: 0 },
-            corner(Arm::Closed, Arm::Set, Arm::Closed, Arm::Set),
+            corner(Arm::Closed, set(), Arm::Closed, set()),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 2, y: 0 },
-            corner(Arm::Closed, Arm::Set, Arm::Closed, Arm::Set),
+            corner(Arm::Closed, set(), Arm::Closed, set()),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 3, y: 0 },
-            corner(Arm::Closed, Arm::Closed, Arm::Set, Arm::Set),
+            corner(Arm::Closed, Arm::Closed, set(), set()),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 0, y: 1 },
-            corner(Arm::Set, Arm::Closed, Arm::Set, Arm::Closed),
+            corner(set(), Arm::Closed, set(), Arm::Closed),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 3, y: 1 },
-            corner(Arm::Set, Arm::Closed, Arm::Set, Arm::Closed),
+            corner(set(), Arm::Closed, set(), Arm::Closed),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 0, y: 2 },
-            corner(Arm::Set, Arm::Set, Arm::Closed, Arm::Closed),
+            corner(set(), set(), Arm::Closed, Arm::Closed),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 1, y: 2 },
-            corner(Arm::Closed, Arm::Set, Arm::Closed, Arm::Set),
+            corner(Arm::Closed, set(), Arm::Closed, set()),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 2, y: 2 },
-            corner(Arm::Closed, Arm::Set, Arm::Closed, Arm::Set),
+            corner(Arm::Closed, set(), Arm::Closed, set()),
             StampMode::Above,
         );
         buffer.stamp(
             Pos { x: 3, y: 2 },
-            corner(Arm::Set, Arm::Closed, Arm::Closed, Arm::Set),
+            corner(set(), Arm::Closed, Arm::Closed, set()),
             StampMode::Above,
         );
 
@@ -186,7 +188,7 @@ mod tests {
             Pos { x: 0, y: 0 },
             StrokeCell {
                 base: light(),
-                top: Arm::Set,
+                top: Arm::Set(light()),
                 right: Arm::Closed,
                 bottom: Arm::Closed,
                 left: Arm::Closed,
@@ -199,9 +201,9 @@ mod tests {
             StrokeCell {
                 base: light(),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(light()),
                 bottom: Arm::Closed,
-                left: Arm::Set,
+                left: Arm::Set(light()),
             }
             .into(),
             StampMode::Above,
@@ -235,7 +237,7 @@ mod tests {
             Pos { x: 0, y: 0 },
             StrokeCell {
                 base: Stroke::from("double"),
-                top: Arm::Set,
+                top: Arm::Set(Stroke::from("double")),
                 right: Arm::Closed,
                 bottom: Arm::Closed,
                 left: Arm::Closed,
@@ -308,10 +310,10 @@ mod tests {
             Pos { x: 0, y: 0 },
             StrokeCell {
                 base: light(),
-                top: Arm::Set,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                top: Arm::Set(light()),
+                right: Arm::Set(light()),
+                bottom: Arm::Set(light()),
+                left: Arm::Set(light()),
             }
             .into(),
             StampMode::Above,
@@ -360,9 +362,9 @@ mod tests {
             Pos { x: 0, y: 0 },
             StrokeCell {
                 base: light(),
-                top: Arm::Set,
+                top: Arm::Set(light()),
                 right: Arm::Closed,
-                bottom: Arm::Set,
+                bottom: Arm::Set(light()),
                 left: Arm::Closed,
             }
             .into(),

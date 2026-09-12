@@ -20,7 +20,7 @@ impl Shape for Corner {
     fn draw(&self, surface: &mut dyn Surface) {
         let arm_toward = |side: Side| {
             if side == self.opens.0 || side == self.opens.1 {
-                Arm::Set
+                Arm::Set(self.stroke.clone())
             } else {
                 Arm::Unset
             }
@@ -69,8 +69,8 @@ mod tests {
             Some(&Cell::from(StrokeCell {
                 base: Stroke::from("light"),
                 top: Arm::Unset,
-                right: Arm::Set,
-                bottom: Arm::Set,
+                right: Arm::Set(Stroke::from("light")),
+                bottom: Arm::Set(Stroke::from("light")),
                 left: Arm::Unset,
             }))
         );
@@ -100,9 +100,9 @@ mod tests {
             buffer.cell(Pos { x: 0, y: 0 }),
             Some(&Cell::from(StrokeCell {
                 base: Stroke::from("light"),
-                top: Arm::Set,
+                top: Arm::Set(Stroke::from("light")),
                 right: Arm::Unset,
-                bottom: Arm::Set,
+                bottom: Arm::Set(Stroke::from("light")),
                 left: Arm::Unset,
             }))
         );

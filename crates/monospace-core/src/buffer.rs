@@ -163,10 +163,10 @@ fn close_unset_sides(cell: StrokeCell) -> StrokeCell {
 fn merge_strokes(top: StrokeCell, bottom: &StrokeCell) -> StrokeCell {
     StrokeCell {
         base: top.base,
-        top: merge_arm(top.top, bottom.top),
-        right: merge_arm(top.right, bottom.right),
-        bottom: merge_arm(top.bottom, bottom.bottom),
-        left: merge_arm(top.left, bottom.left),
+        top: merge_arm(top.top, bottom.top.clone()),
+        right: merge_arm(top.right, bottom.right.clone()),
+        bottom: merge_arm(top.bottom, bottom.bottom.clone()),
+        left: merge_arm(top.left, bottom.left.clone()),
     }
 }
 
@@ -225,10 +225,10 @@ mod tests {
             Pos { x: 2, y: 0 },
             StrokeCell {
                 base: light(),
-                top: Arm::Set,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                top: Arm::Set(light()),
+                right: Arm::Set(light()),
+                bottom: Arm::Set(light()),
+                left: Arm::Set(light()),
             }
             .into(),
             StampMode::Above,
@@ -249,7 +249,7 @@ mod tests {
         let cell: Cell = StrokeCell {
             base: light(),
             top: Arm::Unset,
-            right: Arm::Set,
+            right: Arm::Set(light()),
             bottom: Arm::Closed,
             left: Arm::Unset,
         }
@@ -275,7 +275,7 @@ mod tests {
             Pos { x: 0, y: 0 },
             StrokeCell {
                 base: light(),
-                top: Arm::Set,
+                top: Arm::Set(light()),
                 right: Arm::Closed,
                 bottom: Arm::Closed,
                 left: Arm::Closed,
@@ -289,9 +289,9 @@ mod tests {
             StrokeCell {
                 base: light(),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(light()),
                 bottom: Arm::Closed,
-                left: Arm::Set,
+                left: Arm::Set(light()),
             }
             .into(),
             StampMode::Above,
@@ -301,10 +301,10 @@ mod tests {
             buffer.cell(Pos { x: 0, y: 0 }),
             Some(&Cell::from(StrokeCell {
                 base: light(),
-                top: Arm::Set,
-                right: Arm::Set,
+                top: Arm::Set(light()),
+                right: Arm::Set(light()),
                 bottom: Arm::Closed,
-                left: Arm::Set,
+                left: Arm::Set(light()),
             }))
         );
     }
@@ -323,10 +323,10 @@ mod tests {
             Pos { x: 2, y: 0 },
             StrokeCell {
                 base: light(),
-                top: Arm::Set,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                top: Arm::Set(light()),
+                right: Arm::Set(light()),
+                bottom: Arm::Set(light()),
+                left: Arm::Set(light()),
             }
             .into(),
             StampMode::Below,
@@ -347,7 +347,7 @@ mod tests {
         let cell: Cell = StrokeCell {
             base: light(),
             top: Arm::Unset,
-            right: Arm::Set,
+            right: Arm::Set(light()),
             bottom: Arm::Closed,
             left: Arm::Unset,
         }
@@ -374,7 +374,7 @@ mod tests {
             StrokeCell {
                 base: light(),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(light()),
                 bottom: Arm::Closed,
                 left: Arm::Unset,
             }
@@ -386,9 +386,9 @@ mod tests {
             Pos { x: 0, y: 0 },
             StrokeCell {
                 base: Stroke::from("double"),
-                top: Arm::Set,
+                top: Arm::Set(Stroke::from("double")),
                 right: Arm::Closed,
-                bottom: Arm::Set,
+                bottom: Arm::Set(Stroke::from("double")),
                 left: Arm::Unset,
             }
             .into(),
@@ -399,8 +399,8 @@ mod tests {
             buffer.cell(Pos { x: 0, y: 0 }),
             Some(&Cell::from(StrokeCell {
                 base: light(),
-                top: Arm::Set,
-                right: Arm::Set,
+                top: Arm::Set(Stroke::from("double")),
+                right: Arm::Set(light()),
                 bottom: Arm::Closed,
                 left: Arm::Unset,
             }))
@@ -420,9 +420,9 @@ mod tests {
         );
         let decided: Cell = StrokeCell {
             base: light(),
-            top: Arm::Set,
+            top: Arm::Set(light()),
             right: Arm::Closed,
-            bottom: Arm::Set,
+            bottom: Arm::Set(light()),
             left: Arm::Closed,
         }
         .into();
@@ -432,10 +432,10 @@ mod tests {
             Pos { x: 0, y: 0 },
             StrokeCell {
                 base: Stroke::from("double"),
-                top: Arm::Set,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                top: Arm::Set(Stroke::from("double")),
+                right: Arm::Set(Stroke::from("double")),
+                bottom: Arm::Set(Stroke::from("double")),
+                left: Arm::Set(Stroke::from("double")),
             }
             .into(),
             StampMode::Below,
@@ -461,7 +461,7 @@ mod tests {
             StrokeCell {
                 base: Stroke::from("double"),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(Stroke::from("double")),
                 bottom: Arm::Unset,
                 left: Arm::Closed,
             }
@@ -471,9 +471,9 @@ mod tests {
 
         let decided: Cell = StrokeCell {
             base: light(),
-            top: Arm::Set,
+            top: Arm::Set(light()),
             right: Arm::Closed,
-            bottom: Arm::Set,
+            bottom: Arm::Set(light()),
             left: Arm::Closed,
         }
         .into();
@@ -492,7 +492,7 @@ mod tests {
             Cell::from(StrokeCell {
                 base: Stroke::from("double"),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(Stroke::from("double")),
                 bottom: Arm::Unset,
                 left: Arm::Closed,
             })
@@ -500,19 +500,19 @@ mod tests {
         let b = || {
             Cell::from(StrokeCell {
                 base: Stroke::from("light"),
-                top: Arm::Set,
+                top: Arm::Set(Stroke::from("light")),
                 right: Arm::Closed,
                 bottom: Arm::Unset,
-                left: Arm::Set,
+                left: Arm::Set(Stroke::from("light")),
             })
         };
         let c = || {
             Cell::from(StrokeCell {
                 base: Stroke::from("heavy"),
                 top: Arm::Closed,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                right: Arm::Set(Stroke::from("heavy")),
+                bottom: Arm::Set(Stroke::from("heavy")),
+                left: Arm::Set(Stroke::from("heavy")),
             })
         };
 
@@ -540,9 +540,9 @@ mod tests {
 
         let expected = Some(&Cell::from(StrokeCell {
             base: Stroke::from("double"),
-            top: Arm::Set,
-            right: Arm::Set,
-            bottom: Arm::Set,
+            top: Arm::Set(Stroke::from("light")),
+            right: Arm::Set(Stroke::from("double")),
+            bottom: Arm::Set(Stroke::from("heavy")),
             left: Arm::Closed,
         }));
         assert_eq!(front_to_back.cell(pos), back_to_front.cell(pos));
@@ -564,9 +564,9 @@ mod tests {
             StrokeCell {
                 base: light(),
                 top: Arm::Unset,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                right: Arm::Set(light()),
+                bottom: Arm::Set(light()),
+                left: Arm::Set(light()),
             }
             .into(),
             StampMode::Above,
@@ -594,9 +594,9 @@ mod tests {
             StrokeCell {
                 base: light(),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(light()),
                 bottom: Arm::Closed,
-                left: Arm::Set,
+                left: Arm::Set(light()),
             }
             .into(),
             StampMode::Above,
@@ -613,9 +613,9 @@ mod tests {
             Some(&Cell::from(StrokeCell {
                 base: light(),
                 top: Arm::Closed,
-                right: Arm::Set,
+                right: Arm::Set(light()),
                 bottom: Arm::Closed,
-                left: Arm::Set,
+                left: Arm::Set(light()),
             }))
         );
     }
@@ -643,9 +643,9 @@ mod tests {
             StrokeCell {
                 base: light(),
                 top: Arm::Unset,
-                right: Arm::Set,
+                right: Arm::Set(light()),
                 bottom: Arm::Closed,
-                left: Arm::Set,
+                left: Arm::Set(light()),
             }
             .into(),
             StampMode::Above,
@@ -656,9 +656,9 @@ mod tests {
             Some(&Cell::from(StrokeCell {
                 base: light(),
                 top: Arm::Closed,
-                right: Arm::Set,
+                right: Arm::Set(light()),
                 bottom: Arm::Closed,
-                left: Arm::Set,
+                left: Arm::Set(light()),
             }))
         );
     }
@@ -681,10 +681,10 @@ mod tests {
             Pos { x: 0, y: 0 },
             StrokeCell {
                 base: Stroke::from("double"),
-                top: Arm::Set,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                top: Arm::Set(Stroke::from("double")),
+                right: Arm::Set(Stroke::from("double")),
+                bottom: Arm::Set(Stroke::from("double")),
+                left: Arm::Set(Stroke::from("double")),
             }
             .into(),
             StampMode::Below,
@@ -749,19 +749,19 @@ mod tests {
             Cell::from(StrokeCell {
                 base: light(),
                 top: Arm::Unset,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                right: Arm::Set(light()),
+                bottom: Arm::Set(light()),
+                left: Arm::Set(light()),
             })
         };
         let literal = || Cell::Literal(glyph("A"));
         let s2 = || {
             Cell::from(StrokeCell {
                 base: light(),
-                top: Arm::Set,
-                right: Arm::Set,
-                bottom: Arm::Set,
-                left: Arm::Set,
+                top: Arm::Set(light()),
+                right: Arm::Set(light()),
+                bottom: Arm::Set(light()),
+                left: Arm::Set(light()),
             })
         };
 
@@ -790,9 +790,9 @@ mod tests {
         let expected = Some(&Cell::from(StrokeCell {
             base: light(),
             top: Arm::Closed,
-            right: Arm::Set,
-            bottom: Arm::Set,
-            left: Arm::Set,
+            right: Arm::Set(light()),
+            bottom: Arm::Set(light()),
+            left: Arm::Set(light()),
         }));
         assert_eq!(front_to_back.cell(pos), back_to_front.cell(pos));
         assert_eq!(front_to_back.cell(pos), expected);

@@ -45,33 +45,39 @@ through FR-005. This is plan.md's first commit.
 **⚠️ CRITICAL**: No user story task can begin until this phase is complete — no mixed `GlyphKey` can
 even be built, and no test below compiles, until `Arm::Set` carries a `Stroke`.
 
-- [ ] T001 In `crates/monospace-core/src/cell.rs`, change `Arm::Set` to `Arm::Set(Stroke)`; drop
+- [x] T001 In `crates/monospace-core/src/cell.rs`, change `Arm::Set` to `Arm::Set(Stroke)`; drop
       `Copy` from `Arm`'s derive, keeping `Debug, Clone, PartialEq, Eq` (FR-001, data-model.md)
-- [ ] T002 In `crates/monospace-core/src/cell.rs`, update `StrokeCell::key()` to read each arm's own
+- [x] T002 In `crates/monospace-core/src/cell.rs`, update `StrokeCell::key()` to read each arm's own
       stroke (`Arm::Set(stroke) => Some(stroke.clone())`) instead of `self.base` (FR-002) (depends
       on T001)
-- [ ] T003 In `crates/monospace-core/src/cell.rs`, add `StrokeCell::degraded_key()`: the same shape
+- [x] T003 In `crates/monospace-core/src/cell.rs`, add `StrokeCell::degraded_key()`: the same shape
       as `key()`, but every `Set` side answers `Some(self.base.clone())` regardless of its own
       stroke; `Closed` and `Unset` stay `None` on both methods (FR-004) (depends on T001)
-- [ ] T004 In `crates/monospace-core/src/cell.rs`, update `Cell::glyph_str` to try
+- [x] T004 In `crates/monospace-core/src/cell.rs`, update `Cell::glyph_str` to try
       `glyphs.glyph(&cell.key())` first and fall back to `glyphs.glyph(&cell.degraded_key())` on a
       miss, mirroring the two lookups in `docs/model.md`'s _Rendering_ (FR-002, FR-004) (depends on
       T002, T003)
-- [ ] T005 Update every `Arm::Set` construction site in `crates/monospace-core/src/cell.rs`'s own
+- [x] T005 Update every `Arm::Set` construction site in `crates/monospace-core/src/cell.rs`'s own
       `tests` module to `Arm::Set(stroke)`, supplying the same stroke the cell's `base` already uses
       at each site — mechanical, no site changes which sides are `Set`/`Closed`/`Unset` (depends on
-      T001)
-- [ ] T006 [P] Update every `Arm::Set` construction site in `crates/monospace-core/src/buffer.rs`
-      (including its stamping tests) to `Arm::Set(stroke)` (depends on T001)
-- [ ] T007 [P] Update every `Arm::Set` construction site in
+      T001). `crates/monospace-core/src/render.rs`'s own `tests` module carries the same `Arm::Set`
+      construction sites tasks.md did not enumerate separately (it renders through `cell.rs`);
+      updated alongside this task for the same mechanical reason.
+- [x] T006 [P] Update every `Arm::Set` construction site in `crates/monospace-core/src/buffer.rs`
+      (including its stamping tests) to `Arm::Set(stroke)` (depends on T001). `merge_strokes` also
+      needed `bottom.<arm>.clone()` in place of a move, since `Arm` is no longer `Copy`; test
+      assertions that compare a cell produced by an actual stamp/merge (not a bare input literal)
+      were given the stroke each surviving arm actually carries after the merge, traced by hand
+      against `merge_arm`/`merge_strokes`, rather than always the cell's own `base`.
+- [x] T007 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/line.rs` to `Arm::Set(stroke)` (depends on T001)
-- [ ] T008 [P] Update every `Arm::Set` construction site in
+- [x] T008 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/fragment/segment.rs` to `Arm::Set(stroke)` (depends on T001)
-- [ ] T009 [P] Update every `Arm::Set` construction site in
+- [x] T009 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/fragment/corner.rs` to `Arm::Set(stroke)` (depends on T001)
-- [ ] T010 [P] Update every `Arm::Set` construction site in
+- [x] T010 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/fragment/border.rs` to `Arm::Set(stroke)` (depends on T001)
-- [ ] T011 [P] Update every `Arm::Set` construction site in
+- [x] T011 [P] Update every `Arm::Set` construction site in
       `crates/monospace-core/src/shape/fragment/end.rs` to `Arm::Set(stroke)` (depends on T001)
 
 **Checkpoint**: `cargo test -p monospace-core` is green; every existing test's expected output is
@@ -92,26 +98,30 @@ glyph rather than either stroke's own cross.
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T012 [P] [US1] In `crates/monospace-core/src/cell.rs`'s `tests` module, add
+- [x] T012 [P] [US1] In `crates/monospace-core/src/cell.rs`'s `tests` module, add
       `key_reads_each_arms_own_stroke`: a cell with `light` top/bottom and `heavy` left/right arms
       produces a `GlyphKey` naming `light`/`heavy` on their own sides, not the cell's `base`
       (Acceptance Scenarios 1-2, FR-002)
-- [ ] T013 [P] [US1] Add `degraded_key_collapses_every_set_arm_to_the_base_stroke`: the same mixed
+- [x] T013 [P] [US1] Add `degraded_key_collapses_every_set_arm_to_the_base_stroke`: the same mixed
       cell's `degraded_key()` names the cell's `base` stroke on every `Set` side regardless of what
       that arm itself carries (FR-004)
-- [ ] T014 [P] [US1] Add `glyph_str_tries_the_exact_key_then_the_degraded_key_then_none`: build an
+- [x] T014 [P] [US1] Add `glyph_str_tries_the_exact_key_then_the_degraded_key_then_none`: build an
       ad hoc `GlyphCatalog::from_rules` with one rule for the mixed key and confirm `glyph_str`
       finds it; rebuild with only a rule for the uniform base-stroke key and confirm the fallback
       finds that instead; rebuild with neither rule and confirm `None` (Acceptance Scenario 1,
       FR-002, FR-004)
-- [ ] T015 [P] [US1] Add
+- [x] T015 [P] [US1] Add
       `a_cell_whose_arms_all_carry_the_base_stroke_resolves_the_same_key_from_both_methods`: `key()`
       and `degraded_key()` produce equal `GlyphKey`s when every `Set` arm already carries the cell's
       own `base` stroke (Acceptance Scenario 4, SC-006's invariant)
-- [ ] T016 [US1] In `crates/monospace-core/src/buffer.rs`'s `tests` module, add a stamping test: two
+- [x] T016 [US1] In `crates/monospace-core/src/buffer.rs`'s `tests` module, add a stamping test: two
       overlapping shapes of different strokes, stamped front-to-back and again back-to-front,
       produce the same buffer even though the cells involved end up with arms of two different
-      strokes (Acceptance Scenario 5, FR-003, FR-005)
+      strokes (Acceptance Scenario 5, FR-003, FR-005). Satisfied by the existing
+      `front_to_back_with_below_equals_back_to_front_with_above` test: it already stamps three
+      shapes of three different strokes (`double`/`light`/`heavy`) in both orders, and now that
+      `Arm::Set` carries a `Stroke`, its assertion already proves the merged cell's arms carry two
+      different strokes and both orders agree — no separate test needed.
 
 **Checkpoint**: `cargo test -p monospace-core` is green, including T012-T016. The two-lookup
 mechanism is proven; nothing yet has a real mixing table to draw from (that is User Story 3).
