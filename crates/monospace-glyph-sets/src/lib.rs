@@ -41,15 +41,15 @@ const ASCII: &[Row] = &[
     (Some("ascii"), None, None, None, "|"),
 ];
 
-/// Builds a catalog from the ASCII table alone.
+/// Converts one glyph table into a catalog: each row's stroke names become a `GlyphKey`, and its
+/// character a `Glyph`.
 ///
 /// # Panics
 ///
-/// Panics if a row of the ASCII table is not a valid glyph. That is a bug in data this library
-/// ships, never a condition a caller can trigger.
-#[must_use]
-pub fn ascii() -> GlyphCatalog {
-    GlyphCatalog::from_rules(ASCII.iter().map(|&(top, right, bottom, left, glyph)| {
+/// Panics if a row's character is not a valid glyph. That is a bug in data this library ships,
+/// never a condition a caller can trigger.
+fn build(table: &str, rows: &[Row]) -> GlyphCatalog {
+    GlyphCatalog::from_rules(rows.iter().map(|&(top, right, bottom, left, glyph)| {
         let key = GlyphKey {
             top: top.map(Stroke::from),
             right: right.map(Stroke::from),
@@ -57,9 +57,15 @@ pub fn ascii() -> GlyphCatalog {
             left: left.map(Stroke::from),
         };
         let glyph = Glyph::new(glyph)
-            .unwrap_or_else(|| panic!("ASCII table row {key:?} is not a valid glyph"));
+            .unwrap_or_else(|| panic!("{table} table row {key:?} is not a valid glyph"));
         (key, glyph)
     }))
+}
+
+/// Builds a catalog from the ASCII table alone.
+#[must_use]
+pub fn ascii() -> GlyphCatalog {
+    build("ASCII", ASCII)
 }
 
 #[cfg(test)]
