@@ -141,53 +141,58 @@ Heavy_, and its spot-checked rows render the character that section publishes.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T017 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
+- [x] T017 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
       `light_double_has_exactly_its_documented_rows_and_spot_checks_match` (18 rows; spot-check at
       least a four-armed crossing, a three-armed junction, a corner, one row with its two strokes
       exchanged between sides, and — per SC-002 — the two crossing characters the demonstration
       draws, `╪` and `╫`) (SC-001, SC-002). Fails to compile until T022-T023 land.
-- [ ] T018 [P] [US3] Add `light_heavy_has_exactly_its_documented_rows_and_spot_checks_match` (50
+- [x] T018 [P] [US3] Add `light_heavy_has_exactly_its_documented_rows_and_spot_checks_match` (50
       rows; same spot-check shape, including `┿` and `╂`) (SC-001, SC-002). Fails to compile until
       T024-T025 land.
-- [ ] T019 [P] [US3] Add `light_round_double_has_exactly_its_documented_rows_and_spot_checks_match`
+- [x] T019 [P] [US3] Add `light_round_double_has_exactly_its_documented_rows_and_spot_checks_match`
       (18 rows; same spot-check shape) (SC-001, SC-002). Fails to compile until T026-T027 land.
-- [ ] T020 [P] [US3] Add `light_round_heavy_has_exactly_its_documented_rows_and_spot_checks_match`
+- [x] T020 [P] [US3] Add `light_round_heavy_has_exactly_its_documented_rows_and_spot_checks_match`
       (50 rows; same spot-check shape) (SC-001, SC-002). Fails to compile until T028-T029 land.
-- [ ] T021 [US3] Extend the existing union-order-independence test (currently over `ascii()`,
+- [x] T021 [US3] Extend the existing union-order-independence test (currently over `ascii()`,
       `double()`, `heavy()`, `light_round()`) to build `GlyphCatalog::union` from all nine tables —
       the five single-stroke ones plus the four mixing ones from this feature — in at least two
       different orders, asserting a key from each of the nine answers correctly in both (FR-011,
-      SC-007). Fails to compile until T022-T029 land.
+      SC-007). Fails to compile until T022-T029 land. Renamed to
+      `a_catalog_built_from_all_nine_tables_answers_each_regardless_of_order` since it no longer
+      names only the single-stroke tables it started from.
 
 ### Implementation for User Story 3
 
-- [ ] T022 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
+- [x] T022 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
       `const LIGHT_DOUBLE: &[Row]` holding exactly the eighteen rows `docs/glyph-sets.md`'s _Mixing
       Light and Double_ section records, verbatim and in the same order (FR-006)
-- [ ] T023 [US3] Add `#[must_use] pub fn light_double() -> GlyphCatalog` as
+- [x] T023 [US3] Add `#[must_use] pub fn light_double() -> GlyphCatalog` as
       `build("Mixing Light and Double", LIGHT_DOUBLE)` (FR-010) (depends on T022)
-- [ ] T024 [P] [US3] Add a private `const LIGHT_HEAVY: &[Row]` holding exactly the fifty rows under
+- [x] T024 [P] [US3] Add a private `const LIGHT_HEAVY: &[Row]` holding exactly the fifty rows under
       _Mixing Light and Heavy_, verbatim and in the same order (FR-007)
-- [ ] T025 [US3] Add `#[must_use] pub fn light_heavy() -> GlyphCatalog` as
+- [x] T025 [US3] Add `#[must_use] pub fn light_heavy() -> GlyphCatalog` as
       `build("Mixing Light and Heavy", LIGHT_HEAVY)` (FR-010) (depends on T024)
-- [ ] T026 [P] [US3] Add a private `const LIGHT_ROUND_DOUBLE: &[Row]` holding exactly the eighteen
+- [x] T026 [P] [US3] Add a private `const LIGHT_ROUND_DOUBLE: &[Row]` holding exactly the eighteen
       rows under _Mixing Light Round and Double_, verbatim and in the same order (FR-008)
-- [ ] T027 [US3] Add `#[must_use] pub fn light_round_double() -> GlyphCatalog` as
+- [x] T027 [US3] Add `#[must_use] pub fn light_round_double() -> GlyphCatalog` as
       `build("Mixing Light Round and Double", LIGHT_ROUND_DOUBLE)` (FR-010) (depends on T026)
-- [ ] T028 [P] [US3] Add a private `const LIGHT_ROUND_HEAVY: &[Row]` holding exactly the fifty rows
+- [x] T028 [P] [US3] Add a private `const LIGHT_ROUND_HEAVY: &[Row]` holding exactly the fifty rows
       under _Mixing Light Round and Heavy_, verbatim and in the same order (FR-009)
-- [ ] T029 [US3] Add `#[must_use] pub fn light_round_heavy() -> GlyphCatalog` as
+- [x] T029 [US3] Add `#[must_use] pub fn light_round_heavy() -> GlyphCatalog` as
       `build("Mixing Light Round and Heavy", LIGHT_ROUND_HEAVY)` (FR-010) (depends on T028)
-- [ ] T030 [US3] Manually check every row of `LIGHT_DOUBLE`, `LIGHT_HEAVY`, `LIGHT_ROUND_DOUBLE` and
+- [x] T030 [US3] Manually check every row of `LIGHT_DOUBLE`, `LIGHT_HEAVY`, `LIGHT_ROUND_DOUBLE` and
       `LIGHT_ROUND_HEAVY` (T022, T024, T026, T028) against `docs/glyph-sets.md`'s matching row, key
       by key — the property the row-count and spot-check tests don't verify directly, since they
       prove completeness and a sample of characters but not that every character is the transcribed
-      one (quickstart.md's "Row-for-row against the document")
-- [ ] T031 [P] [US3] Correct `docs/model.md`'s _Strokes, glyph sets and the catalog_ sentence "only
+      one (quickstart.md's "Row-for-row against the document"). Done with a throwaway script parsing
+      both the Markdown tables and the Rust `const` arrays and diffing them row by row, rather than
+      eyeballing four hundred-plus cells by hand — a stronger check of the same property, not a
+      different one; every row matched.
+- [x] T031 [P] [US3] Correct `docs/model.md`'s _Strokes, glyph sets and the catalog_ sentence "only
       the mixing sets are left loaded from a file when someone asks for them" to name the four
       mixing tables alongside ASCII, Double, Heavy and Light Round as data `monospace-glyph-sets`
       ships (FR-012, research.md)
-- [ ] T032 [P] [US3] Correct `docs/glyph-sets.md`'s opening note ("the mixing sets remain reference
+- [x] T032 [P] [US3] Correct `docs/glyph-sets.md`'s opening note ("the mixing sets remain reference
       only, with nothing loading them yet") the same way (FR-012)
 
 **Checkpoint**: `cargo test -p monospace-glyph-sets` is green, including T017-T021. All nine tables
@@ -205,17 +210,17 @@ mixture no table pairs at all, still degrades to the cell's base stroke exactly 
 records, once with `light_double()` in the catalog and once without it; both renders produce the
 same character.
 
-- [ ] T033 [P] [US4] In `crates/monospace-core/src/cell.rs`'s `tests` module, add
+- [x] T033 [P] [US4] In `crates/monospace-core/src/cell.rs`'s `tests` module, add
       `an_uncovered_mixture_degrades_to_the_base_stroke_regardless_of_a_partial_mixing_rule_set`:
       build an ad hoc catalog covering only some combinations of two strokes plus the base-stroke
       fallback rule; a combination it does not cover renders the same with and without that partial
       rule set present (Acceptance Scenario 1 mechanism, FR-004)
-- [ ] T034 [P] [US4] Add `light_and_light_round_degrade_with_no_mixing_table_pairing_them`: a cell
+- [x] T034 [P] [US4] Add `light_and_light_round_degrade_with_no_mixing_table_pairing_them`: a cell
       mixing `light` and `light-round` arms, rendered against a catalog holding both single-stroke
       tables but no table pairing them, degrades to the cell's base stroke (Acceptance Scenario 2)
-- [ ] T035 [P] [US4] Add `heavy_and_double_degrade_with_no_mixing_table_pairing_them`: mirrors T034
+- [x] T035 [P] [US4] Add `heavy_and_double_degrade_with_no_mixing_table_pairing_them`: mirrors T034
       for `heavy` and `double` (Acceptance Scenario 3)
-- [ ] T036 [US4] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
+- [x] T036 [US4] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
       `an_uncovered_light_double_combination_degrades_the_same_with_or_without_the_mixing_table`:
       pick one of the light/double per-arm combinations `LIGHT_DOUBLE`'s eighteen rows do not
       record; render it against a catalog including `light_double()` and against one without it;

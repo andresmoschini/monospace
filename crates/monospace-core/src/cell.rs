@@ -256,4 +256,65 @@ mod tests {
 
         assert_eq!(uniform.key(), uniform.degraded_key());
     }
+
+    /// User Story 4 Acceptance Scenario 1: an uncovered mixture degrades to the base stroke
+    /// regardless of a partial mixing rule set covering some, but not this, combination.
+    #[test]
+    fn an_uncovered_mixture_degrades_to_the_base_stroke_regardless_of_a_partial_mixing_rule_set() {
+        let base_glyph = Glyph::new("┼").expect("\"┼\" is one glyph");
+        let cell: Cell = mixed_cell().into();
+
+        let without_partial_rules =
+            GlyphCatalog::from_rules([(mixed_cell().degraded_key(), base_glyph.clone())]);
+        let without_result = cell.glyph_str(&without_partial_rules);
+
+        let unrelated_key = crate::GlyphKey {
+            top: Some(Stroke::from("double")),
+            right: Some(Stroke::from("double")),
+            bottom: Some(Stroke::from("double")),
+            left: Some(Stroke::from("double")),
+        };
+        let with_partial_rules = GlyphCatalog::from_rules([
+            (mixed_cell().degraded_key(), base_glyph.clone()),
+            (unrelated_key, Glyph::new("╬").expect("\"╬\" is one glyph")),
+        ]);
+        let with_result = cell.glyph_str(&with_partial_rules);
+
+        assert_eq!(without_result, Some(base_glyph.as_str()));
+        assert_eq!(with_result, without_result);
+    }
+
+    /// User Story 4 Acceptance Scenario 2: `light` and `light-round` degrade with no mixing table
+    /// pairing them.
+    #[test]
+    fn light_and_light_round_degrade_with_no_mixing_table_pairing_them() {
+        let mixed = cell(
+            Arm::Set(Stroke::from("light")),
+            Arm::Set(Stroke::from("light-round")),
+            Arm::Set(Stroke::from("light")),
+            Arm::Set(Stroke::from("light-round")),
+        );
+        let cell_value: Cell = mixed.clone().into();
+        let base_glyph = Glyph::new("┼").expect("\"┼\" is one glyph");
+        let catalog = GlyphCatalog::from_rules([(mixed.degraded_key(), base_glyph.clone())]);
+
+        assert_eq!(cell_value.glyph_str(&catalog), Some(base_glyph.as_str()));
+    }
+
+    /// User Story 4 Acceptance Scenario 3: `heavy` and `double` degrade with no mixing table
+    /// pairing them.
+    #[test]
+    fn heavy_and_double_degrade_with_no_mixing_table_pairing_them() {
+        let mixed = cell(
+            Arm::Set(Stroke::from("heavy")),
+            Arm::Set(Stroke::from("double")),
+            Arm::Set(Stroke::from("heavy")),
+            Arm::Set(Stroke::from("double")),
+        );
+        let cell_value: Cell = mixed.clone().into();
+        let base_glyph = Glyph::new("┼").expect("\"┼\" is one glyph");
+        let catalog = GlyphCatalog::from_rules([(mixed.degraded_key(), base_glyph.clone())]);
+
+        assert_eq!(cell_value.glyph_str(&catalog), Some(base_glyph.as_str()));
+    }
 }
