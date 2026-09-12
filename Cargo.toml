@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/monospace-cli", "crates/monospace-core", "xtask"]
+members = [
+    "crates/monospace-cli",
+    "crates/monospace-core",
+    "crates/monospace-glyph-sets",
+    "xtask",
+]
 resolver = "3"
 
 [workspace.package]
@@ -10,6 +15,7 @@ license = "MIT"
 
 [workspace.dependencies]
 monospace-core = { path = "crates/monospace-core" }
+monospace-glyph-sets = { path = "crates/monospace-glyph-sets" }
 
 # Lints are declared here rather than passed on the command line so that rust-analyzer shows them
 # while editing, and so that a crate added later inherits them instead of quietly opting out.

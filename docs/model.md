@@ -172,10 +172,11 @@ A glyph set is a group of rules as they are written: one of the tables in
 mixture of them, and the system gives neither any special behavior. They are direct mappings, which
 is precisely why someone can write one by hand.
 
-Sets reach a catalog two ways. The common ones ship with the library, built in as data rather than
-parsed at startup; the rest are loaded from a file when someone asks for them. That difference is
-about where a set comes from, not about how its rules behave: once a set is in a catalog, nothing
-tells a built-in rule from a loaded one.
+Sets reach a catalog two ways. The common ones ship with whichever library holds them, built in as
+data rather than parsed at startup — `monospace-core` ships Light, `monospace-glyph-sets` ships
+ASCII; the rest are loaded from a file when someone asks for them. That difference is about where a
+set comes from, not about how its rules behave: once a set is in a catalog, nothing tells a built-in
+rule from a loaded one, and nothing tells which library a built-in rule shipped from either.
 
 The catalog is where rules end up. Sets go into it in order, the first rule to claim a key keeps it,
 and answering a key afterwards is one lookup. The grouping does not survive that: once a catalog is
