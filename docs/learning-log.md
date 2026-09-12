@@ -1109,3 +1109,40 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   noise, produced output byte-identical to the same run against the tip of this branch — the diff
   alone would have shown that `description.rs` was untouched, which is necessary but not sufficient
   for SC-007's claim about _output_, and principle IV asks for the output to be the thing measured.
+
+## 2026-09-12 — Feature 060 implemented: allow mixed arm strokes
+
+### Rust design and idiom
+
+- **A rule an ADR states does not exist in the code until something makes it observable.** ADR-0009
+  already described two lookups — the exact key, then the base-stroke key — but ADR-0012's
+  one-stroke-per-cell restriction made the two identical, so `Cell::glyph_str` had only ever called
+  `glyphs.glyph(&cell.key())` once. Nothing was wrong until `Arm::Set` gained a `Stroke`: only then
+  did the exact key and the degraded key diverge, and the second lookup this feature added was not
+  new logic so much as logic ADR-0009 had already specified and no prior feature had a reason to
+  write.
+- **"Mechanical" held for input cells, not for the merged cells tests asserted against.** Giving
+  every `Arm::Set` site the same stroke its cell's own `base` already used was a safe, compiler-led
+  rewrite everywhere a cell was _built_. It was not safe for `buffer.rs`'s stamping tests, which
+  assert against a cell `merge_strokes`/`merge_arm` _produced_ from two different stamps: an arm
+  that survives a merge now carries whichever stamp actually decided it, which is not always the
+  merged cell's own `base`. Two of those tests already stamped shapes of different strokes
+  (`double`/`light`/`heavy`) before this feature, and tracing `merge_arm` by hand for each arm was
+  the only way to give the resulting assertion the stroke it actually carries rather than the one a
+  uniform-stroke assumption would have supplied silently.
+
+### Working this way
+
+- **A programmatic diff caught what four hundred-plus hand-transcribed table cells cannot be
+  eyeballed for.** The same technique feature 056's log entry names — parsing both
+  `docs/glyph-sets.md`'s tables and the Rust `const` arrays and comparing them row by row — scales
+  the same way from 45 rows across three single-stroke tables to 136 rows across four mixing ones;
+  running it once found every row already matched, which is what makes "checked row by row" true
+  rather than aspirational.
+- **Drafting a phase's tests before deciding which commit they belong to meant moving finished code
+  between commits, not just committing it in order.** `tasks.md`'s own phase order does not match
+  plan.md's three-commit boundary one-to-one — User Story 1's tests fold into the first commit and
+  User Story 4's fold into the second — and writing Phase 5's tests as soon as they were designed,
+  before Phase 2/3 were committed, meant cutting them back out of `cell.rs`, committing the first
+  slice, then pasting them back in for the second. Checking which commit a task belongs to before
+  writing its code would have skipped the round trip.

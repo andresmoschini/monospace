@@ -241,17 +241,20 @@ four functions already existing.
 **Independent Test**: run `cargo run -p monospace-cli` with no arguments before and after this story
 lands; the two outputs differ only at the eight crossing positions named in spec.md's User Story 2.
 
-- [ ] T037 [US2] In `crates/monospace-cli/src/description.rs`, add
+- [x] T037 [US2] In `crates/monospace-cli/src/description.rs`, add
       `monospace_glyph_sets::light_double()`, `light_heavy()`, `light_round_double()` and
       `light_round_heavy()` to `Description::render()`'s `GlyphCatalog::union([...])` list,
       alongside the five tables already there (FR-013) (depends on T023, T025, T027, T029)
-- [ ] T038 [US2] Run `cargo run -p monospace-cli` with no arguments; compare the last figure group
+- [x] T038 [US2] Run `cargo run -p monospace-cli` with no arguments; compare the last figure group
       of its output to the "prints instead" block in spec.md's User Story 2, and confirm every other
       character is byte-identical to before this feature — accepted on observation, not pinned by a
-      test (FR-014, SC-003)
-- [ ] T039 [US2] Run `git diff --stat crates/monospace-cli/assets/demo.json` and confirm it prints
+      test (FR-014, SC-003). Observed by running the binary both before and after this task's change
+      (via `git stash`) and diffing the two outputs byte for byte: exactly 8 character positions
+      differ, all within the last figure group, and the new text matches spec.md's "prints instead"
+      block exactly.
+- [x] T039 [US2] Run `git diff --stat crates/monospace-cli/assets/demo.json` and confirm it prints
       nothing — the shipped demo file is unchanged (FR-015, SC-004)
-- [ ] T040 [US2] Append an entry to `docs/learning-log.md` for this increment: what was learned
+- [x] T040 [US2] Append an entry to `docs/learning-log.md` for this increment: what was learned
       about Rust design (the missing second lookup, per-arm strokes) and about working this way,
       with the observation from T038 as evidence, per constitution principle II
 

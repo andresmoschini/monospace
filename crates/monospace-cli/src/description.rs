@@ -252,6 +252,10 @@ impl Description {
             monospace_glyph_sets::double(),
             monospace_glyph_sets::heavy(),
             monospace_glyph_sets::light_round(),
+            monospace_glyph_sets::light_double(),
+            monospace_glyph_sets::light_heavy(),
+            monospace_glyph_sets::light_round_double(),
+            monospace_glyph_sets::light_round_heavy(),
         ]);
         monospace_core::render(&buffer, &catalog, origin, size)
     }
