@@ -1075,3 +1075,37 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   test will fail loudly rather than silently pass on the wrong cell, which is the property that made
   hand-found coordinates an acceptable trade against a more general "find any crossing" assertion
   that FR-017 does not ask for.
+
+## 2026-09-11 — Feature 056 implemented: ship the Double, Heavy and Light Round tables
+
+### Rust design and idiom
+
+- **Extracting `build` before adding a single row, in its own commit, made the refactor's
+  correctness a compile-and-test fact rather than an inspection.**
+  `cargo test -p monospace-glyph-sets` after the extraction still ran exactly `ascii()`'s original
+  two tests, unmodified, and they passed — the constitution's principle V asks for this separation,
+  and doing it first this time (rather than reconstructing it afterward, as feature 054's log entry
+  describes) meant there was nothing to reconstruct: three `feat` commits followed, each adding one
+  `const` table and one function that only calls `build`, and none of them touched the helper again.
+- **A programmatic row-by-row diff against `docs/glyph-sets.md` caught what the unit tests
+  structurally cannot.** The completeness test only proves all fifteen keys answer, and the
+  box-rendering test only proves the output stays within the table's character set; neither can
+  prove row 7 of `DOUBLE` maps to the _same_ key-to-character pairing the document records for
+  row 7. Parsing both the Markdown tables and the Rust `const` arrays and comparing them
+  field-by-field (45 rows, three tables) is what SC-004 actually asked for, and running it found no
+  mismatch — but running it, rather than reading both tables side by side, is what makes that a
+  checked fact.
+
+### Working this way
+
+- **The gate caught an invented word before it needed a human to.** `cspell` failed a commit over a
+  non-dictionary word inside a test's assertion message, reached for out of habit. Rewording to
+  `union catalog` passed on the same run. This is principle III doing exactly what it is for: the
+  same check that runs in CI ran locally first, so the correction cost one edit instead of a failed
+  CI run and a second commit.
+- **Verifying FR-010 (nothing about the CLI's shipped demonstration changes) meant running the old
+  and new binaries side by side, not reading the diff.** A second checkout of the commit before this
+  feature started, built and run with `cargo run -p monospace-cli -q` piped past the cargo compile
+  noise, produced output byte-identical to the same run against the tip of this branch — the diff
+  alone would have shown that `description.rs` was untouched, which is necessary but not sufficient
+  for SC-007's claim about _output_, and principle IV asks for the output to be the thing measured.

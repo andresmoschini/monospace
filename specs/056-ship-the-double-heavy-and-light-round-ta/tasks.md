@@ -187,12 +187,12 @@ the increment per constitution principle II.
       `docs/glyph-sets.md`'s matching row, key by key — the property the tests above don't check
       directly, since they prove completeness and the character set but not that each character is
       the _correct_ one for its key (SC-004)
-- [ ] T015 Run the whole gate on a fresh clone (`cargo xtask check`, per constitution principle IV)
+- [x] T015 Run the whole gate on a fresh clone (`cargo xtask check`, per constitution principle IV)
       and the manual checks in `quickstart.md` (`cargo build --workspace`, `cargo test --workspace`,
       `cargo run -p monospace-cli`, `cargo test -p monospace-cli`,
       `cargo check -p monospace-glyph-sets --target wasm32-unknown-unknown`); confirm the CLI's
       shipped demonstration is byte-identical to before this feature (FR-010, SC-007)
-- [ ] T016 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T016 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design (extracting `build` before adding data, so a structural change and three behavioral
       ones never share a commit) and about working this way, with evidence from what was tried
 
