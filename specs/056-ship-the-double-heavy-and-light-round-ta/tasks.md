@@ -29,12 +29,12 @@ each table).
 **Purpose**: Correct the two documents first (the constitution requires the model to match before
 code relies on it — plan.md Summary), stating the end state this feature reaches.
 
-- [ ] T001 [P] Correct §5 _Strokes, glyph sets and the catalog_ in `docs/model.md`: its sentence
+- [x] T001 [P] Correct §5 _Strokes, glyph sets and the catalog_ in `docs/model.md`: its sentence
       "`monospace-core` ships Light, `monospace-glyph-sets` ships ASCII; the rest are loaded from a
       file when someone asks for them" no longer holds once this feature lands — amend it to name
       Double, Heavy and Light Round alongside Light and ASCII as shipping built in as data, with
       only the mixing sets left loaded from a file (FR-011)
-- [ ] T002 [P] Correct the opening note of `docs/glyph-sets.md` (currently "The ASCII table below is
+- [x] T002 [P] Correct the opening note of `docs/glyph-sets.md` (currently "The ASCII table below is
       carried as data by `monospace-glyph-sets`, and Light by `monospace-core`; Double, Heavy, Light
       Round and the mixing sets remain reference only") to say Double, Heavy and Light Round are now
       carried as data by `monospace-glyph-sets` too, leaving only the four mixing sets
@@ -54,7 +54,7 @@ conversion three more times (research.md's decision).
 **⚠️ CRITICAL**: No user story task can begin until this phase is complete — every story's
 `double()`/`heavy()`/`light_round()` calls the helper this phase creates.
 
-- [ ] T003 In `crates/monospace-glyph-sets/src/lib.rs`, extract the closure body of the existing
+- [x] T003 In `crates/monospace-glyph-sets/src/lib.rs`, extract the closure body of the existing
       `ascii()` into a private `fn build(table: &str, rows: &[Row]) -> GlyphCatalog` that maps each
       row to a `(GlyphKey, Glyph)` pair via `Stroke::from` on each non-empty side and `Glyph::new`
       on the character, panicking `"{table} table row {key:?} is not a valid glyph"` if a row's
@@ -82,7 +82,7 @@ Double table's own characters and space.
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T004 [P] [US1] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
+- [x] T004 [P] [US1] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
       `double_answers_every_non_empty_combination_of_its_own_stroke` (mirrors the existing ASCII
       test, built over `monospace_core::Stroke::from("double")` and `super::double()`) and
       `a_box_rendered_with_double_alone_uses_only_double_box_characters` (mirrors the existing ASCII
@@ -91,11 +91,11 @@ Double table's own characters and space.
 
 ### Implementation for User Story 1
 
-- [ ] T005 [P] [US1] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
+- [x] T005 [P] [US1] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
       `const DOUBLE: &[Row]` table holding exactly the fifteen rows `docs/glyph-sets.md`'s _Double_
       table records, verbatim and in the same order, with `"double"` as the stroke name on every
       non-empty side (FR-001)
-- [ ] T006 [US1] In `crates/monospace-glyph-sets/src/lib.rs`, implement
+- [x] T006 [US1] In `crates/monospace-glyph-sets/src/lib.rs`, implement
       `#[must_use] pub fn double() -> GlyphCatalog` as `build("Double", DOUBLE)` (FR-004, FR-007)
       (depends on T003, T005)
 
