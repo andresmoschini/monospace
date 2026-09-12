@@ -148,7 +148,7 @@ space.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T010 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
+- [x] T010 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
       `light_round_answers_every_non_empty_combination_of_its_own_stroke`,
       `a_box_rendered_with_light_round_alone_uses_only_light_round_box_characters` (asserting every
       character is one of `│╮┬┼┤╭├─┴╯╰`, space or newline), and
@@ -159,11 +159,11 @@ space.
 
 ### Implementation for User Story 3
 
-- [ ] T011 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
+- [x] T011 [P] [US3] In `crates/monospace-glyph-sets/src/lib.rs`, add a private
       `const LIGHT_ROUND: &[Row]` table holding exactly the fifteen rows `docs/glyph-sets.md`'s
       _Light Round_ table records, verbatim and in the same order, with `"light-round"` as the
       stroke name — including the four corner rows whose character differs from `Light`'s (FR-003)
-- [ ] T012 [US3] In `crates/monospace-glyph-sets/src/lib.rs`, implement
+- [x] T012 [US3] In `crates/monospace-glyph-sets/src/lib.rs`, implement
       `#[must_use] pub fn light_round() -> GlyphCatalog` as `build("Light Round", LIGHT_ROUND)`
       (FR-006, FR-007) (depends on T003, T011)
 

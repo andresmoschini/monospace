@@ -93,6 +93,57 @@ const HEAVY: &[Row] = &[
     (Some("heavy"), None, None, None, "┃"),
 ];
 
+/// The 15 rules of the Light Round table in [`docs/glyph-sets.md`](../../../docs/glyph-sets.md),
+/// held as data rather than parsed at run time. Its four corner rows read `╮╭╯╰`, distinct from
+/// `Light`'s `┐┌┘└`.
+const LIGHT_ROUND: &[Row] = &[
+    (None, None, Some("light-round"), None, "│"),
+    (None, None, Some("light-round"), Some("light-round"), "╮"),
+    (
+        None,
+        Some("light-round"),
+        Some("light-round"),
+        Some("light-round"),
+        "┬",
+    ),
+    (
+        Some("light-round"),
+        Some("light-round"),
+        Some("light-round"),
+        Some("light-round"),
+        "┼",
+    ),
+    (
+        Some("light-round"),
+        None,
+        Some("light-round"),
+        Some("light-round"),
+        "┤",
+    ),
+    (None, Some("light-round"), Some("light-round"), None, "╭"),
+    (
+        Some("light-round"),
+        Some("light-round"),
+        Some("light-round"),
+        None,
+        "├",
+    ),
+    (Some("light-round"), None, Some("light-round"), None, "│"),
+    (None, None, None, Some("light-round"), "─"),
+    (None, Some("light-round"), None, Some("light-round"), "─"),
+    (
+        Some("light-round"),
+        Some("light-round"),
+        None,
+        Some("light-round"),
+        "┴",
+    ),
+    (Some("light-round"), None, None, Some("light-round"), "╯"),
+    (None, Some("light-round"), None, None, "─"),
+    (Some("light-round"), Some("light-round"), None, None, "╰"),
+    (Some("light-round"), None, None, None, "│"),
+];
+
 /// Converts one glyph table into a catalog: each row's stroke names become a `GlyphKey`, and its
 /// character a `Glyph`.
 ///
@@ -132,11 +183,17 @@ pub fn heavy() -> GlyphCatalog {
     build("Heavy", HEAVY)
 }
 
+/// Builds a catalog from the Light Round table alone.
+#[must_use]
+pub fn light_round() -> GlyphCatalog {
+    build("Light Round", LIGHT_ROUND)
+}
+
 #[cfg(test)]
 mod tests {
     use monospace_core::{BoxShape, Buffer, Layer, Pos, Shape, Size, StampMode};
 
-    use super::{ascii, double, heavy};
+    use super::{ascii, double, heavy, light_round};
 
     /// The property `docs/model.md` names under _Properties worth testing_: a catalog built from
     /// one stroke's complete set answers every key a cell of that stroke can produce. Mirrors
@@ -322,6 +379,123 @@ mod tests {
                         | '\n'
                 ),
                 "unexpected character {ch:?} in {output:?}"
+            );
+        }
+    }
+
+    /// Mirrors `ascii_answers_every_non_empty_combination_of_its_own_stroke` for the Light Round
+    /// table (SC-003).
+    #[test]
+    fn light_round_answers_every_non_empty_combination_of_its_own_stroke() {
+        let catalog = light_round();
+
+        for mask in 1u8..16 {
+            let side = |bit: u8| {
+                if mask & bit == 0 {
+                    None
+                } else {
+                    Some(monospace_core::Stroke::from("light-round"))
+                }
+            };
+            let key = monospace_core::GlyphKey {
+                top: side(0b0001),
+                right: side(0b0010),
+                bottom: side(0b0100),
+                left: side(0b1000),
+            };
+
+            assert!(catalog.glyph(&key).is_some(), "no glyph for {key:?}");
+        }
+    }
+
+    /// Mirrors `a_box_rendered_with_ascii_alone_uses_only_ascii_box_characters` for the Light
+    /// Round table (SC-005).
+    #[test]
+    fn a_box_rendered_with_light_round_alone_uses_only_light_round_box_characters() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 4,
+            height: 3,
+        };
+        let mut buffer = Buffer::new(origin, size);
+        BoxShape {
+            at: origin,
+            size,
+            stroke: monospace_core::Stroke::from("light-round"),
+            fill: None,
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+
+        let output = monospace_core::render(&buffer, &light_round(), origin, size);
+
+        for ch in output.chars() {
+            assert!(
+                matches!(
+                    ch,
+                    '│' | '╮'
+                        | '┬'
+                        | '┼'
+                        | '┤'
+                        | '╭'
+                        | '├'
+                        | '─'
+                        | '┴'
+                        | '╯'
+                        | '╰'
+                        | ' '
+                        | '\n'
+                ),
+                "unexpected character {ch:?} in {output:?}"
+            );
+        }
+    }
+
+    /// SC-003: Light Round's four corners read `╮╭╯╰`, distinct from Light's `┐┌┘└`, for the same
+    /// keys.
+    #[test]
+    fn light_rounds_corners_differ_from_lights() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 4,
+            height: 3,
+        };
+
+        let mut light_round_buffer = Buffer::new(origin, size);
+        BoxShape {
+            at: origin,
+            size,
+            stroke: monospace_core::Stroke::from("light-round"),
+            fill: None,
+        }
+        .draw(&mut Layer::new(&mut light_round_buffer, StampMode::Above));
+        let light_round_output =
+            monospace_core::render(&light_round_buffer, &light_round(), origin, size);
+
+        let mut light_buffer = Buffer::new(origin, size);
+        BoxShape {
+            at: origin,
+            size,
+            stroke: monospace_core::Stroke::from("light"),
+            fill: None,
+        }
+        .draw(&mut Layer::new(&mut light_buffer, StampMode::Above));
+        let light_output = monospace_core::render(
+            &light_buffer,
+            &monospace_core::GlyphCatalog::light(),
+            origin,
+            size,
+        );
+
+        for corner in ['╮', '╭', '╯', '╰'] {
+            assert!(
+                light_round_output.contains(corner),
+                "{light_round_output:?} is missing {corner:?}"
+            );
+        }
+        for corner in ['┐', '┌', '┘', '└'] {
+            assert!(
+                light_output.contains(corner),
+                "{light_output:?} is missing {corner:?}"
             );
         }
     }
