@@ -499,4 +499,34 @@ mod tests {
             );
         }
     }
+
+    /// FR-008, SC-006: a catalog built from two or more of the four single-stroke tables this
+    /// crate ships answers a key from each correctly, regardless of the order the tables went in.
+    #[test]
+    fn a_catalog_built_from_two_or_more_single_stroke_tables_answers_each_regardless_of_order() {
+        let key_for = |stroke: &str| monospace_core::GlyphKey {
+            top: Some(monospace_core::Stroke::from(stroke)),
+            right: None,
+            bottom: Some(monospace_core::Stroke::from(stroke)),
+            left: None,
+        };
+
+        let forward =
+            monospace_core::GlyphCatalog::union([ascii(), double(), heavy(), light_round()]);
+        let reverse =
+            monospace_core::GlyphCatalog::union([light_round(), heavy(), double(), ascii()]);
+
+        for stroke in ["ascii", "double", "heavy", "light-round"] {
+            let key = key_for(stroke);
+            assert_eq!(
+                forward.glyph(&key),
+                reverse.glyph(&key),
+                "{stroke} answered differently depending on union order"
+            );
+            assert!(
+                forward.glyph(&key).is_some(),
+                "no glyph for {stroke} in the union catalog"
+            );
+        }
+    }
 }

@@ -178,12 +178,12 @@ with another (Light) still answers on its own.
 **Purpose**: prove the cross-story requirement the individual stories don't each cover, then close
 the increment per constitution principle II.
 
-- [ ] T013 In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
+- [x] T013 In `crates/monospace-glyph-sets/src/lib.rs`'s `tests` module, add
       `a_catalog_built_from_two_or_more_single_stroke_tables_answers_each_regardless_of_order`:
       build `GlyphCatalog::union([ascii(), double(), heavy(), light_round()])` and its reverse,
       assert a key from each of the four tables answers correctly in both catalogs (FR-008, SC-006)
       (depends on T006, T009, T012)
-- [ ] T014 Check every row of `DOUBLE`, `HEAVY` and `LIGHT_ROUND` (T005, T008, T011) against
+- [x] T014 Check every row of `DOUBLE`, `HEAVY` and `LIGHT_ROUND` (T005, T008, T011) against
       `docs/glyph-sets.md`'s matching row, key by key — the property the tests above don't check
       directly, since they prove completeness and the character set but not that each character is
       the _correct_ one for its key (SC-004)
