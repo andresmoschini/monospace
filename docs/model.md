@@ -17,9 +17,11 @@ carried over.
 
 This document describes three mechanisms: how cells accumulate in a buffer, how a buffer becomes
 characters, and how a shape puts cells in both without its caller computing any of them. Everything
-above those — an input format, parsing, deciding where a figure goes — belongs to layers that do not
-exist yet and are not described here. Text and diagonals are out of the model entirely; they will be
-designed when they arrive.
+above those — an input format, parsing, deciding where a figure goes — belongs to layers that are
+not described here. The first of them now has a document of its own:
+[`diagram-model.md`](diagram-model.md) owns what holds a figure after it has been drawn, and this
+one stays the buffer and render model. Text and diagonals are out of the model entirely; they will
+be designed when they arrive.
 
 What this document owns beyond those three mechanisms is the domain's **open questions**, including
 the ones about layers it does not describe yet. They are collected under _Open questions_, because
@@ -416,12 +418,18 @@ Unlike the list above, these are open rather than closed: each is waiting for an
 answer is model prose for the layer it belongs to. A feature spec that needs one of them answered
 amends this document first and then implements the slice, the same way spec 0002 amended _The cell_.
 
+An answered question leaves this list, and its answer's home is named where it was. _How does the
+core expose mutable state for editing?_ has left: the core exposes none, and
+[the diagram model](diagram-model.md) holds a diagram above it that the buffer is rebuilt from.
+
 - **What minimal diagram description does the core accept?** A custom DSL and a structured input are
   both on the table. What would settle it: the first slice that has to read a diagram from outside
   the process, which is also the first one that makes the choice visible in the public API.
 - **How is layout computed?** A fixed grid the caller places figures on, or positions computed from
   the description. The buffer takes coordinates either way, so this is a question about the layer
-  above it, not about stamping.
+  above it, not about stamping. Half of it is answered already: a diagram lets one figure sit
+  relative to another, per [the diagram model](diagram-model.md). Placing figures nobody gave
+  coordinates for is the half still open.
 - **What comes after the first three shapes?** _Shapes_ answers the initial set — a box, a line and
   an arrow — and the question that is left is everything with a shape of its own that is not one of
   them: a rounded corner, a double line. Each needs either its rule keyed like the rest or a chosen
@@ -432,8 +440,3 @@ amends this document first and then implements the slice, the same way spec 0002
   characters that could have been keyed are already claimed. What would settle it: a slice that
   gives a set its own heads, which also has to decide whether the caller's glyph then becomes an
   override or goes away.
-- **How does the core expose mutable state for editing?** Phase 3 edits a diagram interactively, and
-  today's buffer is a write-once working surface. Whether editing mutates cells in place, rebuilds
-  the buffer from a description, or keeps both, is a model question and not an implementation detail
-  — it decides what the public API promises. What would settle it: the first spec that has to change
-  something already stamped.
