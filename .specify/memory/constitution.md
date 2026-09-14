@@ -1,4 +1,25 @@
 <!--
+Sync Impact Report — 2026-09-14
+
+Version change: 1.5.0 → 1.6.0
+
+Rationale for MINOR: materially expanded guidance. In scope for this phase admits a fourth crate,
+the diagram model that holds a diagram after it is drawn. No principle is added, removed or
+redefined, and principle VII is untouched: the new crate respects the boundary that section cites
+rather than crossing it, since it holds domain logic and assumes no CLI, TUI or terminal, and
+`monospace` stays reserved for the interactive application. Out of scope for this phase is
+unchanged, and nothing on it is widened.
+
+Decisions this amendment implements: ADR-0038 (the diagram model lives in a crate above the core).
+
+Modified sections:
+  - In scope for this phase: "Three things" becomes four. monospace-diagram is named, and the
+    paragraph that used to explain why the third crate is there now explains both, keeping the rule
+    that a crate proposed for any other reason is still a scope change to renegotiate.
+
+Templates and commands reviewed: unchanged. plan-template.md is the only one that refers to this
+file and it reads it at runtime.
+
 Sync Impact Report — 2026-09-11
 
 Version change: 1.4.0 → 1.5.0
@@ -235,16 +256,21 @@ spec, not a finished feature.
 
 ### In scope for this phase
 
-Three things, and their boundary is principle VII: `monospace-core`, the
+Four things, and their boundary is principle VII: `monospace-core`, the
 Rust library holding the diagramming logic — input parsing, layout and positioning, ASCII rendering
-— `monospace-cli`, a minimal non-interactive consumer that produces diagrams from the terminal, and
+— `monospace-cli`, a minimal non-interactive consumer that produces diagrams from the terminal,
 `monospace-glyph-sets`, a library of the glyph sets the core does not ship, depending on the core
 and privileged no further than any other crate that depends on it
-([ADR-0036](../../docs/decisions/0036-hold-every-table-but-light-outside-the-core.md)).
+([ADR-0036](../../docs/decisions/0036-hold-every-table-but-light-outside-the-core.md)), and
+`monospace-diagram`, the model that holds a diagram after it is drawn — shapes with an identity, an
+order and positions that may depend on each other — depending on the core on the same terms
+([ADR-0038](../../docs/decisions/0038-hold-the-diagram-model-in-a-crate-above-the-core.md)).
 
-The third one is here to make a claim checkable — that a glyph set can come from outside the core —
-and not because the phase builds three things. A further crate proposed for any other reason is a
-widening of this section, to be renegotiated rather than assumed.
+Each of the last two is here for a reason of its own, and neither is here because the phase builds
+four things. The glyph crate makes a claim checkable: that a glyph set can come from outside the
+core. The diagram crate keeps a lifecycle out of a core whose every other value is constructed,
+used and dropped. A further crate proposed for any other reason is a widening of this section, to be
+renegotiated rather than assumed.
 
 ### Out of scope for this phase
 
@@ -364,4 +390,4 @@ boundary, tests, docs — are enforced by `cargo xtask check` and are not a matt
 rest — thin slices, structural commits kept separate, decisions recorded when taken, claims
 measured — is checked by reading, at plan time and at review time.
 
-**Version**: 1.5.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-11
+**Version**: 1.6.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-14
