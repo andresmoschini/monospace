@@ -41,7 +41,7 @@ No setup is needed: no dependency is added, no crate is added, and the toolchain
 CLI printed before it. That claim needs a "before" artifact to diff against once the feature is
 built.
 
-- [ ] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and keep the file until Phase 6
+- [x] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and keep the file until Phase 6
       (quickstart.md "Before touching anything")
 
 **Checkpoint**: baseline captured. User story work can begin.
