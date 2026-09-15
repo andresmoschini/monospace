@@ -10,6 +10,7 @@ use std::process::ExitCode;
 
 use description::Description;
 use monospace_core::{Buffer, GlyphCatalog};
+use monospace_diagram::ShapeId;
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
 /// from any working directory and from a binary copied outside a checkout (FR-022, FR-023).
@@ -45,11 +46,11 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Renders `description` as written, then again with its back-most shape moved one place toward
-/// the front, each picture under a caption (FR-013, FR-014, FR-015, FR-018, FR-019).
+/// Renders `description` as written, then again with its first entry moved one place toward the
+/// front, each picture under a caption (FR-013, FR-014, FR-015, FR-018, FR-019).
 fn render_description(description: Description) -> String {
     let (origin, size) = description.window();
-    let (mut diagram, back_most) = description.into_diagram();
+    let mut diagram = description.into_diagram();
     let catalog = glyph_catalog();
 
     let mut first = String::from("As written:\n");
@@ -57,12 +58,10 @@ fn render_description(description: Description) -> String {
     diagram.draw(&mut buffer);
     first.push_str(&monospace_core::render(&buffer, &catalog, origin, size));
 
-    // Moving the back-most entry forward is a demonstration-only assumption: it shows something
-    // only because the shipped demonstration's first two entries are two partially overlapping
-    // opaque boxes (FR-016).
-    if let Some(id) = back_most {
-        diagram.forward(&id);
-    }
+    // Moving "#1" forward is a demonstration-only assumption: it shows something only because the
+    // shipped demonstration's first two entries are two partially overlapping opaque boxes, and
+    // `forward` is a safe no-op when there is no such shape — e.g. an empty description (FR-016).
+    diagram.forward(&ShapeId::new("#1"));
 
     let mut second = String::from("\nWith the back-most shape moved one place forward:\n");
     let mut buffer = Buffer::new(origin, size);
