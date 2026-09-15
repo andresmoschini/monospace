@@ -6,5 +6,5 @@
 mod diagram;
 mod shape;
 
-pub use diagram::Diagram;
+pub use diagram::{Diagram, ShapeId};
 pub use shape::{Endpoint, Shape};
