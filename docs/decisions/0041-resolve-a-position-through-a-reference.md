@@ -51,16 +51,27 @@ being built, and the only thing the layer owes anybody is not to draw something 
 
 A position is therefore either absolute or a reference — a shape's identity, an anchor point on it,
 and two offsets — and resolving one means asking the referenced shape for that anchor and adding the
-offsets. Resolution is a chain: a reference may resolve to a shape whose own position is a
-reference, and the chain ends at an absolute position or at nothing.
+offsets.
 
-Nothing is the answer in three cases, and they are one case as far as the model is concerned:
+**Only a connector's endpoint may hold a reference, for now.** Every other shape's position is
+absolute. That is a restriction of scope rather than a second decision about resolution, and what it
+buys is the third way of failing, removed rather than handled: a reference names a box or a line,
+both positioned absolutely, or an arrow, which answers no anchor point at all
+([ADR-0040](0040-let-each-shape-answer-its-own-anchor-points.md)). The chain is one link long either
+way. Nothing recurses, and no cycle can be built.
 
-| The reference names                            | Resolves to |
-| ---------------------------------------------- | ----------- |
-| a shape the diagram does not hold              | nothing     |
-| an anchor point that shape does not answer     | nothing     |
-| a shape whose own chain leads back to this one | nothing     |
+Two doors would reopen it, and both are shut today: issue #89 widens a reference to any shape's
+position, and an arrow that answers anchor points is an open question in the model. Whichever opens
+first is the slice that has to make resolution cycle-safe and say what a cycle resolves to, and it
+inherits the intended answer rather than a blank page: nothing, like any other reference that does
+not resolve.
+
+Nothing is the answer in two cases, and they are one case as far as the model is concerned:
+
+| The reference names                        | Resolves to |
+| ------------------------------------------ | ----------- |
+| a shape the diagram does not hold          | nothing     |
+| an anchor point that shape does not answer | nothing     |
 
 A shape with no resolved position is not drawn, writes nothing, owns no cell, and answers no anchor
 point of its own — so anything hanging from it resolves to nothing in turn. There is no error, no
@@ -75,23 +86,27 @@ panic and no report. The rest of the diagram draws normally.
   diagram is assembled would start to matter.
 - Good, because the public API stays at what is used. A diagnostic query would be surface added for
   a consumer that does not exist yet, which is the thing the removal test exists to stop.
+- Good, because nothing has to be cycle-safe. A chain one link long has no traversal to protect, so
+  resolution is a lookup and two additions rather than a graph walk with a visited set.
 - Bad, because a diagram that draws nothing and a diagram whose every reference is broken look
   identical, and nobody can ask why. This is the accepted cost, and it is the one the first editor
-  will come back for.
+  will come back for; issue #88 is where it is written down.
 - Bad, because a mistyped identity is silent. Today identities are generated rather than written, so
   there is nothing to mistype; the day they become editable, as the issue anticipates, this cost
   grows and option C becomes the obvious answer.
-- Bad, because resolution has to be cycle-safe every time it runs, and that is a correctness
-  obligation carried by every future kind of reference rather than by one guard at the door.
+- Bad, because a box cannot sit relative to a box, which is half of what issue #62 asked for. The
+  restriction buys the paragraph above and costs that, and issue #89 is where the half arrives —
+  carrying the cycle obligation this record does not.
 - Neutral, because option C is additive. Adding the query later changes no behavior: what draws
   keeps drawing, and what is silent gains a voice.
 
 ### Confirmation
 
 By test, and the cases are small enough to enumerate: a reference to an absent shape, a reference to
-an anchor a kind does not answer, a two-shape cycle, a longer cycle, and a chain several references
-deep that does resolve. Each asserts the same two things — the dependent shape is absent from the
-output, and everything else is drawn exactly as it would have been.
+an anchor a kind does not answer, and an arrow with one endpoint that resolves and one that does
+not. Each asserts the same two things — the dependent shape is absent from the output, and
+everything else is drawn exactly as it would have been. There is no cycle to test, which is the
+restriction doing its work rather than a gap in the list.
 
 ## Pros and Cons of the Options
 
@@ -129,6 +144,10 @@ Adding the diagnostic query is additive: nothing that draws today would draw dif
 only new thing is a way to ask. Nothing about this decision makes it harder later, which is why it
 is the one deliberately postponed.
 
+Lifting the restriction is additive in the same sense — a position that could not be a reference
+becomes one, and nothing that resolves today stops resolving — but it is not free, because
+resolution acquires a traversal and the cycle question at the same moment.
+
 Moving to A would change every mutation into something that can fail, and every caller written
 against infallible operations would have to be revisited. That cost grows with the number of
 callers, and the first of them is the command-line application.
@@ -138,7 +157,8 @@ callers, and the first of them is the command-line application.
 High (80%).
 
 What would change it: the first editor. The moment a person is clicking on shapes, "this one did not
-draw and here is why" stops being a nicety, and C is where this lands.
+draw and here is why" stops being a nicety, and C is where this lands. Issue #88 already carries it,
+with the command-line application printing the list beside the picture as its first consumer.
 
 What would prove it wrong: a diagram where a broken reference is silently invisible and the user
 concludes the tool is broken rather than the diagram. That is the failure this option accepts, and
@@ -151,7 +171,8 @@ a legitimate state of a diagram under construction rather than an invalid one.
 ## More Information
 
 - [ADR-0040](0040-let-each-shape-answer-its-own-anchor-points.md) — why an absent anchor point is an
-  ordinary answer, which is one of the three ways a reference fails to resolve.
+  ordinary answer, which is one of the two ways a reference fails to resolve, and why the anchors a
+  connector can hang from are the four sides.
 - [The model](../model.md), _Degenerate arrangements_ — the rule this record extends to the layer
   above shapes.
 - [The diagram model](../diagram-model.md), _Positions_ — the prose this outcome is written into.

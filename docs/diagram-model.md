@@ -74,23 +74,25 @@ offsets, so it is derived from where that shape is now rather than from where it
 reference was made. Moving the referenced shape moves everything that hangs from it, which is the
 whole point of having references at all.
 
-Resolution is a chain: a reference may name a shape whose own position is a reference. The chain
-ends at an absolute position, or at nothing.
+**Only a connector's endpoint holds a reference, for now**
+([ADR-0041](decisions/0041-resolve-a-position-through-a-reference.md)). Every other shape's position
+is absolute, and _Attachment_ below is where the reference lives. A reference therefore names a box
+or a line, both positioned absolutely, or an arrow, which answers no anchor point: the chain is one
+link long, nothing resolves through anything else, and no cycle can be built. Issue #89 is where a
+reference widens to any shape's position, and the cycle question belongs to it.
 
-Nothing is the answer in three cases, and the model treats them as one:
+Nothing is the answer in two cases, and the model treats them as one:
 
-| The reference names                            | Resolves to |
-| ---------------------------------------------- | ----------- |
-| a shape the diagram does not hold              | nothing     |
-| an anchor point that shape does not answer     | nothing     |
-| a shape whose own chain leads back to this one | nothing     |
+| The reference names                        | Resolves to |
+| ------------------------------------------ | ----------- |
+| a shape the diagram does not hold          | nothing     |
+| an anchor point that shape does not answer | nothing     |
 
 A shape whose position does not resolve is **not drawn**. It writes nothing, owns no position, and
-answers no anchor point of its own — so whatever hangs from it does not resolve either, and a broken
-chain collapses instead of resolving halfway. There is no error and no report: an unresolved
-reference is a normal state of a diagram being built, not a fault
-([ADR-0041](decisions/0041-resolve-a-position-through-a-reference.md)). This is _Degenerate
-arrangements_ from [`model.md`](model.md) applied one layer up.
+answers no anchor point of its own, so a reference to it resolves to nothing in turn. There is no
+error and no report: an unresolved reference is a normal state of a diagram being built, not a fault
+(ADR-0041). This is _Degenerate arrangements_ from [`model.md`](model.md) applied one layer up. A
+way to ask which shapes a diagram could not draw is issue #88.
 
 ## 5. Anchor points
 
@@ -122,13 +124,15 @@ not.
 
 An arrow's endpoint is a position, the direction the arrow leaves it in, and a head — that is
 `model.md`'s definition and it is unchanged. What this layer adds is that the position may be a
-reference, exactly as a shape's own position may be. An endpoint attached to a shape moves when that
-shape moves, and an arrow with an endpoint whose reference does not resolve is not drawn, by the
-rule in _Positions_: it is a shape whose position does not resolve.
+reference, and an endpoint is the only position in this model that may be one. An endpoint attached
+to a shape moves when that shape moves, and an arrow with an endpoint whose reference does not
+resolve is not drawn, by the rule in _Positions_: it is a shape whose position does not resolve. An
+arrow with two attached endpoints is the figure this model exists to make possible.
 
 The direction the arrow leaves in and the head it carries are not derived from the attachment. They
 are the caller's, as before. Deriving a direction from which side of a shape was attached to is an
-open question below.
+open question below, and every anchor being a side is what keeps it answerable: a side has an
+outside to leave through.
 
 ## 7. Drawing
 
