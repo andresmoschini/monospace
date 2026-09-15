@@ -9,6 +9,7 @@ mod description;
 use std::process::ExitCode;
 
 use description::Description;
+use monospace_core::GlyphCatalog;
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
 /// from any working directory and from a binary copied outside a checkout (FR-022, FR-023).
@@ -40,6 +41,75 @@ fn main() -> ExitCode {
         }
     };
 
-    print!("{}", description.render());
+    print!("{}", render_description(description));
     ExitCode::SUCCESS
+}
+
+/// Draws `description` into a buffer the size of its canvas, then renders that buffer to text
+/// (FR-016, FR-018, FR-019).
+fn render_description(description: Description) -> String {
+    let (origin, size) = description.window();
+    let mut buffer = description.buffer();
+    description.into_diagram().draw(&mut buffer);
+    monospace_core::render(&buffer, &glyph_catalog(), origin, size)
+}
+
+/// The glyph catalog the CLI renders with: the union of every glyph set the core does not ship
+/// and the core's own light table.
+fn glyph_catalog() -> GlyphCatalog {
+    GlyphCatalog::union([
+        GlyphCatalog::light(),
+        monospace_glyph_sets::ascii(),
+        monospace_glyph_sets::double(),
+        monospace_glyph_sets::heavy(),
+        monospace_glyph_sets::light_round(),
+        monospace_glyph_sets::light_double(),
+        monospace_glyph_sets::light_heavy(),
+        monospace_glyph_sets::light_round_double(),
+        monospace_glyph_sets::light_round_heavy(),
+    ])
+}
+
+#[cfg(test)]
+mod tests {
+    use monospace_core::{
+        BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
+    };
+
+    use super::{Description, render_description};
+
+    fn one_box_json() -> &'static str {
+        r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "shapes": [
+                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light", "fill": "░" }
+            ]
+        }"#
+    }
+
+    /// A one-box `Description` renders the same text as a `BoxShape` drawn directly with the same
+    /// parameters.
+    #[test]
+    fn a_one_box_description_renders_the_same_as_a_box_shape_drawn_directly() {
+        let description: Description =
+            serde_json::from_str(one_box_json()).expect("well-formed description");
+
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 4,
+            height: 3,
+        };
+        let mut buffer = Buffer::new(origin, size);
+        BoxShape {
+            at: origin,
+            size,
+            stroke: Stroke::from("light"),
+            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        let expected = render(&buffer, &GlyphCatalog::light(), origin, size);
+
+        assert_eq!(render_description(description), expected);
+    }
 }

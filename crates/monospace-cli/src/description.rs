@@ -1,12 +1,12 @@
-//! The diagram description format: JSON types deserialized from a file and converted into
-//! `monospace_diagram` shapes.
+//! The diagram description format: JSON types deserialized from a file and converted into a
+//! `monospace_diagram::Diagram` and the `monospace_core::Buffer` its canvas describes.
 //!
 //! Every type here is private to `monospace-cli` and exists only for this conversion (FR-019,
 //! [ADR-0035](../../../docs/decisions/0035-keep-the-cli-demo-format-out-of-the-model.md)). See
 //! `specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md` for the
 //! format itself and `data-model.md` for the field-by-field mapping onto `monospace_diagram`.
 
-use monospace_core::{Buffer, Direction, Glyph, GlyphCatalog, Orientation as CoreOrientation};
+use monospace_core::{Buffer, Direction, Glyph, Orientation as CoreOrientation};
 use monospace_diagram::{Diagram, Endpoint as DiagramEndpoint, Shape as DiagramShape};
 use serde::{Deserialize, Deserializer};
 
@@ -197,75 +197,30 @@ pub struct Description {
 }
 
 impl Description {
-    /// Builds a diagram from `shapes`, in order, draws it into a buffer the size of `canvas`,
-    /// then renders that buffer to text (FR-016, FR-018, FR-019).
-    #[must_use]
-    pub fn render(self) -> String {
-        let origin = self.canvas.origin.into();
-        let size = self.canvas.size.into();
+    /// The canvas's origin and size, converted to `monospace_core` types.
+    pub(crate) fn window(&self) -> (monospace_core::Pos, monospace_core::Size) {
+        (self.canvas.origin.into(), self.canvas.size.into())
+    }
+
+    /// A buffer the size of `canvas`, with no positions defined yet.
+    pub(crate) fn buffer(&self) -> Buffer {
+        let (origin, size) = self.window();
+        Buffer::new(origin, size)
+    }
+
+    /// Builds a diagram from `shapes`, in order (FR-016).
+    pub(crate) fn into_diagram(self) -> Diagram {
         let mut diagram = Diagram::new();
         for shape in self.shapes {
             diagram.add(shape.into());
         }
-        let mut buffer = Buffer::new(origin, size);
-        diagram.draw(&mut buffer);
-        let catalog = GlyphCatalog::union([
-            GlyphCatalog::light(),
-            monospace_glyph_sets::ascii(),
-            monospace_glyph_sets::double(),
-            monospace_glyph_sets::heavy(),
-            monospace_glyph_sets::light_round(),
-            monospace_glyph_sets::light_double(),
-            monospace_glyph_sets::light_heavy(),
-            monospace_glyph_sets::light_round_double(),
-            monospace_glyph_sets::light_round_heavy(),
-        ]);
-        monospace_core::render(&buffer, &catalog, origin, size)
+        diagram
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{
-        BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
-    };
-
     use super::Description;
-
-    fn one_box_json() -> &'static str {
-        r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
-            "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "░" }
-            ]
-        }"#
-    }
-
-    /// A one-box `Description` renders the same text as a `BoxShape` drawn directly with the same
-    /// parameters.
-    #[test]
-    fn a_one_box_description_renders_the_same_as_a_box_shape_drawn_directly() {
-        let description: Description =
-            serde_json::from_str(one_box_json()).expect("well-formed description");
-
-        let origin = Pos { x: 0, y: 0 };
-        let size = Size {
-            width: 4,
-            height: 3,
-        };
-        let mut buffer = Buffer::new(origin, size);
-        BoxShape {
-            at: origin,
-            size,
-            stroke: Stroke::from("light"),
-            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
-        }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
-        let expected = render(&buffer, &GlyphCatalog::light(), origin, size);
-
-        assert_eq!(description.render(), expected);
-    }
 
     /// An unrecognized `kind` fails to deserialize and names the unrecognized value (FR-014).
     #[test]
