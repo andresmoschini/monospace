@@ -1146,3 +1146,44 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   before Phase 2/3 were committed, meant cutting them back out of `cell.rs`, committing the first
   slice, then pasting them back in for the second. Checking which commit a task belongs to before
   writing its code would have skipped the round trip.
+
+## 2026-09-15 — Feature 079 implemented: a diagram holds shapes and draws itself
+
+### Rust design and idiom
+
+- **A `Vec` whose front is its last element makes the ADR-0008 equivalence easy to state backwards
+  without noticing.** The first draft of TE-001's test stamped the two core boxes in the same order
+  the diagram visits them — front first, back second, both `Above` — which is front-to-back with
+  `Above`, not the back-to-front comparison the property actually claims; the two only coincide by
+  accident for shapes that do not compose order-dependently, and the assertion failed on the first
+  pair that did. Naming which end is "front" once, in the field's own doc comment, was not enough to
+  keep the direction straight while writing the comparison by hand — writing out "back-most first,
+  front-most last" as the helper function's own parameter order is what made the mistake visible.
+- **Two overlapping shapes with the same stroke and no fill cannot demonstrate that order matters,
+  whichever order they draw in.** TE-004 asks for two orders to produce different buffers, and the
+  first draft used two unfilled boxes of the same stroke — the same shapes `box_shape.rs`'s own
+  T-junction test already uses to show two boxes merging identically regardless of stamp order,
+  because neither box's interior side is ever closed. `StampMode` only decides anything where one
+  side is already decided and the other is not — a fill, here — which is also why every pair in the
+  shipped demonstration that needed `mode: "below"` was one where the two boxes' fills, not just
+  their strokes, differed.
+- **The anonymous trait import earns its keep exactly once.** `use monospace_core::Shape as _;`
+  brings `BoxShape::draw`, `Line::draw` and `Arrow::draw` into scope without a name that would
+  collide with the diagram's own `Shape` enum — one line, and everything after it reads as if the
+  two `Shape`s were never in the same file.
+
+### Working this way
+
+- **Guessing a rendered picture instead of running the code produced two wrong assertions in one
+  test.** The crossing-and-occlusion test's expected strings were typed by eye before the test ran
+  once; both were wrong at the one cell where a line's arm crosses a box's border rather than its
+  interior, because a border row does not close the same sides a filled interior does. The test's
+  own failure output supplied the correct string in both cases — principle IV's rule to run it first
+  and write down what happened, not what the picture "should" look like, would have skipped the
+  wrong guesses entirely.
+- **SC-003 was confirmed by running the binary before and after, not by reading the diff of
+  `description.rs`.** `cargo run -p monospace-cli` captured to a file before touching any code, then
+  again after `monospace-diagram` existed and the CLI drew through it, and `diff` between the two
+  reported nothing — the demonstration's rendered text is unchanged even though its JSON lost every
+  `mode` field and two pairs of shapes changed places to say the same thing in the new format
+  (TE-007).
