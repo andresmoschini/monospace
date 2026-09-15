@@ -41,7 +41,7 @@ No setup is needed: no dependency is added, no crate is added, and the toolchain
 CLI printed before it. That claim needs a "before" artifact to diff against once the feature is
 built.
 
-- [ ] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and keep the file until Phase 6
+- [x] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and keep the file until Phase 6
       (quickstart.md "Before touching anything")
 
 **Checkpoint**: baseline captured. User story work can begin.
@@ -58,29 +58,29 @@ the three are different from one another (spec.md Independent Test, US1).
 
 ### Implementation for User Story 1
 
-- [ ] T002 [US1] Add `ShapeId`, a newtype over a private `String`, with a `Display` impl writing
+- [x] T002 [US1] Add `ShapeId`, a newtype over a private `String`, with a `Display` impl writing
       `#1`, `#2`, and so on, and derives `Clone, Debug, PartialEq, Eq` (no `Copy`, no constructor,
       no `From<&str>`, no `FromStr`, no accessor) in `crates/monospace-diagram/src/diagram.rs`, and
       rustdoc it as it is introduced (FR-001, FR-003, FR-006; data-model.md `ShapeId`;
       contracts/diagram-api.md `ShapeId`)
-- [ ] T003 [US1] Add `Placed`, a crate-private struct pairing an `id: ShapeId` with a
+- [x] T003 [US1] Add `Placed`, a crate-private struct pairing an `id: ShapeId` with a
       `shape: Shape`, in `crates/monospace-diagram/src/diagram.rs` (data-model.md `Placed`)
-- [ ] T004 [US1] Change `Diagram`'s private fields from `shapes: Vec<Shape>` to
+- [x] T004 [US1] Change `Diagram`'s private fields from `shapes: Vec<Shape>` to
       `shapes: Vec<Placed>` plus `next: u32`, keeping `#[derive(Default)]` giving an empty diagram
       with a counter of 0, in `crates/monospace-diagram/src/diagram.rs` (data-model.md `Diagram`)
-- [ ] T005 [US1] Change `add(&mut self, shape: Shape)` to return `ShapeId`: increment `next`, build
+- [x] T005 [US1] Change `add(&mut self, shape: Shape)` to return `ShapeId`: increment `next`, build
       the identity's text from the new value, push `Placed { id, shape }` onto the end of `shapes`
       (still the front of the order, unchanged from spec 079), and return a clone of the identity;
       rustdoc the new return value, in `crates/monospace-diagram/src/diagram.rs` (FR-002, FR-005,
       FR-006; data-model.md `add`; contracts/diagram-api.md `add`)
-- [ ] T006 [US1] Update `draw` to visit `Placed` values and draw `placed.shape`, unchanged in
+- [x] T006 [US1] Update `draw` to visit `Placed` values and draw `placed.shape`, unchanged in
       behavior, in `crates/monospace-diagram/src/diagram.rs` (data-model.md `draw`)
-- [ ] T007 [US1] Re-export `ShapeId` alongside `Diagram` in `crates/monospace-diagram/src/lib.rs`
+- [x] T007 [US1] Re-export `ShapeId` alongside `Diagram` in `crates/monospace-diagram/src/lib.rs`
       (plan.md Project Structure)
-- [ ] T008 [P] [US1] Unit test: adding three shapes to one diagram yields three identities that
+- [x] T008 [P] [US1] Unit test: adding three shapes to one diagram yields three identities that
       differ from one another and read as `#1`, `#2`, `#3` in the order added, in
       `crates/monospace-diagram/src/diagram.rs` tests module (TE-001)
-- [ ] T009 [P] [US1] Unit test: adding the same shape value twice yields two different identities,
+- [x] T009 [P] [US1] Unit test: adding the same shape value twice yields two different identities,
       in `crates/monospace-diagram/src/diagram.rs` tests module (spec.md US1 scenario 3)
 
 **Checkpoint**: User Story 1 is fully functional and testable independently —
@@ -99,33 +99,33 @@ US2).
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Add `forward(&mut self, id: &ShapeId)` to `Diagram`: find the index of the entry
+- [x] T010 [US2] Add `forward(&mut self, id: &ShapeId)` to `Diagram`: find the index of the entry
       whose `id` equals the argument (return unchanged if none), return unchanged if it is already
       the last element, otherwise swap it with the element after it; rustdoc it, in
       `crates/monospace-diagram/src/diagram.rs` (FR-007, FR-009, FR-010, FR-011, FR-006;
       data-model.md `forward`/`backward`; contracts/diagram-api.md `forward`)
-- [ ] T011 [US2] Add `backward(&mut self, id: &ShapeId)` to `Diagram`: same lookup, return unchanged
+- [x] T011 [US2] Add `backward(&mut self, id: &ShapeId)` to `Diagram`: same lookup, return unchanged
       if it is already the first element, otherwise swap it with the element before it; rustdoc it,
       in `crates/monospace-diagram/src/diagram.rs` (FR-008, FR-009, FR-010, FR-011, FR-006;
       data-model.md `forward`/`backward`; contracts/diagram-api.md `backward`)
-- [ ] T012 [P] [US2] Unit test: two partially overlapping opaque boxes, drawn before and after the
+- [x] T012 [P] [US2] Unit test: two partially overlapping opaque boxes, drawn before and after the
       back one moves forward, produce different buffers, and the second equals what the same two
       boxes added in the opposite order produce, in `crates/monospace-diagram/src/diagram.rs` tests
       module, reusing the `cells` helper (TE-002)
-- [ ] T013 [P] [US2] Unit test: the same expected buffer comes from moving the front one backward
+- [x] T013 [P] [US2] Unit test: the same expected buffer comes from moving the front one backward
       instead, against the same two boxes, in `crates/monospace-diagram/src/diagram.rs` tests module
       (TE-003)
-- [ ] T014 [P] [US2] Unit test: moving the front-most forward and moving the back-most backward each
+- [x] T014 [P] [US2] Unit test: moving the front-most forward and moving the back-most backward each
       leave the drawn buffer unchanged, in `crates/monospace-diagram/src/diagram.rs` tests module
       (TE-004; spec.md US2 scenarios 3-4; edge case: a diagram holding one shape)
-- [ ] T015 [P] [US2] Unit test: naming an identity the diagram does not hold — one kept from another
+- [x] T015 [P] [US2] Unit test: naming an identity the diagram does not hold — one kept from another
       diagram — leaves the drawn buffer unchanged through both `forward` and `backward`, with no
       panic, in `crates/monospace-diagram/src/diagram.rs` tests module (TE-005; spec.md US2 scenario
       5; edge cases: identity from another diagram, empty diagram)
-- [ ] T016 [P] [US2] Unit test: a shape moved forward and then backward by the same identity draws
+- [x] T016 [P] [US2] Unit test: a shape moved forward and then backward by the same identity draws
       exactly what it drew at the start, in `crates/monospace-diagram/src/diagram.rs` tests module
       (TE-006; spec.md US2 scenario 6)
-- [ ] T017 [P] [US2] Unit test: two unfilled boxes with the same stroke whose shared cells every
+- [x] T017 [P] [US2] Unit test: two unfilled boxes with the same stroke whose shared cells every
       side leaves `Unset` draw identically before and after a reorder, in
       `crates/monospace-diagram/src/diagram.rs` tests module (edge case: overlap with no cell in
       common)
@@ -145,34 +145,34 @@ identical except in the top-left pair of overlapping opaque boxes (spec.md Indep
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] `refactor` commit: remove `Description::buffer` and move its one line,
+- [x] T018 [US3] `refactor` commit: remove `Description::buffer` and move its one line,
       `Buffer::new(origin, size)`, to the call site in `render_description`, changing no behavior
       and adding no test, in `crates/monospace-cli/src/description.rs` and
       `crates/monospace-cli/src/main.rs` (plan.md Constitution Check principle V; data-model.md
       `Description::buffer` — removed)
-- [ ] T019 [US3] Change `Description::into_diagram` to return `(Diagram, Option<ShapeId>)`: the
+- [x] T019 [US3] Change `Description::into_diagram` to return `(Diagram, Option<ShapeId>)`: the
       diagram built from `shapes` in order, and the identity of the first entry (`None` when
       `shapes` is empty), in `crates/monospace-cli/src/description.rs` (FR-015; data-model.md
       `Description::into_diagram`)
-- [ ] T020 [US3] Rewrite `render_description` in `crates/monospace-cli/src/main.rs` to: build the
+- [x] T020 [US3] Rewrite `render_description` in `crates/monospace-cli/src/main.rs` to: build the
       window, call `into_diagram` for the diagram and the back-most identity, print a caption, draw
       into a buffer and render the first picture, print a blank line, call `forward` on the
       back-most identity when it is `Some` (skipping the move when it is `None`), print a second
       caption, draw into a second buffer and render the second picture (FR-013, FR-014, FR-015,
       FR-018; data-model.md `render_description`)
-- [ ] T021 [US3] Add the comment FR-016 requires at the `forward` call in
+- [x] T021 [US3] Add the comment FR-016 requires at the `forward` call in
       `crates/monospace-cli/src/main.rs`, stating that moving the first entry is a
       demonstration-only assumption relying on the shipped demonstration's first two entries being
       two partially overlapping opaque boxes (FR-016; data-model.md "comment FR-016 asks for")
-- [ ] T022 [US3] Update the existing subprocess test in `crates/monospace-cli/tests/cli.rs` that
+- [x] T022 [US3] Update the existing subprocess test in `crates/monospace-cli/tests/cli.rs` that
       pinned the whole run to instead read the first of the two pictures, unchanged in what it
       asserts about that picture (FR-014; quickstart.md "Build and test the workspace")
-- [ ] T023 [P] [US3] Add a new subprocess test in `crates/monospace-cli/tests/cli.rs` on a
+- [x] T023 [P] [US3] Add a new subprocess test in `crates/monospace-cli/tests/cli.rs` on a
       description of two partially overlapping opaque boxes: it prints two captioned pictures, the
       first equal to the two boxes in the order written and the second equal to the two boxes in the
       opposite order, found by the blank line between them and pinning neither caption's wording
       (TE-007)
-- [ ] T024 [P] [US3] Add a subprocess test in `crates/monospace-cli/tests/cli.rs` on a description
+- [x] T024 [P] [US3] Add a subprocess test in `crates/monospace-cli/tests/cli.rs` on a description
       holding fewer than two shapes (including an empty one): the two pictures are identical and the
       run succeeds (spec.md US3 scenario 4; edge case: no shapes)
 
@@ -183,15 +183,15 @@ passes, and the CLI demonstrates a reorder.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T025 Run `cargo run -p monospace-cli > /tmp/demo-after.txt` and
+- [x] T025 Run `cargo run -p monospace-cli > /tmp/demo-after.txt` and
       `diff /tmp/demo-before.txt /tmp/demo-after.txt`; confirm the diff is only the two new caption
       lines, a blank line, and the picture printed a second time (FR-014; quickstart.md)
-- [ ] T026 Read the two pictures from the run above and confirm they differ only in the top-left
+- [x] T026 Read the two pictures from the run above and confirm they differ only in the top-left
       pair of overlapping boxes, where the box in front is the other one; this is TE-008 and SC-004,
       accepted on observation rather than pinned by a test
-- [ ] T027 Run `cargo xtask check` and confirm it is green, including the `wasm` step covering
+- [x] T027 Run `cargo xtask check` and confirm it is green, including the `wasm` step covering
       `monospace-diagram` (SC-006)
-- [ ] T028 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T028 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and the TE-008/SC-004 observation
       from T026 (constitution principle II)
 

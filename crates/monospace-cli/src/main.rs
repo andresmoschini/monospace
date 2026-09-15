@@ -9,7 +9,8 @@ mod description;
 use std::process::ExitCode;
 
 use description::Description;
-use monospace_core::GlyphCatalog;
+use monospace_core::{Buffer, GlyphCatalog};
+use monospace_diagram::ShapeId;
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
 /// from any working directory and from a binary copied outside a checkout (FR-022, FR-023).
@@ -45,13 +46,29 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Draws `description` into a buffer the size of its canvas, then renders that buffer to text
-/// (FR-016, FR-018, FR-019).
+/// Renders `description` as written, then again with its first entry moved one place toward the
+/// front, each picture under a caption (FR-013, FR-014, FR-015, FR-018, FR-019).
 fn render_description(description: Description) -> String {
     let (origin, size) = description.window();
-    let mut buffer = description.buffer();
-    description.into_diagram().draw(&mut buffer);
-    monospace_core::render(&buffer, &glyph_catalog(), origin, size)
+    let mut diagram = description.into_diagram();
+    let catalog = glyph_catalog();
+
+    let mut first = String::from("As written:\n");
+    let mut buffer = Buffer::new(origin, size);
+    diagram.draw(&mut buffer);
+    first.push_str(&monospace_core::render(&buffer, &catalog, origin, size));
+
+    // Moving "#1" forward is a demonstration-only assumption: it shows something only because the
+    // shipped demonstration's first two entries are two partially overlapping opaque boxes, and
+    // `forward` is a safe no-op when there is no such shape — e.g. an empty description (FR-016).
+    diagram.forward(&ShapeId::new("#1"));
+
+    let mut second = String::from("\nWith the back-most shape moved one place forward:\n");
+    let mut buffer = Buffer::new(origin, size);
+    diagram.draw(&mut buffer);
+    second.push_str(&monospace_core::render(&buffer, &catalog, origin, size));
+
+    first + &second
 }
 
 /// The glyph catalog the CLI renders with: the union of every glyph set the core does not ship
@@ -110,6 +127,14 @@ mod tests {
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
         let expected = render(&buffer, &GlyphCatalog::light(), origin, size);
 
-        assert_eq!(render_description(description), expected);
+        let output = render_description(description);
+        let (first_block, _rest) = output
+            .split_once("\n\n")
+            .expect("two captioned pictures separated by a blank line");
+        let (_caption, picture) = first_block
+            .split_once('\n')
+            .expect("a caption line precedes the picture");
+
+        assert_eq!(format!("{picture}\n"), expected);
     }
 }

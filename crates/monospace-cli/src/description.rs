@@ -6,7 +6,7 @@
 //! `specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md` for the
 //! format itself and `data-model.md` for the field-by-field mapping onto `monospace_diagram`.
 
-use monospace_core::{Buffer, Direction, Glyph, Orientation as CoreOrientation};
+use monospace_core::{Direction, Glyph, Orientation as CoreOrientation};
 use monospace_diagram::{Diagram, Endpoint as DiagramEndpoint, Shape as DiagramShape};
 use serde::{Deserialize, Deserializer};
 
@@ -200,12 +200,6 @@ impl Description {
     /// The canvas's origin and size, converted to `monospace_core` types.
     pub(crate) fn window(&self) -> (monospace_core::Pos, monospace_core::Size) {
         (self.canvas.origin.into(), self.canvas.size.into())
-    }
-
-    /// A buffer the size of `canvas`, with no positions defined yet.
-    pub(crate) fn buffer(&self) -> Buffer {
-        let (origin, size) = self.window();
-        Buffer::new(origin, size)
     }
 
     /// Builds a diagram from `shapes`, in order (FR-016).
