@@ -80,7 +80,7 @@ fn an_explicit_path_prints_the_hand_written_box() {
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "shapes": [
                 { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "░", "mode": "above" }
+                  "stroke": "light", "fill": "░" }
             ]
         }"#,
     );
@@ -105,13 +105,13 @@ fn a_file_with_a_box_a_line_and_an_arrow_prints_all_three_composed() {
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 10, "height": 5 } },
             "shapes": [
                 { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "░", "mode": "above" },
+                  "stroke": "light", "fill": "░" },
                 { "kind": "line", "at": { "x": 0, "y": 4 }, "len": 4, "orientation": "horizontal",
-                  "stroke": "light", "mode": "above" },
+                  "stroke": "light" },
                 { "kind": "arrow",
                   "from": { "at": { "x": 5, "y": 0 }, "leaving": "right", "head": ">" },
                   "to": { "at": { "x": 9, "y": 2 }, "leaving": "down", "head": "v" },
-                  "stroke": "light", "mode": "above" }
+                  "stroke": "light" }
             ]
         }"#,
     );
@@ -126,8 +126,56 @@ fn a_file_with_a_box_a_line_and_an_arrow_prints_all_three_composed() {
     assert!(output.stderr.is_empty(), "wrote to stderr");
 }
 
-/// User story 1, acceptance scenario 3: the same file with its shapes reordered changes which
-/// one is drawn on top where they overlap.
+/// The two overlapping boxes the reordering test below writes, as the `monospace_core` shapes
+/// they describe, so the expected picture in each order comes from stamping them directly rather
+/// than from a literal picture (TE-006).
+fn overlap_boxes() -> (monospace_core::BoxShape, monospace_core::BoxShape) {
+    use monospace_core::{BoxShape, Glyph, Pos, Size, Stroke};
+
+    (
+        BoxShape {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: Stroke::from("light"),
+            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+        },
+        BoxShape {
+            at: Pos { x: 2, y: 1 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: Stroke::from("light"),
+            fill: Some(Glyph::new("▓").expect("\"▓\" is one glyph")),
+        },
+    )
+}
+
+/// Renders `back` then `front`, back to front, each stamped with `StampMode::Above` — the picture
+/// a description's `shapes` array in that order produces, per _The two orders are equivalent_.
+fn render_back_to_front_with_above(
+    back: &monospace_core::BoxShape,
+    front: &monospace_core::BoxShape,
+) -> String {
+    use monospace_core::{Buffer, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, render};
+
+    let origin = Pos { x: 0, y: 0 };
+    let size = Size {
+        width: 6,
+        height: 4,
+    };
+    let mut buffer = Buffer::new(origin, size);
+    back.draw(&mut Layer::new(&mut buffer, StampMode::Above));
+    front.draw(&mut Layer::new(&mut buffer, StampMode::Above));
+    render(&buffer, &GlyphCatalog::light(), origin, size)
+}
+
+/// User story 1, acceptance scenario 3, TE-006: the same file with its shapes reordered changes
+/// which one is drawn on top where they overlap — the last entry in `shapes` is front-most and
+/// decides the shared cells, matching the two core shapes stamped back to front with `Above`.
 #[test]
 fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     let first = write_description(
@@ -136,9 +184,9 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "shapes": [
                 { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "░", "mode": "above" },
+                  "stroke": "light", "fill": "░" },
                 { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "▓", "mode": "above" }
+                  "stroke": "light", "fill": "▓" }
             ]
         }"#,
     );
@@ -148,9 +196,9 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "shapes": [
                 { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "▓", "mode": "above" },
+                  "stroke": "light", "fill": "▓" },
                 { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "░", "mode": "above" }
+                  "stroke": "light", "fill": "░" }
             ]
         }"#,
     );
@@ -158,13 +206,14 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     let first_output = run(&[first.to_str().expect("temp path should be valid UTF-8")]);
     let second_output = run(&[second.to_str().expect("temp path should be valid UTF-8")]);
 
+    let (a, b) = overlap_boxes();
     assert_eq!(
         String::from_utf8_lossy(&first_output.stdout).into_owned(),
-        "┌──┐  \n│░┌┴─┐\n└─┤▓▓│\n  └──┘\n"
+        render_back_to_front_with_above(&a, &b)
     );
     assert_eq!(
         String::from_utf8_lossy(&second_output.stdout).into_owned(),
-        "┌──┐  \n│░░├─┐\n└─┬┘▓│\n  └──┘\n"
+        render_back_to_front_with_above(&b, &a)
     );
     assert_ne!(first_output.stdout, second_output.stdout);
 }
@@ -179,7 +228,7 @@ fn running_the_same_file_twice_produces_identical_output() {
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "shapes": [
                 { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "░", "mode": "above" }
+                  "stroke": "light", "fill": "░" }
             ]
         }"#,
     );
@@ -232,7 +281,7 @@ fn an_unrecognized_kind_names_it_on_stderr_and_fails() {
         "bad-kind",
         r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
-            "shapes": [ { "kind": "triangle", "mode": "above" } ]
+            "shapes": [ { "kind": "triangle" } ]
         }"#,
     );
 
@@ -284,9 +333,9 @@ fn the_demonstration_contains_both_light_and_ascii_characters() {
 
 /// User story 3, FR-017, SC-009: at the two crossings between an ASCII figure and a Light figure
 /// added to the demo, the shared cell reads from whichever figure is in front. `(28, 2)` is where
-/// an ASCII box, drawn with `mode: "above"` after a Light box already on the canvas, shares a
-/// border cell with it; `(36, 2)` is where a Light box, drawn with `mode: "above"` after an ASCII
-/// box, shares a border cell with it.
+/// an ASCII box, added after a Light box already on the canvas and so front-most, shares a border
+/// cell with it; `(36, 2)` is where a Light box, added after an ASCII box and so front-most,
+/// shares a border cell with it.
 #[test]
 fn the_two_crossings_read_from_whichever_figure_is_in_front() {
     let output = run(&[]);
@@ -331,7 +380,7 @@ fn the_demonstration_contains_double_heavy_and_light_round_characters() {
 /// Light with Heavy — so their crossing now draws the character the exact mixed arms produce
 /// instead of degrading. The other two pairs (Light Round with Light, Double with Heavy) still
 /// have no mixing table pairing them, so per ADR-0009 they still degrade every connected arm to
-/// one base stroke — whichever figure was stamped last, since both boxes use `mode: "above"`.
+/// one base stroke — whichever figure is added last, since it is front-most and decides first.
 /// Each crossing cell below is the same position the original two crossings use: where the first
 /// box's bottom border meets the second box's left side.
 #[test]

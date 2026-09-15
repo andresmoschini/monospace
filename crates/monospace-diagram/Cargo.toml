@@ -1,0 +1,13 @@
+[package]
+name = "monospace-diagram"
+description = "The model that holds a diagram after it is drawn: shapes in an order, drawable"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+monospace-core.workspace = true
+
+[lints]
+workspace = true

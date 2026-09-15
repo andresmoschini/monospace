@@ -1,6 +1,8 @@
 //! Minimal non-interactive command-line front end for Monospace.
 //!
-//! It holds no domain logic of its own: everything it draws comes from `monospace-core`.
+//! It holds no domain logic of its own: it converts its description format — documented in
+//! `specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md` — into a
+//! `monospace_diagram::Diagram` and draws it.
 
 mod description;
 

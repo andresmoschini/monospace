@@ -19,6 +19,7 @@ name = "monospace-cli"
 version = "0.1.0"
 dependencies = [
  "monospace-core",
+ "monospace-diagram",
  "monospace-glyph-sets",
  "serde",
  "serde_json",
@@ -29,6 +30,13 @@ name = "monospace-core"
 version = "0.1.0"
 dependencies = [
  "unicode-segmentation",
+]
+
+[[package]]
+name = "monospace-diagram"
+version = "0.1.0"
+dependencies = [
+ "monospace-core",
 ]
 
 [[package]]
