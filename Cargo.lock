@@ -32,6 +32,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "monospace-diagram"
+version = "0.1.0"
+dependencies = [
+ "monospace-core",
+]
+
+[[package]]
 name = "monospace-glyph-sets"
 version = "0.1.0"
 dependencies = [

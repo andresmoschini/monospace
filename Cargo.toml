@@ -2,6 +2,7 @@
 members = [
     "crates/monospace-cli",
     "crates/monospace-core",
+    "crates/monospace-diagram",
     "crates/monospace-glyph-sets",
     "xtask",
 ]
@@ -15,6 +16,7 @@ license = "MIT"
 
 [workspace.dependencies]
 monospace-core = { path = "crates/monospace-core" }
+monospace-diagram = { path = "crates/monospace-diagram" }
 monospace-glyph-sets = { path = "crates/monospace-glyph-sets" }
 
 # Lints are declared here rather than passed on the command line so that rust-analyzer shows them
