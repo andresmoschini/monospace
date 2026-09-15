@@ -24,6 +24,15 @@ diagram_ together with that section's rule that none of the changes can fail. Ev
 that document is a later slice and is listed under **Out of scope** below. This spec restates none
 of it.
 
+## Clarifications
+
+### Session 2026-09-15
+
+- Q: How are the two pictures separated in the application's output (FR-018)? → A: A short caption
+  line above each picture, with a blank line between them.
+- Q: Must an identity be readable as text in this slice, or is being unique and comparable enough? →
+  A: Readable — it reads as `#1`, `#2`, and so on.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - A shape can be named after it has been placed (Priority: P1)
@@ -90,17 +99,18 @@ second equals what the same two boxes added in the opposite order produce.
 
 ### User Story 3 - The shipped demonstration shows a reorder (Priority: P2)
 
-Someone runs the command-line application and sees the same figures twice: once as the description
-lists them, and once with one figure moved one place toward the front. The pair that changes is two
-opaque boxes that partly overlap, so which of them is in front is plain to see in both pictures.
-Nothing else about the two pictures differs.
+Someone runs the command-line application and sees the same figures twice, each picture under a
+caption saying what it is: once as the description lists them, and once with one figure moved one
+place toward the front. The pair that changes is two opaque boxes that partly overlap, so which of
+them is in front is plain to see in both pictures. Nothing else about the two pictures differs.
 
 **Why this priority**: it is what makes this increment demonstrable to someone who runs the
 application rather than only to someone who reads a test, which is what principle II asks of a
 slice. It is second because the capability is complete without it.
 
-**Independent Test**: run the application with no arguments. Two pictures appear; they are identical
-except in the top-left pair of overlapping opaque boxes, where the box in front is the other one.
+**Independent Test**: run the application with no arguments. Two captioned pictures appear; the
+pictures are identical except in the top-left pair of overlapping opaque boxes, where the box in
+front is the other one.
 
 **Acceptance Scenarios**:
 
@@ -108,7 +118,9 @@ except in the top-left pair of overlapping opaque boxes, where the box in front 
    it prints the description as written and then prints it again with one shape moved one place
    toward the front.
 2. **Given** any description the application is given, **When** it is rendered, **Then** the first
-   picture is exactly what the application printed for that description before this feature.
+   picture is exactly the picture the application printed for that description before this feature.
+   The captions are new text around it, so the comparison is on the picture and not on the whole
+   output.
 3. **Given** a description whose shapes do not overlap, **When** it is rendered, **Then** the two
    pictures are identical, because a reorder only shows where figures share cells.
 4. **Given** a description holding fewer than two shapes, **When** it is rendered, **Then** the two
@@ -138,11 +150,15 @@ except in the top-left pair of overlapping opaque boxes, where the box in front 
 #### Identity
 
 - **FR-001**: The diagram MUST generate an identity for a shape when that shape is added, and that
-  identity MUST be unique within the diagram.
+  identity MUST be unique within the diagram. The identities MUST be the ones _Identity_ names —
+  `#1` for the first shape added to a diagram, `#2` for the second, and so on — and an identity MUST
+  be readable as that text.
 - **FR-002**: Adding a shape MUST hand its identity back to the caller. This is the only way a
   caller learns an identity in this slice.
-- **FR-003**: A caller MUST NOT be able to choose an identity, or to change one after the fact. Both
-  are open questions in _Identity_ and neither is answered here.
+- **FR-003**: A caller MUST NOT be able to choose an identity, or to change one after the fact.
+  Reading one as text MUST NOT give a way back: there is no building an identity from `#1`, so the
+  only identities that exist are the ones the diagram handed out. Choosing and editing are open
+  questions in _Identity_ and neither is answered here.
 - **FR-004**: An identity MUST survive every change this slice makes to the shape it names: after a
   move forward or backward, the same identity names the same shape.
 - **FR-005**: Adding MUST keep putting the shape at the front of the order, unchanged from spec 079.
@@ -167,8 +183,9 @@ except in the top-left pair of overlapping opaque boxes, where the box in front 
 
 - **FR-013**: The application MUST render the description it reads, then move one shape one place
   toward the front by its identity, then render the diagram again, printing both pictures.
-- **FR-014**: The first picture MUST be exactly what the application printed for that description
-  before this feature.
+- **FR-014**: The first picture MUST be exactly the picture the application printed for that
+  description before this feature. Its caption is new text around it, so this is a claim about the
+  picture rather than about the whole output, which does change.
 - **FR-015**: The shape the demonstration moves MUST be the first entry of the description's
   `shapes` array — the back-most shape — named by the identity the diagram handed back when that
   entry was added.
@@ -177,8 +194,10 @@ except in the top-left pair of overlapping opaque boxes, where the box in front 
   entries being two partially overlapping opaque boxes, so that the move is visible.
 - **FR-017**: The shipped demonstration file MUST NOT need to change. Its first two entries are
   already two partially overlapping opaque boxes.
-- **FR-018**: The two pictures MUST be separated in the output so that each is readable as a whole
-  picture.
+- **FR-018**: Each picture MUST be preceded by a short caption line saying what it shows — the first
+  that it is the description as written, the second that one shape has moved one place toward the
+  front — and the two MUST be separated by a blank line, so that each is readable as a whole
+  picture. The exact wording of the captions is left to the plan.
 - **FR-019**: The description format MUST NOT gain a field, and the description types MUST stay
   private to `monospace-cli`, per
   [ADR-0035](../../docs/decisions/0035-keep-the-cli-demo-format-out-of-the-model.md). The
@@ -188,8 +207,8 @@ except in the top-left pair of overlapping opaque boxes, where the box in front 
 
 This spec's minimum, beyond the unit tests the constitution asks of any slice:
 
-- **TE-001**: Identities being different is tested: three shapes added to one diagram yield three
-  identities that differ from one another.
+- **TE-001**: Identities are tested: three shapes added to one diagram yield three identities that
+  differ from one another and that read as `#1`, `#2` and `#3` in the order the shapes were added.
 - **TE-002**: Moving forward is tested by drawing: two partially overlapping opaque boxes, drawn
   before and after the back one moves forward, produce different buffers, and the second equals what
   the same two boxes added in the opposite order produce.
@@ -202,8 +221,9 @@ This spec's minimum, beyond the unit tests the constitution asks of any slice:
 - **TE-006**: An identity surviving a reorder is tested: a shape moved forward and then backward by
   the same identity leaves the diagram drawing what it drew at the start.
 - **TE-007**: The application is tested end to end on a description of two partially overlapping
-  opaque boxes: it prints two pictures, the first equal to the two boxes in the order written and
-  the second equal to the two boxes in the opposite order.
+  opaque boxes: it prints two captioned pictures, the first equal to the two boxes in the order
+  written and the second equal to the two boxes in the opposite order. The test pins the pictures;
+  it does not pin the wording of the captions.
 - **TE-008**: The demonstration's two pictures differing only in the top-left pair is confirmed by
   observation at delivery — run, read, and recorded in `docs/learning-log.md`. It is not pinned by
   an automated test, for the reason spec 079 gave under its TE-007: pinning the demonstration's text
@@ -212,9 +232,10 @@ This spec's minimum, beyond the unit tests the constitution asks of any slice:
 
 ### Key Entities
 
-- **ShapeId**: a shape's identity — a string, generated by the diagram when the shape is added, and
-  unique within that diagram. It is the diagram's, not the shape's: it survives what happens to the
-  shape it names, and two equal shapes added twice get two of them.
+- **ShapeId**: a shape's identity — a string, generated by the diagram when the shape is added and
+  unique within that diagram: `#1` for the first, `#2` for the second, and so on. It reads back as
+  that text and cannot be built from it. It is the diagram's, not the shape's: it survives what
+  happens to the shape it names, and two equal shapes added twice get two of them.
 - **Order**: the sequence a diagram holds its shapes in, unchanged from spec 079. Its front is drawn
   first. What this slice adds is that a shape can move one place along it in either direction.
 - **Diagram**: shapes in an order, drawable, and now changeable by naming one of them.
@@ -259,21 +280,22 @@ TE-008. Nothing automatic pins it.
   operation is added later without changing anything that exists. Neither is expensive to reverse
   and neither is a question someone would later ask "why is this like this?" about, so by principle
   VI both belong in the learning log rather than in `docs/decisions/`.
-- **The identity is a string, and its shape is the plan's business.** _Vocabulary_ settles what it
-  is — "a string, unique within its diagram" — and _Identity_ settles what the diagram generates:
-  the first is `#1`, the second `#2`, and so on. How that is typed so a caller cannot fabricate one
-  is a design question for `/speckit-plan`, not a requirement here.
+- **The identity is a string, and only its typing is the plan's business.** _Vocabulary_ settles
+  what it is — "a string, unique within its diagram" — and _Identity_ settles what the diagram
+  generates: the first is `#1`, the second `#2`, and so on. FR-001 and FR-003 settle that those
+  values are readable and that reading them gives no way to build one. How that is typed so a caller
+  cannot fabricate one is a design question for `/speckit-plan`, not a requirement here.
 - **Identities are never reused.** Nothing in this slice removes a shape, so the question only
   arises with issue #81. A diagram that has added three shapes has handed out three identities, all
   different.
 - **The demonstration prints two pictures for every description, not only for the shipped one.** The
   application special-cases nothing: a file it is given renders twice, and the second picture is
-  identical to the first whenever the move changes no cell. How the two are separated in the output
-  — a blank line, a caption, or both — is left to the plan and is worth settling at
-  `/speckit-clarify` if the maintainer has a preference.
+  identical to the first whenever the move changes no cell. Both carry a caption, for the same
+  reason: a run that shows no difference still says what it was showing.
 - **The application's output changes, deliberately.** Spec 079's SC-003 pinned it byte for byte
-  against the version before that feature; this feature ends that, and FR-014 keeps only the first
-  picture equal to what was printed before.
+  against the version before that feature; this feature ends that. What FR-014 keeps is the first
+  picture, not the output around it: the captions FR-018 asks for are new text, and the output no
+  longer starts where it used to.
 - **The constitution needs no amendment.** _In scope for this phase_ already names
   `monospace-diagram`, and this slice adds no crate.
 

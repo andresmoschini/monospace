@@ -41,15 +41,18 @@ CLARIFICATION] markers:
 - Whether the shipped demonstration has to show a reorder. It does, using the partially overlapping
   opaque boxes the demonstration file already carries, which is User Story 3.
 
-Three names sit close to the line between requirement and design, and each is placed deliberately:
+Two of the three names below sit close to the line between requirement and design; the third was
+settled by `/speckit-clarify` on 2026-09-15 and is no longer open:
 
 - **FR-016 names a comment.** A comment is normally the plan's business. It is a requirement here
   because the maintainer asked for the demonstration's assumption to be visible where the code makes
   it, and because nothing else in the repository records it.
-- **The identity's type is not specified.** _Vocabulary_ settles that it is a string; how it is
-  typed so a caller cannot fabricate one is left to `/speckit-plan`.
-- **How the two pictures are separated is not specified.** FR-018 asks only that each be readable as
-  a whole picture. It is named in Assumptions as worth settling at `/speckit-clarify`.
+- **The identity's type is not specified, but its values are.** `/speckit-clarify` settled that an
+  identity reads as `#1`, `#2`, and so on, and that reading one gives no way to build one (FR-001,
+  FR-003). How it is typed so a caller cannot fabricate one is still left to `/speckit-plan`.
+- **How the two pictures are separated was settled at `/speckit-clarify`.** FR-018 now asks for a
+  short caption line above each picture and a blank line between them, and leaves only the captions'
+  wording to `/speckit-plan`.
 
 One requirement is accepted with nothing automatic to verify it, named as such in the spec per
 principle IV: **TE-008**, the demonstration's two pictures differing only in the top-left pair.
