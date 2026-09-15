@@ -44,8 +44,10 @@ sentence, the core's is named as the core's.
 
 ## 2. The diagram
 
-A diagram holds shapes in an order and nothing else. It does not hold a buffer, a glyph catalog, a
-window or a rendered picture: those are given to it when it draws, and it keeps none of them.
+A diagram holds shapes in an order and nothing else. It does not hold a buffer, a window or a
+rendered picture. The buffer it writes into is given to it when it draws, and it keeps it no longer
+than that drawing; a glyph catalog it is never given at all, because it never renders — see
+_Drawing_.
 
 The order is a sequence, and its **front** is the end drawn first. A shape nearer the front decides
 a cell before one behind it. Nothing about the order is a coordinate: it says which shape decides
@@ -136,10 +138,11 @@ outside to leave through.
 
 ## 7. Drawing
 
-A diagram draws into a window the caller gives it — an origin and a size — together with whatever
-else the render needs. The diagram measures nothing and sizes nothing: a shape may answer no anchor
-point at all, so there is nothing to measure a canvas from, and what falls outside the window is
-clipped exactly as a stamp outside a buffer's window has always been
+A diagram draws into a buffer the caller gives it, and that buffer's origin and size are the window.
+It writes cells and stops there: turning them into text is the caller's, with the glyph catalog the
+caller holds. The diagram measures nothing and sizes nothing: a shape may answer no anchor point at
+all, so there is nothing to measure a canvas from, and what falls outside the window is clipped
+exactly as a stamp outside a buffer's window has always been
 ([ADR-0042](decisions/0042-draw-a-diagram-front-to-back-into-a-given-window.md)).
 
 Shapes are visited from the front of the order to the back, and every cell is stamped with `Below`.
