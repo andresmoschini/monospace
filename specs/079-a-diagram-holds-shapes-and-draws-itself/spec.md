@@ -26,6 +26,27 @@ _Drawing_, the `Diagram`, `Shape` and `Order` rows of _Vocabulary_, and the `add
 diagram_. Everything else in that document is a later slice and is listed under **Out of scope**
 below. This spec restates none of it.
 
+## Clarifications
+
+### Session 2026-09-15
+
+- Q: `docs/diagram-model.md` reads two ways on whether a diagram renders or only draws. Where is
+  that settled? → A: In this pull request. _The diagram_ and _Drawing_ are tightened so the model
+  reads one way: a diagram writes cells into a buffer, and turning them into text stays the
+  caller's, with the glyph catalog the caller holds.
+- Q: What does a diagram receive when it is asked to draw? → A: The buffer the caller already built.
+  That buffer's origin and size are the window, the diagram creates nothing, and it binds `Below`
+  itself rather than taking a surface that carries a mode.
+- Q: A box and a line carry one position, an arrow carries two and none of its own. What does "an
+  absolute position" in FR-007 qualify? → A: Every position a figure carries, rather than one `at`
+  imposed on every kind. Each kind holds the positions the core shape it constructs already has.
+- Q: How is "drawing changes nothing about the diagram" observed, when nothing in this slice can
+  name a shape? → A: By drawing again and comparing the two buffers. The diagram offers no way to
+  read its shapes in this slice; naming one arrives with issue #80.
+- Q: How far does rejecting an unrecognized field in the description format go? → A: Nowhere. The
+  requirement is dropped: the format is the demonstration's, it is temporary, and it stays with
+  whatever the serialization library does by default.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - A figure survives being drawn (Priority: P1)
@@ -49,7 +70,9 @@ and the diagram is unchanged by either.
 1. **Given** a diagram holding a box and a line, **When** it is drawn into a window and then drawn
    again into an equal window, **Then** the two buffers are equal.
 2. **Given** a diagram that has been drawn, **When** it is asked to draw a second time, **Then**
-   nothing about the diagram has changed: the same shapes, in the same order.
+   nothing about the diagram has changed: the same shapes, in the same order — observed by the
+   second drawing producing an equal buffer, since nothing in this slice can name a shape to ask
+   about one.
 3. **Given** a diagram holding no shapes, **When** it is drawn into a window, **Then** the buffer is
    left exactly as it was.
 4. **Given** a diagram holding a box that falls partly outside the window it is drawn into, **When**
@@ -118,12 +141,9 @@ the format it is written in no longer has a `mode` field.
 2. **Given** a description file, **When** it is read, **Then** its `shapes` array is added to a
    diagram in the order it is written, so the last shape in the file is the front-most and decides
    first — which is what the last shape in the file did before, when it was painted last.
-3. **Given** a description file carrying a `mode` field on any shape, **When** it is read, **Then**
-   it is rejected with an error naming the unrecognized field, rather than parsed with the field
-   ignored.
-4. **Given** a description with two overlapping boxes, **When** it is rendered, **Then** it produces
+3. **Given** a description with two overlapping boxes, **When** it is rendered, **Then** it produces
    the same text as the two corresponding core shapes stamped back to front with `Above`.
-5. **Given** the application, **When** it is built, **Then** it still holds no domain logic: its
+4. **Given** the application, **When** it is built, **Then** it still holds no domain logic: its
    description types convert into diagram shapes and it renders, and nothing else.
 
 ---
@@ -140,8 +160,11 @@ the format it is written in no longer has a `mode` field.
   feature adds no rule about it.
 - A shape added twice, as two equal values: the diagram holds two shapes. Nothing in this slice
   deduplicates, because nothing in this slice can tell two shapes apart.
-- The same diagram drawn into two windows with different origins: each drawing is independent, and
+- The same diagram drawn into two buffers with different origins: each drawing is independent, and
   neither is affected by the other.
+- A description file still carrying `mode`: the field is ignored, the file renders under the order
+  it is written in, and nothing warns — see _The description format is not validated further_ under
+  **Assumptions**.
 
 ## Requirements _(mandatory)_
 
@@ -167,8 +190,10 @@ the format it is written in no longer has a `mode` field.
 - **FR-006**: A caller MUST be able to create an empty diagram and to add a shape to it. Adding puts
   the shape at the front of the order.
 - **FR-007**: A diagram's shape MUST be a value of the diagram crate's own type, holding the
-  parameters of its figure and an absolute position, and drawing by constructing the corresponding
-  core shape (ADR-0039).
+  parameters of its figure and its positions, and drawing by constructing the corresponding core
+  shape (ADR-0039). Every position it holds is absolute in this slice, and a kind MUST hold the
+  positions its figure already has rather than one imposed on every kind: a box its corner, a line
+  its first cell, an arrow the position of each of its two endpoints and none of its own.
 - **FR-008**: The set of kinds a diagram's shape may be MUST be closed, and MUST hold exactly three
   in this slice: a box, a line and an arrow — the three the core draws.
 - **FR-009**: Each kind MUST draw what the corresponding core shape draws, given the same
@@ -177,11 +202,13 @@ the format it is written in no longer has a `mode` field.
 
 #### Drawing
 
-- **FR-010**: A diagram MUST draw all of its shapes into a window the caller gives it. The diagram
-  MUST NOT compute, measure or size that window (ADR-0042).
+- **FR-010**: A diagram MUST draw all of its shapes into a buffer the caller gives it, whose origin
+  and size are the window. The diagram MUST NOT create that buffer, and MUST NOT compute, measure or
+  size the window (ADR-0042).
 - **FR-011**: Drawing MUST visit shapes from the front of the order to the back.
-- **FR-012**: Every cell MUST be stamped with `Below`. The caller MUST NOT be able to choose a stamp
-  mode, per shape or per drawing.
+- **FR-012**: Every cell MUST be stamped with `Below`, bound by the diagram itself rather than by
+  anything the caller hands it. The caller MUST NOT be able to choose a stamp mode, per shape or per
+  drawing.
 - **FR-013**: Drawing MUST produce cells and stop there. Turning those cells into text stays the
   caller's, with the glyph catalog the caller holds.
 - **FR-014**: What falls outside the window MUST be clipped, silently, exactly as a stamp outside a
@@ -194,16 +221,13 @@ the format it is written in no longer has a `mode` field.
 - **FR-016**: The application MUST build a diagram from the description it reads and ask that
   diagram to draw, rather than stamping shapes into a buffer itself.
 - **FR-017**: The description format MUST lose its per-shape `mode` field.
-- **FR-018**: The description format MUST reject a field it does not recognize, naming it, so that a
-  description written against the old format fails rather than drawing something different from what
-  it says.
-- **FR-019**: The `shapes` array MUST be added to the diagram in the order it is written, so the
+- **FR-018**: The `shapes` array MUST be added to the diagram in the order it is written, so the
   last entry is the front-most.
-- **FR-020**: The `canvas` a description carries MUST be the window the diagram is asked to draw
-  into.
-- **FR-021**: The shipped demonstration MUST be changed so that its rendered output is unchanged:
+- **FR-019**: The `canvas` a description carries MUST be the buffer the diagram is asked to draw
+  into: its origin and its size are the window.
+- **FR-020**: The shipped demonstration MUST be changed so that its rendered output is unchanged:
   the two pairs it expresses with `mode: "below"` today become the corresponding order.
-- **FR-022**: The description types MUST stay private to `monospace-cli`, per
+- **FR-021**: The description types MUST stay private to `monospace-cli`, per
   [ADR-0035](../../docs/decisions/0035-keep-the-cli-demo-format-out-of-the-model.md), and the
   application MUST keep holding no domain logic.
 
@@ -239,8 +263,8 @@ This spec's minimum, beyond the unit tests the constitution asks of any slice:
   value that draws and answers nothing about itself.
 - **Order**: the sequence a diagram holds its shapes in. Its front is drawn first, and a shape
   nearer the front decides a cell before one behind it. Nothing about it is a coordinate.
-- **Window**: an origin and a size, given by the caller at the moment of drawing. Not held by the
-  diagram, not derived from its shapes.
+- **Window**: an origin and a size. It is the buffer's, and the buffer is what the caller hands the
+  diagram at the moment of drawing. Not held by the diagram, not derived from its shapes.
 
 ## Success Criteria _(mandatory)_
 
@@ -253,11 +277,9 @@ This spec's minimum, beyond the unit tests the constitution asks of any slice:
   does.
 - **SC-003**: Running the command-line application with no arguments produces output identical, byte
   for byte, to what it produced before this feature.
-- **SC-004**: A description file written against the previous format is rejected with a message
-  naming the field that no longer exists, rather than silently rendering a different picture.
-- **SC-005**: `cargo xtask check` is green, including the new crate compiling for
+- **SC-004**: `cargo xtask check` is green, including the new crate compiling for
   `wasm32-unknown-unknown`.
-- **SC-006**: Every claim above about which figure wins an overlap is backed by a test that fails if
+- **SC-005**: Every claim above about which figure wins an overlap is backed by a test that fails if
   the drawing order or the stamp mode is changed.
 
 ### Accepted on observation
@@ -267,13 +289,15 @@ delivery. Nothing automatic pins it, by TE-007.
 
 ## Assumptions
 
-- **A diagram draws cells, and the caller renders.** `docs/diagram-model.md` reads two ways on this:
-  _The diagram_ says a buffer and a glyph catalog are "given to it when it draws", while _Drawing_
-  says the diagram draws into a window "together with whatever else the render needs". This spec
-  takes the first: drawing produces cells, and rendering them to text stays the caller's. It is what
-  issue #86 needs, since the ownership record lives in the buffer beside its cells while the diagram
-  holds the mapping out of it. _Drawing_'s wording is looser than the rule it states, and tightening
-  it is a change to the model rather than to this feature.
+- **A diagram draws cells, and the caller renders — and the model now says so.**
+  `docs/diagram-model.md` read two ways on this: _The diagram_ said a buffer and a glyph catalog are
+  "given to it when it draws", while _Drawing_ said the diagram draws into a window "together with
+  whatever else the render needs". This feature amends both, in this pull request, so the model
+  reads one way: drawing produces cells in a buffer the caller gives, and rendering them to text
+  stays the caller's, with the glyph catalog the caller holds. It is what issue #86 needs, since the
+  ownership record lives in the buffer beside its cells while the diagram holds the mapping out of
+  it. The amendment tightens wording that was looser than the rule it stated; it reverses no
+  recorded decision, so it needs no ADR of its own.
 - **The order is what the demonstration's `mode` was expressing.** Verified before writing this
   spec: swapping the two pairs that use `mode: "below"` and setting every remaining `mode` to
   `"above"` produces output identical to the current demonstration's. That is the back-to-front half
@@ -284,9 +308,11 @@ delivery. Nothing automatic pins it, by TE-007.
 - **Every position is absolute.** _Positions_ allows a reference, but only on a connector's
   endpoint, and that is issue #85's. Nothing in this slice resolves anything, so the "resolves to
   nothing" rule has no case to apply to.
-- **Rejecting an unrecognized field is new behavior, not a restoration.** The format ignores unknown
-  fields today. FR-018 changes that so removing `mode` cannot silently change what a file means. It
-  replaces the existing test that a bad `mode` value fails to parse.
+- **The description format is not validated further.** Removing `mode` leaves a file written against
+  the old format parsing with the field ignored — what the serialization library does by default —
+  and the picture it renders changes without a word. That is accepted rather than fixed here: the
+  format is the demonstration's, it is temporary, and hardening it is not this feature's work. The
+  existing test that a bad `mode` value fails to parse goes with the field, and nothing replaces it.
 - **The constitution needs no amendment.** _In scope for this phase_ already names
   `monospace-diagram`, amended when ADR-0038 was taken.
 

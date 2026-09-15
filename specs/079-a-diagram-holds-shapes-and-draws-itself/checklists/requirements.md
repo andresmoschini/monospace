@@ -42,7 +42,8 @@
   demonstration's output. The spec says so in its own words under _Accepted on observation_, per
   principle IV's requirement that a claim with nothing to verify it be named as such rather than
   described as tested.
-- **One assumption is a reading of the model, not a decision.** `docs/diagram-model.md` reads two
-  ways on whether a diagram renders or only draws; the spec takes _The diagram_'s reading and says
-  so. Tightening _Drawing_'s wording is a change to the model, and is the first thing
-  `/speckit-clarify` should settle before this merges.
+- **The model no longer reads two ways.** `docs/diagram-model.md` said in _The diagram_ that a glyph
+  catalog is given to a diagram when it draws, and in _Drawing_ that it is given a window "together
+  with whatever else the render needs". `/speckit-clarify` settled it: both sections are tightened
+  in this pull request, so the model says once that a diagram writes cells into a buffer the caller
+  gives and never renders. The spec's assumption records the amendment rather than a reading.
