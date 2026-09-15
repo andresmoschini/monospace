@@ -25,16 +25,16 @@ interactive application. Those are layers above this one.
 
 ## 1. Vocabulary
 
-| Term        | Meaning                                                                           |
-| ----------- | --------------------------------------------------------------------------------- |
-| `Diagram`   | Shapes in an order, drawable, changeable; the source of truth                     |
-| `Shape`     | One figure in a diagram: an identity, a position, and what kind of figure it is   |
-| `ShapeId`   | A shape's identity: a string, unique within its diagram                           |
-| `Anchor`    | One of nine named points a shape may offer: its center, a side's center, a corner |
-| `Position`  | Either an absolute point or a reference                                           |
-| `Reference` | A `ShapeId`, an `Anchor` on it, and a horizontal and vertical offset              |
-| `Order`     | The sequence the diagram holds its shapes in; its front is drawn first            |
-| `Ownership` | What a drawing produces beside the buffer: which shape wrote each position        |
+| Term        | Meaning                                                                         |
+| ----------- | ------------------------------------------------------------------------------- |
+| `Diagram`   | Shapes in an order, drawable, changeable; the source of truth                   |
+| `Shape`     | One figure in a diagram: an identity, a position, and what kind of figure it is |
+| `ShapeId`   | A shape's identity: a string, unique within its diagram                         |
+| `Anchor`    | One of four named points a shape may offer: the center of each of its sides     |
+| `Position`  | Either an absolute point or a reference                                         |
+| `Reference` | A `ShapeId`, an `Anchor` on it, and a horizontal and vertical offset            |
+| `Order`     | The sequence the diagram holds its shapes in; its front is drawn first          |
+| `Ownership` | What a drawing produces beside the buffer: which shape wrote each position      |
 
 A diagram's `Shape` and the core's `Shape` share a name and are different things. The core's is a
 value that draws and answers nothing about itself; this one is stored, identified, moved and
@@ -94,29 +94,29 @@ arrangements_ from [`model.md`](model.md) applied one layer up.
 
 ## 5. Anchor points
 
-A shape may offer nine named points:
-
-|                    |               |                     |
-| ------------------ | ------------- | ------------------- |
-| top-left corner    | top center    | top-right corner    |
-| left center        | center        | right center        |
-| bottom-left corner | bottom center | bottom-right corner |
+A shape may offer four named points: the center of its top side, of its right side, of its bottom
+side and of its left side.
 
 An anchor point is an absolute position, computed from the shape's own position when it is asked
 for. **A shape answers each of them itself, and may answer none**
-([ADR-0040](decisions/0040-let-each-shape-answer-its-own-anchor-points.md)): the nine are what can
+([ADR-0040](decisions/0040-let-each-shape-answer-its-own-anchor-points.md)): the four are what can
 be asked, not what must exist. Answering nothing is an ordinary answer, and it is what lets a figure
-with no honest center wait for a slice of its own rather than be given a fictional one.
+with no honest answer wait for a slice of its own rather than be given a fictional one.
 
-A **box** answers all nine, from its position and its size.
+A **box** answers all four, from its position and its size.
 
-A **line** answers as a flat box: it has no thickness, so its anchors coincide in threes. On a
-horizontal line, the three on the left are its left end, the three on the right are its right end,
-and the top center, center and bottom center are its middle. A vertical line is the same seen
-sideways.
+A **line** answers as a flat box: it has no thickness, so on a horizontal line the top center and
+the bottom center are one point, its middle, while the left center is its left end and the right
+center its right end. A vertical line is the same seen sideways.
 
-An **arrow** answers nothing for now. A route with bends has no honest answer to most of the nine,
-and none of them is needed to draw one.
+An **arrow** answers nothing for now. A route with bends has no honest answer to most of these, and
+none of them is needed to draw one.
+
+Four, rather than the nine issue #62 lists. What the corners and the center are waiting for is a
+consumer, and issue #90 is where they arrive: an anchor exists to hang a connector's endpoint from,
+and a side is the only one of the nine an endpoint has an unambiguous relationship with. It is also
+what keeps the question in _Attachment_ answerable, since a side has an outside and a corner does
+not.
 
 ## 6. Attachment
 

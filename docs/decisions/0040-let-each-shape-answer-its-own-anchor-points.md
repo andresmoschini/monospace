@@ -52,43 +52,51 @@ failure: it is the honest answer for a figure that has no such point, and
 [ADR-0041](0041-resolve-a-position-through-a-reference.md) says what happens to a position that
 depended on it.
 
-Two consequences of the choice are worth stating as rules rather than leaving implied:
+Three rules follow from the choice, and are worth stating plainly rather than leaving implied:
 
-**A line answers as a flat box.** A horizontal line has no thickness, so its three left anchors
-coincide, its three right anchors coincide, and its top center, center and bottom center coincide:
+**Four points, not nine.** What this phase's kinds answer is the center of each side — top, right,
+bottom and left. The four corners and the center are not refused, they are simply not there yet, and
+the reason is that anchor points have exactly one consumer: a connector's endpoint hanging from a
+shape ([ADR-0041](0041-resolve-a-position-through-a-reference.md)). A side is the only one of the
+nine an endpoint has an unambiguous relationship with. Two things follow. The constitution's removal
+test is satisfied — five variants every kind answers nothing to are five variants nothing breaks
+without — and the question of whether an attachment decides the direction an arrow leaves in stays
+answerable rather than being foreclosed: a side has an outside, and a corner or a center does not.
+Issue #90 is where the other five arrive.
 
-| Anchors that coincide on a horizontal line | Where         |
-| ------------------------------------------ | ------------- |
-| top-left, left center, bottom-left         | its left end  |
-| top center, center, bottom center          | its middle    |
-| top-right, right center, bottom-right      | its right end |
+**A line answers as a flat box.** A horizontal line has no thickness, so its top center and its
+bottom center are one point, the middle of the line; its left center is its left end and its right
+center its right end. A vertical line is the same seen sideways. This is what makes a line usable as
+something to pin to without inventing a width it does not have.
 
-A vertical line is the same seen sideways. This is what makes a line usable as something to pin to
-without inventing a width it does not have.
-
-**Arrows answer nothing, for now.** A route with bends has no honest answer to most of the nine, and
-none of them is needed to draw one. The permission to answer nothing is what lets that wait for a
-slice of its own instead of holding up the ones that are easy.
+**Arrows answer nothing, for now.** A route with bends has no honest answer to most of these — which
+side is the left one — and none of them is needed to draw one. The permission to answer nothing is
+what lets that wait for a slice of its own instead of holding up the ones that are easy.
 
 An anchor point is an absolute position, computed from the shape's own position at the moment it is
-asked. A shape whose own position does not resolve offers no anchor points either, which is what
-makes a chain of references collapse rather than resolve halfway.
+asked. A shape whose own position does not resolve offers no anchor points either. Nothing exercises
+that rule today, because ADR-0041 leaves references on endpoints alone and the kinds that answer
+anchors are the ones positioned absolutely; it is written down because it is what makes a chain
+collapse rather than resolve halfway on the day references widen, which is issue #89.
 
 ### Consequences
 
 - Good, because anchor points arrive one kind at a time, and a kind with a hard answer costs nothing
   until somebody needs it.
 - Good, because `extent` stays dropped and ADR-0030 stays standing. Nothing in the core has to
-  answer what it occupies, and the layer that needed measuring turned out to need nine named points
+  answer what it occupies, and the layer that needed measuring turned out to need four named points
   rather than a rectangle.
-- Good, because each kind's answer is testable as itself: a box's nine positions, a line's nine with
-  their coincidences, and an arrow's nothing are three small tests rather than one derivation to
+- Good, because each kind's answer is testable as itself: a box's four positions, a line's four with
+  their coincidence, and an arrow's nothing are three small tests rather than one derivation to
   trust.
 - Bad, because there is no single rule, so every kind added from here answers the question again,
   and two kinds could disagree about what "center" means without anything noticing.
 - Bad, because a shape that answers nothing is silent in the same way a shape that does not exist is
   silent. ADR-0041 accepts that, and it is the cost that record carries.
-- Bad, because the diagram cannot size its own canvas. Nine points that may be absent are not a
+- Bad, because four points is less than the issue asked for, and a diagram that wants a figure at a
+  box's corner has to wait for issue #90 or place it by hand. That is the price of not shipping five
+  answers nobody is asking questions with.
+- Bad, because the diagram cannot size its own canvas. Four points that may be absent are not a
   bound, so the caller supplies the window — see
   [ADR-0042](0042-draw-a-diagram-front-to-back-into-a-given-window.md), which takes that decision
   and inherits this reason for it.
@@ -130,9 +138,10 @@ is confirmed the same way: the question is asked and the answer is nothing.
 
 ## Reversibility
 
-Additive in the direction that matters. Adding a bounding rectangle later, for the kinds that can
+Additive in both directions that matter. Adding a bounding rectangle later, for the kinds that can
 answer one, takes nothing away: the anchors keep being what a reference resolves through, and the
-rectangle serves whatever new caller asked for it.
+rectangle serves whatever new caller asked for it. Growing the four points to nine is additive in
+the same way, since a kind that gains an answer takes none away.
 
 Removing anchors from a kind that answered them is the expensive direction, because diagrams built
 against those answers stop resolving. That cost is real from the first slice that ships an anchor,
@@ -155,6 +164,7 @@ another. Nothing here prevents that, and only review would catch it.
 - [ADR-0030](0030-drop-extent-until-a-caller-needs-it.md) — the record this one answers, including
   the sentence naming this slice as what would reverse it.
 - [ADR-0041](0041-resolve-a-position-through-a-reference.md) — what happens to a position that
-  depends on an anchor a shape does not answer.
+  depends on an anchor a shape does not answer, and the restriction that makes a side the only
+  anchor worth shipping first.
 - [The diagram model](../diagram-model.md), _Anchor points_ — the prose these rules are written
   into.
