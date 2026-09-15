@@ -18,7 +18,8 @@ impl std::fmt::Display for ShapeId {
 }
 ```
 
-Derives `Clone`, `Copy`, `Debug`, `PartialEq`, `Eq`.
+Derives `Clone`, `Debug`, `PartialEq`, `Eq`. It is not `Copy`: the identity is held as text, so it
+owns an allocation. That is why the two methods below take it by reference.
 
 - The diagram generates one per addition and hands it back. There is no other source (FR-002).
 - There is no constructor, no `From<&str>`, no `FromStr`, and no accessor for what is inside:
@@ -38,10 +39,10 @@ impl Diagram {
     pub fn add(&mut self, shape: Shape) -> ShapeId;
 
     /// Moves the shape named by `id` one place toward the front of the order.
-    pub fn forward(&mut self, id: ShapeId);
+    pub fn forward(&mut self, id: &ShapeId);
 
     /// Moves the shape named by `id` one place toward the back of the order.
-    pub fn backward(&mut self, id: ShapeId);
+    pub fn backward(&mut self, id: &ShapeId);
 
     /// Draws every shape into `buffer`, front to back, stamping every cell with `Below`.
     pub fn draw(&self, buffer: &mut Buffer);
@@ -54,6 +55,8 @@ impl Diagram {
 - `forward` and `backward` return nothing, and neither can fail (FR-009). An identity the diagram
   does not hold, and a shape already at the end it is moving toward, both change nothing and report
   nothing.
+- Both borrow the identity rather than taking it, so the caller keeps the one `add` gave it and can
+  name the same shape as often as it likes.
 - Neither changes anything but the order: the shapes, their parameters and their identities survive
   (FR-011), and an identity keeps naming the same shape across any number of moves (FR-004).
 - `draw` is unchanged, and stays the only way the order can be observed (FR-012).
@@ -90,7 +93,7 @@ diagram.add(Shape::Line { at: origin, len: 4, orientation: Orientation::Horizont
 assert_eq!(back.to_string(), "#1");
 
 // The box was added first, so it is behind the line. This puts it in front.
-diagram.forward(back);
+diagram.forward(&back);
 
 let mut buffer = Buffer::new(origin, size);
 diagram.draw(&mut buffer);

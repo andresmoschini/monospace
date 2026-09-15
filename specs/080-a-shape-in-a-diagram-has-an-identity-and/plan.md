@@ -8,17 +8,20 @@
 ## Summary
 
 `monospace-diagram` gains one public type and two public methods. `ShapeId` is a newtype over a
-private `u32` with a `Display` that writes `#1`, `#2`, and so on, and with no way in: no
-constructor, no `FromStr`, no accessor, so the only identities that exist are the ones the diagram
-handed out (FR-003). `Diagram` holds a `Vec<Placed>` instead of a `Vec<Shape>` — `Placed` being a
-crate-private pair of an identity and a shape — plus a `u32` counter that gives the next identity;
-`add` returns the identity it just generated, and `forward` and `backward` find an identity in the
-order and swap its entry with its neighbor, doing nothing at all when there is no such entry or when
-it is already at that end. Neither returns anything, because FR-009 rules out both an error and a
-report. `monospace-cli` then draws twice: its conversion hands back the identity of the first entry
-in the description, the application renders the diagram as written, moves that shape one place
-forward, and renders it again into a second buffer, each picture under a caption. The core gains
-nothing, the description format gains nothing, and the shipped demonstration file does not change.
+private `String` holding the identity's whole text — `#1`, `#2`, and so on — with a `Display` that
+writes it and no way in: no constructor, no `FromStr`, no accessor, so the only identities that
+exist are the ones the diagram handed out (FR-003). The text is the representation rather than a
+number dressed up at printing time, because _Identity_'s open question about editing an identity is
+one this repository expects to answer, and an edited identity is text (research.md Q1). `Diagram`
+holds a `Vec<Placed>` instead of a `Vec<Shape>` — `Placed` being a crate-private pair of an identity
+and a shape — plus a `u32` counter that numbers the next identity; `add` returns the identity it
+just generated, and `forward` and `backward` take one by reference, find it in the order and swap
+its entry with its neighbor, doing nothing at all when there is no such entry or when it is already
+at that end. Neither returns anything, because FR-009 rules out both an error and a report.
+`monospace-cli` then draws twice: its conversion hands back the identity of the first entry in the
+description, the application renders the diagram as written, moves that shape one place forward, and
+renders it again into a second buffer, each picture under a caption. The core gains nothing, the
+description format gains nothing, and the shipped demonstration file does not change.
 
 ## Technical Context
 
@@ -43,8 +46,9 @@ delivery rather than pinned, per the spec's _Accepted on observation_.
 
 **Project Type**: Rust cargo workspace — three libraries and one CLI binary. No crate is added.
 
-**Performance Goals**: N/A. `add` stays O(1) amortized; a move is a linear search of the order for
-an identity and one swap, on a diagram whose order is a handful of shapes.
+**Performance Goals**: N/A. `add` stays O(1) amortized and now allocates the identity's text once; a
+move is a linear search of the order comparing that text, and one swap, on a diagram whose order is
+a handful of shapes.
 
 **Constraints**: The picture the application prints for a description must not move (FR-014),
 although the output around it does. The core gains nothing. The description format gains no field
@@ -61,7 +65,9 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 - **I. Process over product**: followed. The slice goes through the Spec Kit stages, and the typing
   of the identity is chosen for what it teaches — a newtype whose private field is what makes FR-003
-  structural instead of a convention — rather than for the shortest route to a reorder.
+  structural instead of a convention — rather than for the shortest route to a reorder. Holding the
+  identity as text costs an allocation this slice does not need, and buys that the type survives
+  editing arriving later; the maintainer took that trade.
 - **II. Demonstrable increments**: the three user stories are the three landings — identities,
   moving, the demonstration — and each leaves `cargo run -p monospace-cli` producing output. The
   increment closes with an appended `docs/learning-log.md` entry that also records the TE-008
@@ -81,7 +87,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
   the design bore that out — the eight questions in [research.md](research.md) are all answered
   inside one crate or inside the CLI, and each is undone by changing the code that answers it.
 - **VII. The core stays portable**: `monospace-core` gains no item and no knowledge of identities.
-  `ShapeId` is a `u32` and a `Display`, so it names no platform, and the existing `wasm` step is
+  `ShapeId` is a `String` and a `Display`, so it names no platform, and the existing `wasm` step is
   what proves it.
 
 **Constraints and Dependencies**: no new dependency, so nothing to date-check. Testing meets the

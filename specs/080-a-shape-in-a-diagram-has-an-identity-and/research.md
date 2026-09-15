@@ -7,28 +7,39 @@ they are recorded here.
 
 ## Q1: How is an identity typed so that it reads as `#1` and cannot be built from `#1`?
 
-**Decision**: `ShapeId`, a newtype over a private `u32`, deriving `Clone`, `Copy`, `Debug`,
-`PartialEq` and `Eq`, with a hand-written `Display` that writes `#` and then the number. No public
-constructor, no `From<&str>`, no `FromStr`, and no accessor for the number inside.
+**Decision**: `ShapeId`, a newtype over a private `String` holding the identity's whole text — `#`
+included — deriving `Clone`, `Debug`, `PartialEq` and `Eq`, with a hand-written `Display` that
+writes that text. No public constructor, no `From<&str>`, no `FromStr`, and no accessor for the
+string inside.
 
 **Rationale**: FR-003 asks that reading an identity give no way back to one. A private field in a
 crate that exposes no constructor is what makes that structural instead of a convention: the only
 `ShapeId` values that exist anywhere are the ones `Diagram::add` handed out. `Display` is what
 "reads as that text" means in Rust — `{}`, `format!` and `to_string` all come from it, and TE-001
-tests it through `to_string`. Holding a `u32` contradicts nothing: _Vocabulary_ says the identity is
-a string and FR-001 asks it to read as one, while the spec's own assumption leaves the typing to
-this plan. A number is also the whole of the generation in Q3.
+tests it through `to_string`. _Vocabulary_ says the identity is a string, and this stores the string
+it is: the type does not have to be redefined on the day _Identity_'s open question is answered and
+a caller can edit one, because an edited identity is text and not an ordinal. The `#` is part of the
+stored value rather than something `Display` prepends, for the same reason — an identity edited to
+`header` must read as `header`, not as `#header`.
+
+The cost is that `ShapeId` is not `Copy`. Q4 pays it by taking the identity by reference, which is
+what a lookup argument should be for a type that owns an allocation anyway.
 
 **Alternatives considered**:
 
+- A newtype over a `u32`, formatting `#` and the number in `Display`. Four bytes instead of an
+  allocation, `Copy` for free, and the ordinal generated in Q3 kept as the representation. Rejected
+  on what comes next rather than on this slice: editing is an open question in the model and a
+  question this repository expects to answer, and an editable identity is not a number. Changing the
+  field then would change `Copy`, and so every signature that takes an identity — a wider change
+  later to save an allocation now.
 - A public `String` field. Anyone could then build `#1` and name a shape they were never handed,
   which is FR-003 backwards.
-- A private `String` field. The same public surface, but an allocation per shape to hold what four
-  bytes hold, and the `#` repeated in every value instead of living in one `Display`.
-- Dropping `Copy`. An identity would then be cloned at every call. It is a four-byte value passed as
-  an argument, and `Copy` is what lets TE-006 read as `forward(id)` then `backward(id)`.
-- Writing `Debug` by hand so it prints `#1` too. The derive is kept: `assert_ne!` needs `Debug`, and
-  what it prints is a test message rather than the identity's text, which `Display` owns.
+- Storing the number in the string and adding the `#` in `Display`, as in `ShapeId("1")`. Half of
+  each representation, and it makes the `#` unreachable for an edited identity.
+- Writing `Debug` by hand so it prints the bare text. The derive is kept: `assert_ne!` needs
+  `Debug`, and what it prints is a test message rather than the identity's text, which `Display`
+  owns.
 
 ## Q2: Where does an identity live?
 
@@ -52,9 +63,9 @@ shape "findable after it has been placed".
 
 ## Q3: How is the next identity generated?
 
-**Decision**: `Diagram` holds a private `next: u32`, starting at 0 and incremented before each use,
-so the first shape added is `#1`. Nothing searches what is already there, and there is no state
-outside the diagram.
+**Decision**: `Diagram` holds a private `next: u32`, starting at 0 and incremented before each use;
+the identity is the text that number formats into, so the first shape added is `#1`. Nothing
+searches what is already there, and there is no state outside the diagram.
 
 **Rationale**: FR-001 asks for uniqueness within one diagram and nothing more, and a counter gives
 it in one addition. It also gives the spec's assumption that identities are never reused, for free,
@@ -62,18 +73,25 @@ on the day issue #81 removes a shape: deriving the identity from the length woul
 shape the identity of the one just removed. Starting at 0 and incrementing first is what keeps
 `#[derive(Default)]` on `Diagram`, which is what `Diagram::new` is built on today.
 
+The counter numbers the identities; it does not represent them (Q1). That is the split that lets an
+identity be edited later without the counter having to mean anything about what the diagram now
+holds — at which point uniqueness becomes something the edit has to check, and this slice, which has
+no edit, does not.
+
 **Alternatives considered**:
 
 - Deriving the identity from how many shapes are held. One field cheaper, and wrong as soon as
   anything is removed.
+- Scanning the identities already handed out for the highest number. It reads the order to write to
+  it, and once identities can be edited there is no highest number to find.
 - A process-wide counter, or a random or UUID identity. Both buy uniqueness across diagrams, which
   the spec explicitly does not want: an identity from another diagram names nothing there, and an
   edge case tests exactly that.
 
 ## Q4: What do `forward` and `backward` look like, given neither may fail?
 
-**Decision**: `pub fn forward(&mut self, id: ShapeId)` and
-`pub fn backward(&mut self, id: ShapeId)`, both returning nothing. Each finds the position of `id`
+**Decision**: `pub fn forward(&mut self, id: &ShapeId)` and
+`pub fn backward(&mut self, id: &ShapeId)`, both returning nothing. Each finds the position of `id`
 and, when there is one and it is not already at the end it is moving toward, swaps it with its
 neighbor.
 
@@ -84,8 +102,16 @@ changes and the call site then reads as the change it makes. `Vec::swap` is exac
 between neighbors, and such a move is its own inverse, which is what user story 2's scenario 6
 asserts.
 
+By reference, because `ShapeId` owns a `String` and is therefore not `Copy` (Q1). Both methods only
+compare the identity against what they hold, so taking it by value would ask the caller to give up
+or clone the one thing `add` handed them — and clippy's `needless_pass_by_value`, which the pedantic
+group turns on, says as much. It is also what makes TE-006 read as `forward(&id)` then
+`backward(&id)` on the identity the test kept.
+
 **Alternatives considered**:
 
+- Taking the identity by value. The caller would clone at every call to keep naming the same shape,
+  which is what TE-006 and the application both do.
 - One method taking a direction argument. A third public type invented for two methods, and
   `Direction` already means something else in the core: where an arrow leaves an endpoint.
 - Returning `bool` or `Result` when the identity is not held. Ruled out by FR-009, and the model
