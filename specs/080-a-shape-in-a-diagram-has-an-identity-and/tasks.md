@@ -150,29 +150,29 @@ identical except in the top-left pair of overlapping opaque boxes (spec.md Indep
       and adding no test, in `crates/monospace-cli/src/description.rs` and
       `crates/monospace-cli/src/main.rs` (plan.md Constitution Check principle V; data-model.md
       `Description::buffer` — removed)
-- [ ] T019 [US3] Change `Description::into_diagram` to return `(Diagram, Option<ShapeId>)`: the
+- [x] T019 [US3] Change `Description::into_diagram` to return `(Diagram, Option<ShapeId>)`: the
       diagram built from `shapes` in order, and the identity of the first entry (`None` when
       `shapes` is empty), in `crates/monospace-cli/src/description.rs` (FR-015; data-model.md
       `Description::into_diagram`)
-- [ ] T020 [US3] Rewrite `render_description` in `crates/monospace-cli/src/main.rs` to: build the
+- [x] T020 [US3] Rewrite `render_description` in `crates/monospace-cli/src/main.rs` to: build the
       window, call `into_diagram` for the diagram and the back-most identity, print a caption, draw
       into a buffer and render the first picture, print a blank line, call `forward` on the
       back-most identity when it is `Some` (skipping the move when it is `None`), print a second
       caption, draw into a second buffer and render the second picture (FR-013, FR-014, FR-015,
       FR-018; data-model.md `render_description`)
-- [ ] T021 [US3] Add the comment FR-016 requires at the `forward` call in
+- [x] T021 [US3] Add the comment FR-016 requires at the `forward` call in
       `crates/monospace-cli/src/main.rs`, stating that moving the first entry is a
       demonstration-only assumption relying on the shipped demonstration's first two entries being
       two partially overlapping opaque boxes (FR-016; data-model.md "comment FR-016 asks for")
-- [ ] T022 [US3] Update the existing subprocess test in `crates/monospace-cli/tests/cli.rs` that
+- [x] T022 [US3] Update the existing subprocess test in `crates/monospace-cli/tests/cli.rs` that
       pinned the whole run to instead read the first of the two pictures, unchanged in what it
       asserts about that picture (FR-014; quickstart.md "Build and test the workspace")
-- [ ] T023 [P] [US3] Add a new subprocess test in `crates/monospace-cli/tests/cli.rs` on a
+- [x] T023 [P] [US3] Add a new subprocess test in `crates/monospace-cli/tests/cli.rs` on a
       description of two partially overlapping opaque boxes: it prints two captioned pictures, the
       first equal to the two boxes in the order written and the second equal to the two boxes in the
       opposite order, found by the blank line between them and pinning neither caption's wording
       (TE-007)
-- [ ] T024 [P] [US3] Add a subprocess test in `crates/monospace-cli/tests/cli.rs` on a description
+- [x] T024 [P] [US3] Add a subprocess test in `crates/monospace-cli/tests/cli.rs` on a description
       holding fewer than two shapes (including an empty one): the two pictures are identical and the
       run succeeds (spec.md US3 scenario 4; edge case: no shapes)
 

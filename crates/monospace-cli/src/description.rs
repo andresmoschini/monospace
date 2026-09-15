@@ -7,7 +7,7 @@
 //! format itself and `data-model.md` for the field-by-field mapping onto `monospace_diagram`.
 
 use monospace_core::{Direction, Glyph, Orientation as CoreOrientation};
-use monospace_diagram::{Diagram, Endpoint as DiagramEndpoint, Shape as DiagramShape};
+use monospace_diagram::{Diagram, Endpoint as DiagramEndpoint, Shape as DiagramShape, ShapeId};
 use serde::{Deserialize, Deserializer};
 
 /// A position, mirroring `monospace_core::Pos` for deserialization.
@@ -202,13 +202,17 @@ impl Description {
         (self.canvas.origin.into(), self.canvas.size.into())
     }
 
-    /// Builds a diagram from `shapes`, in order (FR-016).
-    pub(crate) fn into_diagram(self) -> Diagram {
+    /// Builds a diagram from `shapes`, in order, and the identity of the first entry — the
+    /// back-most shape, since each addition goes in front of the last. `None` when `shapes` is
+    /// empty (FR-015, FR-016).
+    pub(crate) fn into_diagram(self) -> (Diagram, Option<ShapeId>) {
         let mut diagram = Diagram::new();
+        let mut back_most = None;
         for shape in self.shapes {
-            diagram.add(shape.into());
+            let id = diagram.add(shape.into());
+            back_most.get_or_insert(id);
         }
-        diagram
+        (diagram, back_most)
     }
 }
 
