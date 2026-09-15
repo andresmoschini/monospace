@@ -27,7 +27,7 @@ already established that stamping front to back with `Below` produces exactly th
 stamping back to front with `Above`, and names the first as the path that can stop early because a
 fully decided cell can no longer change. Both are available; the diagram has to pick one, and the
 pick is visible in more than performance, because
-[ADR-0043](0043-record-a-cells-owner-beside-the-buffer.md) reads the order to decide who owns a
+[ADR-0043](0043-let-the-buffer-record-who-decided-each-cell.md) reads the order to decide who owns a
 cell.
 
 ## Decision Drivers
@@ -83,9 +83,9 @@ nothing here touches it.
 - Good, because front to back is the path the model names as the one that can stop early, and
   ADR-0017's predicate finally has the caller it was made public for. No claim is made here about
   how much that saves; there is still no workload measured, and ADR-0017 said the same.
-- Good, because the first shape to reach a position is the front-most one, which is exactly the
-  owner ADR-0043 wants to record. Under option E the front-most shape is the last to arrive and the
-  ownership map would have to be overwritten as it goes.
+- Good, because the front-most shape is the first to decide a cell, which is exactly the owner
+  ADR-0043 records. Under option E it is the last to paint over one, so the record would be
+  overwritten as the drawing goes rather than written once.
 - Bad, because a caller that wants the whole diagram has nothing to base its window on. Today that
   caller is the command-line application, which will hard-code one. Nothing measures the drawing to
   check the window was big enough, so a figure that falls outside is silently clipped — which is
@@ -143,8 +143,8 @@ window: what falls inside is drawn, and nothing else appears.
 
 - Good, because it is the familiar painter's algorithm, and each shape simply overwrites.
 - Bad, because it rewrites every cell once per figure, and because the ownership record would be
-  overwritten in the same way — the last writer would have to win, which is the same answer arrived
-  at by the more expensive route.
+  overwritten in the same way — the last shape to decide a cell would have to win, which is the same
+  answer arrived at by the more expensive route.
 
 ## Reversibility
 
@@ -176,5 +176,5 @@ workload nobody has yet.
   makes "in front" mean deciding first rather than hiding.
 - [ADR-0017](0017-ask-the-cell-whether-it-is-decided.md) — the decided-cell skip, and the layer it
   was waiting for.
-- [ADR-0043](0043-record-a-cells-owner-beside-the-buffer.md) — what the drawing order decides about
-  ownership.
+- [ADR-0043](0043-let-the-buffer-record-who-decided-each-cell.md) — what the drawing order decides
+  about ownership.

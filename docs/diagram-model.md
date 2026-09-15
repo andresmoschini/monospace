@@ -34,7 +34,7 @@ interactive application. Those are layers above this one.
 | `Position`  | Either an absolute point or a reference                                         |
 | `Reference` | A `ShapeId`, an `Anchor` on it, and a horizontal and vertical offset            |
 | `Order`     | The sequence the diagram holds its shapes in; its front is drawn first          |
-| `Ownership` | What a drawing produces beside the buffer: which shape wrote each position      |
+| `Ownership` | What a drawing records at every position: which shape the cell there belongs to |
 
 A diagram's `Shape` and the core's `Shape` share a name and are different things. The core's is a
 value that draws and answers nothing about itself; this one is stored, identified, moved and
@@ -157,20 +157,25 @@ equal windows produces two equal buffers.
 
 ## 8. Ownership
 
-A drawing produces the buffer and, beside it, a map from position to the identity of the shape that
-wrote there **first**. Since shapes are visited front to back, the first writer is the front-most
-shape that reached the position, which is what a click on that position should select
-([ADR-0043](decisions/0043-record-a-cells-owner-beside-the-buffer.md)).
+Drawing records, at every position, which shape the cell there belongs to
+([ADR-0043](decisions/0043-let-the-buffer-record-who-decided-each-cell.md)). The record lives in the
+buffer, beside its cells, so a drawn diagram is one thing rather than two and asking what is at a
+position is asking the buffer. What the buffer keeps is a token it never interprets; the mapping
+from that token to a `ShapeId` is the diagram's.
 
-The map holds only positions inside the window that was drawn into, and only positions some shape
-wrote. A position no shape reached resolves to nothing.
+**A cell belongs to the front-most shape that decided it.** A shape that stamps a position and
+changes nothing there takes nothing, because ownership is about what is on the screen rather than
+about who passed by. A position nothing decided — one no shape wrote, or one whose every arm is
+still `Unset` — belongs to nobody, and so does every position outside the window that was drawn
+into.
 
-The map says **who reached a position first, not whose glyph it is**. A shape writes a cell whether
-or not the write changes anything, since nothing it draws through can read. The two come apart in
-one case: where the front-most shape left a side `Unset` and a shape behind it decided that arm, the
-glyph is partly the second shape's and the position belongs to the first.
+A cell is owned whole. Where the front-most shape left a side `Unset` and a shape behind it decided
+that arm, the glyph is made by both and the cell belongs to the front one. The rest is not recorded
+yet: when an editor needs it, what it gets is a list of owners for the position, front-most first,
+because a character is what a person clicks on and the arms inside one cannot be pointed at
+separately.
 
-A map belongs to the drawing that produced it. Changing the diagram does not update it; drawing
+The record belongs to the drawing that produced it. Changing the diagram does not update it; drawing
 again produces a new one.
 
 ## 9. Changing a diagram
@@ -209,9 +214,10 @@ Forward and backward at the end they are already at do nothing.
   the same thing: the dependent shape is absent from the output and the rest of the diagram is
   unchanged.
 - A shape's identity survives a move and a reorder.
-- In an overlap, every position resolves to the front-most shape that wrote it, and changing the
+- In an overlap, every position resolves to the front-most shape that decided it, and changing the
   order changes the answer.
-- A position no shape wrote resolves to nothing, and so does one outside the window.
+- A shape that stamps a position without changing anything there does not take it.
+- A position no shape decided resolves to nothing, and so does one outside the window.
 
 ## 11. Open questions
 

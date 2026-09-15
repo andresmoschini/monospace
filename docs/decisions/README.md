@@ -54,7 +54,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0040](0040-let-each-shape-answer-its-own-anchor-points.md)        | Let each shape answer its own anchor points, and allow it to answer none         | accepted                             |
 | [0041](0041-resolve-a-position-through-a-reference.md)             | Resolve a position through a reference, and draw nothing that cannot be resolved | accepted                             |
 | [0042](0042-draw-a-diagram-front-to-back-into-a-given-window.md)   | Draw a diagram front to back, into a window the caller gives                     | accepted                             |
-| [0043](0043-record-a-cells-owner-beside-the-buffer.md)             | Record a cell's owner beside the buffer, and let the first writer keep it        | accepted                             |
+| [0043](0043-let-the-buffer-record-who-decided-each-cell.md)        | Let the buffer record who decided each cell                                      | accepted                             |
 
 ## How to add one
 
