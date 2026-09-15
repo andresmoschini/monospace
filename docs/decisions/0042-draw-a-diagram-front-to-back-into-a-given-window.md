@@ -15,10 +15,12 @@ shapes in decides which are drawn in front of which.
 Two things have to be settled before that operation can exist, and both are about the one call.
 
 The first is the window. A buffer is a window with an origin and a size, and stamping outside it
-does nothing. Somebody has to choose that window, and the obvious candidate — the diagram, from its
-own content — has just been made unavailable:
-[ADR-0040](0040-let-each-shape-answer-its-own-anchor-points.md) lets a shape answer no anchor point
-at all, so the diagram holds nothing it could measure a canvas from.
+does nothing. Somebody has to choose that window, and the question hides two that have different
+owners: how much the diagram occupies, and which part of it is wanted. The second is the caller's
+and nobody else's — a terminal draws what fits at the scroll position it is at, and no measurement
+of the content answers that. The first is the diagram's, and
+[ADR-0040](0040-let-each-shape-answer-its-own-anchor-points.md) has just made it unable to answer: a
+shape may answer no anchor point at all, so the diagram holds nothing it could measure itself from.
 
 The second is the direction. [The model](../model.md), under _The two orders are equivalent_, has
 already established that stamping front to back with `Below` produces exactly the same buffer as
@@ -30,8 +32,11 @@ cell.
 
 ## Decision Drivers
 
-- ADR-0040 leaves nothing to measure, so an auto-sized canvas would have to be built on shapes that
-  may decline to say where they are.
+- Which part of a diagram to draw belongs to the caller by nature. A screen with a scroll position
+  is the case, and it stays the case on the day the diagram can measure itself: a viewport is not a
+  substitute for a measurement, it is a different question.
+- ADR-0040 leaves nothing to measure either, so an auto-sized canvas would additionally have to be
+  built on shapes that may decline to say where they are.
 - The model already proves the two orders equivalent, so nothing about appearance rides on this
   choice. What rides on it is the early stop, and which shape reaches a position first.
 - [ADR-0017](0017-ask-the-cell-whether-it-is-decided.md) put the decided-cell skip in `stamp` for a
@@ -73,19 +78,22 @@ nothing here touches it.
 - Good, because the diagram needs nothing measurable from its shapes, so ADR-0040's permission to
   answer nothing costs nothing here.
 - Good, because a caller that already knows its canvas — a terminal of a known size, a test with an
-  expected picture — says so once instead of discovering what the diagram decided.
+  expected picture, an editor scrolled somewhere — says so once instead of discovering what the
+  diagram decided and cropping the result afterwards.
 - Good, because front to back is the path the model names as the one that can stop early, and
   ADR-0017's predicate finally has the caller it was made public for. No claim is made here about
   how much that saves; there is still no workload measured, and ADR-0017 said the same.
 - Good, because the first shape to reach a position is the front-most one, which is exactly the
   owner ADR-0043 wants to record. Under option E the front-most shape is the last to arrive and the
   ownership map would have to be overwritten as it goes.
-- Bad, because the caller has to know how big the diagram is, and today the caller is the
-  command-line application, which will hard-code it. Nothing measures the drawing to check the
-  window was big enough, so a figure that falls outside is silently clipped — which is what the
-  buffer has always done with a stamp outside its window.
-- Bad, because "the diagram is the source of truth" is now true of everything except how big it is.
-  That asymmetry is real and it is the price of ADR-0040.
+- Bad, because a caller that wants the whole diagram has nothing to base its window on. Today that
+  caller is the command-line application, which will hard-code one. Nothing measures the drawing to
+  check the window was big enough, so a figure that falls outside is silently clipped — which is
+  what the buffer has always done with a stamp outside its window.
+- Bad, because the missing piece is easy to misname. It is not that the window should be the
+  diagram's; it is that the diagram cannot yet be asked what it occupies, which is the question a
+  caller with no viewport of its own wants answered before choosing one. That gap is the price of
+  ADR-0040, and it is an addition rather than a reversal.
 - Neutral, because option B stays available. The day enough kinds can be measured, an auto-sized
   window is a second entry point that computes a window and calls this one.
 
@@ -104,7 +112,9 @@ window: what falls inside is drawn, and nothing else appears.
   answer no anchor point.
 - Good, because it is the smallest possible API, and the buffer's existing behavior outside its
   window is the whole of the clipping rule.
-- Bad, because the caller has to guess, and a bad guess is silent.
+- Good, because it is what a caller with a viewport would ask for anyway, so the argument for it
+  survives ADR-0040 being revisited.
+- Bad, because a caller that wants everything has to guess, and a bad guess is silent.
 
 ### B — The diagram computes the window
 
@@ -113,6 +123,8 @@ window: what falls inside is drawn, and nothing else appears.
 - Bad, because it requires every kind to be measurable, and ADR-0040 has just decided the opposite.
   A shape that answers nothing would either be excluded from the measurement or force a rectangle it
   cannot give.
+- Bad, because it does not replace the window. A caller showing part of a diagram still has to say
+  which part, so B is a second entry point rather than a different answer to this question.
 
 ### C — Optional window
 
@@ -149,7 +161,9 @@ argument away.
 High (85%) on the direction, medium-high (75%) on the window.
 
 What would change the window decision: an exporter, or any consumer that does not know its canvas in
-advance. That is a real consumer rather than a hypothetical one, and it arrives with phase 3.
+advance. That is a real consumer rather than a hypothetical one, and it arrives with phase 3 — and
+what it changes is that a diagram gains a way to say what it occupies, not that the window stops
+being the caller's.
 
 What would prove the direction wrong: nothing about appearance, since the orders are equivalent. It
 would be proved wrong only if the early stop turned out to cost more than it saves, which needs a
