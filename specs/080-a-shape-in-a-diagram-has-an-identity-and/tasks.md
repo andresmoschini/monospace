@@ -145,7 +145,7 @@ identical except in the top-left pair of overlapping opaque boxes (spec.md Indep
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] `refactor` commit: remove `Description::buffer` and move its one line,
+- [x] T018 [US3] `refactor` commit: remove `Description::buffer` and move its one line,
       `Buffer::new(origin, size)`, to the call site in `render_description`, changing no behavior
       and adding no test, in `crates/monospace-cli/src/description.rs` and
       `crates/monospace-cli/src/main.rs` (plan.md Constitution Check principle V; data-model.md

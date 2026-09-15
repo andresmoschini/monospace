@@ -9,7 +9,7 @@ mod description;
 use std::process::ExitCode;
 
 use description::Description;
-use monospace_core::GlyphCatalog;
+use monospace_core::{Buffer, GlyphCatalog};
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
 /// from any working directory and from a binary copied outside a checkout (FR-022, FR-023).
@@ -49,7 +49,7 @@ fn main() -> ExitCode {
 /// (FR-016, FR-018, FR-019).
 fn render_description(description: Description) -> String {
     let (origin, size) = description.window();
-    let mut buffer = description.buffer();
+    let mut buffer = Buffer::new(origin, size);
     description.into_diagram().draw(&mut buffer);
     monospace_core::render(&buffer, &glyph_catalog(), origin, size)
 }
