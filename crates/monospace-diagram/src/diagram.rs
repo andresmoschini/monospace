@@ -254,4 +254,162 @@ mod tests {
             render(&expected, &GlyphCatalog::light(), origin, size)
         );
     }
+
+    /// Two overlapping boxes, each filled with its own glyph, so which one is front-most decides
+    /// the shared cells rather than leaving both interior sides open (as two unfilled boxes with
+    /// the same stroke do, order-independently).
+    fn overlapping_boxes() -> (Shape, Shape) {
+        (
+            Shape::Box {
+                at: Pos { x: 0, y: 0 },
+                size: Size {
+                    width: 4,
+                    height: 3,
+                },
+                stroke: light(),
+                fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+            },
+            Shape::Box {
+                at: Pos { x: 2, y: 1 },
+                size: Size {
+                    width: 4,
+                    height: 3,
+                },
+                stroke: light(),
+                fill: Some(Glyph::new("▓").expect("\"▓\" is one glyph")),
+            },
+        )
+    }
+
+    fn overlapping_core_boxes() -> (BoxShape, BoxShape) {
+        (
+            BoxShape {
+                at: Pos { x: 0, y: 0 },
+                size: Size {
+                    width: 4,
+                    height: 3,
+                },
+                stroke: light(),
+                fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+            },
+            BoxShape {
+                at: Pos { x: 2, y: 1 },
+                size: Size {
+                    width: 4,
+                    height: 3,
+                },
+                stroke: light(),
+                fill: Some(Glyph::new("▓").expect("\"▓\" is one glyph")),
+            },
+        )
+    }
+
+    /// TE-001, scenario 1, SC-005: two overlapping boxes drawn front to back with `Below` produce
+    /// the buffer that stamping the same two core shapes back to front with `Above` produces.
+    #[test]
+    fn front_to_back_with_below_equals_back_to_front_with_above() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b) = overlapping_boxes();
+        let mut diagram = Diagram::new();
+        diagram.add(a);
+        diagram.add(b);
+        let mut actual = Buffer::new(origin, size);
+        diagram.draw(&mut actual);
+
+        let (core_a, core_b) = overlapping_core_boxes();
+        let mut expected = Buffer::new(origin, size);
+        core_a.draw(&mut Layer::new(&mut expected, StampMode::Above));
+        core_b.draw(&mut Layer::new(&mut expected, StampMode::Above));
+
+        assert_eq!(cells(&actual, origin, size), cells(&expected, origin, size));
+    }
+
+    /// TE-004, scenarios 2 and 5: the same two overlapping boxes in opposite orders produce
+    /// different buffers, and in each the front-most shape's stroke decides the shared cells.
+    #[test]
+    fn opposite_orders_produce_different_buffers() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b) = overlapping_boxes();
+        let mut a_then_b = Diagram::new();
+        a_then_b.add(a);
+        a_then_b.add(b);
+        let mut a_then_b_buffer = Buffer::new(origin, size);
+        a_then_b.draw(&mut a_then_b_buffer);
+
+        let (a, b) = overlapping_boxes();
+        let mut b_then_a = Diagram::new();
+        b_then_a.add(b);
+        b_then_a.add(a);
+        let mut b_then_a_buffer = Buffer::new(origin, size);
+        b_then_a.draw(&mut b_then_a_buffer);
+
+        assert_ne!(
+            cells(&a_then_b_buffer, origin, size),
+            cells(&b_then_a_buffer, origin, size)
+        );
+    }
+
+    /// Scenarios 3 and 4: a crossing is composition, not occlusion — a horizontal and a vertical
+    /// line that cross make a junction glyph, and a filled box in front of a line hides it
+    /// wherever the box's interior covers it, while the box's border still composes with the
+    /// line into a junction where the two meet.
+    #[test]
+    fn a_crossing_composes_and_a_filled_box_occludes() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 5,
+            height: 5,
+        };
+
+        let mut crossing = Diagram::new();
+        crossing.add(Shape::Line {
+            at: Pos { x: 0, y: 2 },
+            len: 5,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        });
+        crossing.add(Shape::Line {
+            at: Pos { x: 2, y: 0 },
+            len: 5,
+            orientation: Orientation::Vertical,
+            stroke: light(),
+        });
+        let mut crossing_buffer = Buffer::new(origin, size);
+        crossing.draw(&mut crossing_buffer);
+        assert_eq!(
+            render(&crossing_buffer, &GlyphCatalog::light(), origin, size),
+            "  │  \n  │  \n──┼──\n  │  \n  │  \n"
+        );
+
+        let mut occluding = Diagram::new();
+        occluding.add(Shape::Line {
+            at: Pos { x: 2, y: 0 },
+            len: 5,
+            orientation: Orientation::Vertical,
+            stroke: light(),
+        });
+        occluding.add(Shape::Box {
+            at: Pos { x: 1, y: 1 },
+            size: Size {
+                width: 3,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+        });
+        let mut occluding_buffer = Buffer::new(origin, size);
+        occluding.draw(&mut occluding_buffer);
+        assert_eq!(
+            render(&occluding_buffer, &GlyphCatalog::light(), origin, size),
+            "  │  \n ┌┴┐ \n │░│ \n └┬┘ \n  │  \n"
+        );
+    }
 }
