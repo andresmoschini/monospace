@@ -91,9 +91,20 @@ would be answering the second one for callers that only asked the first.
 
 ### Confirmation
 
-By review, and by the shape of the code rather than by a check. The mechanical part is that the core
-gains no item for the diagram's sake: if `monospace-core` grows an identity, an anchor or an order,
-this decision has been abandoned and the diff says so.
+By review, and by the shape of the code rather than by a check. The mechanical part is narrower than
+"the core gains nothing", and the line is worth drawing where it actually falls: what would abandon
+this decision is `monospace-core` growing a shape that carries an identity, that holds a place in an
+order, or that answers where it is. Those three are what a diagram's shape is, and each of them is a
+question about a stored entity rather than about a figure.
+
+Geometry is not one of them. A function that takes a rectangle and a named point and returns a
+position asks no shape anything: the caller already holds the rectangle, and the answer is
+arithmetic. The core is a reasonable home for it, and a diagram kind that knows its own rectangle
+calling it is this decision working rather than failing. Nor is it
+[ADR-0040](0040-let-each-shape-answer-its-own-anchor-points.md)'s rejected option arriving by the
+back door: nothing asks a shape for its bounds, and a kind with no rectangle to give is unaffected.
+ADR-0030 removed `extent` so that nobody could ask a shape what it occupies, which is a different
+sentence from one forbidding arithmetic on a rectangle somebody already has.
 
 ## Pros and Cons of the Options
 
