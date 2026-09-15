@@ -37,7 +37,7 @@ interactive application. Those are layers above this one.
 | `Ownership` | What a drawing records at every position: which shape the cell there belongs to |
 
 A diagram's `Shape` and the core's `Shape` share a name and are different things. The core's is a
-value that draws and answers nothing about itself; this one is stored, identified, moved and
+value that draws and answers nothing about itself; this one is stored, identified, replaced and
 reordered, and draws by constructing the core's
 ([ADR-0039](decisions/0039-a-diagram-shape-is-its-own-entity.md)). Where both appear in one
 sentence, the core's is named as the core's.
@@ -61,7 +61,7 @@ shape is added — `#1`, `#2`, and so on — and it is unique within that diagra
 
 An identity is what makes a shape findable after it has been placed: it is how a position refers to
 another shape, how a change names what it is changing, and what a position on the screen resolves
-back to. It survives every change to the shape it names, including moving it and reordering it.
+back to. It survives every change to the shape it names, including replacing it and reordering it.
 
 Identities being chosen by the caller, or edited after the fact, is an open question below.
 
@@ -182,21 +182,26 @@ again produces a new one.
 
 Five changes, each naming a shape by its identity except the first:
 
-| Change   | What it does                                                    |
-| -------- | --------------------------------------------------------------- |
-| add      | Puts a shape at the front of the order and gives it an identity |
-| remove   | Takes a shape out of the diagram                                |
-| move     | Shifts a shape by a horizontal and a vertical amount            |
-| forward  | Moves a shape one place toward the front of the order           |
-| backward | Moves a shape one place toward the back of the order            |
+| Change   | What it does                                                             |
+| -------- | ------------------------------------------------------------------------ |
+| add      | Puts a shape at the front of the order and gives it an identity          |
+| remove   | Takes a shape out of the diagram                                         |
+| replace  | Puts a different shape under an identity, in the same place in the order |
+| forward  | Moves a shape one place toward the front of the order                    |
+| backward | Moves a shape one place toward the back of the order                     |
 
 None of them can fail. Naming a shape the diagram does not hold changes nothing, which is the same
 answer _Positions_ gives a reference to a shape that is not there.
 
-**Moving keeps an attachment.** A shape positioned absolutely moves by changing its point; a shape
-positioned by a reference moves by changing its offsets, so it stays attached to what it was
-attached to and sits somewhere else relative to it. A move never converts one kind of position into
-the other.
+**A shape is a value, and changing one is replacing it.** Shapes are immutable. A diagram does not
+reach into a box and widen it; it takes a box that is wider and puts it where the old one was. What
+survives a replacement is what the diagram owns — the identity and the place in the order — and
+everything the shape owns is the new shape's: its kind, its parameters and its position.
+
+Moving is a replacement like any other, with a shape positioned somewhere else, and this model says
+no more about it than that. What moving an arrow with attached endpoints should do to those
+attachments is left to the slice that implements movement, and it is an open question below rather
+than a rule here.
 
 Removing a shape leaves every reference to it unresolved, and those shapes stop being drawn. Nothing
 is rewritten and nothing cascades: the references stay as they were, and re-adding a shape with the
@@ -209,11 +214,12 @@ Forward and backward at the end they are already at do nothing.
 - Drawing the same diagram twice into equal windows produces equal buffers.
 - Drawing a diagram front to back with `Below` produces the same buffer as stamping the same shapes
   back to front with `Above`.
-- Moving a shape and drawing again moves everything referencing it by the same amount.
-- A reference to an absent shape, to an anchor that is not answered, and around a cycle all produce
-  the same thing: the dependent shape is absent from the output and the rest of the diagram is
+- Replacing a shape with one positioned elsewhere and drawing again moves everything attached to it
+  by the same amount.
+- A reference to an absent shape and a reference to an anchor that is not answered produce the same
+  thing: the shape that held the reference is absent from the output and the rest of the diagram is
   unchanged.
-- A shape's identity survives a move and a reorder.
+- A shape's identity survives a replacement and a reorder.
 - In an overlap, every position resolves to the front-most shape that decided it, and changing the
   order changes the answer.
 - A shape that stamps a position without changing anything there does not take it.
@@ -229,13 +235,21 @@ the slice.
   #62 anticipates editable identities without asking for them. What would settle it: the first slice
   where a caller has a name worth keeping — reading a diagram from a file is the obvious one.
 - **What does an arrow anchor to?** Arrows answer no anchor point, so nothing can hang off one. What
-  would settle it: a figure that has to attach to a connector, most likely a label on it.
+  would settle it: a figure that has to attach to a connector, most likely a label on it. Answering
+  this is also one of the two ways a chain of references becomes longer than one link, which is what
+  brings the cycle question back — see _Positions_.
+- **How does a shape move?** Moving is a replacement with a shape positioned elsewhere, and nothing
+  above that is decided. Whether moving an arrow whose endpoints are attached shifts their offsets,
+  leaves them where they are, or is not a move at all is the part left open. What would settle it:
+  the first slice that implements movement.
 - **Does an attachment decide the direction an arrow leaves in?** Attaching to a box's right side
   and leaving leftward is expressible today and draws something nobody wants. What would settle it:
   the first slice where the caller's direction and the anchor's side are routinely the same.
-- **How big is a diagram?** Nothing measures one, so the caller gives the window. What would settle
-  it: a consumer that does not know its canvas in advance — an exporter, or the interactive
-  application of phase 3.
+- **How big is a diagram?** Nothing measures one. The window stays the caller's either way — which
+  part of a diagram to draw is a question about a viewport, not about the content
+  ([ADR-0042](decisions/0042-draw-a-diagram-front-to-back-into-a-given-window.md)) — so what is
+  missing is a way to ask a diagram what it occupies. What would settle it: a consumer that has to
+  choose a window with nothing to base it on, an exporter being the obvious one.
 - **What does a group of shapes do to this model?** Issue #58 asks for one, and groups are
   deliberately out of scope here. A group contains shapes, which is the first thing in this document
   that would want to speak about shapes generically rather than by kind.
