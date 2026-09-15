@@ -8,6 +8,7 @@ Andrés
 doctests
 Moschini
 msvc
+newtype
 nvmrc
 Nygard
 PATHEXT
