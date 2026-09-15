@@ -2,3 +2,9 @@
 //!
 //! See [`docs/diagram-model.md`](../../../docs/diagram-model.md) for the design this crate
 //! implements.
+
+mod diagram;
+mod shape;
+
+pub use diagram::Diagram;
+pub use shape::{Endpoint, Shape};
