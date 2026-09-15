@@ -1,15 +1,13 @@
 //! The diagram description format: JSON types deserialized from a file and converted into
-//! `monospace_core` shapes.
+//! `monospace_diagram` shapes.
 //!
 //! Every type here is private to `monospace-cli` and exists only for this conversion (FR-019,
 //! [ADR-0035](../../../docs/decisions/0035-keep-the-cli-demo-format-out-of-the-model.md)). See
-//! `specs/045-simplify-cli-to-demo-shapes/contracts/description-format.md` for the format itself
-//! and `data-model.md` for the field-by-field mapping onto `monospace_core`.
+//! `specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md` for the
+//! format itself and `data-model.md` for the field-by-field mapping onto `monospace_diagram`.
 
-use monospace_core::{
-    Arrow, Buffer, Direction, Glyph, GlyphCatalog, Layer, Line, Orientation as CoreOrientation,
-    Pos as CorePos, Shape, Size as CoreSize, StampMode as CoreStampMode, Stroke,
-};
+use monospace_core::{Buffer, Direction, Glyph, GlyphCatalog, Orientation as CoreOrientation};
+use monospace_diagram::{Diagram, Endpoint as DiagramEndpoint, Shape as DiagramShape};
 use serde::{Deserialize, Deserializer};
 
 /// A position, mirroring `monospace_core::Pos` for deserialization.
@@ -19,9 +17,9 @@ struct Pos {
     y: i32,
 }
 
-impl From<Pos> for CorePos {
+impl From<Pos> for monospace_core::Pos {
     fn from(pos: Pos) -> Self {
-        CorePos { x: pos.x, y: pos.y }
+        monospace_core::Pos { x: pos.x, y: pos.y }
     }
 }
 
@@ -32,9 +30,9 @@ struct Size {
     height: u32,
 }
 
-impl From<Size> for CoreSize {
+impl From<Size> for monospace_core::Size {
     fn from(size: Size) -> Self {
-        CoreSize {
+        monospace_core::Size {
             width: size.width,
             height: size.height,
         }
@@ -75,24 +73,6 @@ impl From<Leaving> for Direction {
             Leaving::Right => Direction::Right,
             Leaving::Down => Direction::Down,
             Leaving::Left => Direction::Left,
-        }
-    }
-}
-
-/// Which side of an already-defined cell decides when a shape's stamp lands on it, mirroring
-/// `monospace_core::StampMode`.
-#[derive(Deserialize, Debug, Clone, Copy)]
-#[serde(rename_all = "lowercase")]
-enum StampMode {
-    Above,
-    Below,
-}
-
-impl From<StampMode> for CoreStampMode {
-    fn from(mode: StampMode) -> Self {
-        match mode {
-            StampMode::Above => CoreStampMode::Above,
-            StampMode::Below => CoreStampMode::Below,
         }
     }
 }
@@ -138,9 +118,9 @@ struct Endpoint {
     head: Glyph,
 }
 
-impl From<Endpoint> for monospace_core::Endpoint {
+impl From<Endpoint> for DiagramEndpoint {
     fn from(endpoint: Endpoint) -> Self {
-        monospace_core::Endpoint {
+        DiagramEndpoint {
             at: endpoint.at.into(),
             leaving: endpoint.leaving.into(),
             head: endpoint.head,
@@ -159,71 +139,52 @@ enum ShapeDescription {
         stroke: String,
         #[serde(default, deserialize_with = "deserialize_optional_glyph")]
         fill: Option<Glyph>,
-        mode: StampMode,
     },
     Line {
         at: Pos,
         len: u32,
         orientation: Orientation,
         stroke: String,
-        mode: StampMode,
     },
     Arrow {
         from: Endpoint,
         to: Endpoint,
         stroke: String,
-        mode: StampMode,
     },
 }
 
-impl ShapeDescription {
-    /// Converts this description into the matching `monospace_core` shape and stamps it into
-    /// `buffer` under its own stamp mode (FR-008, FR-009).
-    fn draw(&self, buffer: &mut Buffer) {
-        match self {
-            Self::Box {
+impl From<ShapeDescription> for DiagramShape {
+    /// Converts this description into the matching `monospace_diagram` shape, dropping no
+    /// parameter (FR-008, FR-009).
+    fn from(description: ShapeDescription) -> Self {
+        match description {
+            ShapeDescription::Box {
                 at,
                 size,
                 stroke,
                 fill,
-                mode,
-            } => {
-                monospace_core::BoxShape {
-                    at: (*at).into(),
-                    size: (*size).into(),
-                    stroke: Stroke::from(stroke.as_str()),
-                    fill: fill.clone(),
-                }
-                .draw(&mut Layer::new(buffer, (*mode).into()));
-            }
-            Self::Line {
+            } => DiagramShape::Box {
+                at: at.into(),
+                size: size.into(),
+                stroke: stroke.as_str().into(),
+                fill,
+            },
+            ShapeDescription::Line {
                 at,
                 len,
                 orientation,
                 stroke,
-                mode,
-            } => {
-                Line {
-                    at: (*at).into(),
-                    len: *len,
-                    orientation: (*orientation).into(),
-                    stroke: Stroke::from(stroke.as_str()),
-                }
-                .draw(&mut Layer::new(buffer, (*mode).into()));
-            }
-            Self::Arrow {
-                from,
-                to,
-                stroke,
-                mode,
-            } => {
-                Arrow {
-                    from: from.clone().into(),
-                    to: to.clone().into(),
-                    stroke: Stroke::from(stroke.as_str()),
-                }
-                .draw(&mut Layer::new(buffer, (*mode).into()));
-            }
+            } => DiagramShape::Line {
+                at: at.into(),
+                len,
+                orientation: orientation.into(),
+                stroke: stroke.as_str().into(),
+            },
+            ShapeDescription::Arrow { from, to, stroke } => DiagramShape::Arrow {
+                from: from.into(),
+                to: to.into(),
+                stroke: stroke.as_str().into(),
+            },
         }
     }
 }
@@ -236,16 +197,18 @@ pub struct Description {
 }
 
 impl Description {
-    /// Draws every shape in `shapes`, in order, into a buffer the size of `canvas`, then renders
-    /// that buffer to text (FR-005, FR-009).
+    /// Builds a diagram from `shapes`, in order, draws it into a buffer the size of `canvas`,
+    /// then renders that buffer to text (FR-016, FR-018, FR-019).
     #[must_use]
-    pub fn render(&self) -> String {
+    pub fn render(self) -> String {
         let origin = self.canvas.origin.into();
         let size = self.canvas.size.into();
-        let mut buffer = Buffer::new(origin, size);
-        for shape in &self.shapes {
-            shape.draw(&mut buffer);
+        let mut diagram = Diagram::new();
+        for shape in self.shapes {
+            diagram.add(shape.into());
         }
+        let mut buffer = Buffer::new(origin, size);
+        diagram.draw(&mut buffer);
         let catalog = GlyphCatalog::union([
             GlyphCatalog::light(),
             monospace_glyph_sets::ascii(),
@@ -263,17 +226,18 @@ impl Description {
 
 #[cfg(test)]
 mod tests {
-    use super::Description;
     use monospace_core::{
         BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
     };
+
+    use super::Description;
 
     fn one_box_json() -> &'static str {
         r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "shapes": [
                 { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "░", "mode": "above" }
+                  "stroke": "light", "fill": "░" }
             ]
         }"#
     }
@@ -308,27 +272,13 @@ mod tests {
     fn an_unrecognized_kind_fails_to_deserialize_and_names_it() {
         let json = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
-            "shapes": [ { "kind": "triangle", "mode": "above" } ]
+            "shapes": [ { "kind": "triangle" } ]
         }"#;
 
         let error =
             serde_json::from_str::<Description>(json).expect_err("unrecognized kind must fail");
 
         assert!(error.to_string().contains("triangle"), "{error}");
-    }
-
-    /// An unrecognized `mode` fails to deserialize.
-    #[test]
-    fn an_unrecognized_mode_fails_to_deserialize() {
-        let json = r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
-            "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "mode": "sideways" }
-            ]
-        }"#;
-
-        assert!(serde_json::from_str::<Description>(json).is_err());
     }
 
     /// A `fill` of more than one grapheme cluster fails to deserialize.
@@ -338,7 +288,7 @@ mod tests {
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "shapes": [
                 { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "ab", "mode": "above" }
+                  "stroke": "light", "fill": "ab" }
             ]
         }"#;
 
@@ -354,7 +304,7 @@ mod tests {
                 { "kind": "arrow",
                   "from": { "at": { "x": 0, "y": 0 }, "leaving": "right", "head": "ab" },
                   "to": { "at": { "x": 6, "y": 0 }, "leaving": "left", "head": ">" },
-                  "stroke": "light", "mode": "above" }
+                  "stroke": "light" }
             ]
         }"#;
 
