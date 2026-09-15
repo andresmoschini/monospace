@@ -1187,3 +1187,42 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   reported nothing — the demonstration's rendered text is unchanged even though its JSON lost every
   `mode` field and two pairs of shapes changed places to say the same thing in the new format
   (TE-007).
+
+## 2026-09-15 — Feature 080 implemented: a shape has an identity, and the order can change
+
+### Rust design and idiom
+
+- **A private field's own "unused" warning can force two user stories into one commit.** `tasks.md`
+  planned `ShapeId` and `Placed` (US1) as a commit separate from `forward`/`backward` (US2), but
+  `Placed.id` is written in `add` and not read anywhere until `forward`/`backward`'s lookup exists,
+  so committing US1 alone tripped clippy's `dead_code` lint under the gate's `-D warnings`. The
+  constitution's own fallback — "one commit per group where a task does not reach green on its own"
+  — settled it: the two stories landed together, and the task list's story boundaries turned out to
+  describe a dependency order for review, not a promise that each story compiles clean in isolation.
+- **`Option::get_or_insert` names "keep the first value and ignore the rest" without a manual
+  flag.** `Description::into_diagram` needed the identity of the first shape `add`ed and nothing
+  from the ones after it; `back_most.get_or_insert(id)` inside the loop reads as exactly that, where
+  a `bool` plus an `if` would have needed a comment to say why the `if` only fires once.
+
+### Working this way
+
+- **FR-014's byte-identical claim was checked by diffing captured runs, not by reading the diff of
+  `main.rs`.** `git stash` set the tree back to the commit before this feature,
+  `cargo run -p monospace-cli` captured that output, `git stash pop` restored the work, and after
+  the feature landed the same command's output — with the new caption line and everything after the
+  first blank line stripped — matched the captured baseline exactly. The alternative, reasoning from
+  the diff that moving `Buffer::new` to the call site and adding a caption in front of unchanged
+  drawing calls couldn't change the picture, would have been an assumption dressed as a fact.
+- **Editing `tasks.md`'s checkboxes by hand can leave the file failing the gate's own `prettier`
+  step.** Flipping `- [ ]` to `- [X]` with a small script changed nothing about the prose, but
+  `prettier`'s line-wrapping of the surrounding paragraph shifted enough that the gate's
+  `prettier --check` failed until `prettier --write` ran over the file — a reminder that
+  `cargo xtask fix` (or the formatter it wraps) belongs after any scripted edit to a Markdown file
+  the gate lints, not only after a source-code change.
+- **TE-008/SC-004, observed as the spec asks rather than pinned by a test**: comparing the two
+  pictures line by line, only rows 2–3 of the top-left pair of overlapping boxes differ. Before the
+  move, the second box added covers the first, so the first box's fill and border are broken by the
+  second box's corner; after moving the first box's identity forward, the coverage reverses — the
+  first box's fill and border now run unbroken, and the second box's corner is what breaks. Every
+  other cell in both pictures, including the other five pairs of figures added for earlier features,
+  is identical between the two.

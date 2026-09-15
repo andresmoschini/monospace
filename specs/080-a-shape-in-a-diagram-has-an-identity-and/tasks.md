@@ -183,15 +183,15 @@ passes, and the CLI demonstrates a reorder.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T025 Run `cargo run -p monospace-cli > /tmp/demo-after.txt` and
+- [x] T025 Run `cargo run -p monospace-cli > /tmp/demo-after.txt` and
       `diff /tmp/demo-before.txt /tmp/demo-after.txt`; confirm the diff is only the two new caption
       lines, a blank line, and the picture printed a second time (FR-014; quickstart.md)
-- [ ] T026 Read the two pictures from the run above and confirm they differ only in the top-left
+- [x] T026 Read the two pictures from the run above and confirm they differ only in the top-left
       pair of overlapping boxes, where the box in front is the other one; this is TE-008 and SC-004,
       accepted on observation rather than pinned by a test
-- [ ] T027 Run `cargo xtask check` and confirm it is green, including the `wasm` step covering
+- [x] T027 Run `cargo xtask check` and confirm it is green, including the `wasm` step covering
       `monospace-diagram` (SC-006)
-- [ ] T028 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T028 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and the TE-008/SC-004 observation
       from T026 (constitution principle II)
 
