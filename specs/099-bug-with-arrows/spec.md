@@ -183,8 +183,11 @@ alone.
   arrow_'s rule rather than an exception to it: the arrow travels towards its `to`, which is also
   what decides a tied turn. Both endpoints at `(2, 1)`, one leaving `right` with head `◄` and the
   other leaving `left` with head `►`, draw `►` when the `◄` end is named first and `◄` when it is
-  not. Rendering that arrangement shows the opposite today, so this slice changes it. No test pins
-  the cell.
+  not. That is what rendering the arrangement shows today, under `StampMode::Above`: `Arrow` draws
+  the `from` head and then the `to` head, and `Above` lets the second win. So this slice pins the
+  cell instead of changing it. Under `StampMode::Below` the first head written is the one that
+  survives and the `from` head is seen — a mode `Arrow` does not control, and a limit this slice
+  names rather than removes.
 - **An arrangement with no route.** Where no path fits inside the route rectangle the arrow is its
   two heads and nothing else — the model's answer, not an exception to it. Of the 928 arrangements
   measured, 170 draw no route. In 32 of them the route rectangle is more than one cell thick: two
@@ -259,12 +262,12 @@ alone.
   one per order, differing only in which of rows 3 and 4 holds the turn.
 - **SC-004**: Each of the three arrangements in User Story 2's table turns at the middle of its
   route rectangle, and the demonstration's arrow turns at `x = 18`.
-- **SC-005**: Every test in the workspace that passes today still passes. The only rendering this
-  slice changes on purpose is the cell where two heads collide, which no test pins — checked by
-  reading the one test that renders that arrangement,
-  `both_endpoints_at_the_same_position_returns_normally`, and finding it asserts only that the call
-  returns. Feature 039's scenarios 5 to 10 were checked by hand against the middle and each turns at
-  a forced coordinate or at the middle, so none of them moves.
+- **SC-005**: Every test in the workspace that passes today still passes, and no rendering a test
+  pins changes. Feature 039's scenarios 5 to 10 were checked by hand against the middle and each
+  turns at a forced coordinate or at the middle, so none of them moves. The cell where two heads
+  collide does not move either: it already shows the `to` endpoint's head, which is what FR-004 asks
+  for, and the one test that renders that arrangement,
+  `both_endpoints_at_the_same_position_returns_normally`, asserts only that the call returns.
 - **SC-006**: A person reading a description can say where its route turns without rendering it,
   including which of two cells holds the turn when the middle falls between them.
 
