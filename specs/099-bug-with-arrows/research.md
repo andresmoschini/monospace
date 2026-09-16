@@ -108,9 +108,31 @@ the only pictures that move are the ones the spec asks to move.
 
 Scenario 7 is the case that fixes the run count's ceiling at five: both endpoints face away from
 each other, so the path needs a run to escape each of them, a run to cross, and the two turns
-between — five runs, four bends. That five is enough for every arrangement is a claim, not yet a
-measurement; the sweep of Q6 is what settles it, and an arrangement needing a sixth run would show
-up there as a route that should exist and does not.
+between — five runs, four bends. That five is enough for every arrangement was a claim, not yet a
+measurement; the sweep of Q6 is what settled it, and it did not hold. Verified against an
+independent brute-force reference (every path on the nine-point lattice, not just the five
+constructed shapes above) across all 1856 renderings: 34 of them — 17 arrangements, both orders —
+need a seventh run.
+
+Each is the same shape as scenario 7 — both endpoints face away from each other, along the axis `da`
+and `exit_dir` share — narrowed until the escape run has no room: the route rectangle is only two
+cells wide on that axis, so its middle coincides with one of the two escape runs' own pinned
+coordinate rather than sitting strictly between them, and the five-run construction's boundary run
+collapses to nothing. `(0, 0)` leaving `up` and `(1, 2)` leaving `down` is the smallest case:
+`s = (0, -1)`, `t = (1, 3)`, and the route rectangle's `x` span is `0` to `1` — two cells, no third
+column for the escape to use.
+
+The seventh run is a second escape rather than a wider one: each end jogs to the _far_ endpoint's
+coordinate on the narrow axis before crossing at the middle on the other axis, then jogs back — `s`,
+`(t.x, s.y)`, `(t.x, mid.y)`, `(s.x, mid.y)`, `(s.x, t.y)`, `t`. Six bends, and — checked against
+the same brute-force reference — the only shape that fits. This is what
+[`data-model.md`](data-model.md) now calls the **double escape**, and it is where the run-count
+ceiling actually sits: seven, not five, for this one family, reached only when the ordinary escape
+degenerates.
+
+Widening the search does not risk widening the _bound_ — the route rectangle stays the bound
+regardless of how many runs fill it — so this is the same rule, not a new one, filling in a gap the
+plan's own hand-checked table did not reach.
 
 **Alternatives considered**: repairing the three defects in place — fix `Route`'s run direction,
 replace `closeness` with a score over free coordinates only, round the middle toward `s`. Cheaper,

@@ -47,7 +47,13 @@ words, is this.
 **Path.** The sequence of runs from the `from` endpoint's position to the `to` endpoint's: first
 direction `da`, last direction `opposite(db)`, alternating, inside the route rectangle. The number
 of runs is what _fewest bends_ counts; its parity is fixed by whether `da` and `opposite(db)` share
-an axis, so the candidates are 1, 3, 5 or 2, 4, tried in that order.
+an axis, so the candidates are 1, 3, 5 or 2, 4, tried in that order — except where the route
+rectangle is only two cells wide on the axis a free run of that construction would need, which
+leaves that run no room to be free at all. Then the **double escape** is the path: both boundary
+runs jog to the _far_ endpoint's coordinate on that narrow axis before crossing at the middle on the
+other axis, and back — seven runs, six bends, the only shape research.md Q1 found that fits that
+geometry. It is not a sixth candidate tried in sequence; it is what the five-run construction
+becomes when the route rectangle leaves it no room to be itself.
 
 **Route.** The path without its two ends — the two endpoint positions carry the heads. This is what
 `Route` already means in `shape/route.rs`, and it keeps that meaning.
