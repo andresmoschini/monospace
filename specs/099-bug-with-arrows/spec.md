@@ -15,60 +15,91 @@ verify other arrow examples to be sure that implementation meets expectations."
 
 ### Session 2026-09-16
 
+- Q: Should "the same picture from either end" be read literally? → A: No. Where the middle of the
+  route rectangle falls between two cells the rule leaves two routes level, and both are correct
+  pictures of the same arrow. The endpoint order decides which one is drawn, and it decides nothing
+  else about a route. This reverses an earlier answer in this session — "FR-005 stands as it is:
+  what it asks for is the identical picture, not a named winner" — which was taken before the
+  even-span case was on the table.
+- Q: Where does that tie-break live, given the model presents the turn as determined? → A: In the
+  model, amended by
+  [ADR-0044](../../docs/decisions/0044-let-the-endpoint-order-break-a-tied-route.md). The route
+  turns at the cell nearer the endpoint the arrow leaves from.
 - Q: When both endpoints sit at one position, so the two heads land on one cell, should a rule
-  decide which head is visible, or is that arrangement accepted as order-dependent? → A: Accepted as
-  order-dependent, and stated rather than left incidental: the `to` endpoint's head is drawn on top,
-  so it is the one seen.
+  decide which head is visible? → A: Yes, and it is the same rule: the arrow travels towards its
+  `to`, so the `to` endpoint's head is drawn on top. This stopped being an exception when the
+  tie-break above became the principle, and it is stated in the model rather than here.
 - Q: Is widening what bounds a route, so the 32 arrangements that draw nothing although their route
   rectangle has room would draw one, part of this slice? → A: No — a separate slice of its own. This
   spec repairs an implementation against a rule the model already states; that one changes the rule.
-- Q: Where the route rectangle has an even span, so two routes bend equally and neither sits at the
-  middle, should `docs/model.md` gain a rule naming which one wins? → A: No. FR-005 stands as it is:
-  what it asks for is the identical picture from either end, not a named winner.
-- Q: Should the 928-arrangement sweep ship as a test in the workspace, or stay the one-off
-  measurement it is today? → A: It ships as a test over the whole grid, alongside the named
-  acceptance scenarios, so SC-001 is a standing check rather than a number taken once.
+- Q: How is the sweep over every arrangement checked, now that two orders may legitimately draw
+  different pictures? → A: As a snapshot of all 1856 renderings, reviewed once against the rule and
+  pinned as a test, so any later change shows up as a diff.
 
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - The same arrow, described from either end (Priority: P1)
 
 A person describes an arrow by giving its two endpoints. Which one they happen to write first is an
-accident of how they were thinking about the diagram, not a statement about the picture: nothing in
-_The route of an arrow_ in [`docs/model.md`](../../docs/model.md) gives the two endpoints different
-roles. They expect to be able to exchange the two and get the same picture back.
+accident of how they were thinking about the diagram, not a statement about the picture. They expect
+both descriptions to draw the same arrow.
 
-Today they do not. The bug report's two descriptions differ only in which endpoint is written first,
-and they render:
+Today they do not. The bug report's two descriptions differ only in which endpoint is written first.
+With one endpoint at `(0, 0)` leaving `right` with head `◄` and the other at `(6, 0)` leaving `left`
+with head `►`, they render:
 
 ```text
-◄────►
+◄─────►
 ```
 
 ```text
-◄   ─►──
+◄    ─►─
 ```
 
 The second is not another route: it is the same route placed in the wrong cells, drawn away from the
-arrow instead of along it, and running over one of the heads on its way out.
+arrow instead of along it, and running over one of the heads on its way out. The turning case is
+worse. With `(0, 1)` leaving `down` with head `▲` and `(2, 6)` leaving `up` with head `▼`, naming
+the `▲` end first draws the route:
+
+```text
+▲
+│
+└─┐
+  │
+  │
+  ▼
+```
+
+and naming the `▼` end first draws this:
+
+```text
+▲
+└─┐
+
+
+  │
+  ▼
+  │
+```
+
+which breaks the route in two and writes a cell past the head.
 
 **Why this priority**: it is the whole bug report, and it is not a cosmetic difference — over half
-of the arrangements measured come out wrong, and what they draw is broken rather than merely
-different.
+of the arrangements measured come out different, and what they draw is broken rather than merely
+another correct route.
 
 **Independent Test**: describe one arrow, render it, exchange its two endpoints, render it again,
-and compare the two pictures character for character. Over the whole 928-arrangement grid this is
-the sweep SC-001 names, which ships as a test.
+and check both pictures against _The route of an arrow_ in [`docs/model.md`](../../docs/model.md).
+Over the whole grid this is the sweep SC-001 names, which ships as a reviewed snapshot.
 
 **Acceptance Scenarios**:
 
-1. **Given** the first description in the bug report, **When** it is rendered, **Then** the picture
-   is `◄────►`.
-2. **Given** the second description in the bug report — the same arrow with its two endpoints
-   exchanged — **When** it is rendered, **Then** the picture is `◄────►`, identical to the first.
-3. **Given** an arrow whose route turns, for instance one endpoint at `(0, 0)` leaving `down` and
-   the other at `(4, 3)` leaving `left`, **When** the two endpoints are exchanged, **Then** both
-   renderings are the corner picture below, identical to each other.
+1. **Given** the bug report's arrow, **When** it is rendered from either end, **Then** the picture
+   is `◄─────►` both times.
+2. **Given** an arrow whose route turns once, for instance one endpoint at `(0, 0)` leaving `down`
+   and the other at `(4, 3)` leaving `left`, **When** the two endpoints are exchanged, **Then** both
+   renderings are the corner picture below, identical to each other, because the rule leaves only
+   one route.
 
    ```text
    ▲
@@ -77,9 +108,23 @@ the sweep SC-001 names, which ships as a test.
    └───►
    ```
 
+3. **Given** the turning arrow above, whose free coordinate spans rows 2 to 5 so that the middle
+   falls between two cells, **When** it is rendered from each end, **Then** each picture turns at
+   the row nearer the endpoint it was described from: naming the `▲` end first draws the left
+   picture and naming the `▼` end first draws the right one, and both are correct.
+
+   ```text
+   ▲        ▲
+   │        │
+   └─┐      │
+     │      └─┐
+     │        │
+     ▼        ▼
+   ```
+
 4. **Given** any arrow whose route runs toward a smaller coordinate on either axis, **When** it is
-   rendered, **Then** every cell the route writes lies on the route, and no cell beyond either end
-   of a run is written.
+   rendered, **Then** every cell it writes lies on the route, and no cell beyond either end of the
+   route is written.
 5. **Given** any arrow at all, **When** it is rendered, **Then** neither endpoint position is
    written by anything but its own head, and no position is written twice.
 
@@ -87,50 +132,45 @@ the sweep SC-001 names, which ships as a test.
 
 ### User Story 2 - A route turns where the model says it turns (Priority: P2)
 
-The same person places an arrow that has to turn more than once and expects the turn the model
-names: _The route of an arrow_ says the route with the fewest bends, and among those the one that
-turns at the middle of the route rectangle on whichever coordinate the bends leave free.
+The same person places an arrow that has to turn and expects the turn the model names: _The route of
+an arrow_ says the route with the fewest bends, and among those the one that turns at the middle of
+the route rectangle on whichever coordinate the bends leave free.
 
-The picture the shipped command-line example pins does not do that. Its arrow leaves `(5, 0)` to the
-right and arrives at `(9, 2)` from below, so its route rectangle spans `x` from 6 to 9 and the
-middle of that span is 7. The route turns at `x = 6`:
+Sometimes it does and sometimes it does not, which is worse than always being wrong: there is no
+rule a person can learn from the pictures. Measured, with one endpoint at `(0, 0)` leaving `right`
+and the other at `(n, 3)` leaving `left`, so that the free coordinate is the column of the vertical
+run:
 
-```text
-┌──┐ >┐
-│░░│  │
-└──┘  │  v
-      └──┘
-────
-```
+| `n` | route rectangle | the middle | turns at |
+| --- | --------------- | ---------- | -------- |
+| 4   | `x` 1 to 3      | 2          | 3        |
+| 5   | `x` 1 to 4      | between    | 1        |
+| 6   | `x` 1 to 5      | 3          | 3        |
 
-The model's rule names the route that turns at `x = 7`:
+At `n = 6` the rule is obeyed. At `n = 4` the route turns at the far edge of the rectangle rather
+than at its middle. At `n = 5` it turns at the near edge, which is neither of the two cells the
+middle falls between, so FR-003 does not excuse it either.
 
-```text
-┌──┐ >─┐
-│░░│   │
-└──┘   │ v
-       └─┘
-────
-```
-
-The two bend the same number of times and are the same length; only the model decides between them,
-and the picture that is pinned is not the one it decides on.
+The shipped command-line demonstration is not one of the broken cases, which is why it looked
+correct and why nothing caught this. Its arrow leaves `(13, 3)` to the right and arrives at
+`(22, 4)` from below, so its route rectangle spans `x` from 14 to 22 and the middle of that span
+is 18. It turns at `x = 18`, and both of its heads point away from the route, as _An end is an arm;
+a head is a glyph_ describes them. Nothing about it changes here; what it lacks is a test saying so.
 
 **Why this priority**: it is the second half of the bug report — verifying the other arrow examples
-against expectations — and it is what is left once User Story 1 is done. It changes a picture a
-person already sees, but unlike User Story 1 what is drawn today is a route rather than a defect.
+against expectations — and it is what is left once User Story 1 is done. Unlike User Story 1 what is
+drawn today is a route rather than a defect: it is the wrong one of several correct routes.
 
-**Independent Test**: render the box, line and arrow example the command-line tool pins and check
-where its route turns against the middle of its route rectangle, computed from the two endpoint
-positions and leaving directions alone.
+**Independent Test**: render the three arrangements in the table and check where each turns against
+the middle of its route rectangle, computed from the two endpoint positions and leaving directions
+alone.
 
 **Acceptance Scenarios**:
 
-1. **Given** the box, line and arrow example, **When** it is rendered, **Then** its route turns at
-   the middle of its route rectangle, so the picture is the second one above.
-2. **Given** two routes that bend the same number of times and turn equally far from the middle of
-   the route rectangle, **When** the arrow is rendered from either end, **Then** the same one of the
-   two is drawn.
+1. **Given** each arrangement in the table above, **When** it is rendered, **Then** its route turns
+   at the middle of its route rectangle.
+2. **Given** the shipped demonstration, **When** it is rendered, **Then** its arrow turns at
+   `x = 18`, the middle of its route rectangle, and the rest of the picture is unchanged.
 3. **Given** every arrow picture pinned by feature 039's acceptance scenarios, **When** they are
    rendered, **Then** each is unchanged.
 
@@ -139,100 +179,108 @@ positions and leaving directions alone.
 ### Edge Cases
 
 - **Both endpoints at one position.** The route is empty and both heads are written to the same
-  cell, so one head covers the other and exchanging the two endpoints exchanges which one is
-  visible. This is the one arrangement where User Story 1 cannot hold for free, and it is accepted
-  as order-dependent rather than ruled out of existence: the `to` endpoint's head is drawn on top,
-  so it is the one seen. Both endpoints at `(2, 1)`, one leaving `right` with head `◄` and the other
-  leaving `left` with head `►`, draw `►` when the `◄` end is named first and `◄` when it is not.
-  Rendering that arrangement shows the opposite today — the `from` head survives — so FR-008 changes
-  it. No test pins the cell, so SC-004 is unaffected.
+  cell, so one covers the other. The `to` endpoint's head is the one seen, which is _The route of an
+  arrow_'s rule rather than an exception to it: the arrow travels towards its `to`, which is also
+  what decides a tied turn. Both endpoints at `(2, 1)`, one leaving `right` with head `◄` and the
+  other leaving `left` with head `►`, draw `►` when the `◄` end is named first and `◄` when it is
+  not. Rendering that arrangement shows the opposite today, so this slice changes it. No test pins
+  the cell.
 - **An arrangement with no route.** Where no path fits inside the route rectangle the arrow is its
   two heads and nothing else — the model's answer, not an exception to it. Of the 928 arrangements
-  measured, 170 draw no route. In 32 of them the route rectangle is more than one cell thick, which
-  the cases listed in _The route of an arrow_ do not cover: two endpoints one row apart leaving in
-  opposite directions away from each other, for instance `(0, 0)` leaving `right` and `(0, 1)`
-  leaving `left`, draw two heads and nothing between them, because every path inside the rectangle
-  runs over a head. Widening the bound so those 32 draw a route is out of scope here and belongs to
-  a slice of its own: it changes what the model bounds a route by, where everything in this spec
-  repairs an implementation against a rule the model already states. Until that slice exists the
-  empty route is what those arrangements render, and SC-004 holds them unchanged.
+  measured, 170 draw no route. In 32 of them the route rectangle is more than one cell thick: two
+  endpoints one row apart leaving in opposite directions away from each other, for instance `(0, 0)`
+  leaving `right` and `(0, 1)` leaving `left`, draw two heads and nothing between them, because
+  every path inside the rectangle runs over a head. Widening the bound so those draw a route is out
+  of scope here and belongs to a slice of its own: it changes what the model bounds a route by,
+  where everything in this spec repairs an implementation against a rule the model already states.
+  The maintainer has sketched what such a route might look like — a path that wraps around outside
+  the two endpoints, reaching a head from the side opposite its leaving direction — and those
+  sketches are input to that slice, not requirements here. Until it exists the empty route is what
+  those arrangements render, and SC-005 holds them unchanged.
 - **A route that leaves the window.** An arrow whose route runs outside the rendered window is
   clipped exactly as it is today. Nothing here changes what a window shows.
-- **An arrow whose two endpoints are adjacent.** The route between them is empty or one cell long;
-  both orders must still agree.
+- **An arrow whose two endpoints are adjacent.** The route between them is empty or one cell long,
+  so no turn is free and both orders draw the same picture.
 
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
 
-- **FR-001**: An arrow's picture MUST NOT depend on which of its two endpoints is given first.
-  Exchanging them, each keeping its own position, leaving direction and head glyph, MUST produce a
-  character-for-character identical picture. The single exception is FR-008's arrangement, where the
-  two heads occupy one cell and only one of them can be seen.
-- **FR-002**: Every cell an arrow's route writes MUST be a position on that route. No cell beyond
-  either end of a run may be written, in particular where a run travels toward a smaller coordinate.
-- **FR-003**: An arrow MUST write each position at most once, and MUST NOT write either endpoint
-  position other than as that endpoint's own head — the rule _The route of an arrow_ already states,
-  and which the defect behind FR-002 breaks today.
-- **FR-004**: The route drawn MUST be the one _The route of an arrow_ in
-  [`docs/model.md`](../../docs/model.md) names, including where several routes share the fewest
-  bends and the middle of the route rectangle decides between them.
-- **FR-005**: Where that rule still leaves more than one route, the one drawn MUST be the same from
-  either end, so that FR-001 holds without depending on which endpoint was named first. No rule
-  naming which of them wins is added to _The route of an arrow_ for this slice: the requirement is
-  the identical picture, and whichever route is drawn is pinned by the test that compares the two
-  renderings.
-- **FR-006**: Every arrow picture pinned by an acceptance scenario of feature 039 MUST render
+- **FR-001**: Describing an arrow from either end describes the same arrow, and both descriptions
+  MUST draw a correct picture of it: the same head at each of the same two positions, and a route
+  that _The route of an arrow_ in [`docs/model.md`](../../docs/model.md) allows, with the same
+  number of bends and the same length. Which endpoint is written first MUST decide nothing beyond
+  what FR-003 and FR-004 name.
+- **FR-002**: The cells an arrow writes MUST be exactly the cells of the route the model names —
+  every one of them and nothing besides. No cell beyond either end of the route may be written, and
+  no endpoint position may be written by anything but its own head.
+- **FR-003**: Where the middle of the route rectangle falls between two cells, the route MUST turn
+  at the one nearer the endpoint the arrow leaves from. Exchanging the two endpoints therefore moves
+  the turn to the other of the two, and that is the only difference the exchange may make to a
+  route.
+- **FR-004**: Where both endpoints occupy one position, the head seen MUST be the `to` endpoint's.
+- **FR-005**: Every arrow picture pinned by an acceptance scenario of feature 039 MUST render
   unchanged.
-- **FR-007**: The box, line and arrow example the command-line tool pins MUST render with its route
-  turning at the middle of its route rectangle. This is the one existing picture this slice changes,
-  and it changes because it disagrees with FR-004.
-- **FR-008**: Where both endpoints occupy one position, the route is empty and both heads are
-  written to that cell. The `to` endpoint's head MUST be the visible one. This arrangement is
-  therefore order-dependent by decision, and the decision is which head wins rather than whether one
-  does. Rendering it today gives the `from` head instead, so this reverses an observed behavior that
-  no test pins.
+- **FR-006**: The shipped command-line demonstration MUST render unchanged, and a test MUST pin
+  where its arrow turns against the middle of its route rectangle rather than against a transcribed
+  picture.
+
+### Testing expectations
+
+- The whole grid of arrangements ships as a snapshot: every arrangement rendered from both ends,
+  reviewed once against the model, and pinned so a later change shows as a diff. It is the standing
+  check behind SC-001, not a measurement taken once.
+- The named acceptance scenarios stay separate from the snapshot and keep their pictures readable,
+  written a row per source line rather than as one escaped string.
+- Unit tests for the route derivation are the minimum; a rule above with no test named against it is
+  unfinished.
 
 ### Key Entities
 
 - **Endpoint**: a position, a leaving direction and a head glyph, as _The initial set_ and _The
-  route of an arrow_ define it. The two endpoints of an arrow are interchangeable; this slice is
-  about making the drawing say so.
+  route of an arrow_ define it. The two endpoints are interchangeable in everything except a tied
+  turn and a shared cell.
 - **Route**: the path between the two starting positions, owned by _The route of an arrow_. This
-  slice adds no rule to it; it requires that what is drawn is what that section already says.
+  slice adds no rule to it beyond the tie-break ADR-0044 put there; it requires that what is drawn
+  is what that section says.
 
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
-- **SC-001**: Over the 928 endpoint arrangements measured for this report — two anchor positions
-  with four leaving directions each, against a six-by-five grid of positions with four leaving
-  directions each — exchanging the two endpoints changes the picture in none of them, other than any
-  arrangement whose two endpoints occupy one position, which FR-008 governs instead. It changes it
-  in 502 of them today. The sweep ships as a test over the whole grid rather than staying a
-  measurement taken once, so this criterion keeps being checked after the slice lands.
-- **SC-002**: Both descriptions in the bug report render as `◄────►`.
-- **SC-003**: The box, line and arrow example renders with its route turning at `x = 7`.
-- **SC-004**: Every test in the workspace that passes today still passes, with exactly one picture
-  changed: the one SC-003 names. FR-008 changes a second rendering — the cell where two heads
-  collide — but no test pins it, which was checked by reading the one test that renders that
-  arrangement, `both_endpoints_at_the_same_position_returns_normally`, and finding it asserts only
-  that the call returns.
-- **SC-005**: A person reading two descriptions of one arrow can tell, without rendering either,
-  that they draw the same picture, because the only difference between them is the order of two
-  things the model gives no order to.
+- **SC-001**: Every one of the 1856 renderings — 928 endpoint arrangements, two anchor positions
+  with four leaving directions each against a six-by-five grid of positions with four leaving
+  directions each, every one drawn from both ends — is a correct picture under _The route of an
+  arrow_. Before this slice, 502 of the 928 arrangements drew a different picture when their
+  endpoints were exchanged; under FR-003 some of those differences are legitimate, so that figure
+  bounds the defects rather than counting them.
+- **SC-002**: The bug report's arrow renders `◄─────►` from either end.
+- **SC-003**: The arrow at `(0, 1)` leaving `down` and `(2, 6)` leaving `up` renders two pictures,
+  one per order, differing only in which of rows 3 and 4 holds the turn.
+- **SC-004**: Each of the three arrangements in User Story 2's table turns at the middle of its
+  route rectangle, and the demonstration's arrow turns at `x = 18`.
+- **SC-005**: Every test in the workspace that passes today still passes. The only rendering this
+  slice changes on purpose is the cell where two heads collide, which no test pins — checked by
+  reading the one test that renders that arrangement,
+  `both_endpoints_at_the_same_position_returns_normally`, and finding it asserts only that the call
+  returns. Feature 039's scenarios 5 to 10 were checked by hand against the middle and each turns at
+  a forced coordinate or at the middle, so none of them moves.
+- **SC-006**: A person reading a description can say where its route turns without rendering it,
+  including which of two cells holds the turn when the middle falls between them.
 
 ## Assumptions
 
-- The two endpoints carry no meaning beyond their position, leaving direction and head glyph, in
-  everything that decides where the route runs. This is the bug report's premise and the model's: an
-  endpoint that later chose its own glyphs would choose them from itself, not from having been
-  written first. FR-008 is the one place the `from` and `to` roles decide anything, and what they
-  decide there is which of two heads on one cell is seen — never a position.
+- The two endpoints carry no meaning beyond their position, leaving direction and head glyph in
+  anything that decides where the route runs. The exceptions are the two ADR-0044 records, and
+  neither of them moves a route: one chooses between two routes the rule already allows, the other
+  chooses which of two heads on one cell is seen.
 - Where a picture pinned by an earlier feature disagrees with _The route of an arrow_, the model
-  wins and the picture is corrected. FR-007 is the only place that applies.
+  wins and the picture is corrected. No such picture has been found; SC-005 says what was checked.
 - Head glyphs stay the caller's choice, per _An end is an arm; a head is a glyph_. Nothing here
-  changes which glyph a head is drawn as.
-- The numbers quoted above — 502 of 928 arrangements order-dependent, 170 with no route, 32 of those
-  with a route rectangle more than one cell thick, and both pictures of the box, line and arrow
-  example — were taken by rendering, not estimated.
+  changes which glyph a head is drawn as, including whether it points away from its route — the
+  demonstration's two do, and that is how it was written rather than something the core enforces.
+- The numbers quoted above — 928 arrangements with 502 order-dependent and 170 drawing no route, 32
+  of those with a route rectangle more than one cell thick, the three turns in User Story 2's table,
+  and the demonstration's turn at `x = 18` — were taken by rendering. The 502 and the 170 were
+  measured before this revision and have not been re-taken since; everything else in this spec was
+  rendered while writing it.
