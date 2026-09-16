@@ -6,6 +6,7 @@
 # unless it is a large dictionary pulled in for a single word.
 Andrés
 doctests
+insta
 Moschini
 msvc
 newtype
