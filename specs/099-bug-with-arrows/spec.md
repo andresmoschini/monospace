@@ -144,6 +144,8 @@ positions and leaving directions alone.
   as order-dependent rather than ruled out of existence: the `to` endpoint's head is drawn on top,
   so it is the one seen. Both endpoints at `(2, 1)`, one leaving `right` with head `◄` and the other
   leaving `left` with head `►`, draw `►` when the `◄` end is named first and `◄` when it is not.
+  Rendering that arrangement shows the opposite today — the `from` head survives — so FR-008 changes
+  it. No test pins the cell, so SC-004 is unaffected.
 - **An arrangement with no route.** Where no path fits inside the route rectangle the arrow is its
   two heads and nothing else — the model's answer, not an exception to it. Of the 928 arrangements
   measured, 170 draw no route. In 32 of them the route rectangle is more than one cell thick, which
@@ -188,7 +190,8 @@ positions and leaving directions alone.
 - **FR-008**: Where both endpoints occupy one position, the route is empty and both heads are
   written to that cell. The `to` endpoint's head MUST be the visible one. This arrangement is
   therefore order-dependent by decision, and the decision is which head wins rather than whether one
-  does.
+  does. Rendering it today gives the `from` head instead, so this reverses an observed behavior that
+  no test pins.
 
 ### Key Entities
 
@@ -211,7 +214,10 @@ positions and leaving directions alone.
 - **SC-002**: Both descriptions in the bug report render as `◄────►`.
 - **SC-003**: The box, line and arrow example renders with its route turning at `x = 7`.
 - **SC-004**: Every test in the workspace that passes today still passes, with exactly one picture
-  changed: the one SC-003 names.
+  changed: the one SC-003 names. FR-008 changes a second rendering — the cell where two heads
+  collide — but no test pins it, which was checked by reading the one test that renders that
+  arrangement, `both_endpoints_at_the_same_position_returns_normally`, and finding it asserts only
+  that the call returns.
 - **SC-005**: A person reading two descriptions of one arrow can tell, without rendering either,
   that they draw the same picture, because the only difference between them is the order of two
   things the model gives no order to.
