@@ -116,20 +116,20 @@ each end and check the turn moves from row 3 to row 4.
 **Purpose**: one test per rule named in `contracts/arrow-rendering.md`, each picture written a row
 per source line rather than as one escaped string, per the spec's testing expectations.
 
-- [ ] T005 [US1] `test(core)`: add the bug report's scenario (SC-002) to
+- [x] T005 [US1] `test(core)`: add the bug report's scenario (SC-002) to
       `crates/monospace-core/src/shape/arrow.rs`'s test module — render from both ends, assert both
       pictures equal the row-per-line `◄─────►`.
-- [ ] T006 [US1] `test(core)`: add the ADR-0044 pair's scenario (SC-003) to the same test module —
+- [x] T006 [US1] `test(core)`: add the ADR-0044 pair's scenario (SC-003) to the same test module —
       render from both ends, assert the two pictures are equal except for which of rows 3 and 4
       holds the turn.
-- [ ] T007 [US2] `test(core)`: add User Story 2's table (SC-004, `n = 4, 5, 6`) to the same test
+- [x] T007 [US2] `test(core)`: add User Story 2's table (SC-004, `n = 4, 5, 6`) to the same test
       module — assert each arrangement's vertical run sits at `x = 2`, `x = 3` and `x = 3`
       respectively.
-- [ ] T008 [US2] `test(core)`: add a test pinning the shipped demonstration's turn (FR-006) to the
+- [x] T008 [US2] `test(core)`: add a test pinning the shipped demonstration's turn (FR-006) to the
       same test module — compute the middle from its two endpoint positions (`x` 14 to 22,
       middle 18) and assert the route turns there, rather than asserting against a transcribed
       picture.
-- [ ] T009 [US1] `test(core)`: add a test pinning the colliding-heads cell (C-6, FR-004) to the same
+- [x] T009 [US1] `test(core)`: add a test pinning the colliding-heads cell (C-6, FR-004) to the same
       test module — both endpoints at one position, assert the rendered glyph is the `to` endpoint's
       head, without changing the behavior.
 

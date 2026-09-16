@@ -300,7 +300,7 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
 
 #[cfg(test)]
 mod tests {
-    use super::{Arrow, Endpoint};
+    use super::{Arrow, Endpoint, derive_path, offset};
     use crate::shape::counting::CountingSurface;
     use crate::{
         Buffer, Direction, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
@@ -666,5 +666,172 @@ mod tests {
                 index + 1
             );
         }
+    }
+
+    /// SC-002: the bug report's arrow renders the same picture whichever endpoint is named
+    /// first, instead of drawing the route backwards out of its starting cell.
+    #[test]
+    fn sc002_the_bug_report_renders_the_same_from_either_end() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 7,
+            height: 1,
+        };
+        let expected = "◄─────►\n";
+
+        let named_left_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 6, y: 0 }, Direction::Left),
+        );
+        let named_right_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 6, y: 0 }, Direction::Left),
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+        );
+
+        assert_eq!(named_left_first, expected);
+        assert_eq!(named_right_first, expected);
+    }
+
+    /// SC-003: the ADR-0044 pair's free coordinate spans an even number of cells, so the two
+    /// orders draw different — and equally correct — pictures, turning at row 3 or row 4
+    /// depending on which endpoint is named first.
+    #[test]
+    fn sc003_the_adr_0044_pair_turns_at_the_row_nearer_the_endpoint_named_first() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 3,
+            height: 7,
+        };
+
+        let up_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 0, y: 1 }, Direction::Down),
+            endpoint(Pos { x: 2, y: 6 }, Direction::Up),
+        );
+        let down_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 2, y: 6 }, Direction::Up),
+            endpoint(Pos { x: 0, y: 1 }, Direction::Down),
+        );
+
+        assert_eq!(
+            up_first,
+            concat!(
+                "   \n",
+                "▲  \n",
+                "│  \n",
+                "└─┐\n",
+                "  │\n",
+                "  │\n",
+                "  ▼\n",
+            )
+        );
+        assert_eq!(
+            down_first,
+            concat!(
+                "   \n",
+                "▲  \n",
+                "│  \n",
+                "│  \n",
+                "└─┐\n",
+                "  │\n",
+                "  ▼\n",
+            )
+        );
+    }
+
+    /// SC-004: each arrangement in User Story 2's table turns at the middle of its route
+    /// rectangle rather than at an edge (`n = 4`) or at neither of the two middle cells
+    /// (`n = 5`). `n = 5` names the far endpoint first so ADR-0044's tie-break picks the cell
+    /// this table pins, `x = 3`.
+    #[test]
+    fn sc004_each_arrangement_turns_at_the_middle_of_its_route_rectangle() {
+        let origin = Pos { x: 0, y: 0 };
+
+        let n4 = render_arrow(
+            origin,
+            Size {
+                width: 5,
+                height: 4,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 4, y: 3 }, Direction::Left),
+        );
+        let n5 = render_arrow(
+            origin,
+            Size {
+                width: 6,
+                height: 4,
+            },
+            endpoint(Pos { x: 5, y: 3 }, Direction::Left),
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+        );
+        let n6 = render_arrow(
+            origin,
+            Size {
+                width: 7,
+                height: 4,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 6, y: 3 }, Direction::Left),
+        );
+
+        assert_eq!(n4, concat!("◄─┐  \n", "  │  \n", "  │  \n", "  └─►\n"));
+        assert_eq!(n5, concat!("◄──┐  \n", "   │  \n", "   │  \n", "   └─►\n"));
+        assert_eq!(
+            n6,
+            concat!("◄──┐   \n", "   │   \n", "   │   \n", "   └──►\n")
+        );
+    }
+
+    /// FR-006, SC-004's second half: the shipped demonstration's arrow turns at the middle of
+    /// its route rectangle. The middle is computed here from the two endpoint positions rather
+    /// than transcribed from a picture, which is what would have caught this defect had it
+    /// existed in the demonstration.
+    #[test]
+    fn fr006_the_demonstration_turns_at_the_middle_of_its_route_rectangle() {
+        let a = Pos { x: 13, y: 3 };
+        let da = Direction::Right;
+        let b = Pos { x: 22, y: 4 };
+        let db = Direction::Down;
+
+        let s = offset(a, da).expect("no overflow in this fixture");
+        let t = offset(b, db).expect("no overflow in this fixture");
+        let middle_x = i32::midpoint(s.x.min(t.x), s.x.max(t.x));
+        assert_eq!(middle_x, 18);
+
+        let path = derive_path(a, da, b, db).expect("the demonstration's arrow has a route");
+        assert!(path.contains(&Pos {
+            x: middle_x,
+            y: s.y
+        }));
+        assert!(path.contains(&Pos {
+            x: middle_x,
+            y: t.y
+        }));
+    }
+
+    /// C-6, FR-004: where both endpoints occupy one position, the glyph seen is the `to`
+    /// endpoint's head — `Arrow` draws `from` then `to`, and `Above` lets the second win. Pins
+    /// the behavior; does not change it.
+    #[test]
+    fn c6_the_to_head_wins_a_shared_cell() {
+        let text = render_arrow(
+            Pos { x: 2, y: 1 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+            endpoint(Pos { x: 2, y: 1 }, Direction::Right),
+            endpoint(Pos { x: 2, y: 1 }, Direction::Left),
+        );
+
+        assert_eq!(text, "►\n");
     }
 }
