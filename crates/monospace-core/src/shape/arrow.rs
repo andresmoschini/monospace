@@ -303,7 +303,8 @@ mod tests {
     use super::{Arrow, Endpoint, derive_path, offset};
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Buffer, Direction, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
+        Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke,
+        render,
     };
 
     fn light() -> Stroke {
@@ -833,5 +834,90 @@ mod tests {
         );
 
         assert_eq!(text, "►\n");
+    }
+
+    /// The window the sweep renders into — research.md Q6 — sized to hold the six-by-five field
+    /// plus the one cell of margin a leaving direction can add on each side.
+    const SWEEP_ORIGIN: Pos = Pos { x: -2, y: -2 };
+    const SWEEP_SIZE: Size = Size {
+        width: 10,
+        height: 9,
+    };
+
+    /// The grid research.md Q6 defines: two anchors, each leaving in four directions, against
+    /// every position of a six-by-five field with four leaving directions each, excluding the
+    /// arrangements where the second position is the anchor itself — 928 arrangements.
+    fn sweep_arrangements() -> Vec<(Pos, Direction, Pos, Direction)> {
+        const DIRECTIONS: [Direction; 4] = [
+            Direction::Up,
+            Direction::Right,
+            Direction::Down,
+            Direction::Left,
+        ];
+        let anchors = [Pos { x: 0, y: 0 }, Pos { x: 2, y: 1 }];
+
+        let mut arrangements = Vec::new();
+        for anchor in anchors {
+            for anchor_dir in DIRECTIONS {
+                for x in 0..6 {
+                    for y in 0..5 {
+                        let other = Pos { x, y };
+                        if other == anchor {
+                            continue;
+                        }
+                        for other_dir in DIRECTIONS {
+                            arrangements.push((anchor, anchor_dir, other, other_dir));
+                        }
+                    }
+                }
+            }
+        }
+        arrangements
+    }
+
+    /// Research.md Q6's own check on its grid definition: it reproduces the spec's 928.
+    #[test]
+    fn the_sweep_grid_has_928_arrangements() {
+        assert_eq!(sweep_arrangements().len(), 928);
+    }
+
+    /// C-2 and C-3 over the whole grid, rendered from both ends (SC-001): both endpoint
+    /// positions always render their own head, and drawing into a surface that counts writes
+    /// never writes any position more than once.
+    #[test]
+    fn sweep_every_endpoint_renders_its_own_head_and_no_position_is_written_twice() {
+        for (a, da, b, db) in sweep_arrangements() {
+            for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
+                let mut buffer = Buffer::new(SWEEP_ORIGIN, SWEEP_SIZE);
+                Arrow {
+                    from: endpoint(from_at, from_dir),
+                    to: endpoint(to_at, to_dir),
+                    stroke: light(),
+                }
+                .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+                assert_eq!(
+                    buffer.cell(from_at),
+                    Some(&Cell::Literal(head_for(from_dir))),
+                    "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?}): from's own head"
+                );
+                assert_eq!(
+                    buffer.cell(to_at),
+                    Some(&Cell::Literal(head_for(to_dir))),
+                    "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?}): to's own head"
+                );
+
+                let mut counting = CountingSurface::default();
+                Arrow {
+                    from: endpoint(from_at, from_dir),
+                    to: endpoint(to_at, to_dir),
+                    stroke: light(),
+                }
+                .draw(&mut counting);
+                assert!(
+                    counting.max_writes() <= 1,
+                    "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?}) wrote a position more than once"
+                );
+            }
+        }
     }
 }

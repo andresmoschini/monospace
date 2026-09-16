@@ -158,7 +158,7 @@ assertion and pinned as a snapshot reviewed once against _The route of an arrow_
 **Independent Test**: the sweep test renders the full grid from both ends and the snapshot review
 confirms each picture against the model.
 
-- [ ] T011 [US1] `test(core)`: add the sweep over all 1856 renderings to
+- [x] T011 [US1] `test(core)`: add the sweep over all 1856 renderings to
       `crates/monospace-core/src/shape/arrow.rs`'s test module, with mechanical assertions for C-2
       (both endpoint positions render their own head) and C-3 (no position is written twice, via the
       existing `CountingSurface`).
