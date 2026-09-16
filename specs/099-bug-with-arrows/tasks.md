@@ -162,7 +162,7 @@ confirms each picture against the model.
       `crates/monospace-core/src/shape/arrow.rs`'s test module, with mechanical assertions for C-2
       (both endpoint positions render their own head) and C-3 (no position is written twice, via the
       existing `CountingSurface`).
-- [ ] T012 [US1] `test(core)`: add the `insta` snapshot assertion (C-1, SC-001) over the same sweep
+- [x] T012 [US1] `test(core)`: add the `insta` snapshot assertion (C-1, SC-001) over the same sweep
       in `crates/monospace-core/src/shape/arrow.rs`, run `cargo insta review` once, and commit the
       resulting `.snap` file under `crates/monospace-core/src/snapshots/` only after reading every
       picture against _The route of an arrow_ in `docs/model.md`.

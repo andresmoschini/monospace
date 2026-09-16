@@ -206,34 +206,52 @@ fn three_waypoint(s: Pos, t: Pos, mid: Pos, primary: Orientation) -> (Pos, Pos) 
     }
 }
 
-/// The bend count of the two-run corner `s`-`corner`-`t`, or `None` where either run would have
-/// to reverse out of `da` or into `exit_dir`. A run whose direction matches the boundary direction
-/// its end shares an axis with costs no bend there; any other direction — necessarily
-/// perpendicular, since a reversal is already ruled out — costs one.
-fn corner_bends(s: Pos, corner: Pos, t: Pos, da: Direction, exit_dir: Direction) -> Option<u32> {
-    let entry = direction_between(s, corner)?;
-    let exit = direction_between(corner, t)?;
-    if entry == opposite(da) || exit == opposite(exit_dir) {
-        return None;
+/// The double escape `s`-`z1`-`z2`-`z3`-`z4`-`t`: where the ordinary escape's boundary runs would
+/// have no room (the route rectangle is only two cells wide on `escape`'s own axis, so `mid`
+/// coincides with one of `s` or `t` on it), each end instead jogs to the far endpoint's coordinate
+/// on `escape`'s axis before crossing at the middle on the other axis, then jogs back — the only
+/// shape research.md's sweep found needed for these arrangements.
+fn zigzag(s: Pos, t: Pos, mid: Pos, escape: Orientation) -> Vec<Pos> {
+    match escape {
+        Orientation::Horizontal => vec![
+            s,
+            Pos { x: t.x, y: s.y },
+            Pos { x: t.x, y: mid.y },
+            Pos { x: s.x, y: mid.y },
+            Pos { x: s.x, y: t.y },
+            t,
+        ],
+        Orientation::Vertical => vec![
+            s,
+            Pos { x: s.x, y: t.y },
+            Pos { x: mid.x, y: t.y },
+            Pos { x: mid.x, y: s.y },
+            Pos { x: t.x, y: s.y },
+            t,
+        ],
     }
-    Some(u32::from(entry != da) + 1 + u32::from(exit != exit_dir))
 }
 
-/// The bend count of the three-waypoint route `s`-`w1`-`w2`-`t`, under the same rule as
-/// [`corner_bends`] applied at both ends.
-fn three_waypoint_bends(
-    s: Pos,
-    (w1, w2): (Pos, Pos),
-    t: Pos,
-    da: Direction,
-    exit_dir: Direction,
-) -> Option<u32> {
-    let entry = direction_between(s, w1)?;
-    let exit = direction_between(w2, t)?;
-    if entry == opposite(da) || exit == opposite(exit_dir) {
+/// The bend count of a route through `waypoints`, from `s` (its first element) to `t` (its last),
+/// leaving `s` toward `da` and arriving at `t` against `exit_dir` — or `None` where any run,
+/// including the one leaving `s` or the one arriving at `t`, would have to reverse. A run whose
+/// direction matches the boundary direction its end shares an axis with costs no bend there; any
+/// other direction — necessarily perpendicular, since a reversal is already ruled out — costs one.
+fn path_bends(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> Option<u32> {
+    let mut bends = 0;
+    let mut incoming = da;
+    for pair in waypoints.windows(2) {
+        let outgoing = direction_between(pair[0], pair[1])?;
+        if outgoing == opposite(incoming) {
+            return None;
+        }
+        bends += u32::from(outgoing != incoming);
+        incoming = outgoing;
+    }
+    if exit_dir == opposite(incoming) {
         return None;
     }
-    Some(u32::from(entry != da) + 2 + u32::from(exit != exit_dir))
+    Some(bends + u32::from(exit_dir != incoming))
 }
 
 /// Derives an arrow's route: the path between its two starting positions, per _The route of an
@@ -242,10 +260,11 @@ fn three_waypoint_bends(
 /// Built directly from runs and fixed coordinates rather than searched for and scored
 /// (research.md Q2): `s` and `t` pin the first and last run. Where they align or coincide the
 /// route is the single run or point between them. Otherwise every route the two directions admit
-/// is one of five shapes — a corner at each of the two points a pinned run from `s` could meet a
-/// pinned run into `t`, or a run at the middle of the route rectangle on one axis with a pinned
-/// run at each end, on the axis `da` moves along, on the axis `exit_dir` moves along, or (where
-/// `da` and `exit_dir` share an axis, so neither of the last two exists) on the other axis. The
+/// is one of a handful of shapes — a corner at each of the two points a pinned run from `s` could
+/// meet a pinned run into `t`; a run at the middle of the route rectangle on one axis with a
+/// pinned run at each end, on the axis `da` moves along, on the axis `exit_dir` moves along, or
+/// (where `da` and `exit_dir` share an axis, so neither of the last two exists) on the other axis;
+/// or, where that axis has no room for a pinned run either, the double escape ([`zigzag`]). The
 /// fewest-bend shape wins; where two tie, the one with a run at the middle does, per the model's
 /// tie-break.
 fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
@@ -268,34 +287,39 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
     let da_orientation = direction_orientation(da);
     let exit_orientation = direction_orientation(exit_dir);
 
-    let mut candidates: Vec<(u32, bool, [Pos; 2])> = Vec::new();
-    for corner in [Pos { x: t.x, y: s.y }, Pos { x: s.x, y: t.y }] {
-        if let Some(bends) = corner_bends(s, corner, t, da, exit_dir) {
-            candidates.push((bends, false, [corner, corner]));
-        }
-    }
-    let mut try_axis = |axis| {
+    let mut shapes: Vec<Vec<Pos>> = vec![
+        vec![s, Pos { x: t.x, y: s.y }, t],
+        vec![s, Pos { x: s.x, y: t.y }, t],
+    ];
+    let via_axis = |axis| {
         let (w1, w2) = three_waypoint(s, t, mid, axis);
-        if let Some(bends) = three_waypoint_bends(s, (w1, w2), t, da, exit_dir) {
-            candidates.push((bends, true, [w1, w2]));
-        }
+        vec![s, w1, w2, t]
     };
-    try_axis(da_orientation);
+    shapes.push(via_axis(da_orientation));
     if exit_orientation == da_orientation {
-        try_axis(opposite_orientation(da_orientation));
+        let escape = opposite_orientation(da_orientation);
+        shapes.push(via_axis(escape));
+        shapes.push(zigzag(s, t, mid, escape));
     } else {
-        try_axis(exit_orientation);
+        shapes.push(via_axis(exit_orientation));
     }
 
-    let (_, is_via_mid, waypoints) = candidates
+    shapes
         .into_iter()
-        .min_by_key(|&(bends, is_via_mid, _)| (bends, !is_via_mid))?;
-    let path = if is_via_mid {
-        vec![s, waypoints[0], waypoints[1], t]
-    } else {
-        vec![s, waypoints[0], t]
-    };
-    Some(expand_waypoints(&path))
+        .filter_map(|waypoints| {
+            let bends = path_bends(&waypoints, da, exit_dir)?;
+            let expanded = expand_waypoints(&waypoints);
+            // No route cell is an endpoint position: a run that would cross the *other*
+            // endpoint — the one `s`/`t` were not offset from — is not a route the rectangle
+            // permits, per data-model.md's invariant 2.
+            if expanded.contains(&a) || expanded.contains(&b) {
+                return None;
+            }
+            let is_via_mid = waypoints.len() > 3;
+            Some((bends, is_via_mid, expanded))
+        })
+        .min_by_key(|(bends, is_via_mid, _)| (*bends, !is_via_mid))
+        .map(|(_, _, expanded)| expanded)
 }
 
 #[cfg(test)]
@@ -919,5 +943,40 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// C-1, SC-001: the whole grid, rendered from both ends and labeled by arrangement, pinned
+    /// as one reviewed snapshot per
+    /// [ADR-0045](../../../../../docs/decisions/0045-pin-every-arrow-arrangement-as-a-reviewed-snapshot.md).
+    /// Each line's trailing blanks are trimmed before it goes into the snapshot — research.md
+    /// Q3 — since the gate's `editorconfig-checker` step runs with `trim_trailing_whitespace` on
+    /// and `render` pads every line to the window's width.
+    #[test]
+    fn sweep_matches_the_reviewed_snapshot() {
+        use std::fmt::Write as _;
+
+        let mut rendered = String::new();
+        for (a, da, b, db) in sweep_arrangements() {
+            for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
+                let text = render_arrow(
+                    SWEEP_ORIGIN,
+                    SWEEP_SIZE,
+                    endpoint(from_at, from_dir),
+                    endpoint(to_at, to_dir),
+                );
+                let trimmed: Vec<&str> = text.lines().map(str::trim_end).collect();
+                let _ = writeln!(
+                    rendered,
+                    "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?})\n{}\n",
+                    trimmed.join("\n")
+                );
+            }
+        }
+
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path(concat!(env!("CARGO_MANIFEST_DIR"), "/src/snapshots"));
+        settings.bind(|| {
+            insta::assert_snapshot!("arrow_sweep", rendered);
+        });
     }
 }
