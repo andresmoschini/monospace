@@ -173,7 +173,7 @@ confirms each picture against the model.
 
 ## Phase 8: Polish
 
-- [ ] T013 `docs`: append the increment's entry to `docs/learning-log.md` — what was learned about
+- [x] T013 `docs`: append the increment's entry to `docs/learning-log.md` — what was learned about
       Rust design and idiom (the runs-and-fixed-coordinates construction versus search-and-score),
       what was learned about working this way, and any trade-off worth remembering later.
 
