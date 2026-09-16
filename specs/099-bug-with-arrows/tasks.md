@@ -139,7 +139,7 @@ per source line rather than as one escaped string, per the spec's testing expect
 
 ## Phase 6: Add the `insta` dev-dependency
 
-- [ ] T010 `build(core)`: add `insta = "1.48.0"` under `[dev-dependencies]` in
+- [x] T010 `build(core)`: add `insta = "1.48.0"` under `[dev-dependencies]` in
       `crates/monospace-core/Cargo.toml` (published 2026-06-11, already verified in research.md Q4
       as more than seven days old). Its own commit, so the addition is visible in the log and in
       `Cargo.lock`; report here any transitive dependency it pulls in that was published within the
