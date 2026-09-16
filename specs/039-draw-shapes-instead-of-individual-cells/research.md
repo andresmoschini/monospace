@@ -187,6 +187,17 @@ an outcome of step 4 rather than a case.
 bounds, and whatever picture that produces becomes the expected text of the test that covers an even
 span. An arrow and its reverse are permitted to differ by one column.
 
+**The tie-break outlived this feature and is now
+[ADR-0044](../../docs/decisions/0044-let-the-endpoint-order-break-a-tied-route.md).** Step 4's
+ordering and the paragraph above are what feature 039 settled for itself, and feature 099 found that
+they decide something durable: which of two level routes is drawn, and therefore whether describing
+one arrow from its other end changes the picture. _Where a rationale goes_ asks for a record the
+moment a finding turns out to outlive the slice, because this file carries no status and cannot be
+superseded. The record chooses the cell nearer the endpoint the arrow leaves from, so "an arrow and
+its reverse are permitted to differ by one column" is now decided rather than permitted: they differ
+by exactly that, and in nothing else. What stays local here is the lattice and the enumeration — how
+the route is computed, rather than which route it is.
+
 **Everything above is derived on paper and is a prediction until it runs.** _Claims are measured,
 not assumed_: the ten pinned pictures are the measurement, and any that the implementation
 contradicts is this section being wrong rather than the spec.

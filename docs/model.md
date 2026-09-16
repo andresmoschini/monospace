@@ -328,8 +328,9 @@ what would reverse it back.
 
 ### The route of an arrow
 
-An arrow's route is derived from the two endpoint positions and the two directions, and from nothing
-else. The head glyphs change no position it occupies.
+An arrow's route is derived from the two endpoint positions, the two directions, and — only where
+the tie-break below leaves two routes level — from which of the two endpoints the arrow leaves. The
+head glyphs change no position it occupies.
 
 Each endpoint has a **starting position**: one step from it in that endpoint's own leaving
 direction. That step goes into the figure when the direction heads toward the other end, and out of
@@ -344,15 +345,20 @@ first endpoint's leaving direction, whose last step arrives at the second endpoi
 endpoint's leaving direction, whose runs alternate between horizontal and vertical, and which stays
 inside the route rectangle. The route is the one of those with the fewest bends, and where several
 share the fewest, the one that turns at the middle of the route rectangle on whichever coordinate
-the bends leave free. The two endpoint positions carry the heads, so the route writes the path
-without its two ends: a bend belongs to exactly one piece of the route, and no piece of the route
-writes where a head does.
+the bends leave free. Where that middle falls between two cells the route turns at the one nearer
+the endpoint the arrow leaves from, so the same arrow described from its other end turns at the
+other of the two — a picture equally correct, and the only thing the order of the endpoints decides
+about a route ([ADR-0044](decisions/0044-let-the-endpoint-order-break-a-tied-route.md)). The two
+endpoint positions carry the heads, so the route writes the path without its two ends: a bend
+belongs to exactly one piece of the route, and no piece of the route writes where a head does.
 
 Where no such path exists the route is empty and the arrow is its two heads. That is the rule's
 answer rather than an exception to it. It happens where the route rectangle is one cell thick and an
 alternating path cannot fit inside it: the two endpoints at one position, or two identical
-directions with the endpoints in line on that axis. Drawing nothing where a path _does_ exist would
-be a defect, and has been one — an earlier implementation of this idea silently drew nothing for two
+directions with the endpoints in line on that axis. Where the two endpoints are at one position the
+two heads fall on the same cell and only one of them can be seen: it is the one the arrow points at,
+the `to` endpoint's, drawn over the other. Drawing nothing where a path _does_ exist would be a
+defect, and has been one — an earlier implementation of this idea silently drew nothing for two
 endpoints facing away from each other, which the rule above routes around instead.
 
 ### Degenerate arrangements
