@@ -44,7 +44,7 @@ toward a smaller coordinate.
 **Independent Test**: render the bug report's arrow from either end and check both pictures are
 `◄─────►`.
 
-- [ ] T001 [US1] `fix(core)`: in `Route::draw` (`crates/monospace-core/src/shape/route.rs`), hand
+- [x] T001 [US1] `fix(core)`: in `Route::draw` (`crates/monospace-core/src/shape/route.rs`), hand
       `Segment` each run's cells starting from the run's lower-coordinate end regardless of path
       direction, so a run that travels left or up no longer draws backwards out of its starting
       cell. Verify by making SC-002's rendering fail first (`◄────►` misplacement), then pass.
