@@ -101,7 +101,7 @@ one nearer the `from` endpoint's starting position, per ADR-0044.
 **Independent Test**: render the ADR-0044 pair (`(0, 1)` leaving `down`, `(2, 6)` leaving `up`) from
 each end and check the turn moves from row 3 to row 4.
 
-- [ ] T004 [US1] `fix(core)`: in the construction from T003
+- [x] T004 [US1] `fix(core)`: in the construction from T003
       (`crates/monospace-core/src/shape/arrow.rs`), change the one value that rounds a free middle
       to round toward `s` (the `from` endpoint's starting position) instead of toward the smaller
       coordinate. Verify by making the ADR-0044 pair's `▼`-first rendering fail first (today it

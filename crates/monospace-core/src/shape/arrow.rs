@@ -157,13 +157,25 @@ impl RouteRectangle {
         }
     }
 
-    /// One value per axis: the cell halfway along that axis's span. Today this rounds toward the
-    /// smaller coordinate on both axes; rounding the free one toward `s` instead is ADR-0044's
-    /// tie-break, added in a later step.
-    fn middle(&self) -> Pos {
+    /// One value per axis: the cell halfway along that axis's span, taken as the one nearer
+    /// `anchor` — the `from` endpoint's starting position — where the span holds an even number
+    /// of cells and the halfway point falls between two. [ADR-0044](
+    /// ../../../../docs/decisions/0044-let-the-endpoint-order-break-a-tied-route.md).
+    fn middle(&self, anchor: Pos) -> Pos {
         Pos {
-            x: self.x_min + (self.x_max - self.x_min) / 2,
-            y: self.y_min + (self.y_max - self.y_min) / 2,
+            x: Self::midpoint(self.x_min, self.x_max, anchor.x),
+            y: Self::midpoint(self.y_min, self.y_max, anchor.y),
+        }
+    }
+
+    /// The cell halfway between `min` and `max` (inclusive), nearer `anchor` — which is always
+    /// one of the two, since it is one of the two positions the rectangle spans.
+    fn midpoint(min: i32, max: i32, anchor: i32) -> i32 {
+        let half = (max - min) / 2;
+        if anchor == min {
+            min + half
+        } else {
+            max - half
         }
     }
 }
@@ -252,7 +264,7 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
     }
 
     let rectangle = RouteRectangle::spanning(s, t);
-    let mid = rectangle.middle();
+    let mid = rectangle.middle(s);
     let da_orientation = direction_orientation(da);
     let exit_orientation = direction_orientation(exit_dir);
 
