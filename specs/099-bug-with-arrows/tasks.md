@@ -63,7 +63,7 @@ something to rewrite. Structural only: no test added, none changed, no picture m
 **⚠️ CRITICAL**: this MUST land as its own `refactor` commit, separate from the behavioral commits
 around it, per the constitution's rule that structural and behavioral change never share a commit.
 
-- [ ] T002 `refactor(core)`: extract the starting position (`s`, `t`), the route rectangle and the
+- [x] T002 `refactor(core)`: extract the starting position (`s`, `t`), the route rectangle and the
       middle as named values inside `derive_path` (`crates/monospace-core/src/shape/arrow.rs:144`),
       keeping every value identical to today's. Confirm no picture moves: `cargo test --workspace`
       passes unchanged before committing.

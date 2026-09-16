@@ -138,23 +138,51 @@ fn expand_waypoints(waypoints: &[Pos]) -> Vec<Pos> {
     positions
 }
 
+/// The smallest rectangle containing both starting positions — _The route of an arrow_ in
+/// [`docs/model.md`](../../../docs/model.md).
+struct RouteRectangle {
+    x_min: i32,
+    x_max: i32,
+    y_min: i32,
+    y_max: i32,
+}
+
+impl RouteRectangle {
+    fn spanning(s: Pos, t: Pos) -> Self {
+        Self {
+            x_min: s.x.min(t.x),
+            x_max: s.x.max(t.x),
+            y_min: s.y.min(t.y),
+            y_max: s.y.max(t.y),
+        }
+    }
+
+    /// One value per axis: the cell halfway along that axis's span. Today this rounds toward the
+    /// smaller coordinate on both axes; rounding the free one toward `s` instead is ADR-0044's
+    /// tie-break, added in a later step.
+    fn middle(&self) -> Pos {
+        Pos {
+            x: self.x_min + (self.x_max - self.x_min) / 2,
+            y: self.y_min + (self.y_max - self.y_min) / 2,
+        }
+    }
+}
+
 /// Derives an arrow's route: the path between its two starting positions, per _The route of an
 /// arrow_ and research.md Q5. `None` means no candidate exists and the arrow is its two heads
 /// alone.
 fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
-    let start_a = offset(a, da)?;
-    let start_b = offset(b, db)?;
+    // `s` and `t` — each endpoint's starting position: one step from it in that endpoint's own
+    // leaving direction.
+    let s = offset(a, da)?;
+    let t = offset(b, db)?;
 
-    let x_min = start_a.x.min(start_b.x);
-    let x_max = start_a.x.max(start_b.x);
-    let y_min = start_a.y.min(start_b.y);
-    let y_max = start_a.y.max(start_b.y);
-    let mid_x = x_min + (x_max - x_min) / 2;
-    let mid_y = y_min + (y_max - y_min) / 2;
+    let rectangle = RouteRectangle::spanning(s, t);
+    let mid = rectangle.middle();
 
-    let mut xs = [start_a.x, start_b.x, mid_x];
+    let mut xs = [s.x, t.x, mid.x];
     xs.sort_unstable();
-    let mut ys = [start_a.y, start_b.y, mid_y];
+    let mut ys = [s.y, t.y, mid.y];
     ys.sort_unstable();
 
     let mut lattice = Vec::with_capacity(9);
@@ -167,24 +195,23 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
         }
     }
 
-    let start_idx = lattice.iter().position(|&p| p == start_a)?;
+    let start_idx = lattice.iter().position(|&p| p == s)?;
     let exit_dir = opposite(db);
 
     let mut candidates = Vec::new();
     let mut visited = vec![false; lattice.len()];
     visited[start_idx] = true;
-    let mut path = vec![start_a];
+    let mut path = vec![s];
     search(
         &lattice,
         &mut visited,
         start_idx,
         da,
-        start_b,
+        t,
         &mut path,
         &mut candidates,
     );
 
-    let mid = Pos { x: mid_x, y: mid_y };
     candidates
         .into_iter()
         .filter(|waypoints| is_valid(waypoints, da, exit_dir))
