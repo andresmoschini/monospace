@@ -4,7 +4,7 @@
 
 use crate::shape::fragment::head::Head;
 use crate::shape::route::Route;
-use crate::{Direction, Glyph, Pos, Shape, Stroke, Surface};
+use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
 
 /// Where an arrow ends: a position, the direction it leaves in, and the glyph of the head that
 /// sits there. A head points opposite to `leaving`.
@@ -168,146 +168,122 @@ impl RouteRectangle {
     }
 }
 
+/// The orientation a direction moves along: `Left`/`Right` are horizontal, `Up`/`Down` vertical.
+fn direction_orientation(dir: Direction) -> Orientation {
+    match dir {
+        Direction::Left | Direction::Right => Orientation::Horizontal,
+        Direction::Up | Direction::Down => Orientation::Vertical,
+    }
+}
+
+fn opposite_orientation(o: Orientation) -> Orientation {
+    match o {
+        Orientation::Horizontal => Orientation::Vertical,
+        Orientation::Vertical => Orientation::Horizontal,
+    }
+}
+
+/// The two interior waypoints of a route from `s` to `t` that turns at `mid` — a run leaves `s`
+/// and a run arrives at `t`, both `primary`-oriented and fixed at `mid`'s coordinate on the other
+/// axis; the run between them — the one the bends leave free — is fixed at `mid`'s coordinate on
+/// `primary`'s own axis. _Run_ and _Middle_ in `docs/model.md`'s _The route of an arrow_.
+fn three_waypoint(s: Pos, t: Pos, mid: Pos, primary: Orientation) -> (Pos, Pos) {
+    match primary {
+        Orientation::Horizontal => (Pos { x: mid.x, y: s.y }, Pos { x: mid.x, y: t.y }),
+        Orientation::Vertical => (Pos { x: s.x, y: mid.y }, Pos { x: t.x, y: mid.y }),
+    }
+}
+
+/// The bend count of the two-run corner `s`-`corner`-`t`, or `None` where either run would have
+/// to reverse out of `da` or into `exit_dir`. A run whose direction matches the boundary direction
+/// its end shares an axis with costs no bend there; any other direction — necessarily
+/// perpendicular, since a reversal is already ruled out — costs one.
+fn corner_bends(s: Pos, corner: Pos, t: Pos, da: Direction, exit_dir: Direction) -> Option<u32> {
+    let entry = direction_between(s, corner)?;
+    let exit = direction_between(corner, t)?;
+    if entry == opposite(da) || exit == opposite(exit_dir) {
+        return None;
+    }
+    Some(u32::from(entry != da) + 1 + u32::from(exit != exit_dir))
+}
+
+/// The bend count of the three-waypoint route `s`-`w1`-`w2`-`t`, under the same rule as
+/// [`corner_bends`] applied at both ends.
+fn three_waypoint_bends(
+    s: Pos,
+    (w1, w2): (Pos, Pos),
+    t: Pos,
+    da: Direction,
+    exit_dir: Direction,
+) -> Option<u32> {
+    let entry = direction_between(s, w1)?;
+    let exit = direction_between(w2, t)?;
+    if entry == opposite(da) || exit == opposite(exit_dir) {
+        return None;
+    }
+    Some(u32::from(entry != da) + 2 + u32::from(exit != exit_dir))
+}
+
 /// Derives an arrow's route: the path between its two starting positions, per _The route of an
-/// arrow_ and research.md Q5. `None` means no candidate exists and the arrow is its two heads
-/// alone.
+/// arrow_. `None` means no candidate exists and the arrow is its two heads alone.
+///
+/// Built directly from runs and fixed coordinates rather than searched for and scored
+/// (research.md Q2): `s` and `t` pin the first and last run. Where they align or coincide the
+/// route is the single run or point between them. Otherwise every route the two directions admit
+/// is one of five shapes — a corner at each of the two points a pinned run from `s` could meet a
+/// pinned run into `t`, or a run at the middle of the route rectangle on one axis with a pinned
+/// run at each end, on the axis `da` moves along, on the axis `exit_dir` moves along, or (where
+/// `da` and `exit_dir` share an axis, so neither of the last two exists) on the other axis. The
+/// fewest-bend shape wins; where two tie, the one with a run at the middle does, per the model's
+/// tie-break.
 fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
     // `s` and `t` — each endpoint's starting position: one step from it in that endpoint's own
     // leaving direction.
     let s = offset(a, da)?;
     let t = offset(b, db)?;
+    let exit_dir = opposite(db);
+
+    if s == t {
+        return (da != opposite(exit_dir)).then(|| expand_waypoints(&[s]));
+    }
+    if let Some(dir) = direction_between(s, t) {
+        return (dir != opposite(da) && dir != opposite(exit_dir))
+            .then(|| expand_waypoints(&[s, t]));
+    }
 
     let rectangle = RouteRectangle::spanning(s, t);
     let mid = rectangle.middle();
+    let da_orientation = direction_orientation(da);
+    let exit_orientation = direction_orientation(exit_dir);
 
-    let mut xs = [s.x, t.x, mid.x];
-    xs.sort_unstable();
-    let mut ys = [s.y, t.y, mid.y];
-    ys.sort_unstable();
-
-    let mut lattice = Vec::with_capacity(9);
-    for &x in &xs {
-        for &y in &ys {
-            let point = Pos { x, y };
-            if point != a && point != b && !lattice.contains(&point) {
-                lattice.push(point);
-            }
+    let mut candidates: Vec<(u32, bool, [Pos; 2])> = Vec::new();
+    for corner in [Pos { x: t.x, y: s.y }, Pos { x: s.x, y: t.y }] {
+        if let Some(bends) = corner_bends(s, corner, t, da, exit_dir) {
+            candidates.push((bends, false, [corner, corner]));
         }
     }
-
-    let start_idx = lattice.iter().position(|&p| p == s)?;
-    let exit_dir = opposite(db);
-
-    let mut candidates = Vec::new();
-    let mut visited = vec![false; lattice.len()];
-    visited[start_idx] = true;
-    let mut path = vec![s];
-    search(
-        &lattice,
-        &mut visited,
-        start_idx,
-        da,
-        t,
-        &mut path,
-        &mut candidates,
-    );
-
-    candidates
-        .into_iter()
-        .filter(|waypoints| is_valid(waypoints, da, exit_dir))
-        .map(|waypoints| {
-            let bends = count_bends(&waypoints, da, exit_dir);
-            let closeness: i32 = waypoints
-                .iter()
-                .map(|p| (p.x - mid.x).abs() + (p.y - mid.y).abs())
-                .sum();
-            (bends, closeness, waypoints)
-        })
-        .min_by(|left, right| {
-            left.0
-                .cmp(&right.0)
-                .then(left.1.cmp(&right.1))
-                .then_with(|| compare_lexicographically(&left.2, &right.2))
-        })
-        .map(|(_, _, waypoints)| expand_waypoints(&waypoints))
-}
-
-/// Depth-first search over the lattice, from `current` (already in `path`) toward `start_b`,
-/// respecting `current_dir` as the direction just traveled and forbidding a reversal. Every
-/// completed path — reaching `start_b`, by whatever route — is recorded in `candidates`.
-fn search(
-    lattice: &[Pos],
-    visited: &mut [bool],
-    current: usize,
-    current_dir: Direction,
-    start_b: Pos,
-    path: &mut Vec<Pos>,
-    candidates: &mut Vec<Vec<Pos>>,
-) {
-    if lattice[current] == start_b {
-        candidates.push(path.clone());
-        return;
-    }
-    for next in 0..lattice.len() {
-        if visited[next] {
-            continue;
+    let mut try_axis = |axis| {
+        let (w1, w2) = three_waypoint(s, t, mid, axis);
+        if let Some(bends) = three_waypoint_bends(s, (w1, w2), t, da, exit_dir) {
+            candidates.push((bends, true, [w1, w2]));
         }
-        let Some(dir) = direction_between(lattice[current], lattice[next]) else {
-            continue;
-        };
-        if dir == opposite(current_dir) {
-            continue;
-        }
-        visited[next] = true;
-        path.push(lattice[next]);
-        search(lattice, visited, next, dir, start_b, path, candidates);
-        path.pop();
-        visited[next] = false;
-    }
-}
-
-/// Whether `waypoints` (from `start_a` to `start_b`) can validly exit toward `exit_dir` without a
-/// reversal at the last point.
-fn is_valid(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> bool {
-    let last_incoming = if waypoints.len() == 1 {
-        da
-    } else {
-        let n = waypoints.len();
-        direction_between(waypoints[n - 2], waypoints[n - 1])
-            .expect("consecutive waypoints share one coordinate")
     };
-    last_incoming != opposite(exit_dir)
-}
-
-/// The number of positions along `waypoints` where the direction of travel actually changes,
-/// counting the fixed entry direction `da` and exit direction `exit_dir` as part of the path.
-fn count_bends(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> u32 {
-    let n = waypoints.len();
-    let mut bends = 0;
-    for i in 0..n {
-        let incoming = if i == 0 {
-            da
-        } else {
-            direction_between(waypoints[i - 1], waypoints[i])
-                .expect("consecutive waypoints share one coordinate")
-        };
-        let outgoing = if i + 1 < n {
-            direction_between(waypoints[i], waypoints[i + 1])
-                .expect("consecutive waypoints share one coordinate")
-        } else {
-            exit_dir
-        };
-        if incoming != outgoing {
-            bends += 1;
-        }
+    try_axis(da_orientation);
+    if exit_orientation == da_orientation {
+        try_axis(opposite_orientation(da_orientation));
+    } else {
+        try_axis(exit_orientation);
     }
-    bends
-}
 
-fn compare_lexicographically(left: &[Pos], right: &[Pos]) -> std::cmp::Ordering {
-    left.iter()
-        .map(|p| (p.x, p.y))
-        .cmp(right.iter().map(|p| (p.x, p.y)))
+    let (_, is_via_mid, waypoints) = candidates
+        .into_iter()
+        .min_by_key(|&(bends, is_via_mid, _)| (bends, !is_via_mid))?;
+    let path = if is_via_mid {
+        vec![s, waypoints[0], waypoints[1], t]
+    } else {
+        vec![s, waypoints[0], t]
+    };
+    Some(expand_waypoints(&path))
 }
 
 #[cfg(test)]

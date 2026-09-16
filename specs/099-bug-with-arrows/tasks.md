@@ -81,7 +81,7 @@ instead of searched for and ranked by `closeness`.
 **Independent Test**: render the three arrangements in User Story 2's table (`n = 4, 5, 6`) and
 check each turns at the middle of its route rectangle.
 
-- [ ] T003 [US2] `fix(core)`: replace `search`, `is_valid`, `count_bends`,
+- [x] T003 [US2] `fix(core)`: replace `search`, `is_valid`, `count_bends`,
       `compare_lexicographically` and the `closeness`-scored candidate list in
       `crates/monospace-core/src/shape/arrow.rs` with the runs-and-fixed-coordinates construction
       research.md Q2 sets out, still rounding a free middle toward the smaller coordinate (today's
