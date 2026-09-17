@@ -1,6 +1,5 @@
 ---
 source: crates/monospace-core/src/shape/arrow.rs
-assertion_line: 1005
 expression: rendered
 ---
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 0, y: 0 }, Up)

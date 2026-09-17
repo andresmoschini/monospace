@@ -232,6 +232,64 @@ fn zigzag(s: Pos, t: Pos, mid: Pos, escape: Orientation) -> Vec<Pos> {
     }
 }
 
+/// `waypoints` with each repeat of the one before it dropped. A constructed shape names a turn
+/// that can coincide with the point before it — the middle of a span two cells wide is one of
+/// the two ends of that span — and such a shape is the same path as the one without the repeat,
+/// not an invalid one.
+fn without_repeats(waypoints: Vec<Pos>) -> Vec<Pos> {
+    let mut kept: Vec<Pos> = Vec::with_capacity(waypoints.len());
+    for point in waypoints {
+        if kept.last() != Some(&point) {
+            kept.push(point);
+        }
+    }
+    kept
+}
+
+/// The runs of the path `a` → `waypoints` → `b`: one entry per maximal stretch traveled in one
+/// direction, as the orientation it lies along and the coordinate it is fixed at — its row if
+/// horizontal, its column if vertical.
+fn path_runs(a: Pos, waypoints: &[Pos], b: Pos) -> Vec<(Orientation, i32)> {
+    let mut points = Vec::with_capacity(waypoints.len() + 2);
+    points.push(a);
+    points.extend_from_slice(waypoints);
+    points.push(b);
+
+    let mut runs: Vec<(Orientation, i32)> = Vec::new();
+    let mut traveling: Option<Direction> = None;
+    for pair in points.windows(2) {
+        let Some(direction) = direction_between(pair[0], pair[1]) else {
+            continue;
+        };
+        if traveling == Some(direction) {
+            continue;
+        }
+        traveling = Some(direction);
+        runs.push(match direction_orientation(direction) {
+            Orientation::Horizontal => (Orientation::Horizontal, pair[0].y),
+            Orientation::Vertical => (Orientation::Vertical, pair[0].x),
+        });
+    }
+    runs
+}
+
+/// How far the runs the bends leave free sit from the middle of the route rectangle — the
+/// model's tie-break among candidates that share the fewest bends, summed over the runs it
+/// speaks of. The first run is pinned by `a` and the last by `b`, so neither is free and neither
+/// counts.
+fn distance_from_middle(a: Pos, waypoints: &[Pos], b: Pos, mid: Pos) -> u32 {
+    let runs = path_runs(a, waypoints, b);
+    let interior = runs.len().saturating_sub(2);
+    runs.iter()
+        .skip(1)
+        .take(interior)
+        .map(|&(orientation, coordinate)| match orientation {
+            Orientation::Horizontal => coordinate.abs_diff(mid.y),
+            Orientation::Vertical => coordinate.abs_diff(mid.x),
+        })
+        .sum()
+}
+
 /// The bend count of a route through `waypoints`, from `s` (its first element) to `t` (its last),
 /// leaving `s` toward `da` and arriving at `t` against `exit_dir` — or `None` where any run,
 /// including the one leaving `s` or the one arriving at `t`, would have to reverse. A run whose
@@ -265,8 +323,8 @@ fn path_bends(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> Option<u
 /// pinned run at each end, on the axis `da` moves along, on the axis `exit_dir` moves along, or
 /// (where `da` and `exit_dir` share an axis, so neither of the last two exists) on the other axis;
 /// or, where that axis has no room for a pinned run either, the double escape ([`zigzag`]). The
-/// fewest-bend shape wins; where two tie, the one with a run at the middle does, per the model's
-/// tie-break.
+/// fewest-bend shape wins; where two tie, the one whose free runs sit nearest the middle does,
+/// per the model's tie-break.
 fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
     // `s` and `t` — each endpoint's starting position: one step from it in that endpoint's own
     // leaving direction.
@@ -306,6 +364,7 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
 
     shapes
         .into_iter()
+        .map(without_repeats)
         .filter_map(|waypoints| {
             let bends = path_bends(&waypoints, da, exit_dir)?;
             let expanded = expand_waypoints(&waypoints);
@@ -315,10 +374,10 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
             if expanded.contains(&a) || expanded.contains(&b) {
                 return None;
             }
-            let is_via_mid = waypoints.len() > 3;
-            Some((bends, is_via_mid, expanded))
+            let from_middle = distance_from_middle(a, &waypoints, b, mid);
+            Some((bends, from_middle, expanded))
         })
-        .min_by_key(|(bends, is_via_mid, _)| (*bends, !is_via_mid))
+        .min_by_key(|&(bends, from_middle, _)| (bends, from_middle))
         .map(|(_, _, expanded)| expanded)
 }
 
@@ -769,6 +828,36 @@ mod tests {
                 "  ▼\n",
             )
         );
+    }
+
+    /// ADR-0044 where the free coordinate spans exactly two cells: the middle is then one of the
+    /// two ends of the span, and the shape that turns there names a point twice. Scoring a
+    /// candidate by how far its free runs sit from the middle — rather than by whether it has
+    /// four waypoints — is what makes these two turn nearer the endpoint named first, and
+    /// mirror each other, instead of both turning away from it.
+    #[test]
+    fn a_free_span_two_cells_wide_still_turns_nearer_the_endpoint_named_first() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 4,
+            height: 2,
+        };
+
+        let right_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 3, y: 1 }, Direction::Left),
+        );
+        let left_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 3, y: 1 }, Direction::Left),
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+        );
+
+        assert_eq!(right_first, concat!("◄┐  \n", " └─►\n"));
+        assert_eq!(left_first, concat!("◄─┐ \n", "  └►\n"));
     }
 
     /// SC-004: each arrangement in User Story 2's table turns at the middle of its route
