@@ -868,10 +868,16 @@ mod tests {
         height: 9,
     };
 
-    /// The grid research.md Q6 defines: two anchors, each leaving in four directions, against
-    /// every position of a six-by-five field with four leaving directions each, excluding the
-    /// arrangements where the second position is the anchor itself — 928 arrangements.
-    fn sweep_arrangements() -> Vec<(Pos, Direction, Pos, Direction)> {
+    /// One group of [`sweep_arrangements_by_anchor`]: the anchor, its leaving direction, and
+    /// every `(position, leaving direction)` the anchor is paired with.
+    type AnchorGroup = (Pos, Direction, Vec<(Pos, Direction)>);
+
+    /// The grid research.md Q6 defines, grouped by anchor and its leaving direction: two anchors,
+    /// each leaving in four directions — eight groups of 116 arrangements each, against every
+    /// position of a six-by-five field with four leaving directions each, excluding the
+    /// arrangements where the second position is the anchor itself. The grouping is what lets the
+    /// sweep's snapshot split into one file per group instead of one no review tool can render.
+    fn sweep_arrangements_by_anchor() -> Vec<AnchorGroup> {
         const DIRECTIONS: [Direction; 4] = [
             Direction::Up,
             Direction::Right,
@@ -880,9 +886,10 @@ mod tests {
         ];
         let anchors = [Pos { x: 0, y: 0 }, Pos { x: 2, y: 1 }];
 
-        let mut arrangements = Vec::new();
+        let mut groups = Vec::new();
         for anchor in anchors {
             for anchor_dir in DIRECTIONS {
+                let mut others = Vec::new();
                 for x in 0..6 {
                     for y in 0..5 {
                         let other = Pos { x, y };
@@ -890,13 +897,26 @@ mod tests {
                             continue;
                         }
                         for other_dir in DIRECTIONS {
-                            arrangements.push((anchor, anchor_dir, other, other_dir));
+                            others.push((other, other_dir));
                         }
                     }
                 }
+                groups.push((anchor, anchor_dir, others));
             }
         }
-        arrangements
+        groups
+    }
+
+    /// The grid research.md Q6 defines, flattened — 928 arrangements.
+    fn sweep_arrangements() -> Vec<(Pos, Direction, Pos, Direction)> {
+        sweep_arrangements_by_anchor()
+            .into_iter()
+            .flat_map(|(anchor, anchor_dir, others)| {
+                others
+                    .into_iter()
+                    .map(move |(other, other_dir)| (anchor, anchor_dir, other, other_dir))
+            })
+            .collect()
     }
 
     /// Research.md Q6's own check on its grid definition: it reproduces the spec's 928.
@@ -945,8 +965,10 @@ mod tests {
         }
     }
 
-    /// C-1, SC-001: the whole grid, rendered from both ends and labeled by arrangement, pinned
-    /// as one reviewed snapshot per
+    /// C-1, SC-001: the whole grid, rendered from both ends and labeled by arrangement, pinned as
+    /// one reviewed snapshot per anchor and leaving direction — eight files rather than one, so a
+    /// PR review tool can render each diff; a single 20,000-line file is what GitHub would not
+    /// show at all — per
     /// [ADR-0045](../../../../../docs/decisions/0045-pin-every-arrow-arrangement-as-a-reviewed-snapshot.md).
     /// Each line's trailing blanks are trimmed before it goes into the snapshot — research.md
     /// Q3 — since the gate's `editorconfig-checker` step runs with `trim_trailing_whitespace` on
@@ -955,28 +977,37 @@ mod tests {
     fn sweep_matches_the_reviewed_snapshot() {
         use std::fmt::Write as _;
 
-        let mut rendered = String::new();
-        for (a, da, b, db) in sweep_arrangements() {
-            for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
-                let text = render_arrow(
-                    SWEEP_ORIGIN,
-                    SWEEP_SIZE,
-                    endpoint(from_at, from_dir),
-                    endpoint(to_at, to_dir),
-                );
-                let trimmed: Vec<&str> = text.lines().map(str::trim_end).collect();
-                let _ = writeln!(
-                    rendered,
-                    "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?})\n{}\n",
-                    trimmed.join("\n")
-                );
-            }
-        }
-
         let mut settings = insta::Settings::clone_current();
         settings.set_snapshot_path(concat!(env!("CARGO_MANIFEST_DIR"), "/src/snapshots"));
         settings.bind(|| {
-            insta::assert_snapshot!("arrow_sweep", rendered);
+            for (anchor, anchor_dir, others) in sweep_arrangements_by_anchor() {
+                let mut rendered = String::new();
+                for (other, other_dir) in others {
+                    for (from_at, from_dir, to_at, to_dir) in [
+                        (anchor, anchor_dir, other, other_dir),
+                        (other, other_dir, anchor, anchor_dir),
+                    ] {
+                        let text = render_arrow(
+                            SWEEP_ORIGIN,
+                            SWEEP_SIZE,
+                            endpoint(from_at, from_dir),
+                            endpoint(to_at, to_dir),
+                        );
+                        let trimmed: Vec<&str> = text.lines().map(str::trim_end).collect();
+                        let _ = writeln!(
+                            rendered,
+                            "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?})\n{}\n",
+                            trimmed.join("\n")
+                        );
+                    }
+                }
+                let name = format!(
+                    "arrow_sweep_anchor_{}_{}_{anchor_dir:?}",
+                    anchor.x, anchor.y
+                )
+                .to_lowercase();
+                insta::assert_snapshot!(name, rendered);
+            }
         });
     }
 }
