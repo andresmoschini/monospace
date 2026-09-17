@@ -55,6 +55,8 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0041](0041-resolve-a-position-through-a-reference.md)             | Resolve a position through a reference, and draw nothing that cannot be resolved | accepted                             |
 | [0042](0042-draw-a-diagram-front-to-back-into-a-given-window.md)   | Draw a diagram front to back, into a window the caller gives                     | accepted                             |
 | [0043](0043-let-the-buffer-record-who-decided-each-cell.md)        | Let the buffer record who decided each cell                                      | accepted                             |
+| [0044](0044-let-the-endpoint-order-break-a-tied-route.md)          | Let the endpoint order break a tied route                                        | accepted                             |
+| [0045](0045-pin-every-arrow-arrangement-as-a-reviewed-snapshot.md) | Pin every arrow arrangement as a reviewed snapshot                               | accepted                             |
 
 ## How to add one
 
