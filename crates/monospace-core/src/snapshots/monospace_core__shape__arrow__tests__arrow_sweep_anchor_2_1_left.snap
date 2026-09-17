@@ -159,8 +159,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 0, y: 1 }, Left)
 
 
-
-  ► ►
+ ┌─┐
+ └►└►
 
 
 
@@ -170,8 +170,8 @@ expression: rendered
 (Pos { x: 0, y: 1 }, Left) -> (Pos { x: 2, y: 1 }, Left)
 
 
-
-  ► ►
+ ┌─┐
+ └►└►
 
 
 
@@ -444,9 +444,9 @@ expression: rendered
 
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 1, y: 0 }, Up)
 
-
-   ▼
-    ►
+  ┌┐
+  │▼
+  └─►
 
 
 
@@ -455,9 +455,9 @@ expression: rendered
 
 (Pos { x: 1, y: 0 }, Up) -> (Pos { x: 2, y: 1 }, Left)
 
-
-   ▼
-    ►
+  ┌┐
+  │▼
+  └─►
 
 
 
@@ -467,9 +467,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 1, y: 0 }, Right)
 
 
-   ◄
-    ►
-
+   ◄─┐
+   ┌►│
+   └─┘
 
 
 
@@ -477,9 +477,9 @@ expression: rendered
 
 (Pos { x: 1, y: 0 }, Right) -> (Pos { x: 2, y: 1 }, Left)
 
-
-   ◄
-    ►
+  ┌─┐
+  │◄┘
+  └─►
 
 
 
@@ -643,9 +643,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 1, y: 2 }, Right)
 
 
-
-    ►
-   ◄
+   ┌─┐
+   └►│
+   ◄─┘
 
 
 
@@ -655,9 +655,9 @@ expression: rendered
 
 
 
-    ►
-   ◄
-
+  ┌─►
+  │◄┐
+  └─┘
 
 
 
@@ -666,9 +666,9 @@ expression: rendered
 
 
 
-    ►
-   ▲
-
+  ┌─►
+  │▲
+  └┘
 
 
 
@@ -677,9 +677,9 @@ expression: rendered
 
 
 
-    ►
-   ▲
-
+  ┌─►
+  │▲
+  └┘
 
 
 
@@ -754,10 +754,10 @@ expression: rendered
 
 
 
-    ►
-
-   ▲
-
+  ┌─►
+  │
+  │▲
+  └┘
 
 
 
@@ -765,10 +765,10 @@ expression: rendered
 
 
 
-    ►
-
-   ▲
-
+  ┌─►
+  │
+  │▲
+  └┘
 
 
 
@@ -842,22 +842,22 @@ expression: rendered
 
 
 
-    ►
-
-
-   ▲
-
+  ┌─►
+  │
+  │
+  │▲
+  └┘
 
 
 (Pos { x: 1, y: 4 }, Down) -> (Pos { x: 2, y: 1 }, Left)
 
 
 
-    ►
-
-
-   ▲
-
+  ┌─►
+  │
+  │
+  │▲
+  └┘
 
 
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 1, y: 4 }, Left)
@@ -907,9 +907,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 2, y: 0 }, Right)
 
 
-    ◄
-    ►
-
+    ◄┐
+   ┌►│
+   └─┘
 
 
 
@@ -917,9 +917,9 @@ expression: rendered
 
 (Pos { x: 2, y: 0 }, Right) -> (Pos { x: 2, y: 1 }, Left)
 
-
-    ◄
-    ►
+   ┌─┐
+   │◄┘
+   └►
 
 
 
@@ -995,9 +995,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 2, y: 2 }, Right)
 
 
-
-    ►
-    ◄
+   ┌─┐
+   └►│
+    ◄┘
 
 
 
@@ -1007,9 +1007,9 @@ expression: rendered
 
 
 
-    ►
-    ◄
-
+   ┌►
+   │◄┐
+   └─┘
 
 
 
@@ -1259,9 +1259,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 3, y: 0 }, Right)
 
 
-     ◄
-    ►
-
+     ◄┐
+   ┌► │
+   └──┘
 
 
 
@@ -1269,9 +1269,9 @@ expression: rendered
 
 (Pos { x: 3, y: 0 }, Right) -> (Pos { x: 2, y: 1 }, Left)
 
-
-     ◄
-    ►
+   ┌──┐
+   │ ◄┘
+   └►
 
 
 
@@ -1282,8 +1282,8 @@ expression: rendered
 
 
      ▲
-    ►
-
+   ┌►│
+   └─┘
 
 
 
@@ -1293,8 +1293,8 @@ expression: rendered
 
 
      ▲
-    ►
-
+   ┌►│
+   └─┘
 
 
 
@@ -1347,8 +1347,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 3, y: 1 }, Right)
 
 
-
-    ►◄
+   ┌──┐
+   └►◄┘
 
 
 
@@ -1359,8 +1359,8 @@ expression: rendered
 
 
 
-    ►◄
-
+   ┌►◄┐
+   └──┘
 
 
 
@@ -1413,8 +1413,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 3, y: 2 }, Up)
 
 
-
-    ►
+   ┌─┐
+   └►│
      ▼
 
 
@@ -1424,8 +1424,8 @@ expression: rendered
 (Pos { x: 3, y: 2 }, Up) -> (Pos { x: 2, y: 1 }, Left)
 
 
-
-    ►
+   ┌─┐
+   └►│
      ▼
 
 
@@ -1435,9 +1435,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 3, y: 2 }, Right)
 
 
-
-    ►
-     ◄
+   ┌──┐
+   └► │
+     ◄┘
 
 
 
@@ -1447,9 +1447,9 @@ expression: rendered
 
 
 
-    ►
-     ◄
-
+   ┌►
+   │ ◄┐
+   └──┘
 
 
 
@@ -1699,9 +1699,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 4, y: 0 }, Right)
 
 
-   ┌─┐◄┐
-   └►└─┘
-
+      ◄┐
+   ┌►  │
+   └───┘
 
 
 
@@ -1709,9 +1709,9 @@ expression: rendered
 
 (Pos { x: 4, y: 0 }, Right) -> (Pos { x: 2, y: 1 }, Left)
 
-
-   ┌─┐◄┐
-   └►└─┘
+   ┌───┐
+   │  ◄┘
+   └►
 
 
 
@@ -1722,8 +1722,8 @@ expression: rendered
 
 
       ▲
-    ►
-
+   ┌► │
+   └──┘
 
 
 
@@ -1733,8 +1733,8 @@ expression: rendered
 
 
       ▲
-    ►
-
+   ┌► │
+   └──┘
 
 
 
@@ -1787,8 +1787,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 4, y: 1 }, Right)
 
 
-
-    ► ◄
+   ┌───┐
+   └► ◄┘
 
 
 
@@ -1799,8 +1799,8 @@ expression: rendered
 
 
 
-    ► ◄
-
+   ┌► ◄┐
+   └───┘
 
 
 
@@ -1831,8 +1831,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 4, y: 1 }, Left)
 
 
-
-    ► ►
+   ┌─┐
+   └►└►
 
 
 
@@ -1842,8 +1842,8 @@ expression: rendered
 (Pos { x: 4, y: 1 }, Left) -> (Pos { x: 2, y: 1 }, Left)
 
 
-
-    ► ►
+   ┌─┐
+   └►└►
 
 
 
@@ -1853,8 +1853,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 4, y: 2 }, Up)
 
 
-
-    ►
+   ┌──┐
+   └► │
       ▼
 
 
@@ -1864,8 +1864,8 @@ expression: rendered
 (Pos { x: 4, y: 2 }, Up) -> (Pos { x: 2, y: 1 }, Left)
 
 
-
-    ►
+   ┌──┐
+   └► │
       ▼
 
 
@@ -1875,9 +1875,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 4, y: 2 }, Right)
 
 
-
-   ┌►┌─┐
-   └─┘◄┘
+   ┌───┐
+   └►  │
+      ◄┘
 
 
 
@@ -1887,9 +1887,9 @@ expression: rendered
 
 
 
-   ┌►┌─┐
-   └─┘◄┘
-
+   ┌►
+   │  ◄┐
+   └───┘
 
 
 
@@ -2139,9 +2139,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 5, y: 0 }, Right)
 
 
-   ┌─┐ ◄┐
-   └►└──┘
-
+       ◄┐
+   ┌►   │
+   └────┘
 
 
 
@@ -2149,9 +2149,9 @@ expression: rendered
 
 (Pos { x: 5, y: 0 }, Right) -> (Pos { x: 2, y: 1 }, Left)
 
-
-   ┌──┐◄┐
-   └► └─┘
+   ┌────┐
+   │   ◄┘
+   └►
 
 
 
@@ -2162,8 +2162,8 @@ expression: rendered
 
 
        ▲
-    ►
-
+   ┌►  │
+   └───┘
 
 
 
@@ -2173,8 +2173,8 @@ expression: rendered
 
 
        ▲
-    ►
-
+   ┌►  │
+   └───┘
 
 
 
@@ -2227,8 +2227,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 5, y: 1 }, Right)
 
 
-
-    ►  ◄
+   ┌────┐
+   └►  ◄┘
 
 
 
@@ -2239,8 +2239,8 @@ expression: rendered
 
 
 
-    ►  ◄
-
+   ┌►  ◄┐
+   └────┘
 
 
 
@@ -2271,8 +2271,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 5, y: 1 }, Left)
 
 
-
-    ►  ►
+   ┌─┐
+   └►└─►
 
 
 
@@ -2282,8 +2282,8 @@ expression: rendered
 (Pos { x: 5, y: 1 }, Left) -> (Pos { x: 2, y: 1 }, Left)
 
 
-
-    ►  ►
+   ┌─┐
+   └►└─►
 
 
 
@@ -2293,8 +2293,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 5, y: 2 }, Up)
 
 
-
-    ►
+   ┌───┐
+   └►  │
        ▼
 
 
@@ -2304,8 +2304,8 @@ expression: rendered
 (Pos { x: 5, y: 2 }, Up) -> (Pos { x: 2, y: 1 }, Left)
 
 
-
-    ►
+   ┌───┐
+   └►  │
        ▼
 
 
@@ -2315,9 +2315,9 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Left) -> (Pos { x: 5, y: 2 }, Right)
 
 
-
-   ┌►┌──┐
-   └─┘ ◄┘
+   ┌────┐
+   └►   │
+       ◄┘
 
 
 
@@ -2327,9 +2327,9 @@ expression: rendered
 
 
 
-   ┌► ┌─┐
-   └──┘◄┘
-
+   ┌►
+   │   ◄┐
+   └────┘
 
 
 
