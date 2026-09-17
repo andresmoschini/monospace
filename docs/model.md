@@ -329,37 +329,59 @@ what would reverse it back.
 ### The route of an arrow
 
 An arrow's route is derived from the two endpoint positions, the two directions, and — only where
-the tie-break below leaves two routes level — from which of the two endpoints the arrow leaves. The
+the ranking below leaves two routes level — from which of the two endpoints the arrow leaves. The
 head glyphs change no position it occupies.
 
 Each endpoint has a **starting position**: one step from it in that endpoint's own leaving
 direction. That step goes into the figure when the direction heads toward the other end, and out of
-it when the direction heads away. The route runs between the two starting positions and stays inside
-the **route rectangle**, the smallest rectangle containing both of them — which exceeds the
-rectangle the two endpoints span by exactly one cell on each side a direction points away from, and
-by nothing anywhere else. Within that bound the route takes the fewest bends its two directions
-allow.
+it when the direction heads away. The route runs between the two starting positions.
 
 Concretely, the route is a **path** from one endpoint position to the other whose first step is the
 first endpoint's leaving direction, whose last step arrives at the second endpoint against that
-endpoint's leaving direction, whose runs alternate between horizontal and vertical, and which stays
-inside the route rectangle. The route is the one of those with the fewest bends, and where several
-share the fewest, the one that turns at the middle of the route rectangle on whichever coordinate
-the bends leave free. Where that middle falls between two cells the route turns at the one nearer
-the endpoint the arrow leaves from, so the same arrow described from its other end turns at the
-other of the two — a picture equally correct, and the only thing the order of the endpoints decides
-about a route ([ADR-0044](decisions/0044-let-the-endpoint-order-break-a-tied-route.md)). The two
-endpoint positions carry the heads, so the route writes the path without its two ends: a bend
-belongs to exactly one piece of the route, and no piece of the route writes where a head does.
+endpoint's leaving direction, and whose runs alternate between horizontal and vertical. A path
+visits no position twice, and it passes through neither endpoint position, so one that would have to
+cross a head is not a path at all ([ADR-0047](decisions/0047-let-a-route-cross-no-cell-twice.md)).
+The two endpoint positions carry the heads, so the route writes the path without its two ends: a
+bend belongs to exactly one piece of the route, and no piece of the route writes where a head does.
 
-Where no such path exists the route is empty and the arrow is its two heads. That is the rule's
-answer rather than an exception to it. It happens where the route rectangle is one cell thick and an
-alternating path cannot fit inside it: the two endpoints at one position, or two identical
-directions with the endpoints in line on that axis. Where the two endpoints are at one position the
-two heads fall on the same cell and only one of them can be seen: it is the one the arrow points at,
-the `to` endpoint's, drawn over the other. Drawing nothing where a path _does_ exist would be a
-defect, and has been one — an earlier implementation of this idea silently drew nothing for two
-endpoints facing away from each other, which the rule above routes around instead.
+Nothing bounds where a path may go. The route is the one **ranked first** among them, by four things
+in order ([ADR-0046](decisions/0046-rank-a-route-instead-of-bounding-it.md)):
+
+1. the **fewest bends**;
+2. then the **shortest**;
+3. then the runs the bends leave free sitting **nearest the middle** of the span between the two
+   starting positions, on each such run's own axis. Where that middle falls between two cells it is
+   the one nearer the endpoint the arrow leaves from, so the same arrow described from its other end
+   turns at the other of the two — a picture equally correct
+   ([ADR-0044](decisions/0044-let-the-endpoint-order-break-a-tied-route.md));
+4. then those runs falling on the side the arrow's own travel puts to its **right**. Coordinates
+   grow rightward and downward, so leaving `Up` puts the larger `x` to the right, and leaving
+   `Right` the larger `y`
+   ([ADR-0048](decisions/0048-let-the-travel-pick-the-side-of-a-mirrored-route.md)).
+
+The last two are the whole of what the order of the endpoints decides about a route, and together
+the four leave no arrangement with two answers.
+
+The **route rectangle** — the smallest rectangle containing both starting positions — is what the
+middle in (3) is measured within, and it bounds nothing. A path that leaves it is longer than one
+that stays inside, so (2) keeps the route within it wherever any path fits there at all, and lets
+the route travel around the outside where none does. That is what joins two endpoints facing away
+from each other along one line, however far apart they are, rather than leaving them two heads with
+a gap between them.
+
+Where no path exists the route is empty and the arrow is its two heads. That is the rule's answer
+rather than an exception to it, and two arrangements reach it. In the first, one endpoint stands on
+the cell the route would have to arrive at, which leaves the path nowhere to begin or nowhere to
+end; the two heads are orthogonally adjacent there, so nothing looks disconnected. In the second the
+two endpoints are at one position and leave in the same direction, so the two starting positions are
+one cell and a path would have to return to where it began. Where the two endpoints are at one
+position the two heads fall on the same cell and only one of them can be seen: it is the one the
+arrow points at, the `to` endpoint's, drawn over the other.
+
+Drawing nothing where a path _does_ exist would be a defect, and has been one twice: an
+implementation of this idea silently drew nothing for two endpoints facing away from each other, and
+then the rule itself did, for every arrangement the route rectangle was too thin to hold. The
+ranking above travels around the outside instead.
 
 ### Degenerate arrangements
 
