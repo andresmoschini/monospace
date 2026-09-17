@@ -44,7 +44,7 @@ toward a smaller coordinate.
 **Independent Test**: render the bug report's arrow from either end and check both pictures are
 `◄─────►`.
 
-- [ ] T001 [US1] `fix(core)`: in `Route::draw` (`crates/monospace-core/src/shape/route.rs`), hand
+- [x] T001 [US1] `fix(core)`: in `Route::draw` (`crates/monospace-core/src/shape/route.rs`), hand
       `Segment` each run's cells starting from the run's lower-coordinate end regardless of path
       direction, so a run that travels left or up no longer draws backwards out of its starting
       cell. Verify by making SC-002's rendering fail first (`◄────►` misplacement), then pass.
@@ -63,7 +63,7 @@ something to rewrite. Structural only: no test added, none changed, no picture m
 **⚠️ CRITICAL**: this MUST land as its own `refactor` commit, separate from the behavioral commits
 around it, per the constitution's rule that structural and behavioral change never share a commit.
 
-- [ ] T002 `refactor(core)`: extract the starting position (`s`, `t`), the route rectangle and the
+- [x] T002 `refactor(core)`: extract the starting position (`s`, `t`), the route rectangle and the
       middle as named values inside `derive_path` (`crates/monospace-core/src/shape/arrow.rs:144`),
       keeping every value identical to today's. Confirm no picture moves: `cargo test --workspace`
       passes unchanged before committing.
@@ -81,7 +81,7 @@ instead of searched for and ranked by `closeness`.
 **Independent Test**: render the three arrangements in User Story 2's table (`n = 4, 5, 6`) and
 check each turns at the middle of its route rectangle.
 
-- [ ] T003 [US2] `fix(core)`: replace `search`, `is_valid`, `count_bends`,
+- [x] T003 [US2] `fix(core)`: replace `search`, `is_valid`, `count_bends`,
       `compare_lexicographically` and the `closeness`-scored candidate list in
       `crates/monospace-core/src/shape/arrow.rs` with the runs-and-fixed-coordinates construction
       research.md Q2 sets out, still rounding a free middle toward the smaller coordinate (today's
@@ -101,7 +101,7 @@ one nearer the `from` endpoint's starting position, per ADR-0044.
 **Independent Test**: render the ADR-0044 pair (`(0, 1)` leaving `down`, `(2, 6)` leaving `up`) from
 each end and check the turn moves from row 3 to row 4.
 
-- [ ] T004 [US1] `fix(core)`: in the construction from T003
+- [x] T004 [US1] `fix(core)`: in the construction from T003
       (`crates/monospace-core/src/shape/arrow.rs`), change the one value that rounds a free middle
       to round toward `s` (the `from` endpoint's starting position) instead of toward the smaller
       coordinate. Verify by making the ADR-0044 pair's `▼`-first rendering fail first (today it
@@ -116,20 +116,20 @@ each end and check the turn moves from row 3 to row 4.
 **Purpose**: one test per rule named in `contracts/arrow-rendering.md`, each picture written a row
 per source line rather than as one escaped string, per the spec's testing expectations.
 
-- [ ] T005 [US1] `test(core)`: add the bug report's scenario (SC-002) to
+- [x] T005 [US1] `test(core)`: add the bug report's scenario (SC-002) to
       `crates/monospace-core/src/shape/arrow.rs`'s test module — render from both ends, assert both
       pictures equal the row-per-line `◄─────►`.
-- [ ] T006 [US1] `test(core)`: add the ADR-0044 pair's scenario (SC-003) to the same test module —
+- [x] T006 [US1] `test(core)`: add the ADR-0044 pair's scenario (SC-003) to the same test module —
       render from both ends, assert the two pictures are equal except for which of rows 3 and 4
       holds the turn.
-- [ ] T007 [US2] `test(core)`: add User Story 2's table (SC-004, `n = 4, 5, 6`) to the same test
+- [x] T007 [US2] `test(core)`: add User Story 2's table (SC-004, `n = 4, 5, 6`) to the same test
       module — assert each arrangement's vertical run sits at `x = 2`, `x = 3` and `x = 3`
       respectively.
-- [ ] T008 [US2] `test(core)`: add a test pinning the shipped demonstration's turn (FR-006) to the
+- [x] T008 [US2] `test(core)`: add a test pinning the shipped demonstration's turn (FR-006) to the
       same test module — compute the middle from its two endpoint positions (`x` 14 to 22,
       middle 18) and assert the route turns there, rather than asserting against a transcribed
       picture.
-- [ ] T009 [US1] `test(core)`: add a test pinning the colliding-heads cell (C-6, FR-004) to the same
+- [x] T009 [US1] `test(core)`: add a test pinning the colliding-heads cell (C-6, FR-004) to the same
       test module — both endpoints at one position, assert the rendered glyph is the `to` endpoint's
       head, without changing the behavior.
 
@@ -139,7 +139,7 @@ per source line rather than as one escaped string, per the spec's testing expect
 
 ## Phase 6: Add the `insta` dev-dependency
 
-- [ ] T010 `build(core)`: add `insta = "1.48.0"` under `[dev-dependencies]` in
+- [x] T010 `build(core)`: add `insta = "1.48.0"` under `[dev-dependencies]` in
       `crates/monospace-core/Cargo.toml` (published 2026-06-11, already verified in research.md Q4
       as more than seven days old). Its own commit, so the addition is visible in the log and in
       `Cargo.lock`; report here any transitive dependency it pulls in that was published within the
@@ -158,11 +158,11 @@ assertion and pinned as a snapshot reviewed once against _The route of an arrow_
 **Independent Test**: the sweep test renders the full grid from both ends and the snapshot review
 confirms each picture against the model.
 
-- [ ] T011 [US1] `test(core)`: add the sweep over all 1856 renderings to
+- [x] T011 [US1] `test(core)`: add the sweep over all 1856 renderings to
       `crates/monospace-core/src/shape/arrow.rs`'s test module, with mechanical assertions for C-2
       (both endpoint positions render their own head) and C-3 (no position is written twice, via the
       existing `CountingSurface`).
-- [ ] T012 [US1] `test(core)`: add the `insta` snapshot assertion (C-1, SC-001) over the same sweep
+- [x] T012 [US1] `test(core)`: add the `insta` snapshot assertion (C-1, SC-001) over the same sweep
       in `crates/monospace-core/src/shape/arrow.rs`, run `cargo insta review` once, and commit the
       resulting `.snap` file under `crates/monospace-core/src/snapshots/` only after reading every
       picture against _The route of an arrow_ in `docs/model.md`.
@@ -173,7 +173,7 @@ confirms each picture against the model.
 
 ## Phase 8: Polish
 
-- [ ] T013 `docs`: append the increment's entry to `docs/learning-log.md` — what was learned about
+- [x] T013 `docs`: append the increment's entry to `docs/learning-log.md` — what was learned about
       Rust design and idiom (the runs-and-fixed-coordinates construction versus search-and-score),
       what was learned about working this way, and any trade-off worth remembering later.
 

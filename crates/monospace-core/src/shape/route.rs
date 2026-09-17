@@ -82,8 +82,15 @@ impl Shape for Route {
             }
             let len = u32::try_from(i - start)
                 .expect("a route's run is bounded by the diagram, not by u32::MAX");
+            let run_start = self.positions[start];
+            let run_end = self.positions[i - 1];
+            let from = match orientation {
+                Orientation::Horizontal if run_end.x < run_start.x => run_end,
+                Orientation::Vertical if run_end.y < run_start.y => run_end,
+                _ => run_start,
+            };
             Segment {
-                from: self.positions[start],
+                from,
                 len,
                 orientation,
                 stroke: self.stroke.clone(),

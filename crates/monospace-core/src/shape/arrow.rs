@@ -4,7 +4,7 @@
 
 use crate::shape::fragment::head::Head;
 use crate::shape::route::Route;
-use crate::{Direction, Glyph, Pos, Shape, Stroke, Surface};
+use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
 
 /// Where an arrow ends: a position, the direction it leaves in, and the glyph of the head that
 /// sits there. A head points opposite to `leaving`.
@@ -138,157 +138,197 @@ fn expand_waypoints(waypoints: &[Pos]) -> Vec<Pos> {
     positions
 }
 
-/// Derives an arrow's route: the path between its two starting positions, per _The route of an
-/// arrow_ and research.md Q5. `None` means no candidate exists and the arrow is its two heads
-/// alone.
-fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
-    let start_a = offset(a, da)?;
-    let start_b = offset(b, db)?;
+/// The smallest rectangle containing both starting positions — _The route of an arrow_ in
+/// [`docs/model.md`](../../../docs/model.md).
+struct RouteRectangle {
+    x_min: i32,
+    x_max: i32,
+    y_min: i32,
+    y_max: i32,
+}
 
-    let x_min = start_a.x.min(start_b.x);
-    let x_max = start_a.x.max(start_b.x);
-    let y_min = start_a.y.min(start_b.y);
-    let y_max = start_a.y.max(start_b.y);
-    let mid_x = x_min + (x_max - x_min) / 2;
-    let mid_y = y_min + (y_max - y_min) / 2;
-
-    let mut xs = [start_a.x, start_b.x, mid_x];
-    xs.sort_unstable();
-    let mut ys = [start_a.y, start_b.y, mid_y];
-    ys.sort_unstable();
-
-    let mut lattice = Vec::with_capacity(9);
-    for &x in &xs {
-        for &y in &ys {
-            let point = Pos { x, y };
-            if point != a && point != b && !lattice.contains(&point) {
-                lattice.push(point);
-            }
+impl RouteRectangle {
+    fn spanning(s: Pos, t: Pos) -> Self {
+        Self {
+            x_min: s.x.min(t.x),
+            x_max: s.x.max(t.x),
+            y_min: s.y.min(t.y),
+            y_max: s.y.max(t.y),
         }
     }
 
-    let start_idx = lattice.iter().position(|&p| p == start_a)?;
+    /// One value per axis: the cell halfway along that axis's span, taken as the one nearer
+    /// `anchor` — the `from` endpoint's starting position — where the span holds an even number
+    /// of cells and the halfway point falls between two. [ADR-0044](
+    /// ../../../../docs/decisions/0044-let-the-endpoint-order-break-a-tied-route.md).
+    fn middle(&self, anchor: Pos) -> Pos {
+        Pos {
+            x: Self::midpoint(self.x_min, self.x_max, anchor.x),
+            y: Self::midpoint(self.y_min, self.y_max, anchor.y),
+        }
+    }
+
+    /// The cell halfway between `min` and `max` (inclusive), nearer `anchor` — which is always
+    /// one of the two, since it is one of the two positions the rectangle spans.
+    fn midpoint(min: i32, max: i32, anchor: i32) -> i32 {
+        let half = (max - min) / 2;
+        if anchor == min {
+            min + half
+        } else {
+            max - half
+        }
+    }
+}
+
+/// The orientation a direction moves along: `Left`/`Right` are horizontal, `Up`/`Down` vertical.
+fn direction_orientation(dir: Direction) -> Orientation {
+    match dir {
+        Direction::Left | Direction::Right => Orientation::Horizontal,
+        Direction::Up | Direction::Down => Orientation::Vertical,
+    }
+}
+
+fn opposite_orientation(o: Orientation) -> Orientation {
+    match o {
+        Orientation::Horizontal => Orientation::Vertical,
+        Orientation::Vertical => Orientation::Horizontal,
+    }
+}
+
+/// The two interior waypoints of a route from `s` to `t` that turns at `mid` — a run leaves `s`
+/// and a run arrives at `t`, both `primary`-oriented and fixed at `mid`'s coordinate on the other
+/// axis; the run between them — the one the bends leave free — is fixed at `mid`'s coordinate on
+/// `primary`'s own axis. _Run_ and _Middle_ in `docs/model.md`'s _The route of an arrow_.
+fn three_waypoint(s: Pos, t: Pos, mid: Pos, primary: Orientation) -> (Pos, Pos) {
+    match primary {
+        Orientation::Horizontal => (Pos { x: mid.x, y: s.y }, Pos { x: mid.x, y: t.y }),
+        Orientation::Vertical => (Pos { x: s.x, y: mid.y }, Pos { x: t.x, y: mid.y }),
+    }
+}
+
+/// The double escape `s`-`z1`-`z2`-`z3`-`z4`-`t`: where the ordinary escape's boundary runs would
+/// have no room (the route rectangle is only two cells wide on `escape`'s own axis, so `mid`
+/// coincides with one of `s` or `t` on it), each end instead jogs to the far endpoint's coordinate
+/// on `escape`'s axis before crossing at the middle on the other axis, then jogs back — the only
+/// shape research.md's sweep found needed for these arrangements.
+fn zigzag(s: Pos, t: Pos, mid: Pos, escape: Orientation) -> Vec<Pos> {
+    match escape {
+        Orientation::Horizontal => vec![
+            s,
+            Pos { x: t.x, y: s.y },
+            Pos { x: t.x, y: mid.y },
+            Pos { x: s.x, y: mid.y },
+            Pos { x: s.x, y: t.y },
+            t,
+        ],
+        Orientation::Vertical => vec![
+            s,
+            Pos { x: s.x, y: t.y },
+            Pos { x: mid.x, y: t.y },
+            Pos { x: mid.x, y: s.y },
+            Pos { x: t.x, y: s.y },
+            t,
+        ],
+    }
+}
+
+/// The bend count of a route through `waypoints`, from `s` (its first element) to `t` (its last),
+/// leaving `s` toward `da` and arriving at `t` against `exit_dir` — or `None` where any run,
+/// including the one leaving `s` or the one arriving at `t`, would have to reverse. A run whose
+/// direction matches the boundary direction its end shares an axis with costs no bend there; any
+/// other direction — necessarily perpendicular, since a reversal is already ruled out — costs one.
+fn path_bends(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> Option<u32> {
+    let mut bends = 0;
+    let mut incoming = da;
+    for pair in waypoints.windows(2) {
+        let outgoing = direction_between(pair[0], pair[1])?;
+        if outgoing == opposite(incoming) {
+            return None;
+        }
+        bends += u32::from(outgoing != incoming);
+        incoming = outgoing;
+    }
+    if exit_dir == opposite(incoming) {
+        return None;
+    }
+    Some(bends + u32::from(exit_dir != incoming))
+}
+
+/// Derives an arrow's route: the path between its two starting positions, per _The route of an
+/// arrow_. `None` means no candidate exists and the arrow is its two heads alone.
+///
+/// Built directly from runs and fixed coordinates rather than searched for and scored
+/// (research.md Q2): `s` and `t` pin the first and last run. Where they align or coincide the
+/// route is the single run or point between them. Otherwise every route the two directions admit
+/// is one of a handful of shapes — a corner at each of the two points a pinned run from `s` could
+/// meet a pinned run into `t`; a run at the middle of the route rectangle on one axis with a
+/// pinned run at each end, on the axis `da` moves along, on the axis `exit_dir` moves along, or
+/// (where `da` and `exit_dir` share an axis, so neither of the last two exists) on the other axis;
+/// or, where that axis has no room for a pinned run either, the double escape ([`zigzag`]). The
+/// fewest-bend shape wins; where two tie, the one with a run at the middle does, per the model's
+/// tie-break.
+fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
+    // `s` and `t` — each endpoint's starting position: one step from it in that endpoint's own
+    // leaving direction.
+    let s = offset(a, da)?;
+    let t = offset(b, db)?;
     let exit_dir = opposite(db);
 
-    let mut candidates = Vec::new();
-    let mut visited = vec![false; lattice.len()];
-    visited[start_idx] = true;
-    let mut path = vec![start_a];
-    search(
-        &lattice,
-        &mut visited,
-        start_idx,
-        da,
-        start_b,
-        &mut path,
-        &mut candidates,
-    );
-
-    let mid = Pos { x: mid_x, y: mid_y };
-    candidates
-        .into_iter()
-        .filter(|waypoints| is_valid(waypoints, da, exit_dir))
-        .map(|waypoints| {
-            let bends = count_bends(&waypoints, da, exit_dir);
-            let closeness: i32 = waypoints
-                .iter()
-                .map(|p| (p.x - mid.x).abs() + (p.y - mid.y).abs())
-                .sum();
-            (bends, closeness, waypoints)
-        })
-        .min_by(|left, right| {
-            left.0
-                .cmp(&right.0)
-                .then(left.1.cmp(&right.1))
-                .then_with(|| compare_lexicographically(&left.2, &right.2))
-        })
-        .map(|(_, _, waypoints)| expand_waypoints(&waypoints))
-}
-
-/// Depth-first search over the lattice, from `current` (already in `path`) toward `start_b`,
-/// respecting `current_dir` as the direction just traveled and forbidding a reversal. Every
-/// completed path — reaching `start_b`, by whatever route — is recorded in `candidates`.
-fn search(
-    lattice: &[Pos],
-    visited: &mut [bool],
-    current: usize,
-    current_dir: Direction,
-    start_b: Pos,
-    path: &mut Vec<Pos>,
-    candidates: &mut Vec<Vec<Pos>>,
-) {
-    if lattice[current] == start_b {
-        candidates.push(path.clone());
-        return;
+    if s == t {
+        return (da != opposite(exit_dir)).then(|| expand_waypoints(&[s]));
     }
-    for next in 0..lattice.len() {
-        if visited[next] {
-            continue;
-        }
-        let Some(dir) = direction_between(lattice[current], lattice[next]) else {
-            continue;
-        };
-        if dir == opposite(current_dir) {
-            continue;
-        }
-        visited[next] = true;
-        path.push(lattice[next]);
-        search(lattice, visited, next, dir, start_b, path, candidates);
-        path.pop();
-        visited[next] = false;
+    if let Some(dir) = direction_between(s, t) {
+        return (dir != opposite(da) && dir != opposite(exit_dir))
+            .then(|| expand_waypoints(&[s, t]));
     }
-}
 
-/// Whether `waypoints` (from `start_a` to `start_b`) can validly exit toward `exit_dir` without a
-/// reversal at the last point.
-fn is_valid(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> bool {
-    let last_incoming = if waypoints.len() == 1 {
-        da
-    } else {
-        let n = waypoints.len();
-        direction_between(waypoints[n - 2], waypoints[n - 1])
-            .expect("consecutive waypoints share one coordinate")
+    let rectangle = RouteRectangle::spanning(s, t);
+    let mid = rectangle.middle(s);
+    let da_orientation = direction_orientation(da);
+    let exit_orientation = direction_orientation(exit_dir);
+
+    let mut shapes: Vec<Vec<Pos>> = vec![
+        vec![s, Pos { x: t.x, y: s.y }, t],
+        vec![s, Pos { x: s.x, y: t.y }, t],
+    ];
+    let via_axis = |axis| {
+        let (w1, w2) = three_waypoint(s, t, mid, axis);
+        vec![s, w1, w2, t]
     };
-    last_incoming != opposite(exit_dir)
-}
-
-/// The number of positions along `waypoints` where the direction of travel actually changes,
-/// counting the fixed entry direction `da` and exit direction `exit_dir` as part of the path.
-fn count_bends(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> u32 {
-    let n = waypoints.len();
-    let mut bends = 0;
-    for i in 0..n {
-        let incoming = if i == 0 {
-            da
-        } else {
-            direction_between(waypoints[i - 1], waypoints[i])
-                .expect("consecutive waypoints share one coordinate")
-        };
-        let outgoing = if i + 1 < n {
-            direction_between(waypoints[i], waypoints[i + 1])
-                .expect("consecutive waypoints share one coordinate")
-        } else {
-            exit_dir
-        };
-        if incoming != outgoing {
-            bends += 1;
-        }
+    shapes.push(via_axis(da_orientation));
+    if exit_orientation == da_orientation {
+        let escape = opposite_orientation(da_orientation);
+        shapes.push(via_axis(escape));
+        shapes.push(zigzag(s, t, mid, escape));
+    } else {
+        shapes.push(via_axis(exit_orientation));
     }
-    bends
-}
 
-fn compare_lexicographically(left: &[Pos], right: &[Pos]) -> std::cmp::Ordering {
-    left.iter()
-        .map(|p| (p.x, p.y))
-        .cmp(right.iter().map(|p| (p.x, p.y)))
+    shapes
+        .into_iter()
+        .filter_map(|waypoints| {
+            let bends = path_bends(&waypoints, da, exit_dir)?;
+            let expanded = expand_waypoints(&waypoints);
+            // No route cell is an endpoint position: a run that would cross the *other*
+            // endpoint — the one `s`/`t` were not offset from — is not a route the rectangle
+            // permits, per data-model.md's invariant 2.
+            if expanded.contains(&a) || expanded.contains(&b) {
+                return None;
+            }
+            let is_via_mid = waypoints.len() > 3;
+            Some((bends, is_via_mid, expanded))
+        })
+        .min_by_key(|(bends, is_via_mid, _)| (*bends, !is_via_mid))
+        .map(|(_, _, expanded)| expanded)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Arrow, Endpoint};
+    use super::{Arrow, Endpoint, derive_path, offset};
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Buffer, Direction, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
+        Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke,
+        render,
     };
 
     fn light() -> Stroke {
@@ -651,5 +691,323 @@ mod tests {
                 index + 1
             );
         }
+    }
+
+    /// SC-002: the bug report's arrow renders the same picture whichever endpoint is named
+    /// first, instead of drawing the route backwards out of its starting cell.
+    #[test]
+    fn sc002_the_bug_report_renders_the_same_from_either_end() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 7,
+            height: 1,
+        };
+        let expected = "◄─────►\n";
+
+        let named_left_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 6, y: 0 }, Direction::Left),
+        );
+        let named_right_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 6, y: 0 }, Direction::Left),
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+        );
+
+        assert_eq!(named_left_first, expected);
+        assert_eq!(named_right_first, expected);
+    }
+
+    /// SC-003: the ADR-0044 pair's free coordinate spans an even number of cells, so the two
+    /// orders draw different — and equally correct — pictures, turning at row 3 or row 4
+    /// depending on which endpoint is named first.
+    #[test]
+    fn sc003_the_adr_0044_pair_turns_at_the_row_nearer_the_endpoint_named_first() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 3,
+            height: 7,
+        };
+
+        let up_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 0, y: 1 }, Direction::Down),
+            endpoint(Pos { x: 2, y: 6 }, Direction::Up),
+        );
+        let down_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 2, y: 6 }, Direction::Up),
+            endpoint(Pos { x: 0, y: 1 }, Direction::Down),
+        );
+
+        assert_eq!(
+            up_first,
+            concat!(
+                "   \n",
+                "▲  \n",
+                "│  \n",
+                "└─┐\n",
+                "  │\n",
+                "  │\n",
+                "  ▼\n",
+            )
+        );
+        assert_eq!(
+            down_first,
+            concat!(
+                "   \n",
+                "▲  \n",
+                "│  \n",
+                "│  \n",
+                "└─┐\n",
+                "  │\n",
+                "  ▼\n",
+            )
+        );
+    }
+
+    /// SC-004: each arrangement in User Story 2's table turns at the middle of its route
+    /// rectangle rather than at an edge (`n = 4`) or at neither of the two middle cells
+    /// (`n = 5`). `n = 5` names the far endpoint first so ADR-0044's tie-break picks the cell
+    /// this table pins, `x = 3`.
+    #[test]
+    fn sc004_each_arrangement_turns_at_the_middle_of_its_route_rectangle() {
+        let origin = Pos { x: 0, y: 0 };
+
+        let n4 = render_arrow(
+            origin,
+            Size {
+                width: 5,
+                height: 4,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 4, y: 3 }, Direction::Left),
+        );
+        let n5 = render_arrow(
+            origin,
+            Size {
+                width: 6,
+                height: 4,
+            },
+            endpoint(Pos { x: 5, y: 3 }, Direction::Left),
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+        );
+        let n6 = render_arrow(
+            origin,
+            Size {
+                width: 7,
+                height: 4,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 6, y: 3 }, Direction::Left),
+        );
+
+        assert_eq!(n4, concat!("◄─┐  \n", "  │  \n", "  │  \n", "  └─►\n"));
+        assert_eq!(n5, concat!("◄──┐  \n", "   │  \n", "   │  \n", "   └─►\n"));
+        assert_eq!(
+            n6,
+            concat!("◄──┐   \n", "   │   \n", "   │   \n", "   └──►\n")
+        );
+    }
+
+    /// FR-006, SC-004's second half: the shipped demonstration's arrow turns at the middle of
+    /// its route rectangle. The middle is computed here from the two endpoint positions rather
+    /// than transcribed from a picture, which is what would have caught this defect had it
+    /// existed in the demonstration.
+    #[test]
+    fn fr006_the_demonstration_turns_at_the_middle_of_its_route_rectangle() {
+        let a = Pos { x: 13, y: 3 };
+        let da = Direction::Right;
+        let b = Pos { x: 22, y: 4 };
+        let db = Direction::Down;
+
+        let s = offset(a, da).expect("no overflow in this fixture");
+        let t = offset(b, db).expect("no overflow in this fixture");
+        let middle_x = i32::midpoint(s.x.min(t.x), s.x.max(t.x));
+        assert_eq!(middle_x, 18);
+
+        let path = derive_path(a, da, b, db).expect("the demonstration's arrow has a route");
+        assert!(path.contains(&Pos {
+            x: middle_x,
+            y: s.y
+        }));
+        assert!(path.contains(&Pos {
+            x: middle_x,
+            y: t.y
+        }));
+    }
+
+    /// C-6, FR-004: where both endpoints occupy one position, the glyph seen is the `to`
+    /// endpoint's head — `Arrow` draws `from` then `to`, and `Above` lets the second win. Pins
+    /// the behavior; does not change it.
+    #[test]
+    fn c6_the_to_head_wins_a_shared_cell() {
+        let text = render_arrow(
+            Pos { x: 2, y: 1 },
+            Size {
+                width: 1,
+                height: 1,
+            },
+            endpoint(Pos { x: 2, y: 1 }, Direction::Right),
+            endpoint(Pos { x: 2, y: 1 }, Direction::Left),
+        );
+
+        assert_eq!(text, "►\n");
+    }
+
+    /// The window the sweep renders into — research.md Q6 — sized to hold the six-by-five field
+    /// plus the one cell of margin a leaving direction can add on each side.
+    const SWEEP_ORIGIN: Pos = Pos { x: -2, y: -2 };
+    const SWEEP_SIZE: Size = Size {
+        width: 10,
+        height: 9,
+    };
+
+    /// One group of [`sweep_arrangements_by_anchor`]: the anchor, its leaving direction, and
+    /// every `(position, leaving direction)` the anchor is paired with.
+    type AnchorGroup = (Pos, Direction, Vec<(Pos, Direction)>);
+
+    /// The grid research.md Q6 defines, grouped by anchor and its leaving direction: two anchors,
+    /// each leaving in four directions — eight groups of 116 arrangements each, against every
+    /// position of a six-by-five field with four leaving directions each, excluding the
+    /// arrangements where the second position is the anchor itself. The grouping is what lets the
+    /// sweep's snapshot split into one file per group instead of one no review tool can render.
+    fn sweep_arrangements_by_anchor() -> Vec<AnchorGroup> {
+        const DIRECTIONS: [Direction; 4] = [
+            Direction::Up,
+            Direction::Right,
+            Direction::Down,
+            Direction::Left,
+        ];
+        let anchors = [Pos { x: 0, y: 0 }, Pos { x: 2, y: 1 }];
+
+        let mut groups = Vec::new();
+        for anchor in anchors {
+            for anchor_dir in DIRECTIONS {
+                let mut others = Vec::new();
+                for x in 0..6 {
+                    for y in 0..5 {
+                        let other = Pos { x, y };
+                        if other == anchor {
+                            continue;
+                        }
+                        for other_dir in DIRECTIONS {
+                            others.push((other, other_dir));
+                        }
+                    }
+                }
+                groups.push((anchor, anchor_dir, others));
+            }
+        }
+        groups
+    }
+
+    /// The grid research.md Q6 defines, flattened — 928 arrangements.
+    fn sweep_arrangements() -> Vec<(Pos, Direction, Pos, Direction)> {
+        sweep_arrangements_by_anchor()
+            .into_iter()
+            .flat_map(|(anchor, anchor_dir, others)| {
+                others
+                    .into_iter()
+                    .map(move |(other, other_dir)| (anchor, anchor_dir, other, other_dir))
+            })
+            .collect()
+    }
+
+    /// Research.md Q6's own check on its grid definition: it reproduces the spec's 928.
+    #[test]
+    fn the_sweep_grid_has_928_arrangements() {
+        assert_eq!(sweep_arrangements().len(), 928);
+    }
+
+    /// C-2 and C-3 over the whole grid, rendered from both ends (SC-001): both endpoint
+    /// positions always render their own head, and drawing into a surface that counts writes
+    /// never writes any position more than once.
+    #[test]
+    fn sweep_every_endpoint_renders_its_own_head_and_no_position_is_written_twice() {
+        for (a, da, b, db) in sweep_arrangements() {
+            for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
+                let mut buffer = Buffer::new(SWEEP_ORIGIN, SWEEP_SIZE);
+                Arrow {
+                    from: endpoint(from_at, from_dir),
+                    to: endpoint(to_at, to_dir),
+                    stroke: light(),
+                }
+                .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+                assert_eq!(
+                    buffer.cell(from_at),
+                    Some(&Cell::Literal(head_for(from_dir))),
+                    "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?}): from's own head"
+                );
+                assert_eq!(
+                    buffer.cell(to_at),
+                    Some(&Cell::Literal(head_for(to_dir))),
+                    "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?}): to's own head"
+                );
+
+                let mut counting = CountingSurface::default();
+                Arrow {
+                    from: endpoint(from_at, from_dir),
+                    to: endpoint(to_at, to_dir),
+                    stroke: light(),
+                }
+                .draw(&mut counting);
+                assert!(
+                    counting.max_writes() <= 1,
+                    "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?}) wrote a position more than once"
+                );
+            }
+        }
+    }
+
+    /// C-1, SC-001: the whole grid, rendered from both ends and labeled by arrangement, pinned as
+    /// one reviewed snapshot per anchor and leaving direction — eight files rather than one, so a
+    /// PR review tool can render each diff; a single 20,000-line file is what GitHub would not
+    /// show at all — per
+    /// [ADR-0045](../../../../../docs/decisions/0045-pin-every-arrow-arrangement-as-a-reviewed-snapshot.md).
+    /// Each line's trailing blanks are trimmed before it goes into the snapshot — research.md
+    /// Q3 — since the gate's `editorconfig-checker` step runs with `trim_trailing_whitespace` on
+    /// and `render` pads every line to the window's width.
+    #[test]
+    fn sweep_matches_the_reviewed_snapshot() {
+        use std::fmt::Write as _;
+
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path(concat!(env!("CARGO_MANIFEST_DIR"), "/src/snapshots"));
+        settings.bind(|| {
+            for (anchor, anchor_dir, others) in sweep_arrangements_by_anchor() {
+                let mut rendered = String::new();
+                for (other, other_dir) in others {
+                    for (from_at, from_dir, to_at, to_dir) in [
+                        (anchor, anchor_dir, other, other_dir),
+                        (other, other_dir, anchor, anchor_dir),
+                    ] {
+                        let text = render_arrow(
+                            SWEEP_ORIGIN,
+                            SWEEP_SIZE,
+                            endpoint(from_at, from_dir),
+                            endpoint(to_at, to_dir),
+                        );
+                        let trimmed: Vec<&str> = text.lines().map(str::trim_end).collect();
+                        let _ = writeln!(
+                            rendered,
+                            "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?})\n{}\n",
+                            trimmed.join("\n")
+                        );
+                    }
+                }
+                let name = format!(
+                    "arrow_sweep_anchor_{}_{}_{anchor_dir:?}",
+                    anchor.x, anchor.y
+                )
+                .to_lowercase();
+                insta::assert_snapshot!(name, rendered);
+            }
+        });
     }
 }

@@ -132,9 +132,13 @@ fn a_file_with_a_box_a_line_and_an_arrow_prints_all_three_composed() {
     let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
 
     assert!(output.status.success(), "exited with {}", output.status);
+    // Corrected on feature 099: this arrow's route was a genuine tie under _The route of an
+    // arrow_ (fewest bends, same closeness), which feature 039 broke arbitrarily by comparing
+    // waypoint coordinates. The model's own tie-break prefers the route that turns at the middle
+    // of the route rectangle (x = 7), which is what this picture now pins.
     assert_eq!(
         first_picture(&String::from_utf8_lossy(&output.stdout)),
-        "┌──┐ >┐   \n│░░│  │   \n└──┘  │  v\n      └──┘\n────      \n"
+        "┌──┐ >─┐  \n│░░│   │  \n└──┘   │ v\n       └─┘\n────      \n"
     );
     assert!(output.stderr.is_empty(), "wrote to stderr");
 }

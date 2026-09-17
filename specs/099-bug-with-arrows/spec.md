@@ -262,12 +262,18 @@ alone.
   one per order, differing only in which of rows 3 and 4 holds the turn.
 - **SC-004**: Each of the three arrangements in User Story 2's table turns at the middle of its
   route rectangle, and the demonstration's arrow turns at `x = 18`.
-- **SC-005**: Every test in the workspace that passes today still passes, and no rendering a test
-  pins changes. Feature 039's scenarios 5 to 10 were checked by hand against the middle and each
+- **SC-005**: Every test in the workspace that passes today still passes, though not always against
+  the same picture. Feature 039's scenarios 5 to 10 were checked by hand against the middle and each
   turns at a forced coordinate or at the middle, so none of them moves. The cell where two heads
   collide does not move either: it already shows the `to` endpoint's head, which is what FR-004 asks
   for, and the one test that renders that arrangement,
-  `both_endpoints_at_the_same_position_returns_normally`, asserts only that the call returns.
+  `both_endpoints_at_the_same_position_returns_normally`, asserts only that the call returns. One
+  picture outside that hand-checked set did move: `monospace-cli`'s
+  `a_file_with_a_box_a_line_and_an_arrow_prints_all_three_composed` pinned an arrow whose route was
+  a genuine tie under _The route of an arrow_ (same bend count, same closeness), which feature 039
+  broke by comparing waypoint coordinates lexicographically rather than by any rule the model
+  states. The model's own tie-break — the route that turns at the middle wins a tie — moves that
+  picture, which is the Assumptions section's own rule applied rather than an exception to it.
 - **SC-006**: A person reading a description can say where its route turns without rendering it,
   including which of two cells holds the turn when the middle falls between them.
 
@@ -278,7 +284,8 @@ alone.
   neither of them moves a route: one chooses between two routes the rule already allows, the other
   chooses which of two heads on one cell is seen.
 - Where a picture pinned by an earlier feature disagrees with _The route of an arrow_, the model
-  wins and the picture is corrected. No such picture has been found; SC-005 says what was checked.
+  wins and the picture is corrected. One such picture was found; SC-005 says what was checked and
+  what moved.
 - Head glyphs stay the caller's choice, per _An end is an arm; a head is a glyph_. Nothing here
   changes which glyph a head is drawn as, including whether it points away from its route — the
   demonstration's two do, and that is how it was written rather than something the core enforces.

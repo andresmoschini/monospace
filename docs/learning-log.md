@@ -1226,3 +1226,47 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   first box's fill and border now run unbroken, and the second box's corner is what breaks. Every
   other cell in both pictures, including the other five pairs of figures added for earlier features,
   is identical between the two.
+
+## 2026-09-16 — Feature 099 implemented: an arrow draws the same whichever endpoint is named first
+
+### Rust design and idiom
+
+- **A construction that names the model's own words still needs the model's edge case, not just its
+  rule.** Replacing the search-and-`closeness`-score `derive_path` with the five shapes _The route
+  of an arrow_ describes (a corner, or a run at the middle on one axis or the other) passed every
+  named scenario and the existing pinned pictures — and still missed 17 arrangements where the route
+  rectangle is only two cells wide on the axis a free run needs, so that run's boundary collapses
+  onto `s` or `t`. The fix was a sixth shape (the double escape: jog to the far endpoint's
+  coordinate on the narrow axis, cross at the middle on the other, jog back), not a bigger version
+  of one of the first five — reading the rule correctly was not the same as having built every shape
+  it allows.
+- **A generic bend-counter, not five bespoke ones.** `corner_bends` and `three_waypoint_bends`
+  started as separate functions with duplicated reversal checks; folding both into one
+  `path_bends(waypoints, da, exit_dir)` that walks `windows(2)` made the sixth shape (the double
+  escape, six waypoints instead of two or three) free to add — no new bend-counting logic, just a
+  longer waypoint list.
+
+### Working this way
+
+- **An independent brute-force oracle caught what hand-checking fourteen arrangements did not.**
+  research.md Q2's table checked the new construction against every picture the workspace pinned and
+  every named scenario, by hand, and concluded nothing else would move — a claim the plan itself
+  flagged as unverified ("an arrangement needing a sixth run would show up there... the sweep... is
+  what settles it"). Writing a second, independent implementation of the fewest-bends rule (the same
+  lattice search feature 039 used, minus its scoring bug) and running it against all 1856 renderings
+  found the 34 the hand-check missed in seconds, and found them again at zero after the fix — a
+  temporary oracle, deleted once it had done its job, stood in for reading every one of 1856
+  pictures by eye, which was never going to happen carefully.
+- **A tied fixture, not just a moved one, needed the maintainer's call before proceeding.** The D2
+  fix also moved an existing `monospace-cli` test's expected picture — a case research.md hadn't
+  hand-checked, where the old algorithm's bend count and closeness score both tied and it fell back
+  to comparing waypoint coordinates lexicographically. Two reasonable answers existed (correct the
+  pinned picture per spec.md's own stated policy, or add a narrower tie-break to preserve it), and
+  asking rather than picking one kept the decision — and its output, shown as both pictures — where
+  it belonged.
+- **The same question came up twice, in the same shape.** Both the tied fixture and the
+  double-escape gap were cases where the agreed plan's own words ("nothing pinned moves", "five is
+  enough for every arrangement") turned out to be unverified claims rather than settled facts,
+  discovered only by building the thing the plan said would verify them. Asking with the concrete
+  before-and-after pictures both times, rather than picking the answer that kept the plan's claims
+  intact, is what principle IV asks for when a claim and a measurement disagree.
