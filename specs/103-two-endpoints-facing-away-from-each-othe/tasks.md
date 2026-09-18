@@ -145,11 +145,11 @@ unchanged (FR-010).
 **Purpose**: three assertions that only make sense once the rule from Phase 3 exists and are about a
 property of the rule rather than a particular picture.
 
-- [ ] T009 [US1] `test(core)`: add a named test pinning that the route is empty in exactly the two
+- [x] T009 [US1] `test(core)`: add a named test pinning that the route is empty in exactly the two
       arrangements the model now names — an endpoint standing on the cell the route would have to
       arrive at (`(0, 0)` / `(0, 1)` both leaving `up`), and two endpoints at one position leaving
       the same direction (FR-003, R-2, SC-001).
-- [ ] T010 [US1] `test(core)`: add a named test for the sixteen arrangements whose two endpoints sit
+- [x] T010 [US1] `test(core)`: add a named test for the sixteen arrangements whose two endpoints sit
       at one position — the sweep grid excludes coincident positions, so this is the only thing that
       covers them — asserting the four that leave in the same direction draw no route and the twelve
       that leave in different directions draw one (FR-012, R-9, SC-010).

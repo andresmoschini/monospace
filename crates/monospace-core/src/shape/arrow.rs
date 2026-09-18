@@ -307,6 +307,14 @@ fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u32
 /// leaving `s` opened with one only if its first direction is not `da`, which is exactly when
 /// `cost.bends` is still nonzero for the run about to close (data-model.md).
 fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
+    // Two endpoints at one position leaving the same direction: `s` and `t` coincide and the
+    // only way to arrive would be to leave immediately in the opposite direction, which
+    // ADR-0047 declines as a path returning to where it began. A search without the full path
+    // in its state cannot see that a longer alternative loops back over itself, so this is
+    // ruled out directly rather than left to the search to discover.
+    if a == b && da == db {
+        return None;
+    }
     // `s` and `t` — each endpoint's starting position: one step from it in that endpoint's own
     // leaving direction.
     let s = offset(a, da)?;
@@ -1073,6 +1081,61 @@ mod tests {
         );
 
         assert_eq!(text, " ▲\n┌┘\n│▲\n└┘\n");
+    }
+
+    /// FR-003, R-2, SC-001: the route is empty in exactly the two arrangements the model names —
+    /// an endpoint standing on the cell the route would have to arrive at, and two endpoints at
+    /// one position leaving the same direction.
+    #[test]
+    fn the_route_is_empty_only_where_the_model_says_it_is() {
+        let an_endpoint_stands_on_the_arrival_cell = derive_path(
+            Pos { x: 0, y: 0 },
+            Direction::Up,
+            Pos { x: 0, y: 1 },
+            Direction::Up,
+        );
+        let coincident_leaving_the_same_direction = derive_path(
+            Pos { x: 0, y: 0 },
+            Direction::Right,
+            Pos { x: 0, y: 0 },
+            Direction::Right,
+        );
+
+        assert_eq!(an_endpoint_stands_on_the_arrival_cell, None);
+        assert_eq!(coincident_leaving_the_same_direction, None);
+    }
+
+    /// FR-012, R-9, SC-010: of the sixteen arrangements whose two endpoints sit at one position —
+    /// excluded from the sweep grid, so this is the only thing that covers them — the four that
+    /// leave in the same direction draw no route, and the twelve that leave in different
+    /// directions draw one.
+    #[test]
+    fn the_coincident_position_family_follows_the_rule() {
+        const DIRECTIONS: [Direction; 4] = [
+            Direction::Up,
+            Direction::Right,
+            Direction::Down,
+            Direction::Left,
+        ];
+        let at = Pos { x: 0, y: 0 };
+
+        let mut same_direction = 0;
+        let mut different_direction = 0;
+        for da in DIRECTIONS {
+            for db in DIRECTIONS {
+                let route = derive_path(at, da, at, db);
+                if da == db {
+                    assert_eq!(route, None, "leaving {da:?} both ways draws no route");
+                    same_direction += 1;
+                } else {
+                    assert!(route.is_some(), "leaving {da:?} then {db:?} draws a route");
+                    different_direction += 1;
+                }
+            }
+        }
+
+        assert_eq!(same_direction, 4);
+        assert_eq!(different_direction, 12);
     }
 
     /// The window the sweep renders into — research.md Q6 — sized to hold the six-by-five field
