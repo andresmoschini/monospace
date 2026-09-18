@@ -153,7 +153,7 @@ property of the rule rather than a particular picture.
       at one position — the sweep grid excludes coincident positions, so this is the only thing that
       covers them — asserting the four that leave in the same direction draw no route and the twelve
       that leave in different directions draw one (FR-012, R-9, SC-010).
-- [ ] T011 [US1] `test(core)`: add a named test counting the derivation's lattice states rather than
+- [x] T011 [US1] `test(core)`: add a named test counting the derivation's lattice states rather than
       timing it, asserting the count is equal for endpoints four, fifty and five hundred cells apart
       and never exceeds `7 x 7 x 4 = 196` (FR-008, R-8, SC-007). Keep the count to the lattice
       search alone, not `expand_waypoints` or `Route::draw`, which are linear in route length by

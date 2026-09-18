@@ -419,7 +419,7 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
 
 #[cfg(test)]
 mod tests {
-    use super::{Arrow, Endpoint, derive_path, offset};
+    use super::{Arrow, Endpoint, Lattice, RouteRectangle, derive_path, offset};
     use crate::shape::counting::CountingSurface;
     use crate::{
         Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke,
@@ -1136,6 +1136,33 @@ mod tests {
 
         assert_eq!(same_direction, 4);
         assert_eq!(different_direction, 12);
+    }
+
+    /// FR-008, R-8, SC-007: the number of states the derivation searches — the lattice's nodes,
+    /// times the four headings — is equal for two endpoints four, fifty and five hundred cells
+    /// apart, and never exceeds `7 x 7 x 4 = 196`. Counted directly from [`Lattice`] rather than
+    /// timed, and rather than counting `expand_waypoints` or `Route::draw`, which grow with the
+    /// route's length by design (research.md Q2).
+    #[test]
+    fn the_state_count_does_not_grow_with_distance() {
+        let states_apart = |cells_apart: i32| {
+            let s = Pos { x: 0, y: -1 };
+            let t = Pos {
+                x: 0,
+                y: cells_apart + 1,
+            };
+            let mid = RouteRectangle::spanning(s, t).middle(s);
+            let lattice = Lattice::new(s, t, mid);
+            lattice.x.len() * lattice.y.len() * 4
+        };
+
+        let four = states_apart(4);
+        let fifty = states_apart(50);
+        let five_hundred = states_apart(500);
+
+        assert_eq!(four, fifty);
+        assert_eq!(fifty, five_hundred);
+        assert!(four <= 196);
     }
 
     /// The window the sweep renders into — research.md Q6 — sized to hold the six-by-five field
