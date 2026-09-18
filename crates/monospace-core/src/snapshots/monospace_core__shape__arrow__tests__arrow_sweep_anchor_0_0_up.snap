@@ -1,6 +1,5 @@
 ---
 source: crates/monospace-core/src/shape/arrow.rs
-assertion_line: 1005
 expression: rendered
 ---
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 0, y: 1 }, Up)
@@ -49,10 +48,10 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 0, y: 1 }, Down)
 
-
-  ▼
-  ▲
-
+  ┌┐
+  ▼│
+  ▲│
+  └┘
 
 
 
@@ -60,10 +59,10 @@ expression: rendered
 
 (Pos { x: 0, y: 1 }, Down) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-  ▲
-
+ ┌┐
+ │▼
+ │▲
+ └┘
 
 
 
@@ -93,9 +92,9 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 0, y: 2 }, Up)
 
-
-  ▼
-
+  ┌┐
+  ▼│
+  ┌┘
   ▼
 
 
@@ -104,9 +103,9 @@ expression: rendered
 
 (Pos { x: 0, y: 2 }, Up) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-
+  ┌┐
+  ▼│
+  ┌┘
   ▼
 
 
@@ -137,22 +136,22 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 0, y: 2 }, Down)
 
-
-  ▼
-
-  ▲
-
+  ┌┐
+  ▼│
+   │
+  ▲│
+  └┘
 
 
 
 
 (Pos { x: 0, y: 2 }, Down) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-
-  ▲
-
+ ┌┐
+ │▼
+ │
+ │▲
+ └┘
 
 
 
@@ -181,10 +180,10 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 0, y: 3 }, Up)
 
-
-  ▼
-
-
+  ┌┐
+  ▼│
+  ┌┘
+  │
   ▼
 
 
@@ -192,10 +191,10 @@ expression: rendered
 
 (Pos { x: 0, y: 3 }, Up) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-
-
+  ┌┐
+  ▼│
+  ┌┘
+  │
   ▼
 
 
@@ -225,23 +224,23 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 0, y: 3 }, Down)
 
-
-  ▼
-
-
-  ▲
-
+  ┌┐
+  ▼│
+   │
+   │
+  ▲│
+  └┘
 
 
 
 (Pos { x: 0, y: 3 }, Down) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-
-
-  ▲
-
+ ┌┐
+ │▼
+ │
+ │
+ │▲
+ └┘
 
 
 
@@ -269,22 +268,22 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 0, y: 4 }, Up)
 
-
-  ▼
-
-
-
+  ┌┐
+  ▼│
+  ┌┘
+  │
+  │
   ▼
 
 
 
 (Pos { x: 0, y: 4 }, Up) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-
-
-
+  ┌┐
+  ▼│
+  ┌┘
+  │
+  │
   ▼
 
 
@@ -313,24 +312,24 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 0, y: 4 }, Down)
 
-
-  ▼
-
-
-
-  ▲
-
+  ┌┐
+  ▼│
+   │
+   │
+   │
+  ▲│
+  └┘
 
 
 (Pos { x: 0, y: 4 }, Down) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-
-
-
-  ▲
-
+ ┌┐
+ │▼
+ │
+ │
+ │
+ │▲
+ └┘
 
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 0, y: 4 }, Left)
@@ -401,9 +400,9 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 1, y: 0 }, Down)
 
-
-  ▼▲
-
+ ┌┐
+ │▼▲
+ └─┘
 
 
 
@@ -412,9 +411,9 @@ expression: rendered
 
 (Pos { x: 1, y: 0 }, Down) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼▲
-
+  ┌─┐
+  ▼▲│
+   └┘
 
 
 
@@ -489,10 +488,10 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 1, y: 1 }, Down)
 
-
-  ▼
-   ▲
-
+ ┌┐
+ │▼
+ │ ▲
+ └─┘
 
 
 
@@ -500,10 +499,10 @@ expression: rendered
 
 (Pos { x: 1, y: 1 }, Down) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-   ▲
-
+  ┌─┐
+  ▼ │
+   ▲│
+   └┘
 
 
 
@@ -511,9 +510,9 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 1, y: 1 }, Left)
 
-
-  ▼
-   ►
+ ┌┐
+ │▼
+ └─►
 
 
 
@@ -522,9 +521,9 @@ expression: rendered
 
 (Pos { x: 1, y: 1 }, Left) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-   ►
+ ┌┐
+ │▼
+ └─►
 
 
 
@@ -577,32 +576,32 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 1, y: 2 }, Down)
 
-  ┌┐
-  ▼│
-  ┌┘
-  │▲
-  └┘
+ ┌┐
+ │▼
+ │
+ │ ▲
+ └─┘
 
 
 
 
 (Pos { x: 1, y: 2 }, Down) -> (Pos { x: 0, y: 0 }, Up)
 
-  ┌┐
-  ▼│
-  ┌┘
-  │▲
-  └┘
+  ┌─┐
+  ▼ │
+    │
+   ▲│
+   └┘
 
 
 
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 1, y: 2 }, Left)
 
-
-  ▼
-
-   ►
+ ┌┐
+ │▼
+ │
+ └─►
 
 
 
@@ -610,10 +609,10 @@ expression: rendered
 
 (Pos { x: 1, y: 2 }, Left) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-
-   ►
+ ┌┐
+ │▼
+ │
+ └─►
 
 
 
@@ -665,44 +664,44 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 1, y: 3 }, Down)
 
-  ┌┐
-  ▼│
-  ┌┘
-  │
-  │▲
-  └┘
+ ┌┐
+ │▼
+ │
+ │
+ │ ▲
+ └─┘
 
 
 
 (Pos { x: 1, y: 3 }, Down) -> (Pos { x: 0, y: 0 }, Up)
 
-  ┌┐
-  ▼│
-   │
-  ┌┘
-  │▲
-  └┘
+  ┌─┐
+  ▼ │
+    │
+    │
+   ▲│
+   └┘
 
 
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 1, y: 3 }, Left)
 
-
-  ▼
-
-
-   ►
+ ┌┐
+ │▼
+ │
+ │
+ └─►
 
 
 
 
 (Pos { x: 1, y: 3 }, Left) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-
-
-   ►
+ ┌┐
+ │▼
+ │
+ │
+ └─►
 
 
 
@@ -753,45 +752,45 @@ expression: rendered
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 1, y: 4 }, Down)
 
-  ┌┐
-  ▼│
-   │
-  ┌┘
-  │
-  │▲
-  └┘
+ ┌┐
+ │▼
+ │
+ │
+ │
+ │ ▲
+ └─┘
 
 
 (Pos { x: 1, y: 4 }, Down) -> (Pos { x: 0, y: 0 }, Up)
 
-  ┌┐
-  ▼│
-   │
-  ┌┘
-  │
-  │▲
-  └┘
+  ┌─┐
+  ▼ │
+    │
+    │
+    │
+   ▲│
+   └┘
 
 
 (Pos { x: 0, y: 0 }, Up) -> (Pos { x: 1, y: 4 }, Left)
 
-
-  ▼
-
-
-
-   ►
+ ┌┐
+ │▼
+ │
+ │
+ │
+ └─►
 
 
 
 (Pos { x: 1, y: 4 }, Left) -> (Pos { x: 0, y: 0 }, Up)
 
-
-  ▼
-
-
-
-   ►
+ ┌┐
+ │▼
+ │
+ │
+ │
+ └─►
 
 
 

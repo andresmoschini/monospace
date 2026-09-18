@@ -2,6 +2,9 @@
 //! and _The route of an arrow_ in [`docs/model.md`](../../../docs/model.md), and research.md Q5
 //! in `specs/039-draw-shapes-instead-of-individual-cells/`.
 
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
+
 use crate::shape::fragment::head::Head;
 use crate::shape::route::Route;
 use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
@@ -68,25 +71,6 @@ fn offset(at: Pos, dir: Direction) -> Option<Pos> {
         Direction::Down => at.y.checked_add(1).map(|y| Pos { x: at.x, y }),
         Direction::Left => at.x.checked_sub(1).map(|x| Pos { x, y: at.y }),
         Direction::Right => at.x.checked_add(1).map(|x| Pos { x, y: at.y }),
-    }
-}
-
-/// The direction that walks from `from` to `to`, if the two share exactly one coordinate.
-fn direction_between(from: Pos, to: Pos) -> Option<Direction> {
-    if from.y == to.y && from.x != to.x {
-        Some(if to.x > from.x {
-            Direction::Right
-        } else {
-            Direction::Left
-        })
-    } else if from.x == to.x && from.y != to.y {
-        Some(if to.y > from.y {
-            Direction::Down
-        } else {
-            Direction::Up
-        })
-    } else {
-        None
     }
 }
 
@@ -188,168 +172,241 @@ fn direction_orientation(dir: Direction) -> Orientation {
     }
 }
 
-fn opposite_orientation(o: Orientation) -> Orientation {
-    match o {
-        Orientation::Horizontal => Orientation::Vertical,
-        Orientation::Vertical => Orientation::Horizontal,
-    }
+/// The ranking of a route as one value — fewest bends, then shortest, then nearest the middle,
+/// then to the right of the travel — compared lexicographically in the fields' declared order.
+/// Deriving `Ord` over them **is** the ranking; nothing here is a written comparator
+/// (data-model.md, ADR-0049).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct Cost {
+    bends: u32,
+    length: u32,
+    from_middle: u32,
+    hand: u32,
 }
 
-/// The two interior waypoints of a route from `s` to `t` that turns at `mid` — a run leaves `s`
-/// and a run arrives at `t`, both `primary`-oriented and fixed at `mid`'s coordinate on the other
-/// axis; the run between them — the one the bends leave free — is fixed at `mid`'s coordinate on
-/// `primary`'s own axis. _Run_ and _Middle_ in `docs/model.md`'s _The route of an arrow_.
-fn three_waypoint(s: Pos, t: Pos, mid: Pos, primary: Orientation) -> (Pos, Pos) {
-    match primary {
-        Orientation::Horizontal => (Pos { x: mid.x, y: s.y }, Pos { x: mid.x, y: t.y }),
-        Orientation::Vertical => (Pos { x: s.x, y: mid.y }, Pos { x: t.x, y: mid.y }),
-    }
+/// A fixed order over the four directions, used only to index arrays and hash-map keys —
+/// `Direction` derives no `Hash`, and this module stays the one place that needs one.
+const DIRECTIONS: [Direction; 4] = [
+    Direction::Up,
+    Direction::Right,
+    Direction::Down,
+    Direction::Left,
+];
+
+fn direction_index(d: Direction) -> usize {
+    DIRECTIONS
+        .iter()
+        .position(|&candidate| candidate == d)
+        .expect("DIRECTIONS lists all four directions")
 }
 
-/// The double escape `s`-`z1`-`z2`-`z3`-`z4`-`t`: where the ordinary escape's boundary runs would
-/// have no room (the route rectangle is only two cells wide on `escape`'s own axis, so `mid`
-/// coincides with one of `s` or `t` on it), each end instead jogs to the far endpoint's coordinate
-/// on `escape`'s axis before crossing at the middle on the other axis, then jogs back — the only
-/// shape research.md's sweep found needed for these arrangements.
-fn zigzag(s: Pos, t: Pos, mid: Pos, escape: Orientation) -> Vec<Pos> {
-    match escape {
-        Orientation::Horizontal => vec![
-            s,
-            Pos { x: t.x, y: s.y },
-            Pos { x: t.x, y: mid.y },
-            Pos { x: s.x, y: mid.y },
-            Pos { x: s.x, y: t.y },
-            t,
-        ],
-        Orientation::Vertical => vec![
-            s,
-            Pos { x: s.x, y: t.y },
-            Pos { x: mid.x, y: t.y },
-            Pos { x: mid.x, y: s.y },
-            Pos { x: t.x, y: s.y },
-            t,
-        ],
-    }
+/// The lines a route may turn on, one per axis: the line each starting position pins, the line
+/// beside each of them, the middle, and one line outside the route rectangle on either side —
+/// deduplicated to at most 7 distinct lines (research.md Q2). A node is a pair of indices into
+/// `x` and `y`, so at most 7 x 7 x 4 = 196 states whatever the arrangement (FR-008, R-8), because
+/// [ADR-0049](../../../../docs/decisions/0049-derive-a-route-by-searching-the-lines-a-turn-can-sit-on.md)
+/// holds that a route turns only here.
+struct Lattice {
+    x: Vec<i32>,
+    y: Vec<i32>,
 }
 
-/// The bend count of a route through `waypoints`, from `s` (its first element) to `t` (its last),
-/// leaving `s` toward `da` and arriving at `t` against `exit_dir` — or `None` where any run,
-/// including the one leaving `s` or the one arriving at `t`, would have to reverse. A run whose
-/// direction matches the boundary direction its end shares an axis with costs no bend there; any
-/// other direction — necessarily perpendicular, since a reversal is already ruled out — costs one.
-fn path_bends(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> Option<u32> {
-    let mut bends = 0;
-    let mut incoming = da;
-    for pair in waypoints.windows(2) {
-        let outgoing = direction_between(pair[0], pair[1])?;
-        if outgoing == opposite(incoming) {
-            return None;
+/// A node of [`Lattice`], paired with the index into [`DIRECTIONS`] of the heading a run reaching
+/// it travels along.
+type State = ((usize, usize), usize);
+
+impl Lattice {
+    fn new(s: Pos, t: Pos, mid: Pos) -> Self {
+        Self {
+            x: Self::axis(s.x, t.x, mid.x),
+            y: Self::axis(s.y, t.y, mid.y),
         }
-        bends += u32::from(outgoing != incoming);
-        incoming = outgoing;
     }
-    if exit_dir == opposite(incoming) {
-        return None;
+
+    fn axis(s_c: i32, t_c: i32, mid_c: i32) -> Vec<i32> {
+        let mut values = vec![s_c - 1, s_c, s_c + 1, mid_c, t_c - 1, t_c, t_c + 1];
+        values.sort_unstable();
+        values.dedup();
+        values
     }
-    Some(bends + u32::from(exit_dir != incoming))
+
+    fn index_of(values: &[i32], value: i32) -> usize {
+        values
+            .binary_search(&value)
+            .expect("value is one of axis's own candidates")
+    }
+
+    fn node(&self, pos: Pos) -> (usize, usize) {
+        (
+            Self::index_of(&self.x, pos.x),
+            Self::index_of(&self.y, pos.y),
+        )
+    }
+
+    fn pos(&self, node: (usize, usize)) -> Pos {
+        Pos {
+            x: self.x[node.0],
+            y: self.y[node.1],
+        }
+    }
+
+    /// One step from `node` along `d`, or `None` at the lattice's own edge.
+    fn step(&self, node: (usize, usize), d: Direction) -> Option<(usize, usize)> {
+        let (ix, iy) = node;
+        match d {
+            Direction::Up => iy.checked_sub(1).map(|iy| (ix, iy)),
+            Direction::Down => (iy + 1 < self.y.len()).then_some((ix, iy + 1)),
+            Direction::Left => ix.checked_sub(1).map(|ix| (ix, iy)),
+            Direction::Right => (ix + 1 < self.x.len()).then_some((ix + 1, iy)),
+        }
+    }
 }
 
-/// The sum, over every run a bend leaves free, of that run's distance from `mid` on the axis its
-/// own fixed coordinate lies along — ADR-0044's third term. A run is one a bend leaves free when a
-/// bend sits at both of its ends: an interior waypoint, or the point where the path meets `da`
-/// (leaving `s`) or `exit_dir` (arriving at `t`), which charges a bend there exactly where
-/// [`path_bends`] does. A run touching `s` or `t` directly, with no bend at that end, is pinned
-/// rather than free and contributes nothing. Assumes `waypoints` is a path [`path_bends`] has
-/// already accepted, so every direction between consecutive points is defined.
-fn distance_from_middle(waypoints: &[Pos], da: Direction, exit_dir: Direction, mid: Pos) -> i32 {
-    let expect_msg = "distance_from_middle is only called on a path path_bends accepted";
-    let mut incoming = da;
-    let mut total = 0;
-    for (i, pair) in waypoints.windows(2).enumerate() {
-        let outgoing = direction_between(pair[0], pair[1]).expect(expect_msg);
-        let bend_at_start = outgoing != incoming;
-        let bend_at_end = match waypoints.get(i + 2) {
-            Some(&next) => direction_between(pair[1], next).expect(expect_msg) != outgoing,
-            None => exit_dir != outgoing,
-        };
-        if bend_at_start && bend_at_end {
-            total += match direction_orientation(outgoing) {
-                Orientation::Horizontal => (pair[0].y - mid.y).abs(),
-                Orientation::Vertical => (pair[0].x - mid.x).abs(),
-            };
-        }
-        incoming = outgoing;
+/// Whether the coordinate `c` sits on the side leaving `da` puts to the travel's right, of
+/// `mid_c` — [ADR-0048](
+/// ../../../../docs/decisions/0048-let-the-travel-pick-the-side-of-a-mirrored-route.md).
+/// Coordinates grow rightward and downward, so leaving `Up` or `Right` puts the larger coordinate
+/// to the right, and leaving `Down` or `Left` the smaller.
+fn is_right_of_travel(da: Direction, c: i32, mid_c: i32) -> bool {
+    match da {
+        Direction::Up | Direction::Right => c >= mid_c,
+        Direction::Down | Direction::Left => c <= mid_c,
     }
-    total
+}
+
+/// The `from_middle` and `hand` a run of `orientation`, sitting at `pos` — any point along it,
+/// since a run's own fixed coordinate does not change — charges against `mid` and the arrow's own
+/// travel `da`. `hand` is charged only where `orientation` matches `da`'s own, which is what makes
+/// ADR-0048's handedness the arrow's own travel rather than the coordinate system's
+/// (data-model.md).
+fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u32, u32) {
+    let (c, mid_c) = match orientation {
+        Orientation::Horizontal => (pos.y, mid.y),
+        Orientation::Vertical => (pos.x, mid.x),
+    };
+    let from_middle = c.abs_diff(mid_c);
+    let hand = if orientation == direction_orientation(da) {
+        u32::from(!is_right_of_travel(da, c, mid_c))
+    } else {
+        0
+    };
+    (from_middle, hand)
 }
 
 /// Derives an arrow's route: the path between its two starting positions, per _The route of an
-/// arrow_. `None` means no candidate exists and the arrow is its two heads alone.
+/// arrow_. `None` means no path exists and the arrow is its two heads alone.
 ///
-/// Built directly from runs and fixed coordinates rather than searched for and scored
-/// (research.md Q2): `s` and `t` pin the first and last run. Where they align or coincide the
-/// route is the single run or point between them. Otherwise every route the two directions admit
-/// is one of a handful of shapes — a corner at each of the two points a pinned run from `s` could
-/// meet a pinned run into `t`; a run at the middle of the route rectangle on one axis with a
-/// pinned run at each end, on the axis `da` moves along, on the axis `exit_dir` moves along, or
-/// (where `da` and `exit_dir` share an axis, so neither of the last two exists) on the other axis;
-/// or, where that axis has no room for a pinned run either, the double escape ([`zigzag`]). The
-/// fewest-bend shape wins; where two tie, the one whose free run sits nearest the route
-/// rectangle's middle does, rounding toward `s` ([ADR-0044](
-/// ../../../../docs/decisions/0044-let-the-endpoint-order-break-a-tied-route.md)).
+/// A single-source Dijkstra over states `(node, heading)`, `node` a point of [`Lattice`] and
+/// `heading` the direction the run reaching it travels along, minimized by [`Cost`] — nothing
+/// bounds where the search goes beyond the lattice itself (ADR-0049, ADR-0046). The search starts
+/// at `s` with a virtual heading `da`, as though the route already arrived there leaving `a`, and
+/// ends at `t` against a virtual `exit_dir`, the direction continuing from `t` into `b`; both
+/// virtual steps charge a bend exactly where a real one would, and forbid reversing. `from_middle`
+/// and `hand` are charged to a run exactly when a bend closes it *and* a bend opened it — an
+/// interior run always opened with one, and closes with the one being charged now; the run
+/// leaving `s` opened with one only if its first direction is not `da`, which is exactly when
+/// `cost.bends` is still nonzero for the run about to close (data-model.md).
 fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
     // `s` and `t` — each endpoint's starting position: one step from it in that endpoint's own
     // leaving direction.
     let s = offset(a, da)?;
     let t = offset(b, db)?;
     let exit_dir = opposite(db);
-
-    if s == t {
-        return (da != opposite(exit_dir)).then(|| expand_waypoints(&[s]));
-    }
-    if let Some(dir) = direction_between(s, t) {
-        return (dir != opposite(da) && dir != opposite(exit_dir))
-            .then(|| expand_waypoints(&[s, t]));
+    // No route cell is an endpoint position (data-model.md invariant 2). `a` and `b` are always
+    // lattice nodes — `a`'s coordinate on `da`'s axis is `s`'s own minus or plus one, and its
+    // other coordinate is `s`'s own, both always lattice candidates — so excluding them from the
+    // graph excludes every path that would cross a head.
+    let forbidden = |p: Pos| p == a || p == b;
+    if forbidden(s) || forbidden(t) {
+        return None;
     }
 
     let rectangle = RouteRectangle::spanning(s, t);
     let mid = rectangle.middle(s);
-    let da_orientation = direction_orientation(da);
-    let exit_orientation = direction_orientation(exit_dir);
+    let lattice = Lattice::new(s, t, mid);
+    let start = (lattice.node(s), direction_index(da));
+    let goal_node = lattice.node(t);
 
-    let mut shapes: Vec<Vec<Pos>> = vec![
-        vec![s, Pos { x: t.x, y: s.y }, t],
-        vec![s, Pos { x: s.x, y: t.y }, t],
-    ];
-    let via_axis = |axis| {
-        let (w1, w2) = three_waypoint(s, t, mid, axis);
-        vec![s, w1, w2, t]
-    };
-    shapes.push(via_axis(da_orientation));
-    if exit_orientation == da_orientation {
-        let escape = opposite_orientation(da_orientation);
-        shapes.push(via_axis(escape));
-        shapes.push(zigzag(s, t, mid, escape));
-    } else {
-        shapes.push(via_axis(exit_orientation));
+    let mut dist: HashMap<State, Cost> = HashMap::new();
+    let mut prev: HashMap<State, State> = HashMap::new();
+    let mut heap = BinaryHeap::new();
+    dist.insert(start, Cost::default());
+    heap.push(Reverse((Cost::default(), start)));
+
+    while let Some(Reverse((cost, key))) = heap.pop() {
+        if dist.get(&key) != Some(&cost) {
+            continue;
+        }
+        let (node, heading_index) = key;
+        let heading = DIRECTIONS[heading_index];
+        let pos = lattice.pos(node);
+
+        for d in DIRECTIONS {
+            if d == opposite(heading) {
+                continue;
+            }
+            let Some(neighbor) = lattice.step(node, d) else {
+                continue;
+            };
+            let neighbor_pos = lattice.pos(neighbor);
+            if forbidden(neighbor_pos) {
+                continue;
+            }
+
+            let mut next = cost;
+            next.length += match direction_orientation(d) {
+                Orientation::Horizontal => neighbor_pos.x.abs_diff(pos.x),
+                Orientation::Vertical => neighbor_pos.y.abs_diff(pos.y),
+            };
+            if d != heading {
+                next.bends += 1;
+                if cost.bends > 0 {
+                    let (from_middle, hand) =
+                        run_cost(direction_orientation(heading), pos, mid, da);
+                    next.from_middle += from_middle;
+                    next.hand += hand;
+                }
+            }
+
+            let next_key = (neighbor, direction_index(d));
+            if dist.get(&next_key).is_none_or(|&best| next < best) {
+                dist.insert(next_key, next);
+                prev.insert(next_key, key);
+                heap.push(Reverse((next, next_key)));
+            }
+        }
     }
 
-    shapes
+    let (_, winner) = DIRECTIONS
         .into_iter()
-        .filter_map(|waypoints| {
-            let bends = path_bends(&waypoints, da, exit_dir)?;
-            let expanded = expand_waypoints(&waypoints);
-            // No route cell is an endpoint position: a run that would cross the *other*
-            // endpoint — the one `s`/`t` were not offset from — is not a route the rectangle
-            // permits, per data-model.md's invariant 2.
-            if expanded.contains(&a) || expanded.contains(&b) {
-                return None;
+        .filter(|&h| h != opposite(exit_dir))
+        .filter_map(|h| {
+            let key = (goal_node, direction_index(h));
+            let cost = *dist.get(&key)?;
+            let mut total = cost;
+            if h != exit_dir {
+                total.bends += 1;
+                if cost.bends > 0 {
+                    let (from_middle, hand) = run_cost(direction_orientation(h), t, mid, da);
+                    total.from_middle += from_middle;
+                    total.hand += hand;
+                }
             }
-            let from_middle = distance_from_middle(&waypoints, da, exit_dir, mid);
-            Some((bends, from_middle, expanded))
+            Some((total, key))
         })
-        .min_by_key(|(bends, from_middle, _)| (*bends, *from_middle))
-        .map(|(_, _, expanded)| expanded)
+        .min_by_key(|(total, _)| *total)?;
+
+    let mut path = Vec::new();
+    let mut current = winner;
+    loop {
+        path.push(lattice.pos(current.0));
+        if current == start {
+            break;
+        }
+        current = prev[&current];
+    }
+    path.reverse();
+    Some(expand_waypoints(&path))
 }
 
 #[cfg(test)]
@@ -628,22 +685,25 @@ mod tests {
     }
 
     /// The direction families table's identical-directions row, the geometry where the two
-    /// endpoints are in line on that axis: the route rectangle is one cell thick, no alternating
-    /// path fits inside it, and the route is empty — the arrow is its two heads, per _The route
-    /// of an arrow_.
+    /// endpoints are in line on that axis: `s` and `t` sit on the same row with the `to`
+    /// endpoint's own head between them, so the straight run the old bound drew nothing for is
+    /// not a route the rule can draw either — it would cross a head. The ranking instead
+    /// routes around the outside, per _The route of an arrow_. SC-009, research.md Q6: the only
+    /// test in the workspace whose pinned picture this feature moves, renamed and re-pinned
+    /// rather than deleted. Spec's User Story 1 acceptance scenario 2.
     #[test]
-    fn identical_directions_in_line_gives_an_empty_route() {
+    fn identical_directions_in_line_are_joined_around_the_outside() {
         let text = render_arrow(
             Pos { x: 0, y: 0 },
             Size {
-                width: 5,
-                height: 1,
+                width: 6,
+                height: 2,
             },
             endpoint(Pos { x: 0, y: 0 }, Direction::Right),
             endpoint(Pos { x: 4, y: 0 }, Direction::Right),
         );
 
-        assert_eq!(text, "◄   ◄\n");
+        assert_eq!(text, "◄──┐◄┐\n   └─┘\n");
     }
 
     /// The direction families table's last row and user story 3's scenario 13: an arrow whose
@@ -918,6 +978,101 @@ mod tests {
         );
 
         assert_eq!(text, "►\n");
+    }
+
+    /// User Story 1, R-1, FR-002, spec acceptance scenarios 1 and 3: two endpoints facing away
+    /// from each other on one line are joined, wrapping around the outside on the side the
+    /// travel puts to its right, however far apart the two are — the same shape with longer runs.
+    #[test]
+    fn facing_away_are_joined_at_any_distance() {
+        let near = render_arrow(
+            Pos { x: 0, y: -1 },
+            Size {
+                width: 2,
+                height: 5,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Up),
+            endpoint(Pos { x: 0, y: 2 }, Direction::Down),
+        );
+        let far = render_arrow(
+            Pos { x: 0, y: -1 },
+            Size {
+                width: 2,
+                height: 21,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Up),
+            endpoint(Pos { x: 0, y: 18 }, Direction::Down),
+        );
+
+        assert_eq!(near, "┌┐\n▼│\n │\n▲│\n└┘\n");
+        assert_eq!(far, format!("┌┐\n▼│\n{}▲│\n└┘\n", " │\n".repeat(17)));
+    }
+
+    /// User Story 1, R-1, FR-002, spec acceptance scenario 6: the same family with the two
+    /// starting positions on different columns takes the same four bends around the outside.
+    #[test]
+    fn facing_away_off_column_takes_four_bends_around_the_outside() {
+        let text = render_arrow(
+            Pos { x: -1, y: -1 },
+            Size {
+                width: 3,
+                height: 5,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Up),
+            endpoint(Pos { x: 1, y: 2 }, Direction::Down),
+        );
+
+        assert_eq!(text, "┌┐ \n│▼ \n│  \n│ ▲\n└─┘\n");
+    }
+
+    /// User Story 1, R-4, FR-007, SC-005, spec acceptance scenario 5: the former double escape
+    /// takes four bends rather than six, and the two orders mirror each other rather than drawing
+    /// the same picture — `zigzag` is gone.
+    #[test]
+    fn the_former_double_escape_takes_four_bends_and_the_two_orders_mirror() {
+        let size = Size {
+            width: 5,
+            height: 3,
+        };
+
+        let leaving_left_first = render_arrow(
+            Pos { x: -1, y: -1 },
+            size,
+            endpoint(Pos { x: 0, y: 0 }, Direction::Left),
+            endpoint(Pos { x: 2, y: 1 }, Direction::Right),
+        );
+        let leaving_right_first = render_arrow(
+            Pos { x: -1, y: 0 },
+            size,
+            endpoint(Pos { x: 2, y: 1 }, Direction::Right),
+            endpoint(Pos { x: 0, y: 0 }, Direction::Left),
+        );
+
+        assert_eq!(leaving_left_first, "┌───┐\n└►  │\n   ◄┘\n");
+        assert_eq!(leaving_right_first, "┌►   \n│  ◄┐\n└───┘\n");
+
+        let bends = |text: &str| text.chars().filter(|c| "┌┐└┘".contains(*c)).count();
+        assert_eq!(bends(&leaving_left_first), 4);
+        assert_eq!(bends(&leaving_right_first), 4);
+    }
+
+    /// User Story 1, R-6, FR-006, SC-003, spec acceptance scenario 7: where two routes mirror
+    /// each other about the line the two starting positions share — here, `b`'s own head stands
+    /// between them, so neither can go straight through — the one drawn is the one on the side
+    /// the arrow's own travel puts to its right. Leaving `down`, that is the smaller `x`.
+    #[test]
+    fn a_mirrored_route_passes_on_the_right_of_the_travel() {
+        let text = render_arrow(
+            Pos { x: -1, y: 0 },
+            Size {
+                width: 2,
+                height: 4,
+            },
+            endpoint(Pos { x: 0, y: 0 }, Direction::Down),
+            endpoint(Pos { x: 0, y: 2 }, Direction::Down),
+        );
+
+        assert_eq!(text, " ▲\n┌┘\n│▲\n└┘\n");
     }
 
     /// The window the sweep renders into — research.md Q6 — sized to hold the six-by-five field
