@@ -907,6 +907,45 @@ mod tests {
         groups
     }
 
+    /// Whether `p` falls inside the sweep's window — the same inclusion rule as
+    /// [`crate::Buffer::contains`], duplicated here because that method is private and this test
+    /// asserts against positions the derivation returns, not against a buffer.
+    fn window_contains(p: Pos) -> bool {
+        let dx =
+            p.x.checked_sub(SWEEP_ORIGIN.x)
+                .and_then(|d| u32::try_from(d).ok());
+        let dy =
+            p.y.checked_sub(SWEEP_ORIGIN.y)
+                .and_then(|d| u32::try_from(d).ok());
+        matches!((dx, dy), (Some(dx), Some(dy)) if dx < SWEEP_SIZE.width && dy < SWEEP_SIZE.height)
+    }
+
+    /// R-10, FR-011: every position any sweep arrangement writes — both heads and every cell of
+    /// the derived route — lies inside the window the sweep renders into, so a rendering showing
+    /// two heads with a gap can only mean an empty route rather than a clipped one. research.md
+    /// Q1 found the window already wide enough: the lattice a route may turn on never reaches more
+    /// than one line outside the rectangle the two starting positions span, which this assertion
+    /// checks mechanically rather than by that arithmetic alone.
+    #[test]
+    fn sweep_every_route_fits_inside_the_window() {
+        for (a, da, b, db) in sweep_arrangements() {
+            for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
+                assert!(
+                    window_contains(from_at) && window_contains(to_at),
+                    "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?}): a head outside the window"
+                );
+                if let Some(path) = derive_path(from_at, from_dir, to_at, to_dir) {
+                    for pos in path {
+                        assert!(
+                            window_contains(pos),
+                            "({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?}): route cell {pos:?} outside the window"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// The grid research.md Q6 defines, flattened — 928 arrangements.
     fn sweep_arrangements() -> Vec<(Pos, Direction, Pos, Direction)> {
         sweep_arrangements_by_anchor()

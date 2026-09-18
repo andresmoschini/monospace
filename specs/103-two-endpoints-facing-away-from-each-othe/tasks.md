@@ -48,12 +48,12 @@ stories: the spec fixes the window first precisely so neither later diff is a wh
 **⚠️ CRITICAL**: this MUST land as its own `test` commit, ahead of both behavioral commits, per
 research.md Q1 and the spec's own ordering.
 
-- [ ] T001 Measure the extreme cell any route reaches over the whole sweep grid with a throwaway
+- [x] T001 Measure the extreme cell any route reaches over the whole sweep grid with a throwaway
       check against the spike's derivation, to settle which of the two recorded figures is right:
       the arithmetic in research.md Q1 (window already wide enough) or ADR-0046's "twelve clipped".
       Report the finding — do not edit either ADR or the spec from this task; a wrong figure is
       superseded, not corrected in place (constitution principle VI).
-- [ ] T002 `test(core)`: set `SWEEP_ORIGIN` and `SWEEP_SIZE`
+- [x] T002 `test(core)`: set `SWEEP_ORIGIN` and `SWEEP_SIZE`
       (`crates/monospace-core/src/shape/arrow.rs:865-869`) to the values T001 measured, and add a
       mechanical assertion in the sweep that every cell any arrangement writes lies inside them
       (FR-011, R-10). Verify per constitution principle IV: shrink the window on purpose and watch
