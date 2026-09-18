@@ -76,8 +76,8 @@ chosen route ever reaches **more than one cell** outside that rectangle, over th
 ### Consequences
 
 - Good, because the five families that drew nothing become one rule and no special case. **268
-  arrangements stop being two disconnected heads**, and what still draws no route is 36 arrangements
-  rather than 170.
+  renderings stop being two disconnected heads** — 134 arrangements taken from both ends — and what
+  still draws no route is 36 arrangements rather than 170.
 - Good, because the double escape is deleted rather than kept. Its 17 arrangements — 34 renderings —
   take four bends around the outside where they took six inside, so the shape that built them, and
   the paragraph of `research.md` that justified it, describe a route the rule can no longer choose.
@@ -106,8 +106,8 @@ ends. A further 16 change for the defect of
 [issue 104](https://github.com/andresmoschini/monospace/issues/104), which is not this decision.
 
 Twelve of the newly routed renderings gain a route that falls outside the sweep window and is
-clipped, so the sweep understates the change by that much: 268 arrangements gain a route, 256 of
-them visibly.
+clipped, so the sweep understates the change by that much: 268 renderings gain a route, 256 of them
+visibly.
 
 Nothing enforces this mechanically. It is prose in the model, the snapshot under it, and the named
 tests beside it.
