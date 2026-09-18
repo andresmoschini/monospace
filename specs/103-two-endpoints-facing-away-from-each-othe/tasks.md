@@ -76,7 +76,7 @@ rather than leaving the picture unchanged.
 check each picture against the middle of the free span, computed from the two starting positions
 alone. Passes or fails without any of User Story 1.
 
-- [ ] T003 [US2] `fix(core)`: replace the `waypoints.len() > 3` proxy at
+- [x] T003 [US2] `fix(core)`: replace the `waypoints.len() > 3` proxy at
       `crates/monospace-core/src/shape/arrow.rs:318` with a score of the route's distance from the
       middle, rounding toward the endpoint the arrow leaves from (ADR-0044), so the free-span-of-two
       case stops rounding away from it. In the same commit, add the named test for this scenario to

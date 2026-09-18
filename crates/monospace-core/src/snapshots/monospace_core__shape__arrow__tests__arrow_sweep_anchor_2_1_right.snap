@@ -1,6 +1,5 @@
 ---
 source: crates/monospace-core/src/shape/arrow.rs
-assertion_line: 1005
 expression: rendered
 ---
 (Pos { x: 2, y: 1 }, Right) -> (Pos { x: 0, y: 0 }, Up)
@@ -2184,8 +2183,8 @@ expression: rendered
 (Pos { x: 2, y: 1 }, Right) -> (Pos { x: 5, y: 0 }, Left)
 
 
-      ┌►
-    ◄─┘
+     ┌─►
+    ◄┘
 
 
 
@@ -2195,8 +2194,8 @@ expression: rendered
 (Pos { x: 5, y: 0 }, Left) -> (Pos { x: 2, y: 1 }, Right)
 
 
-     ┌─►
-    ◄┘
+      ┌►
+    ◄─┘
 
 
 
@@ -2361,8 +2360,8 @@ expression: rendered
 
 
 
-    ◄─┐
-      └►
+    ◄┐
+     └─►
 
 
 
@@ -2372,8 +2371,8 @@ expression: rendered
 
 
 
-    ◄┐
-     └─►
+    ◄─┐
+      └►
 
 
 
@@ -2449,9 +2448,9 @@ expression: rendered
 
 
 
-    ◄─┐
-      │
-      └►
+    ◄┐
+     │
+     └─►
 
 
 
@@ -2460,9 +2459,9 @@ expression: rendered
 
 
 
-    ◄┐
-     │
-     └─►
+    ◄─┐
+      │
+      └►
 
 
 
@@ -2537,10 +2536,10 @@ expression: rendered
 
 
 
-    ◄─┐
-      │
-      │
-      └►
+    ◄┐
+     │
+     │
+     └─►
 
 
 
@@ -2548,7 +2547,7 @@ expression: rendered
 
 
 
-    ◄┐
-     │
-     │
-     └─►
+    ◄─┐
+      │
+      │
+      └►

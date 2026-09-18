@@ -254,6 +254,35 @@ fn path_bends(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> Option<u
     Some(bends + u32::from(exit_dir != incoming))
 }
 
+/// The sum, over every run a bend leaves free, of that run's distance from `mid` on the axis its
+/// own fixed coordinate lies along — ADR-0044's third term. A run is one a bend leaves free when a
+/// bend sits at both of its ends: an interior waypoint, or the point where the path meets `da`
+/// (leaving `s`) or `exit_dir` (arriving at `t`), which charges a bend there exactly where
+/// [`path_bends`] does. A run touching `s` or `t` directly, with no bend at that end, is pinned
+/// rather than free and contributes nothing. Assumes `waypoints` is a path [`path_bends`] has
+/// already accepted, so every direction between consecutive points is defined.
+fn distance_from_middle(waypoints: &[Pos], da: Direction, exit_dir: Direction, mid: Pos) -> i32 {
+    let expect_msg = "distance_from_middle is only called on a path path_bends accepted";
+    let mut incoming = da;
+    let mut total = 0;
+    for (i, pair) in waypoints.windows(2).enumerate() {
+        let outgoing = direction_between(pair[0], pair[1]).expect(expect_msg);
+        let bend_at_start = outgoing != incoming;
+        let bend_at_end = match waypoints.get(i + 2) {
+            Some(&next) => direction_between(pair[1], next).expect(expect_msg) != outgoing,
+            None => exit_dir != outgoing,
+        };
+        if bend_at_start && bend_at_end {
+            total += match direction_orientation(outgoing) {
+                Orientation::Horizontal => (pair[0].y - mid.y).abs(),
+                Orientation::Vertical => (pair[0].x - mid.x).abs(),
+            };
+        }
+        incoming = outgoing;
+    }
+    total
+}
+
 /// Derives an arrow's route: the path between its two starting positions, per _The route of an
 /// arrow_. `None` means no candidate exists and the arrow is its two heads alone.
 ///
@@ -265,8 +294,9 @@ fn path_bends(waypoints: &[Pos], da: Direction, exit_dir: Direction) -> Option<u
 /// pinned run at each end, on the axis `da` moves along, on the axis `exit_dir` moves along, or
 /// (where `da` and `exit_dir` share an axis, so neither of the last two exists) on the other axis;
 /// or, where that axis has no room for a pinned run either, the double escape ([`zigzag`]). The
-/// fewest-bend shape wins; where two tie, the one with a run at the middle does, per the model's
-/// tie-break.
+/// fewest-bend shape wins; where two tie, the one whose free run sits nearest the route
+/// rectangle's middle does, rounding toward `s` ([ADR-0044](
+/// ../../../../docs/decisions/0044-let-the-endpoint-order-break-a-tied-route.md)).
 fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
     // `s` and `t` — each endpoint's starting position: one step from it in that endpoint's own
     // leaving direction.
@@ -315,10 +345,10 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
             if expanded.contains(&a) || expanded.contains(&b) {
                 return None;
             }
-            let is_via_mid = waypoints.len() > 3;
-            Some((bends, is_via_mid, expanded))
+            let from_middle = distance_from_middle(&waypoints, da, exit_dir, mid);
+            Some((bends, from_middle, expanded))
         })
-        .min_by_key(|(bends, is_via_mid, _)| (*bends, !is_via_mid))
+        .min_by_key(|(bends, from_middle, _)| (*bends, *from_middle))
         .map(|(_, _, expanded)| expanded)
 }
 
@@ -813,6 +843,36 @@ mod tests {
             n6,
             concat!("◄──┐   \n", "   │   \n", "   │   \n", "   └──►\n")
         );
+    }
+
+    /// User story 2, FR-005, SC-004, R-5: where the coordinate the bends leave free spans exactly
+    /// two cells, the route turns at the cell nearer the endpoint the arrow leaves from. Issue
+    /// 104: today the `waypoints.len() > 3` proxy discards the winning shape for naming one point
+    /// twice and the opposite corner wins instead, so both orders turn the wrong way round. This
+    /// test MUST pass unchanged through the Dijkstra rewrite (research.md Q3).
+    #[test]
+    fn fr005_a_two_cell_free_span_turns_toward_the_endpoint_the_arrow_leaves_from() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 4,
+            height: 2,
+        };
+
+        let leaving_right_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+            endpoint(Pos { x: 3, y: 1 }, Direction::Left),
+        );
+        let leaving_left_first = render_arrow(
+            origin,
+            size,
+            endpoint(Pos { x: 3, y: 1 }, Direction::Left),
+            endpoint(Pos { x: 0, y: 0 }, Direction::Right),
+        );
+
+        assert_eq!(leaving_right_first, concat!("◄┐  \n", " └─►\n"));
+        assert_eq!(leaving_left_first, concat!("◄─┐ \n", "  └►\n"));
     }
 
     /// FR-006, SC-004's second half: the shipped demonstration's arrow turns at the middle of
