@@ -165,7 +165,7 @@ property of the rule rather than a particular picture.
 
 ## Phase 5: Polish
 
-- [ ] T012 `docs`: append the increment's entry to `docs/learning-log.md` — what was learned about
+- [x] T012 `docs`: append the increment's entry to `docs/learning-log.md` — what was learned about
       Rust design and idiom (ranking by a derived `Ord` over a lattice search versus a catalogue of
       shapes), what was learned about working this way, and any trade-off worth remembering later.
 
