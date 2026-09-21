@@ -1367,3 +1367,49 @@ came out of doing exactly that.
   edited; that is exactly what says the arrow's five records should be consolidated into a new
   number rather than rewritten into 0044, which is what the drafts proposed. A rule applied to its
   own paperwork on day one gives back an answer the drafts had not reached.
+
+---
+
+## 2026-09-21 — SDD v2, increment 2: the templates
+
+Spec Kit's stock spec and plan templates replaced, the decision sheet given one of its own, and a
+pull request body written for each of the three shapes of change. No code. Three commits, and the
+one nobody planned was about the gate.
+
+### Working this way
+
+- **A gate step that cannot see a file is not enforcing anything, and only a deliberate failure says
+  which files those are.** `.prettierignore` excluded `.specify/` on the grounds that spec-kit owns
+  what is in there. `.markdownlint-cli2.jsonc` turns MD013 off on the grounds that "prettier's
+  printWidth of 100 already guarantees the limit by construction". Both are reasonable, and together
+  they mean nothing in the gate has ever owned the width of anything under `.specify/` — including
+  the constitution, which spec-kit has never written a line of. A 120-column line appended to
+  `spec-template.md` passed `cargo xtask check`. Nine years of green runs would have said the same
+  thing. What found it was the failure test principle IV asks for, run on a hunch while reading
+  `.prettierignore` for another reason.
+- **An ignore-file negation can be accepted and do nothing.** The obvious fix was three `!` lines
+  under `.specify/`, and prettier took them without complaint. Gitignore syntax cannot re-include a
+  file whose parent directory is excluded, so each directory on the way down has to be re-included
+  first — four lines, not three. The two forms are indistinguishable from a green run, which is the
+  same lesson one floor lower: the check that proves a config entry works is the one that makes it
+  fail.
+- **Approved drafts age against the repository that applied them.** Of the seven files copied from
+  the reviewed drafts, two carried a ceiling the amendment had already moved from 40 to 60, and
+  three described `cargo xtask spec` passing `--body-file` as something it does. Increment 1 changed
+  the first and has not reached the second. The drafts were right when written and the session that
+  applies them is the only place that can notice; reading each line against the merged state, rather
+  than copying the file, is most of the work in an increment like this one.
+
+### Trade-offs worth remembering
+
+- **Two identical files are worse than one file and a sentence.** The drafts put `tooling.md` both
+  inside `.github/PULL_REQUEST_TEMPLATE/` and at `.github/pull_request_template.md`, so that all
+  three bodies would sit together and the directory's README could list them as peers. The cost is
+  two copies to hold in sync, reachable only through a `?template=` parameter nobody types. Keeping
+  one and explaining the asymmetry in the README costs a paragraph and cannot drift.
+- **A lint rule can be wrong for a class of file without being wrong.** MD041 wants a document to
+  open with a top-level heading. A pull request body is not a document — its title is the pull
+  request's, and an H1 renders oversized on GitHub, which is why all fifty-three merged bodies start
+  at `##`. The choice was between three entries in the gate's `ignores`, which would have turned
+  every rule off on those files, and one directive in each file naming the one rule. The second is
+  more lines and less silence.
