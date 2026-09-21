@@ -1,118 +1,81 @@
 # Implementation Plan: [FEATURE]
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Branch**: `[NNN-slug]` | **Date**: [DATE] | **Spec**: [link]
 
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+<!--
+  Ceiling: 80 lines (constitution, principle VIII).
 
-**Note**: This template is filled in by the `/speckit-plan` command; its definition describes the
-execution workflow.
+  This file is filled across two runs, and the split is a rule, not a convenience
+  (constitution, _The plan runs in two parts_).
+
+  Part one — Phase 0. Fills Summary, Constitution Check, and produces research.md and
+  decisions.md. It stops there. data-model.md, contracts/ and quickstart.md are NOT written:
+  writing them is taking the decisions the sheet is asking about.
+
+  Part two — Phase 1, run after the maintainer has answered decisions.md. Fills Design and
+  Complexity Tracking, and produces the design artifacts.
+
+  The technical context this project would fill in is fixed and lives elsewhere: Rust edition 2024
+  at the pinned toolchain, a virtual cargo workspace under crates/, no storage, a terminal consumer,
+  and the WebAssembly boundary the gate enforces. Repeating it per feature is the duplication
+  principle VIII refuses. State only what is unusual about THIS feature.
+-->
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+[The requirement in one or two sentences, and the shape of the approach. Not a restatement of the
+spec.]
 
-## Technical Context
+## What is unusual about this feature
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
-
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
-
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
-
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
-
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS
-CLARIFICATION]
-
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS
-CLARIFICATION]
-
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS
-CLARIFICATION]
-
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+[Only what departs from the project's standing technical context: a new dependency, a crate boundary
+crossed, a performance constraint that actually binds, a public API that changes. Where nothing
+departs, write "Nothing." and move on.]
 
 ## Constitution Check
 
-_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
+_GATE: passes before Phase 0, re-checked after Phase 1._
 
-[Gates determined based on constitution file]
+<!-- Against the principles by name, not a recital. One line each, and only where the feature
+     touches the principle. Name the principle that is at risk and say how the plan satisfies it. -->
 
-## Project Structure
+- [Principle] — [how this plan satisfies it, or the risk and what keeps it in check]
 
-### Documentation (this feature)
+## Decisions
 
-```text
-specs/[###-feature]/
-├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
-```
+The sheet is [`decisions.md`](decisions.md). Part two does not begin until it is answered.
 
-### Source Code (repository root)
+- Entries: [n] — domain: [n], module: [n], tooling: [n]
+- Answered: [date, or _pending_]
 
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
+## Design _(part two)_
+
+[What the answered sheet implies for the code: which modules are touched, what is added, what is
+removed. The detail belongs in data-model.md and contracts/; this is the map.]
+
+### Artifacts
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
-
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+specs/[NNN-slug]/
+├── spec.md
+├── decisions.md         # part one
+├── research.md          # part one
+├── plan.md              # this file
+├── data-model.md        # part two, if the feature introduces or changes a type
+├── contracts/           # part two, if the feature changes something public
+├── quickstart.md        # part two
+└── tasks.md             # /speckit-tasks
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real directories captured
-above]
+<!-- data-model.md and contracts/ are written where they carry something; a file restating the
+     spec's entities in other words is the duplication principle VIII refuses. Say here which ones
+     this feature does not need, and why. -->
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
+> Fill ONLY for a Constitution Check violation that must be justified, or a principle VIII ceiling
+> exceeded without splitting the feature.
 
-| Violation                  | Why Needed         | Simpler Alternative Rejected Because |
-| -------------------------- | ------------------ | ------------------------------------ |
-| [e.g., 4th project]        | [current need]     | [why 3 projects insufficient]        |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient]  |
+| Departure                   | Why needed     | Simpler alternative rejected because |
+| --------------------------- | -------------- | ------------------------------------ |
+| [e.g. spec.md at 140 lines] | [current need] | [why the split was rejected]         |
