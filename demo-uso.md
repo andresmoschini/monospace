@@ -16,6 +16,11 @@ Una flecha entre dos cajas:
 -->
 
 ```text
+
+┌──┐       ╔══╗
+│  │◄─────►║  ║
+└──┘       ╚══╝
+
 ```
 
 <!-- /render -->
