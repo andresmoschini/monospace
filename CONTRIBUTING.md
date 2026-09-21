@@ -37,6 +37,7 @@ without it nothing checks your commits until CI does.
 ```sh
 cargo xtask check          # the whole quality gate, about 3.5 seconds
 cargo xtask fix            # apply every automatic fix the gate knows about
+cargo xtask render         # rewrite the pictures documents carry, from the descriptions beside them
 cargo xtask spec use 23    # put this clone on the active branch of feature 23
 cargo xtask pr body        # write the pull request body this branch calls for
 cargo run -p monospace-cli # run the command-line application
@@ -251,6 +252,44 @@ you fix problems one at a time. A step passes or fails on its exit code alone.
 | `wasm`         | `monospace-core` still compiles for `wasm32-unknown-unknown`                   |
 | `test`         | Unit tests, integration tests and doctests                                     |
 | `doc`          | `cargo doc` builds, with broken intra-doc links denied                         |
+| `render`       | Every generated picture still matches the description beside it                |
+
+### A picture a document generates
+
+The constitution's [Show the rendering](.specify/memory/constitution.md#show-the-rendering) asks
+that every picture in a tracked file be either generated or labelled hypothetical. A generated one
+is written as a marker carrying its own description, and the `render` step keeps the two together:
+
+````markdown
+<!-- render:
+{ "canvas": { "origin": { "x": 0, "y": -1 }, "size": { "width": 2, "height": 6 } },
+  "shapes": [ { "kind": "arrow",
+    "from": { "at": { "x": 0, "y": 0 }, "leaving": "up", "head": "▼" },
+    "to": { "at": { "x": 0, "y": 3 }, "leaving": "down", "head": "▲" },
+    "stroke": "light" } ] }
+-->
+
+```text
+
+```
+
+<!-- /render -->
+````
+
+Leave the fence empty and run `cargo xtask render`; it fills it. The description is the format
+`monospace-cli` reads, documented in
+[`description-format.md`](specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md).
+
+Three things to know:
+
+- **All four lines are required**, including the closing `<!-- /render -->`. Without it a picture
+  would end at its fence, and the next ordinary fence in the file would be swallowed. A marker
+  missing any of them is reported by file and line rather than skipped.
+- **A marker shown inside a longer fence is an illustration, not an instance** — which is what the
+  four-backtick fence above is doing. The rule is `CommonMark`'s: only a fence at least as long
+  closes one.
+- **A hand-drawn picture is invisible to the step.** Nothing mechanical can tell one from any other
+  fence, so labelling it `Hypothetical — hand-drawn, not generated.` is on you.
 
 ### Which tool owns which file
 
@@ -272,12 +311,13 @@ owner.
 
 ### Automatic fixes
 
-`cargo xtask fix` runs `fmt`, `prettier`, `markdownlint` and `editorconfig` in that order, each in
-its writing mode instead of its checking mode. Order is not incidental here the way it is for
-`check`: these steps rewrite the same files `check` only reads, so a formatter that ran last would
-win regardless of which one was "right". Content formatters run first; `editorconfig` runs last
-because it owns files none of the others touch — `LICENSE`, the TOML files, the dotfiles — and
-otherwise only confirms what the earlier steps already left clean.
+`cargo xtask fix` runs `fmt`, `render`, `prettier`, `markdownlint` and `editorconfig` in that order,
+each in its writing mode instead of its checking mode. Order is not incidental here the way it is
+for `check`: these steps rewrite the same files `check` only reads, so a formatter that ran last
+would win regardless of which one was "right". `render` writes before the Markdown formatters so
+that what it puts in a fence is theirs to normalize; the other content formatters follow; and
+`editorconfig` runs last because it owns files none of the others touch — `LICENSE`, the TOML files,
+the dotfiles — and otherwise only confirms what the earlier steps already left clean.
 
 `clippy` and `cspell` have no fix step. `cspell` cannot fix a spelling on its own, and
 `clippy --fix` is deliberately left out of the automatic command:
