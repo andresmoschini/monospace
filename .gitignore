@@ -2,3 +2,4 @@
 node_modules/
 .cspellcache
 .claude/settings.local.json
+.sdd-v2/

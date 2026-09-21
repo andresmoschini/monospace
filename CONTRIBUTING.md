@@ -50,7 +50,7 @@ pick.
 Two flows live here, and the first thing to settle is which one you are in.
 
 - **A feature** is something the tool will be able to do that it cannot do today. It goes through
-  Spec Kit: an issue, a directory under `specs/`, and three staged branches.
+  Spec Kit: an issue, a directory under `specs/`, and two staged branches.
 - **A tooling change** is anything about how the repository is worked on — the gate, the hooks, CI,
   these documents, the workflow itself. It goes through an ADR and a series of commits. No spec
   directory, no stage branches, no Spec Kit command.
@@ -69,17 +69,16 @@ wherever an issue was not a feature, and that is expected.
 Labels carry the state of the flow, and they are the only place it lives: not a board field, not a
 milestone. The board reads the issue.
 
-| Label   | What it means                                               |
-| ------- | ----------------------------------------------------------- |
-| `wish`  | Someone wants this. Nothing is specified yet.               |
-| `spec`  | The spec branch is open, or its pull request is in review.  |
-| `plan`  | The spec merged. The plan branch is open.                   |
-| `doing` | The plan and the tasks merged. Implementation is under way. |
+| Label      | What it means                                                  |
+| ---------- | -------------------------------------------------------------- |
+| `wish`     | Someone wants this. Nothing is specified yet.                  |
+| `deciding` | The deciding branch is open, or its pull request is in review. |
+| `building` | The spec and the answered sheet merged. Building is under way. |
 
-There is no label for finished work: the implementation pull request closes the issue, and a closed
-issue is the end state.
+There is no label for finished work: the building pull request closes the issue, and a closed issue
+is the end state.
 
-These four are one axis. The kind labels — `capability` for a wish someone had, `foundational` for
+These three are one axis. The kind labels — `capability` for a wish someone had, `foundational` for
 what the design demands and nobody asked for, `tooling` for the repository itself — are another, and
 the two coexist on the same issue. A `tooling` issue never enters the spec flow, so it never carries
 a state label.
@@ -90,17 +89,17 @@ spec exists the spec is the source of truth, and the issue is a pointer back to 
 first stated. An issue that accumulates requirements is a spec written where no Spec Kit command
 will read it.
 
-### The three stages
+### The two stages
 
-A spec crosses three stages, potentially with three different people. Each stage is its own branch
-and its own pull request against `main`, and the merge of each one is the handoff to the next
-([ADR-0032](docs/decisions/0032-split-a-spec-into-three-staged-branches.md)).
+A spec crosses two stages, potentially with two different people. Each stage is its own branch and
+its own pull request against `main`, and the merge of the first is the handoff to the second. The
+boundary falls where something is decided rather than where a command ends
+([ADR-0051](docs/decisions/0051-stop-at-the-decision-sheet-and-merge-three-stages-into-two.md)).
 
-| Stage          | Branch          | Label   | Requires in `main`    |
-| -------------- | --------------- | ------- | --------------------- |
-| Spec           | `NNN-slug-spec` | `spec`  | —                     |
-| Plan           | `NNN-slug-plan` | `plan`  | `spec.md`             |
-| Implementation | `NNN-slug-impl` | `doing` | `plan.md`, `tasks.md` |
+| Stage    | Branch              | Label      | Requires in `main`                    |
+| -------- | ------------------- | ---------- | ------------------------------------- |
+| Deciding | `NNN-slug-deciding` | `deciding` | —                                     |
+| Building | `NNN-slug-building` | `building` | `spec.md`, an answered `decisions.md` |
 
 `cargo xtask spec` opens each of them: it creates the branch, links it to the issue, moves the
 label, and points Spec Kit at the feature directory
@@ -108,10 +107,14 @@ label, and points Spec Kit at the feature directory
 itself — `/speckit-specify` creates the directory and the file, as it always did.
 
 ```sh
-cargo xtask spec new 23          # opens the spec stage for issue #23
-cargo xtask spec stage 23 plan   # after the spec pull request merged
-cargo xtask spec stage 23 impl   # after the plan pull request merged
+cargo xtask spec new 23           # opens the deciding stage for issue #23
+cargo xtask spec stage 23 build   # after the deciding pull request merged
 ```
+
+**Not built yet.** `cargo xtask spec` still opens the three branches of the arrangement ADR-0051
+replaced — `new` opens `NNN-slug-spec`, and `stage` takes `plan` or `impl` — and open issues still
+carry the labels `spec`, `plan` and `doing`. Until the tooling catches up, the two stages above are
+what to follow, and the branch you get is named for the old ones.
 
 `stage` refuses to open a stage whose predecessor has not merged, and says which file it could not
 find in `origin/main`. That refusal is the whole point of the handoff: the precondition is a fact
@@ -120,13 +123,15 @@ about `main`, not a judgement about a branch.
 Inside each stage, the Spec Kit commands that belong to it, one per session:
 
 ```text
-spec branch   /speckit-specify   then /speckit-clarify if the spec leaves open questions
-plan branch   /speckit-plan      then /speckit-tasks
-impl branch   /speckit-implement
+deciding branch   /speckit-specify   then /speckit-clarify if the spec leaves open questions
+                  /speckit-plan part one, which stops at decisions.md
+building branch   /speckit-plan part two, then /speckit-tasks
+                  /speckit-implement
 ```
 
-The plan stage runs two of them, which is why the implementation stage requires two files in `main`
-rather than one.
+`/speckit-plan` is never run end to end: part one produces `research.md`, `decisions.md` and the
+part of `plan.md` that precedes a decision, and stops there. Part two runs against the answered
+sheet, on the building branch.
 
 Someone who has just cloned, or who is coming back to a feature after working on another, does not
 need to know any of the branch names:
@@ -142,19 +147,18 @@ Features 001 to 006 predate all of this and keep the numbers they were given.
 
 ### Names that carry the number
 
-The directory and all three branches carry the feature's number, so that one string finds every part
-of it:
+The directory and both branches carry the feature's number, so that one string finds every part of
+it:
 
 ```text
 issue     #23
-branches  023-read-a-diagram-description-spec
-          023-read-a-diagram-description-plan
-          023-read-a-diagram-description-impl
+branches  023-read-a-diagram-description-deciding
+          023-read-a-diagram-description-building
 directory specs/023-read-a-diagram-description/
 ```
 
 The slug comes from the issue title, lowercased and hyphenated, at most forty characters. `xtask`
-derives it once, when the spec stage is opened, and reads it back from the directory afterwards, so
+derives it once, when the first stage is opened, and reads it back from the directory afterwards, so
 renaming the issue later does not rename anything.
 
 Nothing yet checks that every directory under `specs/` is named this way and that no two share a
@@ -181,8 +185,8 @@ reasons, and the third is the one that decides it:
 
 Which keyword depends on the stage. Only the last pull request of a feature finishes the issue:
 
-- **Spec and plan** pull requests say `Refs #N`. The stage is done; the issue is not.
-- **Implementation** pull requests say `Closes #N`.
+- **Deciding** pull requests say `Refs #N`. The stage is done; the issue is not.
+- **Building** pull requests say `Closes #N`.
 
 ```sh
 gh pr create --base main --title "..." --body "Refs #23"
@@ -334,8 +338,9 @@ Rewriting means proving the branch green again, on each rewritten commit rather 
 alone, because neither rebase nor cherry-pick fires the hook —
 [One definition of green](.specify/memory/constitution.md#iii-one-definition-of-green-non-negotiable).
 
-An accepted ADR is the exception: its conclusion is never edited, whatever the commit history does.
-[The decisions README](docs/decisions/README.md) owns that rule.
+A recorded decision is the exception: what may be edited in place and what needs a new record is its
+`commitment`, whatever the commit history does
+([principle VI](.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to)).
 
 ### The session trailer
 
@@ -362,6 +367,23 @@ the end of a message silently invalidates `Co-Authored-By` along with it.
 It is a convenience, not a record. Transcripts live outside the repository and do not survive a new
 machine, so the reasoning that matters still belongs in the commit body or in an ADR. If a commit
 body only makes sense with the transcript open, the body is wrong.
+
+## How the constitution reaches Claude
+
+`CLAUDE.md` starts with `@.specify/memory/constitution.md`. That line is an import, not a mention:
+Claude Code expands it at launch, so the constitution is in context from the first message of every
+session instead of being a file Claude has to remember to open. Relative paths resolve against
+`CLAUDE.md`, which is why the path starts at `.specify/`.
+
+To confirm it loaded, run `/context` and look for the constitution under "Memory files". If it is
+missing, nothing errors — Claude simply works without the rules, which is the failure mode worth
+checking after touching either file.
+
+Both files are read on **every** call of a session, and a session costs its length squared
+([ADR-0027](docs/decisions/0027-control-token-cost-through-session-discipline.md)), so they hold the
+most expensive prose in the repository. That is why the constitution's earlier Sync Impact Reports
+moved to [`constitution-history.md`](docs/decisions/constitution-history.md): they are history for a
+person, and a person can open a file.
 
 ## Cross-references
 

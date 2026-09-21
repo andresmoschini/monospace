@@ -1318,3 +1318,52 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   by the sweep or by feature 039 would ever have shown this; the property-level test the tasks
   called for existed for exactly this reason; and the fix landed as its own `fix` commit once found,
   separate from the `test` commits that exposed it, per principle V.
+
+---
+
+## 2026-09-21 — SDD v2, increment 1: the rules
+
+The constitution went to 2.0.0 with four records behind it, no code touched. The work started from a
+set of reviewed drafts, and the instruction that came with them was to say what looked wrong before
+writing rather than to apply them with silent reservations. Three of the four things worth keeping
+came out of doing exactly that.
+
+### Working this way
+
+- **A rule that names a command has to say whether the command exists.** The amendment describes
+  `cargo xtask render`, its gate step, and `cargo xtask spec stage <n> build`; none of the three is
+  written. Left unsaid, the constitution would assert tooling on every call of every session, which
+  is the shape of claim principle IV exists to stop. Said out loud in three places — the Sync Impact
+  Report, ADR-0052's commitment of `exploratory`, and a paragraph in CONTRIBUTING.md — it costs four
+  sentences and stops being a claim.
+- **A ceiling is a budget, and what it buys is visible only after paying it.** The drafts put a
+  `working` ADR at 60 lines. Written to say what they had to say, the four came to 80, 78, 71 and —
+  the `exploratory` one — 57. Held to 60 rather than raised, the three over it lost their
+  `More Information` sections and about a quarter of their consequences and drivers; what survived
+  is the conclusion, its cost and how it is changed, and what went is mostly links a reader can
+  reach from the index anyway. That is a real answer about what 60 lines holds, and it took writing
+  them twice to get it. The decision sheet's ceiling was arithmetic instead of judgement and needed
+  no second pass: seven entries of five fields cannot fit in 40 lines before a word of prose is
+  written, so it went to 60 in the amendment itself.
+- **A claim about the harness is worth checking in the harness before it is written down.** The
+  drafts concluded, from `/context` reporting a size that matched the whole file, that an HTML
+  comment in an imported memory file is paid for on every call, and asked for a learning-log entry
+  about principle IV catching a false claim. In the session that applied them, neither `CLAUDE.md`'s
+  comment nor the constitution's 114-line report was in the context that arrived. The note that was
+  going to be corrected as false was right; what is measurable from inside a session is what the
+  session received, and `/context`'s number is measured somewhere else. The note moved to
+  CONTRIBUTING.md because Governance says that file owns how the tooling is wired, which is a reason
+  that survives either answer.
+- **Appending to a file from PowerShell writes UTF-16.** `echo ".sdd-v2/" >> .gitignore` turned a
+  tracked text file binary, and the entry it added never matched anything, so the drafts directory
+  stayed untracked-and-listed while `git diff` said only `Bin 63 -> 83 bytes`. The gate did not
+  catch it: `editorconfig-checker` reads what git tracks, and this was an uncommitted change to a
+  file prettier has no parser for.
+
+### Trade-offs worth remembering
+
+- **The four records were written to the rule they introduce, which is how the rule got tested
+  first.** ADR-0050 declares `working` and is therefore changed by a short new record rather than
+  edited; that is exactly what says the arrow's five records should be consolidated into a new
+  number rather than rewritten into 0044, which is what the drafts proposed. A rule applied to its
+  own paperwork on day one gives back an answer the drafts had not reached.

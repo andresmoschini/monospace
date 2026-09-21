@@ -31,9 +31,9 @@ claims a determinism it does not have — the same defect ADR-0044 was written t
 
 - The model must not name two pictures. That is the whole of ADR-0044's reasoning and it applies
   unchanged: two implementations conforming to the model would otherwise draw different diagrams.
-- [Principle VI](../../.specify/memory/constitution.md#vi-decisions-recorded-when-taken). Someone
-  will ask why a detour goes left here and right there; without a record the answer is "because that
-  is what it does".
+- [Principle VI](../../.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to).
+  Someone will ask why a detour goes left here and right there; without a record the answer is
+  "because that is what it does".
 - The maintainer's stated preference, given the four candidates as generated pictures: the tie
   should depend on the order of the endpoints wherever it can, extending ADR-0044 rather than
   sitting beside it, and the simplest algorithm wins where that leaves a choice.

@@ -129,6 +129,12 @@ What would prove it wrong: a diff accepted without being read. That is the failu
 chosen to make unlikely, and the first time it happens the option has not delivered what it was
 picked for.
 
+## Revisions
+
+- 2026-09-21 — [ADR-0053](0053-report-a-characterization-instead-of-reviewing-it.md) retires the
+  claim that the 1,856 pictures were reviewed, and asks for a report of what moved in its place. The
+  sweep, and every reason given here for keeping it whole, are unchanged.
+
 ## More Information
 
 - [ADR-0044](0044-let-the-endpoint-order-break-a-tied-route.md) — where the sweep was promised, and
