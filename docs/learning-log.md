@@ -1413,3 +1413,54 @@ one nobody planned was about the gate.
   at `##`. The choice was between three entries in the gate's `ignores`, which would have turned
   every rule off on those files, and one directive in each file naming the one rule. The second is
   more lines and less silence.
+
+## 2026-09-21 — SDD v2, increment 3: two stages in xtask
+
+`cargo xtask spec` moved from three stages to two, and its precondition for the second one grew from
+"does this file exist" to "is this file answered". The labels on GitHub were migrated, the three
+"Not built yet" notes left by increments 1 and 2 came out, and two records were reclassified on the
+way past. Two commits.
+
+### Rust design and idiom
+
+- **An unreachable arm is a question about the signature, not about the arm.** The old
+  `stage_feature` took a `Stage` that `parse_stage` could never make `Spec`, so it carried a
+  defensive arm and a rustdoc paragraph apologizing for it. With one stage left to open, the
+  parameter went away: `build_feature(root, issue)` has no arm to defend and nothing to explain.
+  Making the type unable to express the case beat handling the case, which is the same move as [make
+  invalid states unrepresentable] one floor down from the domain.
+- **Trimming at the wrong layer loses information the caller needs.** `capture` trimmed every
+  subprocess's output, which is right for a branch name and wrong for a file: a leading blank line
+  would shift every line number reported back to the operator. Splitting out `capture_untrimmed` and
+  letting `capture` call it kept both callers honest and cost four lines.
+
+### Working this way
+
+- **The hook mechanism does not do what the file describing it says.** The plan was to have Spec
+  Kit's `after_plan` hook open the deciding pull request. Reading the contract in the skills rather
+  than the description of it: a hook's `command` is a slash command that must already exist, not a
+  shell line, and an `optional: true` hook prints an invitation rather than running anything. The
+  deeper problem is the timing — `deciding.md` wants the answered sheet inlined, and `after_plan`
+  fires before the maintainer has answered it. The mechanism works; the moment it fires is not the
+  moment the pull request is due.
+- **A sandbox with its own `origin` makes a remote-facing guard testable.** The refusal reads
+  `origin/main`, so proving it fails on purpose meant a bare clone as `origin`, a fake feature
+  directory pushed to its `main`, and `cargo run -p xtask` from a working copy of it — the binary
+  resolves the workspace from `CARGO_MANIFEST_DIR`, so a second checkout is a second repository. The
+  pending sheet was refused with both offending lines quoted; answered, the same command went past
+  the guard and failed at `gh`, which a local path is not. Nothing on GitHub was touched.
+- **The blast radius was smaller than the plan assumed, and only counting showed it.** The drafts
+  warned that in-flight features would be stranded and the labels would need care. `gh issue list`
+  per label: `spec` and `plan` on nothing at all, `doing` on ten issues all closed. What looked like
+  a migration was one rename and two deletions.
+
+### Trade-offs worth remembering
+
+- **A record that says "not built yet" is a debt with a due date, and three of them came due at
+  once.** CONTRIBUTING, the templates' README and both stage bodies each carried a note saying the
+  tooling had not caught up. They were honest when written and are the reason this increment had
+  somewhere to look for what it owed. The cost is that the note has to be hunted down by grep rather
+  than by a check, and one left behind is worse than none at all.
+
+[make invalid states unrepresentable]:
+  decisions/0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md
