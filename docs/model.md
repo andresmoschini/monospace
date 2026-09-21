@@ -354,6 +354,8 @@ joined by a route that travels around the outside, however far apart they are:
 └┘
 ```
 
+<!-- /render -->
+
 Where several paths exist, which one the arrow draws is the arrow's own business. The rule that
 ranks them, and the reason each of its terms is there, are the `Design notes` of
 [`shape::arrow`](../crates/monospace-core/src/shape/arrow.rs); nothing outside that module observes

@@ -14,6 +14,7 @@ use std::process::{Command, ExitCode};
 
 mod pr;
 mod process;
+mod render;
 mod spec;
 
 /// The npm executable.
@@ -193,6 +194,7 @@ fn main() -> ExitCode {
         Some("check") => run_gate(),
         Some("fix") => run_fix(),
         Some("setup") => run_setup(),
+        Some("render") => render::run(args),
         Some("spec") => spec::run(args),
         Some("pr") => pr::run(args),
         None | Some("help" | "--help" | "-h") => {
@@ -427,6 +429,7 @@ fn print_usage() {
     println!("  check    Run every quality gate step; this is what the hook and CI run");
     println!("  fix      Run every step of the gate that can fix what it finds");
     println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
+    println!("  render   Regenerate the pictures tracked Markdown files carry");
     println!(
         "  spec     Manage a feature's branch lifecycle; `cargo xtask spec help` lists its verbs"
     );
