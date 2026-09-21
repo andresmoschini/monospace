@@ -1529,3 +1529,43 @@ snapshot moved, two commits.
 
 [make invalid states unrepresentable]:
   decisions/0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md
+
+## 2026-09-21 — SDD v2, increment 5: the sweep
+
+The eight files the arrow sweep pins moved into `src/snapshots/characterization/` and took the
+Testing section's sentence with them, at their own head. One commit, no picture moved, and one half
+of the proposal was not built.
+
+### Rust design and idiom
+
+- **`insta` carries the header, so nobody has to.** `Settings::set_description` writes into a
+  snapshot's metadata block, which is literally the head of the file, and it is regenerated with the
+  file rather than kept there by hand. Measured both ways: with the description set and the eight
+  files untouched the test passes, and `INSTA_FORCE_UPDATE=1` writes it into all eight; deleting the
+  line from a file afterwards does not fail anything. The head stays true because `insta` rewrites
+  it, not because the gate reads it, and a habit that holds by construction is worth more than one
+  that holds by attention — as long as the difference is written down where the claim is made.
+
+### Working this way
+
+- **The proposal asked for two directories and the constitution it produced asks for one.** The
+  drafts draw `contract/` beside `characterization/`, filled with the fifteen acceptance pictures of
+  features 039 and 099. Not one of those is a snapshot: each is an `assert_eq!` beside the `///`
+  that names the rule it holds. The Testing section written in increment 1 says "kept apart in
+  separate directories **where they are snapshots**", and that qualifier — written after the draft,
+  out of the same work — already settles the case. Converting them would have modified tests inside
+  a commit declared a pure structural refactor, which principle V forbids outright, and moved a
+  decision's picture onto `cargo insta review`, the acceptance path ADR-0053 reserves for what
+  nobody reads. An approved proposal is a dated hypothesis too.
+- **The first report of a characterization costs nothing, which is when to practice writing one.** 0
+  of the 1,856 renderings moved: 2,549 picture lines per file, byte-identical to `main` in all
+  eight, the only change inside a file being one line of metadata. Producing that number here, where
+  it could only be zero, is what makes the shape of the report obvious the first time it is not.
+
+### Trade-offs worth remembering
+
+- **The separation is a path and a sentence, and the gate reads neither.** A future snapshot test
+  that writes outside `characterization/` breaks nothing; a header someone strips breaks nothing.
+  What would enforce it is a step asserting that every `.snap` under that directory carries the
+  sentence — a few lines of `xtask` deliberately not written here, because the repository has one
+  snapshot-writing test and a check with one case cannot be made to fail for the right reason.
