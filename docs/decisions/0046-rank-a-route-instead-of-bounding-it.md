@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "superseded by ADR-0055"
 date: 2026-09-17
 decision-makers: "Andrés Moschini, with Claude Opus 5"
 ---
@@ -154,10 +154,6 @@ Cheap to reverse into A, which is one clause and no picture changes at all. Reve
 expensive: the double escape and its justification would have to be reconstructed from this record
 and from 099's `research.md`, and the snapshot diff is the whole grid again.
 
-What is not cheap, in any direction, is changing it repeatedly. Every reversal regenerates eight
-reviewed snapshot files and asks for the whole sweep to be read again — which is the cost ADR-0045
-accepted knowingly, and it is the same cost each time.
-
 ## Confidence
 
 High (85%).
@@ -172,6 +168,14 @@ and was read once; a second reading is what would find it.
 
 What would not change it: the implementation cost. It was measured, and the derivation gets smaller
 rather than larger.
+
+## Revisions
+
+- 2026-09-21 — superseded by [ADR-0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md),
+  which holds the un-bounding as one subject. The four terms of the ranking went the other way, into
+  `shape::arrow`'s `Design notes`, because nothing outside that module observes which of several
+  paths is drawn. This record also loses a sentence arguing that repeated change is expensive, which
+  the constitution now forbids.
 
 ## More Information
 

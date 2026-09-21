@@ -55,17 +55,18 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0041](0041-resolve-a-position-through-a-reference.md)                     | Resolve a position through a reference, and draw nothing that cannot be resolved | accepted                             |
 | [0042](0042-draw-a-diagram-front-to-back-into-a-given-window.md)           | Draw a diagram front to back, into a window the caller gives                     | accepted                             |
 | [0043](0043-let-the-buffer-record-who-decided-each-cell.md)                | Let the buffer record who decided each cell                                      | accepted                             |
-| [0044](0044-let-the-endpoint-order-break-a-tied-route.md)                  | Let the endpoint order break a tied route                                        | accepted                             |
+| [0044](0044-let-the-endpoint-order-break-a-tied-route.md)                  | Let the endpoint order break a tied route                                        | absorbed into `shape::arrow`         |
 | [0045](0045-pin-every-arrow-arrangement-as-a-reviewed-snapshot.md)         | Pin every arrow arrangement as a reviewed snapshot                               | accepted                             |
-| [0046](0046-rank-a-route-instead-of-bounding-it.md)                        | Rank a route instead of bounding it                                              | accepted                             |
-| [0047](0047-let-a-route-cross-no-cell-twice.md)                            | Let a route cross no cell twice                                                  | accepted                             |
-| [0048](0048-let-the-travel-pick-the-side-of-a-mirrored-route.md)           | Let the arrow's own travel pick the side of a mirrored route                     | accepted                             |
-| [0049](0049-derive-a-route-by-searching-the-lines-a-turn-can-sit-on.md)    | Derive a route by searching the lines a turn can sit on                          | accepted                             |
+| [0046](0046-rank-a-route-instead-of-bounding-it.md)                        | Rank a route instead of bounding it                                              | superseded by 0055                   |
+| [0047](0047-let-a-route-cross-no-cell-twice.md)                            | Let a route cross no cell twice                                                  | superseded by 0055                   |
+| [0048](0048-let-the-travel-pick-the-side-of-a-mirrored-route.md)           | Let the arrow's own travel pick the side of a mirrored route                     | absorbed into `shape::arrow`         |
+| [0049](0049-derive-a-route-by-searching-the-lines-a-turn-can-sit-on.md)    | Derive a route by searching the lines a turn can sit on                          | absorbed into `shape::arrow`         |
 | [0050](0050-record-a-decision-at-the-boundary-it-cannot-cross.md)          | Record a decision at the boundary it cannot cross                                | accepted                             |
 | [0051](0051-stop-at-the-decision-sheet-and-merge-three-stages-into-two.md) | Stop at the decision sheet, and merge three stages into two                      | accepted                             |
 | [0052](0052-show-the-rendering.md)                                         | Show the rendering                                                               | accepted                             |
 | [0053](0053-report-a-characterization-instead-of-reviewing-it.md)          | Report a characterization instead of reviewing it                                | accepted                             |
 | [0054](0054-open-the-pull-request-from-xtask-in-two-verbs.md)              | Open the pull request from xtask, in two verbs                                   | accepted                             |
+| [0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md)            | An arrow's route is a path, and nothing bounds it                                | accepted                             |
 
 ## How to add one
 

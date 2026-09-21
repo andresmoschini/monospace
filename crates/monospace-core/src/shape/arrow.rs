@@ -1,6 +1,63 @@
 //! The arrow: two endpoints, two heads and a derived route between them. See _The initial set_
 //! and _The route of an arrow_ in [`docs/model.md`](../../../docs/model.md), and research.md Q5
 //! in `specs/039-draw-shapes-instead-of-individual-cells/`.
+//!
+//! # Design notes
+//!
+//! Nothing outside this module observes the rule below beyond the picture it produces. It decides
+//! which of several paths — every one of them satisfying _The route of an arrow_ — this
+//! implementation draws, so changing it is an ordinary `feat` or `fix`: it amends no model
+//! document and it takes no ADR
+//! ([the constitution](../../../.specify/memory/constitution.md), principle VI). The reasoning
+//! below was recorded first in ADR-0044, ADR-0048 and ADR-0049, each of them now absorbed into
+//! this file.
+//!
+//! The route is the path ranked first by [`Cost`], whose fields are the four terms of the ranking
+//! in order. What the code cannot say is why each term is there.
+//!
+//! **1, the fewest bends, and 2, the shortest.** These two are the rule; the other two only break
+//! its ties. Together they replaced a bound — a route was once required to stay inside the
+//! rectangle its two starting positions span — because the shortest path is what that bound was
+//! trying to name. Dropping it cost the model a construct and gained 134 arrangements that had
+//! drawn two disconnected heads, since a rectangle one cell thick holds no alternating path at
+//! all. Term 2 decides nothing on a monotone path, where every candidate is the same length, so
+//! it is invisible across most of the characterization and easy to break without a picture
+//! moving. [`RouteRectangle`] survives only as the span term 3 measures its middle within, and
+//! bounds nothing.
+//!
+//! **3, nearest the middle.** The first two leave many candidates level, because a free run may
+//! sit anywhere, so something has to choose and the middle is the choice that reads as centred.
+//! Where a span holds an even number of cells that middle falls between two and names no winner;
+//! it is taken nearer the endpoint the arrow leaves from, because an arrow runs from its `from`
+//! to its `to` and that is the only thing in the arrangement that tells the two candidates apart.
+//! The cost is that the same arrow described from its other end turns at the other of the two.
+//! Both pictures are right, which is what makes this a tie-break rather than a defect.
+//!
+//! **4, to the right of the arrow's own travel.** Once nothing bounds a route, an arrangement
+//! whose two starting positions share a row or a column has two candidates that are exact mirror
+//! images about that line — equidistant from the middle by construction, so term 3 cannot reach
+//! them. Of the 1856 renderings in the characterization, 84 are this one shape. It is phrased as
+//! a handedness rather than as "the smaller coordinate" so that it is the same principle as term
+//! 3 instead of a second, unrelated one; which of the two mirrors counts as the right is
+//! arbitrary, was picked by looking at both rendered, and nothing distinguishes it from the
+//! other. Coordinates grow rightward and downward, so leaving `Up` or `Right` puts the larger
+//! coordinate to the right — [`is_right_of_travel`] says it in those words, because a handedness
+//! under a `y` that grows downward is what a reader gets backwards.
+//!
+//! Two endpoints at one position put both heads on one cell and only one of them can be seen. It
+//! is the `to` endpoint's, drawn over the other, for the same reason term 3 rounds toward the
+//! `from`.
+//!
+//! **Why a search rather than a construction.** [`derive_path`] was once a list of route shapes,
+//! and a list has to be argued complete. That argument failed twice, both times by omission and
+//! both times silently — a missing shape does not error, it draws the second-best picture or
+//! nothing. A ranking is a cost function, so the implementation that reads against it is the one
+//! that minimizes it, and completeness stops being an argument. [`Lattice`] is what keeps the
+//! cost fixed instead of proportional to the distance between the endpoints, which this crate
+//! needs because the core compiles to WebAssembly. Its own claim — that a route turns only on
+//! those lines — is confirmed against an unrestricted search rather than proved, and a term added
+//! to [`Cost`] that the lattice knows nothing about is exactly how that confirmation goes stale.
+//! Re-run it against any new term.
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
@@ -122,8 +179,8 @@ fn expand_waypoints(waypoints: &[Pos]) -> Vec<Pos> {
     positions
 }
 
-/// The smallest rectangle containing both starting positions — _The route of an arrow_ in
-/// [`docs/model.md`](../../../docs/model.md).
+/// The smallest rectangle containing both starting positions. It bounds nothing; it is the span
+/// term 3 of the ranking measures its middle within — the module's _Design notes_.
 struct RouteRectangle {
     x_min: i32,
     x_max: i32,
@@ -143,8 +200,8 @@ impl RouteRectangle {
 
     /// One value per axis: the cell halfway along that axis's span, taken as the one nearer
     /// `anchor` — the `from` endpoint's starting position — where the span holds an even number
-    /// of cells and the halfway point falls between two. [ADR-0044](
-    /// ../../../../docs/decisions/0044-let-the-endpoint-order-break-a-tied-route.md).
+    /// of cells and the halfway point falls between two — term 3 of the ranking, and why it
+    /// rounds that way, in the module's _Design notes_.
     fn middle(&self, anchor: Pos) -> Pos {
         Pos {
             x: Self::midpoint(self.x_min, self.x_max, anchor.x),
@@ -175,7 +232,7 @@ fn direction_orientation(dir: Direction) -> Orientation {
 /// The ranking of a route as one value — fewest bends, then shortest, then nearest the middle,
 /// then to the right of the travel — compared lexicographically in the fields' declared order.
 /// Deriving `Ord` over them **is** the ranking; nothing here is a written comparator
-/// (data-model.md, ADR-0049).
+/// (data-model.md). Why each term is there: the module's _Design notes_.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct Cost {
     bends: u32,
@@ -204,8 +261,8 @@ fn direction_index(d: Direction) -> usize {
 /// beside each of them, the middle, and one line outside the route rectangle on either side —
 /// deduplicated to at most 7 distinct lines (research.md Q2). A node is a pair of indices into
 /// `x` and `y`, so at most 7 x 7 x 4 = 196 states whatever the arrangement (FR-008, R-8), because
-/// [ADR-0049](../../../../docs/decisions/0049-derive-a-route-by-searching-the-lines-a-turn-can-sit-on.md)
-/// holds that a route turns only here.
+/// a route turns only here — a claim the module's _Design notes_ call confirmed rather than
+/// proved, and what to re-run when a term is added to [`Cost`].
 struct Lattice {
     x: Vec<i32>,
     y: Vec<i32>,
@@ -263,10 +320,9 @@ impl Lattice {
 }
 
 /// Whether the coordinate `c` sits on the side leaving `da` puts to the travel's right, of
-/// `mid_c` — [ADR-0048](
-/// ../../../../docs/decisions/0048-let-the-travel-pick-the-side-of-a-mirrored-route.md).
-/// Coordinates grow rightward and downward, so leaving `Up` or `Right` puts the larger coordinate
-/// to the right, and leaving `Down` or `Left` the smaller.
+/// `mid_c` — term 4 of the ranking, in the module's _Design notes_. Coordinates grow rightward
+/// and downward, so leaving `Up` or `Right` puts the larger coordinate to the right, and leaving
+/// `Down` or `Left` the smaller.
 fn is_right_of_travel(da: Direction, c: i32, mid_c: i32) -> bool {
     match da {
         Direction::Up | Direction::Right => c >= mid_c,
@@ -277,7 +333,7 @@ fn is_right_of_travel(da: Direction, c: i32, mid_c: i32) -> bool {
 /// The `from_middle` and `hand` a run of `orientation`, sitting at `pos` — any point along it,
 /// since a run's own fixed coordinate does not change — charges against `mid` and the arrow's own
 /// travel `da`. `hand` is charged only where `orientation` matches `da`'s own, which is what makes
-/// ADR-0048's handedness the arrow's own travel rather than the coordinate system's
+/// term 4's handedness the arrow's own travel rather than the coordinate system's
 /// (data-model.md).
 fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u32, u32) {
     let (c, mid_c) = match orientation {
@@ -298,7 +354,7 @@ fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u32
 ///
 /// A single-source Dijkstra over states `(node, heading)`, `node` a point of [`Lattice`] and
 /// `heading` the direction the run reaching it travels along, minimized by [`Cost`] — nothing
-/// bounds where the search goes beyond the lattice itself (ADR-0049, ADR-0046). The search starts
+/// bounds where the search goes beyond the lattice itself. The search starts
 /// at `s` with a virtual heading `da`, as though the route already arrived there leaving `a`, and
 /// ends at `t` against a virtual `exit_dir`, the direction continuing from `t` into `b`; both
 /// virtual steps charge a bend exactly where a real one would, and forbid reversing. `from_middle`
@@ -309,9 +365,9 @@ fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u32
 fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
     // Two endpoints at one position leaving the same direction: `s` and `t` coincide and the
     // only way to arrive would be to leave immediately in the opposite direction, which
-    // ADR-0047 declines as a path returning to where it began. A search without the full path
-    // in its state cannot see that a longer alternative loops back over itself, so this is
-    // ruled out directly rather than left to the search to discover.
+    // _The route of an arrow_ declines as a path returning to where it began. A search without
+    // the full path in its state cannot see that a longer alternative loops back over itself, so
+    // this is ruled out directly rather than left to the search to discover.
     if a == b && da == db {
         return None;
     }

@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "absorbed into crates/monospace-core/src/shape/arrow.rs"
 date: 2026-09-17
 decision-makers: "Andrés Moschini, with Claude Opus 5"
 ---
@@ -152,6 +152,13 @@ this fails.
 
 What would not change it: the readability objection. A Dijkstra is more machinery than a list of
 shapes and that was weighed; what settles it is that the machinery is generic and the list was not.
+
+## Revisions
+
+- 2026-09-21 — absorbed into `crates/monospace-core/src/shape/arrow.rs`. Nothing outside that module
+  observes how the route is found beyond the picture it produces, so the reasoning is now the
+  module's `Design notes` and changing it is an ordinary `feat` or `fix`. The contract the route
+  satisfies is [ADR-0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md).
 
 ## More Information
 
