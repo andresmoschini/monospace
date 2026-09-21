@@ -1270,3 +1270,51 @@ nobody used, and two miscounts in a spec that had already been through `/speckit
   discovered only by building the thing the plan said would verify them. Asking with the concrete
   before-and-after pictures both times, rather than picking the answer that kept the plan's claims
   intact, is what principle IV asks for when a claim and a measurement disagree.
+
+## 2026-09-18 — Feature 103 implemented: an arrow's route is ranked rather than bounded
+
+### Rust design and idiom
+
+- **Deriving `Ord` over a struct can be the ranking rather than a description of it.** `Cost`'s four
+  fields, in the model's own order, replace both the five-shape catalogue and the ad hoc tie-breaks
+  (`is_via_mid`, then T003's `distance_from_middle`) that stood in for a rule with no field of its
+  own. Once `bends`, `length`, `from_middle` and `hand` exist as fields, `#[derive(Ord)]`'s
+  lexicographic comparison over them and _The route of an arrow_'s four-step ranking are the same
+  sentence read two ways — nothing left to keep in sync by hand when a fifth term arrives.
+- **A run's own scoring can be resolved without extra search state, once "charged at the turn that
+  starts a run" is taken literally.** Whether a run qualifies for `from_middle`/`hand` needs a bend
+  at _both_ its ends, and the awkward case is the very first run, whose start may or may not be one
+  depending on whether it continues in `da`. The state `(node, heading)` never needs a third field
+  for this: a run's start was a bend exactly when the popped state's own `cost.bends` is already
+  nonzero, because `bends` only stops being zero the moment a bend has happened. The fact was always
+  in the cost the search already carried; it only needed noticing.
+- **A value-only Dijkstra cannot see that a path crosses itself, and the model's own exception says
+  exactly where that matters.** `(node, heading)` states with no path history will happily complete
+  a real geometric loop to satisfy a virtual reversal a shorter answer would forbid, because nothing
+  in the state remembers which cells were already visited. ADR-0047 names the one arrangement this
+  bites — two endpoints at one position leaving the same direction — precisely because a route there
+  would have to return to where it began; ADR-0049's own confirmation had already flagged this as
+  the one place the lattice search and an unrestricted reference part ways. Declining it by the
+  condition the model already gives (`a == b && da == db`) cost one `if`, in exchange for not
+  growing the state to carry a visited set that would undo the fixed 196-state bound the whole
+  design exists for.
+
+### Working this way
+
+- **A number cited from a spike can be re-measured with arithmetic alone, before any code exists to
+  run.** research.md Q1 asked whether the sweep's window needed widening, and the two recorded
+  figures disagreed. `Lattice`'s own candidate set is `{s-1, s, s+1, mid, t-1, t, t+1}` per axis,
+  which bounds the search to one line outside the rectangle by construction — a property of the
+  design fixed before T004 was written, not something only the finished Dijkstra could confirm. A
+  throwaway enumeration over the whole sweep grid, using that formula rather than a working
+  derivation, settled it: the window already fit. ADR-0046's "twelve clipped" was the imprecise
+  figure, and the spec's own SC-002 and SC-006 were corrected in their own commit rather than
+  carried forward unread.
+- **Testing a named property of the rule, not only pinned pictures, found a defect the sweep
+  structurally cannot reach.** The sweep grid excludes both endpoints sharing a position, so T009
+  and T010 — written because the spec asks for the coincident family as its own test — were the
+  first code path to exercise it. They failed: two endpoints at one position leaving the same
+  direction returned a real, looping route instead of the empty one the model names. Nothing pinned
+  by the sweep or by feature 039 would ever have shown this; the property-level test the tasks
+  called for existed for exactly this reason; and the fix landed as its own `fix` commit once found,
+  separate from the `test` commits that exposed it, per principle V.

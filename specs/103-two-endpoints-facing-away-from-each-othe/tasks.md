@@ -48,12 +48,12 @@ stories: the spec fixes the window first precisely so neither later diff is a wh
 **⚠️ CRITICAL**: this MUST land as its own `test` commit, ahead of both behavioral commits, per
 research.md Q1 and the spec's own ordering.
 
-- [ ] T001 Measure the extreme cell any route reaches over the whole sweep grid with a throwaway
+- [x] T001 Measure the extreme cell any route reaches over the whole sweep grid with a throwaway
       check against the spike's derivation, to settle which of the two recorded figures is right:
       the arithmetic in research.md Q1 (window already wide enough) or ADR-0046's "twelve clipped".
       Report the finding — do not edit either ADR or the spec from this task; a wrong figure is
       superseded, not corrected in place (constitution principle VI).
-- [ ] T002 `test(core)`: set `SWEEP_ORIGIN` and `SWEEP_SIZE`
+- [x] T002 `test(core)`: set `SWEEP_ORIGIN` and `SWEEP_SIZE`
       (`crates/monospace-core/src/shape/arrow.rs:865-869`) to the values T001 measured, and add a
       mechanical assertion in the sweep that every cell any arrangement writes lies inside them
       (FR-011, R-10). Verify per constitution principle IV: shrink the window on purpose and watch
@@ -76,7 +76,7 @@ rather than leaving the picture unchanged.
 check each picture against the middle of the free span, computed from the two starting positions
 alone. Passes or fails without any of User Story 1.
 
-- [ ] T003 [US2] `fix(core)`: replace the `waypoints.len() > 3` proxy at
+- [x] T003 [US2] `fix(core)`: replace the `waypoints.len() > 3` proxy at
       `crates/monospace-core/src/shape/arrow.rs:318` with a score of the route's distance from the
       middle, rounding toward the endpoint the arrow leaves from (ADR-0044), so the free-span-of-two
       case stops rounding away from it. In the same commit, add the named test for this scenario to
@@ -102,7 +102,7 @@ check every cell between the two heads is on one unbroken route reaching each he
 leaving direction; render the double-escape arrangement from both ends and count the bends; render a
 mirrored arrangement and check which side it passes on.
 
-- [ ] T004 [US1] `feat(core)`: in `crates/monospace-core/src/shape/arrow.rs`, introduce `Cost`
+- [x] T004 [US1] `feat(core)`: in `crates/monospace-core/src/shape/arrow.rs`, introduce `Cost`
       (fields `bends`, `length`, `from_middle`, `hand`, in that order, deriving `Ord` so the
       lexicographic comparison is the derive rather than a written comparator — data-model.md) and
       `Lattice` (per axis: the line each starting position pins, the line beside each of them, the
@@ -114,22 +114,22 @@ mirrored arrangement and check which side it passes on.
       with `cargo insta review` — expect exactly 290 renderings to move (quickstart.md's table,
       SC-006) — and accept nothing without reading it against _The route of an arrow_ in
       `docs/model.md`.
-- [ ] T005 [US1] `test(core)` (same commit as T004): rename
+- [x] T005 [US1] `test(core)` (same commit as T004): rename
       `identical_directions_in_line_gives_an_empty_route` and re-pin its picture to the joined route
       the rule now draws for two endpoints five cells apart on one row both leaving `right` — the
       one test in the workspace whose picture moves outside this feature's own scenarios (SC-009,
       research.md Q6).
-- [ ] T006 [US1] `test(core)` (same commit as T004): add a named test to `arrow.rs`'s test module,
+- [x] T006 [US1] `test(core)` (same commit as T004): add a named test to `arrow.rs`'s test module,
       picture written a row per source line, for endpoints facing away being joined however far
       apart they are — `(0, 0)` leaving `up` / `(0, 2)` leaving `down` and the same pair moved
       further apart render the same shape with longer runs; also pin the four-bend outside wrap for
       `(0, 0)` leaving `up` / `(1, 2)` leaving `down` (R-1; spec's User Story 1 acceptance scenarios
       1, 3 and 6).
-- [ ] T007 [US1] `test(core)` (same commit as T004): add a named test for the former double escape —
+- [x] T007 [US1] `test(core)` (same commit as T004): add a named test for the former double escape —
       `(0, 0)` leaving `left` / `(2, 1)` leaving `right` — asserting the route takes four bends
       rather than six and that the two orders mirror each other (R-4, FR-007, SC-005; spec's User
       Story 1 acceptance scenario 5).
-- [ ] T008 [US1] `test(core)` (same commit as T004): add a named test for a mirrored tie — `(0, 0)`
+- [x] T008 [US1] `test(core)` (same commit as T004): add a named test for a mirrored tie — `(0, 0)`
       leaving `down` / `(0, 2)` leaving `down` — asserting the route drawn is the one on the side
       the travel from the first to the second endpoint puts to its right (R-6, FR-006, SC-003;
       spec's User Story 1 acceptance scenario 7).
@@ -145,15 +145,15 @@ unchanged (FR-010).
 **Purpose**: three assertions that only make sense once the rule from Phase 3 exists and are about a
 property of the rule rather than a particular picture.
 
-- [ ] T009 [US1] `test(core)`: add a named test pinning that the route is empty in exactly the two
+- [x] T009 [US1] `test(core)`: add a named test pinning that the route is empty in exactly the two
       arrangements the model now names — an endpoint standing on the cell the route would have to
       arrive at (`(0, 0)` / `(0, 1)` both leaving `up`), and two endpoints at one position leaving
       the same direction (FR-003, R-2, SC-001).
-- [ ] T010 [US1] `test(core)`: add a named test for the sixteen arrangements whose two endpoints sit
+- [x] T010 [US1] `test(core)`: add a named test for the sixteen arrangements whose two endpoints sit
       at one position — the sweep grid excludes coincident positions, so this is the only thing that
       covers them — asserting the four that leave in the same direction draw no route and the twelve
       that leave in different directions draw one (FR-012, R-9, SC-010).
-- [ ] T011 [US1] `test(core)`: add a named test counting the derivation's lattice states rather than
+- [x] T011 [US1] `test(core)`: add a named test counting the derivation's lattice states rather than
       timing it, asserting the count is equal for endpoints four, fifty and five hundred cells apart
       and never exceeds `7 x 7 x 4 = 196` (FR-008, R-8, SC-007). Keep the count to the lattice
       search alone, not `expand_waypoints` or `Route::draw`, which are linear in route length by
@@ -165,7 +165,7 @@ property of the rule rather than a particular picture.
 
 ## Phase 5: Polish
 
-- [ ] T012 `docs`: append the increment's entry to `docs/learning-log.md` — what was learned about
+- [x] T012 `docs`: append the increment's entry to `docs/learning-log.md` — what was learned about
       Rust design and idiom (ranking by a derived `Ord` over a lattice search versus a catalogue of
       shapes), what was learned about working this way, and any trade-off worth remembering later.
 

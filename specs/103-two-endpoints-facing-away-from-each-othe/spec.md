@@ -339,19 +339,19 @@ any of User Story 1.
 - **SC-001**: Of the 1856 renderings of the sweep, the 340 that draw no route today fall to 72 — 36
   of the 928 arrangements — and every one of the 72 is an endpoint standing on the cell the route
   would have to arrive at, with the two heads orthogonally adjacent.
-- **SC-002**: 268 renderings gain a route, and after the window is widened all 268 are visible in
-  the snapshot; none is clipped.
+- **SC-002**: 268 renderings gain a route, and all 268 are visible in the snapshot without widening
+  the window at all; none was ever clipped.
 - **SC-003**: The arrow at `(0, 0)` leaving `up` and `(0, 2)` leaving `down` renders two pictures,
   one per order, that mirror each other about the column the two endpoints share.
 - **SC-004**: The arrangement at `(0, 0)` leaving `right` and `(3, 1)` leaving `left` renders two
   pictures, one per order, turning at `x = 1` and at `x = 2` respectively.
 - **SC-005**: No rendering of the sweep takes more than five runs, down from seven, and the 34
   renderings that took a six-bend double escape take four bends.
-- **SC-006**: Every rendering of the sweep whose _picture_ this slice changes is accounted for
-  against the widened window: 306 in all, 16 for User Story 2 and 290 for User Story 1, and the
-  remaining 1550 draw what they draw today. The widening commit that precedes them changes the
-  snapshot text of all 1856 and the picture of none, which is what makes those two counts readable
-  in the diff.
+- **SC-006**: Every rendering of the sweep whose _picture_ this slice changes is accounted for: 306
+  in all, 16 for User Story 2 and 290 for User Story 1, and the remaining 1550 draw what they draw
+  today. The commit that precedes them adds the window's mechanical assertion (R-10) rather than
+  widening it — research.md Q1 found the window already wide enough — so it changes no snapshot text
+  and no picture, which is what makes the two later counts readable against an unchanged baseline.
 - **SC-007**: Deriving a route for two endpoints fifty cells apart costs what it costs for two
   endpoints one cell apart, counted rather than timed: the work the derivation does is the same
   number of steps at either distance, which is a figure a test can assert without being flaky.
@@ -384,12 +384,14 @@ any of User Story 1.
   writing this spec by comparing the sweep's eight snapshot files across those two commits; 268, 12,
   36, the 4000 random arrangements and the cost claim behind SC-007 are ADR-0046's and ADR-0049's
   measurements, which this spec cites rather than re-takes.
-- The spike rendered into today's window, so two figures here are not yet measured and are named as
-  such. SC-002's claim that all 268 are visible follows from 256 plus the 12 ADR-0046 found clipped,
-  and holds only once FR-011's margin is established; the margin itself is measured at
-  implementation, not guessed here. SC-010's split of the sixteen coincident arrangements into four
-  and twelve follows the rule and ADR-0049's comparison of all sixteen, and the twelve pictures are
-  pinned when the test is written rather than asserted now.
+- The spike rendered into today's window, so one figure here was not yet measured and is corrected
+  from what was assumed. SC-002 originally split the 268 as 256 already visible plus the 12 ADR-0046
+  found clipped; measured at implementation (research.md Q1), the lattice a route may turn on never
+  reaches more than one line outside the rectangle the two starting positions span, which is inside
+  today's window without widening it at all — so none of the 268 was ever clipped, and ADR-0046's
+  twelve was the imprecise figure, not the arithmetic. SC-010's split of the sixteen coincident
+  arrangements into four and twelve follows the rule and ADR-0049's comparison of all sixteen, and
+  the twelve pictures are pinned when the test is written rather than asserted now.
 - Head glyphs stay the caller's choice. Nothing here changes which glyph a head is drawn as, and a
   head that now has a route arriving beside it is drawn exactly as it was.
 - Issue 105 — holding the connection in a shape of its own — follows this feature and is out of
