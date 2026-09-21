@@ -196,6 +196,11 @@ gh pr merge --merge --delete-branch
 
 A tooling change has one pull request and therefore one keyword: `Closes #N`.
 
+The body has a template, and which one depends on the same three shapes of change:
+[`.github/PULL_REQUEST_TEMPLATE/`](.github/PULL_REQUEST_TEMPLATE/README.md) explains why there are
+three and how each is reached. GitHub offers the tooling one by default; the two stage bodies are
+passed by hand with `--body-file` until `cargo xtask spec` opens the pull request itself.
+
 ## The quality gate
 
 `cargo xtask check` is the whole gate. Why it is the only definition of "green", and why neither the
