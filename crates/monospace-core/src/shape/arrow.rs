@@ -1366,19 +1366,31 @@ mod tests {
     }
 
     /// C-1, SC-001: the whole grid, rendered from both ends and labeled by arrangement, pinned as
-    /// one reviewed snapshot per anchor and leaving direction — eight files rather than one, so a
-    /// PR review tool can render each diff; a single 20,000-line file is what GitHub would not
-    /// show at all — per
+    /// one file per anchor and leaving direction — eight rather than one, so a PR review tool can
+    /// render each diff; a single 20,000-line file is what GitHub would not show at all — per
     /// [ADR-0045](../../../../../docs/decisions/0045-pin-every-arrow-arrangement-as-a-reviewed-snapshot.md).
+    /// These eight are a characterization, so they live apart from every picture a test asserts by
+    /// hand and are accepted on a report of what moved rather than on a claim of review — per
+    /// [ADR-0053](../../../../../docs/decisions/0053-report-a-characterization-instead-of-reviewing-it.md),
+    /// which each file repeats at its own head.
     /// Each line's trailing blanks are trimmed before it goes into the snapshot — research.md
     /// Q3 — since the gate's `editorconfig-checker` step runs with `trim_trailing_whitespace` on
     /// and `render` pads every line to the window's width.
     #[test]
-    fn sweep_matches_the_reviewed_snapshot() {
+    fn sweep_matches_the_pinned_characterization() {
         use std::fmt::Write as _;
 
         let mut settings = insta::Settings::clone_current();
-        settings.set_snapshot_path(concat!(env!("CARGO_MANIFEST_DIR"), "/src/snapshots"));
+        settings.set_snapshot_path(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/snapshots/characterization"
+        ));
+        settings.set_description(concat!(
+            "This file records what the code does over a range too wide to assert by hand. ",
+            "A change here is the consequence of a decision taken elsewhere, not a decision. ",
+            "It is accepted after a report of how many cases moved, in which families, and ",
+            "three examples with their before and after.",
+        ));
         settings.bind(|| {
             for (anchor, anchor_dir, others) in sweep_arrangements_by_anchor() {
                 let mut rendered = String::new();
