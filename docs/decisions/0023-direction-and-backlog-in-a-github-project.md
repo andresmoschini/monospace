@@ -44,7 +44,7 @@ drift is not available; either the list moves or the board does not get one.
 
 ## Decision Drivers
 
-- [Decisions recorded when taken](../../.specify/memory/constitution.md#vi-decisions-recorded-when-taken)
+- [Decisions recorded when taken](../../.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to)
   and "Where a rationale goes": a rationale has one home, and the two in this file both have one
   that is not this file.
 - Governance: where a document restates something another owns, the duplication is a defect to

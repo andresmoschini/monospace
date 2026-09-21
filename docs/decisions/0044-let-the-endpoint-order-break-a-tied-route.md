@@ -46,9 +46,9 @@ model says which.
 
 - The model's own sentence. "From nothing else" is a promise the even span cannot keep, whichever
   way this is resolved, so the section changes either way.
-- [Principle VI](../../.specify/memory/constitution.md#vi-decisions-recorded-when-taken): a route is
-  about to be implemented against this, and someone reading a diagram will ask why exchanging two
-  endpoints moved a corner. That question has no answer in the code.
+- [Principle VI](../../.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to):
+  a route is about to be implemented against this, and someone reading a diagram will ask why
+  exchanging two endpoints moved a corner. That question has no answer in the code.
 - The tie-break has already been decided once, in
   [feature 039's research](../../specs/039-draw-shapes-instead-of-individual-cells/research.md), Q5
   — "fewest bends, then distance from the middle, then the lexicographic order of the turn

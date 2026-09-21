@@ -84,7 +84,8 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 [principle VI](../../.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to)
 and are not restated here. What this directory adds to it: a record is never deleted. Superseded,
 revised or `absorbed into <path>`, the file stays, because being able to see that a decision changed
-— and what argument changed it — is most of what this history is worth.
+— and what argument changed it — is most of what this history is worth. Fixing a typo or a link that
+has gone stale is not a change to a record and needs no ceremony.
 
 **Records numbered 0000 to 0049 predate that principle** and carry neither `scope` nor `commitment`.
 Each is classified the next time it is cited or touched rather than in a sweep, so for a while the
