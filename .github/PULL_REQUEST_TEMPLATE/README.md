@@ -8,33 +8,42 @@ Three, because the repository has three shapes of change and one body cannot ser
 | [`building.md`](building.md)                                 | Stage 2 of a feature                                    | Does it work, and is it what was agreed?                     |
 | [`../pull_request_template.md`](../pull_request_template.md) | A change to the repository's own tooling, docs or rules | What changes, why now, and what breaks?                      |
 
+## How the right one is reached
+
+`cargo xtask pr body` picks it, from the branch the working copy is on: `-deciding` and `-building`
+take the two files here, and anything else is a tooling change and takes the default. It writes the
+file to `target/pr-body.md` with the keyword line already appended — `Refs` for a deciding pull
+request, which does not finish the issue, and `Closes` for the other two. Fill it in, then
+`cargo xtask pr open`, which refuses a body whose sections are still empty.
+
+```sh
+cargo xtask pr body        # on a feature branch; the issue number comes from the branch
+cargo xtask pr body 34     # on a tooling branch, which carries none
+cargo xtask pr open        # pushes, then opens it with the body and a derived title
+```
+
 ## Why the tooling one is not in here
 
 GitHub picks `.github/pull_request_template.md` by default and reaches this directory only through a
-`?template=` query parameter, which nobody types. The tooling body is the one a human opens by hand
-— the two feature stages are opened by `cargo xtask spec` — so it lives at the path GitHub already
-offers, and keeping a second copy in here would be two identical files to hold in sync for a
-selector nobody uses.
+`?template=` query parameter, which nobody types. Since `cargo xtask pr` passes `--body-file`, the
+selector is never used at all, and the default is what a pull request opened in the browser gets —
+which is the tooling case. Keeping a second copy in here would be two identical files to hold in
+sync for nothing.
 
 ```text
 .github/
-├── pull_request_template.md              # tooling; GitHub's default for a PR opened by hand
+├── pull_request_template.md              # tooling; GitHub's default, and what `pr body` copies
 └── PULL_REQUEST_TEMPLATE/
     ├── deciding.md
     └── building.md
 ```
 
-The two stage bodies are passed by hand:
+## When it is opened, which is not automatic
 
-```sh
-gh pr create --base main --title "..." --body-file .github/PULL_REQUEST_TEMPLATE/deciding.md
-```
-
-`cargo xtask spec` does not open the pull request, and choosing the body is why it could: it knows
-which stage it opened. What it does not know is _when_. Neither pull request is due when a command
-finishes — the deciding one waits for the sheet to be answered, which no Spec Kit command does, and
-the building one waits for a green `cargo xtask check`. Both moments are the maintainer's, so the
-command that opens the pull request is theirs to type.
+`cargo xtask pr` is typed, never triggered. Neither pull request is due when a Spec Kit command
+finishes — the deciding one waits for the sheet to be answered, which no command does, and the
+building one waits for a green `cargo xtask check`. Both moments are the maintainer's; what the tool
+removes is the part that was never a judgement, which is which body and which keyword.
 
 ## Why every section stays
 

@@ -8,6 +8,9 @@
   _Spec Kit is the workflow_, it takes an ADR and commits, and MUST NOT take a spec directory or a
   stage branch.
 
+  Opened with `cargo xtask pr body <issue>`, filled in, then `cargo xtask pr open`. A
+  tooling branch carries no issue number, which is why this one takes it as an argument.
+
   Ceiling: 50 lines.
 -->
 

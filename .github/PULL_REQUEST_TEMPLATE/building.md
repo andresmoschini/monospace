@@ -6,7 +6,8 @@
   Stage 2 of 2 — BUILDING. Branch `NNN-slug-building`, issue label `building`.
   Contains plan.md, the design artifacts, tasks.md, the code and the tests.
 
-  Opened once `cargo xtask check` is green, with `--body-file` and `Closes #N`.
+  Opened once `cargo xtask check` is green: `cargo xtask pr body`, fill it in,
+  `cargo xtask pr open`. The keyword is appended for you, and here it is `Closes`.
 
   This body answers one question: "does it work, and is it what was agreed?"
   It does not restate the decisions — those merged in stage 1 and the reviewer read them there.

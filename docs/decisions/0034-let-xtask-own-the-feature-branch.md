@@ -158,6 +158,10 @@ been observed, because the subcommand does not exist yet.
   `decisions.md` and refuses while an entry is `_pending_`. It reads one marker rather than the
   structure of the sheet, so the boundary this record assumes — orchestrate subprocesses, do not
   validate artifacts — holds; the reasoning is in `xtask/src/spec.rs`, under `Design notes`.
+- 2026-09-21 — [ADR-0054](0054-open-the-pull-request-from-xtask-in-two-verbs.md) extends the same
+  argument one step further along the flow: `cargo xtask pr` chooses the pull request body and its
+  keyword. It is a sibling command rather than a fourth verb of `spec`, because a tooling change has
+  a pull request and no feature branch.
 
 ## More Information
 

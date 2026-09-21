@@ -1419,7 +1419,8 @@ one nobody planned was about the gate.
 `cargo xtask spec` moved from three stages to two, and its precondition for the second one grew from
 "does this file exist" to "is this file answered". The labels on GitHub were migrated, the three
 "Not built yet" notes left by increments 1 and 2 came out, and two records were reclassified on the
-way past. Two commits.
+way past. Then `cargo xtask pr` was added, because the same argument reached one step further along
+the flow: the pull request body and its keyword were never a judgement either. Five commits.
 
 ### Rust design and idiom
 
@@ -1433,6 +1434,10 @@ way past. Two commits.
   subprocess's output, which is right for a branch name and wrong for a file: a leading blank line
   would shift every line number reported back to the operator. Splitting out `capture_untrimmed` and
   letting `capture` call it kept both callers honest and cost four lines.
+- **`let ... else` reads better than the `match` it replaces, and clippy asks for it by name.** Four
+  lints on the first run of the new module, and all four were the same shape: a `match` or a nested
+  `if` standing where a `let ... else` or an if-let chain says the thing once. Edition 2024 allows
+  `&& let` inside an `if`, which collapsed the section scanner's two levels into one condition.
 
 ### Working this way
 
@@ -1449,6 +1454,16 @@ way past. Two commits.
   resolves the workspace from `CARGO_MANIFEST_DIR`, so a second checkout is a second repository. The
   pending sheet was refused with both offending lines quoted; answered, the same command went past
   the guard and failed at `gh`, which a local path is not. Nothing on GitHub was touched.
+- **A verb that needs an artifact filled in between its halves is two verbs.** `cargo xtask pr` was
+  going to be one command. It cannot be: whatever opens the pull request has to submit a body, and a
+  body straight out of a template is the unanswered-prompts failure the three templates exist to
+  prevent. Splitting it into `body` and `open` was not a concession — it is the same contract a
+  person and a session both need, and it is what makes `open` able to refuse an empty section.
+- **A smoke test branched from the wrong place still reports honestly.** The throwaway pull request
+  came out titled after a commit from four back, because the title is derived from the first commit
+  since `origin/main` and the test branch was cut from the working branch rather than from `main`.
+  The derivation did exactly what it says; what the run showed is that "first commit since main" is
+  a default worth documenting, not a rule worth trusting blindly.
 - **The blast radius was smaller than the plan assumed, and only counting showed it.** The drafts
   warned that in-flight features would be stranded and the labels would need care. `gh issue list`
   per label: `spec` and `plan` on nothing at all, `doing` on ten issues all closed. What looked like

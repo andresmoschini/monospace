@@ -38,6 +38,7 @@ without it nothing checks your commits until CI does.
 cargo xtask check          # the whole quality gate, about 3.5 seconds
 cargo xtask fix            # apply every automatic fix the gate knows about
 cargo xtask spec use 23    # put this clone on the active branch of feature 23
+cargo xtask pr body        # write the pull request body this branch calls for
 cargo run -p monospace-cli # run the command-line application
 cargo test --workspace     # tests only, when you want a faster loop
 ```
@@ -187,33 +188,46 @@ reasons, and the third is the one that decides it:
   owes the gate a run on **every** rewritten commit rather than only the tip.
 - No single commit is "the" one that closes work that took several.
 
-Which keyword depends on the stage. Only the last pull request of a feature finishes the issue:
+Which keyword depends on the stage, and `cargo xtask pr` appends it rather than asking you to
+remember which. Only the last pull request of a feature finishes the issue:
 
-- **Deciding** pull requests say `Refs #N`. The stage is done; the issue is not.
-- **Building** pull requests say `Closes #N`.
+| Shape    | Branch              | Body                                | Keyword     |
+| -------- | ------------------- | ----------------------------------- | ----------- |
+| Deciding | `NNN-slug-deciding` | `PULL_REQUEST_TEMPLATE/deciding.md` | `Refs #N`   |
+| Building | `NNN-slug-building` | `PULL_REQUEST_TEMPLATE/building.md` | `Closes #N` |
+| Tooling  | anything else       | `pull_request_template.md`          | `Closes #N` |
+
+### Opening one
+
+Two commands, because the body has to be filled between them:
 
 ```sh
-gh pr create --base main --title "..." --body "Refs #23"
+cargo xtask pr body        # writes target/pr-body.md for whatever this branch is
+                           # a tooling branch carries no issue number: `pr body 34`
+                           # `--refs` where the change belongs to an issue it does not finish
+#                          ... fill every section; one with nothing to say says "None."
+cargo xtask pr open        # pushes the branch, then opens the pull request with that body
+```
+
+`body` reads the branch, not the issue's label: `-deciding` and `-building` are the two feature
+stages, and anything else is a tooling change. `open` refuses three things before it reaches GitHub
+— a dirty working tree, a body whose sections are still empty, and `main` — and derives the title
+from the issue (`Decide:` or `Build:`) or, for a tooling change, from the first commit the branch
+added. `--title` overrides it and `--body-file` reads from somewhere else.
+
+Neither is due when a Spec Kit command ends, which is why nothing triggers them: the deciding one
+waits for the sheet to be answered, which no command does, and the building one for a green
+`cargo xtask check`.
+
+### Closing one
+
+```sh
 gh pr view N --json closingIssuesReferences   # confirm GitHub parsed a Closes
 gh pr merge --merge --delete-branch
 ```
 
-A tooling change has one pull request and therefore one keyword: `Closes #N`.
-
-The body has a template, and which one depends on the same three shapes of change:
 [`.github/PULL_REQUEST_TEMPLATE/`](.github/PULL_REQUEST_TEMPLATE/README.md) explains why there are
-three and how each is reached. GitHub offers the tooling one by default; the two stage bodies are
-passed with `--body-file`, because GitHub reaches the others only through a `?template=` parameter
-nobody types.
-
-```sh
-gh pr create --base main --body-file .github/PULL_REQUEST_TEMPLATE/deciding.md  # then Refs #23
-gh pr create --base main --body-file .github/PULL_REQUEST_TEMPLATE/building.md  # then Closes #23
-```
-
-Neither is opened when a Spec Kit command ends. The deciding one is opened once the sheet is
-answered and committed, which is a step no command runs; the building one once `cargo xtask check`
-is green.
+three bodies and why every section stays.
 
 ## The quality gate
 

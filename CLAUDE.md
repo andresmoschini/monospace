@@ -76,6 +76,7 @@ cargo xtask check          # the whole quality gate; the hook and CI run this an
 cargo xtask fix            # every automatic fix the gate knows about
 cargo xtask setup          # install the Node tooling the gate needs
 cargo xtask spec new 23    # open the deciding stage; also `spec stage <n> build` and `spec use <n>`
+cargo xtask pr body        # write target/pr-body.md; fill it, then `cargo xtask pr open`
 cargo run -p monospace-cli -- path.json   # render one description; bare `cargo run` is ambiguous
 cargo test --workspace     # tests only, for a faster loop
 cargo insta review         # accept a moved snapshot; report what moved first
