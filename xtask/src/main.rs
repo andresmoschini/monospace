@@ -12,6 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod pr;
 mod process;
 mod spec;
 
@@ -193,6 +194,7 @@ fn main() -> ExitCode {
         Some("fix") => run_fix(),
         Some("setup") => run_setup(),
         Some("spec") => spec::run(args),
+        Some("pr") => pr::run(args),
         None | Some("help" | "--help" | "-h") => {
             print_usage();
             ExitCode::SUCCESS
@@ -428,5 +430,6 @@ fn print_usage() {
     println!(
         "  spec     Manage a feature's branch lifecycle; `cargo xtask spec help` lists its verbs"
     );
+    println!("  pr       Prepare and open a pull request; `cargo xtask pr help` lists its verbs");
     println!("  help     Show this message");
 }
