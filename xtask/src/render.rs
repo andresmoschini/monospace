@@ -76,6 +76,32 @@ pub fn run(mut args: impl Iterator<Item = String>) -> ExitCode {
     }
 }
 
+/// The gate's step: reports every picture that has parted from its description, and returns
+/// whether they all matched.
+pub fn check(root: &Path) -> bool {
+    report_failure(walk(root, true))
+}
+
+/// `cargo xtask fix`'s step: rewrites every picture from its description.
+///
+/// It belongs there by [ADR-0020](../../docs/decisions/0020-scope-cargo-xtask-fix-to-deterministic-fixers.md)'s
+/// own test — a fixer is in when it rewrites a file to match a rule with exactly one right answer,
+/// and a picture's one right answer is what its description renders.
+pub fn fix(root: &Path) -> bool {
+    report_failure(walk(root, false))
+}
+
+/// Prints what went wrong, the way a subprocess step would, and answers whether it passed.
+fn report_failure(outcome: Result<(), String>) -> bool {
+    match outcome {
+        Ok(()) => true,
+        Err(message) => {
+            eprintln!("{message}");
+            false
+        }
+    }
+}
+
 /// Visits every tracked Markdown file and either rewrites its pictures or reports the stale ones.
 fn walk(root: &Path, checking: bool) -> Result<(), String> {
     let binary = build_cli(root)?;
