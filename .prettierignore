@@ -7,4 +7,15 @@ package-lock.json
 # spec-kit owns these; it rewrites them on every `specify update`, and they are not ours to
 # reformat.
 .claude/skills/speckit-*/
-.specify/
+.specify/*
+
+# Except the three templates this repository writes itself: their stock contents were replaced
+# outright, so the reason above stops reaching them. Written as four lines rather than three
+# negations because gitignore syntax cannot re-include a file whose parent directory is excluded —
+# each directory on the way down has to be re-included first, and `!.specify/templates/spec-*.md`
+# under a plain `.specify/` is silently inert. Verified by breaking one on purpose.
+!.specify/templates/
+.specify/templates/*
+!.specify/templates/spec-template.md
+!.specify/templates/plan-template.md
+!.specify/templates/decisions-template.md
