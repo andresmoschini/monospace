@@ -1477,5 +1477,55 @@ the flow: the pull request body and its keyword were never a judgement either. F
   somewhere to look for what it owed. The cost is that the note has to be hunted down by grep rather
   than by a check, and one left behind is worse than none at all.
 
+## 2026-09-21 — SDD v2, increment 4: the arrow
+
+The test case of the whole method. `The route of an arrow` came down from `docs/model.md` into
+`shape::arrow`'s `Design notes`, and the five records about it became one. No behavior change, no
+snapshot moved, two commits.
+
+### Working this way
+
+- **The altitude test found an error in the proposal that introduced it, and the acceptance
+  criterion is what caught it.** The drafts asked for the consolidated record to carry
+  `scope: module:…` and `commitment: working`. Principle VI says a module-level decision takes no
+  ADR, and a `working` record is changed by a new, short ADR — so criterion (3) of the ranking could
+  not have been changed without writing one, which is exactly what the pilot's acceptance criterion
+  forbids. The layout the criterion passes with is the subject split along the boundary: the
+  contract that anyone drawing an arrow observes stays a record, and the choice among paths, which
+  nobody observes beyond the picture, is `absorbed into` the module. Five records became one live
+  plus four history files.
+- **Measured, changing criterion (3) is one comparison and two kinds of file.** Rounding the middle
+  toward the smaller coordinate instead of toward the endpoint the arrow leaves from — option A of
+  the record this absorbs — touches `RouteRectangle::midpoint`, the four tests that pin it, and the
+  eight characterization files. Nothing under `docs/` is implicated: no live document states the
+  rounding any more, and `grep` over the tracked Markdown finds it nowhere. Before this increment
+  the same change amended `docs/model.md`, whose criterion (3) named its ADR by link, and revised
+  that ADR. That is the altitude working, measured on the files rather than argued.
+- **An old record's number held, which is worth more than the number.** ADR-0046 recorded that
+  ADR-0044's rounding "decides 138 renderings", measured on a spike branch before feature 103 was
+  implemented. The spike run here, after it merged, moves exactly 138 across all eight sweep
+  families. A measured claim surviving the implementation of the thing it was measured against is
+  the only confirmation such a number ever gets.
+- **A `working` record at 60 lines has room for the contract or for the argument, not both.** The
+  first draft of ADR-0055 came to 81 lines with the four criteria's reasoning in it. Cutting to 60
+  was not compression: what went was everything the rustdoc now says, and what remained is the
+  contract, the un-bounding and the cost. The ceiling found the duplication that principle VIII
+  forbids before a reader would have.
+
+### Trade-offs worth remembering
+
+- **The prose a picture replaces is not the prose that gets cut.** The route section went from 58
+  lines to 37, of which 15 are a generated picture and the description it comes from. The prose
+  itself went from 58 to 22, headings and blank lines included. Charging the picture against the
+  section would have kept the paragraph describing what the picture shows, which is the failure
+  principle VIII names.
+- **The pictures in an absorbed record stay hand-drawn, and that is the honest state.** ADR-0052 is
+  `exploratory` because `cargo xtask render` does not exist, and its own answer is that a picture is
+  labelled or regenerated the next time its file is touched. The five arrow records were touched
+  here — their statuses and their revisions — and their pictures were left alone: relabelling a
+  record whose reasoning has moved would be work on history. The new picture in `model.md` carries
+  its description in a `<!-- render: … -->` marker and was produced by running the CLI on it, which
+  is the rule followed by hand.
+
 [make invalid states unrepresentable]:
   decisions/0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md
