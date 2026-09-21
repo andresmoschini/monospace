@@ -1,5 +1,6 @@
 ---
 source: crates/monospace-core/src/shape/arrow.rs
+description: "This file records what the code does over a range too wide to assert by hand. A change here is the consequence of a decision taken elsewhere, not a decision. It is accepted after a report of how many cases moved, in which families, and three examples with their before and after."
 expression: rendered
 ---
 (Pos { x: 2, y: 1 }, Up) -> (Pos { x: 0, y: 0 }, Up)
