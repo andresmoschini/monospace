@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "absorbed into crates/monospace-core/src/shape/arrow.rs"
 date: 2026-09-16
 decision-makers: "Andrés Moschini, with Claude Opus 5"
 ---
@@ -131,9 +131,6 @@ Cheap. The tie-break is one comparison inside the route derivation and one sente
 public type, no signature and no file layout depends on it. Reversing it is a new record, the
 sentence rewritten, and a snapshot regenerated.
 
-What is not cheap is changing it repeatedly. Every reversal moves corners in pictures people have
-already drawn, and the snapshot diff is the whole grid each time.
-
 ## Confidence
 
 High (80%).
@@ -146,6 +143,14 @@ What would prove it wrong: a second place where the order has to decide somethin
 towards the `to`" principle gives the wrong answer. Two instances agreeing is what this rests on.
 
 What would not change it: the implementation cost. It was weighed and it is small.
+
+## Revisions
+
+- 2026-09-21 — absorbed into `crates/monospace-core/src/shape/arrow.rs`. Nothing outside that module
+  observes this tie-break beyond the picture it produces, so the reasoning is now the module's
+  `Design notes` and changing it is an ordinary `feat` or `fix`. The contract the route satisfies is
+  [ADR-0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md). This record also loses a
+  sentence arguing that repeated change is expensive, which the constitution now forbids.
 
 ## More Information
 

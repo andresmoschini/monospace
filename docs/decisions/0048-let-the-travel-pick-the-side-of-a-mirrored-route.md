@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "absorbed into crates/monospace-core/src/shape/arrow.rs"
 date: 2026-09-17
 decision-makers: "Andrés Moschini, with Claude Opus 5"
 ---
@@ -133,10 +133,9 @@ Cheap. It is one comparison in the ranking and one clause in the model, and reve
 change. Reversing to A or B additionally drops a sentence from the model and returns this family to
 order-independence.
 
-What is not cheap is the snapshot. Any of these reversals moves 84 renderings and regenerates all
-eight reviewed files, so the cost is a reading of the sweep each time — and, as ADR-0044 already
-said, moving corners in pictures people have drawn is what makes repeated changes expensive rather
-than any one of them.
+Any of these reversals moves 84 renderings and regenerates all eight snapshot files, so each one is
+reported rather than reviewed
+([ADR-0053](0053-report-a-characterization-instead-of-reviewing-it.md)).
 
 ## Confidence
 
@@ -152,6 +151,13 @@ disagreeing is what would turn the principle into a coincidence.
 
 What would not change it: which of C and D was picked. They are mirrors, the choice was made by
 looking at generated pictures of both, and no argument distinguishes them.
+
+## Revisions
+
+- 2026-09-21 — absorbed into `crates/monospace-core/src/shape/arrow.rs`. Nothing outside that module
+  observes this last tie-break beyond the picture it produces, so the reasoning is now the module's
+  `Design notes` and changing it is an ordinary `feat` or `fix`. The contract the route satisfies is
+  [ADR-0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md).
 
 ## More Information
 

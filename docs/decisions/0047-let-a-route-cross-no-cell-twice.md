@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "superseded by ADR-0055"
 date: 2026-09-17
 decision-makers: "Andrés Moschini, with Claude Opus 5"
 ---
@@ -150,6 +150,13 @@ either way.
 What would not change it: the four arrangements being degenerate. _Degenerate arrangements_ in the
 model is explicit that what a degenerate arrangement draws is whatever the general rule yields, and
 this record changes the general rule rather than carving out an exception for them.
+
+## Revisions
+
+- 2026-09-21 — superseded by [ADR-0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md),
+  which holds a route being a path as one subject. The reason it was affordable to say so — that no
+  fragment opens on three sides — is a limit of the vocabulary rather than of the domain, and
+  [ADR-0028](0028-give-each-fragment-its-own-cell-rule.md) owns it.
 
 ## More Information
 
