@@ -1,75 +1,77 @@
 //! `cargo xtask spec`: the feature branch lifecycle described in
-//! [ADR-0032](../../docs/decisions/0032-split-a-spec-into-three-staged-branches.md),
+//! [ADR-0051](../../docs/decisions/0051-stop-at-the-decision-sheet-and-merge-three-stages-into-two.md),
 //! [ADR-0033](../../docs/decisions/0033-keep-the-flow-state-in-labels-on-one-issue.md) and
 //! [ADR-0034](../../docs/decisions/0034-let-xtask-own-the-feature-branch.md).
 //!
-//! A spec is one GitHub issue, crossing three branches (`NNN-slug-spec`, `NNN-slug-plan`,
-//! `NNN-slug-impl`), each with its own label (`spec`, `plan`, `doing`) and its own precondition
-//! checked against `origin/main`. `new` opens the first branch, `stage` opens the second or third
-//! after checking its precondition, and `use` puts a clone on whichever branch the issue's labels
-//! say is current. None of this is part of the quality gate: `cargo xtask check` has no notion of
-//! `git` branches or GitHub labels, and this module is not on its call graph.
+//! A feature is one GitHub issue, crossing two branches (`NNN-slug-deciding`, `NNN-slug-building`),
+//! each with its own label (`deciding`, `building`) and its own precondition checked against
+//! `origin/main`. `new` opens the first branch, `stage <issue> build` opens the second after
+//! checking its precondition, and `use` puts a clone on whichever branch the issue's labels say is
+//! current. None of this is part of the quality gate: `cargo xtask check` has no notion of `git`
+//! branches or GitHub labels, and this module is not on its call graph.
 //!
 //! Every subprocess call lives behind a thin wrapper (`run_visible`, `capture`) so the logic that
 //! decides *what* to run — slugging a title, naming a branch, reading a precondition, mapping
 //! labels to a stage — stays in plain functions that take values and return `Result`, and can be
 //! unit tested with no network and no repository.
+//!
+//! # Design notes
+//!
+//! **The precondition for `building` reads the decision sheet rather than only its name.** Every
+//! other precondition here asks "does this file exist in `origin/main`", because a merged file is
+//! the handoff. The handoff ADR-0051 names is an *answered* sheet, and a sheet whose entries still
+//! read `_pending_` merges exactly as easily as one that is answered. So the check opens the file
+//! and refuses on any line carrying that marker: the header's `**Answered**` field and every
+//! entry's `**Answer**` field both use it, so neither needs a rule of its own, and a sheet the
+//! template never touched is caught by `decisions.md` being absent instead.
 
 use std::fs;
 use std::path::Path;
 use std::process::{Command, ExitCode, Stdio};
 
-/// One of the three stages a spec crosses, in order.
+use crate::process::{capture, capture_untrimmed, ensure_gh_ready, run_visible};
+
+/// One of the two stages a feature crosses, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stage {
-    /// The spec is being written; branch `NNN-slug-spec`, label `spec`.
-    Spec,
-    /// The spec has merged and the plan is being written; branch `NNN-slug-plan`, label `plan`.
-    Plan,
-    /// The plan and tasks have merged and implementation is under way; branch `NNN-slug-impl`,
-    /// label `doing`.
-    Impl,
+    /// The spec, the research and the decision sheet are being written; branch `NNN-slug-deciding`,
+    /// label `deciding`.
+    Deciding,
+    /// The sheet is answered and merged, and the design, the tasks and the code follow it; branch
+    /// `NNN-slug-building`, label `building`.
+    Building,
 }
 
 impl Stage {
-    /// The suffix this stage's branch name ends in.
-    fn branch_suffix(self) -> &'static str {
-        match self {
-            Stage::Spec => "spec",
-            Stage::Plan => "plan",
-            Stage::Impl => "impl",
-        }
-    }
-
-    /// The label that marks an issue as being in this stage.
+    /// The word this stage is named by, which is both its branch suffix and its label.
     ///
-    /// This does not match `branch_suffix` for `Impl`: the branch is `-impl`, but ADR-0033 names
-    /// the label `doing` rather than `impl`.
-    fn label_to_add(self) -> &'static str {
+    /// The two differed under the three stages ADR-0051 replaced — the branch was `-impl` and the
+    /// label was `doing` — and the rename brought them together.
+    fn name(self) -> &'static str {
         match self {
-            Stage::Spec => "spec",
-            Stage::Plan => "plan",
-            Stage::Impl => "doing",
+            Stage::Deciding => "deciding",
+            Stage::Building => "building",
         }
     }
 
     /// The label the previous stage left behind, which moving into this stage removes.
     fn label_to_remove(self) -> &'static str {
         match self {
-            Stage::Spec => "wish",
-            Stage::Plan => "spec",
-            Stage::Impl => "plan",
+            Stage::Deciding => "wish",
+            Stage::Building => "deciding",
         }
     }
 
-    /// The Spec Kit commands to run once this stage's branch is checked out.
+    /// The Spec Kit commands to run once this stage's branch is checked out, one per session.
     fn next_step(self) -> &'static str {
         match self {
-            Stage::Spec => {
-                "run `/speckit-specify`, then `/speckit-clarify` if the spec leaves open questions"
+            Stage::Deciding => concat!(
+                "run `/speckit-specify`, then `/speckit-clarify` if the spec leaves open ",
+                "questions, then `/speckit-plan` part one, which stops at `decisions.md`"
+            ),
+            Stage::Building => {
+                "run `/speckit-plan` part two, then `/speckit-tasks`, then `/speckit-implement`"
             }
-            Stage::Plan => "run `/speckit-plan`, then `/speckit-tasks`",
-            Stage::Impl => "run `/speckit-implement`",
         }
     }
 }
@@ -106,11 +108,10 @@ fn run_stage(mut args: impl Iterator<Item = String>) -> ExitCode {
         Ok(issue) => issue,
         Err(message) => return fail(&message),
     };
-    let stage = match parse_stage(args.next().as_deref()) {
-        Ok(stage) => stage,
-        Err(message) => return fail(&message),
-    };
-    to_exit_code(stage_feature(&crate::workspace_root(), issue, stage))
+    if let Err(message) = parse_stage(args.next().as_deref()) {
+        return fail(&message);
+    }
+    to_exit_code(build_feature(&crate::workspace_root(), issue))
 }
 
 /// Parses `spec use`'s argument and runs it.
@@ -128,15 +129,16 @@ fn parse_issue(raw: Option<String>) -> Result<u32, String> {
         .map_err(|_| format!("xtask: `{raw}` is not a valid issue number"))
 }
 
-/// Parses `stage`'s second argument, which must be `plan` or `impl`.
-fn parse_stage(raw: Option<&str>) -> Result<Stage, String> {
+/// Parses `stage`'s second argument, which must be `build`.
+///
+/// `build` is the only stage `stage` can move into: `new` opens the deciding stage, and there is no
+/// third one. The verb still takes the word, so the command says which stage it opens rather than
+/// leaving a reader of the shell history to remember that there is only one.
+fn parse_stage(raw: Option<&str>) -> Result<(), String> {
     match raw {
-        Some("plan") => Ok(Stage::Plan),
-        Some("impl") => Ok(Stage::Impl),
-        Some(other) => Err(format!(
-            "xtask: stage must be `plan` or `impl`, not `{other}`"
-        )),
-        None => Err("xtask: spec stage requires `plan` or `impl`".to_string()),
+        Some("build") => Ok(()),
+        Some(other) => Err(format!("xtask: stage must be `build`, not `{other}`")),
+        None => Err("xtask: spec stage requires `build`".to_string()),
     }
 }
 
@@ -154,8 +156,8 @@ fn to_exit_code(result: Result<(), String>) -> ExitCode {
     }
 }
 
-/// Opens the spec stage for `issue`: fetches, reads the issue's title, derives its slug, opens
-/// `NNN-slug-spec`, moves the label to `spec`, and writes `.specify/feature.json`.
+/// Opens the deciding stage for `issue`: fetches, reads the issue's title, derives its slug, opens
+/// `NNN-slug-deciding`, moves the label to `deciding`, and writes `.specify/feature.json`.
 fn new_feature(root: &Path, issue: u32) -> Result<(), String> {
     ensure_gh_ready(root)?;
     run_visible(root, "git", &["fetch", "origin", "--prune"])?;
@@ -170,26 +172,23 @@ fn new_feature(root: &Path, issue: u32) -> Result<(), String> {
     )?;
     let slug = slugify(&title)?;
     let issue_number = format_issue_number(issue);
-    let branch = branch_name(&issue_number, &slug, Stage::Spec);
+    let branch = branch_name(&issue_number, &slug, Stage::Deciding);
 
     ensure_branch(root, issue, &branch)?;
-    move_label(root, issue, Stage::Spec)?;
+    move_label(root, issue, Stage::Deciding)?;
 
     let feature_directory = format!("specs/{issue_number}-{slug}");
     write_feature_json(root, &feature_directory)?;
 
     println!("Feature directory: {feature_directory}");
     println!("Branch: {branch}");
-    println!("Next: {}", Stage::Spec.next_step());
+    println!("Next: {}", Stage::Deciding.next_step());
     Ok(())
 }
 
-/// Opens `stage` (`Plan` or `Impl`) for `issue`, after checking that the previous stage's required
-/// files have merged into `origin/main`.
-///
-/// `parse_stage` never produces `Stage::Spec`, so this is only ever called with `Plan` or `Impl`;
-/// see `verify_previous_stage_merged` for the defensive handling if it ever is called with `Spec`.
-fn stage_feature(root: &Path, issue: u32, stage: Stage) -> Result<(), String> {
+/// Opens the building stage for `issue`, after checking against `origin/main` that the deciding
+/// stage merged and that the decision sheet it merged is answered.
+fn build_feature(root: &Path, issue: u32) -> Result<(), String> {
     ensure_gh_ready(root)?;
     run_visible(root, "git", &["fetch", "origin", "--prune"])?;
 
@@ -197,18 +196,18 @@ fn stage_feature(root: &Path, issue: u32, stage: Stage) -> Result<(), String> {
     let entries = list_spec_directories(root)?;
     let slug = find_slug(&entries, &issue_number)?;
 
-    verify_previous_stage_merged(root, &issue_number, &slug, stage)?;
+    verify_deciding_merged(root, &issue_number, &slug)?;
 
-    let branch = branch_name(&issue_number, &slug, stage);
+    let branch = branch_name(&issue_number, &slug, Stage::Building);
     ensure_branch(root, issue, &branch)?;
-    move_label(root, issue, stage)?;
+    move_label(root, issue, Stage::Building)?;
 
     let feature_directory = format!("specs/{issue_number}-{slug}");
     write_feature_json(root, &feature_directory)?;
 
     println!("Feature directory: {feature_directory}");
     println!("Branch: {branch}");
-    println!("Next: {}", stage.next_step());
+    println!("Next: {}", Stage::Building.next_step());
     Ok(())
 }
 
@@ -233,7 +232,7 @@ fn use_feature(root: &Path, issue: u32) -> Result<(), String> {
 
     println!("Feature directory: {feature_directory}");
     println!("Branch: {branch}");
-    println!("Stage: {}", stage.label_to_add());
+    println!("Stage: {}", stage.name());
     println!("Next: {}", stage.next_step());
     Ok(())
 }
@@ -253,42 +252,66 @@ fn list_spec_directories(root: &Path) -> Result<Vec<String>, String> {
         .collect())
 }
 
-/// Checks, against `origin/main`, that the stage before `stage` has merged: `spec.md` before
-/// `Plan`, `plan.md` and `tasks.md` before `Impl`.
+/// Checks, against `origin/main`, that the deciding stage has merged: `spec.md` and `decisions.md`
+/// are there, and no entry of the sheet is still unanswered.
 ///
 /// # Errors
 ///
-/// Names the missing file and says explicitly that the previous stage's pull request is not
-/// merged.
-fn verify_previous_stage_merged(
-    root: &Path,
-    issue_number: &str,
-    slug: &str,
-    stage: Stage,
-) -> Result<(), String> {
-    let required: &[&str] = match stage {
-        Stage::Plan => &["spec.md"],
-        Stage::Impl => &["plan.md", "tasks.md"],
-        // `parse_stage` never produces `Stage::Spec`, so this arm is unreached in practice; it
-        // stays defensive rather than a `None` files list read as "nothing required".
-        Stage::Spec => {
-            return Err(
-                "xtask: internal error: the spec stage has no previous stage to verify".to_string(),
-            );
-        }
-    };
-
-    for file in required {
+/// Names the missing file and says explicitly that the deciding pull request is not merged, or
+/// quotes the lines on which the sheet is still pending.
+fn verify_deciding_merged(root: &Path, issue_number: &str, slug: &str) -> Result<(), String> {
+    for file in ["spec.md", "decisions.md"] {
         let path = format!("specs/{issue_number}-{slug}/{file}");
         if !file_exists_in_origin_main(root, &path)? {
             return Err(format!(
-                "xtask: the previous stage's pull request is not merged: `{path}` does not exist \
-                 in origin/main"
+                "xtask: the deciding pull request is not merged: `{path}` does not exist in \
+                 origin/main"
             ));
         }
     }
 
-    Ok(())
+    let path = format!("specs/{issue_number}-{slug}/decisions.md");
+    let object = format!("origin/main:{path}");
+    let sheet = capture_untrimmed(root, "git", &["show", &object])?;
+    let pending = pending_lines(&sheet);
+
+    if pending.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "xtask: `{path}` is not answered: {}. The building stage runs against an answered \
+             sheet, so answer it on the deciding branch and merge that first.",
+            describe_pending(&pending)
+        ))
+    }
+}
+
+/// The lines of a decision sheet that still carry the template's `_pending_` marker, as
+/// one-based line numbers paired with the trimmed text of the line.
+fn pending_lines(sheet: &str) -> Vec<(usize, String)> {
+    sheet
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| line.contains("_pending_"))
+        .map(|(index, line)| (index + 1, line.trim().to_string()))
+        .collect()
+}
+
+/// Renders what `pending_lines` found for the operator: the first three, quoted, and a count of
+/// whatever else is left. Three is enough to recognize which entries they are; the file itself is
+/// where they get read.
+fn describe_pending(pending: &[(usize, String)]) -> String {
+    let shown = pending
+        .iter()
+        .take(3)
+        .map(|(number, text)| format!("line {number} reads `{text}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    match pending.len().saturating_sub(3) {
+        0 => shown,
+        rest => format!("{shown}, and {rest} more"),
+    }
 }
 
 /// Ensures `branch` exists, checking it out. Uses the remote branch if `gh issue develop` (or an
@@ -391,7 +414,7 @@ fn move_label(root: &Path, issue: u32, stage: Stage) -> Result<(), String> {
     let labels = current_labels(root, issue)?;
     let issue_str = issue.to_string();
     let remove = stage.label_to_remove();
-    let add = stage.label_to_add();
+    let add = stage.name();
 
     let mut args: Vec<&str> = vec!["issue", "edit", &issue_str];
     if labels.iter().any(|label| label == remove) {
@@ -418,75 +441,6 @@ fn write_feature_json(root: &Path, feature_directory: &str) -> Result<(), String
         .map_err(|error| format!("xtask: could not write {}: {error}", path.display()))
 }
 
-/// Confirms `gh` is installed and authenticated, distinguishing the two failure modes so the
-/// fix is never ambiguous.
-fn ensure_gh_ready(root: &Path) -> Result<(), String> {
-    if Command::new("gh")
-        .arg("--version")
-        .current_dir(root)
-        .output()
-        .is_err()
-    {
-        return Err(
-            "xtask: `gh` is not installed. Install it from https://cli.github.com and try again."
-                .to_string(),
-        );
-    }
-
-    let authenticated = Command::new("gh")
-        .args(["auth", "status"])
-        .current_dir(root)
-        .output()
-        .is_ok_and(|output| output.status.success());
-
-    if authenticated {
-        Ok(())
-    } else {
-        Err(
-            "xtask: `gh` is installed but not authenticated. Run `gh auth login` and try again."
-                .to_string(),
-        )
-    }
-}
-
-/// Runs `program` with `args` from `root`, inheriting the child's stdio so its progress streams to
-/// the operator as it happens. Used for the commands worth watching live: `git fetch`,
-/// `gh issue develop`, `git checkout`.
-fn run_visible(root: &Path, program: &str, args: &[&str]) -> Result<(), String> {
-    match Command::new(program).args(args).current_dir(root).status() {
-        Ok(status) if status.success() => Ok(()),
-        Ok(status) => Err(format!(
-            "xtask: `{program} {}` exited with {status}",
-            args.join(" ")
-        )),
-        Err(error) => Err(format!("xtask: could not run `{program}`: {error}")),
-    }
-}
-
-/// Runs `program` with `args` from `root` and returns its trimmed standard output.
-///
-/// # Errors
-///
-/// Names the program, its arguments and the captured standard error when the command cannot be
-/// spawned or exits with a failure status.
-fn capture(root: &Path, program: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new(program)
-        .args(args)
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("xtask: could not run `{program}`: {error}"))?;
-
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-    } else {
-        Err(format!(
-            "xtask: `{program} {}` failed: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&output.stderr).trim()
-        ))
-    }
-}
-
 /// Zero-pads `issue` to at least three digits; an issue number with more digits keeps all of them.
 fn format_issue_number(issue: u32) -> String {
     format!("{issue:03}")
@@ -494,7 +448,7 @@ fn format_issue_number(issue: u32) -> String {
 
 /// The branch name for `stage` of the feature identified by `issue_number` and `slug`.
 fn branch_name(issue_number: &str, slug: &str, stage: Stage) -> String {
-    format!("{issue_number}-{slug}-{}", stage.branch_suffix())
+    format!("{issue_number}-{slug}-{}", stage.name())
 }
 
 /// Finds the single entry in `entries` (as `git ls-tree --name-only origin/main specs/` reports
@@ -534,33 +488,31 @@ fn find_slug(entries: &[String], issue_number: &str) -> Result<String, String> {
 ///
 /// # Errors
 ///
-/// A `wish` label says the spec stage has not been opened yet and names the command that opens it,
-/// rather than failing obscurely. None of the four state labels names which labels the issue does
-/// carry instead.
+/// A `wish` label says the deciding stage has not been opened yet and names the command that opens
+/// it, rather than failing obscurely. Neither state label names which labels the issue does carry
+/// instead.
 fn stage_from_labels(labels: &[String]) -> Result<Stage, String> {
     let has = |name: &str| labels.iter().any(|label| label == name);
 
-    if has("doing") {
-        Ok(Stage::Impl)
-    } else if has("plan") {
-        Ok(Stage::Plan)
-    } else if has("spec") {
-        Ok(Stage::Spec)
+    if has("building") {
+        Ok(Stage::Building)
+    } else if has("deciding") {
+        Ok(Stage::Deciding)
     } else if has("wish") {
         Err(
-            "xtask: the spec stage has not been opened yet; `cargo xtask spec new <issue>` opens \
-             it."
-            .to_string(),
+            "xtask: the deciding stage has not been opened yet; `cargo xtask spec new <issue>` \
+             opens it."
+                .to_string(),
         )
     } else if labels.is_empty() {
         Err(
-            "xtask: the issue carries none of the spec/plan/doing labels; it carries no labels at \
-             all"
-            .to_string(),
+            "xtask: the issue carries neither the deciding nor the building label; it carries no \
+             labels at all"
+                .to_string(),
         )
     } else {
         Err(format!(
-            "xtask: the issue carries none of the spec/plan/doing labels; it carries: {}",
+            "xtask: the issue carries neither the deciding nor the building label; it carries: {}",
             labels.join(", ")
         ))
     }
@@ -669,20 +621,23 @@ fn slugify(title: &str) -> Result<String, String> {
 
 /// Prints usage for `cargo xtask spec`.
 fn print_usage() {
-    println!("Feature branch lifecycle for Monospace's staged Spec Kit workflow.");
+    println!("Feature branch lifecycle for Monospace's two-stage Spec Kit workflow.");
     println!();
     println!("Usage: cargo xtask spec <verb> [args]");
     println!();
     println!("Verbs:");
-    println!("  new <issue>                Open the spec stage for an issue");
-    println!("  stage <issue> <plan|impl>  Open the plan or implementation stage for an issue");
-    println!("  use <issue>                Check out the branch of an issue's active stage");
-    println!("  help                       Show this message");
+    println!("  new <issue>           Open the deciding stage for an issue");
+    println!("  stage <issue> build   Open the building stage, once the answered sheet has merged");
+    println!("  use <issue>           Check out the branch of an issue's active stage");
+    println!("  help                  Show this message");
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Stage, branch_name, find_slug, format_issue_number, slugify, stage_from_labels};
+    use super::{
+        Stage, branch_name, describe_pending, find_slug, format_issue_number, parse_stage,
+        pending_lines, slugify, stage_from_labels,
+    };
 
     #[test]
     fn slugify_plain_title() {
@@ -735,16 +690,29 @@ mod tests {
     #[test]
     fn branch_name_for_each_stage() {
         assert_eq!(
-            branch_name("039", "draw-shapes", Stage::Spec),
-            "039-draw-shapes-spec"
+            branch_name("039", "draw-shapes", Stage::Deciding),
+            "039-draw-shapes-deciding"
         );
         assert_eq!(
-            branch_name("039", "draw-shapes", Stage::Plan),
-            "039-draw-shapes-plan"
+            branch_name("039", "draw-shapes", Stage::Building),
+            "039-draw-shapes-building"
         );
-        assert_eq!(
-            branch_name("039", "draw-shapes", Stage::Impl),
-            "039-draw-shapes-impl"
+    }
+
+    #[test]
+    fn parse_stage_takes_build_and_nothing_else() {
+        assert!(parse_stage(Some("build")).is_ok());
+
+        let error = parse_stage(Some("plan")).unwrap_err();
+        assert!(
+            error.contains("`build`"),
+            "error did not name the only stage: {error}"
+        );
+
+        let error = parse_stage(None).unwrap_err();
+        assert!(
+            error.contains("`build`"),
+            "error did not name the only stage: {error}"
         );
     }
 
@@ -781,16 +749,12 @@ mod tests {
     #[test]
     fn stage_from_labels_maps_each_state_label() {
         assert_eq!(
-            stage_from_labels(&["spec".to_string()]).unwrap(),
-            Stage::Spec
+            stage_from_labels(&["deciding".to_string()]).unwrap(),
+            Stage::Deciding
         );
         assert_eq!(
-            stage_from_labels(&["plan".to_string()]).unwrap(),
-            Stage::Plan
-        );
-        assert_eq!(
-            stage_from_labels(&["doing".to_string()]).unwrap(),
-            Stage::Impl
+            stage_from_labels(&["building".to_string()]).unwrap(),
+            Stage::Building
         );
     }
 
@@ -809,6 +773,63 @@ mod tests {
         assert!(
             error.contains("triage"),
             "error did not name the labels found: {error}"
+        );
+    }
+
+    /// A sheet shaped like `.specify/templates/decisions-template.md`, with `answered` deciding
+    /// whether its three `_pending_` markers are still there.
+    fn sheet(answered: bool) -> String {
+        let (header, first, second) = if answered {
+            (
+                "2026-09-21",
+                "Yes, the ranking stays.",
+                "Module, in arrow.rs.",
+            )
+        } else {
+            ("_pending_", "_pending_", "_pending_")
+        };
+
+        format!(
+            "# Decisions: Route an arrow\n\
+             \n\
+             **Feature**: `103-route` | **Written**: 2026-09-20 | **Answered**: {header}\n\
+             \n\
+             ## D1 — Which route wins a tie?\n\
+             \n\
+             - **Answer**: {first}\n\
+             \n\
+             ## D2 — Where does the rule live?\n\
+             \n\
+             - **Answer**: {second}\n"
+        )
+    }
+
+    #[test]
+    fn pending_lines_finds_nothing_in_an_answered_sheet() {
+        assert!(pending_lines(&sheet(true)).is_empty());
+    }
+
+    #[test]
+    fn pending_lines_finds_the_header_and_every_entry() {
+        let pending = pending_lines(&sheet(false));
+        let numbers: Vec<usize> = pending.iter().map(|(number, _)| *number).collect();
+        assert_eq!(numbers, vec![3, 7, 11]);
+        assert_eq!(pending[1].1, "- **Answer**: _pending_");
+    }
+
+    #[test]
+    fn describe_pending_quotes_three_and_counts_the_rest() {
+        let pending: Vec<(usize, String)> = (1..=5)
+            .map(|number| (number, "- **Answer**: _pending_".to_string()))
+            .collect();
+        let described = describe_pending(&pending);
+        assert!(
+            described.starts_with("line 1 reads `- **Answer**: _pending_`"),
+            "the first pending line was not quoted: {described}"
+        );
+        assert!(
+            described.ends_with("and 2 more"),
+            "the rest were not counted: {described}"
         );
     }
 }

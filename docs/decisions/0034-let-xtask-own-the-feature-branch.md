@@ -1,5 +1,7 @@
 ---
 status: accepted
+scope: tooling
+commitment: working
 date: 2026-09-11
 decision-makers: Andrés Moschini
 ---
@@ -144,6 +146,22 @@ which is the boundary this decision assumes it stays inside.
 What would prove it wrong: contributors routinely falling back to the manual `git`/`gh` sequence
 because the subcommand's error messages or behavior are worse than doing it by hand. That has not
 been observed, because the subcommand does not exist yet.
+
+## Revisions
+
+- 2026-09-21 — [ADR-0051](0051-stop-at-the-decision-sheet-and-merge-three-stages-into-two.md)
+  replaced the three stages with two. The verbs are now `new`, which opens `NNN-slug-deciding`, and
+  `stage <issue> build`, which opens `NNN-slug-building`; `stage <issue> plan` is gone. `use` is
+  unchanged.
+- 2026-09-21 — the precondition grew past "does this file exist in `origin/main`", which
+  _Confidence_ above named as what would change this record. `stage build` reads the merged
+  `decisions.md` and refuses while an entry is `_pending_`. It reads one marker rather than the
+  structure of the sheet, so the boundary this record assumes — orchestrate subprocesses, do not
+  validate artifacts — holds; the reasoning is in `xtask/src/spec.rs`, under `Design notes`.
+- 2026-09-21 — [ADR-0054](0054-open-the-pull-request-from-xtask-in-two-verbs.md) extends the same
+  argument one step further along the flow: `cargo xtask pr` chooses the pull request body and its
+  keyword. It is a sibling command rather than a fourth verb of `spec`, because a tooling change has
+  a pull request and no feature branch.
 
 ## More Information
 

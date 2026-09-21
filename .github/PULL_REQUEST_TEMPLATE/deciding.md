@@ -6,8 +6,8 @@
   Stage 1 of 2 — DECIDING. Branch `NNN-slug-deciding`, issue label `deciding`.
   Contains spec.md, research.md and an answered decisions.md. No code.
 
-  Not built yet: `cargo xtask spec` still opens `NNN-slug-spec` and the label is still `spec`.
-  Until it catches up, this is the body to use and the branch you get is named for the old stage.
+  Opened once the sheet is answered and committed: `cargo xtask pr body`, fill it in,
+  `cargo xtask pr open`. The keyword is appended for you, and here it is `Refs`.
 
   This body answers one question: "is this what is wanted, and is this how it will be resolved?"
   It does not restate the spec — a reviewer who wants the spec opens it. Every section stays, and
@@ -19,7 +19,8 @@
 
 ## What the issue asks
 
-<!-- One or two lines, and the link. Closes #NNN. -->
+<!-- One or two lines. The keyword line is appended by `cargo xtask pr body`, so do not
+     write one here — this stage references the issue and does not close it. -->
 
 ## Which slice of the model this is
 

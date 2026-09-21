@@ -65,6 +65,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0051](0051-stop-at-the-decision-sheet-and-merge-three-stages-into-two.md) | Stop at the decision sheet, and merge three stages into two                      | accepted                             |
 | [0052](0052-show-the-rendering.md)                                         | Show the rendering                                                               | accepted                             |
 | [0053](0053-report-a-characterization-instead-of-reviewing-it.md)          | Report a characterization instead of reviewing it                                | accepted                             |
+| [0054](0054-open-the-pull-request-from-xtask-in-two-verbs.md)              | Open the pull request from xtask, in two verbs                                   | accepted                             |
 
 ## How to add one
 
