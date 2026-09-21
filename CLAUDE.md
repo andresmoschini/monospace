@@ -75,16 +75,13 @@ measurement and the options it rejected.
 cargo xtask check          # the whole quality gate; the hook and CI run this and nothing else
 cargo xtask fix            # every automatic fix the gate knows about
 cargo xtask setup          # install the Node tooling the gate needs
-cargo xtask spec new 23    # open a feature's first stage; also `spec stage <n> …` and `spec use <n>`
+cargo xtask spec new 23    # open the deciding stage; also `spec stage <n> build` and `spec use <n>`
 cargo run -p monospace-cli -- path.json   # render one description; bare `cargo run` is ambiguous
 cargo test --workspace     # tests only, for a faster loop
 cargo insta review         # accept a moved snapshot; report what moved first
 ```
 
-Two commands the rules describe are not written yet: `cargo xtask render`
-([ADR-0052](docs/decisions/0052-show-the-rendering.md)), and `spec`'s two stages, which still opens
-`-spec`, `-plan` and `-impl`
-([ADR-0051](docs/decisions/0051-stop-at-the-decision-sheet-and-merge-three-stages-into-two.md)).
-Follow the rule by hand and say so.
+One command the rules describe is not written yet: `cargo xtask render`
+([ADR-0052](docs/decisions/0052-show-the-rendering.md)). Follow the rule by hand and say so.
 
 `CONTRIBUTING.md` covers setup, which tool owns which file, and what to do when a check fails.

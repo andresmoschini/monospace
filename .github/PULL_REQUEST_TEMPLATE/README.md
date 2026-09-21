@@ -24,14 +24,17 @@ selector nobody uses.
     └── building.md
 ```
 
-**Not built yet.** The two stage bodies are meant to be passed to `gh pr create --body-file` by
-`cargo xtask spec`, which knows which stage it is opening. It does not do that yet, and it still
-opens the three branches of the arrangement ADR-0051 replaced. Until it does, copy the right file
-into the body by hand:
+The two stage bodies are passed by hand:
 
 ```sh
 gh pr create --base main --title "..." --body-file .github/PULL_REQUEST_TEMPLATE/deciding.md
 ```
+
+`cargo xtask spec` does not open the pull request, and choosing the body is why it could: it knows
+which stage it opened. What it does not know is _when_. Neither pull request is due when a command
+finishes — the deciding one waits for the sheet to be answered, which no Spec Kit command does, and
+the building one waits for a green `cargo xtask check`. Both moments are the maintainer's, so the
+command that opens the pull request is theirs to type.
 
 ## Why every section stays
 

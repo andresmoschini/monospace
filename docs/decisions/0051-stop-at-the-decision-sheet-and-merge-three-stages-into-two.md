@@ -58,3 +58,7 @@ Medium (65%), and three features whose deciding pull request changed nothing wou
 ## Revisions
 
 - 2026-09-21 — recorded. The tooling side is not built.
+- 2026-09-21 — the tooling landed, so the third consequence above no longer holds:
+  `cargo xtask spec` opens the two stages, and refuses the building one while the merged sheet has a
+  `_pending_` entry. That refusal was not part of this decision; it is what makes its checkpoint
+  mechanical, and [ADR-0034](0034-let-xtask-own-the-feature-branch.md) carries it.

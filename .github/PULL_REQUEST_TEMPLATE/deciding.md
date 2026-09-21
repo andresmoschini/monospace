@@ -6,8 +6,7 @@
   Stage 1 of 2 — DECIDING. Branch `NNN-slug-deciding`, issue label `deciding`.
   Contains spec.md, research.md and an answered decisions.md. No code.
 
-  Not built yet: `cargo xtask spec` still opens `NNN-slug-spec` and the label is still `spec`.
-  Until it catches up, this is the body to use and the branch you get is named for the old stage.
+  Opened once the sheet is answered and committed, with `--body-file` and `Refs #N`.
 
   This body answers one question: "is this what is wanted, and is this how it will be resolved?"
   It does not restate the spec — a reviewer who wants the spec opens it. Every section stays, and

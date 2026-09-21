@@ -62,7 +62,7 @@ work on it? Both still start from an issue and end in a pull request; only the m
 
 A feature is represented by exactly one issue. There is no parent issue and there are no story
 sub-issues ([ADR-0033](docs/decisions/0033-keep-the-flow-state-in-labels-on-one-issue.md)). That
-issue's number _is_ the feature's number, shared by the directory and by all three branches
+issue's number _is_ the feature's number, shared by the directory and by both branches
 ([ADR-0024](docs/decisions/0024-take-the-feature-number-from-its-issue.md)). The numbering skips
 wherever an issue was not a feature, and that is expected.
 
@@ -111,14 +111,18 @@ cargo xtask spec new 23           # opens the deciding stage for issue #23
 cargo xtask spec stage 23 build   # after the deciding pull request merged
 ```
 
-**Not built yet.** `cargo xtask spec` still opens the three branches of the arrangement ADR-0051
-replaced — `new` opens `NNN-slug-spec`, and `stage` takes `plan` or `impl` — and open issues still
-carry the labels `spec`, `plan` and `doing`. Until the tooling catches up, the two stages above are
-what to follow, and the branch you get is named for the old ones.
+`stage` refuses to open the building stage against a deciding stage that has not merged, and says
+which file it could not find in `origin/main`. That refusal is the whole point of the handoff: the
+precondition is a fact about `main`, not a judgement about a branch.
 
-`stage` refuses to open a stage whose predecessor has not merged, and says which file it could not
-find in `origin/main`. That refusal is the whole point of the handoff: the precondition is a fact
-about `main`, not a judgement about a branch.
+It also reads the merged sheet rather than only its name, and refuses while any entry still says
+`_pending_`, quoting the lines:
+
+```text
+xtask: `specs/023-read-a-diagram-description/decisions.md` is not answered: line 8 reads
+`- **Answer**: _pending_`. The building stage runs against an answered sheet, so answer it on the
+deciding branch and merge that first.
+```
 
 Inside each stage, the Spec Kit commands that belong to it, one per session:
 
@@ -199,7 +203,17 @@ A tooling change has one pull request and therefore one keyword: `Closes #N`.
 The body has a template, and which one depends on the same three shapes of change:
 [`.github/PULL_REQUEST_TEMPLATE/`](.github/PULL_REQUEST_TEMPLATE/README.md) explains why there are
 three and how each is reached. GitHub offers the tooling one by default; the two stage bodies are
-passed by hand with `--body-file` until `cargo xtask spec` opens the pull request itself.
+passed with `--body-file`, because GitHub reaches the others only through a `?template=` parameter
+nobody types.
+
+```sh
+gh pr create --base main --body-file .github/PULL_REQUEST_TEMPLATE/deciding.md  # then Refs #23
+gh pr create --base main --body-file .github/PULL_REQUEST_TEMPLATE/building.md  # then Closes #23
+```
+
+Neither is opened when a Spec Kit command ends. The deciding one is opened once the sheet is
+answered and committed, which is a step no command runs; the building one once `cargo xtask check`
+is green.
 
 ## The quality gate
 

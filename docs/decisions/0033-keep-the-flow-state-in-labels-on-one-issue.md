@@ -1,5 +1,7 @@
 ---
 status: accepted
+scope: tooling
+commitment: working
 date: 2026-09-11
 decision-makers: Andrés Moschini
 ---
@@ -183,6 +185,14 @@ What would prove it wrong: an issue observed carrying two state labels at once, 
 stage cannot be answered by its labels alone, forcing someone back to the board or to `spec.md` to
 find out where it stands. That is exactly the failure this decision is meant to make impossible by
 having one home for the answer.
+
+## Revisions
+
+- 2026-09-21 — [ADR-0051](0051-stop-at-the-decision-sheet-and-merge-three-stages-into-two.md)
+  replaced the three stages with two, so the state labels are now `wish`, `deciding` and `building`.
+  What this record decided — that the state is labels on one issue, and nothing else — is untouched;
+  only the names of three of them are. On GitHub, `doing` was renamed to `building` and kept its ten
+  closed issues, and `spec` and `plan` were deleted because no issue carried either.
 
 ## More Information
 
