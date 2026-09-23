@@ -29,10 +29,12 @@ fn run(args: &[&str]) -> Output {
 /// explicitly the same way a user would.
 const DEMO_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/demo.json");
 
-/// The first of the two captioned pictures a run prints, with its caption line and the blank
-/// line after it stripped, so it can be compared against what a description alone rendered
-/// before this feature (FR-014). Pins neither caption's wording.
-fn first_picture(output: &str) -> String {
+/// The first of the two captioned pictures the no-argument run prints, with its caption line and
+/// the blank line after it stripped. Pins neither caption's wording.
+///
+/// Only the demonstration is captioned. A file's run is one picture and nothing else, so a test
+/// that passes a path compares the whole of stdout.
+fn first_demonstrated_picture(output: &str) -> String {
     let (first_block, _rest) = output
         .split_once("\n\n")
         .expect("two captioned pictures separated by a blank line");
@@ -70,17 +72,24 @@ fn running_from_a_different_working_directory_prints_the_same_diagram() {
     assert_eq!(from_temp_dir.stdout, from_manifest_dir.stdout);
 }
 
-/// User story 2, acceptance scenario 3: passing the shipped demonstration's own path explicitly
-/// produces byte-identical output to no arguments, since both parse the same text through the
-/// same `Description::render` path.
+/// The shipped demonstration's own path, passed explicitly, prints the picture the no-argument
+/// run prints first — and stops there.
+///
+/// User story 2's acceptance scenario 3 asked for byte-identical output from both. It no longer
+/// holds, deliberately: the caption and the moved shape belong to the demonstration, not to a
+/// description someone hands the binary. What survives of the scenario is that both parse the
+/// same text and draw it the same way.
 #[test]
-fn the_demo_path_passed_explicitly_matches_no_arguments() {
+fn the_demo_path_passed_explicitly_prints_the_demonstrations_first_picture() {
     let no_arguments = run(&[]);
     let explicit_path = run(&[DEMO_PATH]);
 
     assert!(no_arguments.status.success());
     assert!(explicit_path.status.success());
-    assert_eq!(no_arguments.stdout, explicit_path.stdout);
+    assert_eq!(
+        String::from_utf8_lossy(&explicit_path.stdout),
+        first_demonstrated_picture(&String::from_utf8_lossy(&no_arguments.stdout))
+    );
 }
 
 /// User story 1, acceptance scenario 1: an explicit path to a hand-written single-box file
@@ -102,7 +111,7 @@ fn an_explicit_path_prints_the_hand_written_box() {
 
     assert!(output.status.success(), "exited with {}", output.status);
     assert_eq!(
-        first_picture(&String::from_utf8_lossy(&output.stdout)),
+        String::from_utf8_lossy(&output.stdout),
         "┌──┐\n│░░│\n└──┘\n"
     );
     assert!(output.stderr.is_empty(), "wrote to stderr");
@@ -137,7 +146,7 @@ fn a_file_with_a_box_a_line_and_an_arrow_prints_all_three_composed() {
     // waypoint coordinates. The model's own tie-break prefers the route that turns at the middle
     // of the route rectangle (x = 7), which is what this picture now pins.
     assert_eq!(
-        first_picture(&String::from_utf8_lossy(&output.stdout)),
+        String::from_utf8_lossy(&output.stdout),
         "┌──┐ >─┐  \n│░░│   │  \n└──┘   │ v\n       └─┘\n────      \n"
     );
     assert!(output.stderr.is_empty(), "wrote to stderr");
@@ -225,11 +234,11 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
 
     let (a, b) = overlap_boxes();
     assert_eq!(
-        first_picture(&String::from_utf8_lossy(&first_output.stdout)),
+        String::from_utf8_lossy(&first_output.stdout),
         render_back_to_front_with_above(&a, &b)
     );
     assert_eq!(
-        first_picture(&String::from_utf8_lossy(&second_output.stdout)),
+        String::from_utf8_lossy(&second_output.stdout),
         render_back_to_front_with_above(&b, &a)
     );
     assert_ne!(first_output.stdout, second_output.stdout);
@@ -447,110 +456,4 @@ fn crossings_between_the_new_tables_mix_or_degrade_depending_on_table_coverage()
         let ch = char_at(&stdout, x, y);
         assert_eq!(ch, expected, "{label}: expected {expected:?} at ({x}, {y})");
     }
-}
-
-/// TE-007: a description of two partially overlapping opaque boxes prints two captioned
-/// pictures — the first equal to the two boxes in the order written, the second equal to the two
-/// boxes in the opposite order — found by the blank line between them, pinning neither caption's
-/// wording.
-#[test]
-fn two_overlapping_boxes_print_two_captioned_pictures_in_opposite_orders() {
-    let path = write_description(
-        "te007-overlap",
-        r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
-            "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "░" },
-                { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "▓" }
-            ]
-        }"#,
-    );
-
-    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(output.status.success(), "exited with {}", output.status);
-
-    let (first_block, rest) = stdout
-        .split_once("\n\n")
-        .expect("two captioned pictures separated by a blank line");
-    let (_first_caption, first) = first_block
-        .split_once('\n')
-        .expect("a caption line precedes the first picture");
-    let (_second_caption, second) = rest
-        .split_once('\n')
-        .expect("a caption line precedes the second picture");
-
-    let (a, b) = overlap_boxes();
-    assert_eq!(
-        format!("{first}\n"),
-        render_back_to_front_with_above(&a, &b)
-    );
-    assert_eq!(second, render_back_to_front_with_above(&b, &a));
-}
-
-/// Spec.md US3 scenario 4, edge case: an empty description prints two identical pictures and
-/// succeeds, since there is no back-most shape to move.
-#[test]
-fn an_empty_description_prints_two_identical_pictures() {
-    let path = write_description(
-        "te-no-shapes",
-        r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
-            "shapes": []
-        }"#,
-    );
-
-    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(output.status.success(), "exited with {}", output.status);
-
-    let (first_block, rest) = stdout
-        .split_once("\n\n")
-        .expect("two captioned pictures separated by a blank line");
-    let (_first_caption, first) = first_block
-        .split_once('\n')
-        .expect("a caption line precedes the first picture");
-    let (_second_caption, second) = rest
-        .split_once('\n')
-        .expect("a caption line precedes the second picture");
-
-    assert_eq!(format!("{first}\n"), second);
-}
-
-/// Spec.md US3 scenario 4, edge case: a description holding exactly one shape prints two
-/// identical pictures, since that shape is both front-most and back-most and moving it changes
-/// nothing.
-#[test]
-fn a_description_with_one_shape_prints_two_identical_pictures() {
-    let path = write_description(
-        "te-one-shape",
-        r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
-            "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-                  "stroke": "light", "fill": "░" }
-            ]
-        }"#,
-    );
-
-    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    assert!(output.status.success(), "exited with {}", output.status);
-
-    let (first_block, rest) = stdout
-        .split_once("\n\n")
-        .expect("two captioned pictures separated by a blank line");
-    let (_first_caption, first) = first_block
-        .split_once('\n')
-        .expect("a caption line precedes the first picture");
-    let (_second_caption, second) = rest
-        .split_once('\n')
-        .expect("a caption line precedes the second picture");
-
-    assert_eq!(format!("{first}\n"), second);
 }

@@ -1569,3 +1569,49 @@ of the proposal was not built.
   What would enforce it is a step asserting that every `.snap` under that directory carries the
   sentence — a few lines of `xtask` deliberately not written here, because the repository has one
   snapshot-writing test and a check with one case cannot be made to fail for the right reason.
+
+## 2026-09-21 — SDD v2, increment 6: render and the check
+
+`cargo xtask render` and its gate step. Four commits: the CLI learned to render a file once, the
+command arrived, the gate gained an eleventh step, and the records followed.
+
+### Rust design and idiom
+
+- **An extension point with no user is not a refactor.** `Step` had to grow from "a program and its
+  arguments" to "either that or a function", because the new step needs this repository's Markdown
+  parsed and that code is already linked into the binary. The obvious shape was a preparatory
+  `refactor` commit ahead of the feature, per principle V — and it cannot go green alone, because
+  `-D warnings` rejects a variant nothing constructs. Rust says out loud what the principle leaves
+  to judgement: an abstraction whose first caller has not arrived is speculative, so it lands with
+  the caller, and the commit message says why rather than pretending the split was possible.
+- **Nested `cargo run` costs about ten times what the built binary costs.** 94 ms median against 10
+  ms, five runs each, warm. Irrelevant for one marker and the whole cost of the step for fifty,
+  which is the number this feature exists to produce — so the binary is built once and invoked
+  directly, and the measurement sits in the rustdoc next to the choice it settles.
+
+### Working this way
+
+- **The check found its first defect in the file that proposed it.** `docs/model.md`'s marker,
+  written by hand one increment ago as "the rule followed by hand", had no closing
+  `<!-- /render -->`. Nothing could have noticed: a marker with no tool is a comment. The second
+  defect was the parser's own — a marker shown inside a fence was read as an instance of the
+  grammar, so no document could document the format, and `CONTRIBUTING.md` could not be written
+  until that was fixed.
+- **Two approved drafts disagreed with two merged rules, and the rules were right.** The proposal
+  showed `<!-- render: examples/x.json -->` and a side-by-side `A=… B=…` form. The constitution,
+  written out of the same work, asks for "a description the file carries", and principle VIII
+  exempts "a picture and the description it comes from" from a ceiling — an exemption that means
+  nothing if the description is in another file. Asking before building cost one exchange and saved
+  building the wrong half of a command.
+
+### Trade-offs worth remembering
+
+- **The step can only see the pictures that opted in.** A hand-drawn fence is a fence; nothing
+  mechanical distinguishes it from prose or from a shell transcript. So the rule's second half —
+  every picture is generated _or labelled hypothetical_ — stays enforced by review, and the
+  migration of what is already tracked stays lazy, in issue #112. The gate closed the half that was
+  closable, and saying which half that is matters more than the half itself.
+- **A ceiling that moves the first time it hurts is not a ceiling.** ADR-0052 came to 66 lines
+  against the 60 a `working` record gets. What came out was a sentence the constitution already
+  says, a paragraph the new revision entry restated, and a cross-reference spelled twice. The
+  ceiling found six lines of duplication, which is the job.

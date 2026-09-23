@@ -14,6 +14,7 @@ use std::process::{Command, ExitCode};
 
 mod pr;
 mod process;
+mod render;
 mod spec;
 
 /// The npm executable.
@@ -27,14 +28,32 @@ const NPM: &str = "npm.cmd";
 #[cfg(not(windows))]
 const NPM: &str = "npm";
 
-/// One step of the quality gate: a label to report it by, and the command that implements it.
+/// One step of the quality gate: a label to report it by, and what implements it.
 struct Step {
     /// Short name shown in the output and in the failure summary.
     name: &'static str,
-    /// Executable to run, resolved through `PATH`.
-    program: &'static str,
-    /// Arguments passed to `program`.
-    args: &'static [&'static str],
+    /// What running this step does.
+    action: Action,
+}
+
+/// What a step does when it runs.
+///
+/// Every step was a subprocess until `render` arrived, and that one needs this repository's own
+/// Markdown parsed — code already linked into this binary. Spawning `cargo xtask` from inside
+/// `cargo xtask` to reach it would buy nothing but a second process and a nested build.
+///
+/// The two variants report identically: each prints what it found and answers whether it passed,
+/// so `run_gate` and `run_fix` do not care which one they were given.
+enum Action {
+    /// An external program and its arguments, run from the workspace root.
+    Spawn {
+        /// Executable to run, resolved through `PATH`.
+        program: &'static str,
+        /// Arguments passed to `program`.
+        args: &'static [&'static str],
+    },
+    /// A function of this crate's own, given the workspace root.
+    Here(fn(&Path) -> bool),
 }
 
 /// Every step of the quality gate, in the order they run.
@@ -51,8 +70,10 @@ struct Step {
 const GATE: &[Step] = &[
     Step {
         name: "fmt",
-        program: "cargo",
-        args: &["fmt", "--all", "--check"],
+        action: Action::Spawn {
+            program: "cargo",
+            args: &["fmt", "--all", "--check"],
+        },
     },
     Step {
         name: "prettier",
@@ -60,20 +81,24 @@ const GATE: &[Step] = &[
         // call for nothing. Formatting and line width for Markdown and JSON are decided here;
         // .editorconfig supplies indentation and line endings, so the editor and this step read the
         // same source.
-        program: "node_modules/.bin/prettier",
-        // --ignore-unknown makes prettier skip file types it has no parser for instead of failing
-        // on them. Given a directory it already only picks up what it understands, so this changes
-        // nothing today; it matters the moment anyone passes explicit paths, where prettier
-        // otherwise exits 2 with "No parser could be inferred" for a file like .nvmrc. Those files
-        // are not unchecked: the editorconfig step reads them.
-        args: &["--check", "--ignore-unknown", "."],
+        action: Action::Spawn {
+            program: "node_modules/.bin/prettier",
+            // --ignore-unknown makes prettier skip file types it has no parser for instead of failing
+            // on them. Given a directory it already only picks up what it understands, so this changes
+            // nothing today; it matters the moment anyone passes explicit paths, where prettier
+            // otherwise exits 2 with "No parser could be inferred" for a file like .nvmrc. Those files
+            // are not unchecked: the editorconfig step reads them.
+            args: &["--check", "--ignore-unknown", "."],
+        },
     },
     Step {
         name: "markdownlint",
         // Globs and ignores live in .markdownlint-cli2.jsonc, so this takes no arguments and the
         // configuration has one home. It checks structure only; prettier owns formatting.
-        program: "node_modules/.bin/markdownlint-cli2",
-        args: &[],
+        action: Action::Spawn {
+            program: "node_modules/.bin/markdownlint-cli2",
+            args: &[],
+        },
     },
     Step {
         name: "editorconfig",
@@ -83,73 +108,95 @@ const GATE: &[Step] = &[
         //
         // Its indent-size check is turned off in .editorconfig-checker.json, for the reason
         // recorded there.
-        program: "node_modules/.bin/editorconfig-checker",
-        args: &[],
+        action: Action::Spawn {
+            program: "node_modules/.bin/editorconfig-checker",
+            args: &[],
+        },
     },
     Step {
         name: "cspell",
-        program: "node_modules/.bin/cspell",
-        // Everything tracked, not just Markdown and source. Restricting the glob was measured to
-        // save nothing, and a narrower scope would have missed the placeholder left in LICENSE, as
-        // well as the shell and YAML files added later.
-        //
-        // --cache takes this step from about 1500 ms to about 850 ms, which is the largest single
-        // saving available in the gate. It was checked for the failure that would matter: editing
-        // project-words.txt or cspell.jsonc invalidates the cache and every file is re-examined, so
-        // it cannot report success from a stale result after the rules change.
-        args: &["--no-progress", "--gitignore", "--cache", "**"],
+        action: Action::Spawn {
+            program: "node_modules/.bin/cspell",
+            // Everything tracked, not just Markdown and source. Restricting the glob was measured to
+            // save nothing, and a narrower scope would have missed the placeholder left in LICENSE, as
+            // well as the shell and YAML files added later.
+            //
+            // --cache takes this step from about 1500 ms to about 850 ms, which is the largest single
+            // saving available in the gate. It was checked for the failure that would matter: editing
+            // project-words.txt or cspell.jsonc invalidates the cache and every file is re-examined, so
+            // it cannot report success from a stale result after the rules change.
+            args: &["--no-progress", "--gitignore", "--cache", "**"],
+        },
     },
     Step {
         name: "clippy",
-        program: "cargo",
-        // The lints themselves live in [workspace.lints]; `-D warnings` is what turns the warnings
-        // they produce into a failure here without making the editor shout while code is half
-        // written.
-        args: &[
-            "clippy",
-            "--workspace",
-            "--all-targets",
-            "--",
-            "-D",
-            "warnings",
-        ],
+        action: Action::Spawn {
+            program: "cargo",
+            // The lints themselves live in [workspace.lints]; `-D warnings` is what turns the warnings
+            // they produce into a failure here without making the editor shout while code is half
+            // written.
+            args: &[
+                "clippy",
+                "--workspace",
+                "--all-targets",
+                "--",
+                "-D",
+                "warnings",
+            ],
+        },
     },
     Step {
         name: "build",
-        program: "cargo",
-        args: &["build", "--workspace", "--all-targets"],
+        action: Action::Spawn {
+            program: "cargo",
+            args: &["build", "--workspace", "--all-targets"],
+        },
     },
     Step {
         name: "wasm",
-        program: "cargo",
-        // ADR-0001 asks the core to stay free of terminal and command-line assumptions so it can
-        // back a WebAssembly build later. This is what turns that from a claim in a document into
-        // something the compiler refuses to let through. The target installs itself via
-        // rust-toolchain.toml, so this needs no setup.
-        args: &[
-            "check",
-            "-p",
-            "monospace-core",
-            "-p",
-            "monospace-diagram",
-            "-p",
-            "monospace-glyph-sets",
-            "--target",
-            "wasm32-unknown-unknown",
-        ],
+        action: Action::Spawn {
+            program: "cargo",
+            // ADR-0001 asks the core to stay free of terminal and command-line assumptions so it can
+            // back a WebAssembly build later. This is what turns that from a claim in a document into
+            // something the compiler refuses to let through. The target installs itself via
+            // rust-toolchain.toml, so this needs no setup.
+            args: &[
+                "check",
+                "-p",
+                "monospace-core",
+                "-p",
+                "monospace-diagram",
+                "-p",
+                "monospace-glyph-sets",
+                "--target",
+                "wasm32-unknown-unknown",
+            ],
+        },
     },
     Step {
         name: "test",
-        program: "cargo",
-        // This also runs the doctests, so there is no separate step for them.
-        args: &["test", "--workspace"],
+        action: Action::Spawn {
+            program: "cargo",
+            // This also runs the doctests, so there is no separate step for them.
+            args: &["test", "--workspace"],
+        },
     },
     Step {
         name: "doc",
-        program: "cargo",
-        // The rustdoc lints are set to "deny" in [workspace.lints.rustdoc], so a broken intra-doc
-        // link fails here on its own; unlike clippy, this step needs no -D flag.
-        args: &["doc", "--workspace", "--no-deps"],
+        action: Action::Spawn {
+            program: "cargo",
+            // The rustdoc lints are set to "deny" in [workspace.lints.rustdoc], so a broken intra-doc
+            // link fails here on its own; unlike clippy, this step needs no -D flag.
+            args: &["doc", "--workspace", "--no-deps"],
+        },
+    },
+    Step {
+        name: "render",
+        // This is what stops a picture in a document from lying: it re-renders every description a
+        // tracked Markdown file carries and fails where the picture beside it has moved
+        // (ADR-0052). It sits last because it builds and runs the workspace's own binary, so it
+        // belongs with the steps that compile rather than with the ones that read text.
+        action: Action::Here(render::check),
     },
 ];
 
@@ -166,23 +213,38 @@ const GATE: &[Step] = &[
 const FIX: &[Step] = &[
     Step {
         name: "fmt",
-        program: "cargo",
-        args: &["fmt", "--all"],
+        action: Action::Spawn {
+            program: "cargo",
+            args: &["fmt", "--all"],
+        },
+    },
+    Step {
+        name: "render",
+        // Ahead of the Markdown formatters, so that whatever it writes into a fence is theirs to
+        // normalize rather than the other way round. It qualifies as a fixer on ADR-0020's own
+        // test: a picture's one right answer is what its description renders.
+        action: Action::Here(render::fix),
     },
     Step {
         name: "prettier",
-        program: "node_modules/.bin/prettier",
-        args: &["--write", "--ignore-unknown", "."],
+        action: Action::Spawn {
+            program: "node_modules/.bin/prettier",
+            args: &["--write", "--ignore-unknown", "."],
+        },
     },
     Step {
         name: "markdownlint",
-        program: "node_modules/.bin/markdownlint-cli2",
-        args: &["--fix"],
+        action: Action::Spawn {
+            program: "node_modules/.bin/markdownlint-cli2",
+            args: &["--fix"],
+        },
     },
     Step {
         name: "editorconfig",
-        program: "node_modules/.bin/editorconfig-checker",
-        args: &["-fix"],
+        action: Action::Spawn {
+            program: "node_modules/.bin/editorconfig-checker",
+            args: &["-fix"],
+        },
     },
 ];
 
@@ -193,6 +255,7 @@ fn main() -> ExitCode {
         Some("check") => run_gate(),
         Some("fix") => run_fix(),
         Some("setup") => run_setup(),
+        Some("render") => render::run(args),
         Some("spec") => spec::run(args),
         Some("pr") => pr::run(args),
         None | Some("help" | "--help" | "-h") => {
@@ -297,18 +360,19 @@ fn run_fix() -> ExitCode {
 
 /// Runs one step from the workspace root, returning whether it succeeded.
 fn run(root: &Path, step: &Step) -> bool {
-    let program = program_path(root, step.program);
+    match step.action {
+        Action::Spawn { program, args } => {
+            let program = program_path(root, program);
 
-    match Command::new(&program)
-        .args(step.args)
-        .current_dir(root)
-        .status()
-    {
-        Ok(status) => status.success(),
-        Err(error) => {
-            eprintln!("xtask: could not run `{}`: {error}", program.display());
-            false
+            match Command::new(&program).args(args).current_dir(root).status() {
+                Ok(status) => status.success(),
+                Err(error) => {
+                    eprintln!("xtask: could not run `{}`: {error}", program.display());
+                    false
+                }
+            }
         }
+        Action::Here(function) => function(root),
     }
 }
 
@@ -337,11 +401,13 @@ fn run_setup() -> ExitCode {
     let root = workspace_root();
     let step = Step {
         name: "setup",
-        program: NPM,
-        // `npm ci` installs strictly from the lockfile and deletes anything that does not belong,
-        // so two machines end up with the same tree. `npm install` would quietly rewrite the
-        // lockfile instead, which is the opposite of what a pinned setup wants.
-        args: &["ci"],
+        action: Action::Spawn {
+            program: NPM,
+            // `npm ci` installs strictly from the lockfile and deletes anything that does not belong,
+            // so two machines end up with the same tree. `npm install` would quietly rewrite the
+            // lockfile instead, which is the opposite of what a pinned setup wants.
+            args: &["ci"],
+        },
     };
 
     println!("--- {} ---", step.name);
@@ -427,6 +493,7 @@ fn print_usage() {
     println!("  check    Run every quality gate step; this is what the hook and CI run");
     println!("  fix      Run every step of the gate that can fix what it finds");
     println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
+    println!("  render   Regenerate the pictures tracked Markdown files carry");
     println!(
         "  spec     Manage a feature's branch lifecycle; `cargo xtask spec help` lists its verbs"
     );

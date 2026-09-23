@@ -24,14 +24,26 @@
 
 ## D1 — {the question, in one line}
 
-<!-- render: A=examples/d1-proposal.json B=examples/d1-alternative.json -->
+<!--
+  Two markers, one per option, each labelled by the line above it. Replace this comment and the
+  block below with them; `cargo xtask render` fills the fences and `cargo xtask check` keeps them
+  honest. The description goes inside the marker, not in a file beside it.
+-->
+
+````markdown
+**The proposal.**
+
+<!-- render:
+{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+  "shapes": [ … ] }
+-->
 
 ```text
-A: {the proposal}    B: {the alternative}
-{generated}          {generated}
+
 ```
 
 <!-- /render -->
+````
 
 - **Proposal**: {one sentence — why, not what the picture already shows}
 - **Altitude**: domain | module:{path} | tooling
