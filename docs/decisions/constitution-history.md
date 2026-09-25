@@ -16,6 +16,35 @@ which is where work waiting to be done belongs.
 
 ---
 
+Sync Impact Report — 2026-09-21
+
+Version change: 1.6.0 → 2.0.0
+
+MAJOR: principle VI is redefined in a way earlier practice does not satisfy. A decision now declares
+the altitude it belongs to and the commitment it carries, one record covers one subject rather than
+one moment, and a record at the two lower commitments is revised rather than superseded. Records
+written before this version stay valid and are reclassified when next touched, not in a sweep.
+
+Also: IV gains _Show the rendering_; VIII is new; Testing gains the contract/characterization split
+and forbids calling a characterization reviewed; three feature stages become two, with the cut after
+the decision sheet; _The model owns the design_ gains what it excludes.
+
+Implements ADR-0050 (altitude and commitment), ADR-0051 (the decision sheet and two stages,
+superseding ADR-0032), ADR-0052 (show the rendering) and ADR-0053 (a characterization is reported,
+not reviewed, revising ADR-0045). Those records hold the reasoning; this report does not repeat it.
+
+Templates replaced in the same increment: spec, plan, ADR, and decisions (new). Unchanged:
+checklist, tasks.
+
+Not yet built, and named here as though it were: `cargo xtask render` with the gate step beside it
+(ADR-0052), and `cargo xtask spec`'s two stages (ADR-0051). Until each lands, the rule it belongs to
+is enforced by review, and its ADR says so.
+
+Earlier reports: docs/decisions/constitution-history.md. Open follow-ups are `wish` issues, not a
+list here.
+
+---
+
 Sync Impact Report — 2026-09-14
 
 Version change: 1.5.0 → 1.6.0

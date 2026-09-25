@@ -1,25 +1,17 @@
 <!--
-Sync Impact Report — 2026-09-21 | 1.6.0 → 2.0.0
+Sync Impact Report — 2026-09-25 | 2.0.0 → 2.0.1
 
-MAJOR: principle VI is redefined in a way earlier practice does not satisfy. A decision now declares
-the altitude it belongs to and the commitment it carries, one record covers one subject rather than
-one moment, and a record at the two lower commitments is revised rather than superseded. Records
-written before this version stay valid and are reclassified when next touched, not in a sweep.
+PATCH: clarification and wording only. No principle is added, removed or redefined, and no scope is
+widened. Governance named four documents and the ones that own what; it now also names AGENTS.md,
+and says of the two session-guidance files that each is a router rather than a second copy of what
+is stated here. That is the whole change.
 
-Also: IV gains _Show the rendering_; VIII is new; Testing gains the contract/characterization split
-and forbids calling a characterization reviewed; three feature stages become two, with the cut after
-the decision sheet; _The model owns the design_ gains what it excludes.
+It closes the follow-up ADR-0056 recorded when it was written: a second harness reads AGENTS.md
+rather than CLAUDE.md, and the constitution did not say who owns session guidance for it.
+Implements ADR-0056; that record holds the reasoning and this report does not repeat it.
 
-Implements ADR-0050 (altitude and commitment), ADR-0051 (the decision sheet and two stages,
-superseding ADR-0032), ADR-0052 (show the rendering) and ADR-0053 (a characterization is reported,
-not reviewed, revising ADR-0045). Those records hold the reasoning; this report does not repeat it.
-
-Templates replaced in the same increment: spec, plan, ADR, and decisions (new). Unchanged:
-checklist, tasks.
-
-Not yet built, and named here as though it were: `cargo xtask render` with the gate step beside it
-(ADR-0052), and `cargo xtask spec`'s two stages (ADR-0051). Until each lands, the rule it belongs to
-is enforced by review, and its ADR says so.
+The two items version 2.0.0 named as not yet built — `cargo xtask render` and the gate step beside
+it, and `cargo xtask spec`'s two stages — are both in `xtask` and in the gate.
 
 Earlier reports: docs/decisions/constitution-history.md. Open follow-ups are `wish` issues, not a
 list here.
@@ -394,8 +386,10 @@ Cite a section of another document by its name, not by its number.
 This constitution supersedes prior practice wherever the two conflict. It owns the principles, the
 scope and the constraints. [`docs/model.md`](../../docs/model.md) owns the domain's design and its
 open questions; the GitHub Project owns direction and the backlog; `CONTRIBUTING.md` owns how to run
-the tooling; `CLAUDE.md` owns session guidance. Where any of them restates a rule stated here, this
-file is the one to follow and the duplication is a defect to remove.
+the tooling; session guidance is owned by the file the harness reads, `CLAUDE.md` for Claude Code
+and `AGENTS.md` for OpenCode, and each of the two is a router rather than a second copy of what is
+stated here. Where any of them restates a rule stated here, this file is the one to follow and the
+duplication is a defect to remove.
 
 ### Amendment procedure
 
@@ -419,4 +413,4 @@ enforced by `cargo xtask check` and are not a matter of review. The rest — thi
 commits kept separate, decisions recorded at the right altitude, claims measured, the decision sheet
 answered before Phase 1 — is checked by reading, at plan time and at review time.
 
-**Version**: 2.0.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-21
+**Version**: 2.0.1 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-25
