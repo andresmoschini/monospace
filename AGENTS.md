@@ -53,6 +53,13 @@ are the same ten prompts, versioned together, and the gate does not own them.
   path form.
 - **Contract and characterization snapshots are separated by directory, not by naming** —
   `insta::Settings::set_snapshot_path`. The arrow sweep is 1856 renderings across 8 files.
+- **Prettier owns the width, at 100 columns, and it reflows rather than refusing.** Rewording a
+  paragraph to shorten it buys nothing — the words return on the next `cargo xtask fix`. Meeting an
+  artifact ceiling, 60 lines for a `working` ADR, means deleting content or splitting the decision
+  into two records. Rewrapping is not a way under it.
+- **`docs/decisions/README.md` is one prettier-aligned table, and a partial edit corrupts it
+  silently.** Anchoring on a fragment of a row leaves the rest of that row on the line below, and
+  prettier then reflows the damage rather than rejecting it. Replace a whole row, never a fragment.
 
 ## For this harness specifically
 
