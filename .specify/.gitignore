@@ -7,3 +7,7 @@ feature.json
 
 # Per-machine extension config overrides.
 extensions/*/local-config.yml
+
+# The integration catalog cache the CLI fetches. Machine-local, and rewritten on every
+# `specify integration` command, so sharing it would only produce churn.
+integrations/.cache/
