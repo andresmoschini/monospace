@@ -63,9 +63,24 @@ are the same ten prompts, versioned together, and the gate does not own them.
 
 ## For this harness specifically
 
-- **`.opencode/plugins/install-git-hooks.js` installs the git hooks when a session starts**, the
-  same way `.claude/settings.json` does for Claude Code. Check it with `git config core.hooksPath`;
-  a commit made with the hooks absent runs no gate and says nothing.
+- **Two plugins live in `.opencode/plugins/`, and nothing in the gate can execute them.** They are
+  the only thing that installs the git hooks here and the only thing that puts a session id in a
+  commit, so a failure in either is silent, and check that they loaded before assuming either works.
+  Each logs a line when it arms, and it reaches the TUI and not
+  `~/.local/share/opencode/log/opencode.log` — measured, that file has never held a `[monospace]`
+  line whether the plugin loaded or died, so do not read its absence there as evidence. The log
+  file's own `loading plugin` and `failed to load plugin` entries are the readable signal, and the
+  second carries the cause. A reload unloads a plugin without warning: anything that checks out
+  these files, a rebase among them, drops both until they load again, and a session that loses
+  `session-trailer.js` loses the variable with it. A missing line is usually not the API moving: the
+  loader dies at module resolution first, and a local plugin's bare imports resolve from this
+  project's `node_modules`, so whatever a plugin imports has to be a dependency here. What it must
+  export is a default object carrying an `id` and a `setup`.
+  [ADR-0058](docs/decisions/0058-install-the-git-hooks-from-an-opencode-session-too.md)'s revisions
+  carry the history.
+- **`OpenCode-Session` and `Claude-Resume` are separate trailer keys** on purpose: neither client's
+  id resumes the other. `commit-msg` reads `MONOSPACE_SESSION_ID` and `CLAUDE_CODE_SESSION_ID`. A
+  commit made outside an agent shell correctly carries neither.
 - **Speckit's own files are written with CRLF on Windows.** `git add` refuses them, because
   `.gitattributes` normalizes to LF and `core.safecrlf` is on. Normalize after any
   `specify integration install` or `specify update`:

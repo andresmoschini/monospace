@@ -11,14 +11,9 @@ decision-makers: Andrés Moschini
 ## Context and Problem Statement
 
 The hooks are installed by a `SessionStart` entry in `.claude/settings.json`, and nothing else
-installs them. A commit made from OpenCode, or from a plain terminal in a clone where no Claude Code
-session has ever opened, runs no gate and prints nothing: the commit simply succeeds. ADR-0005
-records that trade and its cost, and the cost was accepted deliberately — CI is the boundary that
-holds, and the hooks are fast feedback in front of it.
-
-That reasoning covers a client with no session-start mechanism. OpenCode has one, and the same work
-that added `AGENTS.md` found it: a plugin's body runs at startup, the moment `SessionStart` fires in
-the other harness.
+installs them. A commit made from OpenCode runs no gate and prints nothing: it succeeds, and
+ADR-0005 records that trade. OpenCode has a session-start mechanism, and a plugin's `setup` is the
+nearest equivalent, so one file under `.opencode/plugins/` closes the gap.
 
 ## Decision Drivers
 
@@ -37,24 +32,29 @@ choice.
 The command is `git -C ${worktree} config --local core.hooksPath .claude/git-hooks`. `--local` and
 `-C` are both load-bearing: a bare `git config` outside a checkout writes the global config, so a
 session pointed at the wrong directory would change every other repository silently. The failure is
-logged and swallowed, because a hook installer that can stop a session is worse than the gap it
-closes.
+logged and swallowed: a hook installer that can stop a session is worse than the gap it closes.
 
 ### Consequences
 
-- Good, because an OpenCode session leaves the tree in the state the gate assumes, and because it is
-  one file with no configuration, so nothing has to be kept in step beyond the command.
+- Good, because an OpenCode session leaves the tree in the state the gate assumes.
 - Bad, because it is JavaScript in a repository that is otherwise Rust and shell, and nothing checks
-  it: `.prettierignore` excludes `.opencode/`, so no formatter reads it and nothing parses it. Only
-  a session starting exercises it.
-- Bad, because it could not be verified from here. The command was run and read back; that the
-  plugin loads was not observed, because that needs a session already past its own load.
+  it: `.prettierignore` excludes `.opencode/`, so no formatter reads it and nothing parses it.
 
 ## Reversibility
 
-Delete one file. The cost is a session's worth of the gap returning. What grows is the duplication:
-the command now lives in two harnesses' configuration and nothing checks the two agree.
+Delete one file. The cost is a session's worth of the gap returning.
 
 ## Revisions
 
 - 2026-09-25 — recorded with `.opencode/plugins/install-git-hooks.js`.
+- 2026-09-25 — the first version did not run. It was written against the V1 plugin API, and
+  OpenCode's own migration guide states that V1 plugin implementations do not run in V2; this
+  machine is on v2.0.16. Rewritten to `Plugin.define` with the work in `setup`, and it now logs on
+  load, because the `Bad` above turned out to be the whole story rather than a caveat.
+- 2026-09-25 — so it did not run either, one step earlier. The cause was
+  `import { Plugin } from "@opencode/plugin"`: nothing in this tree provides that package, so each
+  start died at module resolution before `setup` was entered. Dropped it — the loader asks for a
+  default export carrying an `id` and a `setup`, and `Plugin.define` is the identity function. The
+  diagnosis came from `grep '\[monospace\]'` returning nothing, and that step was unsound: the line
+  reaches the TUI, not the log file, so its absence there proved nothing at all. The loader's own
+  `failed to load plugin` entry carried the cause the whole time, and nobody read it.
