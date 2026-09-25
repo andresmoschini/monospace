@@ -1615,3 +1615,41 @@ command arrived, the gate gained an eleventh step, and the records followed.
   against the 60 a `working` record gets. What came out was a sentence the constitution already
   says, a paragraph the new revision entry restated, and a cross-reference spelled twice. The
   ceiling found six lines of duplication, which is the job.
+
+## 2026-09-25 — the second instruction file
+
+`AGENTS.md`, for the harness that reads it and not `CLAUDE.md`. Four commits: a correction to the
+gate table, the file and the record that justifies it, the amendment the record required, and this
+entry.
+
+### Working this way
+
+- **A router and a copy of the rules are different artifacts, and the line count is how you find out
+  which one you wrote.** `AGENTS.md` went out at 212 lines and came back at 59 once the
+  constitution, `CONTRIBUTING.md` and `CLAUDE.md` were measured against it. `_pending_`,
+  `core.hooksPath`, the two-stage table, the `tasks.md` commit rule, cspell's American English — all
+  of it was already written down, and the new file was the third copy of several of those. Nothing
+  had claimed a duplication and none was obvious from writing the file; reading the three sources
+  against each other is what produced the list, and that reading is the only instrument that finds
+  it.
+- **`CONTRIBUTING.md` was the file I knew least about and duplicated most.** The README's four-row
+  layout table and `CLAUDE.md`'s quick reference both read like the tooling's documentation, and
+  both are far thinner than the real thing — 26 KB covering setup, the stages, file ownership, the
+  hooks and what to do when a check fails.
+- **A second client changes the document, not the rules.** The gap was never that the rules were
+  missing; it was that a harness reading `AGENTS.md` cannot expand the import on `CLAUDE.md`'s first
+  line. So the first move was a file, and the amendment came second — because Governance enumerated
+  the documents that own what, and the new one was not among them. Naming it was a separate question
+  from writing it, and the record is what kept them from collapsing into one commit.
+
+### Trade-offs worth remembering
+
+- **The ceiling found the duplication, twice.** ADR-0056 came to 68 lines against the 60 a `working`
+  record gets, and what came out was a driver restating a consequence almost verbatim, a clause the
+  revision entry repeated, and a Context sentence the Good consequence already made. ADR-0052 hit
+  the same wall at 66. A ceiling that only ever costs prose teaches nothing; a ceiling that keeps
+  turning up duplication is doing the job it was written for.
+- **Cutting a file to 59 lines is a claim that can be wrong, in the direction that hides things.**
+  What survives is what no document holds, and that set is invisible until the sources are read
+  against each other — so the residual is a judgement, not a measurement. Issue #113 tracks the same
+  defect in the two files that predate this one, and it should widen to name this one.
