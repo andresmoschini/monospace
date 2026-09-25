@@ -20,7 +20,9 @@ The reasoning is [ADR-0056](docs/decisions/0056-give-opencode-its-own-instructio
 4. `docs/decisions/` — numbered ADRs, `0000-kebab-slug.md`, each declaring a `scope` and a
    `commitment`. Before writing a record, look for the one that already covers your subject.
 
-Spec Kit's skills are in `.claude/skills/speckit-*` and its templates in `.specify/templates/`.
+Speckit's own artifacts are generated, not written by hand, and both harnesses have them:
+`.opencode/commands/` for the slash commands here, `.claude/skills/speckit-*/` for Claude Code. They
+are the same ten prompts, versioned together, and the gate does not own them.
 
 ## Facts that are in the code and in no document
 
@@ -54,6 +56,10 @@ Spec Kit's skills are in `.claude/skills/speckit-*` and its templates in `.speci
 
 ## For this harness specifically
 
-- **The git hooks are installed by a Claude Code `SessionStart`, not by a tool.** Nothing in an
-  OpenCode session installs them, so a commit skips the gate and says nothing. Once per clone:
-  `git config core.hooksPath .claude/git-hooks`.
+- **`.opencode/plugins/install-git-hooks.js` installs the git hooks when a session starts**, the
+  same way `.claude/settings.json` does for Claude Code. Check it with `git config core.hooksPath`;
+  a commit made with the hooks absent runs no gate and says nothing.
+- **Speckit's own files are written with CRLF on Windows.** `git add` refuses them, because
+  `.gitattributes` normalizes to LF and `core.safecrlf` is on. Normalize after any
+  `specify integration install` or `specify update`:
+  `sed -i 's/\r$//' .specify/*.json .opencode/commands/*.md`
