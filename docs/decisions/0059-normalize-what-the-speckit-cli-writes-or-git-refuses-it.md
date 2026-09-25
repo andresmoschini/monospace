@@ -30,12 +30,13 @@ Code writes the same bytes, and a `specify update` would too.
 
 ## Decision Outcome
 
-Chosen option: **normalize the CLI's output to LF before staging, by hand**, because the two
-mechanisms that could do it automatically are both switched off on purpose, and the alternative is
-to weaken a rule the whole repository rests on.
+Chosen option: **normalize the CLI's output to LF before staging, by hand**, because both mechanisms
+that could do it automatically are switched off on purpose.
 
 The step is one command, and it belongs in `AGENTS.md` under what a session needs to know rather
-than in `CONTRIBUTING.md`, which owns the tooling's own commands.
+than in `CONTRIBUTING.md`, which owns the tooling's own commands. Making it automatic is
+[issue #125](https://github.com/andresmoschini/monospace/issues/125), and the two `Bad` lines below
+are what it exists to remove.
 
 ### Consequences
 
@@ -48,8 +49,8 @@ than in `CONTRIBUTING.md`, which owns the tooling's own commands.
 
 ## Reversibility
 
-Free either way. Normalizing is a one-line command and the result is what the repository wanted
-anyway; not normalizing means the files cannot be committed.
+Free either way: normalizing is a one-line command, and the result is what the repository wanted
+anyway.
 
 What grows is the number of Speckit commands that carry the step, and the chance that someone
 "fixes" a `fatal: CRLF` by disabling `core.safecrlf` instead, which would be silent everywhere else.
