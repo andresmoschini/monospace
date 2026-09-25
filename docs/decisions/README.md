@@ -67,6 +67,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0053](0053-report-a-characterization-instead-of-reviewing-it.md)          | Report a characterization instead of reviewing it                                | accepted                             |
 | [0054](0054-open-the-pull-request-from-xtask-in-two-verbs.md)              | Open the pull request from xtask, in two verbs                                   | accepted                             |
 | [0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md)            | An arrow's route is a path, and nothing bounds it                                | accepted                             |
+| [0056](0056-give-opencode-its-own-instruction-file.md)                     | Give OpenCode its own instruction file, and leave Claude Code's alone            | accepted                             |
 
 ## How to add one
 

@@ -249,7 +249,7 @@ you fix problems one at a time. A step passes or fails on its exit code alone.
 | `cspell`       | Spelling, in code and prose alike                                              |
 | `clippy`       | Lints, including `pedantic`, with warnings denied                              |
 | `build`        | The workspace compiles, tests and all                                          |
-| `wasm`         | `monospace-core` still compiles for `wasm32-unknown-unknown`                   |
+| `wasm`         | Every crate but `monospace-cli` still compiles for `wasm32-unknown-unknown`    |
 | `test`         | Unit tests, integration tests and doctests                                     |
 | `doc`          | `cargo doc` builds, with broken intra-doc links denied                         |
 | `render`       | Every generated picture still matches the description beside it                |
