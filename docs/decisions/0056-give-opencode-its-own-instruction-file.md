@@ -13,14 +13,14 @@ decision-makers: Andrés Moschini
 Session guidance reaches an agent through `CLAUDE.md`, whose first line is
 `@.specify/memory/constitution.md` — an import Claude Code expands at launch. OpenCode reads
 `AGENTS.md` instead and expands no import, so an OpenCode session had no session guidance at all:
-both were files it had to know to open. The same gap already has a name here — the git hooks,
-installed only by a Claude Code `SessionStart`, so a commit from any other client runs no gate and
-says nothing ([ADR-0005](0005-install-the-git-hooks-from-claude-code.md)).
+both were files it had to know to open. The same gap already has a name here: the git hooks,
+installed only by a Claude Code `SessionStart`, so a commit from another client runs no gate
+([ADR-0005](0005-install-the-git-hooks-from-claude-code.md)).
 
-What forces the decision is that the second file now exists, and whether it becomes a second copy of
-the rules or a second owner of them is a question about governance: the constitution's
-[Governance](../../.specify/memory/constitution.md#governance) section names who owns what, and
-`AGENTS.md` is not in the list.
+What forces the decision is that the second file now exists, and whether it is a second copy of the
+rules or a second owner of them is a governance question: the constitution's
+[Governance](../../.specify/memory/constitution.md#governance) names who owns what, and `AGENTS.md`
+is not in the list.
 
 ## Decision Drivers
 
@@ -35,14 +35,14 @@ the rules or a second owner of them is a question about governance: the constitu
 Chosen option: **`AGENTS.md` is a router, and `CLAUDE.md` is not pruned**, because the two are
 adapters over the same sources for two clients that load one each.
 
-`AGENTS.md` orders the reading and then carries only what is verifiable from an executable source,
-so it restates no rule. `CLAUDE.md` does not import it: tidier, and the import mechanism is already
-there, but it would add 12 KB to every Claude Code call to serve a client reading neither half.
+`AGENTS.md` orders the reading and carries only what is verifiable from an executable source, so it
+restates no rule. `CLAUDE.md` does not import it: tidier, and the mechanism is already there, but it
+would add 4 KB to every Claude Code call to serve a client reading neither half.
 
 ### Consequences
 
-- Good, because an OpenCode session gets the rules at launch rather than by knowing to open a file —
-  the failure ADR-0005 already paid for once.
+- Good, because an OpenCode session learns at launch that binding rules exist and where they live,
+  rather than working without them and saying nothing — the failure ADR-0005 already paid for once.
 - Bad, because Governance still does not name `AGENTS.md`, so this record alone establishes who owns
   session guidance for a second harness. That amendment belongs in this increment and is not made.
 - Bad, because nothing detects the two files disagreeing. The gate reads both for spelling,
@@ -50,10 +50,11 @@ there, but it would add 12 KB to every Claude Code call to serve a client readin
 
 ## Reversibility
 
-Deleting `AGENTS.md` costs nothing: no code reads it and no data moves. What is not cheap is the
-drift this allows: a rule in `CLAUDE.md` and not in `AGENTS.md` is invisible in an OpenCode session
-and undetectable by the gate, and that cost grows with the number of rules.
+Deleting it costs nothing: no code reads `AGENTS.md` and no data moves. What is not cheap is the
+drift the decision allows, and that grows with the number of rules rather than with the work.
 
 ## Revisions
 
-- 2026-09-25 — recorded with `AGENTS.md`; the Governance amendment named above is still open.
+- 2026-09-25 — recorded with `AGENTS.md`, then cut from 212 lines to 59 once the three source files
+  were measured against it: most of it restated them, the defect principle VI names. The Governance
+  amendment above is still open.
