@@ -12,9 +12,9 @@ that is a defect in the document.
 - **Node.** The version is in `.nvmrc`. Four of the checks are npm packages with no Rust equivalent;
   [ADR-0004](docs/decisions/0004-node-toolchain-for-the-non-rust-checks.md) explains how a Rust
   project ended up with a second toolchain.
-- **[GitHub CLI](https://cli.github.com).** `gh`, authenticated with `gh auth login`.
-  `cargo xtask spec` drives it to read an issue, open a branch linked to that issue and move the
-  issue's label ([ADR-0034](docs/decisions/0034-let-xtask-own-the-feature-branch.md)).
+- **GitHub CLI** at [cli.github.com](https://cli.github.com). `gh`, authenticated with
+  `gh auth login`. Nothing in `cargo xtask setup` installs it: it is authenticated per person, not
+  vendored per repository ([ADR-0034](docs/decisions/0034-let-xtask-own-the-feature-branch.md)).
 
 ## Setup
 
@@ -44,32 +44,21 @@ cargo run -p monospace-cli # run the command-line application
 cargo test --workspace     # tests only, when you want a faster loop
 ```
 
-`cargo run` without `-p` does not work: the workspace has more than one binary, so Cargo cannot
-pick.
-
 ## Starting work
 
-Two flows live here, and the first thing to settle is which one you are in.
-
-- **A feature** is something the tool will be able to do that it cannot do today. It goes through
-  Spec Kit: an issue, a directory under `specs/`, and two staged branches.
-- **A tooling change** is anything about how the repository is worked on — the gate, the hooks, CI,
-  these documents, the workflow itself. It goes through an ADR and a series of commits. No spec
-  directory, no stage branches, no Spec Kit command.
+Two flows live here, and the first thing to settle is which one you are in. A **feature** is
+something the tool will be able to do that it cannot do today. Everything else — the gate, the
+hooks, CI, these documents, the workflow itself — is a **tooling change**.
 
 The question that decides it: does this change what `monospace` can draw, or does it change how we
-work on it? Both still start from an issue and end in a pull request; only the middle differs.
+work on it? Both still start from an issue and end in a pull request; only the middle differs, and
+[Spec Kit is the workflow](.specify/memory/constitution.md#spec-kit-is-the-workflow) says which: a
+feature takes a spec directory and two staged branches, a tooling change an ADR and commits.
 
 ### One issue, and the labels on it
 
-A feature is represented by exactly one issue. There is no parent issue and there are no story
-sub-issues ([ADR-0033](docs/decisions/0033-keep-the-flow-state-in-labels-on-one-issue.md)). That
-issue's number _is_ the feature's number, shared by the directory and by both branches
-([ADR-0024](docs/decisions/0024-take-the-feature-number-from-its-issue.md)). The numbering skips
-wherever an issue was not a feature, and that is expected.
-
-Labels carry the state of the flow, and they are the only place it lives: not a board field, not a
-milestone. The board reads the issue.
+A feature is exactly one issue, and where the work stands is one of these three labels on it and
+nowhere else ([ADR-0033](docs/decisions/0033-keep-the-flow-state-in-labels-on-one-issue.md)):
 
 | Label      | What it means                                                  |
 | ---------- | -------------------------------------------------------------- |
@@ -77,36 +66,24 @@ milestone. The board reads the issue.
 | `deciding` | The deciding branch is open, or its pull request is in review. |
 | `building` | The spec and the answered sheet merged. Building is under way. |
 
-There is no label for finished work: the building pull request closes the issue, and a closed issue
-is the end state.
-
-These three are one axis. The kind labels — `capability` for a wish someone had, `foundational` for
-what the design demands and nobody asked for, `tooling` for the repository itself — are another, and
-the two coexist on the same issue. A `tooling` issue never enters the spec flow, so it never carries
-a state label.
-
-An issue does not grow. A title and two or three sentences, never acceptance criteria, requirements
-or examples ([ADR-0023](docs/decisions/0023-direction-and-backlog-in-a-github-project.md)). Once the
-spec exists the spec is the source of truth, and the issue is a pointer back to where the wish was
-first stated. An issue that accumulates requirements is a spec written where no Spec Kit command
-will read it.
+The kinds — `capability` for a wish someone had, `foundational` for what the design demands and
+nobody asked for, `tooling` for the repository itself — are a second axis, they coexist on the same
+issue, and a `tooling` issue never enters this flow and never carries one of the three. What an
+issue may hold is [ADR-0023](docs/decisions/0023-direction-and-backlog-in-a-github-project.md): a
+title and two or three sentences, never acceptance criteria, requirements or examples. Once the spec
+exists the issue is a pointer back to where the wish was first stated.
 
 ### The two stages
 
-A spec crosses two stages, potentially with two different people. Each stage is its own branch and
-its own pull request against `main`, and the merge of the first is the handoff to the second. The
-boundary falls where something is decided rather than where a command ends
-([ADR-0051](docs/decisions/0051-stop-at-the-decision-sheet-and-merge-three-stages-into-two.md)).
+A spec crosses two stages, potentially with two different people, and what each stage requires of
+`main` is
+[Two stages, and where the cut falls](.specify/memory/constitution.md#two-stages-and-where-the-cut-falls)
+in the constitution. This is what they are called and what opens them.
 
 | Stage    | Branch              | Label      | Requires in `main`                    |
 | -------- | ------------------- | ---------- | ------------------------------------- |
 | Deciding | `NNN-slug-deciding` | `deciding` | —                                     |
 | Building | `NNN-slug-building` | `building` | `spec.md`, an answered `decisions.md` |
-
-`cargo xtask spec` opens each of them: it creates the branch, links it to the issue, moves the
-label, and points Spec Kit at the feature directory
-([ADR-0034](docs/decisions/0034-let-xtask-own-the-feature-branch.md)). It never writes the spec
-itself — `/speckit-specify` creates the directory and the file, as it always did.
 
 ```sh
 cargo xtask spec new 23           # opens the deciding stage for issue #23
@@ -114,11 +91,8 @@ cargo xtask spec stage 23 build   # after the deciding pull request merged
 ```
 
 `stage` refuses to open the building stage against a deciding stage that has not merged, and says
-which file it could not find in `origin/main`. That refusal is the whole point of the handoff: the
-precondition is a fact about `main`, not a judgement about a branch.
-
-It also reads the merged sheet rather than only its name, and refuses while any entry still says
-`_pending_`, quoting the lines:
+which file it could not find in `origin/main`. It also reads the merged sheet rather than only its
+name, and refuses while any entry still says `_pending_`, quoting the lines:
 
 ```text
 xtask: `specs/023-read-a-diagram-description/decisions.md` is not answered: line 8 reads
@@ -135,10 +109,6 @@ building branch   /speckit-plan part two, then /speckit-tasks
                   /speckit-implement
 ```
 
-`/speckit-plan` is never run end to end: part one produces `research.md`, `decisions.md` and the
-part of `plan.md` that precedes a decision, and stops there. Part two runs against the answered
-sheet, on the building branch.
-
 Someone who has just cloned, or who is coming back to a feature after working on another, does not
 need to know any of the branch names:
 
@@ -146,15 +116,11 @@ need to know any of the branch names:
 cargo xtask spec use 23
 ```
 
-It reads the issue's label, checks out the branch of whatever stage is active, and prints what to
-run next. It touches no label and creates no remote branch.
-
-Features 001 to 006 predate all of this and keep the numbers they were given.
+It touches no label and creates no remote branch.
 
 ### Names that carry the number
 
-The directory and both branches carry the feature's number, so that one string finds every part of
-it:
+One string finds every part of a feature:
 
 ```text
 issue     #23
@@ -172,11 +138,11 @@ number. That check belongs in `cargo xtask check` and is tracked by issue #26.
 
 ### Commits during implementation
 
-Each commit ticks exactly the checkboxes in `tasks.md` that it completed, and leaves
-`cargo xtask check` passing. Those two rules together decide how big a commit is, and you do not get
-to choose: the hooks run the gate and `--no-verify` is forbidden, so a commit can only exist at a
-boundary where the tree is green. A task that is green on its own gets a commit. A group of tasks
-that only reaches green together gets one commit for the group, ticking all of their boxes.
+How much goes in one commit is
+[Demonstrable increments](.specify/memory/constitution.md#ii-demonstrable-increments) in the
+constitution: a commit ticks exactly the checkboxes in `tasks.md` it completed and leaves
+`cargo xtask check` passing. You do not get to choose its size — the hooks run the gate, so a commit
+can only exist at a boundary where the tree is green.
 
 ### Opening and closing the pull request
 
@@ -185,8 +151,9 @@ reasons, and the third is the one that decides it:
 
 - The link is visible before the merge. Only the pull request gives you that; a keyword in a commit
   is invisible until it lands.
-- A wrong number is edited out of a body. In a commit it is a history rewrite, and a rewrite here
-  owes the gate a run on **every** rewritten commit rather than only the tip.
+- A wrong number is edited out of a body. In a commit it is a history rewrite, and a rewrite owes
+  the gate a run on **every** rewritten commit rather than only the tip
+  ([One definition of green](.specify/memory/constitution.md#iii-one-definition-of-green-non-negotiable)).
 - No single commit is "the" one that closes work that took several.
 
 Which keyword depends on the stage, and `cargo xtask pr` appends it rather than asking you to
@@ -215,10 +182,6 @@ stages, and anything else is a tooling change. `open` refuses three things befor
 — a dirty working tree, a body whose sections are still empty, and `main` — and derives the title
 from the issue (`Decide:` or `Build:`) or, for a tooling change, from the first commit the branch
 added. `--title` overrides it and `--body-file` reads from somewhere else.
-
-Neither is due when a Spec Kit command ends, which is why nothing triggers them: the deciding one
-waits for the sheet to be answered, which no command does, and the building one for a green
-`cargo xtask check`.
 
 ### Closing one
 
@@ -380,10 +343,10 @@ can pass and still be broken. Stashing to close that gap risks losing work if th
 interrupted, which is the worse failure. If you stage selectively, run `cargo xtask check` on a
 clean tree before trusting it.
 
-Never commit with `--no-verify`;
-[One definition of green](.specify/memory/constitution.md#iii-one-definition-of-green-non-negotiable)
-makes that a rule. What is worth adding here is why it bites: a bypassed gate is worse than no gate,
-because the log then claims a green history that was never checked.
+What is worth adding here is why `--no-verify` bites: a bypassed gate is worse than no gate, because
+the log then claims a green history that was never checked
+([One definition of green](.specify/memory/constitution.md#iii-one-definition-of-green-non-negotiable)
+makes the bypass a rule).
 
 ## Commits
 
@@ -392,13 +355,8 @@ Messages follow [Conventional Commits](https://www.conventionalcommits.org), enf
 
 Which prefix to use follows from
 [Structural and behavioral change never share a commit](.specify/memory/constitution.md#v-structural-and-behavioral-change-never-share-a-commit).
-The mapping is:
-
-- **`refactor`** — structural. Behavior does not change, the existing tests pass unchanged, and no
-  test is added or modified.
-- **`feat`, `fix`** — behavioral. Something the program does is different.
-- **`build`, `ci`, `docs`, `style`, `chore`, `test`** — neither, which is most of the tooling in
-  this repository.
+Everything else — `build`, `ci`, `docs`, `style`, `chore`, `test` — is neither, which is most of the
+tooling in this repository.
 
 How much goes in one commit, while implementing a spec, is settled by
 [Commits during implementation](#commits-during-implementation) rather than by taste.
@@ -474,8 +432,9 @@ person, and a person can open a file.
 
 ## Cross-references
 
-Cite a section of another document by name — in practice, by anchor — and not by number. The rule
-and its reasoning are in [Cross-references](.specify/memory/constitution.md#cross-references).
+The rule and its reasoning are in
+[Cross-references](.specify/memory/constitution.md#cross-references) in the constitution: cite a
+section by its name, in practice by anchor, and not by number.
 
 Nothing checks any of it. `markdownlint` validates a link fragment against the headings of the same
 file and stops there, so a link to a file that does not exist, or to an anchor in a different file
@@ -488,10 +447,10 @@ were true when written, and an accepted record is not edited for style.
 ## Decisions and notes
 
 Three documents, and
-[Where a rationale goes](.specify/memory/constitution.md#where-a-rationale-goes) says which takes
-what. The procedure and templates are in each: [`docs/decisions/`](docs/decisions/README.md) for
-decision records, [the learning log](docs/learning-log.md) for what was learned, and a feature's own
-`research.md` for investigation local to that slice.
+[Where a rationale goes](.specify/memory/constitution.md#where-a-rationale-goes) in the constitution
+says which takes what. The procedure and templates are in each:
+[`docs/decisions/`](docs/decisions/README.md), [the learning log](docs/learning-log.md), and a
+feature's own `research.md`.
 
 Where specs live, and how a slice goes from spec to plan to tasks, is
 [Spec Kit is the workflow](.specify/memory/constitution.md#spec-kit-is-the-workflow).
