@@ -376,6 +376,22 @@ fn run(root: &Path, step: &Step) -> bool {
     }
 }
 
+/// Prints what went wrong, the way a subprocess step would, and answers whether it passed.
+///
+/// An `Action::Here` step owns its own failure message and has no exit code to hand back, so this is
+/// where its `Result` becomes the boolean `run` asks for. It lives beside `run` because that is the
+/// contract being adapted to, and it is shared because `render` and `eol` both need it and neither
+/// should grow a copy.
+pub(crate) fn report_failure(outcome: Result<(), String>) -> bool {
+    match outcome {
+        Ok(()) => true,
+        Err(message) => {
+            eprintln!("{message}");
+            false
+        }
+    }
+}
+
 /// Resolves a step's executable, following the rule a shell already uses: a bare name is looked up
 /// on `PATH`, and anything containing a separator is a path relative to the workspace root.
 ///
