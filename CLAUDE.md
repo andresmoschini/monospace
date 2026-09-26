@@ -13,46 +13,45 @@ restated here — two wordings of one rule is a rule that gets followed at rando
 
 - Do not invent something new because I did not know the ecosystem well enough to ask for the usual
   thing. When it is settled practice, the conventional answer is the answer.
-- Talk to me in whatever language I write in. What lands in the repository is English regardless.
-- This system is under construction and its architecture is meant to change. A record tells you what
-  was understood when it was written, not what may be thought now.
+- Talk to me in whatever language I write in.
 
 ## Habits the gate cannot check
 
-Principles IV, VI and VIII are the rules; these are what they ask for inside a session, and what is
-most easily lost in a long one.
+Principles IV, VI and VIII are the rules and they are in context above; these are the failure modes
+they have a habit of failing in.
 
-- **Check `commitment` before deferring to a record.** An `exploratory` or `working` ADR is a dated
-  hypothesis, and proposing to change it is expected work.
+- **Check a record's `commitment` before deferring to it**
+  ([principle VI](.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to)).
+  An `exploratory` or `working` one is a hypothesis with a date, and changing it is expected work.
 - **Say it when the code disagrees with a record**, in the first paragraph. Do not reconcile
   silently, and do not change code to match a document without asking which of the two is wrong.
-- **Default a new decision to module-level**, into that module's rustdoc.
-- **Look for the record of the subject before writing a new one.** If you cannot cite the record you
-  are about to write without citing another, they are one record and this is a revision.
-- **Never ask me about something that renders without showing it.** Generate both options and put
-  them side by side; generating them is part of asking. Label a hand-drawn one.
+- **Default a new decision to module-level**, into that module's rustdoc, and promote it in the
+  increment that makes something outside able to observe it.
+- **Look for the record of the subject before writing a new one**
+  ([principle VI](.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to)).
+- **Show the rendering in the question, not beside it**
+  ([principle IV](.specify/memory/constitution.md#show-the-rendering)). Both options, side by side,
+  and a hand-drawn one labelled on the spot.
 - **Cut the prose a picture already carries.** Keep the sentence that says why, drop the one that
   says what.
-- **A snapshot that moved is a question, not a failure.** Report how many cases moved, in which
-  families, and three examples with before and after, then ask whether that is the movement wanted.
-- **Do not write that changing something repeatedly is expensive.**
+- **A snapshot that moved is a question, not a failure**
+  ([Testing](.specify/memory/constitution.md#testing)). Report what moved, and ask whether that is
+  the movement wanted.
+- **Never argue that changing something repeatedly is expensive**
+  ([principle VI](.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to)).
 
 ## The flow
 
-Two kinds of work, and they are not the same shape. A feature goes through Spec Kit; a change to the
-tooling goes through an ADR and commits, with no spec directory and no staged branches.
-
-A feature crosses two stages — deciding, then building — each its own branch and its own pull
-request against `main`, with the merge as the handoff. The state is a label on the feature's single
-issue, `wish` then `deciding` then `building`, and lives nowhere else
-([ADR-0033](docs/decisions/0033-keep-the-flow-state-in-labels-on-one-issue.md)). `cargo xtask spec`
-owns the branches and the labels
-([ADR-0034](docs/decisions/0034-let-xtask-own-the-feature-branch.md)).
+A feature and a tooling change are not the same shape, and which one a change is, what each stage
+requires of `main`, and where the flow's state lives are in
+[Spec Kit is the workflow](.specify/memory/constitution.md#spec-kit-is-the-workflow) and
+[Two stages](.specify/memory/constitution.md#two-stages-and-where-the-cut-falls) in the
+constitution, in [ADR-0033](docs/decisions/0033-keep-the-flow-state-in-labels-on-one-issue.md) and
+in [ADR-0034](docs/decisions/0034-let-xtask-own-the-feature-branch.md). `CONTRIBUTING.md` has the
+commands.
 
 Work that has no issue yet is an issue, not a paragraph: what you find mid-feature that opens future
 work becomes a `wish` issue of two lines, never a section of the current spec or an early ADR.
-
-`CONTRIBUTING.md` explains the rest.
 
 ## Running a session
 
@@ -62,8 +61,9 @@ measurement and the options it rejected.
 
 - **One Spec Kit phase per session**, and `/speckit-plan` is two. Clear the context between each.
   The artifacts are the handoff; the conversation is not.
-- **Part one of the plan ends at `decisions.md`** — no `data-model.md`, no `contracts/`, no
-  `quickstart.md`. Then say which entries need my answer and which you intend to take yourself.
+- **Part one of the plan ends at `decisions.md`**
+  ([The plan runs in two parts](.specify/memory/constitution.md#the-plan-runs-in-two-parts)). Then
+  say which entries need my answer and which you intend to take yourself.
 - **Read the part, not the file.** `docs/learning-log.md`, `docs/model.md`, `docs/glyph-sets.md` and
   a feature's `spec.md` are large enough that opening one in full is a decision rather than a
   reflex. Take a line range, or grep with context. Appending needs no read at all.
