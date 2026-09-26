@@ -5,7 +5,8 @@
     "rustfmt indents a wrapped string literal to sit under the opening quote; prettier indents a numbered list continuation by three spaces to sit under '1. '.",
     "Measured: with this check on, the repository reports 23 errors and every one of them is formatter output, not a mistake.",
     "What remains is still worth running: end-of-line, final newline and trailing whitespace on LICENSE, TOML files and dotfiles, which no formatter in the gate can even parse.",
-    "Exclude covers .specify: spec-kit owns that tree and rewrites it on every `specify update`, so its formatting is not ours to fix."
+    "Exclude covers .specify: spec-kit owns that tree and rewrites it on every `specify update`, so its formatting is not ours to fix.",
+    "Its line endings are not lost by that: `cargo xtask fix` has an `eol` step that reaches every file git would stage, and this checker is not what keeps a CRLF file out of a commit."
   ],
   "Disable": { "IndentSize": true },
   "Exclude": ["^\\.specify/"]

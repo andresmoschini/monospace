@@ -81,7 +81,8 @@ are the same ten prompts, versioned together, and the gate does not own them.
 - **`OpenCode-Session` and `Claude-Resume` are separate trailer keys** on purpose: neither client's
   id resumes the other. `commit-msg` reads `MONOSPACE_SESSION_ID` and `CLAUDE_CODE_SESSION_ID`. A
   commit made outside an agent shell correctly carries neither.
-- **Speckit's own files are written with CRLF on Windows.** `git add` refuses them, because
-  `.gitattributes` normalizes to LF and `core.safecrlf` is on. Normalize after any
-  `specify integration install` or `specify update`:
-  `sed -i 's/\r$//' .specify/*.json .opencode/commands/*.md`
+- **Speckit's own files are written with CRLF on Windows.** `.gitattributes` normalizes to LF and
+  `core.safecrlf` is on, so `git add` refuses them: `fatal: CRLF would be replaced by LF`. The cause
+  is the CLI, not your edit, and `cargo xtask fix` is what removes it — its `eol` step, which is the
+  only one that reaches the tree `editorconfig-checker` skips
+  ([ADR-0059](docs/decisions/0059-normalize-what-the-speckit-cli-writes-or-git-refuses-it.md)).
