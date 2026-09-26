@@ -1653,3 +1653,63 @@ entry.
   What survives is what no document holds, and that set is invisible until the sources are read
   against each other — so the residual is a judgement, not a measurement. Issue #113 tracks the same
   defect in the two files that predate this one, and it should widen to name this one.
+
+## 2026-09-26 — the line endings, as a fixer
+
+An `eol` step in `cargo xtask fix`, for the Speckit CLI's CRLF output that `git add` refuses
+([issue #125](https://github.com/andresmoschini/monospace/issues/125), revised
+[ADR-0059](docs/decisions/0059-normalize-what-the-speckit-cli-writes-or-git-refuses-it.md)). Three
+commits: a refactor that gives the in-crate steps one way to report a failure, the step, and the
+record.
+
+### Rust design and idiom
+
+- **The tool already enforcing the rule is the parser's input.** I had designed the step around
+  `git ls-files --cached --others` for the file list, `git check-attr --stdin` for the text/binary
+  question, and a NUL-in-the-first-8000-bytes check of my own for the rest — which would have needed
+  chunking to stay clear of a 4 KB Windows pipe. `git ls-files --eol` answers all three in one
+  command, reports untracked files, and spells its own binary verdict `-text`. Measured before
+  writing the parser rather than after: the parse is a `split_once('\t')` and a
+  `strip_prefix("w/")`.
+- **A predicate over the interface beats a type modelling it.** The first draft had an `Endings`
+  enum with five variants for `lf`/`crlf`/`mixed`/`none`/`-text`. The predicate
+  `(endings == "crlf" || endings == "mixed") && !wants_crlf` with six one-line tests says the same
+  thing, and a test named `a_batch_file_is_recognized_by_its_attribute` says more about why the rule
+  exists than a variant name would.
+- **Idempotence can be a consequence rather than a test.** Deciding from what Git reported — not
+  from what was read — means the run after a rewrite sees `lf` and finds nothing, so the property
+  holds by construction. The test still exists; it is no longer load-bearing.
+
+### Working this way
+
+- **Writing the fixer is what found the defect in the one before it.** `.gitattributes` asks for
+  CRLF in `*.bat` and `*.cmd`; `.editorconfig` said LF in everything; and
+  `editorconfig-checker -fix` believed the second. A batch file came back with bare LF and `git add`
+  then answered `fatal: LF would be replaced by CRLF` — the step written to protect the file was the
+  step breaking it. No batch file is tracked, so the gate had been green over the disagreement for
+  as long as the repository existed. A rule "set twice and in agreement" is only checked on the
+  files that exist.
+- **A fixer's failure mode is silence, so the demonstration has to be the silence.** With the step
+  taken out on purpose, `cargo xtask fix` reported `all 5 fixers ran clean` over a CRLF file that
+  `git add` still refused. That is the evidence worth having, and it is the opposite shape from the
+  green run a step produces.
+- **The record's own driver was wrong, and only a measurement said so.** ADR-0059 blamed Git
+  tracking for `.specify/` going unchecked. An untracked CRLF file in the root is reported by
+  `editorconfig-checker`; the `Exclude` in `.editorconfig-checker.json` is the whole reason. The
+  gate caught the same thing by accident, refusing a commit over a CRLF probe file I had left
+  behind.
+- **A record whose subject has not changed is revised, not replaced.** ADR-0059's subject is one
+  conflict, so ADR-0061 would have been a record that could not be cited without it. The two `Bad`
+  lines went rather than being kept as history, because both described a step a person had to
+  remember and there is no such step left for them to be true of.
+
+### Trade-offs worth remembering
+
+- **A green `cargo xtask fix` is not evidence that a file is stageable.** Only `git add` knows that,
+  and `core.safecrlf` is the only thing in the repository checking it. The new step was not added to
+  `cargo xtask check` for that reason: two definitions of the same green is the failure principle
+  III exists to prevent, and the gate already has `editorconfig` reading the same rule.
+- **The step re-reads every file Git would stage on every `fix`, all ~300 of them, to be told what
+  it could have been told by a list it maintains itself.** Measured cost: nothing you would notice.
+  The alternative is a second source of truth about `.gitattributes`, and `.gitattributes` is the
+  file that changes.
