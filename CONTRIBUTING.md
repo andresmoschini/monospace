@@ -305,19 +305,33 @@ owner.
   cannot express, like a heading level that skips or a code fence with no language.
 - **Everything else tracked** — `LICENSE`, the TOML files, the dotfiles — belongs to
   `editorconfig-checker`. Prettier cannot even infer a parser for those, so without it they would go
-  unchecked.
+  unchecked. `.specify/` is the one tree it is configured to skip, and the `eol` step below is what
+  reaches the line endings in there.
 - **`.editorconfig`** is read by prettier and by `editorconfig-checker`, so indentation and line
-  endings are configured once and obeyed by both.
+  endings are configured once and obeyed by both. Its one exception is `*.bat` and `*.cmd`, which
+  agree with `.gitattributes` rather than adding a rule: the batch interpreter does not run a file
+  whose lines end in a bare LF, and a fixer that disagreed with Git here would be the thing breaking
+  the file.
+- **Line endings** are the one concern with a third reader — `git add`, which refuses a CRLF file
+  rather than converting it — and the `eol` step is how that is settled.
 
 ### Automatic fixes
 
-`cargo xtask fix` runs `fmt`, `render`, `prettier`, `markdownlint` and `editorconfig` in that order,
-each in its writing mode instead of its checking mode. Order is not incidental here the way it is
-for `check`: these steps rewrite the same files `check` only reads, so a formatter that ran last
-would win regardless of which one was "right". `render` writes before the Markdown formatters so
-that what it puts in a fence is theirs to normalize; the other content formatters follow; and
-`editorconfig` runs last because it owns files none of the others touch — `LICENSE`, the TOML files,
-the dotfiles — and otherwise only confirms what the earlier steps already left clean.
+`cargo xtask fix` runs `fmt`, `render`, `prettier`, `markdownlint`, `editorconfig` and `eol` in that
+order, each in its writing mode instead of its checking mode. Order is not incidental here the way
+it is for `check`: these steps rewrite the same files `check` only reads, so a formatter that ran
+last would win regardless of which one was "right". `render` writes before the Markdown formatters
+so that what it puts in a fence is theirs to normalize; the other content formatters follow;
+`editorconfig` runs after them because it owns files none of the others touch — `LICENSE`, the TOML
+files, the dotfiles — and otherwise only confirms what the earlier steps already left clean; and
+`eol` runs last, because every step above it writes and the ending of a line is the last thing a
+byte should be decided on.
+
+`eol` is the only step that is not a tool from `package.json`. It rewrites the CRLF of any file Git
+would stage — tracked or new, ignored files excepted — and it asks `git ls-files --eol` which files
+those are, whether their bytes are text at all, and which ones `.gitattributes` wants in CRLF. That
+last question is why it exists rather than a `sed` line: a batch file and a PNG are the two answers
+that a rule of the form "CRLF becomes LF" gets wrong, and Git already holds both.
 
 `clippy` and `cspell` have no fix step. `cspell` cannot fix a spelling on its own, and
 `clippy --fix` is deliberately left out of the automatic command:

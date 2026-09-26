@@ -12,6 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod eol;
 mod pr;
 mod process;
 mod render;
@@ -203,9 +204,11 @@ const GATE: &[Step] = &[
 /// The steps of the gate that can fix what they find, in the order they must run.
 ///
 /// Unlike `GATE`, order here is not presentation: these steps mutate the same files, so a later
-/// step can undo or redo what an earlier one wrote. Content formatters run first; `editorconfig`
-/// runs last because it owns files none of the others touch (`LICENSE`, the TOML files, the
-/// dotfiles) and otherwise only confirms what the earlier steps already left clean.
+/// step can undo or redo what an earlier one wrote. Content formatters run first, `editorconfig`
+/// after them because it owns files none of the others touch (`LICENSE`, the TOML files, the
+/// dotfiles) and otherwise only confirms what the earlier steps already left clean, and `eol` last
+/// because it owns the one concern every step above writes into, and the files `editorconfig` is
+/// configured to skip besides.
 ///
 /// `clippy` and `cspell` have no entry: `cspell` cannot fix a spelling at all, and `clippy --fix`
 /// can rewrite code in ways that need a human to read the diff, which does not fit a command meant
@@ -245,6 +248,14 @@ const FIX: &[Step] = &[
             program: "node_modules/.bin/editorconfig-checker",
             args: &["-fix"],
         },
+    },
+    Step {
+        name: "eol",
+        // It sits beside `editorconfig` rather than inside it, and last rather than first.
+        // `editorconfig-checker` reads the same rule and is configured to skip `.specify/`, where a
+        // CRLF file is one `git add` refuses with no command to fix it by; and every step above this
+        // one writes, so the ending of a line is the last thing a byte should be decided on.
+        action: Action::Here(eol::fix),
     },
 ];
 
@@ -373,6 +384,22 @@ fn run(root: &Path, step: &Step) -> bool {
             }
         }
         Action::Here(function) => function(root),
+    }
+}
+
+/// Prints what went wrong, the way a subprocess step would, and answers whether it passed.
+///
+/// An `Action::Here` step owns its own failure message and has no exit code to hand back, so this is
+/// where its `Result` becomes the boolean `run` asks for. It lives beside `run` because that is the
+/// contract being adapted to, and it is shared because `render` and `eol` both need it and neither
+/// should grow a copy.
+pub(crate) fn report_failure(outcome: Result<(), String>) -> bool {
+    match outcome {
+        Ok(()) => true,
+        Err(message) => {
+            eprintln!("{message}");
+            false
+        }
     }
 }
 

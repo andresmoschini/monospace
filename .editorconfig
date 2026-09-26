@@ -6,6 +6,14 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 charset = utf-8
 
+[*.{bat,cmd}]
+# The one exception to the rule above, and it is here to agree with `*.bat text eol=crlf` and
+# `*.cmd text eol=crlf` in .gitattributes rather than to add a rule of its own: the Windows batch
+# interpreter does not run a file whose lines end in a bare LF. Measured: with this section absent,
+# `editorconfig-checker -fix` rewrites a batch file to LF and `git add` then answers `fatal: LF would
+# be replaced by CRLF`, so the fixer was the thing breaking the file it was checking.
+end_of_line = crlf
+
 [*.rs]
 indent_style = space
 indent_size = 4
