@@ -72,6 +72,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0058](0058-install-the-git-hooks-from-an-opencode-session-too.md)             | Install the git hooks from an OpenCode session too                                     | accepted                             |
 | [0059](0059-normalize-what-the-speckit-cli-writes-or-git-refuses-it.md)        | Normalize what the Speckit CLI writes, or git refuses it                               | accepted                             |
 | [0060](0060-stamp-the-opencode-session-into-the-commit.md)                     | Stamp the OpenCode session into the commit, without an environment variable of its own | accepted                             |
+| [0062](0062-reduce-what-the-instruction-files-restate.md)                      | Reduce what the instruction files restate, and say what decides it                     | accepted                             |
 
 ## How to add one
 
