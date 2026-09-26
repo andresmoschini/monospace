@@ -154,14 +154,15 @@ Prior versions:
   CONTRIBUTING.md, CLAUDE.md, docs/specs/README.md and docs/decisions/README.md. Replaced the
   unfilled `[PLACEHOLDER]` scaffold from `specify init`.
 
-Follow-up TODOs:
+Follow-up TODOs: none. The last one is closed below; open work is a `wish` or `tooling` issue, which
+is where work waiting to be done belongs.
 
-- TODO(TRIM_DUPLICATION): CONTRIBUTING.md and CLAUDE.md still state several of these rules in their
-  own words. Reduce them to what only they own — CONTRIBUTING keeps how to run the tooling,
-  CLAUDE.md keeps session guidance — and point the rest here. Two wordings of one rule is the
-  failure this project already refuses to accept for the quality gate.
-
-Closed since 1.3.0 was written:
+Closed follow-ups:
 
 - TODO(ROADMAP_REMOVAL) — docs/roadmap.md is removed and the four references that pointed at it are
   redirected. The Phase field and the capability issues exist.
+- TODO(TRIM_DUPLICATION) — closed by issue #113, and recorded as
+  [ADR-0062](0062-reduce-what-the-instruction-files-restate.md). `CONTRIBUTING.md` and `CLAUDE.md`
+  were reduced to what only they own, each restated rule became a citation, and the TODO became a
+  question a reviewer can ask of any paragraph. `AGENTS.md` was measured against the same test and
+  needed nothing removed.
