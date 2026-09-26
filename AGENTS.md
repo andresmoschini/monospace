@@ -33,6 +33,10 @@ are the same ten prompts, versioned together, and the gate does not own them.
 - **`cargo xtask render` only walks `git ls-files '*.md'`.** A new document that has not been
   `git add`ed is invisible to it, and its picture silently never fills. `xtask/src/render.rs`,
   `tracked_markdown`.
+- **The `numbering` step reads the tracked tree the same way, so it shares that limit.** A duplicate
+  left in `specs/` or `docs/decisions/` and not yet staged is not reported: the step counts 77
+  entries whether or not the file is there. The pre-commit hook runs after `git add`, so a commit
+  still cannot carry one. `xtask/src/numbering.rs`, `entries`.
 - **`cargo insta review` needs `cargo-insta`, which `cargo xtask setup` does not install** — `setup`
   is `npm ci` and nothing else. Install it by hand.
 - **`.specify/feature.json` is gitignored and per-clone.** Speckit resolves its feature directory

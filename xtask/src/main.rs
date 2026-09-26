@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 mod eol;
+mod numbering;
 mod pr;
 mod process;
 mod render;
@@ -113,6 +114,12 @@ const GATE: &[Step] = &[
             program: "node_modules/.bin/editorconfig-checker",
             args: &[],
         },
+    },
+    Step {
+        name: "numbering",
+        // It sits beside `editorconfig` rather than with the steps that compile: it reads the
+        // tracked tree the way that step does, and costs one `git ls-files` over two directories.
+        action: Action::Here(numbering::check),
     },
     Step {
         name: "cspell",

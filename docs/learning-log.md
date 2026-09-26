@@ -1773,3 +1773,75 @@ and put it back to 470, `CLAUDE.md` at 86 to 86, and the TODO's own closure.
   are what a reviewer asks. That is only affordable because the questions are short enough to hold
   in one's head, which is the argument for having written them down as three and not as a list of
   paragraphs.
+
+## 2026-09-26 — one number, one entry
+
+A `numbering` step in `cargo xtask check`, rejecting two entries under `docs/decisions/` or `specs/`
+that claim the same number ([issue #26](https://github.com/andresmoschini/monospace/issues/26)). One
+commit, where the rule asks for two: the check found nothing to fix, and no fix was manufactured to
+fill the second.
+
+### Rust design and idiom
+
+- **`find` over a run of digits returns the length of the run, which is the whole parse.** The
+  number in `0063-a-record.md` is `entry.find(|c: char| !c.is_ascii_digit())?` — a `None` for a name
+  opening with a letter, which is what exempts `README.md` and `constitution-history.md` without
+  either being listed anywhere. `take_while` plus `.len()` says the same thing in two steps and has
+  to be told what an empty run means.
+- **The part worth testing is the part that does no I/O.** `claimed_twice` takes a slice of names
+  and returns the clashes; `entries` is the only function that shells out to `git`, and `walk` is
+  the only one that prints. All seven tests are on the first, and they are a list of names rather
+  than a temporary directory — a rule about directory naming should not need a filesystem to be
+  exercised.
+- **One rule for a file and a directory, taken from the path.** `git ls-files` reports paths, so a
+  tree of directories arrives one file at a time; taking the first segment under the tree recovers
+  the entry from both shapes. The alternative was a matcher per tree, and the first segment is the
+  one thing `docs/decisions/0062-x.md` and `specs/028-y/spec.md` already agree on.
+- **A struct that borrows needs to say so, and the compiler asks before clippy does.**
+  `Clash { number: &str }` is `E0106` before any lint runs; the fix is `Clash<'a>`, and clippy then
+  wants `Vec<Clash<'_>>` at the return. Neither is a lesson so much as the order in which the two
+  tools get to complain.
+
+### Working this way
+
+- **The issue described code that had not been the code for five weeks.** It said `Step` was "a
+  subprocess and nothing else" and that changing its shape "is a design decision worth its own
+  record" — but `enum Action { Spawn, Here }` has been there since 2026-09-21, added for `render`
+  and recorded by ADR-0052, and then reused for `eol`. Reading `xtask/src/main.rs` before answering
+  dissolved the record question rather than settling it: the decision the issue wanted written down
+  was one already taken, one already recorded, and one whose remaining choices are module-level.
+- **The check found nothing, and that is the case the two-commit rule is written for.** Measured
+  before writing the step: 65 entries under `docs/decisions/` and 12 under `specs/`, no number
+  twice. The gap at 0061 is a record that was never written, which an earlier entry describes, and a
+  rule about repetitions has nothing to say about a gap. So the first commit of the pair had nothing
+  in it, and the substitute for it is the failure below.
+- **The demonstration is the failure the step exists to catch, in both trees at once.** A second
+  record numbered 0062 and a second directory numbered 028, both copies of a file that is otherwise
+  valid, produced `1 of 12 checks failed: numbering` and nothing else — which also shows the other
+  eleven steps have no opinion about a repeated number. The two messages differ because the two
+  fixes do: one is a rename plus an index row, the other is a directory `cargo xtask spec new` would
+  not have made.
+- **Verifying a check by making it fail also measures its coverage.** Taking both duplicates out of
+  the index without deleting them turned the step green over the two of them, counting the same 77
+  entries either way. That is `git ls-files` rather than the filesystem, the same limit `render`
+  has, and it is now a measured line in `AGENTS.md` instead of a thing to rediscover.
+- **A demonstration covers the failure it was built from, not the rule it was written for.** The
+  step grouped entries by the digits as written, so `0006-` and `6-` were two numbers and the gate
+  answered `all 12 checks passed` over a record duplicated under both. The demonstration had been
+  green twice over the collision the issue names and never once over this one, because both copies I
+  planted happened to carry the same padding. Grouping on the number with the padding off is the
+  fix; what is worth keeping is the habit of asking what else the rule admits, which no test I wrote
+  was going to ask for me.
+
+### Trade-offs worth remembering
+
+- **Reading the tracked tree buys agreement with the rest of the gate at the cost of a green run
+  over an unstaged collision.** A directory read would catch one before `git add`, and would also
+  report on files nothing tracks. The hook runs after `git add`, so a commit still cannot carry a
+  duplicate; what is left is a hand-run `cargo xtask check` that can be green over one, which is the
+  cheaper of the two surprises.
+- **The step checks the number and not the rest of the name.** `CONTRIBUTING.md` pointed here for
+  two things, and the other one — that a directory under `specs/` is `NNN-slug` with a slug of at
+  most forty characters — is still unchecked. The measured tree is clean on that half too, so
+  nothing is failing; the step stayed at the rule with one right answer rather than growing a second
+  opinion about a name.

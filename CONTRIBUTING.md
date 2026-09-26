@@ -135,8 +135,10 @@ The slug comes from the issue title, lowercased and hyphenated, at most forty ch
 derives it once, when the first stage is opened, and reads it back from the directory afterwards, so
 renaming the issue later does not rename anything.
 
-Nothing yet checks that every directory under `specs/` is named this way and that no two share a
-number. That check belongs in `cargo xtask check` and is tracked by issue #26.
+The `numbering` step of the gate rejects two entries claiming one number, in `specs/` and in
+`docs/decisions/` alike, and each is numbered by its own rule: a feature's is its issue's, and a
+record's is the next unused four digits. Nothing checks the other half — that a directory under
+`specs/` is named this way at all.
 
 ### Commits during implementation
 
@@ -211,6 +213,7 @@ you fix problems one at a time. A step passes or fails on its exit code alone.
 | `prettier`     | Formatting of Markdown, JSON and JSONC, including prose width                  |
 | `markdownlint` | Markdown structure: heading levels, duplicate headings, bare URLs, code fences |
 | `editorconfig` | Line endings, final newlines and trailing whitespace on every tracked file     |
+| `numbering`    | No two entries under `docs/decisions/` or `specs/` claim the same number       |
 | `cspell`       | Spelling, in code and prose alike                                              |
 | `clippy`       | Lints, including `pedantic`, with warnings denied                              |
 | `build`        | The workspace compiles, tests and all                                          |
