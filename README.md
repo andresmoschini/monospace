@@ -37,14 +37,58 @@ why the CLI comes before the TUI is
 
 ## Current status
 
-🚧 **Foundations, not features.** The workspace is laid out, `monospace-cli` prints a line it asks
-`monospace-core` for, and every commit is checked by a ten-step quality gate that the pre-commit
-hook and CI run identically. There is no diagramming yet — the next increment is the first slice of
-real domain logic.
+🚧 **It draws.** Boxes, optionally filled; lines; and arrows that route themselves between two
+endpoints, however far apart those are. Where two shapes meet, their strokes compose into a single
+cell rather than one overwriting the other, so a crossing becomes a junction and two boxes share a
+corner — and the front-most shape's fill is what covers what is behind it:
 
-What exists is the scaffolding: formatting, linting, spelling, documentation and tests, all enforced
-rather than merely intended. Including the check that keeps the core compiling for WebAssembly, so
-stage 4 stays reachable instead of becoming a rewrite.
+<!-- render:
+{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 20, "height": 7 } },
+  "shapes": [
+    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+      "stroke": "light", "fill": "░" },
+    { "kind": "box", "at": { "x": 3, "y": 1 }, "size": { "width": 4, "height": 3 },
+      "stroke": "double", "fill": "░" },
+    { "kind": "line", "at": { "x": 0, "y": 5 }, "len": 9, "orientation": "horizontal",
+      "stroke": "light" },
+    { "kind": "line", "at": { "x": 5, "y": 3 }, "len": 4, "orientation": "vertical",
+      "stroke": "light" },
+    { "kind": "arrow", "from": { "at": { "x": 8, "y": 1 }, "leaving": "right", "head": "►" },
+      "to": { "at": { "x": 15, "y": 4 }, "leaving": "up", "head": "▲" },
+      "stroke": "light" },
+    { "kind": "box", "at": { "x": 16, "y": 3 }, "size": { "width": 4, "height": 3 },
+      "stroke": "heavy", "fill": "▓" } ] }
+-->
+
+```text
+┌──┐
+│░░╠══╗ ►──────┐
+└──╢░░║        │
+   ╚═╤╝        │┏━━┓
+     │         ▲┃▓▓┃
+─────┼───       ┗━━┛
+     │
+```
+
+<!-- /render -->
+
+A diagram is an ordered set of shapes, each carrying the identity the order is addressed by, and it
+draws front to back into a window the caller gives it — which is what makes moving one shape forward
+change the picture. Nine glyph tables are in reach: the core's own Light and eight more held beside
+it, so the same box draws in ASCII, Double, Heavy and their combinations without a second code path.
+
+Behind that, and all of it enforced rather than merely intended:
+
+- **110** tests in `monospace-core`, **217** across the workspace.
+- **1856** renderings across 8 snapshots, pinning every arrangement of the arrow's route — a range
+  too wide to assert by hand, so a change to it is
+  [reported](docs/decisions/0053-report-a-characterization-instead-of-reviewing-it.md) rather than
+  reviewed.
+- An **eleven**-step quality gate the pre-commit hook and CI run identically, including the check
+  that keeps every crate but the CLI compiling for WebAssembly, so stage 4 stays reachable instead
+  of becoming a rewrite.
+
+Still missing, and named here rather than implied: an editing surface, the TUI, and persistence.
 
 ## Getting started
 
@@ -52,22 +96,30 @@ stage 4 stays reachable instead of becoming a rewrite.
 rustup toolchain install   # reads rust-toolchain.toml
 cargo xtask setup          # installs the Node tooling the gate needs
 
-cargo run -p monospace-cli # the one thing it can do so far
-cargo xtask check          # the whole quality gate
+cargo run -p monospace-cli                      # a demonstration: two pictures, one shape moved
+cargo run -p monospace-cli -- path/to.json      # one picture, for the description you give it
+cargo xtask check                               # the whole quality gate
 ```
+
+A description is JSON: a canvas and a list of shapes, documented in
+[the format's contract](specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md).
+`monospace-cli` holds no domain logic of its own — it turns a description into a `Diagram` and draws
+it.
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers all of it properly, including what each check owns and
 what to do when one fails.
 
 ### Layout
 
-| Path                    | What it is                                                      |
-| ----------------------- | --------------------------------------------------------------- |
-| `crates/monospace-core` | The library. All domain logic lives here, and nothing else.     |
-| `crates/monospace-cli`  | The command-line application. Holds no logic of its own.        |
-| `xtask/`                | Repository automation. `cargo xtask check` is the gate.         |
-| `docs/model.md`         | The domain's design, its provenance, and its open questions.    |
-| `docs/decisions/`       | Why things are the way they are, recorded as they were decided. |
+| Path                          | What it is                                                      |
+| ----------------------------- | --------------------------------------------------------------- |
+| `crates/monospace-core`       | The library. All domain logic lives here, and nothing else.     |
+| `crates/monospace-diagram`    | The model: a diagram as an ordered set of shapes, drawable.     |
+| `crates/monospace-glyph-sets` | The glyph tables the core does not ship as built-in data.       |
+| `crates/monospace-cli`        | The command-line application. Holds no logic of its own.        |
+| `xtask/`                      | Repository automation. `cargo xtask check` is the gate.         |
+| `docs/model.md`               | The domain's design, its provenance, and its open questions.    |
+| `docs/decisions/`             | Why things are the way they are, recorded as they were decided. |
 
 ## Guiding principles
 
