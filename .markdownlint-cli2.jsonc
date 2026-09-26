@@ -28,7 +28,9 @@
   "globs": ["**/*.md"],
   "gitignore": true,
 
-  // spec-kit owns these; it rewrites them on every `specify update`, and their structure is not
-  // ours to fix. Same reasoning as the prettier ignore above.
-  "ignores": [".claude/skills/speckit-*/**"],
+  // spec-kit owns these; it rewrites them on every `specify update` and on every
+  // `specify integration install`, and their structure is not ours to fix. Same reasoning as the
+  // prettier ignore above. `.opencode/commands/` holds the same prompt files as
+  // `.claude/skills/speckit-*/`, for the other harness.
+  "ignores": [".claude/skills/speckit-*/**", ".opencode/commands/**"],
 }

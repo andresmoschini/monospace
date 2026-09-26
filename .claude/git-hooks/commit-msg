@@ -1,10 +1,11 @@
 #!/bin/sh
 #
-# Records which Claude Code session produced the commit, then checks the message
-# against Conventional Commits.
+# Records which agent session produced the commit, then checks the message against
+# Conventional Commits.
 #
-# Installed by the SessionStart hook in .claude/settings.json. It therefore does not
-# run outside a Claude Code session; CI is what enforces the convention for everyone.
+# Installed by the SessionStart hook in .claude/settings.json, and equivalently by
+# .opencode/plugins/install-git-hooks.js. It therefore does not run outside a session; CI is
+# what enforces the convention for everyone.
 # See docs/decisions/0005-install-the-git-hooks-from-claude-code.md.
 
 MSG_FILE="$1"
@@ -13,35 +14,65 @@ MSG_FILE="$1"
 
 # --- Record the session -------------------------------------------------------
 #
-# The id comes from CLAUDE_CODE_SESSION_ID, which Claude Code exports into the
-# environment of its shell tools. `git commit` runs as a child of that shell and this
-# hook as a child of git, so the value is inherited and is always the session that is
-# committing. Reading it from ~/.claude/projects/ instead would be a guess: several
-# sessions can be open on one checkout, and "the newest transcript" is not the same
+# Two clients, two variables, two trailer keys. Claude Code exports CLAUDE_CODE_SESSION_ID into
+# the environment of its shell tools. OpenCode exports nothing of the kind - measured, not
+# assumed: the only OPENCODE_* variable in a session's environment is OPENCODE_TERMINAL - so
+# .opencode/plugins/session-trailer.js captures the id from the session hook and injects
+# MONOSPACE_SESSION_ID into the shells the agent spawns. `git commit` runs as a child of that
+# shell and this hook as a child of git, so in both cases the value is inherited and is always
+# the session that is committing. Reading it from a transcript file instead would be a guess:
+# several sessions can be open on one checkout, and "the newest transcript" is not the same
 # thing as "the one committing".
 #
-# It is written as a trailer rather than as a free-standing line because a line that
-# is not a trailer at the end of a message invalidates the entire block. Measured:
-# with a bracketed line appended after Co-Authored-By, `git interpret-trailers
-# --parse` reports no trailers at all, and the co-author attribution is lost.
+# It is written as a trailer rather than as a free-standing line because a line that is not a
+# trailer at the end of a message invalidates the entire block. Measured: with a bracketed line
+# appended after Co-Authored-By, `git interpret-trailers --parse` reports no trailers at all,
+# and the co-author attribution is lost.
 #
-# The key is Claude-Resume, not Claude-Session: Claude Code writes the latter itself
-# when Remote Control is on, carrying a browser URL. Those are different handles on
-# the same conversation, not two formats of one, so they get separate keys rather
-# than one key whose shape depends on a setting invisible from this repository.
-# See docs/decisions/0007-rename-the-session-trailer-to-claude-resume.md.
+# The key is Claude-Resume, not Claude-Session: Claude Code writes the latter itself when Remote
+# Control is on, carrying a browser URL. Those are different handles on the same conversation,
+# not two formats of one, so they get separate keys rather than one key whose shape depends on a
+# setting invisible from this repository. See
+# docs/decisions/0007-rename-the-session-trailer-to-claude-resume.md. OpenCode gets its own key
+# for the same reason: neither client's id can resume the other.
 #
-# --if-exists doNothing keeps `git commit --amend` idempotent, and keeps the session
-# that first wrote the commit rather than the one that touched it last.
+# --if-exists doNothing keeps `git commit --amend` idempotent, and keeps the session that first
+# wrote the commit rather than the one that touched it last.
 #
-# When the variable is absent or malformed - a commit made by hand, or a future
-# Claude Code that stops exporting it - nothing is stamped and the commit proceeds.
-# A commit with no session trailer is fine; one carrying somebody else's is not, and
-# a commit that fails over this is worse than either.
+# When the variable is absent or malformed - a commit made by hand, or a client that stops
+# exporting it - nothing is stamped and the commit proceeds. A commit with no session trailer is
+# fine; one carrying somebody else's is not, and a commit that fails over this is worse than
+# either.
+UUID='[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]'
+
+OPENCODE='ses_?[A-Za-z0-9]*'
+
+# The patterns are deliberately unquoted. A case pattern in quotes is matched literally, so "$UUID"
+# would only ever equal the bracket string itself. Measured: the first attempt stamped nothing,
+# and the symptom read as a missing variable rather than as a quoted glob.
+#
+# One pattern per client, and the second is not a copy of the first. The two ids have different
+# shapes: measured across this repository's own sessions, a Claude Code id is a UUID and an
+# OpenCode id is `ses_` followed by more of the same, never a UUID. Validating both against the
+# UUID pattern therefore stamped nothing at all from this harness, silently, which is the one
+# failure mode ADR-0006 ruled out.
+#
+# The prefix is the whole guard, and the width is deliberately not pinned. An exact length would
+# be a claim about OpenCode's internal id scheme, which this repository does not control, and a
+# change to it would stop the stamping silently - the same failure, one release away. For a value
+# to be stamped wrongly it would have to begin `ses_`, carry nothing outside the alphanumerics,
+# and be set in this repository's environment by something other than the plugin.
 case "$CLAUDE_CODE_SESSION_ID" in
-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])
+$UUID)
     git interpret-trailers --in-place --if-exists doNothing \
         --trailer "Claude-Resume: $CLAUDE_CODE_SESSION_ID" "$MSG_FILE"
+    ;;
+esac
+
+case "$MONOSPACE_SESSION_ID" in
+$OPENCODE)
+    git interpret-trailers --in-place --if-exists doNothing \
+        --trailer "OpenCode-Session: $MONOSPACE_SESSION_ID" "$MSG_FILE"
     ;;
 esac
 

@@ -12,8 +12,11 @@ msvc
 newtype
 nvmrc
 Nygard
+opencode
 PATHEXT
 RUSTFLAGS
+safecrlf
 speckit
 valueonly
+worktree
 xtask

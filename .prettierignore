@@ -4,9 +4,10 @@ target/
 # npm owns this file and rewrites it; formatting it would create churn on every install.
 package-lock.json
 
-# spec-kit owns these; it rewrites them on every `specify update`, and they are not ours to
-# reformat.
+# spec-kit owns these; it rewrites them on every `specify update` and on every
+# `specify integration install`, and they are not ours to reformat.
 .claude/skills/speckit-*/
+.opencode/
 .specify/*
 
 # Except the three templates this repository writes itself: their stock contents were replaced
