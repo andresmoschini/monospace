@@ -27,10 +27,12 @@ The first downloads a toolchain even if you already have the same version under 
 because rustup treats `stable` and `1.98.1` as different installations. The second takes about half
 a minute the first time.
 
-There is no third step for the hooks: opening a Claude Code session installs them, through a
-`SessionStart` entry in `.claude/settings.json`. Working another way, run
-`git config core.hooksPath .claude/git-hooks` yourself — and read the next section first, because
-without it nothing checks your commits until CI does.
+There is no third step for the hooks: a session installs them, whichever harness it is — a Claude
+Code session through the `SessionStart` entry in `.claude/settings.json`, an OpenCode session
+through `.opencode/plugins/install-git-hooks.js`
+([ADR-0058](docs/decisions/0058-install-the-git-hooks-from-an-opencode-session-too.md)). Working
+another way, run `git config core.hooksPath .claude/git-hooks` yourself — and read the next section
+first, because without it nothing checks your commits until CI does.
 
 ## Everyday commands
 
@@ -330,12 +332,14 @@ but cannot rewrite.
 `pre-commit` runs the gate. `commit-msg` checks the message with commitlint. Both live in
 `.claude/git-hooks/`.
 
-**They only run if they were installed, and only a Claude Code session installs them.** A commit
-made from a plain terminal in a clone where no session has opened runs no hooks at all, and nothing
-says so — the commit simply succeeds. That is deliberate, not an oversight:
+**They only run if they were installed, and a session is what installs them.** A commit made from a
+plain terminal in a clone where no session has opened runs no hooks at all, and nothing says so —
+the commit simply succeeds. That is deliberate, not an oversight:
 [ADR-0005](docs/decisions/0005-install-the-git-hooks-from-claude-code.md) records the trade and the
-cost. CI runs the same gate on every push and pull request, so the boundary that actually holds is
-there; the hooks are fast feedback in front of it. Check yours with `git config core.hooksPath`.
+cost, and [ADR-0058](docs/decisions/0058-install-the-git-hooks-from-an-opencode-session-too.md)
+closed the second client's half of the gap. CI runs the same gate on every push and pull request, so
+the boundary that actually holds is there; the hooks are fast feedback in front of it. Check yours
+with `git config core.hooksPath`.
 
 **The pre-commit hook checks your working tree, not what you staged.** With unstaged changes
 present, or after `git add -p`, it verifies files that are not the ones being committed, so a commit
@@ -389,14 +393,19 @@ A recorded decision is the exception: what may be edited in place and what needs
 
 ### The session trailer
 
-A commit made from a Claude Code session can carry two trailers, and they are different handles on
-the same conversation rather than the same one twice.
+A commit made from an agent session can carry up to three trailers, and each is a different handle
+on the same conversation rather than the same one twice.
 
-- **`Claude-Resume`** holds the local session id. Reopen the conversation with
+- **`Claude-Resume`** holds a Claude Code session's local id. Reopen the conversation with
   `claude --resume <id>`. The `commit-msg` hook writes it, so it is present whenever the hooks are.
-- **`Claude-Session`** holds a URL that opens the session in a browser. Claude Code writes it itself
-  when Remote Control is enabled, which is a setting outside this repository — so it is present
-  sometimes and absent otherwise.
+- **`Claude-Session`** holds a URL that opens a Claude Code session in a browser. Claude Code writes
+  it itself when Remote Control is enabled, which is a setting outside this repository — so it is
+  present sometimes and absent otherwise.
+- **`OpenCode-Session`** holds an OpenCode session's id, stamped by the same hook from the value
+  `.opencode/plugins/session-trailer.js` injects
+  ([ADR-0060](docs/decisions/0060-stamp-the-opencode-session-into-the-commit.md)). Neither client's
+  id resumes the other, which is why they are separate keys rather than one key whose shape depends
+  on the client.
 
 List them across the history with:
 
@@ -404,10 +413,11 @@ List them across the history with:
 git log --format='%h %(trailers:key=Claude-Resume,valueonly)'
 ```
 
-[ADR-0007](docs/decisions/0007-rename-the-session-trailer-to-claude-resume.md) covers why they have
-separate keys, and [ADR-0006](docs/decisions/0006-record-the-claude-session-in-commit-trailers.md),
-which it supersedes, covers why either is a trailer rather than a plain line — a non-trailer line at
-the end of a message silently invalidates `Co-Authored-By` along with it.
+[ADR-0007](docs/decisions/0007-rename-the-session-trailer-to-claude-resume.md) covers why the first
+two have separate keys, and
+[ADR-0006](docs/decisions/0006-record-the-claude-session-in-commit-trailers.md), which it
+supersedes, covers why any of them is a trailer rather than a plain line — a non-trailer line at the
+end of a message silently invalidates `Co-Authored-By` along with it.
 
 It is a convenience, not a record. Transcripts live outside the repository and do not survive a new
 machine, so the reasoning that matters still belongs in the commit body or in an ADR. If a commit
@@ -423,6 +433,10 @@ session instead of being a file Claude has to remember to open. Relative paths r
 To confirm it loaded, run `/context` and look for the constitution under "Memory files". If it is
 missing, nothing errors — Claude simply works without the rules, which is the failure mode worth
 checking after touching either file.
+
+OpenCode expands no import, so nothing reaches a session that way. `AGENTS.md` orders the reading
+instead, and this file is one of the three it points at
+([ADR-0056](docs/decisions/0056-give-opencode-its-own-instruction-file.md)).
 
 Both files are read on **every** call of a session, and a session costs its length squared
 ([ADR-0027](docs/decisions/0027-control-token-cost-through-session-discipline.md)), so they hold the
