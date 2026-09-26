@@ -1713,3 +1713,63 @@ record.
   it could have been told by a list it maintains itself.** Measured cost: nothing you would notice.
   The alternative is a second source of truth about `.gitattributes`, and `.gitattributes` is the
   file that changes.
+
+## 2026-09-26 — the duplication, paragraph by paragraph
+
+`TODO(TRIM_DUPLICATION)`, open since 1.0.0, closed by
+[issue #113](https://github.com/andresmoschini/monospace/issues/113) and recorded as
+[ADR-0062](docs/decisions/0062-reduce-what-the-instruction-files-restate.md). Five commits: the
+record, `CONTRIBUTING.md` at 497 to 456, three sentences and a heading that had stopped being true
+and put it back to 470, `CLAUDE.md` at 86 to 86, and the TODO's own closure.
+
+### Working this way
+
+- **The test has to answer "is this said anywhere else", and never "could this live somewhere
+  else".** The second question is a relocation wearing a deletion's clothes, and it deletes the only
+  copy. `CONTRIBUTING.md`'s three reasons for putting the closing keyword in the pull request body
+  rather than in a commit are in no record — ADR-0054 cites `CONTRIBUTING.md` as the owner of the
+  keyword rule, and holds its own different reasoning about the two verbs. Cut on the second
+  question and that argument leaves the repository with nowhere to live.
+- **A citation is nearly as long as the sentence it replaces, so the win is not length.** Measured:
+  `CLAUDE.md` went from 86 lines to 86 while ten restated sentences became eight anchors into the
+  constitution, and `CONTRIBUTING.md` lost 41 of 497. Selling this increment as a token saving would
+  be selling the wrong thing — the file where length was the honest argument is the one holding a
+  restated _table_, and that copy stayed for a different reason entirely. The first draft of the
+  `CLAUDE.md` commit said "86 to 85", and the extra sentence it was counting came out of the file a
+  commit later, which is what made the number wrong and the history worth rewriting.
+- **Measuring the third file was worth as much as cutting the two, and it is what found the
+  defects.** `AGENTS.md` needed nothing removed, which is the opposite of what the previous entry
+  predicted for it; what reading all three against the constitution produced was three sentences and
+  a section title that were not duplication but falsehood, and every one of them sat in a section
+  the trim had already touched. A trim pass is a reading pass. Falsehood is what a document says
+  when nobody has compared it against the code it describes, and no amount of de-duplication looks
+  for it.
+- **Two copies of a table is a defect; zero correct copies is worse.** ADR-0033's table of state
+  labels still names `spec` and `plan` after ADR-0051 replaced three stages with two, so
+  `CONTRIBUTING.md`'s is the only correct mapping in the repository and the obvious cut would have
+  left the project with a wrong one. That is
+  [issue #127](https://github.com/andresmoschini/monospace/issues/127), and nothing in the trim
+  would have found it except reading the ADR the table came from.
+- **The ceiling found the duplication a third time, and an unmeasured number with it.** ADR-0062
+  landed at 69 lines against the 60 a `working` record gets, and what came out was a driver
+  restating a consequence, a Context sentence the outcome already made, and "four versions" — a
+  count I had not taken. There are nine after 1.0.0. A ceiling that forces you to read your own
+  sentences is also what catches the claim in them.
+- **The commitlint footer warning has a second shape, and it is not the one documented.** What
+  `CONTRIBUTING.md` records is a colon-terminated word starting a line. What produced the warning
+  here was a line _ending_ in an em dash: the next line was then read as a footer continuation, and
+  rewrapping so the dash landed mid-line cleared it. Bisected to one line by truncating the message
+  a line at a time, which is the only reason it was found at all.
+
+### Trade-offs worth remembering
+
+- **De-duplicating costs addressability, and the earlier entry measured what that is worth.** A
+  reader after what `deciding` means now opens two files, where before they opened one. The same
+  entry found addressability to be the real defect in the document set, seventeen names sitting
+  inside three headings; paying a little of it back to get one wording per rule is a trade, and
+  ADR-0062 records it as the cost it is rather than as a caveat.
+- **Nothing enforces this, and the honest substitute is the question rather than a check.** The gate
+  compares the files against neither the constitution nor each other, so ADR-0062's three questions
+  are what a reviewer asks. That is only affordable because the questions are short enough to hold
+  in one's head, which is the argument for having written them down as three and not as a list of
+  paragraphs.
