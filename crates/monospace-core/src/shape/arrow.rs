@@ -102,6 +102,7 @@ use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
 /// Where an arrow ends: a position, the direction it leaves in, and a terminal. See _The initial
 /// set_ and _What a terminal writes_ in
 /// [`docs/model.md`](../../../docs/model.md).
+#[derive(Debug)]
 pub struct Endpoint {
     /// The endpoint's position. The terminal occupies this position itself.
     pub at: Pos,
@@ -145,6 +146,7 @@ fn arm_side(leaving: Direction) -> Side {
 /// A **complete** shape in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../docs/model.md). The route between the two endpoints is derived from
 /// their positions and leaving directions alone — FR-016 — and is never described by the caller.
+#[derive(Debug)]
 pub struct Arrow {
     /// One endpoint of the arrow.
     pub from: Endpoint,

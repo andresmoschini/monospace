@@ -53,6 +53,29 @@ The order is a sequence, and its **front** is the end drawn first. A shape neare
 a cell before one behind it. Nothing about the order is a coordinate: it says which shape decides
 first, and that is all it says.
 
+Two boxes written in this order, where the second is the front and decides the two cells they share
+— its own border survives where the first box's does not, and the first box's does not compose with
+anything because the second never left those sides open:
+
+<!-- render:
+{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+  "shapes": [
+    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+      "stroke": "light" },
+    { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+      "stroke": "light" }
+  ] }
+-->
+
+```text
+┌──┐
+│ ┌┼─┐
+└─┼┘ │
+  └──┘
+```
+
+<!-- /render -->
+
 Groups of shapes are out of this model. A shape belongs to a diagram directly, and there is no
 nesting.
 
@@ -136,6 +159,33 @@ They are the caller's. Deriving a direction from which side of a shape was attac
 question below, and every anchor being a side is what keeps it answerable: a side has an outside to
 leave through.
 
+An arrow's `from` endpoint standing on the right border of a box, and its `to` endpoint out in the
+open. The cell at `(3, 1)` reads `├`, and neither figure wrote a junction there — the box's border
+and the arrow's arm terminal composed into one, which is the whole point of a side being an anchor
+rather than a corner:
+
+<!-- render:
+{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 } },
+  "shapes": [
+    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+      "stroke": "light" },
+    { "kind": "arrow",
+      "from": { "at": { "x": 3, "y": 1 }, "leaving": "right",
+                "terminal": { "kind": "arm" } },
+      "to":   { "at": { "x": 7, "y": 1 }, "leaving": "left",
+                "terminal": { "kind": "arm" } },
+      "stroke": "light" }
+  ] }
+-->
+
+```text
+┌──┐
+│  ├────
+└──┘
+```
+
+<!-- /render -->
+
 ## 7. Drawing
 
 A diagram draws into a buffer the caller gives it, and that buffer's origin and size are the window.
@@ -154,6 +204,30 @@ decides first. Its base stroke wins, its arms win on the sides it decided, and t
 `Unset` fall through — which is how two crossing lines produce a junction rather than one
 interrupting the other. A figure that does hide what it covers does so by writing literal glyphs,
 which is what a box's fill already is. That is the whole of the opacity this phase has.
+
+Neither line knows the other is there, and neither one is in front in any way that matters — the
+front-most one is the horizontal, and the cell where they cross is `┼` rather than a `│` with a gap
+in it:
+
+<!-- render:
+{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 7, "height": 5 } },
+  "shapes": [
+    { "kind": "line", "at": { "x": 3, "y": 0 }, "len": 5, "orientation": "vertical",
+      "stroke": "light" },
+    { "kind": "line", "at": { "x": 0, "y": 2 }, "len": 7, "orientation": "horizontal",
+      "stroke": "light" }
+  ] }
+-->
+
+```text
+   │
+   │
+───┼───
+   │
+   │
+```
+
+<!-- /render -->
 
 Drawing is repeatable and changes nothing about the diagram. Drawing the same diagram twice into two
 equal windows produces two equal buffers.

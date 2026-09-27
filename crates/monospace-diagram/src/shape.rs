@@ -13,7 +13,7 @@ use monospace_core::{
 /// endpoint is anchored stays inside this crate (research.md Q3). The terminal is the core's own
 /// type and this crate re-exports nothing: a caller takes it from `monospace_core`, exactly as it
 /// already takes the `Pos`, `Direction` and `Glyph` the other two fields hold.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Endpoint {
     /// The endpoint's position. The terminal occupies this position itself.
     pub at: Pos,
@@ -35,6 +35,7 @@ impl From<Endpoint> for monospace_core::Endpoint {
 
 /// A figure a diagram can hold: one of a closed set of kinds, each carrying every position and
 /// parameter the core shape it constructs takes (FR-007, FR-008).
+#[derive(Debug)]
 pub enum Shape {
     /// A box: a position, a size, a stroke and an optional fill.
     Box {

@@ -12,6 +12,7 @@ use crate::{Arm, Cell, Orientation, Pos, Shape, Stroke, StrokeCell, Surface};
 /// [`docs/model.md`](../../../../../docs/model.md): unlike [`Border`](super::border::Border), a
 /// segment continues past both its ends rather than bounding an interior on one side, so it has
 /// no `Closed` side at all.
+#[derive(Debug)]
 pub(crate) struct Segment {
     pub(crate) from: Pos,
     pub(crate) len: u32,

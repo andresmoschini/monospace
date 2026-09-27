@@ -10,6 +10,7 @@ use crate::{Cell, Glyph, Pos, Shape, Size, Surface};
 /// A fragment in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../../../docs/model.md): the glyph is a literal, per _A cell can be a
 /// literal instead_, so nothing connects into it.
+#[derive(Debug)]
 pub(crate) struct Fill {
     pub(crate) at: Pos,
     pub(crate) size: Size,

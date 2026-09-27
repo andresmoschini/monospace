@@ -11,6 +11,7 @@ use crate::{Arm, Cell, Pos, Shape, Stroke, StrokeCell, Surface};
 /// [`docs/model.md`](../../../../../docs/model.md). It renders through the glyph set like any
 /// other stroke cell — ADR-0029 — so two ends meeting at a shared position compose into the
 /// corner the two make rather than into a chosen glyph that refuses every junction.
+#[derive(Debug)]
 pub(crate) struct End {
     pub(crate) at: Pos,
     pub(crate) side: Side,
