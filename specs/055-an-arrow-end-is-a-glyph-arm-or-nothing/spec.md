@@ -1,19 +1,22 @@
 <!-- The feature branch is named after the issue title, truncated by `cargo xtask spec`. -->
 
-# Feature Specification: An arrow's end is a glyph, an arm, or nothing
+# Feature Specification: An arrow's end is a glyph or an arm
 
 **Feature Branch**: `055-an-arrow-end-is-a-glyph-arm-or-nothing-deciding` | **Issue**:
 [#55](https://github.com/andreschini/monospace/issues/55) | **Created**: 2026-09-26 | **Status**:
 Draft
 
-**Input**: Issue #55, "An arrow end is a glyph, arm, or nothing" — the wish as it was filed, read
-with the amendment the session that settled it wrote into the issue itself.
+**Input**: Issue #55, "An arrow end is a glyph or an arm" — the wish as it was filed, read with the
+amendment the session that settled it wrote into the issue itself.
 
 ## What this slice implements
 
 - [_The initial set_](../../docs/model.md#the-initial-set) — an endpoint becomes a position, a
-  leaving direction and a terminal of three, and `at` becomes the cell the terminal hangs from
-  rather than a cell the endpoint owns.
+  leaving direction and a terminal, and `at` becomes the cell the terminal hangs from rather than a
+  cell the endpoint owns. The section also states that what an endpoint may write is vocabulary this
+  document owns, so that naming one more of them is a change here and in the figure and not a change
+  to any record: the record covering the move states where the reasoning lives, not what the
+  vocabulary holds.
 - [_An end is an arm; a head is a glyph_](../../docs/model.md#an-end-is-an-arm-a-head-is-a-glyph) —
   the argument stands entire, because no glyph set holds a rule that points and a head still needs a
   glyph the caller chooses. What is added is that the two answers stop being forced by the data.
@@ -23,10 +26,10 @@ with the amendment the session that settled it wrote into the issue itself.
   mirrors gains the same terminal, and the sentence there calling that definition unchanged goes.
 
 The model changes first, in the same increment, as the constitution asks: a slice that needs a rule
-the model does not have has the model grow it before the code does. Two questions the issue leaves
-open — whether [ADR-0029](../../docs/decisions/0029-draw-a-line-end-as-one-arm.md) is revised in
-place rather than recorded beside, and what the third kind is called — are decisions this slice has
-to take, and they belong on the sheet `/speckit-plan` part one writes. Neither is answered here.
+the model does not have has the model grow it before the code does. One question the issue leaves
+open — what becomes of [ADR-0029](../../docs/decisions/0029-draw-a-line-end-as-one-arm.md), whose
+second half this slice reverses — is a decision this slice has to take, and it belongs on the sheet
+`/speckit-plan` part one writes. It is not answered here.
 
 Two assumptions carry the rest. Nothing outside this repository reads the description format — the
 contract documenting it calls itself provisional — so naming the terminal differently needs no
@@ -41,19 +44,18 @@ endpoint standing on the nearer box's border cell. Each group states its scenari
 the pictures underneath, because a generated picture cannot sit inside a numbered item without one
 of the two formatters moving it.
 
-### B1 — One field, a tag on it, and three things it can name
+### B1 — One field, a tag on it, and two things it can name
 
 1. **Given** an endpoint whose terminal is a chosen glyph, **When** the arrow is drawn, **Then** the
    cell at the endpoint holds that glyph, and nothing composes into it.
 2. **Given** an endpoint whose terminal is an arm, **When** the arrow is drawn, **Then** the cell at
    the endpoint carries the one arm the arrow arrives on, in the arrow's own stroke, leaves its
    other three sides undecided, and renders through the glyph set like every other stroke cell.
-3. **Given** an endpoint whose terminal is nothing, **When** the arrow is drawn, **Then** the arrow
-   writes no cell at that position, and the body begins one cell away from it. The box keeps the
-   border it wrote there itself.
-4. **Given** the field that names the terminal, **When** a description is read, **Then** it is one
+3. **Given** the field that names the terminal, **When** a description is read, **Then** it is one
    field carrying a tag, not a field whose presence or absence decides. A glyph and an arm are two
-   values of the same field, and "nothing" is a third value rather than an omission.
+   values of the same field, and neither of them is what leaving the field out would mean — which is
+   what lets a terminal the model has not named yet be added without changing the shape of a
+   description.
 
 A glyph terminal at both ends, which is what the arrow draws today and what every pinned rendering
 in the repository is:
@@ -78,17 +80,6 @@ in the repository is:
 ```
 
 <!-- /render -->
-
-Nothing at either end. The body is the five cells between the same two positions, and the cell each
-endpoint named still holds the box's own border:
-
-```text
-┌─┐     ┌─┐
-│ │─────│ │
-└─┘     └─┘
-```
-
-Hypothetical — hand-drawn, not generated. The `nothing` scenario of B1.
 
 ### B2 — An arm terminal composes; a glyph terminal covers
 
@@ -136,8 +127,8 @@ Hypothetical — hand-drawn, not generated. The second scenario of B2.
 
 ### B3 — Nothing about the body moves
 
-1. **Given** one arrow and each of the three terminals in turn, **When** it is drawn, **Then** the
-   body is the same five cells between the same two positions in all three.
+1. **Given** one arrow and each of the two terminals in turn, **When** it is drawn, **Then** the
+   body is the same five cells between the same two positions in both.
 2. **Given** any terminal, **When** the arrow is drawn, **Then** the path writes no endpoint cell at
    all, so the terminal is the only thing an endpoint contributes to the cell it names.
 3. **Given** the 1856 pinned renderings of the arrow sweep, every one of them a glyph terminal,
@@ -145,10 +136,6 @@ Hypothetical — hand-drawn, not generated. The second scenario of B2.
 
 ## Edge cases
 
-- **An endpoint whose terminal is nothing, on a cell nothing else writes.** The body starts one cell
-  away and the position the caller named stays blank, so a loose arrow reads as a run of segments
-  with a blank at either end. Writing the terminal one step along the leaving direction instead
-  leaves that blank at the position itself and is not what this slice does.
 - **A glyph terminal standing on a box's border cell.** The border is interrupted, and which of the
   two survives depends on which is in front — the measurement the first scenario of B2 pins. A
   degenerate arrangement draws what the general rule gives it and gains no exception.
@@ -164,6 +151,11 @@ Hypothetical — hand-drawn, not generated. The second scenario of B2.
 
 ## What this slice does not decide
 
+- **What an endpoint writes when its terminal is neither a glyph nor an arm** — a terminal that
+  neither points nor joins is outside this slice, and the cell such a terminal leaves behind is not
+  settled here. The tag is what lets the question be answered later without a second spelling of the
+  data. What would settle it: a slice that says what a terminal does when something else reaches the
+  same cell and the two should not join, which a `Line`'s end wants as much as an arrow's does.
 - **Whether a terminal's glyph may come from a glyph set rather than from the caller** — the tag
   leaves the shape of the data open to it, and the model already carries the question. What would
   settle it: the slice that gives a set its own heads
@@ -182,11 +174,11 @@ Hypothetical — hand-drawn, not generated. The second scenario of B2.
 ## Testing expectations
 
 - **Contract** — one named test per terminal, for what it writes: a glyph literal that nothing
-  composes into; one arm and three undecided sides, in the arrow's own stroke; and no cell at all.
+  composes into; one arm and three undecided sides, in the arrow's own stroke.
 - **Contract** — the distinction B2 draws, asserted in both orders rather than described: one test
   where the two pictures of a glyph terminal differ, one where the two pictures of an arm terminal
   are the same.
-- **Contract** — that the three terminals draw the same body, and that the path writes no endpoint
+- **Contract** — that the two terminals draw the same body, and that the path writes no endpoint
   cell whatever the terminal is.
 - **Characterization** — the sweep of every arrow arrangement, 1856 renderings across eight snapshot
   files, all of them glyph terminals today. What makes it too wide to assert by hand is the count:
@@ -199,13 +191,13 @@ Hypothetical — hand-drawn, not generated. The second scenario of B2.
 
 - **SC-001**: An arrow with a glyph terminal at both ends draws the picture it draws today, and none
   of the 1856 pinned renderings of the sweep changes.
-- **SC-002**: The same arrow with each of the three terminals draws the same body — the same five
+- **SC-002**: The same arrow with each of the two terminals draws the same body — the same five
   cells between the same two positions, in the arrangement above.
 - **SC-003**: The arrangement above with arm terminals at both ends draws one identical picture in
   both stamp orders, with the border cell a junction in each.
 - **SC-004**: The same arrangement with glyph terminals at both ends draws two different pictures,
   and the one where the boxes are in front has lost the right-hand border cell.
-- **SC-005**: One description file names all three terminals, and a file naming anything else is
-  refused by name rather than silently read as one of the three.
+- **SC-005**: One description file names both terminals, and a file naming anything else is refused
+  by name rather than silently read as one of the two.
 - **SC-006**: Every picture pinned by feature 039, the shipped demonstration, and the model
   document's own rendered examples is unchanged.
