@@ -32,6 +32,7 @@ fn orientation_of(side: Side) -> Orientation {
 /// and fragment_ in [`docs/model.md`](../../../docs/model.md). `from` and `to` are the arrow's own
 /// two endpoints, needed only so the outermost route positions know which side faces the head
 /// beside them; the route itself never writes to `from` or `to`.
+#[derive(Debug)]
 pub(crate) struct Route {
     pub(crate) from: Pos,
     pub(crate) to: Pos,

@@ -7,6 +7,8 @@ use crate::{Buffer, Cell, Pos, StampMode};
 mod arrow;
 mod box_shape;
 pub(crate) mod fragment;
+#[cfg(test)]
+mod gallery_spike;
 mod line;
 mod route;
 

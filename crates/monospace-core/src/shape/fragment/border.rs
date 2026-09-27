@@ -14,6 +14,7 @@ use crate::{Arm, Cell, Orientation, Pos, Shape, Stroke, StrokeCell, Surface};
 /// cannot be constructed. Whether that interior-facing side is `Closed` or `Unset` is not derivable
 /// from `side` alone, so the figure placing this border names it via `closes_interior`. A fragment
 /// in the sense of _Complete and fragment_ in [`docs/model.md`](../../../../../docs/model.md).
+#[derive(Debug)]
 pub(crate) struct Border {
     pub(crate) from: Pos,
     pub(crate) len: u32,
