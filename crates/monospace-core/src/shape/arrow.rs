@@ -1223,6 +1223,145 @@ mod tests {
         }
     }
 
+    /// User Story 3, spec's B3 scenario 1, SC-002: the route is derived from the two positions and
+    /// the two leaving directions alone, so a terminal cannot reach it and the body is the same
+    /// cells either way. Checked position by position rather than by looking at two pictures,
+    /// because the claim is that the texts differ at two named positions and nowhere else.
+    #[test]
+    fn the_two_terminals_write_the_same_body_and_differ_only_at_the_endpoints() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 11,
+            height: 3,
+        };
+        let from_at = Pos { x: 2, y: 1 };
+        let to_at = Pos { x: 8, y: 1 };
+
+        let glyph = |text: &str| Terminal::Glyph {
+            glyph: Glyph::new(text).expect("one glyph"),
+        };
+        let with_glyphs = render_arrow(
+            origin,
+            size,
+            Endpoint {
+                at: from_at,
+                leaving: Direction::Right,
+                terminal: glyph("◄"),
+            },
+            Endpoint {
+                at: to_at,
+                leaving: Direction::Left,
+                terminal: glyph("►"),
+            },
+        );
+        let with_arms = render_arrow(
+            origin,
+            size,
+            Endpoint {
+                at: from_at,
+                leaving: Direction::Right,
+                terminal: Terminal::Arm,
+            },
+            Endpoint {
+                at: to_at,
+                leaving: Direction::Left,
+                terminal: Terminal::Arm,
+            },
+        );
+
+        let char_at = |text: &str, at: Pos| {
+            let column = |value: i32| {
+                value
+                    .checked_sub(origin.x)
+                    .and_then(|offset| usize::try_from(offset).ok())
+            };
+            let row = |value: i32| {
+                value
+                    .checked_sub(origin.y)
+                    .and_then(|offset| usize::try_from(offset).ok())
+            };
+            match (column(at.x), row(at.y)) {
+                (Some(column), Some(row)) => text
+                    .lines()
+                    .nth(row)
+                    .and_then(|line| line.chars().nth(column)),
+                _ => None,
+            }
+        };
+        let positions: Vec<Pos> = (0..size.height)
+            .flat_map(|y| {
+                (0..size.width).map(move |x| Pos {
+                    x: origin.x + i32::try_from(x).expect("a window width fits i32"),
+                    y: origin.y + i32::try_from(y).expect("a window height fits i32"),
+                })
+            })
+            .collect();
+        let differing: Vec<Pos> = positions
+            .into_iter()
+            .filter(|at| char_at(&with_glyphs, *at) != char_at(&with_arms, *at))
+            .collect();
+
+        assert_eq!(differing, vec![from_at, to_at]);
+    }
+
+    /// User Story 3, spec's B3 scenario 2, data-model invariant 2: the path writes no endpoint cell
+    /// whatever the terminal is, so the terminal is the only thing an endpoint contributes to the
+    /// cell it names.
+    ///
+    /// Both terminals are run over the same arrangement in turn, and the route is not empty — the
+    /// five cells between the endpoints are asserted written — so a largest write count of one is
+    /// not vacuous. Were the path to write an endpoint cell, that cell would carry the terminal's
+    /// write and the path's, and the count there would be two.
+    #[test]
+    fn the_path_writes_no_endpoint_cell_whichever_terminal_is_used() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 11,
+            height: 3,
+        };
+        let from_at = Pos { x: 2, y: 1 };
+        let to_at = Pos { x: 8, y: 1 };
+        let body: Vec<Pos> = (3..=7).map(|x| Pos { x, y: 1 }).collect();
+
+        for terminal in [
+            Terminal::Glyph {
+                glyph: Glyph::new("◄").expect("one glyph"),
+            },
+            Terminal::Arm,
+        ] {
+            let arrow = Arrow {
+                from: Endpoint {
+                    at: from_at,
+                    leaving: Direction::Right,
+                    terminal: terminal.clone(),
+                },
+                to: Endpoint {
+                    at: to_at,
+                    leaving: Direction::Left,
+                    terminal: terminal.clone(),
+                },
+                stroke: light(),
+            };
+
+            let mut buffer = Buffer::new(origin, size);
+            arrow.draw(&mut Layer::new(&mut buffer, StampMode::Above));
+            for at in body.iter().copied().chain([from_at, to_at]) {
+                assert!(
+                    buffer.cell(at).is_some(),
+                    "{terminal:?} wrote nothing at {at:?}"
+                );
+            }
+
+            let mut counting = CountingSurface::default();
+            arrow.draw(&mut counting);
+            assert_eq!(
+                counting.max_writes(),
+                1,
+                "{terminal:?} wrote some position more than once"
+            );
+        }
+    }
+
     /// User Story 1, R-1, FR-002, spec acceptance scenarios 1 and 3: two endpoints facing away
     /// from each other on one line are joined, wrapping around the outside on the side the
     /// travel puts to its right, however far apart the two are — the same shape with longer runs.
