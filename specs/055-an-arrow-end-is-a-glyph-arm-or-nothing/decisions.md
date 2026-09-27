@@ -45,7 +45,7 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 
 - **Proposal**: no rule of its own; the measured general rule decides it in both orders.
 - **The alternative**: state one — arm wins, glyph wins, or the cell is refused — fixing in one pair
-  what the measurement already fixes by accident, and wrongly in the arm's case.
+  what `docs/model.md`'s stamping table already fixes, and wrongly in the arm's case.
 - **Altitude**: domain — the cell a terminal leaves is observable outside the core, in the picture.
 - **If this is wrong**: the model states a rule, and a `Line`'s end then wants the same answer.
 - **Yours to answer**: yes — "the order decides" and "these two never join" are different models.

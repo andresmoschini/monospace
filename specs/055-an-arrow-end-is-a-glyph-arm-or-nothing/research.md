@@ -76,8 +76,8 @@ over `Glyph` and `Side`.
 
 ## Q4 — A glyph terminal and an arm terminal on one cell
 
-**Decision**: no rule is stated, and decisions.md D3 asks the maintainer to confirm that, because
-the measurement says the answer is otherwise arriving by accident.
+**Decision**: no rule is stated, and decisions.md D3 answers "the order decides as always" — which
+is what `docs/model.md` already says, in the table the two pictures below are printed in.
 
 Measured in both orders, a filled 5×5 box's interior literal standing in for the glyph and a
 horizontal line of length 2 for the arm. The **front-most** shape decides: `Diagram::draw` iterates
@@ -99,8 +99,16 @@ a decided target (`buffer.rs:79`). An arm in front erases the glyph at the two c
 closes the three sides it left `Unset`, because `merge` over a literal keeps the stroke cell and
 closes what it declined (`buffer.rs:133`); both then render `─`, the same character a segment does,
 per ADR-0029's measurement. So the cell's meaning changes with the order — one arm and three
-undecided sides becomes a through-line refusing every junction. That is "should they join" answered
-by accident, which is why it is a question and not a finding.
+undecided sides becomes a through-line refusing every junction.
+
+That is not an accident of the arrow, and it is why no rule of its own is stated. The two pictures
+are rows three and four of the stamping table in `docs/model.md`, under `Below` — "Stays arms, and
+its `Unset` sides close" and "Unchanged" — and four contract tests are named after those rows
+(`buffer.rs:584`, `:669`, `:627`, and the order equivalence at `:746`). The table says why the
+closed sides are there at all: without them a literal would be opaque in one order and transparent
+in the other, and the equivalence would stop holding the moment a literal sat between two figures.
+The arrow is simply the first pair of figures in the repository where one writes a literal and the
+other writes a partial cell, so the table covers it before the arrow asks.
 
 ## Q5 — The mirrored `Endpoint` in `monospace-diagram`
 
