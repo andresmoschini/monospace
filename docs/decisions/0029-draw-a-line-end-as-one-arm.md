@@ -1,5 +1,7 @@
 ---
-status: "accepted"
+status: accepted; superseded in part by ADR-0063
+scope: domain
+commitment: load-bearing
 date: 2026-09-10
 decision-makers: "Andrés Moschini, with Claude Opus 5"
 ---
@@ -156,6 +158,9 @@ ends and knowingly leaves in place for heads.
 
 - _An end is an arm; a head is a glyph_ in [`docs/model.md`](../model.md), amended alongside this
   record, and _Open questions_ there, where heads that follow the glyph set are the remaining half.
+- [ADR-0063](0063-supersede-adr-0029-and-move-its-reasoning-into-the-arrow-module.md), which
+  supersedes the second half of this record. This record's first half, and every section above it,
+  are what it was written for and are unchanged.
 - [ADR-0008](0008-compose-overlapping-cells-with-three-state-arms.md) for what `Unset` means, and
   [ADR-0026](0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md) for why a literal has four
   `Closed` arms.
