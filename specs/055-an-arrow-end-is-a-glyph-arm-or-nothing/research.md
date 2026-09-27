@@ -162,14 +162,40 @@ already order-sensitive, and that is the part the later slice has to answer.
 
 ## Q9 — Where the model's vocabulary sentence sits
 
-**Decision**: in _The initial set_, one sentence, and nowhere else.
+**Decision**: in _The initial set_, one sentence, and nowhere else. The section that argues the two
+members is retitled _What a terminal writes_, and the sentences below are what the amendment
+carries; decisions.md D4 holds the decision and points here.
 
-That section defines the endpoint's parts, so it is where a statement about them belongs. _An end is
-an arm; a head is a glyph_ argues the two members and its title names them, so a third terminal
-makes that heading wrong — which is the same reason the model's own rule holds: the vocabulary is a
-list the model owns, and the reasoning for each member is each figure's own (Q6). The sentence
-states the rule and its consequence — naming one more is a change here and in the figure, not a
-change to any record — and the consequence is what saves the next reader from opening an ADR.
+The definitional section is where a statement about the endpoint's parts belongs. The arguing
+section's title named the two of them, so a third terminal falsifies it — the same reason the
+model's rule holds, and the reason the new title does not enumerate. The sentences state the rule
+and its consequence, and the consequence is what saves the next reader from opening an ADR.
+
+Beside the endpoint's definition, replacing "and the glyph of the head that sits there":
+
+> An endpoint is a position, the direction the arrow leaves it in, and a **terminal**; `at` is the
+> cell the terminal hangs from. What a terminal may write is vocabulary this document owns, so
+> naming one more of them is a change here and in the figure and not a change to any record.
+
+And the retitled section, keeping ADR-0029's argument and the open question below it:
+
+> A **terminal** is what an endpoint contributes to the cell at `at`, and it is a **glyph** or an
+> **arm**. It writes that cell and nothing else.
+>
+> An **arm** writes one arm — the one the arrow arrives on — in the arrow's own stroke, and leaves
+> its other three sides `Unset`, so it renders through the glyph set like every other stroke cell
+> and whatever reaches it afterwards may still join it. The price is that an arm is not visible as
+> an arm: measured in the tables of [`glyph-sets.md`](glyph-sets.md), every single-stroke set
+> already answers the four single-arm keys, so what makes a cell an end is which sides it leaves
+> undecided rather than the character it draws.
+>
+> A **glyph** writes one chosen glyph, in the sense of _A cell can be a literal instead_, supplied
+> by the caller — and nothing connects into one, because a literal is decided on every side.
+
+One commit carries all five places the amendment touches — `model.md`'s `Endpoint` row, this
+definition, the heading, the open question, and the two sentences in `diagram-model.md` §6 — because
+one that amended the definition and left the vocabulary table reading "and a head" would be a state
+no reader could act on.
 
 ## Dependencies
 

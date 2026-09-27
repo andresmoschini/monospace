@@ -34,8 +34,7 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 
 - **Proposal**: `"terminal"`, tagged `"kind"` — `{"kind":"glyph","glyph":"◄"}` or `{"kind":"arm"}`.
 - **The alternative**: externally tagged, `{"glyph":"◄"}` against `"arm"`; but `Glyph(Glyph)` does
-  not compile, so FR-014's check moves into a hand-written `impl`, and a unit variant is a string
-  where a payload variant is an object.
+  not compile, so FR-014's check moves into a hand-written `impl`. The measurements are Q3's.
 - **Altitude**: domain — five tracked files carry the key, none of them the module that reads it.
 - **If this is wrong**: the key and those documents move again; the enum and the arm do not.
 - **Yours to answer**: yes — the name is the domain's and lands in the shipped demonstration.
@@ -44,8 +43,7 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 ## D3 — A glyph and an arm landing on one cell
 
 - **Proposal**: no rule of its own; the measured general rule decides it in both orders.
-- **The alternative**: state one — arm wins, glyph wins, or the cell is refused — fixing in one pair
-  what `docs/model.md`'s stamping table already fixes, and wrongly in the arm's case.
+- **The alternative**: state one; it contradicts a row of the stamping table and four tests.
 - **Altitude**: domain — the cell a terminal leaves is observable outside the core, in the picture.
 - **If this is wrong**: the model states a rule, and a `Line`'s end then wants the same answer.
 - **Yours to answer**: yes — "the order decides" and "these two never join" are different models.
@@ -58,9 +56,8 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 - **Altitude**: domain — the sentence is what makes the model, not the arrow module, the owner.
 - **If this is wrong**: the amendment lands in the wrong section and its cross-references move.
 - **Yours to answer**: yes — model prose is the maintainer's.
-- **Answer**: I do not know if the sentence "_An end is an arm; a head is a glyph_" is fine. It
-  should be clear what a endpoint is and what does mean a terminal with kind glyph and a terminal
-  with kind arm. I guess that model.md is the right place for it.
+- **Answer**: _The initial set_, beside the endpoint's definition; the section that argues the two
+  becomes _What a terminal writes_. The sentences are drafted in research.md Q9.
 
 ## D5 — Whether the shipped demonstration grows an arm terminal
 
