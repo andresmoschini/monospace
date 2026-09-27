@@ -1845,3 +1845,69 @@ fill the second.
   most forty characters — is still unchecked. The measured tree is clean on that half too, so
   nothing is failing; the step stayed at the rule with one right answer rather than growing a second
   opinion about a name.
+
+---
+
+## 2026-09-27 — Feature 055 implemented: an arrow's end is a glyph or an arm
+
+### Rust design and idiom
+
+- **One tagged enum carrying a sum beats a field and its absence, and the tag is what makes the
+  third value free.** `Endpoint` went from `head: Glyph` to `terminal: Terminal`, where `Terminal`
+  is `Glyph { glyph }` or `Arm`. Nothing about a terminal is optional, so there is no spelling of
+  "no terminal" and no file that silently means it: a description omitting the field is refused by
+  name instead. A third terminal is then a variant, a tag, and one line in the model's vocabulary,
+  with no change to the shape of a description and no record to reopen. `Arm` carries no payload,
+  which is the design rather than an omission — the side is `leaving`'s own and the stroke is the
+  arrow's, so a caller cannot put an arm on a side the arrow does not leave in even by writing one.
+- **The wire form was decided by where an attribute can go, not by which spelling reads better.**
+  Externally tagged, `Glyph(Glyph)` does not compile, because `Glyph` derives no `Deserialize` and
+  the `deserialize_with` carrying FR-014's grapheme check needs somewhere to sit; the cheap fix
+  would have been a hand-written `impl Deserialize` for a one-field wrapper. Internally tagged, the
+  check goes on a named field and the derive does the rest — one attribute instead of thirty lines —
+  at the price that a bare `"terminal": "arm"` is refused, which is now a test rather than an
+  accident. Measured, not assumed: the three error texts this produces are byte for byte what the
+  old format produced for the same mistakes.
+- **A `Direction` to `Side` mapping is a function rather than a field, because `Side` is
+  crate-private.** Putting it on the data would have made it a field of a public type whose own type
+  a caller cannot name, and the private function says the same thing with a visibility the compiler
+  can check. `Side` being private is what decided it; had it been public, a `Terminal::Arm { side }`
+  would have been the better shape and this would not have been a question. `#[derive(Ord)]` over
+  `Cost` and the model's four-term ranking are the same argument from a slice ago: a ranking is a
+  type, and once it is one there is nothing left to keep in sync by hand.
+
+### Working this way
+
+- **A test written to a plan's wording can be wrong about the code, and the difference is a finding
+  rather than a nuisance.** The plan said the multi-grapheme message was byte for byte what the old
+  format produced, and it is — but `serde_json::Error`'s `Display` appends `at line 7 column 13`,
+  which the crate does not own. Four tests asserting `assert_eq!` on the whole string failed on the
+  suffix; they now assert the message and say in a comment why the position is not part of it. The
+  same happened in the other direction: an omitted-field case built by dropping a line from a shared
+  template cut the wrong line and reported `missing field 'from'`. Both were caught by running, and
+  both are recorded in the commit rather than quietly fixed.
+- **`Arm` is not `Copy`, and the fix that reads well is a closure, not `.clone()`.** A test building
+  the expected `StrokeCell` for all four leaving directions reused one `Arm::Unset` value in a tuple
+  and would not compile. A closure that returns a fresh `Arm` per side is shorter than four
+  `clone()`s and says what the assertion means. In the same test a cast from `i32` to `usize` was
+  refused by the gate's lints, and the checked form that replaced it — `checked_sub` then `try_from`
+  — is also the correct thing, because a position can sit outside the window.
+- **Two commit messages in this slice were rejected by commitlint for a line that read as a
+  footer.** A body sentence that wrapped onto a line beginning `it: two orders, ...` matches the
+  shape commitlint takes for a trailer, and it reported the footer as missing its leading blank
+  line. The commit was still created, so the warning is not a failure — but a body that a tool
+  parses as a trailer is a body nobody should have to re-read, and the fix is to amend rather than
+  to push on. Checking a draft message for `^[a-z-]+:` before committing catches it in a second.
+
+### Trade-offs worth remembering
+
+- **Under principle V a wire-format rename and the type that replaces it cannot share a commit, so
+  three documents carrying a render marker are rewritten twice.** The rename is structural and the
+  tag is behavioral, and the tag is what changes what a malformed file reports. Splitting them is
+  the rule rather than taste, and its cost is concrete: `README.md`, `docs/model.md` and this
+  feature's own `spec.md` carry the key inside a `<!-- render -->` description, and each was edited
+  once for the rename and again for the tag. The cost is bounded and the alternative is worse, but
+  the right way to keep it cheap is to stage before `cargo xtask render` every time — that step
+  walks `git ls-files '*.md'`, so an edited and unstaged marker is invisible to it and it reports
+  success having checked nothing. Both halves measured empty: four pictures already up to date and
+  an empty `git diff` after the rename, and the same after the tag.

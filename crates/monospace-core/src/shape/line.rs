@@ -1,5 +1,5 @@
 //! The line: a run of one stroke, its two outermost cells carrying only the arm it runs on. See
-//! _The initial set_ and _An end is an arm; a head is a glyph_ in
+//! _The initial set_ and _What a terminal writes_ in
 //! [`docs/model.md`](../../../docs/model.md).
 
 use crate::cell::Side;

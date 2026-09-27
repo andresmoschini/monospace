@@ -58,25 +58,86 @@
 //! those lines — is confirmed against an unrestricted search rather than proved, and a term added
 //! to [`Cost`] that the lattice knows nothing about is exactly how that confirmation goes stale.
 //! Re-run it against any new term.
+//!
+//! ## What a terminal writes
+//!
+//! Nothing outside this module observes either rule below beyond the picture it produces, so
+//! changing either is an ordinary `feat` or `fix`: it amends no model document and takes no ADR
+//! ([the constitution](../../../.specify/memory/constitution.md), principle VI). The vocabulary a
+//! terminal may have, and what each member writes in the model's own words, is
+//! _What a terminal writes_ in [`docs/model.md`](../../../docs/model.md) — this section says only
+//! what this module does with it.
+//!
+//! **Two values of one field, and not a field and its absence.** That is what the tag is for. An
+//! endpoint always carries a terminal, so a third one arrives as a new variant, a new tag, and one
+//! line in the model's vocabulary — the shape of a description does not change and no record
+//! reopens. A field and its absence would instead make "no terminal" a third spelling, and a
+//! caller who left the field out would get an arrow that draws nothing at either end rather than a
+//! refusal naming the two values that were expected.
+//!
+//! **A glyph decides every side; an arm leaves three undecided.** That difference is the whole of
+//! what the two write, and it is not this module's rule to state: _Stamping_ in
+//! [`docs/model.md`](../../../docs/model.md) already decides what two figures sharing a cell
+//! leave there, and these two land in it as two rows of that table. What this module owns is
+//! narrower — which side an arm goes on, and in whose stroke. The side is the leaving direction's
+//! own, because the arm faces the route, and the stroke is the arrow's own because a terminal
+//! choosing its stroke would be a second thing to keep consistent with the route it joins, while
+//! the model's arm is a stroke cell of the figure.
+//!
+//! **The set is closed at two, and is not `#[non_exhaustive]`.** A third terminal is a new variant
+//! in a later slice, which is a change to this enum and to the model rather than an invisible one.
+//! Marking it non-exhaustive would let a caller match on it exhaustively today and go on compiling
+//! after a third member exists, which is the one outcome the model's sentence about naming one more
+//! of them is written to prevent.
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
+use crate::cell::Side;
+use crate::shape::fragment::end::End;
 use crate::shape::fragment::head::Head;
 use crate::shape::route::Route;
 use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
 
-/// Where an arrow ends: a position, the direction it leaves in, and the glyph of the head that
-/// sits there. A head points opposite to `leaving`.
+/// Where an arrow ends: a position, the direction it leaves in, and a terminal. See _The initial
+/// set_ and _What a terminal writes_ in
+/// [`docs/model.md`](../../../docs/model.md).
 pub struct Endpoint {
-    /// The endpoint's position. The head occupies this position itself.
+    /// The endpoint's position. The terminal occupies this position itself.
     pub at: Pos,
     /// The direction the arrow leaves this endpoint in. The route's starting position is one
     /// step from `at` in this direction.
     pub leaving: Direction,
-    /// The glyph the head at this endpoint is drawn as — the caller's choice, per ADR-0029 and
-    /// FR-027, since no glyph set holds a rule that points.
-    pub head: Glyph,
+    /// What this endpoint contributes to the cell at `at`.
+    pub terminal: Terminal,
+}
+
+/// What an endpoint contributes to the cell at its own position. A caller builds either variant as
+/// a literal, and reads one back by matching this public field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Terminal {
+    /// One chosen glyph, written as a literal: decided on every side, so nothing composes into it.
+    Glyph {
+        /// The caller's glyph. No glyph set is consulted for it — ADR-0029, FR-027.
+        glyph: Glyph,
+    },
+    /// One arm, in the arrow's own stroke, on the side `leaving` names, leaving the other three
+    /// sides undecided.
+    Arm,
+}
+
+/// The side an arm terminal writes: the leaving direction's own side, and not its opposite, because
+/// the arm faces the route — which begins one step from `at` in that direction.
+///
+/// A function and not a field on [`Terminal`] because [`Side`] is crate-private. A caller can name
+/// a `Terminal::Arm` and get the side the arrow leaves in; it cannot name a side of its own.
+fn arm_side(leaving: Direction) -> Side {
+    match leaving {
+        Direction::Up => Side::Top,
+        Direction::Right => Side::Right,
+        Direction::Down => Side::Bottom,
+        Direction::Left => Side::Left,
+    }
 }
 
 /// An arrow: two endpoints and a stroke.
@@ -89,23 +150,34 @@ pub struct Arrow {
     pub from: Endpoint,
     /// The other endpoint of the arrow.
     pub to: Endpoint,
-    /// The stroke the route between the two endpoints is drawn in. The two heads are drawn in
-    /// their own glyphs, not in this stroke.
+    /// The stroke the route between the two endpoints is drawn in, and the stroke an arm terminal
+    /// is written in. A glyph terminal is drawn as its own glyph, not in this stroke.
     pub stroke: Stroke,
 }
 
 impl Shape for Arrow {
+    /// Draws the two terminals and then the route, in that order. The order of the two terminals
+    /// is the order the endpoints are named, `from` then `to`, and it is load-bearing where two
+    /// endpoints share one position: under `Above` the second is the one seen (C-6).
+    ///
+    /// The route is derived from the two positions and the two leaving directions alone, so it is
+    /// called exactly as it always was and a terminal cannot reach it.
     fn draw(&self, surface: &mut dyn Surface) {
-        Head {
-            at: self.from.at,
-            glyph: self.from.head.clone(),
+        for endpoint in [&self.from, &self.to] {
+            match &endpoint.terminal {
+                Terminal::Glyph { glyph } => Head {
+                    at: endpoint.at,
+                    glyph: glyph.clone(),
+                }
+                .draw(surface),
+                Terminal::Arm => End {
+                    at: endpoint.at,
+                    side: arm_side(endpoint.leaving),
+                    stroke: self.stroke.clone(),
+                }
+                .draw(surface),
+            }
         }
-        .draw(surface);
-        Head {
-            at: self.to.at,
-            glyph: self.to.head.clone(),
-        }
-        .draw(surface);
 
         if let Some(positions) =
             derive_path(self.from.at, self.from.leaving, self.to.at, self.to.leaving)
@@ -475,11 +547,11 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
 
 #[cfg(test)]
 mod tests {
-    use super::{Arrow, Endpoint, Lattice, RouteRectangle, derive_path, offset};
+    use super::{Arrow, Endpoint, Lattice, RouteRectangle, Terminal, derive_path, offset};
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke,
-        render,
+        Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Line, Orientation, Pos, Shape,
+        Size, StampMode, Stroke, StrokeCell, render,
     };
 
     fn light() -> Stroke {
@@ -501,7 +573,9 @@ mod tests {
         Endpoint {
             at,
             leaving,
-            head: head_for(leaving),
+            terminal: Terminal::Glyph {
+                glyph: head_for(leaving),
+            },
         }
     }
 
@@ -1042,6 +1116,250 @@ mod tests {
         );
 
         assert_eq!(text, "►\n");
+    }
+
+    /// User Story 1, B1 scenario 1, data-model invariant 3: a glyph terminal writes a literal, and
+    /// a literal is decided on every side — so nothing composes into the cell the terminal hangs
+    /// from. An arm written at that same position afterwards leaves the cell exactly as the
+    /// terminal wrote it, which is the one difference from an arm terminal this test's line makes
+    /// visible.
+    #[test]
+    fn a_glyph_terminals_cell_is_decided_and_nothing_composes_into_it() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 7,
+            height: 1,
+        };
+        let at = origin;
+        let mut buffer = Buffer::new(origin, size);
+
+        Arrow {
+            from: Endpoint {
+                at,
+                leaving: Direction::Right,
+                terminal: Terminal::Glyph {
+                    glyph: Glyph::new("◄").expect("one glyph"),
+                },
+            },
+            to: endpoint(Pos { x: 6, y: 0 }, Direction::Left),
+            stroke: light(),
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+
+        // A line's first cell is an end carrying one arm, so this writes an arm on the same
+        // position the glyph terminal occupies and nothing else.
+        Line {
+            at,
+            len: 1,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        }
+        .draw(&mut Layer::new(&mut buffer, StampMode::Below));
+
+        assert_eq!(
+            buffer.cell(at),
+            Some(&Cell::Literal(head_for(Direction::Right)))
+        );
+    }
+
+    /// User Story 1, B1 scenario 2, data-model invariant 4: an arm terminal writes one arm — the
+    /// one the arrow leaves on — in the arrow's own stroke, and leaves the other three sides
+    /// undecided so that whatever reaches the cell afterwards may still join it. All four leaving
+    /// directions, because the side is derived from the direction and a mapping that happens to be
+    /// right for three of the four is wrong.
+    #[test]
+    fn an_arm_terminal_writes_one_arm_on_the_side_leaving_names_and_unset_on_the_other_three() {
+        let expected = |leaving: Direction| {
+            let (top, right, bottom, left) = match leaving {
+                Direction::Up => (true, false, false, false),
+                Direction::Right => (false, true, false, false),
+                Direction::Down => (false, false, true, false),
+                Direction::Left => (false, false, false, true),
+            };
+            let arm = |set: bool| {
+                if set { Arm::Set(light()) } else { Arm::Unset }
+            };
+            Cell::from(StrokeCell {
+                base: light(),
+                top: arm(top),
+                right: arm(right),
+                bottom: arm(bottom),
+                left: arm(left),
+            })
+        };
+
+        for leaving in [
+            Direction::Up,
+            Direction::Right,
+            Direction::Down,
+            Direction::Left,
+        ] {
+            // A one-by-one window on the endpoint's own position, so nothing but the terminal
+            // writes there: the route starts one step away and the other endpoint is off-window.
+            let at = Pos { x: 3, y: 3 };
+            let mut buffer = Buffer::new(
+                at,
+                Size {
+                    width: 1,
+                    height: 1,
+                },
+            );
+            Arrow {
+                from: Endpoint {
+                    at,
+                    leaving,
+                    terminal: Terminal::Arm,
+                },
+                to: endpoint(Pos { x: 9, y: 9 }, Direction::Up),
+                stroke: light(),
+            }
+            .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+
+            assert_eq!(
+                buffer.cell(at),
+                Some(&expected(leaving)),
+                "leaving {leaving:?}"
+            );
+        }
+    }
+
+    /// User Story 3, spec's B3 scenario 1, SC-002: the route is derived from the two positions and
+    /// the two leaving directions alone, so a terminal cannot reach it and the body is the same
+    /// cells either way. Checked position by position rather than by looking at two pictures,
+    /// because the claim is that the texts differ at two named positions and nowhere else.
+    #[test]
+    fn the_two_terminals_write_the_same_body_and_differ_only_at_the_endpoints() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 11,
+            height: 3,
+        };
+        let from_at = Pos { x: 2, y: 1 };
+        let to_at = Pos { x: 8, y: 1 };
+
+        let glyph = |text: &str| Terminal::Glyph {
+            glyph: Glyph::new(text).expect("one glyph"),
+        };
+        let with_glyphs = render_arrow(
+            origin,
+            size,
+            Endpoint {
+                at: from_at,
+                leaving: Direction::Right,
+                terminal: glyph("◄"),
+            },
+            Endpoint {
+                at: to_at,
+                leaving: Direction::Left,
+                terminal: glyph("►"),
+            },
+        );
+        let with_arms = render_arrow(
+            origin,
+            size,
+            Endpoint {
+                at: from_at,
+                leaving: Direction::Right,
+                terminal: Terminal::Arm,
+            },
+            Endpoint {
+                at: to_at,
+                leaving: Direction::Left,
+                terminal: Terminal::Arm,
+            },
+        );
+
+        let char_at = |text: &str, at: Pos| {
+            let column = |value: i32| {
+                value
+                    .checked_sub(origin.x)
+                    .and_then(|offset| usize::try_from(offset).ok())
+            };
+            let row = |value: i32| {
+                value
+                    .checked_sub(origin.y)
+                    .and_then(|offset| usize::try_from(offset).ok())
+            };
+            match (column(at.x), row(at.y)) {
+                (Some(column), Some(row)) => text
+                    .lines()
+                    .nth(row)
+                    .and_then(|line| line.chars().nth(column)),
+                _ => None,
+            }
+        };
+        let positions: Vec<Pos> = (0..size.height)
+            .flat_map(|y| {
+                (0..size.width).map(move |x| Pos {
+                    x: origin.x + i32::try_from(x).expect("a window width fits i32"),
+                    y: origin.y + i32::try_from(y).expect("a window height fits i32"),
+                })
+            })
+            .collect();
+        let differing: Vec<Pos> = positions
+            .into_iter()
+            .filter(|at| char_at(&with_glyphs, *at) != char_at(&with_arms, *at))
+            .collect();
+
+        assert_eq!(differing, vec![from_at, to_at]);
+    }
+
+    /// User Story 3, spec's B3 scenario 2, data-model invariant 2: the path writes no endpoint cell
+    /// whatever the terminal is, so the terminal is the only thing an endpoint contributes to the
+    /// cell it names.
+    ///
+    /// Both terminals are run over the same arrangement in turn, and the route is not empty — the
+    /// five cells between the endpoints are asserted written — so a largest write count of one is
+    /// not vacuous. Were the path to write an endpoint cell, that cell would carry the terminal's
+    /// write and the path's, and the count there would be two.
+    #[test]
+    fn the_path_writes_no_endpoint_cell_whichever_terminal_is_used() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 11,
+            height: 3,
+        };
+        let from_at = Pos { x: 2, y: 1 };
+        let to_at = Pos { x: 8, y: 1 };
+        let body: Vec<Pos> = (3..=7).map(|x| Pos { x, y: 1 }).collect();
+
+        for terminal in [
+            Terminal::Glyph {
+                glyph: Glyph::new("◄").expect("one glyph"),
+            },
+            Terminal::Arm,
+        ] {
+            let arrow = Arrow {
+                from: Endpoint {
+                    at: from_at,
+                    leaving: Direction::Right,
+                    terminal: terminal.clone(),
+                },
+                to: Endpoint {
+                    at: to_at,
+                    leaving: Direction::Left,
+                    terminal: terminal.clone(),
+                },
+                stroke: light(),
+            };
+
+            let mut buffer = Buffer::new(origin, size);
+            arrow.draw(&mut Layer::new(&mut buffer, StampMode::Above));
+            for at in body.iter().copied().chain([from_at, to_at]) {
+                assert!(
+                    buffer.cell(at).is_some(),
+                    "{terminal:?} wrote nothing at {at:?}"
+                );
+            }
+
+            let mut counting = CountingSurface::default();
+            arrow.draw(&mut counting);
+            assert_eq!(
+                counting.max_writes(),
+                1,
+                "{terminal:?} wrote some position more than once"
+            );
+        }
     }
 
     /// User Story 1, R-1, FR-002, spec acceptance scenarios 1 and 3: two endpoints facing away

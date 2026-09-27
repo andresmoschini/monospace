@@ -124,17 +124,17 @@ not.
 
 ## 6. Attachment
 
-An arrow's endpoint is a position, the direction the arrow leaves it in, and a head — that is
-`model.md`'s definition and it is unchanged. What this layer adds is that the position may be a
-reference, and an endpoint is the only position in this model that may be one. An endpoint attached
-to a shape moves when that shape moves, and an arrow with an endpoint whose reference does not
-resolve is not drawn, by the rule in _Positions_: it is a shape whose position does not resolve. An
-arrow with two attached endpoints is the figure this model exists to make possible.
+An arrow's endpoint is a position, the direction the arrow leaves it in, and a terminal — that is
+`model.md`'s definition. What this layer adds is that the position may be a reference, and an
+endpoint is the only position in this model that may be one. An endpoint attached to a shape moves
+when that shape moves, and an arrow with an endpoint whose reference does not resolve is not drawn,
+by the rule in _Positions_: it is a shape whose position does not resolve. An arrow with two
+attached endpoints is the figure this model exists to make possible.
 
-The direction the arrow leaves in and the head it carries are not derived from the attachment. They
-are the caller's, as before. Deriving a direction from which side of a shape was attached to is an
-open question below, and every anchor being a side is what keeps it answerable: a side has an
-outside to leave through.
+The direction the arrow leaves in and the terminal it carries are not derived from the attachment.
+They are the caller's. Deriving a direction from which side of a shape was attached to is an open
+question below, and every anchor being a side is what keeps it answerable: a side has an outside to
+leave through.
 
 ## 7. Drawing
 

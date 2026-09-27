@@ -100,7 +100,7 @@ impl Diagram {
 mod tests {
     use monospace_core::{
         Arrow, BoxShape, Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Line, Orientation,
-        Pos, Shape as CoreShape, Size, StampMode, Stroke, render,
+        Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, render,
     };
 
     use super::Diagram;
@@ -282,12 +282,16 @@ mod tests {
         let from = || Endpoint {
             at: Pos { x: 0, y: 0 },
             leaving: Direction::Down,
-            head: Glyph::new("▼").expect("one glyph"),
+            terminal: Terminal::Glyph {
+                glyph: Glyph::new("▼").expect("one glyph"),
+            },
         };
         let to = || Endpoint {
             at: Pos { x: 4, y: 3 },
             leaving: Direction::Left,
-            head: Glyph::new("►").expect("one glyph"),
+            terminal: Terminal::Glyph {
+                glyph: Glyph::new("►").expect("one glyph"),
+            },
         };
 
         let mut diagram = Diagram::new();

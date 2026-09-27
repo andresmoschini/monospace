@@ -10,7 +10,7 @@ pub(crate) mod fragment;
 mod line;
 mod route;
 
-pub use arrow::{Arrow, Endpoint};
+pub use arrow::{Arrow, Endpoint, Terminal};
 pub use box_shape::BoxShape;
 pub use line::Line;
 
