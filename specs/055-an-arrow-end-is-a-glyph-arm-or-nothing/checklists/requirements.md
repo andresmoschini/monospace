@@ -1,6 +1,6 @@
 <!-- cspell:ignore Behaviour -->
 
-# Specification Quality Checklist: An arrow's end is a glyph, an arm, or nothing
+# Specification Quality Checklist: An arrow's end is a glyph or an arm
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-09-26 **Feature**: [spec.md](../spec.md)
@@ -32,12 +32,17 @@
 
 ## Notes
 
-No [NEEDS CLARIFICATION] marker was written, and none was needed. The two questions the issue leaves
-open — whether ADR-0029 is revised in place rather than recorded beside, and what the third kind is
-called — are decisions, and a spec takes none: the spec says they belong on the sheet
-`/speckit-plan` part one writes and stops there. Everything else the spec asserts was either the
-wish as filed or something measured before the spec was written, so there is no ambiguity left for
-`/speckit-clarify` to resolve. Running it is still worth it for the reading, not for the answers.
+No [NEEDS CLARIFICATION] marker was written, and none was needed. The spec first routed two
+questions to the sheet `/speckit-plan` part one writes, because a spec takes no decision of its own,
+and both are now settled ahead of it. Whether ADR-0029 is revised in place rather than recorded
+beside, by
+[ADR-0063](../../docs/decisions/0063-supersede-adr-0029-and-move-its-reasoning-into-the-arrow-module.md),
+which supersedes its second half in part. And what a third terminal is called, which this slice no
+longer carries: a terminal that neither points nor joins is recorded as a question the model owns,
+without a name, and naming one is a change to the model rather than to any record. Everything else
+the spec asserts was either the wish as filed or something measured before the spec was written, so
+there is no ambiguity left for `/speckit-clarify` to resolve. Running it is still worth it for the
+reading, not for the answers.
 
 Three items were weighed and judged to pass rather than waved through.
 
@@ -56,8 +61,8 @@ Three items were weighed and judged to pass rather than waved through.
 - **Written for non-technical stakeholders.** The reader this wants is someone who reads diagrams,
   and the spec is written at that level: it says what a person sees change and what must hold once
   it has. There is no user-story section because the current template has none, and _Behavior_ holds
-  the three flows in their place — name a glyph, name an arm, name nothing — each as Given / When /
-  Then in the model's own words.
+  the two flows in their place — name a glyph, name an arm — each as Given / When / Then in the
+  model's own words.
 
 Three things to know rather than to judge.
 
@@ -75,10 +80,11 @@ Three things to know rather than to judge.
   noticing, because cspell's default glob skips dot-directories. The section and its place in the
   order are the template's; the dialect is the repository's, and the template is the file to change
   if the maintainer wants them to agree.
-- `spec.md` runs to 211 lines against principle VIII's ceiling of 120, of which 44 are the two
-  generated pictures and their descriptions and 8 are the two hand-drawn ones. The four other specs
-  in the tree run from 296 to 399 lines, so the ceiling is not what it was when the template was
-  replaced, and the accounting is `plan.md`'s to record rather than this checklist's.
+- `spec.md` runs to 203 lines against principle VIII's ceiling of 120, of which 40 are the two
+  generated pictures and their descriptions — which the principle exempts along with the picture —
+  and 5 are the one hand-drawn picture, leaving 158 chargeable. The four other specs in the tree run
+  from 296 to 399 lines, so the ceiling is not what it was when the template was replaced, and the
+  accounting is `plan.md`'s to record rather than this checklist's.
 
 The spec is ready for `/speckit-clarify` if a reading pass is wanted, and for `/speckit-plan` part
-one, which is the step that has to take the two decisions named above.
+one, which is the step that has to take the decisions the sheet ends up holding.
