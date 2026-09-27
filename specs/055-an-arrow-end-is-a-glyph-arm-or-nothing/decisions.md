@@ -1,7 +1,7 @@
 # Decisions: An arrow's end is a glyph or an arm
 
 **Feature**: `055-an-arrow-end-is-a-glyph-arm-or-nothing` | **Written**: 2026-09-27 | **Answered**:
-_pending_
+2026-09-27
 
 ## D1 — Where the terminal writes
 
@@ -28,7 +28,7 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 - **Altitude**: domain — `docs/model.md` says where `at` is written; SC-003 and SC-004 stand on it.
 - **If this is wrong**: `at` moves off every anchor and #82 inherits the gap.
 - **Yours to answer**: yes — it is the model's own sentence.
-- **Answer**: _pending_
+- **Answer**: Yes, at the endpoint; `at` is the cell it hangs from.
 
 ## D2 — The renamed field on the wire
 
@@ -39,7 +39,7 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 - **Altitude**: domain — five tracked files carry the key, none of them the module that reads it.
 - **If this is wrong**: the key and those documents move again; the enum and the arm do not.
 - **Yours to answer**: yes — the name is the domain's and lands in the shipped demonstration.
-- **Answer**: _pending_
+- **Answer**: Yes, `"terminal"`, tagged `"kind"`
 
 ## D3 — A glyph and an arm landing on one cell
 
@@ -49,7 +49,7 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 - **Altitude**: domain — the cell a terminal leaves is observable outside the core, in the picture.
 - **If this is wrong**: the model states a rule, and a `Line`'s end then wants the same answer.
 - **Yours to answer**: yes — "the order decides" and "these two never join" are different models.
-- **Answer**: _pending_
+- **Answer**: Yes, the order decides as always.
 
 ## D4 — Where the model's vocabulary sentence sits
 
@@ -58,7 +58,9 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 - **Altitude**: domain — the sentence is what makes the model, not the arrow module, the owner.
 - **If this is wrong**: the amendment lands in the wrong section and its cross-references move.
 - **Yours to answer**: yes — model prose is the maintainer's.
-- **Answer**: _pending_
+- **Answer**: I do not know if the sentence "_An end is an arm; a head is a glyph_" is fine. It
+  should be clear what a endpoint is and what does mean a terminal with kind glyph and a terminal
+  with kind arm. I guess that model.md is the right place for it.
 
 ## D5 — Whether the shipped demonstration grows an arm terminal
 
@@ -67,4 +69,5 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 - **Altitude**: domain — the demonstration is the first thing a reader sees.
 - **If this is wrong**: one field in `assets/demo.json`, and two pictures move.
 - **Yours to answer**: yes — taste, and the spec leaves it for later.
-- **Answer**: _pending_
+- **Answer**: add an arms example to the demonstration. An alternative is to update current arrow
+  and use arm in _from_ endpoint and the glyph in the _to_ endpoint.
