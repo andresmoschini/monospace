@@ -282,12 +282,12 @@ mod tests {
         let from = || Endpoint {
             at: Pos { x: 0, y: 0 },
             leaving: Direction::Down,
-            head: Glyph::new("▼").expect("one glyph"),
+            terminal: Glyph::new("▼").expect("one glyph"),
         };
         let to = || Endpoint {
             at: Pos { x: 4, y: 3 },
             leaving: Direction::Left,
-            head: Glyph::new("►").expect("one glyph"),
+            terminal: Glyph::new("►").expect("one glyph"),
         };
 
         let mut diagram = Diagram::new();

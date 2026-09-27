@@ -75,18 +75,18 @@ Every shape object has a `kind` field selecting one of the three below, and that
 ```json
 {
   "kind": "arrow",
-  "from": { "at": { "x": 13, "y": 3 }, "leaving": "right", "head": "◄" },
-  "to": { "at": { "x": 22, "y": 4 }, "leaving": "down", "head": "▲" },
+  "from": { "at": { "x": 13, "y": 3 }, "leaving": "right", "terminal": "◄" },
+  "to": { "at": { "x": 22, "y": 4 }, "leaving": "down", "terminal": "▲" },
   "stroke": "light"
 }
 ```
 
-`leaving` is `"up"`, `"right"`, `"down"` or `"left"`. `head` is one grapheme cluster.
+`leaving` is `"up"`, `"right"`, `"down"` or `"left"`. `terminal` is one grapheme cluster.
 
 ## What a malformed file does
 
 Unchanged from the format's previous version: an unrecognized `kind` is reported by name, a `fill`
-or `head` that is not exactly one grapheme cluster is rejected, and a missing required field is
+or `terminal` that is not exactly one grapheme cluster is rejected, and a missing required field is
 reported the way `serde_json` reports it. The binary prints the error on stderr and exits with a
 failure status.
 

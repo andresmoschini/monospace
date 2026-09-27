@@ -109,13 +109,13 @@ struct Canvas {
     size: Size,
 }
 
-/// One endpoint of an arrow: a position, the direction it leaves in, and its head glyph.
+/// One endpoint of an arrow: a position, the direction it leaves in, and its terminal's glyph.
 #[derive(Deserialize, Debug, Clone)]
 struct Endpoint {
     at: Pos,
     leaving: Leaving,
     #[serde(deserialize_with = "deserialize_glyph")]
-    head: Glyph,
+    terminal: Glyph,
 }
 
 impl From<Endpoint> for DiagramEndpoint {
@@ -123,7 +123,7 @@ impl From<Endpoint> for DiagramEndpoint {
         DiagramEndpoint {
             at: endpoint.at.into(),
             leaving: endpoint.leaving.into(),
-            head: endpoint.head,
+            terminal: endpoint.terminal,
         }
     }
 }
@@ -244,15 +244,15 @@ mod tests {
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
 
-    /// A `head` of more than one grapheme cluster fails to deserialize.
+    /// A `terminal`'s glyph of more than one grapheme cluster fails to deserialize.
     #[test]
-    fn a_multi_grapheme_head_fails_to_deserialize() {
+    fn a_multi_grapheme_terminal_glyph_fails_to_deserialize() {
         let json = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 1 } },
             "shapes": [
                 { "kind": "arrow",
-                  "from": { "at": { "x": 0, "y": 0 }, "leaving": "right", "head": "ab" },
-                  "to": { "at": { "x": 6, "y": 0 }, "leaving": "left", "head": ">" },
+                  "from": { "at": { "x": 0, "y": 0 }, "leaving": "right", "terminal": "ab" },
+                  "to": { "at": { "x": 6, "y": 0 }, "leaving": "left", "terminal": ">" },
                   "stroke": "light" }
             ]
         }"#;

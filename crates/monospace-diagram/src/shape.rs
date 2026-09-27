@@ -7,18 +7,18 @@ use monospace_core::{
     Arrow, BoxShape, Direction, Glyph, Line, Orientation, Pos, Size, Stroke, Surface,
 };
 
-/// One endpoint of an arrow: a position, the direction it leaves in, and its head glyph.
+/// One endpoint of an arrow: a position, the direction it leaves in, and its terminal's glyph.
 ///
 /// Mirrors `monospace_core::Endpoint` rather than reusing it, so that a later change to how an
 /// endpoint is anchored stays inside this crate (research.md Q3).
 #[derive(Clone)]
 pub struct Endpoint {
-    /// The endpoint's position. The head occupies this position itself.
+    /// The endpoint's position. The terminal occupies this position itself.
     pub at: Pos,
     /// The direction the arrow leaves this endpoint in.
     pub leaving: Direction,
-    /// The glyph the head at this endpoint is drawn as.
-    pub head: Glyph,
+    /// The glyph the terminal at this endpoint is drawn as.
+    pub terminal: Glyph,
 }
 
 impl From<Endpoint> for monospace_core::Endpoint {
@@ -26,7 +26,7 @@ impl From<Endpoint> for monospace_core::Endpoint {
         monospace_core::Endpoint {
             at: endpoint.at,
             leaving: endpoint.leaving,
-            head: endpoint.head,
+            terminal: endpoint.terminal,
         }
     }
 }

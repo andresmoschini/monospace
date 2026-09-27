@@ -66,17 +66,17 @@ use crate::shape::fragment::head::Head;
 use crate::shape::route::Route;
 use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
 
-/// Where an arrow ends: a position, the direction it leaves in, and the glyph of the head that
-/// sits there. A head points opposite to `leaving`.
+/// Where an arrow ends: a position, the direction it leaves in, and the glyph its terminal is
+/// drawn as. A glyph terminal points opposite to `leaving`.
 pub struct Endpoint {
-    /// The endpoint's position. The head occupies this position itself.
+    /// The endpoint's position. The terminal occupies this position itself.
     pub at: Pos,
     /// The direction the arrow leaves this endpoint in. The route's starting position is one
     /// step from `at` in this direction.
     pub leaving: Direction,
-    /// The glyph the head at this endpoint is drawn as — the caller's choice, per ADR-0029 and
-    /// FR-027, since no glyph set holds a rule that points.
-    pub head: Glyph,
+    /// The glyph the terminal at this endpoint is drawn as — the caller's choice, per ADR-0029
+    /// and FR-027, since no glyph set holds a rule that points.
+    pub terminal: Glyph,
 }
 
 /// An arrow: two endpoints and a stroke.
@@ -98,12 +98,12 @@ impl Shape for Arrow {
     fn draw(&self, surface: &mut dyn Surface) {
         Head {
             at: self.from.at,
-            glyph: self.from.head.clone(),
+            glyph: self.from.terminal.clone(),
         }
         .draw(surface);
         Head {
             at: self.to.at,
-            glyph: self.to.head.clone(),
+            glyph: self.to.terminal.clone(),
         }
         .draw(surface);
 
@@ -501,7 +501,7 @@ mod tests {
         Endpoint {
             at,
             leaving,
-            head: head_for(leaving),
+            terminal: head_for(leaving),
         }
     }
 

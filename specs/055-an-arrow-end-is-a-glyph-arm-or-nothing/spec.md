@@ -76,8 +76,8 @@ in the repository is:
     { "kind": "box", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" },
     { "kind": "arrow",
-      "from": { "at": { "x": 2, "y": 1 }, "leaving": "right", "head": "◄" },
-      "to": { "at": { "x": 8, "y": 1 }, "leaving": "left", "head": "►" },
+      "from": { "at": { "x": 2, "y": 1 }, "leaving": "right", "terminal": "◄" },
+      "to": { "at": { "x": 8, "y": 1 }, "leaving": "left", "terminal": "►" },
       "stroke": "light" } ] }
 -->
 
@@ -108,8 +108,8 @@ The first scenario, drawn between the two boxes:
     { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" },
     { "kind": "arrow",
-      "from": { "at": { "x": 2, "y": 1 }, "leaving": "right", "head": "◄" },
-      "to": { "at": { "x": 8, "y": 1 }, "leaving": "left", "head": "►" },
+      "from": { "at": { "x": 2, "y": 1 }, "leaving": "right", "terminal": "◄" },
+      "to": { "at": { "x": 8, "y": 1 }, "leaving": "left", "terminal": "►" },
       "stroke": "light" },
     { "kind": "box", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" } ] }

@@ -131,8 +131,8 @@ fn a_file_with_a_box_a_line_and_an_arrow_prints_all_three_composed() {
                 { "kind": "line", "at": { "x": 0, "y": 4 }, "len": 4, "orientation": "horizontal",
                   "stroke": "light" },
                 { "kind": "arrow",
-                  "from": { "at": { "x": 5, "y": 0 }, "leaving": "right", "head": ">" },
-                  "to": { "at": { "x": 9, "y": 2 }, "leaving": "down", "head": "v" },
+                  "from": { "at": { "x": 5, "y": 0 }, "leaving": "right", "terminal": ">" },
+                  "to": { "at": { "x": 9, "y": 2 }, "leaving": "down", "terminal": "v" },
                   "stroke": "light" }
             ]
         }"#,
