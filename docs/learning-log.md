@@ -1911,3 +1911,42 @@ fill the second.
   walks `git ls-files '*.md'`, so an edited and unstaged marker is invisible to it and it reports
   success having checked nothing. Both halves measured empty: four pictures already up to date and
   an empty `git diff` after the rename, and the same after the tag.
+
+## 2026-09-27 — the shape is a Connector, and the name is the tag
+
+### Working this way
+
+- **`\b` includes `_` as a word character, in JavaScript exactly as in Rust.** The rename's first
+  pass changed every prose mention and missed every identifier: `render_arrow` went, and
+  `no_pinned_arrow_writes_any_position_more_than_once` and `arrow_sweep_anchor_` stayed, which is
+  how a sweep asserted against a file that no longer existed. Matching on letters instead —
+  `(?<![A-Za-z])arrow(?![A-Za-z])` — makes `_` a boundary while leaving `narrower` and `arrowhead`
+  alone, which is the whole requirement.
+- **A rename has to move the article with the word, and a script that reads one line at a time
+  cannot see a word prettier wrapped across two.** "an arrow" became "an connector" in 25 places,
+  and then `_The route of an arrow_` became `_The route of an connector_` in a doc comment, because
+  prettier had put `an` at the end of one line and `arrow` at the start of the next. Twenty-seven of
+  the branch's replacements were the article rather than the name. This is the same family as the
+  unstaged render marker and the Speckit CLI's CRLF: a tool's line-oriented view of a file disagrees
+  with what the text means, and it agrees silently.
+- **The one-commit type alias is what let two crates be renamed in two green commits.**
+  `pub type Arrow = Connector;` for exactly one commit — the move feature 028 made for `Cell` — is
+  what kept `monospace-diagram` compiling while the core moved. A variant cannot be aliased the way
+  a struct can, so the diagram crate's own rename is a commit of its own, and the command-line
+  application is a separate crate that the gate builds at every commit, which is why it appears in
+  both: one line there, where only the target moved, and sixteen here, where the tag moved with it.
+- **What a rewrite changed is measured by its trees, not asserted.** The article typo in the core's
+  rustdoc belongs to the commit that had it rather than forward as a fix of its own, so it was
+  folded back into that commit by rewriting the three above it. Neither a rebase nor a fixup fires
+  the hook, so each rewritten commit was run through the gate on its own; the tree hashes before and
+  after are what showed all three moved by the same single line and nothing else.
+
+### Trade-offs worth remembering
+
+- **Renaming the type and renaming the word a caller types cannot share a commit, and the six
+  documents carrying a render marker are edited once instead of twice.** Feature 045 paid this
+  twice, because the key sits inside a `<!-- render -->` description and each file was edited for
+  the rename and again for the tag. This time the structural commits left every tag alone and the
+  behavioral commit moved all six, so each file was touched once. The price is that the wire tag is
+  wrong in the tree for three commits, which nothing reads and no check looks at; the saving is six
+  edits of the same line and one class of mistake avoided.
