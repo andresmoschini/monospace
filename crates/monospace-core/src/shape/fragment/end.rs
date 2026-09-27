@@ -1,4 +1,4 @@
-//! The end fragment: the cell where a stroke stops. See _An end is an arm; a head is a glyph_ in
+//! The end fragment: the cell where a stroke stops. See _What a terminal writes_ in
 //! [`docs/model.md`](../../../../../docs/model.md) and
 //! [ADR-0029](../../../../../docs/decisions/0029-draw-a-line-end-as-one-arm.md).
 

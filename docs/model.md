@@ -57,7 +57,7 @@ when no character matches.
 | `Shape`         | A value describing a figure, which draws itself into a surface                |
 | `Piece`         | A shape placed by another shape, given the positions it is to write           |
 | `Direction`     | Up, right, down or left: a way to move in the plane                           |
-| `Endpoint`      | Where an arrow ends: a position, the direction it leaves in, and a head       |
+| `Endpoint`      | Where an arrow ends: a position, the direction it leaves in, and a terminal   |
 
 `Arm` names both the concept and its three-state value. `Side` names the four positions. If
 implementing shows they need separating, `ArmState` is the obvious name for the value.
@@ -299,27 +299,28 @@ A **line** is a position, a length, an orientation and a stroke. It names no gly
 its two end cells hold is the next section.
 
 An **arrow** is two **endpoints** and a stroke. An endpoint is a position, the direction the arrow
-leaves it in, and the glyph of the head that sits there. A head occupies the endpoint position
-itself and points opposite to the direction that endpoint leaves in.
+leaves it in, and a **terminal**; `at` is the cell the terminal hangs from. What a terminal may
+write is vocabulary this document owns, so naming one more of them is a change here and in the
+figure and not a change to any record. A glyph terminal's glyph points opposite to the direction
+that endpoint leaves in.
 
-### An end is an arm; a head is a glyph
+### What a terminal writes
 
-A **line's end** is the cell where the stroke stops. It carries the one arm the line runs on and
-leaves its other three sides `Unset`, so it renders through the glyph set like every other stroke
-cell — which is what makes an end follow the diagram's style instead of its caller's taste — and so
-that whatever arrives there afterwards may still join it. Two lines meeting at right angles with an
-end at the same position compose into the corner the two of them make, in either stamp order.
+A **terminal** is what an endpoint contributes to the cell at `at`, and it is a **glyph** or an
+**arm**. It writes that cell and nothing else.
 
-The price is that an end is not visible as an end. Measured in the tables of
-[`glyph-sets.md`](glyph-sets.md): every single-stroke set already answers the four single-arm keys —
-Light with `─` and `│`, ASCII with `-` and `|` — and `╴ ╵ ╶ ╷` appear in no set at all. So a line
-renders as a run of segments does, and what makes its end an end is which sides it leaves undecided
-rather than the character it draws.
+An **arm** writes one arm — the one the arrow arrives on — in the arrow's own stroke, and leaves its
+other three sides `Unset`, so it renders through the glyph set like every other stroke cell and
+whatever reaches it afterwards may still join it. The price is that an arm is not visible as an arm:
+measured in the tables of [`glyph-sets.md`](glyph-sets.md), every single-stroke set already answers
+the four single-arm keys, so what makes a cell an end is which sides it leaves undecided rather than
+the character it draws.
 
-An **arrow's head** is the other answer, because a head points and no set holds a rule that points:
-`▲ ► ◄ ▼` are in no set, and `╾ ╼` are claimed in both mixing sets that hold them by keys meaning
-heavy on one side and light on the other. A head is therefore a chosen glyph, in the sense of _A
-cell can be a literal instead_, supplied by the caller — and nothing connects into one.
+A **glyph** writes one chosen glyph, in the sense of _A cell can be a literal instead_, supplied by
+the caller — and nothing connects into one, because a literal is decided on every side. It is that
+answer because a glyph points and no set holds a rule that points: `▲ ► ◄ ▼` are in no set, and
+`╾ ╼` are claimed in both mixing sets that hold them by keys meaning heavy on one side and light on
+the other.
 
 That asymmetry is a limit of the data rather than a preference. Heads that follow the glyph set
 would be the better answer, and they are an open question below.
@@ -331,8 +332,9 @@ what would reverse it back.
 An arrow's route is a **path** between its two endpoint positions: its first step is the direction
 the arrow leaves its `from` endpoint in, its last step arrives at the `to` endpoint against that
 endpoint's own leaving direction, and its runs alternate between horizontal and vertical. A path
-visits no position twice, and it passes through neither endpoint position, because the heads are
-there — so one that would have to cross a head is not a path at all.
+visits no position twice, and it passes through neither endpoint position, because a terminal is
+there — so one that would have to cross an endpoint is not a path at all. The path writes no
+endpoint cell of its own, whatever a terminal puts there.
 
 Nothing bounds where a path may go. Two endpoints facing away from each other along one line are
 joined by a route that travels around the outside, however far apart they are:
@@ -361,7 +363,7 @@ ranks them, and the reason each of its terms is there, are the `Design notes` of
 [`shape::arrow`](../crates/monospace-core/src/shape/arrow.rs); nothing outside that module observes
 the choice beyond the picture it produces, so changing it amends nothing here.
 
-Where no path exists the route is empty and the arrow is its two heads.
+Where no path exists the route is empty and the arrow is its two terminals.
 [ADR-0055](decisions/0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md) records the contract
 above, and why a route is left unbounded.
 
@@ -445,8 +447,8 @@ core expose mutable state for editing?_ has left: the core exposes none, and
   them: a rounded corner, a double line. Each needs either its rule keyed like the rest or a chosen
   glyph, which is the route a head took. What would settle it: the first slice that needs one of
   them.
-- **Where does an arrow's head glyph come from, once a glyph set can hold one?** _An end is an arm;
-  a head is a glyph_ has the caller supply it, because no set holds a rule that points and the two
-  characters that could have been keyed are already claimed. What would settle it: a slice that
-  gives a set its own heads, which also has to decide whether the caller's glyph then becomes an
-  override or goes away.
+- **Where does a terminal's glyph come from, once a glyph set can hold one?** _What a terminal
+  writes_ has the caller supply it, because no set holds a rule that points and the two characters
+  that could have been keyed are already claimed. What would settle it: a slice that gives a set its
+  own heads, which also has to decide whether the caller's glyph then becomes an override or goes
+  away.

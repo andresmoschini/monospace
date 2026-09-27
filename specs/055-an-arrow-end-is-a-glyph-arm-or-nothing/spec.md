@@ -17,9 +17,10 @@ amendment the session that settled it wrote into the issue itself.
   document owns, so that naming one more of them is a change here and in the figure and not a change
   to any record: the record covering the move states where the reasoning lives, not what the
   vocabulary holds.
-- [_An end is an arm; a head is a glyph_](../../docs/model.md#an-end-is-an-arm-a-head-is-a-glyph) —
-  the argument stands entire, because no glyph set holds a rule that points and a head still needs a
-  glyph the caller chooses. What is added is that the two answers stop being forced by the data.
+- [_What a terminal writes_](../../docs/model.md#what-a-terminal-writes) (titled _An end is an arm;
+  a head is a glyph_ until this slice) — the argument stands entire, because no glyph set holds a
+  rule that points and a head still needs a glyph the caller chooses. What is added is that the two
+  answers stop being forced by the data.
 - [_The route of an arrow_](../../docs/model.md#the-route-of-an-arrow) — one clause: the path writes
   no endpoint cell, whatever the endpoint puts there.
 - [§6 _Attachment_](../../docs/diagram-model.md#6-attachment) — the endpoint the diagram layer
