@@ -76,7 +76,7 @@ over `Glyph` and `Side`.
 
 ## Q4 — A glyph terminal and an arm terminal on one cell
 
-**Decision**: no rule is stated, and decisions.md D4 asks the maintainer to confirm that, because
+**Decision**: no rule is stated, and decisions.md D3 asks the maintainer to confirm that, because
 the measurement says the answer is otherwise arriving by accident.
 
 Measured in both orders, a filled 5×5 box's interior literal standing in for the glyph and a
@@ -85,18 +85,20 @@ horizontal line of length 2 for the arm. The **front-most** shape decides: `Diag
 `shapes` array is the front.
 
 ```text
-Arm in front:          Glyph in front:
+Glyph in front:        Arm in front:
 ┌───┐                 ┌───┐
 │xxx│                 │xxx│
-│──x│                 │x│x│
+│xxx│                 │──x│
 │xxx│                 │xxx│
 └───┘                 └───┘
 ```
 
-A literal in front erases the arm whole: a literal is decided on every side and `stamp` returns
-early on a decided target (`buffer.rs:79`). An arm in front erases the glyph and closes the three
-sides it left `Unset`, because `merge` over a literal keeps the stroke cell and closes what it
-declined (`buffer.rs:133`). So the cell's meaning changes with the order — one arm and three
+A literal in front erases the arm whole — the arm's two cells read `x` like their neighbors and
+nothing marks where it was, because a literal is decided on every side and `stamp` returns early on
+a decided target (`buffer.rs:79`). An arm in front erases the glyph at the two cells it wrote and
+closes the three sides it left `Unset`, because `merge` over a literal keeps the stroke cell and
+closes what it declined (`buffer.rs:133`); both then render `─`, the same character a segment does,
+per ADR-0029's measurement. So the cell's meaning changes with the order — one arm and three
 undecided sides becomes a through-line refusing every junction. That is "should they join" answered
 by accident, which is why it is a question and not a finding.
 
