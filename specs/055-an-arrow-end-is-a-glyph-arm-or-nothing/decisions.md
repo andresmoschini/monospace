@@ -61,10 +61,24 @@ Hypothetical, measured by standing a `line` where the terminal writes; fixture i
 
 ## D5 — Whether the shipped demonstration grows an arm terminal
 
-- **Proposal**: no; it keeps the glyph terminal, so SC-006 holds by not touching it.
-- **The alternative**: make its one arrow an arm, showing the capability first thing anyone runs.
+**The proposal** — leave it; SC-006 holds by not touching it.
+
+```text
+  └─┬┘ └─┬┘░│◄────┐ └──┘
+    │    └──┘     │   ▲
+```
+
+**The alternative** — the current arrow, with `from` an arm and `to` a glyph.
+
+```text
+  └─┬┘ └─┬┘░│─────┐ └──┘
+    │    └──┘     │   ▲
+```
+
+Hypothetical, measured by standing a `line` where the terminal writes; research.md Q1 has the
+fixture and the other order. The box's border is one cell short, so the arm joins nothing.
+
 - **Altitude**: domain — the demonstration is the first thing a reader sees.
 - **If this is wrong**: one field in `assets/demo.json`, and two pictures move.
 - **Yours to answer**: yes — taste, and the spec leaves it for later.
-- **Answer**: add an arms example to the demonstration. An alternative is to update current arrow
-  and use arm in _from_ endpoint and the glyph in the _to_ endpoint.
+- **Answer**: change the current arrow's `from` to an arm, leaving its `to` a glyph.

@@ -174,9 +174,10 @@ Hypothetical — hand-drawn, not generated. The second scenario of B2.
 - **An endpoint hanging from a shape's side anchor**
   ([#82](https://github.com/andresmoschini/monospace/issues/82)) — this slice is what makes such a
   cell survivable, and the attachment is that slice's work. What would settle it: that slice.
-- **Whether the shipped demonstration shows the new capability.** It must keep rendering what it
-  renders today; whether it grows an arm terminal is a matter of taste, and nothing here is lost by
-  leaving it for later.
+- **Whether the shipped demonstration shows the new capability.** A matter of taste, and not left
+  for later: `decisions.md` D5 answers that the demonstration's one arrow keeps its glyph `to`
+  terminal and takes an arm terminal at `from`, which changes one cell of the first picture. Every
+  other cell of both pictures is what it renders today.
 
 ## Testing expectations
 
@@ -206,5 +207,5 @@ Hypothetical — hand-drawn, not generated. The second scenario of B2.
   and the one drawn between the boxes has lost the left box's right-hand border cell.
 - **SC-005**: One description file names both terminals, and a file naming anything else is refused
   by name rather than silently read as one of the two.
-- **SC-006**: Every picture pinned by feature 039, the shipped demonstration, and the model
-  document's own rendered examples is unchanged.
+- **SC-006**: Every picture pinned by feature 039 and the model document's own rendered examples is
+  unchanged, and the shipped demonstration changes only at the one terminal `decisions.md` D5 names.
