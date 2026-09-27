@@ -9,5 +9,8 @@ license.workspace = true
 [dependencies]
 monospace-core.workspace = true
 
+[dev-dependencies]
+insta = "1.48.0"
+
 [lints]
 workspace = true

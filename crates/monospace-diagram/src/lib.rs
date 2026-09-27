@@ -4,6 +4,8 @@
 //! implements.
 
 mod diagram;
+#[cfg(test)]
+mod gallery_spike;
 mod shape;
 
 pub use diagram::{Diagram, ShapeId};
