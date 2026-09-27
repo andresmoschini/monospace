@@ -75,7 +75,7 @@ in the repository is:
       "stroke": "light" },
     { "kind": "box", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" },
-    { "kind": "arrow",
+    { "kind": "connector",
       "from": { "at": { "x": 2, "y": 1 }, "leaving": "right",
         "terminal": { "kind": "glyph", "glyph": "◄" } },
       "to": { "at": { "x": 8, "y": 1 }, "leaving": "left",
@@ -109,7 +109,7 @@ The first scenario, drawn between the two boxes:
   "shapes": [
     { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" },
-    { "kind": "arrow",
+    { "kind": "connector",
       "from": { "at": { "x": 2, "y": 1 }, "leaving": "right",
         "terminal": { "kind": "glyph", "glyph": "◄" } },
       "to": { "at": { "x": 8, "y": 1 }, "leaving": "left",

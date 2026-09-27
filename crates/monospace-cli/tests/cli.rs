@@ -117,10 +117,10 @@ fn an_explicit_path_prints_the_hand_written_box() {
     assert!(output.stderr.is_empty(), "wrote to stderr");
 }
 
-/// User story 1, acceptance scenario 2: a box, a line and an arrow at stated positions print
+/// User story 1, acceptance scenario 2: a box, a line and a connector at stated positions print
 /// all three composed.
 #[test]
-fn a_file_with_a_box_a_line_and_an_arrow_prints_all_three_composed() {
+fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
     let path = write_description(
         "three-shapes",
         r#"{
@@ -130,7 +130,7 @@ fn a_file_with_a_box_a_line_and_an_arrow_prints_all_three_composed() {
                   "stroke": "light", "fill": "░" },
                 { "kind": "line", "at": { "x": 0, "y": 4 }, "len": 4, "orientation": "horizontal",
                   "stroke": "light" },
-                { "kind": "arrow",
+                { "kind": "connector",
                   "from": { "at": { "x": 5, "y": 0 }, "leaving": "right",
                             "terminal": { "kind": "glyph", "glyph": ">" } },
                   "to": { "at": { "x": 9, "y": 2 }, "leaving": "down",
@@ -143,8 +143,8 @@ fn a_file_with_a_box_a_line_and_an_arrow_prints_all_three_composed() {
     let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
 
     assert!(output.status.success(), "exited with {}", output.status);
-    // Corrected on feature 099: this arrow's route was a genuine tie under _The route of an
-    // arrow_ (fewest bends, same closeness), which feature 039 broke arbitrarily by comparing
+    // Corrected on feature 099: this connector's route was a genuine tie under _The route of a
+    // connector_ (fewest bends, same closeness), which feature 039 broke arbitrarily by comparing
     // waypoint coordinates. The model's own tie-break prefers the route that turns at the middle
     // of the route rectangle (x = 7), which is what this picture now pins.
     assert_eq!(

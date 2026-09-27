@@ -63,7 +63,7 @@
       "stroke": "light"
     },
     {
-      "kind": "arrow",
+      "kind": "connector",
       "from": {
         "at": { "x": 12, "y": 3 },
         "leaving": "right",

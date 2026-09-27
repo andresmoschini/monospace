@@ -169,7 +169,7 @@ an anchor rather than a corner:
   "shapes": [
     { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "arrow",
+    { "kind": "connector",
       "from": { "at": { "x": 3, "y": 1 }, "leaving": "right",
                 "terminal": { "kind": "arm" } },
       "to":   { "at": { "x": 7, "y": 1 }, "leaving": "left",

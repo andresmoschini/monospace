@@ -56,7 +56,7 @@ impl From<Orientation> for CoreOrientation {
     }
 }
 
-/// The direction an arrow endpoint leaves in, mirroring `monospace_core::Direction`.
+/// The direction a connector endpoint leaves in, mirroring `monospace_core::Direction`.
 #[derive(Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 enum Leaving {
@@ -135,7 +135,7 @@ impl From<Terminal> for monospace_core::Terminal {
     }
 }
 
-/// One endpoint of an arrow: a position, the direction it leaves in, and its terminal.
+/// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
 #[derive(Deserialize, Debug, Clone)]
 struct Endpoint {
     at: Pos,
@@ -171,7 +171,7 @@ enum ShapeDescription {
         orientation: Orientation,
         stroke: String,
     },
-    Arrow {
+    Connector {
         from: Endpoint,
         to: Endpoint,
         stroke: String,
@@ -205,7 +205,7 @@ impl From<ShapeDescription> for DiagramShape {
                 orientation: orientation.into(),
                 stroke: stroke.as_str().into(),
             },
-            ShapeDescription::Arrow { from, to, stroke } => DiagramShape::Connector {
+            ShapeDescription::Connector { from, to, stroke } => DiagramShape::Connector {
                 from: from.into(),
                 to: to.into(),
                 stroke: stroke.as_str().into(),
@@ -277,7 +277,7 @@ mod tests {
         let json = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 1 } },
             "shapes": [
-                { "kind": "arrow",
+                { "kind": "connector",
                   "from": { "at": { "x": 0, "y": 0 }, "leaving": "right",
                             "terminal": { "kind": "glyph", "glyph": "ab" } },
                   "to": { "at": { "x": 6, "y": 0 }, "leaving": "left",
@@ -289,25 +289,25 @@ mod tests {
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
 
-    /// One arrow, with `TERMINAL` standing where the `from` endpoint's terminal goes. The three
+    /// One connector, with `TERMINAL` standing where the `from` endpoint's terminal goes. The three
     /// refusals below differ only in what is written there, which is what makes them the same test
     /// three times over.
     const ARROW: &str = r#""from": { "at": { "x": 0, "y": 0 }, "leaving": "right", "terminal": TERMINAL },
                   "to": { "at": { "x": 6, "y": 0 }, "leaving": "left",
                           "terminal": { "kind": "glyph", "glyph": ">" } }"#;
 
-    /// The same arrow with the field left out altogether.
+    /// The same connector with the field left out altogether.
     const ARROW_WITHOUT_A_TERMINAL: &str = r#""from": { "at": { "x": 0, "y": 0 }, "leaving": "right" },
                   "to": { "at": { "x": 6, "y": 0 }, "leaving": "left",
                           "terminal": { "kind": "glyph", "glyph": ">" } }"#;
 
-    fn description_of(arrow: &str) -> String {
+    fn description_of(connector: &str) -> String {
         format!(
             r#"{{
             "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 8, "height": 1 }} }},
             "shapes": [
-                {{ "kind": "arrow",
-                  {arrow},
+                {{ "kind": "connector",
+                  {connector},
                   "stroke": "light" }}
             ]
         }}"#
@@ -350,14 +350,14 @@ mod tests {
     }
 
     /// B1 scenario 3: the field is required for both values, so a file that omits it is refused
-    /// rather than read as an arrow with no terminal at either end. A terminal's presence never
+    /// rather than read as a connector with no terminal at either end. A terminal's presence never
     /// decides what a description means.
     #[test]
     fn an_omitted_terminal_field_is_refused_by_name() {
         let json = description_of(ARROW_WITHOUT_A_TERMINAL);
 
         let error = serde_json::from_str::<Description>(&json)
-            .expect_err("an arrow with no terminal at all must fail")
+            .expect_err("a connector with no terminal at all must fail")
             .to_string();
 
         assert!(error.starts_with("missing field `terminal`"), "{error}");
