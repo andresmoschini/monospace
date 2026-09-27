@@ -14,11 +14,6 @@ pub use box_shape::BoxShape;
 pub use connector::{Connector, Endpoint, Terminal};
 pub use line::Line;
 
-/// The name this shape carried until ADR-0065, kept for one commit so the crate above compiles
-/// against either. Nothing constructs through it: the diagram crate's own variant moves in the
-/// commit after this one, and the wire tag in the one after that.
-pub type Arrow = Connector;
-
 /// One write operation and no reader. What a shape draws into.
 ///
 /// A fragment cannot inspect what lies beneath it or what a sibling has already written, because

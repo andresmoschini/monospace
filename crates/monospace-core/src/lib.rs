@@ -24,5 +24,5 @@ pub use cell::{Arm, Cell, StrokeCell};
 pub use geometry::{Direction, Orientation, Pos, Size};
 pub use glyph::{Glyph, GlyphCatalog, GlyphKey};
 pub use render::render;
-pub use shape::{Arrow, BoxShape, Connector, Endpoint, Layer, Line, Shape, Surface, Terminal};
+pub use shape::{BoxShape, Connector, Endpoint, Layer, Line, Shape, Surface, Terminal};
 pub use stroke::Stroke;
