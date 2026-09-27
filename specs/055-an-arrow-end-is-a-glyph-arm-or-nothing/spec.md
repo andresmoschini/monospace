@@ -37,6 +37,13 @@ migration and no second spelling of it. And every one of the 1856 pinned renderi
 terminal, so all of them are expected to stand still; one that moves is evidence that something was
 changed beyond the terminal.
 
+## Clarifications
+
+### Session 2026-09-27
+
+- Q: Two figures on one cell — which keeps it, the one in front or the one behind? → A: The one in
+  front; `B2` read it the other way and `SC-004` named the wrong border cell with it.
+
 ## Behavior
 
 Every picture below is the same arrangement: a box on each side, and an arrow between them with each
@@ -83,16 +90,16 @@ in the repository is:
 
 ### B2 — An arm terminal composes; a glyph terminal covers
 
-1. **Given** the same arrangement drawn with the arrow in front, **When** it is drawn again with the
-   boxes in front, **Then** the two pictures differ, and the figure in front loses the shared cell.
-   A glyph covers the position it is given and nothing joins it, so which of the two survives is the
+1. **Given** the same arrangement drawn with the arrow last, **When** it is drawn again between the
+   two boxes, **Then** the two pictures differ, and the figure in front keeps the shared cell. A
+   glyph covers the position it is given and nothing joins it, so which of the two survives is the
    order the caller wrote them in. That is _A cell can be a literal instead_ applied to a figure,
    and it is why a caller who wants a border to survive places the endpoint one cell short of it.
 2. **Given** the same arrangement with an arm terminal at both ends, **When** it is drawn in those
    two orders, **Then** both pictures are the second one below, and the border cell is a junction in
    both.
 
-The first scenario, with the boxes in front of the arrow:
+The first scenario, drawn between the two boxes:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 11, "height": 3 } },
@@ -196,7 +203,7 @@ Hypothetical — hand-drawn, not generated. The second scenario of B2.
 - **SC-003**: The arrangement above with arm terminals at both ends draws one identical picture in
   both stamp orders, with the border cell a junction in each.
 - **SC-004**: The same arrangement with glyph terminals at both ends draws two different pictures,
-  and the one where the boxes are in front has lost the right-hand border cell.
+  and the one drawn between the boxes has lost the left box's right-hand border cell.
 - **SC-005**: One description file names both terminals, and a file naming anything else is refused
   by name rather than silently read as one of the two.
 - **SC-006**: Every picture pinned by feature 039, the shipped demonstration, and the model
