@@ -1,11 +1,11 @@
-//! The arrow: two endpoints, two heads and a derived route between them. See _The initial set_
-//! and _The route of an arrow_ in [`docs/model.md`](../../../docs/model.md), and research.md Q5
+//! The connector: two endpoints, two heads and a derived route between them. See _The initial set_
+//! and _The route of a connector_ in [`docs/model.md`](../../../docs/model.md), and research.md Q5
 //! in `specs/039-draw-shapes-instead-of-individual-cells/`.
 //!
 //! # Design notes
 //!
 //! Nothing outside this module observes the rule below beyond the picture it produces. It decides
-//! which of several paths — every one of them satisfying _The route of an arrow_ — this
+//! which of several paths — every one of them satisfying _The route of a connector_ — this
 //! implementation draws, so changing it is an ordinary `feat` or `fix`: it amends no model
 //! document and it takes no ADR
 //! ([the constitution](../../../.specify/memory/constitution.md), principle VI). The reasoning
@@ -28,12 +28,12 @@
 //! **3, nearest the middle.** The first two leave many candidates level, because a free run may
 //! sit anywhere, so something has to choose and the middle is the choice that reads as centred.
 //! Where a span holds an even number of cells that middle falls between two and names no winner;
-//! it is taken nearer the endpoint the arrow leaves from, because an arrow runs from its `from`
+//! it is taken nearer the endpoint the connector leaves from, because a connector runs from its `from`
 //! to its `to` and that is the only thing in the arrangement that tells the two candidates apart.
-//! The cost is that the same arrow described from its other end turns at the other of the two.
+//! The cost is that the same connector described from its other end turns at the other of the two.
 //! Both pictures are right, which is what makes this a tie-break rather than a defect.
 //!
-//! **4, to the right of the arrow's own travel.** Once nothing bounds a route, an arrangement
+//! **4, to the right of the connector's own travel.** Once nothing bounds a route, an arrangement
 //! whose two starting positions share a row or a column has two candidates that are exact mirror
 //! images about that line — equidistant from the middle by construction, so term 3 cannot reach
 //! them. Of the 1856 renderings in the characterization, 84 are this one shape. It is phrased as
@@ -72,7 +72,7 @@
 //! endpoint always carries a terminal, so a third one arrives as a new variant, a new tag, and one
 //! line in the model's vocabulary — the shape of a description does not change and no record
 //! reopens. A field and its absence would instead make "no terminal" a third spelling, and a
-//! caller who left the field out would get an arrow that draws nothing at either end rather than a
+//! caller who left the field out would get a connector that draws nothing at either end rather than a
 //! refusal naming the two values that were expected.
 //!
 //! **A glyph decides every side; an arm leaves three undecided.** That difference is the whole of
@@ -80,7 +80,7 @@
 //! [`docs/model.md`](../../../docs/model.md) already decides what two figures sharing a cell
 //! leave there, and these two land in it as two rows of that table. What this module owns is
 //! narrower — which side an arm goes on, and in whose stroke. The side is the leaving direction's
-//! own, because the arm faces the route, and the stroke is the arrow's own because a terminal
+//! own, because the arm faces the route, and the stroke is the connector's own because a terminal
 //! choosing its stroke would be a second thing to keep consistent with the route it joins, while
 //! the model's arm is a stroke cell of the figure.
 //!
@@ -99,14 +99,14 @@ use crate::shape::fragment::head::Head;
 use crate::shape::route::Route;
 use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
 
-/// Where an arrow ends: a position, the direction it leaves in, and a terminal. See _The initial
+/// Where a connector ends: a position, the direction it leaves in, and a terminal. See _The initial
 /// set_ and _What a terminal writes_ in
 /// [`docs/model.md`](../../../docs/model.md).
 #[derive(Debug)]
 pub struct Endpoint {
     /// The endpoint's position. The terminal occupies this position itself.
     pub at: Pos,
-    /// The direction the arrow leaves this endpoint in. The route's starting position is one
+    /// The direction the connector leaves this endpoint in. The route's starting position is one
     /// step from `at` in this direction.
     pub leaving: Direction,
     /// What this endpoint contributes to the cell at `at`.
@@ -122,7 +122,7 @@ pub enum Terminal {
         /// The caller's glyph. No glyph set is consulted for it — ADR-0029, FR-027.
         glyph: Glyph,
     },
-    /// One arm, in the arrow's own stroke, on the side `leaving` names, leaving the other three
+    /// One arm, in the connector's own stroke, on the side `leaving` names, leaving the other three
     /// sides undecided.
     Arm,
 }
@@ -131,7 +131,7 @@ pub enum Terminal {
 /// the arm faces the route — which begins one step from `at` in that direction.
 ///
 /// A function and not a field on [`Terminal`] because [`Side`] is crate-private. A caller can name
-/// a `Terminal::Arm` and get the side the arrow leaves in; it cannot name a side of its own.
+/// a `Terminal::Arm` and get the side the connector leaves in; it cannot name a side of its own.
 fn arm_side(leaving: Direction) -> Side {
     match leaving {
         Direction::Up => Side::Top,
@@ -141,23 +141,23 @@ fn arm_side(leaving: Direction) -> Side {
     }
 }
 
-/// An arrow: two endpoints and a stroke.
+/// A connector: two endpoints and a stroke.
 ///
 /// A **complete** shape in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../docs/model.md). The route between the two endpoints is derived from
 /// their positions and leaving directions alone — FR-016 — and is never described by the caller.
 #[derive(Debug)]
-pub struct Arrow {
-    /// One endpoint of the arrow.
+pub struct Connector {
+    /// One endpoint of the connector.
     pub from: Endpoint,
-    /// The other endpoint of the arrow.
+    /// The other endpoint of the connector.
     pub to: Endpoint,
     /// The stroke the route between the two endpoints is drawn in, and the stroke an arm terminal
     /// is written in. A glyph terminal is drawn as its own glyph, not in this stroke.
     pub stroke: Stroke,
 }
 
-impl Shape for Arrow {
+impl Shape for Connector {
     /// Draws the two terminals and then the route, in that order. The order of the two terminals
     /// is the order the endpoints are named, `from` then `to`, and it is load-bearing where two
     /// endpoints share one position: under `Above` the second is the one seen (C-6).
@@ -405,9 +405,9 @@ fn is_right_of_travel(da: Direction, c: i32, mid_c: i32) -> bool {
 }
 
 /// The `from_middle` and `hand` a run of `orientation`, sitting at `pos` — any point along it,
-/// since a run's own fixed coordinate does not change — charges against `mid` and the arrow's own
+/// since a run's own fixed coordinate does not change — charges against `mid` and the connector's own
 /// travel `da`. `hand` is charged only where `orientation` matches `da`'s own, which is what makes
-/// term 4's handedness the arrow's own travel rather than the coordinate system's
+/// term 4's handedness the connector's own travel rather than the coordinate system's
 /// (data-model.md).
 fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u32, u32) {
     let (c, mid_c) = match orientation {
@@ -423,8 +423,8 @@ fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u32
     (from_middle, hand)
 }
 
-/// Derives an arrow's route: the path between its two starting positions, per _The route of an
-/// arrow_. `None` means no path exists and the arrow is its two heads alone.
+/// Derives a connector's route: the path between its two starting positions, per _The route of a
+/// connector_. `None` means no path exists and the connector is its two heads alone.
 ///
 /// A single-source Dijkstra over states `(node, heading)`, `node` a point of [`Lattice`] and
 /// `heading` the direction the run reaching it travels along, minimized by [`Cost`] — nothing
@@ -439,7 +439,7 @@ fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u32
 fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>> {
     // Two endpoints at one position leaving the same direction: `s` and `t` coincide and the
     // only way to arrive would be to leave immediately in the opposite direction, which
-    // _The route of an arrow_ declines as a path returning to where it began. A search without
+    // _The route of a connector_ declines as a path returning to where it began. A search without
     // the full path in its state cannot see that a longer alternative loops back over itself, so
     // this is ruled out directly rather than left to the search to discover.
     if a == b && da == db {
@@ -549,7 +549,7 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
 
 #[cfg(test)]
 mod tests {
-    use super::{Arrow, Endpoint, Lattice, RouteRectangle, Terminal, derive_path, offset};
+    use super::{Connector, Endpoint, Lattice, RouteRectangle, Terminal, derive_path, offset};
     use crate::shape::counting::CountingSurface;
     use crate::{
         Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Line, Orientation, Pos, Shape,
@@ -581,9 +581,9 @@ mod tests {
         }
     }
 
-    fn render_arrow(origin: Pos, size: Size, from: Endpoint, to: Endpoint) -> String {
+    fn render_connector(origin: Pos, size: Size, from: Endpoint, to: Endpoint) -> String {
         let mut buffer = Buffer::new(origin, size);
-        Arrow {
+        Connector {
             from,
             to,
             stroke: light(),
@@ -596,7 +596,7 @@ mod tests {
     /// User story 3, scenario 1: perpendicular directions, one bend.
     #[test]
     fn scenario_1_perpendicular_one_bend() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 5,
@@ -612,7 +612,7 @@ mod tests {
     /// User story 3, scenario 2: the mirror of scenario 1, and scenario 3 asserts the two differ.
     #[test]
     fn scenario_2_perpendicular_one_bend_mirrored() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 5,
@@ -634,13 +634,13 @@ mod tests {
             height: 4,
         };
         let origin = Pos { x: 0, y: 0 };
-        let one = render_arrow(
+        let one = render_connector(
             origin,
             size,
             endpoint(Pos { x: 0, y: 0 }, Direction::Down),
             endpoint(Pos { x: 4, y: 3 }, Direction::Left),
         );
-        let two = render_arrow(
+        let two = render_connector(
             origin,
             size,
             endpoint(Pos { x: 0, y: 0 }, Direction::Right),
@@ -654,7 +654,7 @@ mod tests {
     /// bend.
     #[test]
     fn scenario_4_opposite_aligned_no_bend() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 7,
@@ -671,7 +671,7 @@ mod tests {
     /// pinned tie-break winner among three same-length candidates (research.md Q5).
     #[test]
     fn scenario_5_opposite_not_aligned_two_bends() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 7,
@@ -688,7 +688,7 @@ mod tests {
     /// rectangle since both directions head toward the other end.
     #[test]
     fn scenario_6_two_bends_inside_the_endpoint_rectangle() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 9,
@@ -705,7 +705,7 @@ mod tests {
     /// the route rectangle one cell wider on each side.
     #[test]
     fn scenario_7_facing_away_four_bends() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 10,
@@ -722,7 +722,7 @@ mod tests {
     /// rectangle grows on that one side only.
     #[test]
     fn scenario_8_perpendicular_one_heading_away() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 9,
@@ -739,7 +739,7 @@ mod tests {
     /// positions share a column and the two bends are adjacent.
     #[test]
     fn scenario_9_tightest_two_bend_arrangement() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 5,
@@ -755,7 +755,7 @@ mod tests {
     /// User story 3, scenario 10: the tightest arrangement of the facing-away family.
     #[test]
     fn scenario_10_tightest_facing_away_arrangement() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 5,
@@ -768,11 +768,11 @@ mod tests {
         assert_eq!(text, " ┌►  \n └──┐\n   ◄┘\n");
     }
 
-    /// User story 3, scenario 11, SC-002: the three arrows of scenarios 6, 7 and 8 share both
+    /// User story 3, scenario 11, SC-002: the three connectors of scenarios 6, 7 and 8 share both
     /// endpoint positions and differ only in direction, so all three rendered texts must differ.
     #[test]
-    fn scenario_11_the_three_shared_endpoint_arrows_all_differ() {
-        let six = render_arrow(
+    fn scenario_11_the_three_shared_endpoint_connectors_all_differ() {
+        let six = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 9,
@@ -781,7 +781,7 @@ mod tests {
             endpoint(Pos { x: 2, y: 0 }, Direction::Right),
             endpoint(Pos { x: 8, y: 2 }, Direction::Left),
         );
-        let seven = render_arrow(
+        let seven = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 9,
@@ -790,7 +790,7 @@ mod tests {
             endpoint(Pos { x: 2, y: 0 }, Direction::Left),
             endpoint(Pos { x: 8, y: 2 }, Direction::Right),
         );
-        let eight = render_arrow(
+        let eight = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 9,
@@ -811,7 +811,7 @@ mod tests {
     /// deliberately not pinned by the spec.
     #[test]
     fn identical_directions_where_a_path_fits() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 8,
@@ -828,12 +828,12 @@ mod tests {
     /// endpoints are in line on that axis: `s` and `t` sit on the same row with the `to`
     /// endpoint's own head between them, so the straight run the old bound drew nothing for is
     /// not a route the rule can draw either — it would cross a head. The ranking instead
-    /// routes around the outside, per _The route of an arrow_. SC-009, research.md Q6: the only
+    /// routes around the outside, per _The route of a connector_. SC-009, research.md Q6: the only
     /// test in the workspace whose pinned picture this feature moves, renamed and re-pinned
     /// rather than deleted. Spec's User Story 1 acceptance scenario 2.
     #[test]
     fn identical_directions_in_line_are_joined_around_the_outside() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 6,
@@ -846,12 +846,12 @@ mod tests {
         assert_eq!(text, "◄──┐◄┐\n   └─┘\n");
     }
 
-    /// The direction families table's last row and user story 3's scenario 13: an arrow whose
+    /// The direction families table's last row and user story 3's scenario 13: a connector whose
     /// two endpoints coincide returns normally — no error, no panic. What it draws is the general
     /// rule's business and is deliberately not asserted here.
     #[test]
     fn both_endpoints_at_the_same_position_returns_normally() {
-        let _ = render_arrow(
+        let _ = render_connector(
             Pos { x: 0, y: 0 },
             Size {
                 width: 1,
@@ -862,11 +862,11 @@ mod tests {
         );
     }
 
-    /// User story 3, scenario 12: none of the ten pinned arrows writes any position more than
+    /// User story 3, scenario 12: none of the ten pinned connectors writes any position more than
     /// once — including where a route bends, which is where a route drawn as two overlapping
     /// runs would write twice (FR-020).
     #[test]
-    fn no_pinned_arrow_writes_any_position_more_than_once() {
+    fn no_pinned_connector_writes_any_position_more_than_once() {
         let pairs = [
             (
                 endpoint(Pos { x: 0, y: 0 }, Direction::Down),
@@ -908,7 +908,7 @@ mod tests {
 
         for (index, (from, to)) in pairs.into_iter().enumerate() {
             let mut surface = CountingSurface::default();
-            Arrow {
+            Connector {
                 from,
                 to,
                 stroke: light(),
@@ -917,13 +917,13 @@ mod tests {
 
             assert!(
                 surface.max_writes() <= 1,
-                "pinned arrow {} wrote a position more than once",
+                "pinned connector {} wrote a position more than once",
                 index + 1
             );
         }
     }
 
-    /// SC-002: the bug report's arrow renders the same picture whichever endpoint is named
+    /// SC-002: the bug report's connector renders the same picture whichever endpoint is named
     /// first, instead of drawing the route backwards out of its starting cell.
     #[test]
     fn sc002_the_bug_report_renders_the_same_from_either_end() {
@@ -934,13 +934,13 @@ mod tests {
         };
         let expected = "◄─────►\n";
 
-        let named_left_first = render_arrow(
+        let named_left_first = render_connector(
             origin,
             size,
             endpoint(Pos { x: 0, y: 0 }, Direction::Right),
             endpoint(Pos { x: 6, y: 0 }, Direction::Left),
         );
-        let named_right_first = render_arrow(
+        let named_right_first = render_connector(
             origin,
             size,
             endpoint(Pos { x: 6, y: 0 }, Direction::Left),
@@ -962,13 +962,13 @@ mod tests {
             height: 7,
         };
 
-        let up_first = render_arrow(
+        let up_first = render_connector(
             origin,
             size,
             endpoint(Pos { x: 0, y: 1 }, Direction::Down),
             endpoint(Pos { x: 2, y: 6 }, Direction::Up),
         );
-        let down_first = render_arrow(
+        let down_first = render_connector(
             origin,
             size,
             endpoint(Pos { x: 2, y: 6 }, Direction::Up),
@@ -1009,7 +1009,7 @@ mod tests {
     fn sc004_each_arrangement_turns_at_the_middle_of_its_route_rectangle() {
         let origin = Pos { x: 0, y: 0 };
 
-        let n4 = render_arrow(
+        let n4 = render_connector(
             origin,
             Size {
                 width: 5,
@@ -1018,7 +1018,7 @@ mod tests {
             endpoint(Pos { x: 0, y: 0 }, Direction::Right),
             endpoint(Pos { x: 4, y: 3 }, Direction::Left),
         );
-        let n5 = render_arrow(
+        let n5 = render_connector(
             origin,
             Size {
                 width: 6,
@@ -1027,7 +1027,7 @@ mod tests {
             endpoint(Pos { x: 5, y: 3 }, Direction::Left),
             endpoint(Pos { x: 0, y: 0 }, Direction::Right),
         );
-        let n6 = render_arrow(
+        let n6 = render_connector(
             origin,
             Size {
                 width: 7,
@@ -1046,25 +1046,25 @@ mod tests {
     }
 
     /// User story 2, FR-005, SC-004, R-5: where the coordinate the bends leave free spans exactly
-    /// two cells, the route turns at the cell nearer the endpoint the arrow leaves from. Issue
+    /// two cells, the route turns at the cell nearer the endpoint the connector leaves from. Issue
     /// 104: today the `waypoints.len() > 3` proxy discards the winning shape for naming one point
     /// twice and the opposite corner wins instead, so both orders turn the wrong way round. This
     /// test MUST pass unchanged through the Dijkstra rewrite (research.md Q3).
     #[test]
-    fn fr005_a_two_cell_free_span_turns_toward_the_endpoint_the_arrow_leaves_from() {
+    fn fr005_a_two_cell_free_span_turns_toward_the_endpoint_the_connector_leaves_from() {
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
             width: 4,
             height: 2,
         };
 
-        let leaving_right_first = render_arrow(
+        let leaving_right_first = render_connector(
             origin,
             size,
             endpoint(Pos { x: 0, y: 0 }, Direction::Right),
             endpoint(Pos { x: 3, y: 1 }, Direction::Left),
         );
-        let leaving_left_first = render_arrow(
+        let leaving_left_first = render_connector(
             origin,
             size,
             endpoint(Pos { x: 3, y: 1 }, Direction::Left),
@@ -1075,7 +1075,7 @@ mod tests {
         assert_eq!(leaving_left_first, concat!("◄─┐ \n", "  └►\n"));
     }
 
-    /// FR-006, SC-004's second half: the shipped demonstration's arrow turns at the middle of
+    /// FR-006, SC-004's second half: the shipped demonstration's connector turns at the middle of
     /// its route rectangle. The middle is computed here from the two endpoint positions rather
     /// than transcribed from a picture, which is what would have caught this defect had it
     /// existed in the demonstration.
@@ -1091,7 +1091,7 @@ mod tests {
         let middle_x = i32::midpoint(s.x.min(t.x), s.x.max(t.x));
         assert_eq!(middle_x, 18);
 
-        let path = derive_path(a, da, b, db).expect("the demonstration's arrow has a route");
+        let path = derive_path(a, da, b, db).expect("the demonstration's connector has a route");
         assert!(path.contains(&Pos {
             x: middle_x,
             y: s.y
@@ -1103,11 +1103,11 @@ mod tests {
     }
 
     /// C-6, FR-004: where both endpoints occupy one position, the glyph seen is the `to`
-    /// endpoint's head — `Arrow` draws `from` then `to`, and `Above` lets the second win. Pins
+    /// endpoint's head — `Connector` draws `from` then `to`, and `Above` lets the second win. Pins
     /// the behavior; does not change it.
     #[test]
     fn c6_the_to_head_wins_a_shared_cell() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: 2, y: 1 },
             Size {
                 width: 1,
@@ -1135,7 +1135,7 @@ mod tests {
         let at = origin;
         let mut buffer = Buffer::new(origin, size);
 
-        Arrow {
+        Connector {
             from: Endpoint {
                 at,
                 leaving: Direction::Right,
@@ -1165,7 +1165,7 @@ mod tests {
     }
 
     /// User Story 1, B1 scenario 2, data-model invariant 4: an arm terminal writes one arm — the
-    /// one the arrow leaves on — in the arrow's own stroke, and leaves the other three sides
+    /// one the connector leaves on — in the connector's own stroke, and leaves the other three sides
     /// undecided so that whatever reaches the cell afterwards may still join it. All four leaving
     /// directions, because the side is derived from the direction and a mapping that happens to be
     /// right for three of the four is wrong.
@@ -1206,7 +1206,7 @@ mod tests {
                     height: 1,
                 },
             );
-            Arrow {
+            Connector {
                 from: Endpoint {
                     at,
                     leaving,
@@ -1242,7 +1242,7 @@ mod tests {
         let glyph = |text: &str| Terminal::Glyph {
             glyph: Glyph::new(text).expect("one glyph"),
         };
-        let with_glyphs = render_arrow(
+        let with_glyphs = render_connector(
             origin,
             size,
             Endpoint {
@@ -1256,7 +1256,7 @@ mod tests {
                 terminal: glyph("►"),
             },
         );
-        let with_arms = render_arrow(
+        let with_arms = render_connector(
             origin,
             size,
             Endpoint {
@@ -1331,7 +1331,7 @@ mod tests {
             },
             Terminal::Arm,
         ] {
-            let arrow = Arrow {
+            let connector = Connector {
                 from: Endpoint {
                     at: from_at,
                     leaving: Direction::Right,
@@ -1346,7 +1346,7 @@ mod tests {
             };
 
             let mut buffer = Buffer::new(origin, size);
-            arrow.draw(&mut Layer::new(&mut buffer, StampMode::Above));
+            connector.draw(&mut Layer::new(&mut buffer, StampMode::Above));
             for at in body.iter().copied().chain([from_at, to_at]) {
                 assert!(
                     buffer.cell(at).is_some(),
@@ -1355,7 +1355,7 @@ mod tests {
             }
 
             let mut counting = CountingSurface::default();
-            arrow.draw(&mut counting);
+            connector.draw(&mut counting);
             assert_eq!(
                 counting.max_writes(),
                 1,
@@ -1369,7 +1369,7 @@ mod tests {
     /// travel puts to its right, however far apart the two are — the same shape with longer runs.
     #[test]
     fn facing_away_are_joined_at_any_distance() {
-        let near = render_arrow(
+        let near = render_connector(
             Pos { x: 0, y: -1 },
             Size {
                 width: 2,
@@ -1378,7 +1378,7 @@ mod tests {
             endpoint(Pos { x: 0, y: 0 }, Direction::Up),
             endpoint(Pos { x: 0, y: 2 }, Direction::Down),
         );
-        let far = render_arrow(
+        let far = render_connector(
             Pos { x: 0, y: -1 },
             Size {
                 width: 2,
@@ -1396,7 +1396,7 @@ mod tests {
     /// starting positions on different columns takes the same four bends around the outside.
     #[test]
     fn facing_away_off_column_takes_four_bends_around_the_outside() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: -1, y: -1 },
             Size {
                 width: 3,
@@ -1419,13 +1419,13 @@ mod tests {
             height: 3,
         };
 
-        let leaving_left_first = render_arrow(
+        let leaving_left_first = render_connector(
             Pos { x: -1, y: -1 },
             size,
             endpoint(Pos { x: 0, y: 0 }, Direction::Left),
             endpoint(Pos { x: 2, y: 1 }, Direction::Right),
         );
-        let leaving_right_first = render_arrow(
+        let leaving_right_first = render_connector(
             Pos { x: -1, y: 0 },
             size,
             endpoint(Pos { x: 2, y: 1 }, Direction::Right),
@@ -1443,10 +1443,10 @@ mod tests {
     /// User Story 1, R-6, FR-006, SC-003, spec acceptance scenario 7: where two routes mirror
     /// each other about the line the two starting positions share — here, `b`'s own head stands
     /// between them, so neither can go straight through — the one drawn is the one on the side
-    /// the arrow's own travel puts to its right. Leaving `down`, that is the smaller `x`.
+    /// the connector's own travel puts to its right. Leaving `down`, that is the smaller `x`.
     #[test]
     fn a_mirrored_route_passes_on_the_right_of_the_travel() {
-        let text = render_arrow(
+        let text = render_connector(
             Pos { x: -1, y: 0 },
             Size {
                 width: 2,
@@ -1653,7 +1653,7 @@ mod tests {
         for (a, da, b, db) in sweep_arrangements() {
             for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
                 let mut buffer = Buffer::new(SWEEP_ORIGIN, SWEEP_SIZE);
-                Arrow {
+                Connector {
                     from: endpoint(from_at, from_dir),
                     to: endpoint(to_at, to_dir),
                     stroke: light(),
@@ -1671,7 +1671,7 @@ mod tests {
                 );
 
                 let mut counting = CountingSurface::default();
-                Arrow {
+                Connector {
                     from: endpoint(from_at, from_dir),
                     to: endpoint(to_at, to_dir),
                     stroke: light(),
@@ -1688,7 +1688,7 @@ mod tests {
     /// C-1, SC-001: the whole grid, rendered from both ends and labeled by arrangement, pinned as
     /// one file per anchor and leaving direction — eight rather than one, so a PR review tool can
     /// render each diff; a single 20,000-line file is what GitHub would not show at all — per
-    /// [ADR-0045](../../../../../docs/decisions/0045-pin-every-arrow-arrangement-as-a-reviewed-snapshot.md).
+    /// [ADR-0045](../../../../../docs/decisions/0045-pin-every-connector-arrangement-as-a-reviewed-snapshot.md).
     /// These eight are a characterization, so they live apart from every picture a test asserts by
     /// hand and are accepted on a report of what moved rather than on a claim of review — per
     /// [ADR-0053](../../../../../docs/decisions/0053-report-a-characterization-instead-of-reviewing-it.md),
@@ -1719,7 +1719,7 @@ mod tests {
                         (anchor, anchor_dir, other, other_dir),
                         (other, other_dir, anchor, anchor_dir),
                     ] {
-                        let text = render_arrow(
+                        let text = render_connector(
                             SWEEP_ORIGIN,
                             SWEEP_SIZE,
                             endpoint(from_at, from_dir),
@@ -1734,7 +1734,7 @@ mod tests {
                     }
                 }
                 let name = format!(
-                    "arrow_sweep_anchor_{}_{}_{anchor_dir:?}",
+                    "connector_sweep_anchor_{}_{}_{anchor_dir:?}",
                     anchor.x, anchor.y
                 )
                 .to_lowercase();

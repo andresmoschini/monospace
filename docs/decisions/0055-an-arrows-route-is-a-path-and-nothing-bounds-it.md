@@ -35,8 +35,8 @@ position — and nothing bounds where it may go**, because the shortest path is 
 trying to name, and saying so directly costs the model a construct instead of earning it a second
 one.
 
-Which path is drawn is `shape::arrow`'s business, in that module's `Design notes`, where ADR-0044,
-ADR-0048 and ADR-0049 are absorbed. ADR-0046 and ADR-0047 are superseded here.
+Which path is drawn is `shape::connector`'s business, in that module's `Design notes`, where
+ADR-0044, ADR-0048 and ADR-0049 are absorbed. ADR-0046 and ADR-0047 are superseded here.
 
 ### Consequences
 
@@ -57,4 +57,4 @@ it: the double escape would have to be rebuilt from here and from 099's `researc
 ## Revisions
 
 - 2026-09-17 — recorded as ADR-0046, dropping the bound, and ADR-0047, making a route a path.
-- 2026-09-21 — consolidated here, the choice among paths absorbed into `shape::arrow`.
+- 2026-09-21 — consolidated here, the choice among paths absorbed into `shape::connector`.

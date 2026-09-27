@@ -56,7 +56,7 @@ are the same ten prompts, versioned together, and the gate does not own them.
   rendering that goes into a Markdown fence cannot arrive wrapped in prose. Do not add output to the
   path form.
 - **Contract and characterization snapshots are separated by directory, not by naming** —
-  `insta::Settings::set_snapshot_path`. The arrow sweep is 1856 renderings across 8 files.
+  `insta::Settings::set_snapshot_path`. The connector sweep is 1856 renderings across 8 files.
 - **Prettier owns the width, at 100 columns, and it reflows rather than refusing.** Rewording a
   paragraph to shorten it buys nothing — the words return on the next `cargo xtask fix`. Meeting an
   artifact ceiling, 60 lines for a `working` ADR, means deleting content or splitting the decision

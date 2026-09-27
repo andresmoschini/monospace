@@ -4,15 +4,20 @@
 
 use crate::{Buffer, Cell, Pos, StampMode};
 
-mod arrow;
 mod box_shape;
+mod connector;
 pub(crate) mod fragment;
 mod line;
 mod route;
 
-pub use arrow::{Arrow, Endpoint, Terminal};
 pub use box_shape::BoxShape;
+pub use connector::{Connector, Endpoint, Terminal};
 pub use line::Line;
+
+/// The name this shape carried until ADR-0065, kept for one commit so the crate above compiles
+/// against either. Nothing constructs through it: the diagram crate's own variant moves in the
+/// commit after this one, and the wire tag in the one after that.
+pub type Arrow = Connector;
 
 /// One write operation and no reader. What a shape draws into.
 ///

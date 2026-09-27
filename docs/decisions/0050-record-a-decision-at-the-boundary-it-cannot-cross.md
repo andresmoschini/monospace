@@ -12,7 +12,7 @@ decision-makers: Andrés Moschini
 
 Fifty records exist, forty-seven `accepted`, one for every 186 lines of Rust. Five — 0044 and 0046
 to 0049 — hold one subject, how an arrow picks its route, and none can be cited without citing
-another. Nothing outside `shape::arrow` can observe that subject, yet the rule sits in
+another. Nothing outside `shape::connector` can observe that subject, yet the rule sits in
 `docs/model.md`, which a spec "MUST NOT restate" and which "changes first" when a slice needs a rule
 it lacks. Principle VI asked for a record "at the moment it is taken", which sizes one to a moment
 rather than to a subject, and it offered a single home, so every decision cost the same whatever

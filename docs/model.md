@@ -38,32 +38,32 @@ when no character matches.
 
 ## 1. Vocabulary
 
-| Term            | Meaning                                                                       |
-| --------------- | ----------------------------------------------------------------------------- |
-| `Buffer`        | A window of cells, with an origin and a size                                  |
-| `Cell`          | Either a base stroke and four arms, or one literal glyph                      |
-| `Side`          | Top, right, bottom or left                                                    |
-| `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`               |
-| `Stroke`        | A name, nothing more                                                          |
-| `BaseStroke`    | The cell's own stroke: what every arm is drawn in unless it carries one       |
-| `Glyph`         | What a cell renders to: one grapheme cluster                                  |
-| `GlyphKey`      | The four sides of a rule: a stroke name on each, or nothing                   |
-| `GlyphRule`     | One `GlyphKey` mapped to a glyph                                              |
-| `GlyphSet`      | A group of rules as they are written or loaded: one table                     |
-| `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it |
-| `stamp`         | The single write operation                                                    |
-| `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided  |
-| `Surface`       | One write operation and no reader; what a shape draws into                    |
-| `Shape`         | A value describing a figure, which draws itself into a surface                |
-| `Piece`         | A shape placed by another shape, given the positions it is to write           |
-| `Direction`     | Up, right, down or left: a way to move in the plane                           |
-| `Endpoint`      | Where an arrow ends: a position, the direction it leaves in, and a terminal   |
+| Term            | Meaning                                                                        |
+| --------------- | ------------------------------------------------------------------------------ |
+| `Buffer`        | A window of cells, with an origin and a size                                   |
+| `Cell`          | Either a base stroke and four arms, or one literal glyph                       |
+| `Side`          | Top, right, bottom or left                                                     |
+| `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`                |
+| `Stroke`        | A name, nothing more                                                           |
+| `BaseStroke`    | The cell's own stroke: what every arm is drawn in unless it carries one        |
+| `Glyph`         | What a cell renders to: one grapheme cluster                                   |
+| `GlyphKey`      | The four sides of a rule: a stroke name on each, or nothing                    |
+| `GlyphRule`     | One `GlyphKey` mapped to a glyph                                               |
+| `GlyphSet`      | A group of rules as they are written or loaded: one table                      |
+| `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it  |
+| `stamp`         | The single write operation                                                     |
+| `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided   |
+| `Surface`       | One write operation and no reader; what a shape draws into                     |
+| `Shape`         | A value describing a figure, which draws itself into a surface                 |
+| `Piece`         | A shape placed by another shape, given the positions it is to write            |
+| `Direction`     | Up, right, down or left: a way to move in the plane                            |
+| `Endpoint`      | Where a connector ends: a position, the direction it leaves in, and a terminal |
 
 `Arm` names both the concept and its three-state value. `Side` names the four positions. If
 implementing shows they need separating, `ArmState` is the obvious name for the value.
 
 `Side` and `Direction` share four names and are not the same thing: a side is a place on a cell, a
-direction is a way to move across the plane. A figure reasons in directions — an arrow leaves an
+direction is a way to move across the plane. A figure reasons in directions — a connector leaves an
 endpoint in one — and a piece is told sides. They stay apart, and the translation happens where the
 two meet.
 
@@ -298,23 +298,23 @@ chosen glyph, in the sense of _A cell can be a literal instead_.
 A **line** is a position, a length, an orientation and a stroke. It names no glyph of its own; what
 its two end cells hold is the next section.
 
-An **arrow** is two **endpoints** and a stroke. An endpoint is a position, the direction the arrow
-leaves it in, and a **terminal**; `at` is the cell the terminal hangs from. What a terminal may
-write is vocabulary this document owns, so naming one more of them is a change here and in the
-figure and not a change to any record. A glyph terminal's glyph points opposite to the direction
-that endpoint leaves in.
+An **connector** is two **endpoints** and a stroke. An endpoint is a position, the direction the
+connector leaves it in, and a **terminal**; `at` is the cell the terminal hangs from. What a
+terminal may write is vocabulary this document owns, so naming one more of them is a change here and
+in the figure and not a change to any record. A glyph terminal's glyph points opposite to the
+direction that endpoint leaves in.
 
 ### What a terminal writes
 
 A **terminal** is what an endpoint contributes to the cell at `at`, and it is a **glyph** or an
 **arm**. It writes that cell and nothing else.
 
-An **arm** writes one arm — the one the arrow arrives on — in the arrow's own stroke, and leaves its
-other three sides `Unset`, so it renders through the glyph set like every other stroke cell and
-whatever reaches it afterwards may still join it. The price is that an arm is not visible as an arm:
-measured in the tables of [`glyph-sets.md`](glyph-sets.md), every single-stroke set already answers
-the four single-arm keys, so what makes a cell an end is which sides it leaves undecided rather than
-the character it draws.
+An **arm** writes one arm — the one the connector arrives on — in the connector's own stroke, and
+leaves its other three sides `Unset`, so it renders through the glyph set like every other stroke
+cell and whatever reaches it afterwards may still join it. The price is that an arm is not visible
+as an arm: measured in the tables of [`glyph-sets.md`](glyph-sets.md), every single-stroke set
+already answers the four single-arm keys, so what makes a cell an end is which sides it leaves
+undecided rather than the character it draws.
 
 A **glyph** writes one chosen glyph, in the sense of _A cell can be a literal instead_, supplied by
 the caller — and nothing connects into one, because a literal is decided on every side. It is that
@@ -327,14 +327,14 @@ would be the better answer, and they are an open question below.
 [ADR-0029](decisions/0029-draw-a-line-end-as-one-arm.md) records the decision, what it reverses, and
 what would reverse it back.
 
-### The route of an arrow
+### The route of a connector
 
-An arrow's route is a **path** between its two endpoint positions: its first step is the direction
-the arrow leaves its `from` endpoint in, its last step arrives at the `to` endpoint against that
-endpoint's own leaving direction, and its runs alternate between horizontal and vertical. A path
-visits no position twice, and it passes through neither endpoint position, because a terminal is
-there — so one that would have to cross an endpoint is not a path at all. The path writes no
-endpoint cell of its own, whatever a terminal puts there.
+A connector's route is a **path** between its two endpoint positions: its first step is the
+direction the connector leaves its `from` endpoint in, its last step arrives at the `to` endpoint
+against that endpoint's own leaving direction, and its runs alternate between horizontal and
+vertical. A path visits no position twice, and it passes through neither endpoint position, because
+a terminal is there — so one that would have to cross an endpoint is not a path at all. The path
+writes no endpoint cell of its own, whatever a terminal puts there.
 
 Nothing bounds where a path may go. Two endpoints facing away from each other along one line are
 joined by a route that travels around the outside, however far apart they are:
@@ -360,21 +360,21 @@ joined by a route that travels around the outside, however far apart they are:
 
 <!-- /render -->
 
-Where several paths exist, which one the arrow draws is the arrow's own business. The rule that
-ranks them, and the reason each of its terms is there, are the `Design notes` of
-[`shape::arrow`](../crates/monospace-core/src/shape/arrow.rs); nothing outside that module observes
-the choice beyond the picture it produces, so changing it amends nothing here.
+Where several paths exist, which one the connector draws is the connector's own business. The rule
+that ranks them, and the reason each of its terms is there, are the `Design notes` of
+[`shape::connector`](../crates/monospace-core/src/shape/connector.rs); nothing outside that module
+observes the choice beyond the picture it produces, so changing it amends nothing here.
 
-Where no path exists the route is empty and the arrow is its two terminals.
-[ADR-0055](decisions/0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md) records the contract
-above, and why a route is left unbounded.
+Where no path exists the route is empty and the connector is its two terminals.
+[ADR-0055](decisions/0055-an-connectors-route-is-a-path-and-nothing-bounds-it.md) records the
+contract above, and why a route is left unbounded.
 
 ### Degenerate arrangements
 
 A shape whose parameters are degenerate, or describe something impossible, never fails: no error, no
 panic, and the call returns. What it draws is whatever the general rule yields for those parameters,
 and a degenerate arrangement does not acquire an exception of its own in order to draw something
-else. A line of length 1, an arrow whose two endpoints coincide: each is permitted rather than
+else. A line of length 1, a connector whose two endpoints coincide: each is permitted rather than
 rejected, and what comes out follows the rule rather than a guard. Restricting one later is a change
 to the rule, made when it turns out to cause a problem — not a case bolted on in advance.
 
@@ -420,8 +420,8 @@ not.
 
 - **Fallback chains between strokes.** ADR-0009 lists them as the rejected option and says what
   would bring them back.
-- **Text and diagonals.** Out of the model, not merely out of the first slice. Arrows were on this
-  list until _Shapes_ was written and are not on it any more.
+- **Text and diagonals.** Out of the model, not merely out of the first slice. Connectors were on
+  this list until _Shapes_ was written and are not on it any more.
 - **A coordinate-and-glyph output**, as an alternative to the string.
 - **Color.** It fits the degradation rule — one owner imposes, the rest yield — and would be a good
   way to test whether that rule generalizes.
@@ -445,10 +445,10 @@ core expose mutable state for editing?_ has left: the core exposes none, and
   relative to another, per [the diagram model](diagram-model.md). Placing figures nobody gave
   coordinates for is the half still open.
 - **What comes after the first three shapes?** _Shapes_ answers the initial set — a box, a line and
-  an arrow — and the question that is left is everything with a shape of its own that is not one of
-  them: a rounded corner, a double line. Each needs either its rule keyed like the rest or a chosen
-  glyph, which is the route a head took. What would settle it: the first slice that needs one of
-  them.
+  a connector — and the question that is left is everything with a shape of its own that is not one
+  of them: a rounded corner, a double line. Each needs either its rule keyed like the rest or a
+  chosen glyph, which is the route a head took. What would settle it: the first slice that needs one
+  of them.
 - **Where does a terminal's glyph come from, once a glyph set can hold one?** _What a terminal
   writes_ has the caller supply it, because no set holds a rule that points and the two characters
   that could have been keyed are already claimed. What would settle it: a slice that gives a set its

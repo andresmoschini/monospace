@@ -1480,8 +1480,8 @@ the flow: the pull request body and its keyword were never a judgement either. F
 ## 2026-09-21 — SDD v2, increment 4: the arrow
 
 The test case of the whole method. `The route of an arrow` came down from `docs/model.md` into
-`shape::arrow`'s `Design notes`, and the five records about it became one. No behavior change, no
-snapshot moved, two commits.
+`shape::connector`'s `Design notes`, and the five records about it became one. No behavior change,
+no snapshot moved, two commits.
 
 ### Working this way
 

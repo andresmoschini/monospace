@@ -102,9 +102,9 @@ whole point of having references at all.
 **Only a connector's endpoint holds a reference, for now**
 ([ADR-0041](decisions/0041-resolve-a-position-through-a-reference.md)). Every other shape's position
 is absolute, and _Attachment_ below is where the reference lives. A reference therefore names a box
-or a line, both positioned absolutely, or an arrow, which answers no anchor point: the chain is one
-link long, nothing resolves through anything else, and no cycle can be built. Issue #89 is where a
-reference widens to any shape's position, and the cycle question belongs to it.
+or a line, both positioned absolutely, or a connector, which answers no anchor point: the chain is
+one link long, nothing resolves through anything else, and no cycle can be built. Issue #89 is where
+a reference widens to any shape's position, and the cycle question belongs to it.
 
 Nothing is the answer in two cases, and the model treats them as one:
 
@@ -136,8 +136,8 @@ A **line** answers as a flat box: it has no thickness, so on a horizontal line t
 the bottom center are one point, its middle, while the left center is its left end and the right
 center its right end. A vertical line is the same seen sideways.
 
-An **arrow** answers nothing for now. A route with bends has no honest answer to most of these, and
-none of them is needed to draw one.
+An **connector** answers nothing for now. A route with bends has no honest answer to most of these,
+and none of them is needed to draw one.
 
 Four, rather than the nine issue #62 lists. What the corners and the center are waiting for is a
 consumer, and issue #90 is where they arrive: an anchor exists to hang a connector's endpoint from,
@@ -147,22 +147,22 @@ not.
 
 ## 6. Attachment
 
-An arrow's endpoint is a position, the direction the arrow leaves it in, and a terminal — that is
-`model.md`'s definition. What this layer adds is that the position may be a reference, and an
-endpoint is the only position in this model that may be one. An endpoint attached to a shape moves
-when that shape moves, and an arrow with an endpoint whose reference does not resolve is not drawn,
-by the rule in _Positions_: it is a shape whose position does not resolve. An arrow with two
-attached endpoints is the figure this model exists to make possible.
+A connector's endpoint is a position, the direction the connector leaves it in, and a terminal —
+that is `model.md`'s definition. What this layer adds is that the position may be a reference, and
+an endpoint is the only position in this model that may be one. An endpoint attached to a shape
+moves when that shape moves, and a connector with an endpoint whose reference does not resolve is
+not drawn, by the rule in _Positions_: it is a shape whose position does not resolve. A connector
+with two attached endpoints is the figure this model exists to make possible.
 
-The direction the arrow leaves in and the terminal it carries are not derived from the attachment.
-They are the caller's. Deriving a direction from which side of a shape was attached to is an open
-question below, and every anchor being a side is what keeps it answerable: a side has an outside to
-leave through.
+The direction the connector leaves in and the terminal it carries are not derived from the
+attachment. They are the caller's. Deriving a direction from which side of a shape was attached to
+is an open question below, and every anchor being a side is what keeps it answerable: a side has an
+outside to leave through.
 
-An arrow's `from` endpoint standing on the right border of a box, and its `to` endpoint out in the
-open. The cell at `(3, 1)` reads `├`, and neither figure wrote a junction there — the box's border
-and the arrow's arm terminal composed into one, which is the whole point of a side being an anchor
-rather than a corner:
+A connector's `from` endpoint standing on the right border of a box, and its `to` endpoint out in
+the open. The cell at `(3, 1)` reads `├`, and neither figure wrote a junction there — the box's
+border and the connector's arm terminal composed into one, which is the whole point of a side being
+an anchor rather than a corner:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 } },
@@ -276,7 +276,7 @@ survives a replacement is what the diagram owns — the identity and the place i
 everything the shape owns is the new shape's: its kind, its parameters and its position.
 
 Moving is a replacement like any other, with a shape positioned somewhere else, and this model says
-no more about it than that. What moving an arrow with attached endpoints should do to those
+no more about it than that. What moving a connector with attached endpoints should do to those
 attachments is left to the slice that implements movement, and it is an open question below rather
 than a rule here.
 
@@ -311,15 +311,15 @@ the slice.
 - **Can a caller choose an identity?** Today the diagram generates them and nothing else can. Issue
   #62 anticipates editable identities without asking for them. What would settle it: the first slice
   where a caller has a name worth keeping — reading a diagram from a file is the obvious one.
-- **What does an arrow anchor to?** Arrows answer no anchor point, so nothing can hang off one. What
-  would settle it: a figure that has to attach to a connector, most likely a label on it. Answering
-  this is also one of the two ways a chain of references becomes longer than one link, which is what
-  brings the cycle question back — see _Positions_.
+- **What does a connector anchor to?** Connectors answer no anchor point, so nothing can hang off
+  one. What would settle it: a figure that has to attach to a connector, most likely a label on it.
+  Answering this is also one of the two ways a chain of references becomes longer than one link,
+  which is what brings the cycle question back — see _Positions_.
 - **How does a shape move?** Moving is a replacement with a shape positioned elsewhere, and nothing
-  above that is decided. Whether moving an arrow whose endpoints are attached shifts their offsets,
-  leaves them where they are, or is not a move at all is the part left open. What would settle it:
-  the first slice that implements movement.
-- **Does an attachment decide the direction an arrow leaves in?** Attaching to a box's right side
+  above that is decided. Whether moving a connector whose endpoints are attached shifts their
+  offsets, leaves them where they are, or is not a move at all is the part left open. What would
+  settle it: the first slice that implements movement.
+- **Does an attachment decide the direction a connector leaves in?** Attaching to a box's right side
   and leaving leftward is expressible today and draws something nobody wants. What would settle it:
   the first slice where the caller's direction and the anchor's side are routinely the same.
 - **How big is a diagram?** Nothing measures one. The window stays the caller's either way — which
