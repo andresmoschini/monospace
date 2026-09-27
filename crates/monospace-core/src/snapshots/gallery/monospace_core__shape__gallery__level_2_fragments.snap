@@ -1,0 +1,75 @@
+---
+source: crates/monospace-core/src/shape/gallery.rs
+description: "A gallery: a chosen set of examples, one block each, for reading rather than for coverage. Each label is derived from the value that drew the block, so it cannot disagree with it. Under each picture is the surface that picture came from: a count of the positions the figure wrote, then a row for each of them, saying what that position renders, what each of its four arms holds, and the base stroke every Set arm is drawn in. A Set arm names the stroke; Unset and Closed are the model's own two words for the other two. A position the figure left unwritten is a hole in the picture rather than a row here, and the count is how many there are. A literal has no arms, so its arm columns are empty. A block moving means a figure changed, and what moved is the thing to look at — the same acceptance a characterization gets, without its claim of covering a range."
+expression: body
+---
+Border { from: Pos { x: 0, y: 0 }, len: 3, side: Top, stroke: Stroke("light"), closes_interior: true }
+  ───
+  wrote 3 of 3 positions
+  | at  | glyph | top   | right | bottom | left  | base  |
+  | --- | ----- | ----- | ----- | ------ | ----- | ----- |
+  | 0,0 | ─     | Unset | light | Closed | light | light |
+  | 1,0 | ─     | Unset | light | Closed | light | light |
+  | 2,0 | ─     | Unset | light | Closed | light | light |
+
+Border { from: Pos { x: 0, y: 0 }, len: 3, side: Top, stroke: Stroke("light"), closes_interior: false }
+  ───
+  wrote 3 of 3 positions
+  | at  | glyph | top   | right | bottom | left  | base  |
+  | --- | ----- | ----- | ----- | ------ | ----- | ----- |
+  | 0,0 | ─     | Unset | light | Unset  | light | light |
+  | 1,0 | ─     | Unset | light | Unset  | light | light |
+  | 2,0 | ─     | Unset | light | Unset  | light | light |
+
+Border { from: Pos { x: 0, y: 0 }, len: 3, side: Left, stroke: Stroke("light"), closes_interior: true }
+  │
+  wrote 1 of 3 positions
+  | at  | glyph | top   | right  | bottom | left  | base  |
+  | --- | ----- | ----- | ------ | ------ | ----- | ----- |
+  | 0,0 | │     | light | Closed | light  | Unset | light |
+
+Corner { at: Pos { x: 1, y: 0 }, opens: (Right, Bottom), stroke: Stroke("light") }
+   ┌
+  wrote 1 of 3 positions
+  | at  | glyph | top   | right | bottom | left  | base  |
+  | --- | ----- | ----- | ----- | ------ | ----- | ----- |
+  | 1,0 | ┌     | Unset | light | light  | Unset | light |
+
+End { at: Pos { x: 1, y: 0 }, side: Right, stroke: Stroke("light") }
+   ─
+  wrote 1 of 3 positions
+  | at  | glyph | top   | right | bottom | left  | base  |
+  | --- | ----- | ----- | ----- | ------ | ----- | ----- |
+  | 1,0 | ─     | Unset | light | Unset  | Unset | light |
+
+End { at: Pos { x: 1, y: 0 }, side: Top, stroke: Stroke("light") }
+   │
+  wrote 1 of 3 positions
+  | at  | glyph | top   | right | bottom | left  | base  |
+  | --- | ----- | ----- | ----- | ------ | ----- | ----- |
+  | 1,0 | │     | light | Unset | Unset  | Unset | light |
+
+Segment { from: Pos { x: 0, y: 0 }, len: 3, orientation: Horizontal, stroke: Stroke("light") }
+  ───
+  wrote 3 of 3 positions
+  | at  | glyph | top   | right | bottom | left  | base  |
+  | --- | ----- | ----- | ----- | ------ | ----- | ----- |
+  | 0,0 | ─     | Unset | light | Unset  | light | light |
+  | 1,0 | ─     | Unset | light | Unset  | light | light |
+  | 2,0 | ─     | Unset | light | Unset  | light | light |
+
+Fill { at: Pos { x: 0, y: 0 }, size: Size { width: 3, height: 1 }, glyph: Glyph(".") }
+  ...
+  wrote 3 of 3 positions
+  | at  | glyph | top | right | bottom | left | base |
+  | --- | ----- | --- | ----- | ------ | ---- | ---- |
+  | 0,0 | .     |     |       |        |      |      |
+  | 1,0 | .     |     |       |        |      |      |
+  | 2,0 | .     |     |       |        |      |      |
+
+Head { at: Pos { x: 1, y: 0 }, glyph: Glyph(">") }
+   >
+  wrote 1 of 3 positions
+  | at  | glyph | top | right | bottom | left | base |
+  | --- | ----- | --- | ----- | ------ | ---- | ---- |
+  | 1,0 | >     |     |       |        |      |      |

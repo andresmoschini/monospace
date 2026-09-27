@@ -1,0 +1,27 @@
+---
+source: crates/monospace-diagram/src/gallery.rs
+description: "A gallery: a chosen set of examples, one block each, for reading rather than for coverage. Each label lists the shapes in the order they were added, each one derived from its own Debug, so a label cannot disagree with the values it names; what was done to the order is the second line, because a diagram holds its shapes privately and offers no way to read them back. Under each picture is the surface that picture came from: a count of the positions the diagram wrote, then a row for each of them, saying what that position renders, what each of its four arms holds, and the base stroke every Set arm is drawn in. A Set arm names the stroke; Unset and Closed are the model's own two words for the other two. A position left unwritten is a hole in the picture rather than a row here, and the count is how many there are. A literal has no arms, so its arm columns are empty. A block moving means a figure or an order changed, and what moved is the thing to look at — the same acceptance a characterization gets, without its claim of covering a range."
+expression: body
+---
+  shapes: [small_box(0,0,no fill), arm_arrow(3,1 -> 7,1)]
+  order:  as written
+  ┌──┐
+  │  ├────
+  └──┘
+  wrote 14 of 24 positions
+  | at  | glyph | top   | right | bottom | left  | base  |
+  | --- | ----- | ----- | ----- | ------ | ----- | ----- |
+  | 0,0 | ┌     | Unset | light | light  | Unset | light |
+  | 1,0 | ─     | Unset | light | Unset  | light | light |
+  | 2,0 | ─     | Unset | light | Unset  | light | light |
+  | 3,0 | ┐     | Unset | Unset | light  | light | light |
+  | 0,1 | │     | light | Unset | light  | Unset | light |
+  | 3,1 | ├     | light | light | light  | Unset | light |
+  | 4,1 | ─     | Unset | light | Unset  | light | light |
+  | 5,1 | ─     | Unset | light | Unset  | light | light |
+  | 6,1 | ─     | Unset | light | Unset  | light | light |
+  | 7,1 | ─     | Unset | Unset | Unset  | light | light |
+  | 0,2 | └     | light | light | Unset  | Unset | light |
+  | 1,2 | ─     | Unset | light | Unset  | light | light |
+  | 2,2 | ─     | Unset | light | Unset  | light | light |
+  | 3,2 | ┘     | light | Unset | Unset  | light | light |
