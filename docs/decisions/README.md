@@ -75,6 +75,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0062](0062-reduce-what-the-instruction-files-restate.md)                          | Reduce what the instruction files restate, and say what decides it                     | accepted                             |
 | [0063](0063-supersede-adr-0029-and-move-its-reasoning-into-the-arrow-module.md)    | Supersede ADR-0029's second half, and move its reasoning into the arrow module         | accepted                             |
 | [0064](0064-give-each-generated-picture-the-carrier-that-can-reach-its-subject.md) | Give each generated picture the carrier that can reach its subject                     | accepted                             |
+| [0065](0065-name-a-shape-for-what-it-joins-not-for-the-head-it-may-carry.md)       | Name a shape for what it joins, not for the head it may carry                          | accepted                             |
 
 ## How to add one
 
