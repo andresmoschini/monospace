@@ -53,10 +53,10 @@ corner — and the front-most shape's fill is what covers what is behind it:
       "stroke": "light" },
     { "kind": "line", "at": { "x": 5, "y": 3 }, "len": 4, "orientation": "vertical",
       "stroke": "light" },
-    { "kind": "arrow", "from": { "at": { "x": 8, "y": 1 }, "leaving": "right",
-        "terminal": { "kind": "glyph", "glyph": "►" } },
-      "to": { "at": { "x": 15, "y": 4 }, "leaving": "up",
-        "terminal": { "kind": "glyph", "glyph": "▲" } },
+    { "kind": "arrow", "from": { "at": { "x": 7, "y": 1 }, "leaving": "right",
+        "terminal": { "kind": "glyph", "glyph": "◄" } },
+      "to": { "at": { "x": 16, "y": 4 }, "leaving": "left",
+        "terminal": { "kind": "arm" } },
       "stroke": "light" },
     { "kind": "box", "at": { "x": 16, "y": 3 }, "size": { "width": 4, "height": 3 },
       "stroke": "heavy", "fill": "▓" } ] }
@@ -64,10 +64,10 @@ corner — and the front-most shape's fill is what covers what is behind it:
 
 ```text
 ┌──┐
-│░░╠══╗ ►──────┐
-└──╢░░║        │
-   ╚═╤╝        │┏━━┓
-     │         ▲┃▓▓┃
+│░░╠══╗◄───┐
+└──╢░░║    │
+   ╚═╤╝    │    ┏━━┓
+     │     └────┨▓▓┃
 ─────┼───       ┗━━┛
      │
 ```

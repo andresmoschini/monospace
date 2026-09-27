@@ -65,7 +65,7 @@
     {
       "kind": "arrow",
       "from": {
-        "at": { "x": 13, "y": 3 },
+        "at": { "x": 12, "y": 3 },
         "leaving": "right",
         "terminal": { "kind": "arm" }
       },
