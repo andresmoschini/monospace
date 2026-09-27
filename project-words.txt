@@ -12,6 +12,7 @@ msvc
 newtype
 nvmrc
 Nygard
+nocapture
 opencode
 PATHEXT
 RUSTFLAGS

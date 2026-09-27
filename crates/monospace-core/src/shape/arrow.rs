@@ -99,6 +99,9 @@ use crate::shape::fragment::head::Head;
 use crate::shape::route::Route;
 use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
 
+#[cfg(test)]
+mod shapes;
+
 /// Where an arrow ends: a position, the direction it leaves in, and a terminal. See _The initial
 /// set_ and _What a terminal writes_ in
 /// [`docs/model.md`](../../../docs/model.md).
@@ -547,11 +550,15 @@ fn derive_path(a: Pos, da: Direction, b: Pos, db: Direction) -> Option<Vec<Pos>>
 
 #[cfg(test)]
 mod tests {
+    use super::shapes;
     use super::{Arrow, Endpoint, Lattice, RouteRectangle, Terminal, derive_path, offset};
     use crate::shape::counting::CountingSurface;
+    use crate::shape::fragment::end::End;
+    use crate::shape::fragment::head::Head;
+    use crate::shape::route::Route;
     use crate::{
         Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Line, Orientation, Pos, Shape,
-        Size, StampMode, Stroke, StrokeCell, render,
+        Size, StampMode, Stroke, StrokeCell, Surface, render,
     };
 
     fn light() -> Stroke {
@@ -1733,6 +1740,771 @@ mod tests {
                 }
                 let name = format!(
                     "arrow_sweep_anchor_{}_{}_{anchor_dir:?}",
+                    anchor.x, anchor.y
+                )
+                .to_lowercase();
+                insta::assert_snapshot!(name, rendered);
+            }
+        });
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // The spike: the previous implementation's route, ported into `shapes`, against this one.
+    // Everything below is scaffolding for one question — how the two pictures differ over the
+    // same grid — and none of it is a decision about how an arrow routes. Nothing outside these
+    // tests can reach it: `shapes` is `#[cfg(test)]`, and `Arrow` still has three fields.
+    // -----------------------------------------------------------------------------------------
+
+    /// The two terminals `Shape::draw` writes, in the order the endpoints are named, and nothing
+    /// else.
+    ///
+    /// Spelled out here rather than reached for, so the spike adds no field and no method to
+    /// `Arrow` itself: the terminals are what the two routes are drawn *under*, and holding them
+    /// fixed is the whole point. A helper both routes call says that better than one that reuses
+    /// `Arrow::draw` and then has to take the route back out of the buffer.
+    fn draw_terminals(from: &Endpoint, to: &Endpoint, stroke: &Stroke, surface: &mut dyn Surface) {
+        for endpoint in [from, to] {
+            match &endpoint.terminal {
+                Terminal::Glyph { glyph } => Head {
+                    at: endpoint.at,
+                    glyph: glyph.clone(),
+                }
+                .draw(surface),
+                Terminal::Arm => End {
+                    at: endpoint.at,
+                    side: super::arm_side(endpoint.leaving),
+                    stroke: stroke.clone(),
+                }
+                .draw(surface),
+            }
+        }
+    }
+
+    /// What one arrangement looks like under the two routes, and what each route actually did to
+    /// get there.
+    ///
+    /// The three renderings are the comparison; the counts are the measurement. `heads` is what the
+    /// two terminals alone draw, and it is what tells an empty route from a route that merely looks
+    /// empty — the difference the two routes disagree about most.
+    struct Arrangement {
+        label: String,
+        ranked: String,
+        ported: String,
+        heads: String,
+        ranked_bends: usize,
+        ported_bends: usize,
+        ranked_cells: usize,
+        ported_cells: usize,
+        ranked_pieces: usize,
+        ported_pieces: usize,
+        ported_over_a_head: bool,
+    }
+
+    impl Arrangement {
+        fn same(&self) -> bool {
+            self.ranked == self.ported
+        }
+        /// Whether one of the two drawings put anything on the canvas beyond the two terminals.
+        fn drew_a_route(&self, over: &str) -> bool {
+            over != self.heads
+        }
+    }
+
+    /// A surface that records what it was written, since the ported route is a sequence of writes
+    /// rather than a path and "where did it go, and what did it put there" has no other answer.
+    struct RecordingSurface<'a> {
+        written: &'a mut Vec<(Pos, Cell)>,
+    }
+
+    impl Surface for RecordingSurface<'_> {
+        fn stamp(&mut self, at: Pos, cell: Cell) {
+            self.written.push((at, cell));
+        }
+    }
+
+    /// The positions a set of writes touched, deduplicated and in reading order. The same cell
+    /// appears twice wherever two of the ported route's fragments met, which is what the
+    /// original's own composition did.
+    fn written_positions(writes: &[(Pos, Cell)]) -> Vec<Pos> {
+        let mut positions: Vec<Pos> = writes.iter().map(|(at, _)| *at).collect();
+        positions.sort_by_key(|at| (at.y, at.x));
+        positions.dedup();
+        positions
+    }
+
+    /// How many separate pieces `positions` falls into, two cells being in the same piece when they
+    /// touch along an edge. One is a route; two is a route with a break in it.
+    ///
+    /// The measure is about *touching* rather than about order, because the ported route is not a
+    /// path and has no order to break: a gap in the middle of a staircase reads the same whether
+    /// the cells either side of it were written in sequence or not.
+    fn pieces(positions: &[Pos]) -> usize {
+        let mut unvisited: Vec<Pos> = positions.to_vec();
+        let mut count = 0;
+
+        while let Some(seed) = unvisited.pop() {
+            count += 1;
+            let mut piece = vec![seed];
+            while let Some(at) = piece.pop() {
+                for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                    let next = Pos {
+                        x: at.x + dx,
+                        y: at.y + dy,
+                    };
+                    if let Some(index) = unvisited.iter().position(|other| *other == next) {
+                        unvisited.swap_remove(index);
+                        piece.push(next);
+                    }
+                }
+            }
+        }
+
+        count
+    }
+
+    /// How many times a route turns, counted the way a reader would: a cell with two arms on
+    /// *adjacent* sides is a corner, two on opposite sides is a straight run through, and anything
+    /// else is where two fragments met and is not a turn of its own.
+    ///
+    /// Counted off a route's own cells rather than off its path, so the same count works for the
+    /// ranked route and for the ported one, which is not a path at all.
+    fn bends(buffer: &Buffer) -> usize {
+        let mut bends = 0;
+        for y in window_rows() {
+            for x in window_columns() {
+                let Some(Cell::Strokes(strokes)) = buffer.cell(Pos { x, y }) else {
+                    continue;
+                };
+                let arms = [
+                    matches!(strokes.top, Arm::Set(_)),
+                    matches!(strokes.right, Arm::Set(_)),
+                    matches!(strokes.bottom, Arm::Set(_)),
+                    matches!(strokes.left, Arm::Set(_)),
+                ];
+                let set = arms.iter().filter(|on| **on).count();
+                let opposite = (arms[0] && arms[2]) || (arms[1] && arms[3]);
+                if set == 2 && !opposite {
+                    bends += 1;
+                }
+            }
+        }
+        bends
+    }
+
+    fn window_columns() -> std::ops::Range<i32> {
+        SPIKE_ORIGIN.x..SPIKE_ORIGIN.x + i32::try_from(SPIKE_SIZE.width).unwrap()
+    }
+
+    fn window_rows() -> std::ops::Range<i32> {
+        SPIKE_ORIGIN.y..SPIKE_ORIGIN.y + i32::try_from(SPIKE_SIZE.height).unwrap()
+    }
+
+    /// One arrangement, measured once: the two routes drawn under the same two terminals, and
+    /// what each of them wrote.
+    fn arrange(from_at: Pos, from_dir: Direction, to_at: Pos, to_dir: Direction) -> Arrangement {
+        let stroke = light();
+        let catalog = GlyphCatalog::light();
+        let from = endpoint(from_at, from_dir);
+        let to = endpoint(to_at, to_dir);
+
+        let mut ranked = Buffer::new(SPIKE_ORIGIN, SPIKE_SIZE);
+        let mut ported = Buffer::new(SPIKE_ORIGIN, SPIKE_SIZE);
+        let mut heads = Buffer::new(SPIKE_ORIGIN, SPIKE_SIZE);
+
+        {
+            let mut layer = Layer::new(&mut ranked, StampMode::Above);
+            draw_terminals(&from, &to, &stroke, &mut layer);
+        }
+        let ranked_path = derive_path(from.at, from.leaving, to.at, to.leaving);
+        if let Some(positions) = &ranked_path {
+            let mut layer = Layer::new(&mut ranked, StampMode::Above);
+            Route {
+                from: from.at,
+                to: to.at,
+                positions: positions.clone(),
+                stroke: stroke.clone(),
+            }
+            .draw(&mut layer);
+        }
+
+        let mut writes = Vec::new();
+        {
+            let mut layer = Layer::new(&mut ported, StampMode::Above);
+            draw_terminals(&from, &to, &stroke, &mut layer);
+            shapes::draw_route(
+                from.at,
+                from.leaving,
+                to.at,
+                to.leaving,
+                &stroke,
+                &mut layer,
+            );
+            shapes::draw_route(
+                from.at,
+                from.leaving,
+                to.at,
+                to.leaving,
+                &stroke,
+                &mut RecordingSurface {
+                    written: &mut writes,
+                },
+            );
+        }
+        {
+            let mut layer = Layer::new(&mut heads, StampMode::Above);
+            draw_terminals(&from, &to, &stroke, &mut layer);
+        }
+
+        let ported_positions = written_positions(&writes);
+
+        Arrangement {
+            label: format!("({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?})"),
+            ranked: render(&ranked, &catalog, SPIKE_ORIGIN, SPIKE_SIZE),
+            ported: render(&ported, &catalog, SPIKE_ORIGIN, SPIKE_SIZE),
+            heads: render(&heads, &catalog, SPIKE_ORIGIN, SPIKE_SIZE),
+            ranked_bends: bends(&ranked),
+            ported_bends: bends(&ported),
+            ranked_cells: ranked_path.as_ref().map_or(0, Vec::len),
+            ported_cells: ported_positions.len(),
+            ranked_pieces: pieces(ranked_path.as_deref().unwrap_or_default()),
+            ported_pieces: pieces(&ported_positions),
+            ported_over_a_head: ported_positions.contains(&from.at)
+                || ported_positions.contains(&to.at),
+        }
+    }
+
+    /// Every arrangement of the grid, rendered from both ends — the sweep's own range, so that the
+    /// two sets of pictures cover the same arrangements and the counts below are comparable with
+    /// the characterization's.
+    fn sweep_arrangements_measured() -> Vec<Arrangement> {
+        let mut all = Vec::new();
+        for (a, da, b, db) in sweep_arrangements() {
+            for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
+                all.push(arrange(from_at, from_dir, to_at, to_dir));
+            }
+        }
+        all
+    }
+
+    /// The window the spike's own comparison renders into: the sweep's window with two more cells
+    /// of margin at the bottom and right, one at the top and left.
+    ///
+    /// The margin is there because the ported route does not stay inside the rectangle its two
+    /// endpoints span, and the sweep's own window is sized for the ranked route — research.md Q6
+    /// sized it to the lattice, which never reaches more than one line outside it. The ported route
+    /// reaches two, in exactly one arrangement of the grid, which
+    /// [`the_ported_route_stays_inside_the_spike_window`] is what measures; the window here is
+    /// whatever that measurement needs and no more.
+    const SPIKE_ORIGIN: Pos = Pos { x: -3, y: -3 };
+    const SPIKE_SIZE: Size = Size {
+        width: 12,
+        height: 12,
+    };
+
+    /// The ported route stays inside the spike's window, so that a picture showing two heads and a
+    /// gap means a route the original declined to draw and never a route this port let fall
+    /// outside the frame. The mirror of [`sweep_every_route_fits_inside_the_window`] for the
+    /// ranked route, and the reason that test's window is not reused here.
+    #[test]
+    fn the_ported_route_stays_inside_the_spike_window() {
+        let mut outside = 0;
+        let mut furthest = (SPIKE_ORIGIN.x, SPIKE_ORIGIN.y);
+
+        for (a, da, b, db) in sweep_arrangements() {
+            for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
+                let mut writes = Vec::new();
+                shapes::draw_route(
+                    from_at,
+                    from_dir,
+                    to_at,
+                    to_dir,
+                    &light(),
+                    &mut RecordingSurface {
+                        written: &mut writes,
+                    },
+                );
+                for (at, _) in writes {
+                    let inside = at.x >= SPIKE_ORIGIN.x
+                        && at.x < SPIKE_ORIGIN.x + i32::try_from(SPIKE_SIZE.width).unwrap()
+                        && at.y >= SPIKE_ORIGIN.y
+                        && at.y < SPIKE_ORIGIN.y + i32::try_from(SPIKE_SIZE.height).unwrap();
+                    if !inside {
+                        outside += 1;
+                        furthest.0 = furthest.0.max(at.x.abs());
+                        furthest.1 = furthest.1.max(at.y.abs());
+                        println!(
+                            "  ({from_at:?}, {from_dir:?}) -> ({to_at:?}, {to_dir:?}) wrote {at:?}"
+                        );
+                    }
+                }
+            }
+        }
+
+        println!(
+            "\n  the ported route wrote outside the spike window {outside} times; \
+             the furthest coordinates were {furthest:?}"
+        );
+        assert_eq!(outside, 0, "the ported route left the window");
+    }
+
+    /// The question the spike exists to answer, asked the ranking's own way.
+    ///
+    /// The `Design notes` rank a route by fewest bends and then shortest, and only then by the two
+    /// tie-breaks. So wherever the ported route is a *connected* route — the only place it can be
+    /// compared at all, since a route in two pieces is shorter and straighter for having given up —
+    /// and it beats the ranked route on those first two terms, the ranking has picked the worse of
+    /// two routes by its own measure. That is a defect in the ranking, and it is a question about
+    /// this implementation rather than about the previous one.
+    ///
+    /// Printed rather than asserted, as the rest of the spike's output is.
+    #[test]
+    fn shapes_route_does_the_ported_one_ever_beat_the_ranked_one_on_the_rankings_own_terms() {
+        let all = sweep_arrangements_measured();
+
+        // Where the ported route is a route at all and not two fragments with a gap between them.
+        let comparable: Vec<&Arrangement> = all
+            .iter()
+            .filter(|a| a.drew_a_route(&a.ported) && a.ported_pieces == 1)
+            .collect();
+
+        let mut same = 0;
+        let mut ranked_declined = 0;
+        let mut ranked_better = 0;
+        let mut ported_fewer_bends = 0;
+        let mut ported_shorter = 0;
+        let mut ported_better_examples: Vec<&Arrangement> = Vec::new();
+        let mut ranked_better_examples: Vec<&Arrangement> = Vec::new();
+
+        for arrangement in &comparable {
+            if arrangement.same() {
+                same += 1;
+            } else if arrangement.ported_bends < arrangement.ranked_bends {
+                ported_fewer_bends += 1;
+                if ported_better_examples.len() < 3 {
+                    ported_better_examples.push(arrangement);
+                }
+            } else if arrangement.ported_bends == arrangement.ranked_bends
+                && arrangement.ported_cells < arrangement.ranked_cells
+            {
+                ported_shorter += 1;
+                if ported_better_examples.len() < 3 {
+                    ported_better_examples.push(arrangement);
+                }
+            } else {
+                ranked_better += 1;
+                // Two different reasons to win, and only one of them is a route the search found
+                // that the construction could not have drawn. The other is the search correctly
+                // declining where the construction drew something it should not have.
+                if arrangement.ranked_cells == 0 {
+                    ranked_declined += 1;
+                } else if ranked_better_examples.len() < 3 {
+                    ranked_better_examples.push(arrangement);
+                }
+            }
+        }
+
+        let show = |title: &str, examples: &[&Arrangement]| {
+            println!("\n  {title}");
+            for arrangement in examples {
+                println!("\n    {}", arrangement.label);
+                println!(
+                    "      ranked: {} bends over {} cells, {} piece(s)",
+                    arrangement.ranked_bends, arrangement.ranked_cells, arrangement.ranked_pieces
+                );
+                println!(
+                    "      ported: {} bends over {} cells, {} piece(s)",
+                    arrangement.ported_bends, arrangement.ported_cells, arrangement.ported_pieces
+                );
+                for (left, right) in arrangement.ranked.lines().zip(arrangement.ported.lines()) {
+                    println!("      {left:<14}{right}");
+                }
+            }
+        };
+
+        println!(
+            "\narrangements where the ported route is one connected piece: {}",
+            comparable.len()
+        );
+        println!("  the two routes draw the same picture:                          {same}");
+        println!(
+            "  the ported one turns fewer times:                              {ported_fewer_bends}"
+        );
+        println!(
+            "  the ported one turns as often and is shorter:                 {ported_shorter}"
+        );
+        println!(
+            "  the ranked one wins, having correctly drawn no route at all:  {ranked_declined}"
+        );
+        println!(
+            "  the ranked one wins with a route of its own:                   {ranked_better}"
+        );
+
+        show(
+            "where the ported route beats the ranking on its own terms",
+            &ported_better_examples,
+        );
+        show(
+            "where the search found a route the construction could not draw",
+            &ranked_better_examples,
+        );
+
+        assert_eq!(
+            same + ranked_better + ported_fewer_bends + ported_shorter,
+            comparable.len(),
+            "every comparable rendering falls into exactly one of the four"
+        );
+    }
+
+    /// The one property of the construction the ranking does not have, and the only one the two
+    /// routes are not equally good at: whether the picture depends on which endpoint is named
+    /// first.
+    ///
+    /// The sweep renders every arrangement from both ends, so the two renderings of each are
+    /// already side by side. The ranked route's `Design notes` concede the dependence in terms:
+    /// where a free span holds an even number of cells the middle "falls between two and names no
+    /// winner, [and] it is taken nearer the endpoint the arrow leaves from, because an arrow runs
+    /// from its `from` to its `to`... The cost is that the same arrow described from its other end
+    /// turns at the other of the two. Both pictures are right."
+    ///
+    /// The construction has no such tie to break: `bridge_horizontal` sorts its two points by `x`
+    /// and `bridge_vertical` by `y` before choosing where to turn, so the staircase lands on the
+    /// same cell whichever end named it first. Whether that holds once `chase` has run — which is
+    /// itself directional — is what this measures rather than what the code suggests.
+    #[test]
+    fn shapes_route_which_of_the_two_depends_on_which_end_is_named_first() {
+        let mut ranked_differs = 0;
+        let mut ported_differs = 0;
+        let mut ranked_examples: Vec<String> = Vec::new();
+
+        for (a, da, b, db) in sweep_arrangements() {
+            let one = arrange(a, da, b, db);
+            let other = arrange(b, db, a, da);
+            if one.ranked != other.ranked {
+                ranked_differs += 1;
+                if ranked_examples.len() < 3 {
+                    ranked_examples.push(format!(
+                        "{}\n    ranked from a   ranked from b\n{}\n{}",
+                        one.label,
+                        indent(&one.ranked),
+                        indent(&other.ranked)
+                    ));
+                }
+            }
+            if one.ported != other.ported {
+                ported_differs += 1;
+            }
+        }
+
+        println!("\narrangements rendered from both ends: 1856");
+        println!(
+            "  the ranked route draws a different picture from the other end: {ranked_differs}"
+        );
+        println!(
+            "  the ported route draws a different picture from the other end: {ported_differs}"
+        );
+        for example in ranked_examples {
+            println!("\n  {example}");
+        }
+    }
+
+    /// Every line of a rendering, indented under a heading, blank lines included — the pictures are
+    /// only readable against each other if the blank rows line up, which is what this keeps.
+    fn indent(rendered: &str) -> String {
+        rendered
+            .lines()
+            .map(str::trim_end)
+            .map(|line| format!("    {line}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// Which of the lattice's candidate lines a winning route actually turns on, and whether a
+    /// smaller set of them would have been enough.
+    ///
+    /// `Lattice::axis` offers seven candidates per axis — the line each starting position pins,
+    /// the line beside each, the middle, and one outside each end — and the `Design notes` name
+    /// what that costs: the claim "a route turns only on those lines" is "confirmed against an
+    /// unrestricted search rather than proved, and a term added to `Cost` that the lattice knows
+    /// nothing about is exactly how that confirmation goes stale". Candidates nobody uses are
+    /// candidates to keep honest for nothing, so this counts the ones the sweep's own 928 routes
+    /// pay for.
+    ///
+    /// Two questions, and the second is the one that matters. The first — which candidates get used
+    /// — is reported as a count per candidate, counting a line under every candidate it could be,
+    /// because a line that is `s + 1` and `t` at once is both and a tally that picks one of them
+    /// is a tally that lies. The second is stated so that no tally is involved: is the line a route
+    /// turns on ever one the smaller set does not hold? If it never is, the smaller set is a
+    /// candidate simplification to try and measure, not a simplification already made.
+    #[test]
+    fn shapes_route_which_of_the_lattice_lines_a_route_turns_on() {
+        /// The candidates `Lattice::axis` builds for one axis, each with the argument it came from.
+        fn candidates(s: i32, t: i32, mid: i32) -> Vec<(i32, &'static str)> {
+            vec![
+                (s - 1, "beside the from start, outside"),
+                (s, "the from start"),
+                (s + 1, "beside the from start, inward"),
+                (mid, "the middle"),
+                (t - 1, "beside the to start, inward"),
+                (t, "the to start"),
+                (t + 1, "beside the to start, outside"),
+            ]
+        }
+
+        let mut used: std::collections::BTreeMap<&'static str, usize> =
+            std::collections::BTreeMap::new();
+        let mut with_a_path = 0;
+        let mut outside_the_smaller_set = 0;
+        let mut outside_examples: Vec<String> = Vec::new();
+
+        for (a, da, b, db) in sweep_arrangements() {
+            let (Some(s), Some(t)) = (offset(a, da), offset(b, db)) else {
+                continue;
+            };
+            let Some(path) = derive_path(a, da, b, db) else {
+                continue;
+            };
+            with_a_path += 1;
+            let middle = RouteRectangle::spanning(s, t).middle(s);
+
+            // `derive_path` hands back the expanded path, so two consecutive positions always
+            // differ on one axis. A turn is where that axis changes, and the two lines it turns on
+            // are the x and the y of the position between the two steps.
+            let mut turning: Vec<Pos> = Vec::new();
+            for window in path.windows(3) {
+                let (before, at, after) = (window[0], window[1], window[2]);
+                let on_x = |from: Pos, to: Pos| to.x != from.x;
+                if on_x(before, at) != on_x(at, after) {
+                    turning.push(at);
+                }
+            }
+
+            for at in &turning {
+                for (value, name) in candidates(s.x, t.x, middle.x) {
+                    if value == at.x {
+                        *used.entry(name).or_default() += 1;
+                    }
+                }
+                for (value, name) in candidates(s.y, t.y, middle.y) {
+                    if value == at.y {
+                        *used.entry(name).or_default() += 1;
+                    }
+                }
+            }
+
+            // The smaller set: the two pinned lines, the line just outside each, and the middle.
+            // What it drops is the line just *inside* each start — `s + 1` and `t - 1`.
+            let smaller =
+                |value: i32, s: i32, t: i32, mid: i32| [s - 1, s, t, t + 1, mid].contains(&value);
+            for at in &turning {
+                if !smaller(at.x, s.x, t.x, middle.x) || !smaller(at.y, s.y, t.y, middle.y) {
+                    outside_the_smaller_set += 1;
+                    if outside_examples.len() < 3 {
+                        outside_examples.push(format!(
+                            "({a:?}, {da:?}) -> ({b:?}, {db:?}) turns at {at:?}, \
+                             s {s:?}, t {t:?}, middle {middle:?}"
+                        ));
+                    }
+                }
+            }
+        }
+
+        println!("\narrangements: 928, of which the search found a route: {with_a_path}");
+        println!(
+            "how often a route turns on each candidate, counting a line under every one it is"
+        );
+        for (name, count) in &used {
+            println!("  {name:<34} {count:>5}");
+        }
+        println!("\nturns falling outside the five-line set: {outside_the_smaller_set}");
+        for example in outside_examples {
+            println!("  {example}");
+        }
+    }
+
+    /// A count of how often something happens, printed smallest key first.
+    fn tally(values: impl Iterator<Item = usize>) -> Vec<(usize, usize)> {
+        let mut counts: std::collections::BTreeMap<usize, usize> =
+            std::collections::BTreeMap::new();
+        for value in values {
+            *counts.entry(value).or_default() += 1;
+        }
+        counts.into_iter().collect()
+    }
+
+    /// The measurement the spike is for: over the sweep's whole range, how often the two routes
+    /// draw the same picture, how the differences divide, and the two properties the model's own
+    /// route contract asks of a route — that it is one piece, and that it never writes a head's
+    /// own cell.
+    ///
+    /// Printed rather than asserted. A count over a spike is the spike's output, and pinning it
+    /// would turn a measurement into a contract, which is the one thing this must not be. Read it
+    /// off the test's own output: cargo hides a passing test's `println!` unless it is asked not
+    /// to, and the two flags that do so are the ones in `CLAUDE.md`'s command list.
+    #[test]
+    fn shapes_route_how_often_the_two_routes_draw_the_same_picture() {
+        let all = sweep_arrangements_measured();
+        let total = all.len();
+
+        let mut identical = 0;
+        let mut both_drew_nothing = 0;
+        let mut only_ranked_drew = 0;
+        let mut only_ported_drew = 0;
+        let mut both_drew = 0;
+        let mut same_bends = 0;
+        let mut other_bends = 0;
+
+        for arrangement in &all {
+            if arrangement.same() {
+                identical += 1;
+                if !arrangement.drew_a_route(&arrangement.ranked) {
+                    both_drew_nothing += 1;
+                }
+                continue;
+            }
+            match (
+                arrangement.drew_a_route(&arrangement.ranked),
+                arrangement.drew_a_route(&arrangement.ported),
+            ) {
+                (false, false) => unreachable!("two renderings that differ both drew nothing"),
+                (true, false) => only_ranked_drew += 1,
+                (false, true) => only_ported_drew += 1,
+                (true, true) => both_drew += 1,
+            }
+            if arrangement.ranked_bends == arrangement.ported_bends {
+                same_bends += 1;
+            } else {
+                other_bends += 1;
+            }
+        }
+
+        // The three examples the characterization's own rule asks a report to carry: the first
+        // three where both routes drew something and turned a different number of times, which is
+        // where a reader can see the two models disagree rather than merely differ.
+        let mut printed = 0;
+        for arrangement in &all {
+            if arrangement.same() || printed >= 3 {
+                continue;
+            }
+            if arrangement.ranked_bends == arrangement.ported_bends {
+                continue;
+            }
+            printed += 1;
+            println!("\n  {}", arrangement.label);
+            println!(
+                "    ranked: {} bends, {} piece(s)",
+                arrangement.ranked_bends, arrangement.ranked_pieces
+            );
+            println!(
+                "    ported: {} bends, {} piece(s)",
+                arrangement.ported_bends, arrangement.ported_pieces
+            );
+            for (left, right) in arrangement.ranked.lines().zip(arrangement.ported.lines()) {
+                println!("    {left:<14}{right}");
+            }
+        }
+
+        println!("\narrangements rendered from both ends: {total}");
+        println!("  the two routes draw the same picture:            {identical}");
+        println!("    of those, neither drew a route:               {both_drew_nothing}");
+        println!("  they differ, and only the ranked route drew one: {only_ranked_drew}");
+        println!("  they differ, and only the ported route drew one: {only_ported_drew}");
+        println!("  they differ, and both drew one:                 {both_drew}");
+        println!("    of those, the same number of bends:           {same_bends}");
+        println!("    of those, a different number of bends:        {other_bends}");
+        println!(
+            "  the ported route wrote over a head, losing it:  {}",
+            all.iter().filter(|a| a.ported_over_a_head).count()
+        );
+        // The length comparison is only meaningful where both routes drew something: a route that
+        // drew less because it is shorter is a different claim from one that drew less because it
+        // gave up.
+        let both_drew_something = all
+            .iter()
+            .filter(|a| a.drew_a_route(&a.ranked) && a.drew_a_route(&a.ported));
+        let (both, count) = both_drew_something
+            .clone()
+            .fold((0, 0), |(both, count), a| {
+                (
+                    both + usize::from(a.ported_cells < a.ranked_cells),
+                    count + 1,
+                )
+            });
+        println!("  of the {count} where both drew a route, the ported one is shorter in {both}");
+        println!(
+            "  the ranked route's pieces, by count:             {:?}",
+            tally(all.iter().map(|a| a.ranked_pieces))
+        );
+        println!(
+            "  the ported route's pieces, by count:             {:?}",
+            tally(all.iter().map(|a| a.ported_pieces))
+        );
+        println!(
+            "  the ranked route's bends, by count:              {:?}",
+            tally(all.iter().map(|a| a.ranked_bends))
+        );
+        println!(
+            "  the ported route's bends, by count:              {:?}",
+            tally(all.iter().map(|a| a.ported_bends))
+        );
+
+        assert_eq!(
+            identical + only_ranked_drew + only_ported_drew + both_drew,
+            total,
+            "every rendering falls into exactly one of the four"
+        );
+    }
+
+    /// The two routes over the whole grid, side by side: 928 arrangements, each rendered from both
+    /// ends, one block per arrangement with a `same` or a `DIFF` on its label so a reader can find
+    /// the differences without reading 1856 pictures. One file per anchor and leaving direction,
+    /// for the reason [ADR-0045](../../../../../docs/decisions/0045-pin-every-arrow-arrangement-as-a-reviewed-snapshot.md)
+    /// gives for the characterization itself.
+    ///
+    /// This is a report rather than a contract, so it says so at its head the way the
+    /// characterization does, and it is kept apart from it in `snapshots/spike/`: nothing here is
+    /// reviewed, and nothing here is a decision about how an arrow routes.
+    #[test]
+    fn the_ported_route_is_pinned_beside_the_ranked_one() {
+        use std::fmt::Write as _;
+
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path(concat!(env!("CARGO_MANIFEST_DIR"), "/src/snapshots/spike"));
+        settings.set_description(concat!(
+            "A spike: the previous implementation's route beside this one's, over the same grid. ",
+            "Neither column is reviewed and neither is a decision — the file exists so the two ",
+            "pictures can be read against each other, and it moves whenever either route does.",
+        ));
+        settings.bind(|| {
+            for (anchor, anchor_dir, others) in sweep_arrangements_by_anchor() {
+                let mut rendered = String::new();
+                for (other, other_dir) in others {
+                    for (from_at, from_dir, to_at, to_dir) in [
+                        (anchor, anchor_dir, other, other_dir),
+                        (other, other_dir, anchor, anchor_dir),
+                    ] {
+                        let arrangement = arrange(from_at, from_dir, to_at, to_dir);
+                        let _ = writeln!(
+                            rendered,
+                            "{}  {}",
+                            arrangement.label,
+                            if arrangement.same() { "same" } else { "DIFF" }
+                        );
+                        let _ = writeln!(rendered, "{:<14}ported", "ranked");
+                        for (left, right) in
+                            arrangement.ranked.lines().zip(arrangement.ported.lines())
+                        {
+                            // research.md Q3: `render` pads every line to the window's width and
+                            // the gate's `editorconfig-checker` runs with
+                            // `trim_trailing_whitespace` on, so the joined line is trimmed rather
+                            // than either column.
+                            let joined = format!("{left:<14}{right}");
+                            let _ = writeln!(rendered, "{}", joined.trim_end());
+                        }
+                        rendered.push('\n');
+                    }
+                }
+                let name = format!(
+                    "shapes_sweep_anchor_{}_{}_{anchor_dir:?}",
                     anchor.x, anchor.y
                 )
                 .to_lowercase();
