@@ -4,21 +4,23 @@
 
 use monospace_core::Shape as _;
 use monospace_core::{
-    Arrow, BoxShape, Direction, Glyph, Line, Orientation, Pos, Size, Stroke, Surface,
+    Arrow, BoxShape, Direction, Glyph, Line, Orientation, Pos, Size, Stroke, Surface, Terminal,
 };
 
-/// One endpoint of an arrow: a position, the direction it leaves in, and its terminal's glyph.
+/// One endpoint of an arrow: a position, the direction it leaves in, and its terminal.
 ///
 /// Mirrors `monospace_core::Endpoint` rather than reusing it, so that a later change to how an
-/// endpoint is anchored stays inside this crate (research.md Q3).
+/// endpoint is anchored stays inside this crate (research.md Q3). The terminal is the core's own
+/// type and this crate re-exports nothing: a caller takes it from `monospace_core`, exactly as it
+/// already takes the `Pos`, `Direction` and `Glyph` the other two fields hold.
 #[derive(Clone)]
 pub struct Endpoint {
     /// The endpoint's position. The terminal occupies this position itself.
     pub at: Pos,
     /// The direction the arrow leaves this endpoint in.
     pub leaving: Direction,
-    /// The glyph the terminal at this endpoint is drawn as.
-    pub terminal: Glyph,
+    /// What this endpoint contributes to the cell at `at`.
+    pub terminal: Terminal,
 }
 
 impl From<Endpoint> for monospace_core::Endpoint {
@@ -103,5 +105,33 @@ impl Shape {
             }
             .draw(surface),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Endpoint;
+    use monospace_core::{Direction, Glyph, Pos, Terminal};
+
+    /// User Story 1: the mirror's terminal reaches the core's intact. Both variants, because a
+    /// `From` that carried one and dropped the other would pass on a description that named only
+    /// that one. A caller takes `Terminal` from `monospace_core` and not from this crate, and this
+    /// is what says so.
+    #[test]
+    fn the_mirrors_terminal_reaches_the_cores_intact() {
+        let glyph = |text: &str| Terminal::Glyph {
+            glyph: Glyph::new(text).expect("one glyph"),
+        };
+
+        let core_of = |terminal: Terminal| {
+            monospace_core::Endpoint::from(Endpoint {
+                at: Pos { x: 2, y: 1 },
+                leaving: Direction::Right,
+                terminal,
+            })
+        };
+
+        assert_eq!(core_of(glyph("◄")).terminal, glyph("◄"));
+        assert_eq!(core_of(Terminal::Arm).terminal, Terminal::Arm);
     }
 }

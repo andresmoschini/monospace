@@ -342,8 +342,10 @@ joined by a route that travels around the outside, however far apart they are:
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": -1 }, "size": { "width": 2, "height": 6 } },
   "shapes": [ { "kind": "arrow",
-    "from": { "at": { "x": 0, "y": 0 }, "leaving": "up", "terminal": "▼" },
-    "to": { "at": { "x": 0, "y": 3 }, "leaving": "down", "terminal": "▲" },
+    "from": { "at": { "x": 0, "y": 0 }, "leaving": "up",
+      "terminal": { "kind": "glyph", "glyph": "▼" } },
+    "to": { "at": { "x": 0, "y": 3 }, "leaving": "down",
+      "terminal": { "kind": "glyph", "glyph": "▲" } },
     "stroke": "light" } ] }
 -->
 

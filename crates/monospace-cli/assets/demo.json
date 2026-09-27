@@ -64,8 +64,16 @@
     },
     {
       "kind": "arrow",
-      "from": { "at": { "x": 13, "y": 3 }, "leaving": "right", "terminal": "◄" },
-      "to": { "at": { "x": 22, "y": 4 }, "leaving": "down", "terminal": "▲" },
+      "from": {
+        "at": { "x": 13, "y": 3 },
+        "leaving": "right",
+        "terminal": { "kind": "glyph", "glyph": "◄" }
+      },
+      "to": {
+        "at": { "x": 22, "y": 4 },
+        "leaving": "down",
+        "terminal": { "kind": "glyph", "glyph": "▲" }
+      },
       "stroke": "light"
     },
     {

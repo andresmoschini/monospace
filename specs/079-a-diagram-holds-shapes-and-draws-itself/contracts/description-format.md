@@ -75,20 +75,29 @@ Every shape object has a `kind` field selecting one of the three below, and that
 ```json
 {
   "kind": "arrow",
-  "from": { "at": { "x": 13, "y": 3 }, "leaving": "right", "terminal": "◄" },
-  "to": { "at": { "x": 22, "y": 4 }, "leaving": "down", "terminal": "▲" },
+  "from": {
+    "at": { "x": 13, "y": 3 },
+    "leaving": "right",
+    "terminal": { "kind": "glyph", "glyph": "◄" }
+  },
+  "to": {
+    "at": { "x": 22, "y": 4 },
+    "leaving": "down",
+    "terminal": { "kind": "glyph", "glyph": "▲" }
+  },
   "stroke": "light"
 }
 ```
 
-`leaving` is `"up"`, `"right"`, `"down"` or `"left"`. `terminal` is one grapheme cluster.
+`leaving` is `"up"`, `"right"`, `"down"` or `"left"`. `terminal` is an object tagged by `kind`, and
+the `glyph` inside it is one grapheme cluster.
 
 ## What a malformed file does
 
 Unchanged from the format's previous version: an unrecognized `kind` is reported by name, a `fill`
-or `terminal` that is not exactly one grapheme cluster is rejected, and a missing required field is
-reported the way `serde_json` reports it. The binary prints the error on stderr and exits with a
-failure status.
+or a terminal's `glyph` that is not exactly one grapheme cluster is rejected, and a missing required
+field is reported the way `serde_json` reports it. The binary prints the error on stderr and exits
+with a failure status.
 
 **A file still carrying `mode` is not rejected.** The field is unknown and is ignored, which is what
 the deserializer does by default, and the picture that file renders may change without a word. The

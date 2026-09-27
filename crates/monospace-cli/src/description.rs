@@ -109,13 +109,38 @@ struct Canvas {
     size: Size,
 }
 
-/// One endpoint of an arrow: a position, the direction it leaves in, and its terminal's glyph.
+/// What an endpoint's `terminal` is on the wire, tagged by `kind` (FR-006): one chosen glyph or one
+/// arm. An unrecognized `kind` is reported by name, and the message names the two accepted.
+///
+/// Internally tagged rather than externally, because `deserialize_glyph` needs a _named_ field to
+/// sit on and the external form has none — `Glyph(Glyph)` does not compile, since `Glyph` derives
+/// no `Deserialize` (research.md Q3). A field an `arm` does not know is ignored, as everywhere else
+/// in this format.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+enum Terminal {
+    Glyph {
+        #[serde(deserialize_with = "deserialize_glyph")]
+        glyph: Glyph,
+    },
+    Arm,
+}
+
+impl From<Terminal> for monospace_core::Terminal {
+    fn from(terminal: Terminal) -> Self {
+        match terminal {
+            Terminal::Glyph { glyph } => monospace_core::Terminal::Glyph { glyph },
+            Terminal::Arm => monospace_core::Terminal::Arm,
+        }
+    }
+}
+
+/// One endpoint of an arrow: a position, the direction it leaves in, and its terminal.
 #[derive(Deserialize, Debug, Clone)]
 struct Endpoint {
     at: Pos,
     leaving: Leaving,
-    #[serde(deserialize_with = "deserialize_glyph")]
-    terminal: Glyph,
+    terminal: Terminal,
 }
 
 impl From<Endpoint> for DiagramEndpoint {
@@ -123,7 +148,7 @@ impl From<Endpoint> for DiagramEndpoint {
         DiagramEndpoint {
             at: endpoint.at.into(),
             leaving: endpoint.leaving.into(),
-            terminal: endpoint.terminal,
+            terminal: endpoint.terminal.into(),
         }
     }
 }
@@ -244,19 +269,112 @@ mod tests {
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
 
-    /// A `terminal`'s glyph of more than one grapheme cluster fails to deserialize.
+    /// FR-014 through the rename: a `terminal`'s glyph of more than one grapheme cluster fails to
+    /// deserialize. The grapheme check sits on the named field inside the tagged object, which is
+    /// the only reason the wire form is internally tagged (research.md Q3).
     #[test]
     fn a_multi_grapheme_terminal_glyph_fails_to_deserialize() {
         let json = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 1 } },
             "shapes": [
                 { "kind": "arrow",
-                  "from": { "at": { "x": 0, "y": 0 }, "leaving": "right", "terminal": "ab" },
-                  "to": { "at": { "x": 6, "y": 0 }, "leaving": "left", "terminal": ">" },
+                  "from": { "at": { "x": 0, "y": 0 }, "leaving": "right",
+                            "terminal": { "kind": "glyph", "glyph": "ab" } },
+                  "to": { "at": { "x": 6, "y": 0 }, "leaving": "left",
+                          "terminal": { "kind": "glyph", "glyph": ">" } },
                   "stroke": "light" }
             ]
         }"#;
 
         assert!(serde_json::from_str::<Description>(json).is_err());
+    }
+
+    /// One arrow, with `TERMINAL` standing where the `from` endpoint's terminal goes. The three
+    /// refusals below differ only in what is written there, which is what makes them the same test
+    /// three times over.
+    const ARROW: &str = r#""from": { "at": { "x": 0, "y": 0 }, "leaving": "right", "terminal": TERMINAL },
+                  "to": { "at": { "x": 6, "y": 0 }, "leaving": "left",
+                          "terminal": { "kind": "glyph", "glyph": ">" } }"#;
+
+    /// The same arrow with the field left out altogether.
+    const ARROW_WITHOUT_A_TERMINAL: &str = r#""from": { "at": { "x": 0, "y": 0 }, "leaving": "right" },
+                  "to": { "at": { "x": 6, "y": 0 }, "leaving": "left",
+                          "terminal": { "kind": "glyph", "glyph": ">" } }"#;
+
+    fn description_of(arrow: &str) -> String {
+        format!(
+            r#"{{
+            "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 8, "height": 1 }} }},
+            "shapes": [
+                {{ "kind": "arrow",
+                  {arrow},
+                  "stroke": "light" }}
+            ]
+        }}"#
+        )
+    }
+
+    /// The message the binary reports for an endpoint whose terminal is `terminal`.
+    ///
+    /// `serde_json` appends the position the problem was found at, so what is compared is the
+    /// message this crate produced and not the whole of what `serde_json` renders.
+    fn error_for(terminal: &str) -> String {
+        let json = description_of(&ARROW.replace("TERMINAL", terminal));
+        serde_json::from_str::<Description>(&json)
+            .expect_err("a terminal this format does not accept must fail")
+            .to_string()
+    }
+
+    /// SC-005, spec's B1 scenario 3: a `kind` the model has not named is refused by name, and the
+    /// message names the two that are accepted — so the value is never read as one of them.
+    #[test]
+    fn an_unrecognized_terminal_kind_names_it_and_the_two_that_are_accepted() {
+        let error = error_for(r#"{ "kind": "dot" }"#);
+
+        assert!(
+            error.starts_with("unknown variant `dot`, expected `glyph` or `arm`"),
+            "{error}"
+        );
+    }
+
+    /// FR-014 through the rename: a `glyph` that is not exactly one grapheme cluster is rejected
+    /// with the message the old `head` produced, byte for byte.
+    #[test]
+    fn a_multi_grapheme_terminal_glyph_is_rejected_with_the_message_the_old_head_produced() {
+        let error = error_for(r#"{ "kind": "glyph", "glyph": "ab" }"#);
+
+        assert!(
+            error.starts_with("\"ab\" is not exactly one grapheme cluster"),
+            "{error}"
+        );
+    }
+
+    /// B1 scenario 3: the field is required for both values, so a file that omits it is refused
+    /// rather than read as an arrow with no terminal at either end. A terminal's presence never
+    /// decides what a description means.
+    #[test]
+    fn an_omitted_terminal_field_is_refused_by_name() {
+        let json = description_of(ARROW_WITHOUT_A_TERMINAL);
+
+        let error = serde_json::from_str::<Description>(&json)
+            .expect_err("an arrow with no terminal at all must fail")
+            .to_string();
+
+        assert!(error.starts_with("missing field `terminal`"), "{error}");
+    }
+
+    /// B1 scenario 3, and the externally tagged spelling research.md Q3 measured: every value of
+    /// `terminal` is an object tagged by `kind`, so a bare string is refused on purpose rather
+    /// than read as an arm.
+    #[test]
+    fn an_externally_tagged_terminal_is_refused() {
+        let error = error_for(r#""arm""#);
+
+        assert!(
+            error.starts_with(
+                r#"invalid type: string "arm", expected internally tagged enum Terminal"#
+            ),
+            "{error}"
+        );
     }
 }
