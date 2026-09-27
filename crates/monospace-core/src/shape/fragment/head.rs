@@ -9,6 +9,7 @@ use crate::{Cell, Glyph, Pos, Shape, Surface};
 ///
 /// A fragment in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../../../docs/model.md).
+#[derive(Debug)]
 pub(crate) struct Head {
     pub(crate) at: Pos,
     pub(crate) glyph: Glyph,

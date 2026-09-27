@@ -10,6 +10,7 @@ use crate::{Arm, Cell, Pos, Shape, Stroke, StrokeCell, Surface};
 /// A fragment in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../../../docs/model.md): it writes only the cell its description
 /// names, deriving the cell from the two sides it is told rather than being handed one.
+#[derive(Debug)]
 pub(crate) struct Corner {
     pub(crate) at: Pos,
     pub(crate) opens: (Side, Side),

@@ -13,6 +13,7 @@ use crate::{Glyph, Pos, Shape, Size, Stroke, Surface};
 /// [`docs/model.md`](../../../docs/model.md): what a library user sees. Its decomposition depends
 /// on `size` rather than on its kind — a 2×2 box is four corners and nothing else — and below 2
 /// in either dimension it draws nothing at all, per _Degenerate arrangements_ and FR-021.
+#[derive(Debug)]
 pub struct BoxShape {
     /// The box's top-left corner.
     pub at: Pos,

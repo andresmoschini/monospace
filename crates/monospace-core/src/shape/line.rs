@@ -13,6 +13,7 @@ use crate::{Orientation, Pos, Shape, Stroke, Surface};
 /// A **complete** shape in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../docs/model.md). No minimum length is declared: a length of 0 draws
 /// nothing, a length of 1 draws its one position as an end, and neither is rejected — FR-022.
+#[derive(Debug)]
 pub struct Line {
     /// The position of the line's first cell.
     pub at: Pos,
