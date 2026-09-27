@@ -4,14 +4,14 @@
 
 use crate::{Buffer, Cell, Pos, StampMode};
 
-mod arrow;
 mod box_shape;
+mod connector;
 pub(crate) mod fragment;
 mod line;
 mod route;
 
-pub use arrow::{Arrow, Endpoint, Terminal};
 pub use box_shape::BoxShape;
+pub use connector::{Connector, Endpoint, Terminal};
 pub use line::Line;
 
 /// One write operation and no reader. What a shape draws into.

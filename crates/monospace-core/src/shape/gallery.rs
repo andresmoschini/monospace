@@ -34,7 +34,7 @@ use crate::shape::fragment::segment::Segment;
 use crate::shape::route::Route;
 use crate::stroke::Stroke;
 use crate::{
-    Arm, Arrow, BoxShape, Buffer, Cell, Direction, Endpoint, Glyph, GlyphCatalog, Layer, Line,
+    Arm, Connector, BoxShape, Buffer, Cell, Direction, Endpoint, Glyph, GlyphCatalog, Layer, Line,
     Orientation, Pos, Size, StampMode, Surface, Terminal, render,
 };
 
@@ -194,7 +194,7 @@ fn glyph(text: &str) -> Glyph {
     Glyph::new(text).expect("one glyph")
 }
 
-// ------------------------------------------------------ level 1b: the arrow and its route
+// ------------------------------------------------------ level 1b: the connector and its route
 
 /// The head glyph the model's own tests fix for a picture: opposite the leaving direction.
 fn head(leaving: Direction) -> Glyph {
@@ -228,15 +228,15 @@ fn arm_end(x: i32, y: i32, leaving: Direction) -> Endpoint {
     }
 }
 
-fn arrow(from: Endpoint, to: Endpoint) -> Arrow {
-    Arrow {
+fn connector(from: Endpoint, to: Endpoint) -> Connector {
+    Connector {
         from,
         to,
         stroke: light(),
     }
 }
 
-/// The route an arrow derived for the arrangement the test named. `from` and `to` are carried
+/// The route a connector derived for the arrangement the test named. `from` and `to` are carried
 /// because the route's outermost positions need to know which side faces the head beside them.
 fn route(from: Pos, to: Pos, positions: Vec<Pos>) -> Route {
     Route {
@@ -248,94 +248,94 @@ fn route(from: Pos, to: Pos, positions: Vec<Pos>) -> Route {
 }
 
 #[test]
-fn level_1_arrow() {
+fn level_1_connector() {
     let entries = vec![
         one(
-            arrow(
+            connector(
                 glyph_end(0, 0, Direction::Down),
                 glyph_end(4, 3, Direction::Left),
             ),
             window(5, 4),
         ),
         one(
-            arrow(
+            connector(
                 glyph_end(0, 0, Direction::Right),
                 glyph_end(4, 3, Direction::Up),
             ),
             window(5, 4),
         ),
         one(
-            arrow(
+            connector(
                 glyph_end(0, 0, Direction::Right),
                 glyph_end(6, 0, Direction::Left),
             ),
             window(7, 1),
         ),
         one(
-            arrow(
+            connector(
                 glyph_end(0, 0, Direction::Right),
                 glyph_end(6, 2, Direction::Left),
             ),
             window(7, 3),
         ),
         one(
-            arrow(
+            connector(
                 glyph_end(2, 0, Direction::Right),
                 glyph_end(8, 2, Direction::Left),
             ),
             window(9, 3),
         ),
         one(
-            arrow(
+            connector(
                 glyph_end(2, 0, Direction::Left),
                 glyph_end(8, 2, Direction::Right),
             ),
             window(10, 3),
         ),
         one(
-            arrow(
+            connector(
                 glyph_end(2, 0, Direction::Left),
                 glyph_end(8, 2, Direction::Down),
             ),
             window(9, 4),
         ),
         one(
-            arrow(
+            connector(
                 glyph_end(2, 0, Direction::Right),
                 glyph_end(4, 1, Direction::Left),
             ),
             window(5, 2),
         ),
         one(
-            arrow(
+            connector(
                 glyph_end(2, 0, Direction::Left),
                 glyph_end(3, 2, Direction::Right),
             ),
             window(5, 3),
         ),
         one(
-            arrow(
+            connector(
                 arm_end(0, 0, Direction::Right),
                 arm_end(6, 0, Direction::Left),
             ),
             window(7, 1),
         ),
         one(
-            arrow(
+            connector(
                 arm_end(0, 0, Direction::Down),
                 arm_end(4, 3, Direction::Left),
             ),
             window(5, 4),
         ),
         one(
-            arrow(
+            connector(
                 glyph_end(2, 1, Direction::Right),
                 glyph_end(2, 1, Direction::Left),
             ),
             window(5, 3),
         ),
     ];
-    snap("level_1_arrow", &gallery(entries));
+    snap("level_1_connector", &gallery(entries));
 }
 
 #[test]

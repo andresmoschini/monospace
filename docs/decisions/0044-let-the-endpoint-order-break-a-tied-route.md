@@ -1,5 +1,5 @@
 ---
-status: "absorbed into crates/monospace-core/src/shape/arrow.rs"
+status: "absorbed into crates/monospace-core/src/shape/connector.rs"
 date: 2026-09-16
 decision-makers: "Andrés Moschini, with Claude Opus 5"
 ---
@@ -146,11 +146,11 @@ What would not change it: the implementation cost. It was weighed and it is smal
 
 ## Revisions
 
-- 2026-09-21 — absorbed into `crates/monospace-core/src/shape/arrow.rs`. Nothing outside that module
-  observes this tie-break beyond the picture it produces, so the reasoning is now the module's
-  `Design notes` and changing it is an ordinary `feat` or `fix`. The contract the route satisfies is
-  [ADR-0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md). This record also loses a
-  sentence arguing that repeated change is expensive, which the constitution now forbids.
+- 2026-09-21 — absorbed into `crates/monospace-core/src/shape/connector.rs`. Nothing outside that
+  module observes this tie-break beyond the picture it produces, so the reasoning is now the
+  module's `Design notes` and changing it is an ordinary `feat` or `fix`. The contract the route
+  satisfies is [ADR-0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md). This record also
+  loses a sentence arguing that repeated change is expensive, which the constitution now forbids.
 
 ## More Information
 

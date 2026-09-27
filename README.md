@@ -3,7 +3,8 @@
 > ASCII diagramming, built one honest commit at a time.
 
 **Monospace** is a set of applications and libraries for creating diagrams using ASCII characters —
-think boxes, arrows, flowcharts, and architecture sketches, all rendered in plain monospaced text.
+think boxes, connectors, flowcharts, and architecture sketches, all rendered in plain monospaced
+text.
 
 ## Why this project exists
 
@@ -37,7 +38,7 @@ why the CLI comes before the TUI is
 
 ## Current status
 
-🚧 **It draws.** Boxes, optionally filled; lines; and arrows that route themselves between two
+🚧 **It draws.** Boxes, optionally filled; lines; and connectors that route themselves between two
 endpoints, however far apart those are. Where two shapes meet, their strokes compose into a single
 cell rather than one overwriting the other, so a crossing becomes a junction and two boxes share a
 corner — and the front-most shape's fill is what covers what is behind it:
@@ -53,7 +54,7 @@ corner — and the front-most shape's fill is what covers what is behind it:
       "stroke": "light" },
     { "kind": "line", "at": { "x": 5, "y": 3 }, "len": 4, "orientation": "vertical",
       "stroke": "light" },
-    { "kind": "arrow", "from": { "at": { "x": 7, "y": 1 }, "leaving": "right",
+    { "kind": "connector", "from": { "at": { "x": 7, "y": 1 }, "leaving": "right",
         "terminal": { "kind": "glyph", "glyph": "◄" } },
       "to": { "at": { "x": 16, "y": 4 }, "leaving": "left",
         "terminal": { "kind": "arm" } },
@@ -82,8 +83,8 @@ it, so the same box draws in ASCII, Double, Heavy and their combinations without
 Behind that, and all of it enforced rather than merely intended:
 
 - **110** tests in `monospace-core`, **217** across the workspace.
-- **1856** renderings across 8 snapshots, pinning every arrangement of the arrow's route — a range
-  too wide to assert by hand, so a change to it is
+- **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
+  range too wide to assert by hand, so a change to it is
   [reported](docs/decisions/0053-report-a-characterization-instead-of-reviewing-it.md) rather than
   reviewed.
 - An **eleven**-step quality gate the pre-commit hook and CI run identically, including the check

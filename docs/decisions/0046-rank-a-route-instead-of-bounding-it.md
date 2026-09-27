@@ -173,7 +173,7 @@ rather than larger.
 
 - 2026-09-21 — superseded by [ADR-0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md),
   which holds the un-bounding as one subject. The four terms of the ranking went the other way, into
-  `shape::arrow`'s `Design notes`, because nothing outside that module observes which of several
+  `shape::connector`'s `Design notes`, because nothing outside that module observes which of several
   paths is drawn. This record also loses a sentence arguing that repeated change is expensive, which
   the constitution now forbids.
 

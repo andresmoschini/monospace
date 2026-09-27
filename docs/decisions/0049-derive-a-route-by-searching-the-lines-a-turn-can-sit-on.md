@@ -1,5 +1,5 @@
 ---
-status: "absorbed into crates/monospace-core/src/shape/arrow.rs"
+status: "absorbed into crates/monospace-core/src/shape/connector.rs"
 date: 2026-09-17
 decision-makers: "Andrés Moschini, with Claude Opus 5"
 ---
@@ -74,8 +74,8 @@ second pass over candidates. The lattice is at most 9 by 9, so 324 states, whate
   search that assumes nothing, not a proof.
 - Bad, because a Dijkstra is more machinery than a list of shapes: a priority queue, a state
   encoding, a predecessor walk. It is larger to read at once, even though each part is ordinary.
-- Neutral, because the derivation stays private to `crates/monospace-core/src/shape/arrow.rs` for
-  now. [Issue 105](https://github.com/andresmoschini/monospace/issues/105) moves the whole
+- Neutral, because the derivation stays private to `crates/monospace-core/src/shape/connector.rs`
+  for now. [Issue 105](https://github.com/andresmoschini/monospace/issues/105) moves the whole
   connection into a shape of its own, and this record takes no position on where it lands — only
   that whatever holds it holds a ranking and a search, not a catalogue of shapes.
 
@@ -155,8 +155,8 @@ shapes and that was weighed; what settles it is that the machinery is generic an
 
 ## Revisions
 
-- 2026-09-21 — absorbed into `crates/monospace-core/src/shape/arrow.rs`. Nothing outside that module
-  observes how the route is found beyond the picture it produces, so the reasoning is now the
+- 2026-09-21 — absorbed into `crates/monospace-core/src/shape/connector.rs`. Nothing outside that
+  module observes how the route is found beyond the picture it produces, so the reasoning is now the
   module's `Design notes` and changing it is an ordinary `feat` or `fix`. The contract the route
   satisfies is [ADR-0055](0055-an-arrows-route-is-a-path-and-nothing-bounds-it.md).
 

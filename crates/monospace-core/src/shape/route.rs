@@ -1,5 +1,5 @@
 //! `Route`: a compositor that places corners and segments along a derived path. See _The route of
-//! an arrow_ in [`docs/model.md`](../../../docs/model.md).
+//! a connector_ in [`docs/model.md`](../../../docs/model.md).
 
 use crate::cell::Side;
 use crate::shape::fragment::corner::Corner;
@@ -25,11 +25,11 @@ fn orientation_of(side: Side) -> Orientation {
     }
 }
 
-/// A route: the derived path between an arrow's two starting positions, placed as `Corner`s and
+/// A route: the derived path between a connector's two starting positions, placed as `Corner`s and
 /// `Segment`s.
 ///
 /// `pub(crate)` rather than a leaf: it places pieces and writes no position itself, per _Complete
-/// and fragment_ in [`docs/model.md`](../../../docs/model.md). `from` and `to` are the arrow's own
+/// and fragment_ in [`docs/model.md`](../../../docs/model.md). `from` and `to` are the connector's own
 /// two endpoints, needed only so the outermost route positions know which side faces the head
 /// beside them; the route itself never writes to `from` or `to`.
 #[derive(Debug)]

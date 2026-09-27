@@ -79,11 +79,11 @@ fn kind_of(shape: &Shape) -> &'static str {
     match shape {
         Shape::Box { .. } => "Box",
         Shape::Line { .. } => "Line",
-        Shape::Arrow { .. } => "Arrow",
+        Shape::Connector { .. } => "Connector",
     }
 }
 
-/// A box, a line and an arrow: the closed set, each named by [`kind_of`]. A factory rather than
+/// A box, a line and a connector: the closed set, each named by [`kind_of`]. A factory rather than
 /// a list of values, because `Shape` derives no `Clone` and the order test needs the same two
 /// boxes twice — and adding a `Clone` to a public enum for a gallery is a cost not worth paying.
 fn the_kinds() -> Vec<(&'static str, Shape)> {
@@ -94,8 +94,8 @@ fn the_kinds() -> Vec<(&'static str, Shape)> {
         ),
         (kind_of(&line_shape(at(0, 0), 6)), line_shape(at(0, 0), 6)),
         (
-            kind_of(&arrow_shape(at(0, 0), at(6, 0))),
-            arrow_shape(at(0, 0), at(6, 0)),
+            kind_of(&connector_shape(at(0, 0), at(6, 0))),
+            connector_shape(at(0, 0), at(6, 0)),
         ),
     ]
 }
@@ -118,8 +118,8 @@ fn line_shape(at_: Pos, len: u32) -> Shape {
     }
 }
 
-fn arrow_shape(from_at: Pos, to_at: Pos) -> Shape {
-    Shape::Arrow {
+fn connector_shape(from_at: Pos, to_at: Pos) -> Shape {
+    Shape::Connector {
         from: Endpoint {
             at: from_at,
             leaving: Direction::Right,
@@ -300,18 +300,18 @@ fn the_order_decides_a_shared_cell() {
 
 #[test]
 fn an_arm_terminal_composes_where_a_border_is() {
-    let labelled = "[small_box(0,0,no fill), arm_arrow(3,1 -> 7,1)]";
+    let labelled = "[small_box(0,0,no fill), arm_connector(3,1 -> 7,1)]";
     let mut diagram = Diagram::new();
     diagram.add(small_box(at(0, 0), None));
-    diagram.add(arm_arrow(at(3, 1), at(7, 1)));
+    diagram.add(arm_connector(at(3, 1), at(7, 1)));
     snap(
         "an_arm_terminal_composes_where_a_border_is",
         &block(labelled, "as written", window(8, 3), &diagram),
     );
 }
 
-fn arm_arrow(from_at: Pos, to_at: Pos) -> Shape {
-    Shape::Arrow {
+fn arm_connector(from_at: Pos, to_at: Pos) -> Shape {
+    Shape::Connector {
         from: Endpoint {
             at: from_at,
             leaving: Direction::Right,

@@ -1,4 +1,4 @@
-//! The head fragment: an arrow's head, one chosen glyph. See _What a terminal writes_ in
+//! The head fragment: a connector's head, one chosen glyph. See _What a terminal writes_ in
 //! [`docs/model.md`](../../../../../docs/model.md) and
 //! [ADR-0029](../../../../../docs/decisions/0029-draw-a-line-end-as-one-arm.md).
 

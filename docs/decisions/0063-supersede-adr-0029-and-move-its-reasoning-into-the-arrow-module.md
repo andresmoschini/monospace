@@ -23,8 +23,8 @@ classifies a record on the next time it is touched. This is that time.
 ## Decision Outcome
 
 Chosen option: **the reasoning moves down to the module and this record supersedes the half that no
-longer holds** — because nothing outside `shape::arrow` can observe what an endpoint writes in its
-own cell beyond the picture it produces, which is the test
+longer holds** — because nothing outside `shape::connector` can observe what an endpoint writes in
+its own cell beyond the picture it produces, which is the test
 [ADR-0050](0050-record-a-decision-at-the-boundary-it-cannot-cross.md) put in the template.
 
 [ADR-0029](0029-draw-a-line-end-as-one-arm.md) becomes `accepted; superseded in part by ADR-0063`,
@@ -53,12 +53,12 @@ would put the subject back above the boundary it now sits under.
 
 - 2026-09-27 — recorded. Supersedes the second half of
   [ADR-0029](0029-draw-a-line-end-as-one-arm.md); the reasoning moves to
-  `crates/monospace-core/src/shape/arrow.rs`.
+  `crates/monospace-core/src/shape/connector.rs`.
 
 ## More Information
 
-- The `Design notes` of `crates/monospace-core/src/shape/arrow.rs`, where the reasoning lives and
-  which already holds how a route is ranked.
+- The `Design notes` of `crates/monospace-core/src/shape/connector.rs`, where the reasoning lives
+  and which already holds how a route is ranked.
 - [ADR-0050](0050-record-a-decision-at-the-boundary-it-cannot-cross.md) for the altitude test, and
   [ADR-0026](0026-represent-a-cell-as-a-sum-of-strokes-and-a-literal.md) for why a literal composes
   as four `Closed` arms.
