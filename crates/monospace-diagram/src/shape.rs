@@ -4,10 +4,10 @@
 
 use monospace_core::Shape as _;
 use monospace_core::{
-    Arrow, BoxShape, Direction, Glyph, Line, Orientation, Pos, Size, Stroke, Surface, Terminal,
+    BoxShape, Connector, Direction, Glyph, Line, Orientation, Pos, Size, Stroke, Surface, Terminal,
 };
 
-/// One endpoint of an arrow: a position, the direction it leaves in, and its terminal.
+/// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
 ///
 /// Mirrors `monospace_core::Endpoint` rather than reusing it, so that a later change to how an
 /// endpoint is anchored stays inside this crate (research.md Q3). The terminal is the core's own
@@ -17,7 +17,7 @@ use monospace_core::{
 pub struct Endpoint {
     /// The endpoint's position. The terminal occupies this position itself.
     pub at: Pos,
-    /// The direction the arrow leaves this endpoint in.
+    /// The direction the connector leaves this endpoint in.
     pub leaving: Direction,
     /// What this endpoint contributes to the cell at `at`.
     pub terminal: Terminal,
@@ -59,11 +59,11 @@ pub enum Shape {
         /// The stroke every cell this line writes is drawn in.
         stroke: Stroke,
     },
-    /// An arrow: two endpoints and a stroke.
-    Arrow {
-        /// One endpoint of the arrow.
+    /// A connector: two endpoints and a stroke.
+    Connector {
+        /// One endpoint of the connector.
         from: Endpoint,
-        /// The other endpoint of the arrow.
+        /// The other endpoint of the connector.
         to: Endpoint,
         /// The stroke the route between the two endpoints is drawn in.
         stroke: Stroke,
@@ -99,7 +99,7 @@ impl Shape {
                 stroke: stroke.clone(),
             }
             .draw(surface),
-            Self::Arrow { from, to, stroke } => Arrow {
+            Self::Connector { from, to, stroke } => Connector {
                 from: from.clone().into(),
                 to: to.clone().into(),
                 stroke: stroke.clone(),
@@ -163,10 +163,10 @@ mod tests {
         }
     }
 
-    /// The arrow between the two boxes, each endpoint standing on the nearer box's border cell at
+    /// The connector between the two boxes, each endpoint standing on the nearer box's border cell at
     /// the given position.
-    fn arrow(from: Terminal, to: Terminal) -> Shape {
-        Shape::Arrow {
+    fn connector(from: Terminal, to: Terminal) -> Shape {
+        Shape::Connector {
             from: Endpoint {
                 at: Pos { x: 2, y: 1 },
                 leaving: Direction::Right,
@@ -193,12 +193,16 @@ mod tests {
 
     /// The same three shapes added in the two orders the model distinguishes, which now that no
     /// shape carries a `mode` is the order of the `shapes` array and nothing else: the second box
-    /// after the arrow, and the second box before it. The two returned buffers differ only in what
-    /// the arrow's terminal did to the cell it shares with the left box's right-hand border.
+    /// after the connector, and the second box before it. The two returned buffers differ only in what
+    /// the connector's terminal did to the cell it shares with the left box's right-hand border.
     fn both_orders(from: Terminal, to: Terminal) -> (Buffer, Buffer) {
         (
-            draw(vec![box_at(0), arrow(from.clone(), to.clone()), box_at(8)]),
-            draw(vec![box_at(0), box_at(8), arrow(from, to)]),
+            draw(vec![
+                box_at(0),
+                connector(from.clone(), to.clone()),
+                box_at(8),
+            ]),
+            draw(vec![box_at(0), box_at(8), connector(from, to)]),
         )
     }
 
@@ -236,14 +240,14 @@ mod tests {
             concat!("┌─┐     ┌─┐\n", "│ ◄─────► │\n", "└─┘     └─┘\n")
         );
 
-        // (2, 1) is the left box's own border cell, where its two terminals stand. With the arrow
+        // (2, 1) is the left box's own border cell, where its two terminals stand. With the connector
         // in front the cell holds a decided literal and the border is gone; with the box in front
-        // the arrow's two literals are what got overwritten, and what survives is the border's own
+        // the connector's two literals are what got overwritten, and what survives is the border's own
         // undecided cell. Either way the cell is decided, which is what distinguishes this from an
         // arm terminal and what the other test below measures.
         let at = Pos { x: 2, y: 1 };
         for buffer in [&second_box_after, &second_box_before] {
-            let cell = buffer.cell(at).expect("the arrow writes this cell");
+            let cell = buffer.cell(at).expect("the connector writes this cell");
             assert!(cell.is_decided(), "{cell:?} at (2, 1) should be decided");
         }
     }
@@ -262,13 +266,13 @@ mod tests {
             concat!("┌─┐     ┌─┐\n", "│ ├─────┤ │\n", "└─┘     └─┘\n")
         );
 
-        // The border cell each arrow terminal stands on: a junction in both orders, and a cell
+        // The border cell each connector terminal stands on: a junction in both orders, and a cell
         // that is not decided in either, which is what leaves the other three sides open for the
         // box to join.
         for buffer in [&second_box_after, &second_box_before] {
             let cell = buffer
                 .cell(Pos { x: 2, y: 1 })
-                .expect("the arrow writes this cell");
+                .expect("the connector writes this cell");
             assert!(!cell.is_decided(), "{cell:?} at (2, 1) should be undecided");
         }
     }

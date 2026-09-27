@@ -39,7 +39,7 @@ Shape::Line Line { at: Pos { x: 0, y: 0 }, len: 6, orientation: Horizontal, stro
   | 4,0 | ─     | Unset | light | Unset  | light | light |
   | 5,0 | ─     | Unset | Unset | Unset  | light | light |
 
-Shape::Arrow Arrow { from: Endpoint { at: Pos { x: 0, y: 0 }, leaving: Right, terminal: Glyph { glyph: Glyph("◄") } }, to: Endpoint { at: Pos { x: 6, y: 0 }, leaving: Left, terminal: Glyph { glyph: Glyph("►") } }, stroke: Stroke("light") }
+Shape::Connector Connector { from: Endpoint { at: Pos { x: 0, y: 0 }, leaving: Right, terminal: Glyph { glyph: Glyph("◄") } }, to: Endpoint { at: Pos { x: 6, y: 0 }, leaving: Left, terminal: Glyph { glyph: Glyph("►") } }, stroke: Stroke("light") }
   ◄─────►
 
 

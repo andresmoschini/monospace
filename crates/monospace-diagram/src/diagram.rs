@@ -99,8 +99,8 @@ impl Diagram {
 #[cfg(test)]
 mod tests {
     use monospace_core::{
-        Arrow, BoxShape, Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Line, Orientation,
-        Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, render,
+        BoxShape, Buffer, Cell, Connector, Direction, Glyph, GlyphCatalog, Layer, Line,
+        Orientation, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, render,
     };
 
     use super::Diagram;
@@ -270,10 +270,10 @@ mod tests {
         );
     }
 
-    /// TE-005: an arrow drawn through a diagram matches the same `Arrow` drawn directly, both
+    /// TE-005: a connector drawn through a diagram matches the same `Connector` drawn directly, both
     /// endpoints included.
     #[test]
-    fn an_arrow_shape_matches_the_core_arrow_drawn_directly() {
+    fn a_connector_shape_matches_the_core_connector_drawn_directly() {
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
             width: 5,
@@ -295,7 +295,7 @@ mod tests {
         };
 
         let mut diagram = Diagram::new();
-        diagram.add(Shape::Arrow {
+        diagram.add(Shape::Connector {
             from: from(),
             to: to(),
             stroke: light(),
@@ -304,7 +304,7 @@ mod tests {
         diagram.draw(&mut actual);
 
         let mut expected = Buffer::new(origin, size);
-        Arrow {
+        Connector {
             from: from().into(),
             to: to().into(),
             stroke: light(),

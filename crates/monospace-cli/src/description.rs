@@ -205,7 +205,7 @@ impl From<ShapeDescription> for DiagramShape {
                 orientation: orientation.into(),
                 stroke: stroke.as_str().into(),
             },
-            ShapeDescription::Arrow { from, to, stroke } => DiagramShape::Arrow {
+            ShapeDescription::Arrow { from, to, stroke } => DiagramShape::Connector {
                 from: from.into(),
                 to: to.into(),
                 stroke: stroke.as_str().into(),
