@@ -309,19 +309,22 @@ else, byte for byte what it printed before (spec.md B5; quickstart.md B5).
 
 ### Tests for User Story 5
 
-- [ ] T028 [P] [US5] Contract test: a bare run prints four captioned pictures, the first the
+- [x] T028 [P] [US5] Contract test: a bare run prints four captioned pictures, the first the
       description as written, found by splitting the output on the blank line and pinning no
       caption's wording, in `crates/monospace-cli/src/main.rs` (B5.1, SC-006)
-- [ ] T029 [P] [US5] Contract test: the third picture differs from the second only in the displaced
+- [x] T029 [P] [US5] Contract test: the third picture differs from the second only in the displaced
       figure's own cells, and the fourth differs from the third only in the cells that figure
       occupied — each now the cell the figure behind it decides, or empty where no figure decides
       one, so a removal leaves a gap rather than a hole punched in what was around it, in
       `crates/monospace-cli/src/main.rs` (B5.3, B5.5, SC-006)
-- [ ] T030 [P] [US5] Contract test: a description holding no shapes, and one holding exactly one,
-      each print four identical pictures and the run succeeds, in `crates/monospace-cli/src/main.rs`
-      (B5.7 — `forward`, `replace` and `remove` are all no-ops on an identity the diagram does not
-      hold, and there is no branch to get wrong)
-- [ ] T031 [P] [US5] Subprocess test: the existing
+- [x] T030 [P] [US5] Contract test: a description holding no shapes, and one holding exactly one,
+      each demonstrate four pictures and succeed, in `crates/monospace-cli/src/main.rs` (B5.7 — as
+      corrected on 2026-09-28: the no-shapes case prints four **identical** pictures, since
+      `forward`, `replace` and `remove` are all no-ops on an identity the diagram does not hold and
+      there is no branch to get wrong; the one-shape case succeeds too, but its third and fourth
+      pictures are an empty window, because a figure that fills its own window is moved partly or
+      wholly out of it by any delta other than none. spec.md Clarifications, same session)
+- [x] T031 [P] [US5] Subprocess test: the existing
       `the_demo_path_passed_explicitly_prints_the_demonstrations_first_picture` in
       `crates/monospace-cli/tests/cli.rs` needs **no** change to its body, and that is worth
       confirming rather than assuming — it takes the first block and the new pictures are appended
@@ -330,26 +333,26 @@ else, byte for byte what it printed before (spec.md B5; quickstart.md B5).
 
 ### Implementation for User Story 5
 
-- [ ] T032 [US5] Change `demonstrated_pictures` in `crates/monospace-cli/src/main.rs` from a
+- [x] T032 [US5] Change `demonstrated_pictures` in `crates/monospace-cli/src/main.rs` from a
       two-tuple to a four-tuple, splitting the output three times on `\n\n`, and update its four
       destructuring call sites so `rendering_once_is_the_demonstrations_first_picture` and
       `two_overlapping_boxes_demonstrate_in_opposite_orders` keep comparing the first two pictures
       with their meaning unchanged (data-model.md "The tests that read the demonstration";
       research.md Q6)
-- [ ] T033 [US5] Grow `demonstrate` in `crates/monospace-cli/src/main.rs` to four captioned pictures
+- [x] T033 [US5] Grow `demonstrate` in `crates/monospace-cli/src/main.rs` to four captioned pictures
       over **one** diagram mutated in place: as written, then after `forward(&ShapeId::new("#1"))`,
       then after `get(&ShapeId::new("#1")).map(|shape| shape.displaced_by(by))` followed by
       `replace(&ShapeId::new("#1"), moved)`, then after `remove(&ShapeId::new("#1"))`; append the
       fourth after the pair rather than interleaving it, so all four are about one figure, and name
       the identity by hand at each call rather than reading the figure back (B5.1-B5.4, B5.9;
       research.md Q6 — the demonstration is not the caller B4's reader is for)
-- [ ] T034 [US5] Carry the third picture's displacement amount as a constant in `demonstrate` in
+- [x] T034 [US5] Carry the third picture's displacement amount as a constant in `demonstrate` in
       `crates/monospace-cli/src/main.rs`, beside a comment saying it is an assumption about the
       demonstration rather than a rule about descriptions, the treatment the reorder's already gets;
       add no field to the description format, add no command-line argument, and leave
       `crates/monospace-cli/assets/demo.json` and `crates/monospace-cli/src/description.rs`
       unchanged (B5.8, B5.9; research.md Q6; ADR-0035)
-- [ ] T035 [US5] Correct the comment over `first_demonstrated_picture` in
+- [x] T035 [US5] Correct the comment over `first_demonstrated_picture` in
       `crates/monospace-cli/tests/cli.rs`, which says "the first of the two captioned pictures", in
       the same commit that makes it wrong, and change nothing else in the file (data-model.md "The
       tests that read the demonstration"; quickstart.md "Build and test the workspace")

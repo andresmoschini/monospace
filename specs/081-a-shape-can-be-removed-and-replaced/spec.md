@@ -60,6 +60,17 @@ from the maintainer's draft at `monospace-drafts/81-decisiones.md`.
   The direction that is missing is the other one — there is no way to get a diagram's identities
   back at all, by listing them or by asking a position which shape decided it — and that is what B4
   scenario 3 leaves open and issue #86 settles.
+- Q: B5.7 asked for four identical pictures from a description holding no shapes **or one**, and
+  B5.8 asks for a fixed delta with no branch. Can a description holding one shape produce four
+  identical pictures? → A: No, and the correction is to B5.7 rather than to B5.8. Measured, not
+  argued: with a single 4×3 figure in a 4×3 window, the first two pictures are the figure, the third
+  is an empty window because the fixed delta carries the figure out of it, and the fourth is the
+  same because the figure is taken out. The alternative was measured too — skipping both the
+  displacement and the removal when a description holds fewer than two shapes does give four
+  identical pictures, at the price of two captions claiming a displacement and a removal that did
+  not happen, and of two branches where B5.7's own reasoning says there is none. The reorder changes
+  nothing in either case and the run succeeds in both, which is what B5.7 still asks of a
+  description holding one shape.
 - Q: The slice is named for removing and replacing a shape, but the shipped run shows neither — it
   shows a reorder and a displacement. Is that deliberate? → A: No. The shipped demonstration grows a
   fourth picture, showing the same back-most shape taken out. It is appended after the pair that
@@ -196,8 +207,13 @@ from the maintainer's draft at `monospace-drafts/81-decisiones.md`.
 6. **Given** a path, **When** the application is given one, **Then** it prints one picture and
    nothing else, exactly as today. That is what `cargo xtask render` embeds, and it is why the split
    exists.
-7. **Given** a description holding no shapes, or one, **When** it is demonstrated, **Then** all four
-   pictures are identical and nothing fails.
+7. **Given** a description holding no shapes, **When** it is demonstrated, **Then** all four
+   pictures are identical and nothing fails. **Given** one holding a single shape, the run still
+   succeeds; the reorder changes nothing, and the third and fourth pictures are that window with
+   nothing in it — the demonstration's fixed delta carries the only figure out of a window the
+   figure filled, and the fourth takes it out. A figure that fills its own window is moved partly or
+   wholly out of it by any delta other than none, so no value of the displacement makes these four
+   pictures identical.
 8. **Given** the shipped demonstration, **When** the third picture is built, **Then** the amount the
    figure is displaced by is a fixed value the demonstration's own code carries, chosen so the
    shipped description shows it and marked in a comment as a demonstration-only assumption, the way
