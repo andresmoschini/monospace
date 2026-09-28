@@ -33,6 +33,7 @@ interactive application. Those are layers above this one.
 | `Anchor`    | One of four named points a shape may offer: the center of each of its sides     |
 | `Position`  | Either an absolute point or a reference                                         |
 | `Reference` | A `ShapeId`, an `Anchor` on it, and a horizontal and vertical offset            |
+| `Delta`     | How far a figure moves along each axis: a horizontal and a vertical amount      |
 | `Order`     | The sequence the diagram holds its shapes in; its front is drawn first          |
 | `Ownership` | What a drawing records at every position: which shape the cell there belongs to |
 
@@ -105,6 +106,11 @@ is absolute, and _Attachment_ below is where the reference lives. A reference th
 or a line, both positioned absolutely, or a connector, which answers no anchor point: the chain is
 one link long, nothing resolves through anything else, and no cycle can be built. Issue #89 is where
 a reference widens to any shape's position, and the cycle question belongs to it.
+
+Displacing a figure moves every position it holds. A position that is a reference has no coordinates
+to add to, so a displacement reaches its offsets instead, and displacing a connector whose endpoint
+holds a reference slides that endpoint rather than carrying the connector with the shape it hangs
+from. That is what makes a displacement a property of one figure rather than of a diagram.
 
 Nothing is the answer in two cases, and the model treats them as one:
 
@@ -275,10 +281,11 @@ reach into a box and widen it; it takes a box that is wider and puts it where th
 survives a replacement is what the diagram owns — the identity and the place in the order — and
 everything the shape owns is the new shape's: its kind, its parameters and its position.
 
-Moving is a replacement like any other, with a shape positioned somewhere else, and this model says
-no more about it than that. What moving a connector with attached endpoints should do to those
-attachments is left to the slice that implements movement, and it is an open question below rather
-than a rule here.
+Moving is a replacement like any other: the new shape is the old one displaced by a delta. A box and
+a line are displaced through their own position, and a connector through both of its endpoints at
+once — a connector is not the exception to this. Displacing a figure builds a value and changes
+nothing in a diagram; replacing is what puts the value in. What a displacement means for a position
+that is a reference is stated under _Positions_.
 
 Removing a shape leaves every reference to it unresolved, and those shapes stop being drawn. Nothing
 is rewritten and nothing cascades: the references stay as they were, and re-adding a shape with the
@@ -315,10 +322,10 @@ the slice.
   one. What would settle it: a figure that has to attach to a connector, most likely a label on it.
   Answering this is also one of the two ways a chain of references becomes longer than one link,
   which is what brings the cycle question back — see _Positions_.
-- **How does a shape move?** Moving is a replacement with a shape positioned elsewhere, and nothing
-  above that is decided. Whether moving a connector whose endpoints are attached shifts their
-  offsets, leaves them where they are, or is not a move at all is the part left open. What would
-  settle it: the first slice that implements movement.
+- **What does displacing a figure that holds a reference mean?** A displacement is additive in each
+  axis over absolute positions; a reference has none. Whether it reaches the reference's offsets or
+  the place the reference resolves to is not decided, and _Positions_ states the first. What would
+  settle it: the first slice that has a reference to displace.
 - **Does an attachment decide the direction a connector leaves in?** Attaching to a box's right side
   and leaving leftward is expressible today and draws something nobody wants. What would settle it:
   the first slice where the caller's direction and the anchor's side are routinely the same.
