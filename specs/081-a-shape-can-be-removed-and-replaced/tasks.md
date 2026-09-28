@@ -169,21 +169,21 @@ compare the two by value (spec.md B4; quickstart.md B4).
 
 ### Tests for User Story 2
 
-- [ ] T013 [P] [US2] Unit test: `get` on the identity `add` handed back returns a figure equal by
+- [x] T013 [P] [US2] Unit test: `get` on the identity `add` handed back returns a figure equal by
       value to the one added, which is what `Shape`'s and `Endpoint`'s widened derives are for, in
       `crates/monospace-diagram/src/diagram.rs` (B4.1; research.md Q4)
-- [ ] T014 [P] [US2] Unit test: `get` on an identity the diagram does not hold — one kept from
+- [x] T014 [P] [US2] Unit test: `get` on an identity the diagram does not hold — one kept from
       another diagram — returns `None` and leaves the drawn buffer exactly as it was, with no error,
       no report and no panic, in `crates/monospace-diagram/src/diagram.rs` (B4.2, SC-003)
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Add `pub fn get(&self, id: &ShapeId) -> Option<&Shape>` to `Diagram` in
+- [x] T015 [US2] Add `pub fn get(&self, id: &ShapeId) -> Option<&Shape>` to `Diagram` in
       `crates/monospace-diagram/src/diagram.rs`, borrowing through `find` and adding **no**
       `cloned()` beside it; mark it `#[must_use]` for the gate's `pedantic` group, and rustdoc it as
       contracts/diagram-api.md writes it (D2; B4.1-B4.3; data-model.md `get`;
       contracts/diagram-api.md `get`)
-- [ ] T016 [US2] Correct the **four** places in `crates/monospace-diagram/src/gallery.rs` that say a
+- [x] T016 [US2] Correct the **four** places in `crates/monospace-diagram/src/gallery.rs` that say a
       `Diagram` "offers no way to read them back" — the module doc, the sentence inside the `WHAT`
       description, the doc on `block`, and the ADR-0030 sentence beside it — so each says instead
       that a diagram offers one query by an identity and no listing of the shapes it holds, which is
@@ -213,23 +213,23 @@ and compare the two buffers — they differ, and each figure that stayed draws w
 
 ### Tests for User Story 3
 
-- [ ] T017 [P] [US3] Contract test: a diagram of several figures drawn before and after one is taken
+- [x] T017 [P] [US3] Contract test: a diagram of several figures drawn before and after one is taken
       out produces different buffers, and each figure that stayed draws what it drew on its own, in
       `crates/monospace-diagram/src/diagram.rs` (B1.1, SC-001)
-- [ ] T018 [P] [US3] Contract test: taking out an identity the diagram does not hold — one kept from
+- [x] T018 [P] [US3] Contract test: taking out an identity the diagram does not hold — one kept from
       another diagram — leaves the buffer exactly as it was, with no error, no report and no panic,
       in `crates/monospace-diagram/src/diagram.rs` (B1.2, SC-003)
-- [ ] T019 [P] [US3] Unit test: take `#1` out, add a figure, and the identity handed back is `#3`
+- [x] T019 [P] [US3] Unit test: take `#1` out, add a figure, and the identity handed back is `#3`
       rather than `#1`, asserted by the identity's own text rather than by a picture, in
       `crates/monospace-diagram/src/diagram.rs` (B1.3, SC-005 — the counter only rises, so this
       needs no code beyond the absence of a decrement, because `add` already increments before use)
-- [ ] T020 [P] [US3] Contract test: the last shape taken out leaves an empty diagram, and drawing
+- [x] T020 [P] [US3] Contract test: the last shape taken out leaves an empty diagram, and drawing
       one leaves the buffer as it was, in `crates/monospace-diagram/src/diagram.rs` (edge case: one
       shape taken out leaves an empty diagram)
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] Add `pub fn remove(&mut self, id: &ShapeId)` to `Diagram` in
+- [x] T021 [US3] Add `pub fn remove(&mut self, id: &ShapeId)` to `Diagram` in
       `crates/monospace-diagram/src/diagram.rs`: `find` the entry, return having changed nothing
       when there is none, otherwise `Vec::remove` that index so the order of what stayed is the
       order it was — not a swap with the last, which would reorder everything behind the gap — and
@@ -258,29 +258,29 @@ compare against the line's (spec.md B2; quickstart.md B2).
 
 ### Tests for User Story 4
 
-- [ ] T022 [P] [US4] Contract test: a box put back as a **wider box** draws exactly what that wider
+- [x] T022 [P] [US4] Contract test: a box put back as a **wider box** draws exactly what that wider
       box added on its own produces — pinned against the wider box's own picture, not against the
       box it replaced — in `crates/monospace-diagram/src/diagram.rs` (B2.1, SC-002)
-- [ ] T023 [P] [US4] Contract test: a box put back as a **line** draws the line, kind included, and
+- [x] T023 [P] [US4] Contract test: a box put back as a **line** draws the line, kind included, and
       nothing of the previous figure survives — again pinned against the line's own picture, which
       is what turns "nothing survives" into a checked claim rather than a comparison of two
       pictures, in `crates/monospace-diagram/src/diagram.rs` (B2.2, SC-002; the pair spec.md draws
       by hand and calls hypothetical)
-- [ ] T024 [P] [US4] Contract test: a figure overlapping another, put back under its own identity
+- [x] T024 [P] [US4] Contract test: a figure overlapping another, put back under its own identity
       **unchanged**, resolves the overlap as it did, which is what shows a replacement is not a
       reorder — the order did not move — in `crates/monospace-diagram/src/diagram.rs` (B2.3)
-- [ ] T025 [P] [US4] Contract test: a shape put under an identity the diagram does not hold leaves
+- [x] T025 [P] [US4] Contract test: a shape put under an identity the diagram does not hold leaves
       the picture alone **and adds nothing** — a diagram that held two figures still holds two, and
       none of them is the one handed in, so there is no way to name a shape into existence, in
       `crates/monospace-diagram/src/diagram.rs` (B2.4, SC-003)
-- [ ] T026 [P] [US4] Contract test: draw, displace, `replace` — and the only cells differing from
+- [x] T026 [P] [US4] Contract test: draw, displace, `replace` — and the only cells differing from
       the drawing before are the ones the displaced figure used to hold; this is the second half of
       B3.3, and it is the half that needs `replace` to exist, so it lands here rather than in Phase
       3, in `crates/monospace-diagram/src/diagram.rs` (B3.3; quickstart.md B3)
 
 ### Implementation for User Story 4
 
-- [ ] T027 [US4] Add `pub fn replace(&mut self, id: &ShapeId, shape: Shape)` to `Diagram` in
+- [x] T027 [US4] Add `pub fn replace(&mut self, id: &ShapeId, shape: Shape)` to `Diagram` in
       `crates/monospace-diagram/src/diagram.rs`: `find` the entry, return having changed nothing
       when there is none so the shape handed in is not added either, otherwise overwrite that
       entry's `.shape` and touch nothing else — overwriting rather than removing one entry and

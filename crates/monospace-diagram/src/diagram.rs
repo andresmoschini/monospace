@@ -96,6 +96,52 @@ impl Diagram {
         }
     }
 
+    /// The figure named by `id`, or `None` when this diagram holds no such shape.
+    ///
+    /// The crate's first reader, and the only one: one query by an identity the caller already
+    /// holds, and nothing coming back the other way. There is no listing of a diagram's
+    /// identities, no count, no order, and no way to ask which shape decided a position.
+    ///
+    /// It borrows, and there is no `cloned()` beside it. What comes back is the bare figure the
+    /// caller added, with the identity and the place in the order held here in the diagram rather
+    /// than inside the figure, so nothing about what is returned says where it sits.
+    #[must_use]
+    pub fn get(&self, id: &ShapeId) -> Option<&Shape> {
+        self.find(id).map(|index| &self.shapes[index].shape)
+    }
+
+    /// Takes the shape named by `id` out of the diagram, changing nothing else.
+    ///
+    /// An identity this diagram does not hold changes nothing, with no error, no report and no
+    /// panic, which is the same answer the model's _Positions_ gives a reference to a shape that
+    /// is not there. The gap is closed, so what remains of the order keeps the order it had: a
+    /// removal changes the holding and nothing else.
+    ///
+    /// It hands back nothing. There is no history and nothing to undo, so putting a figure back
+    /// means building it again. The counter is not touched either, so an identity is never handed
+    /// out a second time.
+    pub fn remove(&mut self, id: &ShapeId) {
+        if let Some(index) = self.find(id) {
+            self.shapes.remove(index);
+        }
+    }
+
+    /// Puts `shape` where the shape named by `id` stands, in the same place in the order.
+    ///
+    /// The identity and the place in the order survive, and everything the previous figure owned
+    /// is the new figure's: its kind, its parameters and its position. The diagram never reaches
+    /// into a box and widens it, and a replacement may change the kind outright, a box becoming a
+    /// line, with nothing of the previous figure surviving it.
+    ///
+    /// An identity this diagram does not hold changes nothing, and the shape handed in is not
+    /// added either, so there is no way to name a shape into existence. It takes the shape by
+    /// value and hands back nothing, for the reason [`Diagram::remove`] does.
+    pub fn replace(&mut self, id: &ShapeId, shape: Shape) {
+        if let Some(index) = self.find(id) {
+            self.shapes[index].shape = shape;
+        }
+    }
+
     /// Draws every shape into `buffer`, front to back, stamping every cell with
     /// [`StampMode::Below`] (FR-010 to FR-012). Drawing changes nothing about this diagram
     /// (FR-015), so two drawings into equal windows produce equal buffers.
@@ -114,7 +160,7 @@ mod tests {
         Orientation, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, render,
     };
 
-    use super::Diagram;
+    use super::{Diagram, ShapeId};
     use crate::{Delta, Endpoint, Shape};
 
     fn light() -> Stroke {
@@ -802,9 +848,67 @@ mod tests {
         for shape in shapes {
             diagram.add(shape);
         }
+        draw_of(&diagram, origin, size)
+    }
+
+    /// Draws a diagram the caller already holds, for a claim about what a change to it did.
+    fn draw_of(diagram: &Diagram, origin: Pos, size: Size) -> Buffer {
         let mut buffer = Buffer::new(origin, size);
         diagram.draw(&mut buffer);
         buffer
+    }
+
+    /// The positions where two buffers of one window differ, so that a claim about which cells a
+    /// change reached can be made by coordinates rather than by reading two pictures side by side.
+    fn differing(before: &Buffer, after: &Buffer, origin: Pos, size: Size) -> Vec<Pos> {
+        (0..size.height)
+            .flat_map(|dy| (0..size.width).map(move |dx| (dx, dy)))
+            .map(|(dx, dy)| Pos {
+                x: origin.x + i32::try_from(dx).expect("width fits i32"),
+                y: origin.y + i32::try_from(dy).expect("height fits i32"),
+            })
+            .filter(|at| before.cell(*at) != after.cell(*at))
+            .collect()
+    }
+
+    /// Three filled boxes that all overlap one another, so which of them is front-most decides the
+    /// cells they share and a change of order changes the picture. The first is the back-most and
+    /// the last the front-most, and the second overlaps both.
+    fn three_overlapping_boxes() -> (Shape, Shape, Shape) {
+        let filled_box = |at: Pos, fill: &str| Shape::Box {
+            at,
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new(fill).expect("one glyph")),
+        };
+        (
+            filled_box(Pos { x: 0, y: 0 }, "░"),
+            filled_box(Pos { x: 2, y: 1 }, "▓"),
+            filled_box(Pos { x: 0, y: 1 }, "▒"),
+        )
+    }
+
+    /// An identity no diagram in these tests holds, and the one the specification's cases mean by
+    /// an identity from another diagram.
+    ///
+    /// It is the **third** identity another diagram issued rather than its first, because
+    /// `ShapeId` is a string: an identity from elsewhere matches nothing here only because its
+    /// number differs, and a diagram that issued one shape issues `#1`, which is exactly the
+    /// identity a diagram holding two shapes has already used.
+    fn a_foreign_identity() -> ShapeId {
+        let a_line = || Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 1,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        let mut other = Diagram::new();
+        other.add(a_line());
+        other.add(a_line());
+        other.add(a_line())
     }
 
     /// User Story 1, spec's B3.1 scenario, SC-004: a box displaced two cells right draws exactly
@@ -916,5 +1020,357 @@ mod tests {
 
         assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
         assert_ne!(displaced, a);
+    }
+
+    // ------------------------------------------- reading a figure back, and the two changes
+
+    /// User Story 2, spec's B4.1 scenario: `get` on the identity `add` handed back returns a figure
+    /// equal by value to the one added.
+    ///
+    /// Compared by value rather than by picture, because this is the only rule in the slice no
+    /// picture can show. The widened derives are what make it sayable at all, and what comes back
+    /// is the bare figure: the identity and the place in the order are the diagram's, held beside
+    /// the figure rather than inside it.
+    #[test]
+    fn get_returns_the_figure_the_addition_named() {
+        let (a, _b) = overlapping_boxes();
+        let mut diagram = Diagram::new();
+        let id = diagram.add(a.clone());
+
+        assert_eq!(diagram.get(&id), Some(&a));
+    }
+
+    /// User Story 2, spec's B4.2 scenario, SC-003: `get` on an identity this diagram does not hold
+    /// gives nothing, and the picture it draws is the one it drew before.
+    ///
+    /// The identity is one another diagram issued, which is the case the specification means.
+    #[test]
+    fn get_on_an_identity_from_another_diagram_gives_nothing_and_changes_nothing() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b) = overlapping_boxes();
+        let mut diagram = Diagram::new();
+        diagram.add(a);
+        diagram.add(b);
+        let before = draw_of(&diagram, origin, size);
+
+        assert_eq!(diagram.get(&a_foreign_identity()), None);
+        assert_eq!(
+            cells(&before, origin, size),
+            cells(&draw_of(&diagram, origin, size), origin, size)
+        );
+    }
+
+    /// User Story 3, spec's B1.1 scenario, SC-001: a diagram of several figures, drawn before and
+    /// after one is taken out, produces different buffers, and the figures that stayed draw exactly
+    /// what they drew on their own.
+    ///
+    /// Three overlapping boxes rather than a row, and the one taken out is the first of the three
+    /// rather than a figure in the middle. That is what makes the test say something a swap with
+    /// the last entry could not pass: closing the gap leaves the survivors in the order they were,
+    /// so the one that was in front is still in front, and swapping the removed entry with the
+    /// back-most would hand the diagram the other two pictures instead.
+    #[test]
+    fn taking_a_shape_out_changes_the_picture_and_leaves_the_rest_drawing_what_they_drew() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (first, second, third) = three_overlapping_boxes();
+
+        let mut diagram = Diagram::new();
+        let taken_out = diagram.add(first);
+        diagram.add(second.clone());
+        diagram.add(third.clone());
+        let before = draw_of(&diagram, origin, size);
+
+        diagram.remove(&taken_out);
+        let after = draw_of(&diagram, origin, size);
+
+        assert_ne!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_eq!(
+            cells(&after, origin, size),
+            cells(&drawn(vec![second, third], origin, size), origin, size)
+        );
+    }
+
+    /// User Story 3, spec's B1.2 scenario, SC-003: taking out an identity this diagram does not
+    /// hold leaves the buffer exactly as it was, with no error, no report and no panic. The
+    /// identity is one another diagram issued, which is the case worth running: a well-formed
+    /// value that matches nothing here.
+    #[test]
+    fn taking_out_an_identity_from_another_diagram_changes_nothing_and_does_not_panic() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b) = overlapping_boxes();
+        let mut diagram = Diagram::new();
+        diagram.add(a);
+        diagram.add(b);
+        let before = draw_of(&diagram, origin, size);
+
+        diagram.remove(&a_foreign_identity());
+
+        assert_eq!(
+            cells(&before, origin, size),
+            cells(&draw_of(&diagram, origin, size), origin, size)
+        );
+    }
+
+    /// User Story 3, spec's B1.3 scenario, SC-005: take `#1` out, add a figure, and the identity
+    /// handed back is `#3` rather than `#1`.
+    ///
+    /// Asserted by the identity's own text rather than by a picture, and it needs no code beyond
+    /// the absence of a decrement, because `add` already increments before use.
+    #[test]
+    fn an_identity_is_never_handed_out_again_after_a_removal() {
+        let a_line = || Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 1,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+
+        let mut diagram = Diagram::new();
+        let first = diagram.add(a_line());
+        diagram.add(a_line());
+        assert_eq!(first.to_string(), "#1");
+
+        diagram.remove(&first);
+        let after_the_removal = diagram.add(a_line());
+
+        assert_eq!(after_the_removal.to_string(), "#3");
+    }
+
+    /// Edge case: the last shape taken out leaves an empty diagram, and drawing an empty diagram
+    /// leaves the buffer as it was. The rule `an_empty_diagram_leaves_its_buffer_untouched` already
+    /// pins, reached here through a removal rather than through a diagram never given anything.
+    #[test]
+    fn taking_out_the_last_shape_leaves_an_empty_diagram() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, _b) = overlapping_boxes();
+        let mut diagram = Diagram::new();
+        let only = diagram.add(a);
+
+        diagram.remove(&only);
+
+        assert_eq!(
+            cells(&draw_of(&diagram, origin, size), origin, size),
+            vec![None; (size.width * size.height) as usize]
+        );
+    }
+
+    /// User Story 4, spec's B2.1 scenario, SC-002: a box put back as a wider box draws exactly what
+    /// that wider box added on its own produces.
+    ///
+    /// Pinned against the wider box's own picture rather than against the box it replaced, which is
+    /// what makes the claim about the figure handed in and not about a difference between two.
+    #[test]
+    fn a_box_put_back_as_a_wider_box_draws_that_wider_box() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 9,
+            height: 3,
+        };
+        let box_of = |width: u32| Shape::Box {
+            at: Pos { x: 1, y: 0 },
+            size: Size { width, height: 3 },
+            stroke: light(),
+            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+        };
+
+        let mut diagram = Diagram::new();
+        let id = diagram.add(box_of(4));
+        diagram.replace(&id, box_of(7));
+
+        assert_eq!(
+            cells(&draw_of(&diagram, origin, size), origin, size),
+            cells(&drawn(vec![box_of(7)], origin, size), origin, size)
+        );
+    }
+
+    /// User Story 4, spec's B2.2 scenario, SC-002: a box put back as a line draws the line, kind
+    /// included, and nothing of the previous figure survives.
+    ///
+    /// The pair the specification draws by hand and calls hypothetical, each side pinned against
+    /// the figure handed in rather than against the other, which is what turns "nothing of the
+    /// previous figure survives" into a checked claim rather than a comparison of two pictures.
+    #[test]
+    fn a_box_put_back_as_a_line_draws_the_line() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 4,
+            height: 3,
+        };
+        let the_box = || Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+        };
+        let the_line = || Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 4,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+
+        let mut diagram = Diagram::new();
+        let id = diagram.add(the_box());
+        diagram.replace(&id, the_line());
+
+        assert_eq!(
+            cells(&draw_of(&diagram, origin, size), origin, size),
+            cells(&drawn(vec![the_line()], origin, size), origin, size)
+        );
+    }
+
+    /// User Story 4, spec's B2.3 scenario: a figure overlapping another, put back under its own
+    /// identity unchanged, resolves the overlap as it did.
+    ///
+    /// This is what shows a replacement is not a reorder, and the second assertion says so
+    /// directly: it holds up the order a remove-and-add would have produced as the picture that
+    /// replacement must **not** draw. Two figures would not have been enough, since removing the
+    /// front-most of two and adding it back leaves the order it was.
+    #[test]
+    fn a_figure_put_back_unchanged_resolves_its_overlap_as_it_did() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b, c) = three_overlapping_boxes();
+        let mut diagram = Diagram::new();
+        diagram.add(a.clone());
+        let middle = diagram.add(b.clone());
+        diagram.add(c.clone());
+        let before = draw_of(&diagram, origin, size);
+
+        diagram.replace(&middle, b.clone());
+        let after = draw_of(&diagram, origin, size);
+
+        assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_ne!(
+            cells(&after, origin, size),
+            cells(&drawn(vec![a, c, b], origin, size), origin, size)
+        );
+    }
+
+    /// User Story 4, spec's B2.4 scenario, SC-003: a shape put under an identity this diagram does
+    /// not hold leaves the picture alone **and adds nothing**.
+    ///
+    /// The figure handed in is placed where it would be plainly visible, so a `replace` that fell
+    /// back to removing the old entry and adding the new one would fail on the picture rather than
+    /// on a count. The identity assertion is the other half: `#1` still names the figure it always
+    /// named, so there is no way to name a shape into existence.
+    #[test]
+    fn a_shape_put_under_a_foreign_identity_is_neither_drawn_nor_added() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b) = overlapping_boxes();
+        let mut diagram = Diagram::new();
+        diagram.add(a.clone());
+        diagram.add(b);
+        let before = draw_of(&diagram, origin, size);
+
+        diagram.replace(
+            &a_foreign_identity(),
+            Shape::Box {
+                at: Pos { x: 1, y: 1 },
+                size: Size {
+                    width: 3,
+                    height: 3,
+                },
+                stroke: light(),
+                fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+            },
+        );
+        let after = draw_of(&diagram, origin, size);
+
+        assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_eq!(diagram.get(&ShapeId::new("#1")), Some(&a));
+    }
+
+    /// User Story 1, spec's B3.3 scenario, second half: draw, displace, `replace`, and the picture
+    /// is the one the same three figures draw with the middle one standing where the displacement
+    /// put it.
+    ///
+    /// It lands beside the replacement rather than beside the displacement because it is the half
+    /// that needs `replace` to exist. The reach is then pinned by coordinates: the cells the
+    /// figure held before and the cells it holds now, and not one more. A change reaching a cell
+    /// of either box, which is what a move implemented as a removal and an addition would do, is
+    /// outside that set.
+    #[test]
+    fn putting_a_displaced_figure_back_reaches_only_the_cells_that_figure_holds() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 11,
+            height: 3,
+        };
+        let filled_box = |x: i32, fill: &str| Shape::Box {
+            at: Pos { x, y: 0 },
+            size: Size {
+                width: 3,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new(fill).expect("one glyph")),
+        };
+        let the_line = |x: i32| Shape::Line {
+            at: Pos { x, y: 1 },
+            len: 5,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+
+        let mut diagram = Diagram::new();
+        diagram.add(filled_box(0, "░"));
+        let middle = diagram.add(the_line(3));
+        diagram.add(filled_box(8, "▓"));
+        let before = draw_of(&diagram, origin, size);
+
+        let moved = the_line(3).displaced_by(Delta { dx: 2, dy: 0 });
+        diagram.replace(&middle, moved.clone());
+        let after = draw_of(&diagram, origin, size);
+
+        assert_eq!(
+            cells(&after, origin, size),
+            cells(
+                &drawn(
+                    vec![filled_box(0, "░"), moved, filled_box(8, "▓")],
+                    origin,
+                    size
+                ),
+                origin,
+                size
+            )
+        );
+
+        let held_by_the_line = |at: Pos| at.y == 1 && (3..=9).contains(&at.x);
+        let reached = differing(&before, &after, origin, size);
+        assert!(
+            !reached.is_empty(),
+            "the displacement reached nothing at all"
+        );
+        assert!(
+            reached.iter().all(|at| held_by_the_line(*at)),
+            "the change reached outside the displaced figure: {reached:?}"
+        );
     }
 }

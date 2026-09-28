@@ -13,10 +13,11 @@
 //! and is written by neither figure.
 //!
 //! The cost is one place the rule from the core's gallery does not hold. A `Diagram` keeps its
-//! shapes in a private `Vec<Placed>` and offers no way to read them back, so there is nothing to
-//! derive a label from and the block says which shapes it holds in a string written by hand.
-//! ADR-0030 withdrew `Extent` for the same reason — a shape with no reader — and the two ways out
-//! are more public surface or a read iterator that record already declined once.
+//! shapes in a private `Vec<Placed>` and offers one query by an identity, with no listing of what
+//! it holds, so there is nothing to derive a label from and the block says which shapes it holds
+//! in a string written by hand. ADR-0030 withdrew `Extent` for the same reason — a shape with no
+//! reader — and the reader that has since arrived is that one query, not the read iterator that
+//! record declined and the listing it declined beside.
 //!
 //! [ADR-0064](../../../docs/decisions/0064-give-each-generated-picture-the-carrier-that-can-reach-its-subject.md)
 //! records why a figure's picture needs this carrier and not a `<!-- render: -->` marker.
@@ -34,15 +35,15 @@ const WHAT: &str = concat!(
     "A gallery: a chosen set of examples, one block each, for reading rather than for coverage. ",
     "Each label lists the shapes in the order they were added, each one derived from its own ",
     "Debug, so a label cannot disagree with the values it names; what was done to the order is ",
-    "the second line, because a diagram holds its shapes privately and offers no way to read them ",
-    "back. Under each picture is the surface that picture came from: a count of the positions the ",
-    "diagram wrote, then a row for each of them, saying what that position renders, what each of ",
-    "its four arms holds, and the base stroke every Set arm is drawn in. A Set arm names the ",
-    "stroke; Unset and Closed are the model's own two words for the other two. A position left ",
-    "unwritten is a hole in the picture rather than a row here, and the count is how many there ",
-    "are. A literal has no arms, so its arm columns are empty. A block moving means a figure or ",
-    "an order changed, and what moved is the thing to look at — the same acceptance a ",
-    "characterization gets, without its claim of covering a range.",
+    "the second line, because a diagram offers one query by an identity and no listing of the ",
+    "shapes it holds. Under each picture is the surface that picture came from: a count of the ",
+    "positions the diagram wrote, then a row for each of them, saying what that position renders, ",
+    "what each of its four arms holds, and the base stroke every Set arm is drawn in. A Set arm ",
+    "names the stroke; Unset and Closed are the model's own two words for the other two. A ",
+    "position left unwritten is a hole in the picture rather than a row here, and the count is ",
+    "how many there are. A literal has no arms, so its arm columns are empty. A block moving ",
+    "means a figure or an order changed, and what moved is the thing to look at — the same ",
+    "acceptance a characterization gets, without its claim of covering a range.",
 );
 
 const COLUMNS: [&str; 7] = ["at", "glyph", "top", "right", "bottom", "left", "base"];
@@ -222,8 +223,9 @@ fn surface(buffer: &Buffer, size: Size) -> String {
 }
 
 /// One block: what the diagram holds, then what was done to the order, then the picture, then
-/// the surface. `shapes` is a label rather than the values, because a `Diagram` holds its shapes
-/// privately and there is no way to read them back out of one.
+/// the surface. `shapes` is a label rather than the values, because a `Diagram` offers one query
+/// by an identity and no listing of the shapes it holds, so there is nothing here to derive a
+/// label from.
 fn block(shapes: &str, order: &str, size: Size, diagram: &Diagram) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "  shapes: {shapes}");
