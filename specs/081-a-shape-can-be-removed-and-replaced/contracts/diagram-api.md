@@ -43,13 +43,19 @@ function that does the arithmetic is crate-private and is not part of this surfa
 ```rust
 impl Shape {
     /// Builds a new figure, this one moved by `by`, changing nothing.
+    #[must_use]
     pub fn displaced_by(&self, by: Delta) -> Self;
 }
 ```
 
 The derives widen to `Debug, Clone, PartialEq, Eq`. `Clone` and `PartialEq` are what let a caller
 compare what `get` returned with what it added, and what let a displaced-by-nothing figure come back
-equal to itself; every field already supported them.
+equal to itself; every leaf type already supported them.
+
+**`Endpoint` widens with them**, from `Clone, Debug` to `Clone, Debug, PartialEq, Eq`. A derive does
+not reach through a field, and `Shape::Connector` holds an `Endpoint`, so `Shape` does not compile
+until this lands. It is a consequence rather than a choice: the correction to the design that
+`data-model.md` records.
 
 - `displaced_by` takes `&self` and gives back a `Self`, so it composes with `get`'s borrow and
   nothing is cloned at the call site.
@@ -70,6 +76,7 @@ equal to itself; every field already supported them.
 ```rust
 impl Diagram {
     /// The figure named by `id`, or `None` when the diagram holds no such shape.
+    #[must_use]
     pub fn get(&self, id: &ShapeId) -> Option<&Shape>;
 
     /// Takes the shape named by `id` out of the diagram.
@@ -81,7 +88,12 @@ impl Diagram {
 ```
 
 `new`, `add`, `forward`, `backward` and `draw` are exactly what feature 080 shipped, and this slice
-changes none of them. `ShapeId`, `Placed` and `Endpoint` are unchanged.
+changes none of them. `ShapeId`, `Placed` and `Endpoint` are unchanged — except that `Endpoint`
+gains the two derives named above.
+
+`get` and `displaced_by` are `#[must_use]`, and the attribute is here because 080's contract carries
+it on `new`. Neither can be called for its effect: both build a value or a borrow and change
+nothing. `remove` and `replace` return nothing, so there is nothing to discard.
 
 - **`get`** is the crate's first reader, and the only one. It borrows, and there is no `cloned()`
   beside it. One query by an identity the caller already holds is the whole of it: there is no

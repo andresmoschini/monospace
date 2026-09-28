@@ -62,13 +62,18 @@ holding; a `HashMap` keyed by identity, which `ShapeId` cannot be — it derives
 
 ## Q4: What does `Shape` derive, and what does that cost?
 
-**Decision**: `Shape` gains `Clone, PartialEq, Eq` alongside its `Debug` (shape.rs:38).
+**Decision**: `Shape` gains `Clone, PartialEq, Eq` alongside its `Debug` (shape.rs:38), and
+`Endpoint` gains `PartialEq, Eq` alongside the `Clone, Debug` it already has (shape.rs:16), because
+`Shape` cannot compile without it.
 
 **Rationale**: B4.1 asks a caller to compare what `get` returned with what it added, and B3.4 asks a
 displaced-by-nothing figure to come back equal to itself; neither is expressible without
-`PartialEq`, and those two tests are the cheapest way to say it. Every field already supports it:
-`Pos`, `Size`, `Direction`, `Orientation`, `Stroke` (stroke.rs:5), `Glyph` (glyph.rs:26) and
-`Terminal` (connector.rs:118) all derive `Debug, Clone, PartialEq, Eq`.
+`PartialEq`, and those two tests are the cheapest way to say it. Every leaf type already supports
+it: `Pos`, `Size`, `Direction`, `Orientation`, `Stroke` (stroke.rs:5), `Glyph` (glyph.rs:26) and
+`Terminal` (connector.rs:118) all derive `Debug, Clone, PartialEq, Eq`. **`Endpoint` does not**, and
+the first draft of this question listed only the leaves and concluded from them. It derives
+`Clone, Debug` (shape.rs:16), and a derive does not reach through a field, so `Endpoint` gains
+`PartialEq, Eq` in the same commit. The list above is what made this look like a one-line change.
 
 **Alternatives considered**: asserting the figures through drawn pictures, which the spec prefers
 everywhere else and which cannot express `get` at all; a hand-written `PartialEq` for rules a derive

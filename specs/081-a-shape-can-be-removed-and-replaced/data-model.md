@@ -112,14 +112,21 @@ verify it.
 
 ### `#[derive(Clone, PartialEq, Eq)]` — widened
 
-`Shape` derives `Debug` today and gains `Clone`, `PartialEq` and `Eq` (research.md Q4). Every field
-already supports all three, so this is a derive list and nothing else. B3.4 and B4.1 are the two
-rules that need them, and they are the cheapest way to say either.
+`Shape` derives `Debug` today and gains `Clone`, `PartialEq` and `Eq` (research.md Q4). B3.4 and
+B4.1 are the two rules that need them, and they are the cheapest way to say either.
+
+**One field does not support all three yet, so this is two derive lists and not one.** The leaf
+types do: `Pos`, `Size`, `Direction`, `Orientation`, `Stroke` and `Glyph` already derive every one
+of the four. But `Shape::Connector` holds `Endpoint`, a struct of three of those leaves, which
+derives `Clone, Debug` alone (shape.rs:16) — and a derive does not reach through a field. `Endpoint`
+gains `PartialEq` and `Eq` first, or `Shape` does not compile. That is what the compiler asks for
+and not a decision, so it takes no entry on the sheet.
 
 `Clone` has a second use, and it is why `replace` can take a `Shape` by value and hand nothing back:
 a caller whose identity is not in the diagram has given its figure away, and `Clone` is how it keeps
 one. Nothing in this slice needs it, and the crate is not `Copy` — a figure owns a stroke and a
-fill.
+fill. Two places in `src/gallery.rs` argue the other way and are corrected in this slice's second
+commit, where the `Clone` arrives.
 
 ## `Diagram` — changed
 

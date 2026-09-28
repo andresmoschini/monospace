@@ -128,9 +128,15 @@ neither fails rather than passing on a connector that never moved (spec.md B3; q
       (data-model.md `Delta` and `Delta::apply`; research.md Q1, Q2; contracts/diagram-api.md
       `Delta`)
 - [ ] T010 [US1] Widen `Shape`'s derives from `Debug` to `Debug, Clone, PartialEq, Eq` in
-      `crates/monospace-diagram/src/shape.rs`; every field already supports the three, so this is a
-      derive list and nothing else, and `Clone` is what lets `replace` take a `Shape` by value
-      (data-model.md `Shape`'s derives; research.md Q4; depends on T008)
+      `crates/monospace-diagram/src/shape.rs`; every leaf type already supports the three and T008
+      has made `Endpoint` one of them, so this is a derive list and nothing else, and `Clone` is
+      what lets `replace` take a `Shape` by value (data-model.md `Shape`'s derives; research.md Q4;
+      depends on T008). In the same change, correct the two comments in
+      `crates/monospace-diagram/src/gallery.rs` that say `Shape` has no `Clone` — the doc on the
+      helper that builds a list of values, and the comment in `the_order_decides_a_shared_cell`
+      explaining why the two boxes are rebuilt rather than cloned. Search for the two comments that
+      mention `Clone`; the other claims in that file are about `Diagram` and belong to T016, which
+      is a later commit
 - [ ] T011 [US1] Add `Shape::displaced_by(&self, by: Delta) -> Self` in
       `crates/monospace-diagram/src/shape.rs`, one arm per variant: `Box` and `Line` displace their
       own `at` and copy `size`/`stroke`/`fill` and `len`/`orientation`/`stroke` through, `Connector`
@@ -146,7 +152,8 @@ neither fails rather than passing on a connector that never moved (spec.md B3; q
 **Checkpoint**: User Story 1 is fully functional and testable independently —
 `cargo test -p monospace-diagram` passes, and a figure is displaced without anything changing.
 
-**Commit**: `feat(diagram):` T008-T012, ticking T004-T007 with them (plan.md commit 2).
+**Commit**: `feat(diagram):` T008-T012, ticking T004-T007 with them, and the two `gallery.rs`
+comments inside T010 with them (plan.md commit 2).
 
 ---
 
@@ -176,11 +183,13 @@ compare the two by value (spec.md B4; quickstart.md B4).
       `cloned()` beside it; mark it `#[must_use]` for the gate's `pedantic` group, and rustdoc it as
       contracts/diagram-api.md writes it (D2; B4.1-B4.3; data-model.md `get`;
       contracts/diagram-api.md `get`)
-- [ ] T016 [US2] Correct the three statements in `crates/monospace-diagram/src/gallery.rs` that a
+- [ ] T016 [US2] Correct the **four** places in `crates/monospace-diagram/src/gallery.rs` that say a
       `Diagram` "offers no way to read them back" — the module doc, the sentence inside the `WHAT`
-      description, and the doc on `block` — so each says instead that a diagram offers one query by
-      an identity and no listing of the shapes it holds, which is what D2 already answered; the
-      `WHAT` text is rendered into the gallery's generated pictures, so re-accept them with
+      description, the doc on `block`, and the ADR-0030 sentence beside it — so each says instead
+      that a diagram offers one query by an identity and no listing of the shapes it holds, which is
+      what D2 already answered. Find them by searching for `no way to read`, `privately` and
+      `no reader`; the first draft of this task named three and the file holds four. The `WHAT` text
+      is rendered into all three of that module's committed snapshots, so re-accept them with
       `cargo insta review` afterwards (`cargo-insta` is installed by hand, not by
       `cargo xtask setup`)
 
@@ -434,7 +443,8 @@ outside the sheet).
 
 - US1: T008 before T010, because `Shape` cannot derive `PartialEq` while `Endpoint` does not; T009
   before T011, because `displaced_by` takes a `Delta`; T011 before T012, because the re-export names
-  a module that must compile. Tests (T004-T007) fail first and pass with the implementation.
+  a module that must compile. The two `gallery.rs` comments inside T010 land with T010 and need
+  nothing else. Tests (T004-T007) fail first and pass with the implementation.
 - US2: T015 before T016, because the gallery is corrected by the reader landing.
 - US3: T021, then T017-T020. T019 and T020 are the two assertions about what `remove` does _not_
   touch — the counter and the buffer.
