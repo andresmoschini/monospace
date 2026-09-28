@@ -23,7 +23,9 @@ ahead of this spec: a slice needing a rule the model lacks has the model grow it
 does.
 
 - [§1 _Vocabulary_](../../docs/diagram-model.md#1-vocabulary) — one row added, how far a figure
-  moves along each axis.
+  moves along each axis, and one corrected: a diagram's `Shape` holds its kind, its parameters and
+  its position, while its identity and its place in the order are the diagram's, which is what
+  _Changing a diagram_ already said and what B4's reader hands back.
 - [§4 _Positions_](../../docs/diagram-model.md#4-positions) — displacing a figure moves every
   position it holds, and reaches a reference's offsets rather than anything that reference resolves
   to.
@@ -42,6 +44,33 @@ none of the decisions: the seven this slice needs are on the sheet `/speckit-pla
 from the maintainer's draft at `monospace-drafts/81-decisiones.md`.
 
 ## Clarifications
+
+### Session 2026-09-28
+
+- Q: Where does the displacement in the demonstration's third picture come from — how far the figure
+  moves, and who decides that amount? → A: A fixed value the demonstration's own code carries,
+  chosen so the shipped description shows it and marked in a comment as a demonstration-only
+  assumption, the way the reorder's is. The description format gains no field for it and the binary
+  gains no argument for it, so a file's picture is exactly the one it was and the shipped
+  description needs no change.
+- Q: The checklist says the reader is justified because the demonstration needs it. Does the
+  demonstration read a figure back? → A: No, and B4 never said it did. The demonstration keeps
+  naming `#1` by hand, as it does today. B4 is justified by the general argument in **Input**: a
+  caller holding only an identity cannot displace or replace a figure without reading it back first.
+  The direction that is missing is the other one — there is no way to get a diagram's identities
+  back at all, by listing them or by asking a position which shape decided it — and that is what B4
+  scenario 3 leaves open and issue #86 settles.
+- Q: The slice is named for removing and replacing a shape, but the shipped run shows neither — it
+  shows a reorder and a displacement. Is that deliberate? → A: No. The shipped demonstration grows a
+  fourth picture, showing the same back-most shape taken out. It is appended after the pair that
+  contrasts the reorder with the displacement rather than interleaved with them, so all four
+  pictures are about one figure: it moves, it is displaced, and then it is gone.
+- Q: When the reader hands a figure back, does that figure carry the shape's identity? → A: No. It
+  is the bare value the caller added, and the identity is the diagram's — held beside the figure
+  rather than inside it, as it has been since spec 079. The model's _Vocabulary_ row for `Shape`
+  claimed otherwise and is corrected on this branch, next to the `Delta` row it gains. Putting the
+  identity inside the value would also put a name in an immutable figure whose name changes the
+  moment a different figure is put under it.
 
 ### Session 2026-09-27
 
@@ -138,27 +167,47 @@ from the maintainer's draft at `monospace-drafts/81-decisiones.md`.
 
 1. **Given** a diagram holding a figure, **When** the caller asks for the identity its addition
    handed back, **Then** it gets that figure, and can compare it by value with the one it added.
+   What comes back is the bare figure the caller added: the identity and the place in the order are
+   the diagram's, held beside the figure rather than inside it, and nothing about the figure names
+   where it sits.
 2. **Given** an identity the diagram does not hold, **When** the caller asks, **Then** it gets
    nothing and nothing about the diagram changed.
 3. **Given** this reader, **When** a caller looks for a way to ask what a diagram holds — a listing,
    an order, a count — **Then** there is none. One query by identity is the whole of it, and drawing
    stays the only way anything else is observed.
 
-### B5 — The shipped demonstration shows a displacement beside the reorder
+### B5 — The shipped demonstration shows a removal beside a displacement and a reorder
 
 1. **Given** the shipped demonstration, **When** the application is run with no arguments, **Then**
-   it prints three captioned pictures: the description as written, the same description with its
-   back-most shape moved one place toward the front, and that same shape displaced.
+   it prints four captioned pictures: the description as written, the same description with its
+   back-most shape moved one place toward the front, that same shape displaced, and that same shape
+   taken out.
 2. **Given** the second and third pictures, **When** they are read together, **Then** the figure the
    third displaces is the one the second moved, so the contrast between what a reorder changes and
    what a displacement changes is direct rather than something a reader works out.
 3. **Given** the third picture, **When** it is compared with the second, **Then** they differ, and
    every cell outside the displaced figure's own is the same in both.
-4. **Given** a path, **When** the application is given one, **Then** it prints one picture and
+4. **Given** the fourth picture, **When** it is read with the first three, **Then** the figure it no
+   longer holds is the one the second moved and the third displaced, so all four are about one
+   figure and the removal is the last of three changes rather than a fourth unrelated one.
+5. **Given** the fourth picture, **When** it is compared with the third, **Then** they differ only
+   in the cells that figure occupied: each is the cell the figure behind it decides, or empty where
+   no figure decides one. Taking a shape out leaves a gap, not a hole punched in what was around it.
+6. **Given** a path, **When** the application is given one, **Then** it prints one picture and
    nothing else, exactly as today. That is what `cargo xtask render` embeds, and it is why the split
    exists.
-5. **Given** a description holding no shapes, or one, **When** it is demonstrated, **Then** all
-   three pictures are identical and nothing fails.
+7. **Given** a description holding no shapes, or one, **When** it is demonstrated, **Then** all four
+   pictures are identical and nothing fails.
+8. **Given** the shipped demonstration, **When** the third picture is built, **Then** the amount the
+   figure is displaced by is a fixed value the demonstration's own code carries, chosen so the
+   shipped description shows it and marked in a comment as a demonstration-only assumption, the way
+   the reorder's is. The description format gains no field for it and the binary gains no argument
+   for it, so a file's picture is exactly the one it was and the shipped description needs no
+   change.
+9. **Given** the shipped demonstration, **When** it names the shape it moves, displaces and takes
+   out, **Then** it names it with `#1` built by hand, as it does today, and does not read the figure
+   back to obtain it. B4's reader is for a caller holding only an identity, and the demonstration is
+   not one.
 
 ## Edge cases
 
@@ -180,8 +229,11 @@ from the maintainer's draft at `monospace-drafts/81-decisiones.md`.
 - **What displacing a figure that holds a reference means.** _Positions_ states the first answer and
   _Open questions_ keeps the question, because nothing can hold one yet. Settled by: the first slice
   that has a reference to displace, issue #82.
-- **How a caller discovers what a diagram holds.** One query by an identity it already has, and
-  nothing else. Settled by: the first consumer needing the list rather than one figure.
+- **How a caller discovers what a diagram holds.** The reader goes one way only: one query by an
+  identity the caller already has, and nothing coming back. Neither a listing of a diagram's
+  identities nor an answer to "which shape decided this position" exists, though the buffer's
+  ownership record already holds what the second would need. Settled by: the first consumer needing
+  a diagram's identities rather than one figure — issue #86 for the position.
 - **Whether taking a shape out hands anything back.** It hands back nothing, and there is no history
   and nothing to undo. Settled by: a consumer that must undo a removal, a drawing application being
   the obvious one.
@@ -207,10 +259,11 @@ from the maintainer's draft at `monospace-drafts/81-decisiones.md`.
   its addition named, and nothing for an identity the diagram does not hold.
 - **Contract** — the identity counter only rises: take `#1` out, add a figure, and the identity
   handed back is the next one rather than `#1`.
-- **Contract** — the demonstration: three captioned pictures on a bare run, the first two about the
-  order and the third about the position, differing from the second only in the displaced figure;
-  and a path still printing one picture and nothing else. The test pins the pictures, not the
-  captions' wording.
+- **Contract** — the demonstration: four captioned pictures on a bare run — the first the
+  description as written, the second about the order, the third about the position and differing
+  from the second only in the displaced figure, the fourth about the figure that is gone and
+  differing from the third only in the cells it occupied; and a path still printing one picture and
+  nothing else. The test pins the pictures, not the captions' wording.
 - Unit tests for both changes, the displacement and the reader are the minimum; a rule above with no
   test named against it is unfinished. No characterization test is called for: every rule here is
   about a picture or a value, and a range too wide to read by hand is not what this slice produces.
@@ -235,10 +288,10 @@ from the maintainer's draft at `monospace-drafts/81-decisiones.md`.
   connector included, and no kind of figure is left where it was.
 - **SC-005**: Taking a shape out and adding one afterwards never reissues the removed shape's
   identity.
-- **SC-006**: A bare run of the application shows the same figures three times, the second differing
-  from the first only in which of two overlapping figures wins their shared cells and the third only
-  in where that same figure sits — so a person who runs it tells a reorder from a displacement
-  without reading a test.
+- **SC-006**: A bare run of the application shows the same figures four times, the second differing
+  from the first only in which of two overlapping figures wins their shared cells, the third only in
+  where that same figure sits, and the fourth not holding that figure at all — so a person who runs
+  it tells a reorder, a displacement and a removal from one another without reading a test.
 - **SC-007**: Given a path, the application still prints one picture and nothing else, which is what
   `cargo xtask render` embeds in a document.
 - **SC-008**: `cargo xtask check` is green, including `monospace-diagram` compiling for
