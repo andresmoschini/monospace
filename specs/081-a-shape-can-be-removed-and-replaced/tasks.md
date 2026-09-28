@@ -366,33 +366,33 @@ passes, and a bare run tells a reorder, a displacement and a removal from one an
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T036 Run `cargo run -p monospace-cli > /tmp/demo-after.txt` and
+- [x] T036 Run `cargo run -p monospace-cli > /tmp/demo-after.txt` and
       `diff /tmp/demo-before.txt /tmp/demo-after.txt` — the diff is three appended
       caption-and-picture blocks and nothing else; then
       `diff /tmp/file-before.txt /tmp/file-after.txt`, which must print nothing at all, since a
       file's picture is exactly the one it was (B5.6, B5.8, SC-007; quickstart.md)
-- [ ] T037 Read the four pictures from that run and confirm they are about one figure: the second
+- [x] T037 Read the four pictures from that run and confirm they are about one figure: the second
       differs from the first only in which of two overlapping figures wins their shared cells, the
       third only in where that same figure sits, and the fourth does not hold it at all — so a
       person who runs it tells a reorder, a displacement and a removal from one another without
       reading a test (B5.2-B5.5, SC-006)
-- [ ] T038 Run the two acceptance scenarios from quickstart.md: a description whose `shapes` is
+- [x] T038 Run the two acceptance scenarios from quickstart.md: a description whose `shapes` is
       empty, and one holding a single shape, each printing four identical pictures and exiting
       successfully (B5.7)
-- [ ] T039 Confirm B4.3 still holds by reading `Diagram`'s signatures: there is no `ids()`, no
+- [x] T039 Confirm B4.3 still holds by reading `Diagram`'s signatures: there is no `ids()`, no
       `len`, no order, no way to ask which shape decided a position, and no `cloned()` beside `get`.
       It is a rule about what is absent, so the only way to keep it true is for nothing to add it
       (B4.3; contracts/diagram-api.md "What is still not here"; issue #86 is the other direction)
-- [ ] T040 Confirm the two rules the spec accepts with nothing to verify them are **named as such**
+- [x] T040 Confirm the two rules the spec accepts with nothing to verify them are **named as such**
       rather than described as tested: removing a shape leaves every reference to it unresolved, and
       displacing a reference reaches its offsets. No figure can hold a reference yet, so neither is
       reachable from a test, and issue #82 is where both can be asserted. Look for them in
       `docs/diagram-model.md` and leave them as they are — this task is a check that the record says
       so, not an edit (constitution principle IV; D6; spec.md Testing expectations)
-- [ ] T041 Run `cargo xtask check` and confirm it is green, including the `wasm` step — which
+- [x] T041 Run `cargo xtask check` and confirm it is green, including the `wasm` step — which
       already names `monospace-diagram`, so it covers `Delta` and the three new methods with no
       change to `xtask` and no new check (SC-008; plan.md Constitution Check, principle III)
-- [ ] T042 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T042 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and optionally a trade-off worth
       remembering (constitution principle II)
 

@@ -1950,3 +1950,87 @@ fill the second.
   behavioral commit moved all six, so each file was touched once. The price is that the wire tag is
   wrong in the tree for three commits, which nothing reads and no check looks at; the saving is six
   edits of the same line and one class of mistake avoided.
+
+## 2026-09-28 — a shape can be taken out, and the rule that asked for the impossible
+
+Feature 081: `Delta`, `Shape::displaced_by`, and `get`, `remove` and `replace` on a diagram. Five
+commits, and the fourth of them is a correction to the specification rather than the feature it
+describes.
+
+### Rust design and idiom
+
+- **An identity is a string, so "one from another diagram" is a claim about numbers and not about
+  diagrams.** Three of the new tests wanted an identity this diagram does not hold, and the helper
+  that produced one added a single shape to a second diagram, which issued `#1` — the identity a
+  diagram holding two shapes has already used. All three failed, each in a way that looked like a
+  bug in the method under test. The fix is `a_foreign_identity`, which issues the **third** identity
+  from another diagram, and its doc says why: an identity from elsewhere matches nothing here only
+  because its number differs. A helper whose contract is "some identity the diagram does not hold"
+  has to be checked against a diagram that holds a plausible range, or it silently tests the
+  opposite of what it names.
+- **Comparing `Vec<Option<Cell>>` finds that two drawings differ, and never which cells.** The two
+  rules about a replacement — that the order did not move, and that a displacement reached nothing
+  outside the figure's own cells — are claims about _positions_, so they needed positions. A
+  `differing(before, after, origin, size) -> Vec<Pos>` helper turns a picture into the set of cells
+  that changed, and both rules then read as `reached.iter().all(|at| held_by_the_figure(*at))`. The
+  helper is eight lines and it is the only reason either rule is checkable at all; without it the
+  assertion is `assert_ne!` on two renderings, which is the same claim the spec was making in prose.
+- **A test with two figures cannot see a change of order.**
+  `a_figure_put_back_unchanged_resolves_its_overlap_as_it_did` was written with the two overlapping
+  boxes the file already had, and it passed against a `replace` implemented as remove-and-add.
+  Removing the front-most of two and adding it back leaves the order it was, so the mutation was
+  invisible. Three overlapping boxes and the middle entry instead of the front-most is what made the
+  test say what its name claims, and the same change made the removal test catch a swap with the
+  last entry. The number of figures in a fixture is a test design decision with a right answer, and
+  "as many as the claim needs" is not "as many as the file already has".
+
+### Working this way
+
+- **A requirement can be unsatisfiable, and the test that proves it is the evidence to take to the
+  maintainer.** B5.7 asked for four identical pictures from a description holding no shapes _or
+  one_, and B5.8 asked for a fixed delta with no branch. Those cannot both hold: a figure that fills
+  its own window is moved partly or wholly out of it by any delta other than none, and the fourth
+  picture has to show that figure taken out, so the first and the fourth can never be equal. The
+  temptation was to pick quietly and record it afterwards, which is the one thing _No decision
+  outside the sheet_ forbids. Measuring both readings first is what made the question worth asking:
+  the alternative — skipping the displacement _and_ the removal when a description holds fewer than
+  two shapes — does give four identical pictures, and the price is two captions claiming a change
+  that did not happen. That price is invisible from the assertion and obvious from the output, and
+  the output is what the maintainer read. The answer came back in one turn, it was the first option,
+  and B5.7 is corrected in `spec.md` with both measurements in its Clarifications.
+- **`insta` compares a snapshot's body, so a description that changed while the body did not is not
+  a difference it acts on.** `cargo-insta` is not installed here and `INSTA_UPDATE=always` rewrote
+  nothing: the gallery's three snapshots kept the old sentence in their `description:` header after
+  the `WHAT` constant was corrected, and the suite was green over all three. The three lines were
+  rewritten from the constant itself, by a script that reads the `concat!` and fails rather than
+  guessing if it cannot find it. A green snapshot suite is evidence about bodies; metadata is a
+  separate surface and nothing in the gate reads it.
+- **Re-wrapping a `concat!` by hand drops a fragment silently, and only a word-level diff of the
+  result shows it.** Correcting one sentence in the gallery's description re-flowed seven string
+  fragments, and one of them lost "means a figure or", leaving the text reading "A block moving an
+  order changed". The code compiled, the snapshots matched, and 12 of 12 checks passed. What caught
+  it was `git diff --word-diff` on the rendered sentence, which is also the reason the per-line
+  format the constant is written in is worth keeping: seven boundaries, each one a chance to drop a
+  word, and a reader comparing prose across a re-wrap has no way to see the loss.
+- **A gate step passes on its exit code, and the exit code said yes.** The first commit of this
+  slice failed on a detail no test covers: `[X]` and `- [x]` are the same width, so ticking a task
+  cannot change how prettier wraps it, and prettier normalizes the marker to lowercase. The tick is
+  a change to a file, and the file has a formatter, and the formatter has an opinion about the
+  letter.
+
+### Trade-offs worth remembering
+
+- **A `find` that four methods share is a structural commit on its own, and it is also the whole of
+  what a reviewer can check cheaply.** The refactor that introduced it changed no behavior and no
+  test, so its evidence is 22 green tests and a diff that is a new private function plus two call
+  sites — which is the point of principle V, and also the reason the later behavioral commits could
+  be reviewed against a diagram whose search was already settled. The price is a commit that changes
+  nothing anyone can see, in a log where five commits for one feature already reads as thin.
+  Splitting it into the behavioral commit would have been cheaper to read and would have made a
+  structural change invisible inside a `feat`.
+- **Correcting a claim in a spec that is not yet merged costs nothing; correcting one that is merged
+  costs a version.** B5.7 was corrected in place on the branch that will merge it, with the
+  measurement in its Clarifications, and the diff reads as the slice tightening its own test. Had
+  the same correction arrived after the merge, the repository would have needed a new record, and
+  the maintainer would have needed to be asked twice rather than once. The slice boundary is also
+  the last point at which a contradiction between two requirements is cheap to find.
