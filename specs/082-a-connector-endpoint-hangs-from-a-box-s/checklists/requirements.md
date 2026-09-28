@@ -30,9 +30,9 @@
 
 ## Notes
 
-Two questions were put to the maintainer on 2026-09-28 rather than left as [NEEDS CLARIFICATION]
-markers, and both are recorded under **Clarifications**. They are the two subjects the description
-named as temporary, and each one now has an issue carrying the answer we actually want:
+Six questions were put to the maintainer on 2026-09-28 rather than left as [NEEDS CLARIFICATION]
+markers, and all six are recorded under **Clarifications**. Two of them are the subjects the
+description named as temporary, and each one now has an issue carrying the answer we actually want:
 
 - **Taking a referenced shape out.** The general answer, unchanged: the reference is left as it was,
   it does not resolve, and the shape that held it is not drawn. B3 makes that observable for the
@@ -50,6 +50,31 @@ Two issues were created for those, and the spec cites them by number:
 Both carry the `capability` and `wish` labels, the way #83, #84, #88, #89 and #90 do, because
 neither is a decision and neither has a branch. The branch, the `deciding` label and the pointer to
 this directory were created by `cargo xtask spec`, not by hand.
+
+The other four are corrections, confirmations and one scope call. Each was asked because the spec
+contradicted something, assumed something, or sat outside a ceiling, and each is now settled:
+
+- **A line's four side centers.** The spec said a line answers none of the four, and
+  `§5 Anchor points` of the model says a line answers all four as a flat box. It now answers all
+  four in this slice and nothing in the model is amended: on a horizontal line the top and bottom
+  centers are its middle, one point asked for twice, and the left and right centers are its two
+  ends. B1's "nothing" rule is a connector's now, and only a connector's. What is left of `§5` is
+  the corners and the center (#90), and #84 keeps the kinds this slice does not cover. The one edge
+  case the wrong version of this answer had made true — a box replaced by a line stops drawing — was
+  rewritten in the same pass, because it contradicted the rule above it.
+- **The fifth demonstration picture.** Confirmed rather than assumed, and confirmed in the form that
+  costs the least at review time: the demonstration names its box by writing the third identity out
+  in its own code instead of asking the diagram for it, so a reader of the code can see which shape
+  the connector belongs to. Writing an identity is a way of naming one, so the spec adds the
+  question the model leaves open — whether a caller can name an identity — to **What this slice does
+  not decide** and routes it to the decision sheet as the domain-level entry it is. The trade is
+  taken knowingly: a figure added before the box would make the written value name the wrong shape,
+  and the pinned picture is what would catch it.
+- **The 120-line ceiling.** Declined as a split and carried instead. `spec.md` is at 243
+  attributable lines; the split issue 62 already made moves B1's eleven and leaves 233, so it buys a
+  thinner slice rather than one that fits, and it is not worth a second deciding cycle. The number
+  and the reason go to `plan.md`'s Complexity Tracking, which is where the constitution puts a
+  ceiling exceeded without a split. The last paragraph of this file carries both.
 
 Three of the items above are ticked against the wording of the generic checklist rather than against
 this repository's own template, and the reason is the same in all three: **this is a library, so
@@ -86,28 +111,32 @@ rather than left to be discovered at review:
   about exactly this. The same reasoning is why spec 081's B4 states that no listing of a diagram's
   identities exists and leaves the question to issue 86.
 
-The one thing that is an assumption rather than a decision, and that the maintainer should confirm
-at `/speckit.clarify` if it is wrong: **the shipped demonstration grows a fifth picture.** The body
-of issue 82 does not ask for one, and a reference cannot be expressed in the description format, so
-the picture has to be built by the demonstration's own code — the route 081's clarification already
-took for the displacement's amount. The alternative, leaving `monospace-cli` untouched, keeps this
-spec about twenty lines shorter and makes the slice's one claim invisible to anyone who runs the
-application, which is what principle II asks an increment to be.
+The assumption this file named is confirmed, not carried: **the shipped demonstration grows a fifth
+picture.** The body of issue 82 does not ask for one, and a reference cannot be expressed in the
+description format, so the picture has to be built by the demonstration's own code — the route 081's
+clarification already took for the displacement's amount. The alternative, leaving `monospace-cli`
+untouched, would have kept this spec about twenty lines shorter and made the slice's one claim
+invisible to anyone who runs the application, which is what principle II asks an increment to be.
 
 This template has no **Assumptions** section, and none is missing: the assumptions are the five
 model sections named under **What this slice implements** — none amended, because the model already
-describes this end to end — and the six open questions under **What this slice does not decide**,
-each with what would force an answer. The dependencies are the nine issues this spec names, 62, 81,
-83, 84, 88, 89, 90, 142 and 143, and the two ADRs it cites.
+describes this end to end, and the line's four side centers are one of the five rather than a change
+to it — and the seven open questions under **What this slice does not decide**, each with what would
+force an answer. The dependencies are the nine issues this spec names, 62, 81, 83, 84, 88, 89, 90,
+142 and 143, and the two ADRs it cites.
 
 One item is not satisfiable as written: **`spec.md` exceeds the 120-line ceiling in principle
-VIII**, at 209 attributable lines against a ceiling of 120 — 272 lines in the file, less the
+VIII**, at 243 attributable lines against a ceiling of 120 — 306 lines in the file, less the
 fourteen fences, the forty-eight blank lines and the one comment, measured the way feature 055's
-plan measured its own 166 and the way spec 081 measured its own 288. That is a fact about the
-slice's size rather than a formatting slip, and the answer the constitution asks for first is to
-split the feature. The split available here is the one issue 62 already made: the anchors in B1 and
-the reference in B2, with B3 and B4 riding along on B2 because neither is reachable without one. It
-is offered here rather than taken, because the maintainer set the scope of this slice in the same
-message that set the two temporary answers, and splitting it would put B3 and B4 in a slice with no
-references in it. The ceiling is recorded here and `plan.md`'s Complexity Tracking carries it at
-plan time, the way feature 081's does.
+plan measured its own 166 and the way spec 081 measured its own 288. The three answers given on
+2026-09-28 added thirty-four of those: fourteen for the line's four side centers, fifteen for naming
+the demonstration's box by its written identity, and five for the answer recorded about the ceiling
+itself. That is a fact about the slice's size rather than a formatting slip, and the answer the
+constitution asks for first is to split the feature. The split available here is the one issue 62
+already made: the anchors in B1 and the reference in B2, with B3 and B4 riding along on B2 because
+neither is reachable without one. B1 is eleven of the 243, so that split leaves 232: it buys a
+thinner slice rather than one that fits. It was offered and declined on 2026-09-28, because the
+maintainer set the scope of this slice in the same message that set the two temporary answers, and
+because splitting would put B3 and B4 in a slice with no references in it. The overage is recorded
+here and `plan.md`'s Complexity Tracking carries it at plan time, with the number and the reason,
+the way feature 081's does.
