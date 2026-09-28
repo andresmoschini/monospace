@@ -63,11 +63,22 @@ impl Diagram {
         id
     }
 
+    /// The place in the order the shape named by `id` stands, or `None` when this diagram holds
+    /// no such shape.
+    ///
+    /// The one search every method naming a shape by its identity goes through. `ShapeId`s are
+    /// compared by value, so an identity issued by another diagram is a well-formed value that
+    /// matches nothing here — the same answer the model's _Positions_ gives a reference to a shape
+    /// that is not there.
+    fn find(&self, id: &ShapeId) -> Option<usize> {
+        self.shapes.iter().position(|placed| &placed.id == id)
+    }
+
     /// Moves the shape named by `id` one place toward the front of the order. Does nothing when
     /// `id` names no shape here, or when it is already the front-most (FR-007, FR-009, FR-010,
     /// FR-011).
     pub fn forward(&mut self, id: &ShapeId) {
-        if let Some(index) = self.shapes.iter().position(|placed| &placed.id == id)
+        if let Some(index) = self.find(id)
             && index + 1 < self.shapes.len()
         {
             self.shapes.swap(index, index + 1);
@@ -78,7 +89,7 @@ impl Diagram {
     /// `id` names no shape here, or when it is already the back-most (FR-008, FR-009, FR-010,
     /// FR-011).
     pub fn backward(&mut self, id: &ShapeId) {
-        if let Some(index) = self.shapes.iter().position(|placed| &placed.id == id)
+        if let Some(index) = self.find(id)
             && index > 0
         {
             self.shapes.swap(index, index - 1);

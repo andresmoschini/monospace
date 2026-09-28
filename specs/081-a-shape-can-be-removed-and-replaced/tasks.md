@@ -59,16 +59,16 @@ III; D1).
 principle V forbids a structural change sharing a commit with a behavioral one. Plus the two
 baseline files two later claims are diffed against.
 
-- [ ] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and
+- [x] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and
       `cargo run -p monospace-cli crates/monospace-cli/assets/demo.json > /tmp/file-before.txt`, and
       keep both files until Phase 8 (quickstart.md "Before touching anything")
-- [ ] T002 Add `fn find(&self, id: &ShapeId) -> Option<usize>` to `Diagram` in
+- [x] T002 Add `fn find(&self, id: &ShapeId) -> Option<usize>` to `Diagram` in
       `crates/monospace-diagram/src/diagram.rs`, the linear scan `forward` and `backward` already
       spell out, comparing `ShapeId`s by value so an identity from another diagram is a well-formed
       value that matches nothing here; rewrite `forward` and `backward` to search through it,
       changing no behavior and adding or modifying no test (data-model.md `find`; research.md Q3;
       plan.md commit 1; constitution principle V)
-- [ ] T003 Confirm `cargo test -p monospace-diagram` passes with no test added, changed or removed,
+- [x] T003 Confirm `cargo test -p monospace-diagram` passes with no test added, changed or removed,
       and `cargo xtask check` is green — which is what makes T002 a structural commit rather than a
       behavioral one, and a green run on its own proves only that the command ran (constitution
       principle IV)
