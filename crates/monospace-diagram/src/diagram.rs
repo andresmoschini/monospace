@@ -115,7 +115,7 @@ mod tests {
     };
 
     use super::Diagram;
-    use crate::{Endpoint, Shape};
+    use crate::{Delta, Endpoint, Shape};
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -790,5 +790,131 @@ mod tests {
         inner_then_outer.draw(&mut b);
 
         assert_eq!(cells(&a, origin, size), cells(&b, origin, size));
+    }
+
+    // ------------------------------------------------------ a figure displaced by a delta
+
+    /// Draws `shapes` into a fresh window, in the order given, so that a figure is observed the
+    /// only way this crate lets it be observed. Both sides of every comparison below arrive
+    /// through here: the figure displaced, and the same figure added where it landed.
+    fn drawn(shapes: Vec<Shape>, origin: Pos, size: Size) -> Buffer {
+        let mut diagram = Diagram::new();
+        for shape in shapes {
+            diagram.add(shape);
+        }
+        let mut buffer = Buffer::new(origin, size);
+        diagram.draw(&mut buffer);
+        buffer
+    }
+
+    /// User Story 1, spec's B3.1 scenario, SC-004: a box displaced two cells right draws exactly
+    /// what the same box added at the displaced position draws.
+    ///
+    /// The expected picture is built by adding the box where it landed rather than pinned as text,
+    /// so what is asserted is where a displacement puts a figure and not how a box draws. A
+    /// displacement that quietly did nothing would draw the box where it already stood, and the two
+    /// pictures would differ.
+    #[test]
+    fn a_displaced_box_draws_where_the_same_box_at_that_position_would_draw() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 9,
+            height: 3,
+        };
+        let box_at = |x: i32| Shape::Box {
+            at: Pos { x, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        };
+
+        let moved = box_at(1).displaced_by(Delta { dx: 2, dy: 0 });
+
+        assert_eq!(
+            cells(&drawn(vec![moved], origin, size), origin, size),
+            cells(&drawn(vec![box_at(3)], origin, size), origin, size)
+        );
+    }
+
+    /// User Story 1, spec's B3.2 scenario, SC-004: a connector displaced two cells down draws
+    /// exactly what the same connector added with **both** endpoints at `y + 2` draws.
+    ///
+    /// Both endpoints is the whole claim, and it is why the expected picture is built from the two
+    /// positions rather than pinned as text. A displacement that moved one endpoint draws a
+    /// connector between two rows, and one that moved neither is the silent no-op the previous
+    /// system shipped along with a `// TODO: implement it`. Either passes a comparison against a
+    /// picture of a connector that never moved, so this is the one neither passes.
+    #[test]
+    fn a_displaced_connector_draws_with_both_endpoints_moved() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 7,
+            height: 5,
+        };
+        let connector = |from: Pos, to: Pos| Shape::Connector {
+            from: Endpoint {
+                at: from,
+                leaving: Direction::Right,
+                terminal: Terminal::Glyph {
+                    glyph: Glyph::new("◄").expect("one glyph"),
+                },
+            },
+            to: Endpoint {
+                at: to,
+                leaving: Direction::Left,
+                terminal: Terminal::Glyph {
+                    glyph: Glyph::new("►").expect("one glyph"),
+                },
+            },
+            stroke: light(),
+        };
+
+        let moved =
+            connector(Pos { x: 1, y: 1 }, Pos { x: 5, y: 1 }).displaced_by(Delta { dx: 0, dy: 2 });
+
+        assert_eq!(
+            cells(&drawn(vec![moved], origin, size), origin, size),
+            cells(
+                &drawn(
+                    vec![connector(Pos { x: 1, y: 3 }, Pos { x: 5, y: 3 })],
+                    origin,
+                    size
+                ),
+                origin,
+                size
+            )
+        );
+    }
+
+    /// User Story 1, spec's B3.3 scenario: displacing a figure a diagram holds changes no cell of
+    /// it. A displacement builds a value; putting that value back under an identity is what changes
+    /// anything. The second half of the rule is T026, which needs `replace` to exist.
+    ///
+    /// The `assert_ne!` is what keeps the test honest: without it a `displaced_by` that moved
+    /// nothing would satisfy "changed no cell" by doing exactly that, and the rule would go
+    /// unchecked.
+    #[test]
+    fn displacing_a_figure_the_diagram_holds_changes_no_cell_of_it() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b) = overlapping_boxes();
+        let mut diagram = Diagram::new();
+        diagram.add(a.clone());
+        diagram.add(b);
+        let mut before = Buffer::new(origin, size);
+        diagram.draw(&mut before);
+
+        let displaced = a.displaced_by(Delta { dx: 1, dy: 2 });
+        let mut after = Buffer::new(origin, size);
+        diagram.draw(&mut after);
+
+        assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_ne!(displaced, a);
     }
 }

@@ -84,8 +84,10 @@ fn kind_of(shape: &Shape) -> &'static str {
 }
 
 /// A box, a line and a connector: the closed set, each named by [`kind_of`]. A factory rather than
-/// a list of values, because `Shape` derives no `Clone` and the order test needs the same two
-/// boxes twice — and adding a `Clone` to a public enum for a gallery is a cost not worth paying.
+/// a list of values, because the closed set is then three calls rather than three values and the
+/// three clones they would need. `Shape` had no `Clone` when this was written and the factory was
+/// the only way to have the same figure twice; it is `Clone` now, so the choice is free rather
+/// than forced, and what it buys is that each kind is constructed in one place.
 fn the_kinds() -> Vec<(&'static str, Shape)> {
     vec![
         (
@@ -272,9 +274,9 @@ fn the_three_kinds() {
 
 #[test]
 fn the_order_decides_a_shared_cell() {
-    // As written: `#1` behind, `#2` in front, so `▓` covers where they share. Rebuilt rather
-    // than cloned, because `Shape` has no `Clone` and a factory is the cheapest way to have the
-    // same two boxes twice.
+    // As written: `#1` behind, `#2` in front, so `▓` covers where they share. Rebuilt rather than
+    // cloned: `Shape` is `Clone` now, and rebuilding from the factory is what keeps both blocks
+    // drawing the two boxes as written rather than one of them drawing a second pair.
     let labelled = "[small_box(0,0,fill=░), small_box(2,1,fill=▓)]";
     let mut diagram = Diagram::new();
     diagram.add(small_box(at(0, 0), Some("░")));

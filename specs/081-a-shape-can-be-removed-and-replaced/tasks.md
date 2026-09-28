@@ -97,29 +97,29 @@ neither fails rather than passing on a connector that never moved (spec.md B3; q
 > Write these first and watch them fail — before `Delta` exists the failure is that the method does
 > not exist, which is the cheapest possible failure (quickstart.md B1).
 
-- [ ] T004 [P] [US1] Contract test: a box displaced two cells right draws exactly what the same box
+- [x] T004 [P] [US1] Contract test: a box displaced two cells right draws exactly what the same box
       added at the displaced position draws, comparing buffers with the `cells` helper already in
       the module, in `crates/monospace-diagram/src/diagram.rs` (B3.1, SC-004)
-- [ ] T005 [P] [US1] Contract test: a connector displaced two cells down draws exactly what the same
+- [x] T005 [P] [US1] Contract test: a connector displaced two cells down draws exactly what the same
       connector added with **both** endpoints at `y + 2` draws, so an implementation that displaces
       one endpoint or neither fails rather than passing on a connector that never moved, in
       `crates/monospace-diagram/src/diagram.rs` (B3.2, SC-004; the case where the previous system
       shipped a silent no-op and a `// TODO: implement it`, research.md Q1)
-- [ ] T006 [P] [US1] Contract test: displacing a figure a diagram holds changes no cell of it — draw
+- [x] T006 [P] [US1] Contract test: displacing a figure a diagram holds changes no cell of it — draw
       before and after the call and compare with `cells` — in
       `crates/monospace-diagram/src/diagram.rs` (B3.3, first half: a displacement builds a value and
       changes nothing)
-- [ ] T007 [P] [US1] Unit test: a figure displaced by nothing at all comes back equal to itself, for
+- [x] T007 [P] [US1] Unit test: a figure displaced by nothing at all comes back equal to itself, for
       each of the three kinds, which is what the widened derives are for, in
       `crates/monospace-diagram/src/shape.rs` (B3.4; research.md Q4)
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Widen `Endpoint`'s derives from `Clone, Debug` to `Clone, Debug, PartialEq, Eq` in
+- [x] T008 [US1] Widen `Endpoint`'s derives from `Clone, Debug` to `Clone, Debug, PartialEq, Eq` in
       `crates/monospace-diagram/src/shape.rs`; every field it holds — `Pos`, `Direction` and
       `Terminal` — already derives all four, and this is what lets T010 compile (research.md Q4
       lists the leaf field types and not this one)
-- [ ] T009 [US1] Add the new module `crates/monospace-diagram/src/delta.rs` holding
+- [x] T009 [US1] Add the new module `crates/monospace-diagram/src/delta.rs` holding
       `Delta { pub dx: i32, pub dy: i32 }` deriving `Debug, Clone, Copy, PartialEq, Eq` — `Pos`'s
       derives, so the two read as one family — plus `impl From<(i32, i32)> for Delta` as the second
       way in, and `pub(crate) fn apply(self, at: Pos) -> Pos` doing the only arithmetic in the crate
@@ -127,7 +127,7 @@ neither fails rather than passing on a connector that never moved (spec.md B3; q
       and both fields as they are introduced (`missing_docs` is warned and denied in the gate)
       (data-model.md `Delta` and `Delta::apply`; research.md Q1, Q2; contracts/diagram-api.md
       `Delta`)
-- [ ] T010 [US1] Widen `Shape`'s derives from `Debug` to `Debug, Clone, PartialEq, Eq` in
+- [x] T010 [US1] Widen `Shape`'s derives from `Debug` to `Debug, Clone, PartialEq, Eq` in
       `crates/monospace-diagram/src/shape.rs`; every leaf type already supports the three and T008
       has made `Endpoint` one of them, so this is a derive list and nothing else, and `Clone` is
       what lets `replace` take a `Shape` by value (data-model.md `Shape`'s derives; research.md Q4;
@@ -137,14 +137,14 @@ neither fails rather than passing on a connector that never moved (spec.md B3; q
       explaining why the two boxes are rebuilt rather than cloned. Search for the two comments that
       mention `Clone`; the other claims in that file are about `Diagram` and belong to T016, which
       is a later commit
-- [ ] T011 [US1] Add `Shape::displaced_by(&self, by: Delta) -> Self` in
+- [x] T011 [US1] Add `Shape::displaced_by(&self, by: Delta) -> Self` in
       `crates/monospace-diagram/src/shape.rs`, one arm per variant: `Box` and `Line` displace their
       own `at` and copy `size`/`stroke`/`fill` and `len`/`orientation`/`stroke` through, `Connector`
       displaces `from.at` **and** `to.at` together and copies both `leaving` and `terminal` plus
       `stroke`; mark it `#[must_use]` so `clippy::must_use_candidate` stays clean under the gate's
       `pedantic` group, and rustdoc it (B3.1-B3.3; data-model.md `displaced_by`;
       contracts/diagram-api.md `displaced_by`)
-- [ ] T012 [US1] Declare `mod delta;` beside the existing `mod diagram;` and `mod shape;`, and
+- [x] T012 [US1] Declare `mod delta;` beside the existing `mod diagram;` and `mod shape;`, and
       re-export `pub use delta::Delta;` beside the existing re-exports, in
       `crates/monospace-diagram/src/lib.rs` (plan.md Project Structure; contracts/diagram-api.md
       `Delta`)
