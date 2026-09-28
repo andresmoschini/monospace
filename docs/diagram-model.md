@@ -25,17 +25,17 @@ interactive application. Those are layers above this one.
 
 ## 1. Vocabulary
 
-| Term        | Meaning                                                                         |
-| ----------- | ------------------------------------------------------------------------------- |
-| `Diagram`   | Shapes in an order, drawable, changeable; the source of truth                   |
-| `Shape`     | One figure in a diagram: an identity, a position, and what kind of figure it is |
-| `ShapeId`   | A shape's identity: a string, unique within its diagram                         |
-| `Anchor`    | One of four named points a shape may offer: the center of each of its sides     |
-| `Position`  | Either an absolute point or a reference                                         |
-| `Reference` | A `ShapeId`, an `Anchor` on it, and a horizontal and vertical offset            |
-| `Delta`     | How far a figure moves along each axis: a horizontal and a vertical amount      |
-| `Order`     | The sequence the diagram holds its shapes in; its front is drawn first          |
-| `Ownership` | What a drawing records at every position: which shape the cell there belongs to |
+| Term        | Meaning                                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `Diagram`   | Shapes in an order, drawable, changeable; the source of truth                                                                 |
+| `Shape`     | One figure in a diagram: its kind, its parameters and its position; its identity and its place in the order are the diagram's |
+| `ShapeId`   | A shape's identity: a string, unique within its diagram                                                                       |
+| `Anchor`    | One of four named points a shape may offer: the center of each of its sides                                                   |
+| `Position`  | Either an absolute point or a reference                                                                                       |
+| `Reference` | A `ShapeId`, an `Anchor` on it, and a horizontal and vertical offset                                                          |
+| `Delta`     | How far a figure moves along each axis: a horizontal and a vertical amount                                                    |
+| `Order`     | The sequence the diagram holds its shapes in; its front is drawn first                                                        |
+| `Ownership` | What a drawing records at every position: which shape the cell there belongs to                                               |
 
 A diagram's `Shape` and the core's `Shape` share a name and are different things. The core's is a
 value that draws and answers nothing about itself; this one is stored, identified, replaced and
