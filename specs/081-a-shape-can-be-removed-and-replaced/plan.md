@@ -56,7 +56,7 @@ _GATE: passes before Phase 0, re-checked after Phase 1._
 The sheet is [`decisions.md`](decisions.md). Part two does not begin until it is answered.
 
 - Entries: 7 — domain: 7, module: 0, tooling: 0
-- Answered: _pending_
+- Answered: 2026-09-28 — all seven confirmed
 
 ## Design _(part two)_
 
@@ -67,7 +67,7 @@ _Filled by part two, once the sheet is answered. The detail belongs in `data-mod
 
 | Departure                                        | Why needed                                                                            | Simpler alternative rejected because                                                                                                                                            |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `decisions.md` at 66 lines against a 60 ceiling  | Seven domain entries — the sheet's own cap — four of them carrying generated pictures | Dropping an entry takes a decision off the table. Compressing below one line a field stops it carrying its trade-off, and this is the one artifact the maintainer reads in full |
+| `decisions.md` at 74 lines against a 60 ceiling  | Seven domain entries — the sheet's own cap — four of them carrying generated pictures | Dropping an entry takes a decision off the table. Compressing below one line a field stops it carrying its trade-off, and this is the one artifact the maintainer reads in full |
 | `research.md` at 128 lines against a 100 ceiling | Four open questions and three recordings of the draft's §3, each cited to a line      | A line per field is what was cut and it is where the citations went. The rest is the file's only content, and the alternative — six questions — means dropping an open one      |
 
 Two of the seven entries are superseded by the spec's 2026-09-28 clarifications rather than by the
