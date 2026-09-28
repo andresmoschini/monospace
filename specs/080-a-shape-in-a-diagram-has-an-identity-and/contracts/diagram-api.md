@@ -13,6 +13,11 @@ in [research.md](../research.md).
 ```rust
 pub struct ShapeId(/* private */);
 
+impl ShapeId {
+    /// Builds an identity directly from its text — `"#1"`, `"#2"`, and so on.
+    pub fn new(text: impl Into<String>) -> Self;
+}
+
 impl std::fmt::Display for ShapeId {
     /// Writes the identity as `#1`, `#2`, and so on.
 }
@@ -21,9 +26,11 @@ impl std::fmt::Display for ShapeId {
 Derives `Clone`, `Debug`, `PartialEq`, `Eq`. It is not `Copy`: the identity is held as text, so it
 owns an allocation. That is why the two methods below take it by reference.
 
-- The diagram generates one per addition and hands it back. There is no other source (FR-002).
-- There is no constructor, no `From<&str>`, no `FromStr`, and no accessor for what is inside:
-  reading one gives no way to build one (FR-003).
+- The diagram generates one per addition and hands it back (FR-002). `ShapeId::new` builds one from
+  its text, so a caller naming a diagram's shape can name it without having held the addition's
+  return value — which is how the command-line demonstration names `#1`. It is a way to spell an
+  identity, not a way to have one issued: an identity built this way is a valid value that matches
+  only a diagram that generated that exact text, and reading one gives no other way back.
 - Two identities compare equal when they name the same addition to the same diagram. An identity
   from another diagram is a valid value that matches nothing.
 
