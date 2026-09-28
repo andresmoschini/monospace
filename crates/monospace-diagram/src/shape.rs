@@ -7,13 +7,18 @@ use monospace_core::{
     BoxShape, Connector, Direction, Glyph, Line, Orientation, Pos, Size, Stroke, Surface, Terminal,
 };
 
+use crate::Delta;
+
 /// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
 ///
 /// Mirrors `monospace_core::Endpoint` rather than reusing it, so that a later change to how an
 /// endpoint is anchored stays inside this crate (research.md Q3). The terminal is the core's own
 /// type and this crate re-exports nothing: a caller takes it from `monospace_core`, exactly as it
 /// already takes the `Pos`, `Direction` and `Glyph` the other two fields hold.
-#[derive(Clone, Debug)]
+///
+/// `PartialEq` and `Eq` are here for [`Shape`]'s sake rather than this struct's own: a derive does
+/// not reach through a field, and `Shape::Connector` holds one of these.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Endpoint {
     /// The endpoint's position. The terminal occupies this position itself.
     pub at: Pos,
@@ -35,7 +40,11 @@ impl From<Endpoint> for monospace_core::Endpoint {
 
 /// A figure a diagram can hold: one of a closed set of kinds, each carrying every position and
 /// parameter the core shape it constructs takes (FR-007, FR-008).
-#[derive(Debug)]
+///
+/// `Clone` and `PartialEq` are what let a caller compare what a diagram hands back with what it
+/// added, and what let a figure displaced by nothing at all come back equal to itself. Every leaf
+/// type this enum holds already supported them.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Shape {
     /// A box: a position, a size, a stroke and an optional fill.
     Box {
@@ -107,14 +116,71 @@ impl Shape {
             .draw(surface),
         }
     }
+
+    /// Builds a new figure, this one moved by `by`, changing nothing.
+    ///
+    /// Every position this variant holds moves: a `Box` and a `Line` their own `at`, a `Connector`
+    /// `from.at` and `to.at` **together**. A connector is not the exception to displacement. Its
+    /// route is derived from its two endpoints and never described by the caller, so displacing
+    /// both is sufficient and displacing one would leave a value whose route means something the
+    /// caller never asked for. Everything else is copied through, because a displacement is about
+    /// where a figure stands and not about what it is.
+    ///
+    /// It takes `&self` and gives back a `Self` rather than consuming either, so it composes with
+    /// `Diagram::get`, which borrows: `diagram.get(&id).map(|shape| shape.displaced_by(by))` is
+    /// the whole read-and-displace step, and nothing is cloned at the call site. A delta of
+    /// nothing gives back the same figure, which is what the widened derives are for.
+    ///
+    /// What displacing a figure holding a **reference** means is not decided here: no figure can
+    /// hold one yet, and the issue that introduces one settles it.
+    #[must_use]
+    pub fn displaced_by(&self, by: Delta) -> Self {
+        match self {
+            Self::Box {
+                at,
+                size,
+                stroke,
+                fill,
+            } => Self::Box {
+                at: by.apply(*at),
+                size: *size,
+                stroke: stroke.clone(),
+                fill: fill.clone(),
+            },
+            Self::Line {
+                at,
+                len,
+                orientation,
+                stroke,
+            } => Self::Line {
+                at: by.apply(*at),
+                len: *len,
+                orientation: *orientation,
+                stroke: stroke.clone(),
+            },
+            Self::Connector { from, to, stroke } => Self::Connector {
+                from: Endpoint {
+                    at: by.apply(from.at),
+                    leaving: from.leaving,
+                    terminal: from.terminal.clone(),
+                },
+                to: Endpoint {
+                    at: by.apply(to.at),
+                    leaving: to.leaving,
+                    terminal: to.terminal.clone(),
+                },
+                stroke: stroke.clone(),
+            },
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Endpoint, Shape};
+    use super::{Delta, Endpoint, Shape};
     use crate::Diagram;
     use monospace_core::{
-        Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, render,
+        Buffer, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, render,
     };
 
     /// User Story 1: the mirror's terminal reaches the core's intact. Both variants, because a
@@ -178,6 +244,37 @@ mod tests {
                 terminal: to,
             },
             stroke: light(),
+        }
+    }
+
+    /// A line across the same window, so all three kinds are one call away.
+    fn line_at(x: i32) -> Shape {
+        Shape::Line {
+            at: Pos { x, y: 0 },
+            len: 3,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        }
+    }
+
+    /// User Story 1, spec's B3.4 scenario: a figure displaced by nothing at all comes back equal to
+    /// itself.
+    ///
+    /// All three kinds rather than one, and a `Connector` among them because it moves through an
+    /// `Endpoint`: a derive that stopped short of that struct would leave this case failing and
+    /// every other one green. The widened derives are what make the rule sayable, and
+    /// `displaced_by` taking `&self` is what makes it hold, since it builds a new value out of
+    /// copies and cannot have touched the one it read.
+    #[test]
+    fn a_figure_displaced_by_nothing_comes_back_equal_to_itself() {
+        let nothing = Delta { dx: 0, dy: 0 };
+
+        for shape in [
+            box_at(0),
+            line_at(0),
+            connector(Terminal::Arm, Terminal::Arm),
+        ] {
+            assert_eq!(shape.displaced_by(nothing), shape);
         }
     }
 

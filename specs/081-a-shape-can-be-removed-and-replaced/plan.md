@@ -60,15 +60,50 @@ The sheet is [`decisions.md`](decisions.md). Part two does not begin until it is
 
 ## Design _(part two)_
 
-_Filled by part two, once the sheet is answered. The detail belongs in `data-model.md` and
-`contracts/`; this is the map._
+The map. The detail is in [data-model.md](data-model.md) and
+[contracts/diagram-api.md](contracts/diagram-api.md); the commands are in
+[quickstart.md](quickstart.md).
+
+| Change                     | Where                                        | Because                                                                 |
+| -------------------------- | -------------------------------------------- | ----------------------------------------------------------------------- |
+| `Delta`                    | `monospace-diagram/src/delta.rs`, new module | A public type of a module of its own; `lib.rs` re-exports it            |
+| `Shape::displaced_by`      | `src/shape.rs`                               | Inherent on the enum, one arm per variant (D1, Q1)                      |
+| `Shape`'s derives          | `src/shape.rs`                               | `Clone, PartialEq, Eq` — the only way B3.4 and B4.1 are checkable (Q4)  |
+| `Endpoint`'s derives       | `src/shape.rs`                               | `PartialEq, Eq` — `Shape` does not compile without them (Q4)            |
+| `get`, `remove`, `replace` | `src/diagram.rs`, through one private `find` | The search `forward` already does (Q3); D2, D5, D6                      |
+| five claims about a reader | `src/gallery.rs`                             | `Shape` and `Diagram` stop being what those sentences say (Q4, Q6)      |
+| four captioned pictures    | `monospace-cli/src/main.rs`                  | B5; two pictures become four, appended rather than interleaved (Q6)     |
+| one comment corrected      | `monospace-cli/tests/cli.rs`                 | It says "two captioned pictures", which is what this commit makes wrong |
+
+`monospace-core`, `description.rs` and `assets/demo.json` are unchanged — which is the whole of D1
+and of B5.8.
+
+Five commits, each green on its own, and the order is forced by principles II and V rather than
+chosen:
+
+1. `refactor(diagram)`: one private `find`, and `forward`/`backward` search through it. Same
+   behavior, existing tests unchanged, none added — the structural change, on its own, before
+   anything depends on it.
+2. `feat(diagram)`: `Delta`, `displaced_by`, the derives on `Shape` and on `Endpoint`, the two
+   places in `gallery.rs` that say `Shape` has no `Clone`, and the displacement's tests. B3.
+3. `feat(diagram)`: `get`, `remove`, `replace`, the places in `gallery.rs` that say a `Diagram`
+   cannot be read, and their tests. B1, B2, B4. The `WHAT` string is one of them and is rendered
+   into that module's committed snapshots, so `cargo insta review` follows.
+4. `feat(cli)`: the fourth picture, and the one test that reads the demonstration. B5.
+5. `docs`: the increment's entry in `docs/learning-log.md`.
+
+**Re-checked after Phase 1**: no gate above changes. The design added one module and one public type
+to the crate the `wasm` step already names; `Delta` is two `i32`s and does its arithmetic in the
+crate above, so principle VII reads the same after the design as before it. The two rules with
+nothing to verify them are the specification's, not this design's.
 
 ## Complexity Tracking
 
-| Departure                                        | Why needed                                                                            | Simpler alternative rejected because                                                                                                                                            |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `decisions.md` at 74 lines against a 60 ceiling  | Seven domain entries — the sheet's own cap — four of them carrying generated pictures | Dropping an entry takes a decision off the table. Compressing below one line a field stops it carrying its trade-off, and this is the one artifact the maintainer reads in full |
-| `research.md` at 128 lines against a 100 ceiling | Four open questions and three recordings of the draft's §3, each cited to a line      | A line per field is what was cut and it is where the citations went. The rest is the file's only content, and the alternative — six questions — means dropping an open one      |
+| Departure                                        | Why needed                                                                                                                | Simpler alternative rejected because                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `decisions.md` at 74 lines against a 60 ceiling  | Seven domain entries — the sheet's own cap — four of them carrying generated pictures                                     | Dropping an entry takes a decision off the table. Compressing below one line a field stops it carrying its trade-off, and this is the one artifact the maintainer reads in full                                                                                                                                                                   |
+| `research.md` at 133 lines against a 100 ceiling | Four open questions and three recordings of the draft's §3, each cited to a line                                          | A line per field is what was cut and it is where the citations went. The rest is the file's only content, and the alternative — six questions — means dropping an open one                                                                                                                                                                        |
+| `plan.md` at 110 lines against an 80 ceiling     | Part two's design — the file map, the five commits and the re-check — appended to the sixty lines part one already merged | The ceiling is written for a plan written in one pass, and this one is written in two: the constitution's own rule puts part two on its own branch, after the sheet is answered, so the two halves cannot share one ceiling. Compressing the commits to a line each costs the order, which principles II and V decide and `tasks.md` then follows |
 
 Two of the seven entries are superseded by the spec's 2026-09-28 clarifications rather than by the
 sheet, and are recorded in [research.md](research.md) instead: the demonstration grows a fourth
