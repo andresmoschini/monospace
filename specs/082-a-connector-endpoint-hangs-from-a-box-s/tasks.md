@@ -68,7 +68,7 @@ III; D1).
 **Purpose**: the two commits that change no behavior at all, and that every later commit reads.
 Nothing here may touch a test, and nothing here may change a picture.
 
-- [ ] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and
+- [x] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and
       `cargo run -p monospace-cli crates/monospace-cli/assets/demo.json > /tmp/file-before.txt`, and
       keep both files until Phase 9. Then run `cargo run -p monospace-cli | sed -n '4,6p'` and read
       off the two numbers the fifth picture rests on: the third entry of
@@ -78,7 +78,7 @@ Nothing here may touch a test, and nothing here may change a picture.
       picture writes is that same arm. Write both down; they are what a reviewer asks about
       otherwise (quickstart.md "Before touching anything"; data-model.md "The arithmetic";
       research.md Q4)
-- [ ] T002 [P] Create `crates/monospace-diagram/src/position.rs` holding three public types and
+- [x] T002 [P] Create `crates/monospace-diagram/src/position.rs` holding three public types and
       nothing else: `Anchor` with `Top`, `Right`, `Bottom` and `Left` deriving
       `Debug, Clone, Copy, PartialEq, Eq`; `Reference { pub id: ShapeId, pub anchor: Anchor }`
       deriving `Debug, Clone, PartialEq, Eq` and **not** `Copy`, since `ShapeId` is a `String`; and
@@ -88,11 +88,11 @@ Nothing here may touch a test, and nothing here may change a picture.
       Add **no** `resolve` and **no** `displaced_by` in this commit — both are behavior, T014 and
       T025 own them, and an unused `pub(crate)` method is dead code the gate denies (data-model.md
       `Anchor`, `Reference` and `Position`; research.md Q1; D1, D2)
-- [ ] T003 Declare `mod position;` beside the existing `mod delta;`, `mod diagram;` and `mod shape;`
+- [x] T003 Declare `mod position;` beside the existing `mod delta;`, `mod diagram;` and `mod shape;`
       in `crates/monospace-diagram/src/lib.rs`, and re-export
       `pub use position::{Anchor, Position, Reference};` beside the existing re-exports (depends on
       T002; contracts/diagram-api.md)
-- [ ] T004 Confirm the workspace still builds, `cargo test -p monospace-diagram` still reports 37
+- [x] T004 Confirm the workspace still builds, `cargo test -p monospace-diagram` still reports 37
       tests, and `cargo xtask check` is green — and diff the demonstration's output against
       `/tmp/demo-before.txt` to confirm no picture changed. This is what makes T002-T003 a
       structural commit rather than a behavioral one, and a green run on its own proves only that
