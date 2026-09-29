@@ -145,10 +145,17 @@ impl Diagram {
     /// Draws every shape into `buffer`, front to back, stamping every cell with
     /// [`StampMode::Below`] (FR-010 to FR-012). Drawing changes nothing about this diagram
     /// (FR-015), so two drawings into equal windows produce equal buffers.
+    ///
+    /// The diagram is what a connector's endpoints resolve through, which is why it is the one that
+    /// hands itself to each figure. A connector with an endpoint that does not resolve — an identity
+    /// this diagram does not hold, or a kind that answers no such anchor — is **not drawn at all**,
+    /// and every other shape draws exactly what it drew. There is no error, no report and no way
+    /// to ask which figures were dropped; see
+    /// [#88](https://github.com/andresmoschini/monospace/issues/88).
     pub fn draw(&self, buffer: &mut Buffer) {
         let mut layer = Layer::new(buffer, StampMode::Below);
         for placed in self.shapes.iter().rev() {
-            placed.shape.draw(&mut layer);
+            placed.shape.draw(&mut layer, self);
         }
     }
 }
@@ -161,7 +168,7 @@ mod tests {
     };
 
     use super::{Diagram, ShapeId};
-    use crate::{Delta, Endpoint, Shape};
+    use crate::{Anchor, Delta, Endpoint, Position, Reference, Shape};
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -337,14 +344,14 @@ mod tests {
             height: 4,
         };
         let from = || Endpoint {
-            at: Pos { x: 0, y: 0 },
+            at: Pos { x: 0, y: 0 }.into(),
             leaving: Direction::Down,
             terminal: Terminal::Glyph {
                 glyph: Glyph::new("▼").expect("one glyph"),
             },
         };
         let to = || Endpoint {
-            at: Pos { x: 4, y: 3 },
+            at: Pos { x: 4, y: 3 }.into(),
             leaving: Direction::Left,
             terminal: Terminal::Glyph {
                 glyph: Glyph::new("►").expect("one glyph"),
@@ -362,8 +369,20 @@ mod tests {
 
         let mut expected = Buffer::new(origin, size);
         Connector {
-            from: from().into(),
-            to: to().into(),
+            from: monospace_core::Endpoint {
+                at: Pos { x: 0, y: 0 },
+                leaving: Direction::Down,
+                terminal: Terminal::Glyph {
+                    glyph: Glyph::new("▼").expect("one glyph"),
+                },
+            },
+            to: monospace_core::Endpoint {
+                at: Pos { x: 4, y: 3 },
+                leaving: Direction::Left,
+                terminal: Terminal::Glyph {
+                    glyph: Glyph::new("►").expect("one glyph"),
+                },
+            },
             stroke: light(),
         }
         .draw(&mut Layer::new(&mut expected, StampMode::Above));
@@ -960,14 +979,14 @@ mod tests {
         };
         let connector = |from: Pos, to: Pos| Shape::Connector {
             from: Endpoint {
-                at: from,
+                at: from.into(),
                 leaving: Direction::Right,
                 terminal: Terminal::Glyph {
                     glyph: Glyph::new("◄").expect("one glyph"),
                 },
             },
             to: Endpoint {
-                at: to,
+                at: to.into(),
                 leaving: Direction::Left,
                 terminal: Terminal::Glyph {
                     glyph: Glyph::new("►").expect("one glyph"),
@@ -1372,5 +1391,724 @@ mod tests {
             reached.iter().all(|at| held_by_the_line(*at)),
             "the change reached outside the displaced figure: {reached:?}"
         );
+    }
+
+    // ----------------------------------------- an endpoint that hangs from another figure's side
+
+    /// The box every case below hangs an endpoint from: four by three at the origin, so its right
+    /// side center is `{3, 1}` — the point the shipped demonstration's connector already holds, and
+    /// the one the model shows an endpoint attached at.
+    const THE_SIDE_CENTRE: Pos = Pos { x: 3, y: 1 };
+
+    fn the_box() -> Shape {
+        Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        }
+    }
+
+    /// A connector with both ends as arms and the given positions, so a picture's difference is the
+    /// route and the two cells it starts and ends on, and nothing else about how a terminal draws.
+    ///
+    /// The directions are the caller's rather than the anchor's (§6 _Attachment_), so a case that
+    /// puts the reference in the other slot has to name them the other way round rather than reuse
+    /// these: a connector leaving rightward from its far end takes a different route, and one that
+    /// did is testing the direction rather than the anchor.
+    fn arm_connector(from: Position, to: Position) -> Shape {
+        connector_leaving(from, Direction::Right, to, Direction::Left)
+    }
+
+    fn connector_leaving(
+        from: Position,
+        leaving: Direction,
+        to: Position,
+        arriving: Direction,
+    ) -> Shape {
+        Shape::Connector {
+            from: Endpoint {
+                at: from,
+                leaving,
+                terminal: Terminal::Arm,
+            },
+            to: Endpoint {
+                at: to,
+                leaving: arriving,
+                terminal: Terminal::Arm,
+            },
+            stroke: light(),
+        }
+    }
+
+    /// A second box that has nothing to do with either end, placed clear of everything else so that
+    /// "this other figure drew exactly what it drew" is readable.
+    fn the_unrelated_box() -> Shape {
+        Shape::Box {
+            at: Pos { x: 9, y: 0 },
+            size: Size {
+                width: 3,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("░").expect("one glyph")),
+        }
+    }
+
+    /// The window the cases below are drawn in.
+    fn the_window() -> (Pos, Size) {
+        (
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 13,
+                height: 4,
+            },
+        )
+    }
+
+    /// User Story 2, spec's B2.1, SC-001: a connector whose `from` hangs from a box's right side
+    /// draws exactly what the same connector with `from` at that point draws.
+    ///
+    /// Each side is pinned against the point rather than against the other, which is what keeps a
+    /// reference resolving to the wrong place from passing on a pair that are wrong together. So the
+    /// coordinates are asserted first and the picture second: `resolve` has to be `{3, 1}` on its
+    /// own account, and only then do the two drawings have to agree.
+    #[test]
+    fn a_hanging_endpoint_draws_what_the_point_it_resolves_to_draws() {
+        let (origin, size) = the_window();
+
+        let mut diagram = Diagram::new();
+        let box_id = diagram.add(the_box());
+        let hanging = arm_connector(
+            Position::Reference(Reference {
+                id: box_id.clone(),
+                anchor: Anchor::Right,
+            }),
+            Pos { x: 8, y: 1 }.into(),
+        );
+        diagram.add(hanging.clone());
+
+        // Pinned by coordinates first: a reference that resolved anywhere else fails here.
+        let Shape::Connector { from, .. } = &hanging else {
+            unreachable!("the figure above is a connector")
+        };
+        assert_eq!(from.at.resolve(&diagram), Some(THE_SIDE_CENTRE));
+
+        let mut absolute = Diagram::new();
+        absolute.add(the_box());
+        absolute.add(arm_connector(
+            THE_SIDE_CENTRE.into(),
+            Pos { x: 8, y: 1 }.into(),
+        ));
+
+        assert_eq!(
+            cells(&draw_of(&diagram, origin, size), origin, size),
+            cells(&draw_of(&absolute, origin, size), origin, size)
+        );
+    }
+
+    /// User Story 2, spec's B2.2, SC-002 and SC-005: displacing the box four cells right takes the
+    /// hanging end with it, re-routes the connector to the end that did not move, and touches
+    /// nothing else.
+    ///
+    /// The expected picture is built from the two positions rather than pinned as text, so what is
+    /// claimed is where a displacement puts a figure and not how a connector draws. The reach is
+    /// then pinned by coordinates: no column past the far endpoint moved, and that endpoint's own
+    /// cell is byte-identical before and after. A resolution cached when the diagram was built
+    /// rather than asked when it is drawn passes the first comparison and fails both of these.
+    #[test]
+    fn a_displaced_box_takes_the_endpoint_hanging_from_it_along() {
+        let (origin, size) = the_window();
+        let the_far_end = Pos { x: 11, y: 1 };
+
+        let mut diagram = Diagram::new();
+        let box_id = diagram.add(the_box());
+        diagram.add(arm_connector(
+            Position::Reference(Reference {
+                id: box_id.clone(),
+                anchor: Anchor::Right,
+            }),
+            the_far_end.into(),
+        ));
+        let before = draw_of(&diagram, origin, size);
+
+        let moved = the_box().displaced_by(Delta { dx: 4, dy: 0 });
+        diagram.replace(&box_id, moved);
+        let after = draw_of(&diagram, origin, size);
+
+        // The same two figures with the box where it landed and the endpoint at the point the
+        // reference now resolves to: `{7, 1}`, four cells right of where it resolved before.
+        let mut expected = Diagram::new();
+        expected.add(Shape::Box {
+            at: Pos { x: 4, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        });
+        expected.add(arm_connector(Pos { x: 7, y: 1 }.into(), the_far_end.into()));
+
+        assert_eq!(
+            cells(&after, origin, size),
+            cells(&draw_of(&expected, origin, size), origin, size)
+        );
+
+        let reached = differing(&before, &after, origin, size);
+        assert!(
+            !reached.is_empty(),
+            "the displacement reached nothing at all"
+        );
+        assert!(
+            reached.iter().all(|at| at.x <= the_far_end.x),
+            "the change reached past the endpoint that did not move: {reached:?}"
+        );
+        assert_eq!(
+            before.cell(the_far_end),
+            after.cell(the_far_end),
+            "the endpoint that did not move was drawn differently"
+        );
+    }
+
+    /// User Story 2, spec's B2.3: a connector with one endpoint absolute and one hanging, each
+    /// placed by its own rule.
+    ///
+    /// Both orders, because the two positions are the same field with different rules and a match
+    /// written to suit one of them is the failure this case is for. Nothing here is pinned against
+    /// the other arrangement: each is pinned against the same connector with both points absolute.
+    #[test]
+    fn a_connector_places_each_of_its_ends_by_its_own_rule() {
+        let (origin, size) = the_window();
+        // A box whose **bottom** side center is `{7, 2}`, so the two ends of the route below are
+        // `{0, 2}` and `{7, 2}` and neither is the other.
+        let the_held_box = || Shape::Box {
+            at: Pos { x: 6, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        };
+        let the_far_end = Pos { x: 0, y: 2 };
+        let the_hanging_end = Pos { x: 7, y: 2 };
+
+        // Each case is pinned against the same route with both ends named as points, and never
+        // against the other case: a connector with its reference in the other slot leaves and
+        // arrives the other way round, so the two are different routes and saying so is the point.
+        let expected = |origin: Pos, size: Size| {
+            let mut diagram = Diagram::new();
+            diagram.add(the_held_box());
+            diagram.add(arm_connector(the_far_end.into(), the_hanging_end.into()));
+            cells(&draw_of(&diagram, origin, size), origin, size)
+        };
+        let expected_reversed = |origin: Pos, size: Size| {
+            let mut diagram = Diagram::new();
+            diagram.add(the_held_box());
+            diagram.add(arm_connector(the_hanging_end.into(), the_far_end.into()));
+            cells(&draw_of(&diagram, origin, size), origin, size)
+        };
+
+        let mut hanging_to = Diagram::new();
+        let box_id = hanging_to.add(the_held_box());
+        hanging_to.add(arm_connector(
+            the_far_end.into(),
+            Position::Reference(Reference {
+                id: box_id,
+                anchor: Anchor::Bottom,
+            }),
+        ));
+
+        let mut hanging_from = Diagram::new();
+        let box_id = hanging_from.add(the_held_box());
+        hanging_from.add(arm_connector(
+            Position::Reference(Reference {
+                id: box_id,
+                anchor: Anchor::Bottom,
+            }),
+            the_far_end.into(),
+        ));
+
+        assert_eq!(
+            cells(&draw_of(&hanging_to, origin, size), origin, size),
+            expected(origin, size)
+        );
+        assert_eq!(
+            cells(&draw_of(&hanging_from, origin, size), origin, size),
+            expected_reversed(origin, size)
+        );
+    }
+
+    /// User Story 2, spec's B2.4, SC-003, and the three non-resolutions ADR-0041 enumerates: a
+    /// reference to an identity this diagram does not hold, a reference to a kind that answers no
+    /// anchor, and a connector with one endpoint that resolves and one that does not.
+    ///
+    /// Each case asserts two things together, and the second is what makes the first mean anything.
+    /// The connector is **absent from the output**, and every other figure's cells are unchanged —
+    /// which is what distinguishes "the connector is not drawn" from "the drawing stopped". The
+    /// third case is the one a connector drawn partly would pass on the first half alone: half an
+    /// arm is a route with no head, and only the whole-picture comparison rules it out.
+    ///
+    /// The three figures the endpoints do not touch are the same in every case, and the one the
+    /// third case's unresolvable reference names is a connector, which answers no anchor at all.
+    fn a_diagram_of_three_figures_and_maybe_a_fourth(under_test: Option<Shape>) -> Diagram {
+        let mut diagram = Diagram::new();
+        diagram.add(the_box());
+        diagram.add(the_unrelated_box());
+        // A connector, so that a reference naming it asks a kind that answers no anchor.
+        diagram.add(arm_connector(
+            Pos { x: 0, y: 3 }.into(),
+            Pos { x: 12, y: 3 }.into(),
+        ));
+        if let Some(shape) = under_test {
+            diagram.add(shape);
+        }
+        diagram
+    }
+
+    #[test]
+    fn a_connector_with_an_endpoint_that_does_not_resolve_is_not_drawn_at_all() {
+        let (origin, size) = the_window();
+        let unresolvable = Position::Reference(Reference {
+            id: a_foreign_identity(),
+            anchor: Anchor::Right,
+        });
+        let answers_nothing = Position::Reference(Reference {
+            id: crate::ShapeId::new("#3"),
+            anchor: Anchor::Right,
+        });
+        let the_other_end: Position = Pos { x: 8, y: 1 }.into();
+
+        let cases = [
+            (
+                "an identity nothing holds",
+                unresolvable.clone(),
+                the_other_end.clone(),
+            ),
+            (
+                "a kind that answers no anchor",
+                Pos { x: 5, y: 2 }.into(),
+                answers_nothing,
+            ),
+            (
+                "one end that resolves and one that does not",
+                unresolvable,
+                the_other_end,
+            ),
+        ];
+
+        for (what, from, to) in cases {
+            let with_it =
+                a_diagram_of_three_figures_and_maybe_a_fourth(Some(arm_connector(from, to)));
+            let without_it = a_diagram_of_three_figures_and_maybe_a_fourth(None);
+
+            assert_eq!(
+                cells(&draw_of(&with_it, origin, size), origin, size),
+                cells(&draw_of(&without_it, origin, size), origin, size),
+                "{what} drew something, or drew something else"
+            );
+        }
+    }
+
+    /// User Story 2, spec's B2.5: a reference to an identity nothing holds yet, and then a figure
+    /// added under it — three kinds, because a kind answers anchors differently.
+    ///
+    /// The identity is spelled rather than read back, and **the connector is the first figure
+    /// added** so that the figure under test is the one the counter names next. That is what makes
+    /// the case reachable at all: a diagram offers no way to name a shape into existence, so a
+    /// spelled identity can only ever be the one an `add` is about to issue. Nothing holds it at
+    /// first and the hanging connector draws nothing; then a figure arrives and the same reference
+    /// finds it.
+    ///
+    /// A `Box` answers, a `Line` answers as a flat box, and a `Connector` does not answer at all —
+    /// which is the same picture as a reference to a shape that was never there.
+    #[test]
+    fn a_figure_added_under_a_spelled_identity_is_what_a_hanging_endpoint_finds() {
+        let (origin, size) = the_window();
+        let spelled = crate::ShapeId::new("#2");
+        let the_far_end: Position = Pos { x: 11, y: 1 }.into();
+        let the_filler = || arm_connector(Pos { x: 0, y: 0 }.into(), Pos { x: 1, y: 0 }.into());
+
+        let hanging = |anchor| {
+            arm_connector(
+                Position::Reference(Reference {
+                    id: spelled.clone(),
+                    anchor,
+                }),
+                the_far_end.clone(),
+            )
+        };
+
+        // Nothing holds `#2` yet, so the hanging connector draws nothing at all.
+        let mut nothing_under_it = Diagram::new();
+        nothing_under_it.add(hanging(Anchor::Right));
+        nothing_under_it.add(the_filler());
+
+        let mut just_the_filler = Diagram::new();
+        just_the_filler.add(the_filler());
+        assert_eq!(
+            cells(&draw_of(&nothing_under_it, origin, size), origin, size),
+            cells(&draw_of(&just_the_filler, origin, size), origin, size),
+            "a reference to nothing drew something"
+        );
+
+        // A box takes `#2`, and the connector hangs from its right side.
+        let mut with_a_box = Diagram::new();
+        with_a_box.add(hanging(Anchor::Right));
+        with_a_box.add(the_box());
+        with_a_box.add(the_filler());
+
+        let mut absolute_after_a_box = Diagram::new();
+        absolute_after_a_box.add(the_filler());
+        absolute_after_a_box.add(the_box());
+        absolute_after_a_box.add(arm_connector(THE_SIDE_CENTRE.into(), the_far_end.clone()));
+        assert_eq!(
+            cells(&draw_of(&with_a_box, origin, size), origin, size),
+            cells(&draw_of(&absolute_after_a_box, origin, size), origin, size),
+            "a box under a spelled identity is not where a reference finds it"
+        );
+
+        // A line takes `#2` instead, and the connector lands on the line's own far end — read as a
+        // box one cell thick, a five-cell line's right side center is its last cell.
+        let the_line = || Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 5,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        let mut with_a_line = Diagram::new();
+        with_a_line.add(hanging(Anchor::Right));
+        with_a_line.add(the_line());
+        with_a_line.add(the_filler());
+
+        let mut absolute_after_a_line = Diagram::new();
+        absolute_after_a_line.add(the_filler());
+        absolute_after_a_line.add(the_line());
+        absolute_after_a_line.add(arm_connector(
+            Pos { x: 4, y: 0 }.into(),
+            the_far_end.clone(),
+        ));
+        assert_eq!(
+            cells(&draw_of(&with_a_line, origin, size), origin, size),
+            cells(&draw_of(&absolute_after_a_line, origin, size), origin, size),
+            "a line under a spelled identity is not where a reference finds it"
+        );
+
+        // A connector takes `#2`, and the hanging connector stops drawing — the same answer as
+        // before there was anything under the identity at all.
+        let mut with_a_connector = Diagram::new();
+        with_a_connector.add(hanging(Anchor::Right));
+        with_a_connector.add(the_filler());
+
+        assert_eq!(
+            cells(&draw_of(&with_a_connector, origin, size), origin, size),
+            cells(&draw_of(&just_the_filler, origin, size), origin, size),
+            "a connector under a spelled identity still answered an anchor"
+        );
+    }
+
+    /// User Story 2, and the claim the conversion's own test used to carry: a connector with a glyph
+    /// terminal and a connector with an arm, each drawn through a diagram, produce the buffer the
+    /// same core `Connector` drawn directly produces.
+    ///
+    /// A stronger pin than the conversion was, because it goes through the four lines that built it
+    /// rather than naming them: a terminal or a direction dropped on the way would change the
+    /// drawing, and the drawing is what is compared.
+    #[test]
+    fn a_connector_with_either_terminal_reaches_the_core_whole() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 8,
+            height: 3,
+        };
+        let glyph = |text: &str| Terminal::Glyph {
+            glyph: Glyph::new(text).expect("one glyph"),
+        };
+
+        for (from_terminal, to_terminal) in
+            [(glyph("◄"), glyph("►")), (Terminal::Arm, Terminal::Arm)]
+        {
+            let endpoint = |at: Pos, leaving: Direction, terminal: Terminal| Endpoint {
+                at: at.into(),
+                leaving,
+                terminal,
+            };
+            let from = endpoint(Pos { x: 0, y: 0 }, Direction::Down, from_terminal.clone());
+            let to = endpoint(Pos { x: 7, y: 2 }, Direction::Up, to_terminal.clone());
+
+            let mut diagram = Diagram::new();
+            diagram.add(Shape::Connector {
+                from: from.clone(),
+                to: to.clone(),
+                stroke: light(),
+            });
+            let mut actual = Buffer::new(origin, size);
+            diagram.draw(&mut actual);
+
+            let mut expected = Buffer::new(origin, size);
+            Connector {
+                from: monospace_core::Endpoint {
+                    at: Pos { x: 0, y: 0 },
+                    leaving: Direction::Down,
+                    terminal: from_terminal,
+                },
+                to: monospace_core::Endpoint {
+                    at: Pos { x: 7, y: 2 },
+                    leaving: Direction::Up,
+                    terminal: to_terminal,
+                },
+                stroke: light(),
+            }
+            .draw(&mut Layer::new(&mut expected, StampMode::Above));
+
+            assert_eq!(cells(&actual, origin, size), cells(&expected, origin, size));
+        }
+    }
+
+    /// User Story 3, spec's B3.1, SC-004: taking the referenced box out leaves the connector drawing
+    /// nothing and leaves the figure that had nothing to do with either drawing exactly what it drew
+    /// **on its own**.
+    ///
+    /// The second half is pinned against that box's own picture rather than against the first one,
+    /// which is what makes the claim about the figures that stayed rather than a difference between
+    /// two drawings. The reference is not rewritten, not reported and does not panic: taking the
+    /// box out is 081's verb and this is what it now means.
+    #[test]
+    fn taking_the_referenced_figure_out_stops_the_connector_and_changes_nothing_else() {
+        let (origin, size) = the_window();
+
+        let mut diagram = Diagram::new();
+        let box_id = diagram.add(the_box());
+        diagram.add(arm_connector(
+            Position::Reference(Reference {
+                id: box_id.clone(),
+                anchor: Anchor::Right,
+            }),
+            Pos { x: 8, y: 1 }.into(),
+        ));
+        diagram.add(the_unrelated_box());
+        let before = draw_of(&diagram, origin, size);
+
+        diagram.remove(&box_id);
+        let after = draw_of(&diagram, origin, size);
+
+        assert_ne!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_eq!(
+            cells(&after, origin, size),
+            cells(
+                &drawn(vec![the_unrelated_box()], origin, size),
+                origin,
+                size
+            )
+        );
+    }
+
+    /// User Story 3, spec's B3.2, SC-004: a figure put back under the referenced identity makes the
+    /// connector draw again, hanging from the **new** figure's side rather than where the old one
+    /// stood.
+    ///
+    /// The case is put through `replace` rather than through `remove` followed by an addition, and
+    /// the reason is the model's rather than a convenience: `remove` frees an identity permanently
+    /// — `add` never hands one out twice, and there is no `add_under` — so a removal followed by an
+    /// addition cannot put anything back under the removed one's identity, and the reference stays
+    /// unresolved for good. What `replace` gives is the same resolution from the other side: the
+    /// identity is found, the kind answers the anchor, and the connector is drawn from wherever the
+    /// figure now stands. [#142](https://github.com/andresmoschini/monospace/issues/142) is where
+    /// what a removal should do to a reference is answered.
+    ///
+    /// A **line** is what goes back, not a second box, so a kind change is covered by the same case:
+    /// read as a box one cell thick, a five-cell line's right side center is its last cell, which is
+    /// neither where the removed box answered nor the connector's own far end.
+    #[test]
+    fn a_figure_put_back_under_the_referenced_identity_draws_the_connector_again() {
+        let (origin, size) = the_window();
+        let the_far_end = Pos { x: 11, y: 1 };
+
+        let mut diagram = Diagram::new();
+        let identity = diagram.add(the_box());
+        diagram.add(arm_connector(
+            Position::Reference(Reference {
+                id: identity.clone(),
+                anchor: Anchor::Right,
+            }),
+            the_far_end.into(),
+        ));
+        let before = draw_of(&diagram, origin, size);
+
+        let the_line = Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 5,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        diagram.replace(&identity, the_line.clone());
+        let after = draw_of(&diagram, origin, size);
+
+        let mut expected = Diagram::new();
+        expected.add(the_line);
+        expected.add(arm_connector(Pos { x: 4, y: 0 }.into(), the_far_end.into()));
+
+        assert_eq!(
+            cells(&after, origin, size),
+            cells(&draw_of(&expected, origin, size), origin, size)
+        );
+        assert_ne!(
+            cells(&before, origin, size),
+            cells(&after, origin, size),
+            "the replacement did not reach the picture at all"
+        );
+    }
+
+    /// User Story 4, spec's B4.2, SC-005: displacing a connector displaces the absolute endpoint and
+    /// leaves the hanging one exactly where it was, and the route is drawn between the two.
+    ///
+    /// The expected picture is built from the two positions rather than pinned as text, so an
+    /// implementation that moved both ends or neither fails. A displacement that did nothing at all
+    /// passes on a connector that never hung from anything, which is why this case hangs.
+    #[test]
+    fn a_displaced_connector_moves_its_absolute_end_and_leaves_its_hanging_one() {
+        let (origin, size) = the_window();
+
+        let mut diagram = Diagram::new();
+        let box_id = diagram.add(the_box());
+        diagram.add(arm_connector(
+            Pos { x: 0, y: 1 }.into(),
+            Position::Reference(Reference {
+                id: box_id.clone(),
+                anchor: Anchor::Right,
+            }),
+        ));
+        let before = draw_of(&diagram, origin, size);
+
+        let id = crate::ShapeId::new("#2");
+        let moved = diagram
+            .get(&id)
+            .expect("the connector is in the diagram")
+            .displaced_by(Delta { dx: 0, dy: 2 });
+        diagram.replace(&id, moved);
+        let after = draw_of(&diagram, origin, size);
+
+        let mut expected = Diagram::new();
+        expected.add(the_box());
+        expected.add(arm_connector(
+            Pos { x: 0, y: 3 }.into(),
+            THE_SIDE_CENTRE.into(),
+        ));
+
+        assert_eq!(
+            cells(&after, origin, size),
+            cells(&draw_of(&expected, origin, size), origin, size)
+        );
+
+        // The hanging end is untouched by coordinates as well as by picture: `{3, 1}` is the cell the
+        // arm starts on in both drawings.
+        assert_eq!(
+            before.cell(THE_SIDE_CENTRE),
+            after.cell(THE_SIDE_CENTRE),
+            "the hanging end moved with the displacement"
+        );
+    }
+
+    /// User Story 4, spec's B4.3: displacing a box or a line takes all four of its side centers with
+    /// it, and a connector hanging from any of them goes with them.
+    ///
+    /// The other side of B4 from the rule above, and what makes a displacement a property of a
+    /// position rather than of a figure. All four anchors rather than one, each with a destination
+    /// of its own so that no two arms share a cell and no wrong answer can hide behind a right one:
+    /// an implementation that moved three centers and left the fourth would draw three correct
+    /// routes and one that goes nowhere.
+    #[test]
+    fn a_displaced_figure_takes_every_anchor_and_every_hanging_end_with_it() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 14,
+            height: 6,
+        };
+        let by = Delta { dx: 2, dy: 0 };
+        let the_anchors = [Anchor::Top, Anchor::Right, Anchor::Bottom, Anchor::Left];
+        let the_destinations = [
+            Pos { x: 12, y: 0 },
+            Pos { x: 13, y: 1 },
+            Pos { x: 13, y: 2 },
+            Pos { x: 12, y: 5 },
+        ];
+
+        let a_box_at = |x: i32| Shape::Box {
+            at: Pos { x, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        };
+        let a_line_at = |x: i32| Shape::Line {
+            at: Pos { x, y: 0 },
+            len: 6,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+
+        for (what, figure_at) in [
+            ("a box", &a_box_at as &dyn Fn(i32) -> Shape),
+            ("a line", &a_line_at as &dyn Fn(i32) -> Shape),
+        ] {
+            let mut diagram = Diagram::new();
+            let identity = diagram.add(figure_at(0));
+            for (anchor, to) in the_anchors.into_iter().zip(the_destinations) {
+                diagram.add(arm_connector(
+                    Position::Reference(Reference {
+                        id: identity.clone(),
+                        anchor,
+                    }),
+                    to.into(),
+                ));
+            }
+            let before = draw_of(&diagram, origin, size);
+
+            let moved = figure_at(0).displaced_by(by);
+            diagram.replace(&identity, moved.clone());
+            let after = draw_of(&diagram, origin, size);
+
+            // The same five figures with every anchor named as the point it resolved to before the
+            // displacement, and again as the point it resolves to after.
+            let mut expected_before = Diagram::new();
+            expected_before.add(figure_at(0));
+            for (anchor, to) in the_anchors.into_iter().zip(the_destinations) {
+                expected_before.add(arm_connector(
+                    figure_at(0)
+                        .anchor(anchor)
+                        .expect("a box and a line answer every anchor")
+                        .into(),
+                    to.into(),
+                ));
+            }
+            assert_eq!(
+                cells(&before, origin, size),
+                cells(&draw_of(&expected_before, origin, size), origin, size),
+                "{what} before"
+            );
+
+            let mut expected_after = Diagram::new();
+            expected_after.add(moved.clone());
+            for (anchor, to) in the_anchors.into_iter().zip(the_destinations) {
+                expected_after.add(arm_connector(
+                    moved
+                        .anchor(anchor)
+                        .expect("a box and a line answer every anchor")
+                        .into(),
+                    to.into(),
+                ));
+            }
+            assert_eq!(
+                cells(&after, origin, size),
+                cells(&draw_of(&expected_after, origin, size), origin, size),
+                "{what} after"
+            );
+        }
     }
 }

@@ -28,22 +28,24 @@ use monospace_core::{
     Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, render,
 };
 
-use crate::{Diagram, Endpoint, Shape, ShapeId};
+use crate::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
 /// One description for every file, so the prose is written once rather than per level.
 const WHAT: &str = concat!(
     "A gallery: a chosen set of examples, one block each, for reading rather than for coverage. ",
     "Each label lists the shapes in the order they were added, each one derived from its own ",
-    "Debug, so a label cannot disagree with the values it names; what was done to the order is ",
-    "the second line, because a diagram offers one query by an identity and no listing of the ",
-    "shapes it holds. Under each picture is the surface that picture came from: a count of the ",
-    "positions the diagram wrote, then a row for each of them, saying what that position renders, ",
-    "what each of its four arms holds, and the base stroke every Set arm is drawn in. A Set arm ",
-    "names the stroke; Unset and Closed are the model's own two words for the other two. A ",
-    "position left unwritten is a hole in the picture rather than a row here, and the count is ",
-    "how many there are. A literal has no arms, so its arm columns are empty. A block moving ",
-    "means a figure or an order changed, and what moved is the thing to look at — the same ",
-    "acceptance a characterization gets, without its claim of covering a range.",
+    "Debug, so a label cannot disagree with the values it names; what was done between two ",
+    "drawings of one diagram is the second line, and it is named for the change rather than for ",
+    "the order, which 080 could make and a displacement does not. It is written by hand, because ",
+    "a diagram offers one query by an identity and no listing of the shapes it holds. Under each ",
+    "picture is the surface that picture came from: a count of the positions the diagram wrote, ",
+    "then a row for each of them, saying what that position renders, what each of its four arms ",
+    "holds, and the base stroke every Set arm is drawn in. A Set arm names the stroke; Unset and ",
+    "Closed are the model's own two words for the other two. A position left unwritten is a hole ",
+    "in the picture rather than a row here, and the count is how many there are. A literal has no ",
+    "arms, so its arm columns are empty. A block moving means a figure or an order changed, and ",
+    "what moved is the thing to look at — the same acceptance a characterization gets, without its ",
+    "claim of covering a range.",
 );
 
 const COLUMNS: [&str; 7] = ["at", "glyph", "top", "right", "bottom", "left", "base"];
@@ -124,14 +126,14 @@ fn line_shape(at_: Pos, len: u32) -> Shape {
 fn connector_shape(from_at: Pos, to_at: Pos) -> Shape {
     Shape::Connector {
         from: Endpoint {
-            at: from_at,
+            at: from_at.into(),
             leaving: Direction::Right,
             terminal: monospace_core::Terminal::Glyph {
                 glyph: glyph("◄")
             },
         },
         to: Endpoint {
-            at: to_at,
+            at: to_at.into(),
             leaving: Direction::Left,
             terminal: monospace_core::Terminal::Glyph {
                 glyph: glyph("►")
@@ -222,14 +224,15 @@ fn surface(buffer: &Buffer, size: Size) -> String {
     out
 }
 
-/// One block: what the diagram holds, then what was done to the order, then the picture, then
-/// the surface. `shapes` is a label rather than the values, because a `Diagram` offers one query
-/// by an identity and no listing of the shapes it holds, so there is nothing here to derive a
-/// label from.
-fn block(shapes: &str, order: &str, size: Size, diagram: &Diagram) -> String {
+/// One block: what the diagram holds, then what was done between the two drawings, then the
+/// picture, then the surface. `shapes` is a label rather than the values, because a `Diagram` offers
+/// one query by an identity and no listing of the shapes it holds, so there is nothing here to
+/// derive a label from. `change` is written by hand for the same reason, and is named for the
+/// change rather than for the order because a figure's displacement is a change too.
+fn block(shapes: &str, change: &str, size: Size, diagram: &Diagram) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "  shapes: {shapes}");
-    let _ = writeln!(out, "  order:  {order}");
+    let _ = writeln!(out, "  change: {change}");
 
     let (picture, surface) = draw(size, diagram);
     for line in picture.lines() {
@@ -317,15 +320,73 @@ fn an_arm_terminal_composes_where_a_border_is() {
 fn arm_connector(from_at: Pos, to_at: Pos) -> Shape {
     Shape::Connector {
         from: Endpoint {
-            at: from_at,
+            at: from_at.into(),
             leaving: Direction::Right,
             terminal: monospace_core::Terminal::Arm,
         },
         to: Endpoint {
-            at: to_at,
+            at: to_at.into(),
             leaving: Direction::Left,
             terminal: monospace_core::Terminal::Arm,
         },
         stroke: light(),
     }
+}
+
+// ------------------------------------------ an endpoint hanging from a figure's side
+
+/// The connector of _an endpoint hangs from a side_ with its `from` named as a **reference** to the
+/// box's right side rather than as the point that side resolves to.
+fn hanging_connector(box_id: ShapeId) -> Shape {
+    Shape::Connector {
+        from: Endpoint {
+            at: Position::Reference(Reference {
+                id: box_id,
+                anchor: Anchor::Right,
+            }),
+            leaving: Direction::Right,
+            terminal: monospace_core::Terminal::Arm,
+        },
+        to: Endpoint {
+            at: at(7, 1).into(),
+            leaving: Direction::Left,
+            terminal: monospace_core::Terminal::Arm,
+        },
+        stroke: light(),
+    }
+}
+
+/// The first block is the model's §6 _Attachment_ reached with a reference where the model spells
+/// the point, and the second is the same diagram with the box displaced four cells right. Both are
+/// in one snapshot because what a reader is meant to see is the two of them together: the arrow
+/// standing on a side, and the arrow standing on the same side after the figure under it moved.
+///
+/// This is the only carrier in the crate that can reach a reference at all — a `<!-- render: -->`
+/// marker reads a description, and the wire format holds a point (ADR-0064, research.md Q4).
+#[test]
+fn an_endpoint_hangs_from_a_side_and_follows_it() {
+    let labelled = "[small_box(0,0,no fill), arm_connector(from = Reference(#1, Right) -> 7,1)]";
+    let mut diagram = Diagram::new();
+    let box_id = diagram.add(small_box(at(0, 0), None));
+    diagram.add(hanging_connector(box_id.clone()));
+    let first = block(labelled, "as written", window(8, 3), &diagram);
+
+    // The box moves four cells right, so its right side center moves from `{3, 1}` to `{7, 1}`
+    // and the arrow lands on the new side without anything naming where that is.
+    let moved = diagram
+        .get(&box_id)
+        .expect("the box is in the diagram")
+        .displaced_by(Delta { dx: 4, dy: 0 });
+    diagram.replace(&box_id, moved);
+    let after = block(
+        labelled,
+        "the box displaced four cells right",
+        window(8, 3),
+        &diagram,
+    );
+
+    snap(
+        "an_endpoint_hangs_from_a_side_and_follows_it",
+        &format!("{first}\n{after}"),
+    );
 }

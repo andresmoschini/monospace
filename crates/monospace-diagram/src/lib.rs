@@ -5,8 +5,13 @@
 
 mod delta;
 mod diagram;
+mod position;
 mod shape;
+
+#[cfg(test)]
+mod gallery;
 
 pub use delta::Delta;
 pub use diagram::{Diagram, ShapeId};
+pub use position::{Anchor, Position, Reference};
 pub use shape::{Endpoint, Shape};

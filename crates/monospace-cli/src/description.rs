@@ -7,7 +7,7 @@
 //! format itself and `data-model.md` for the field-by-field mapping onto `monospace_diagram`.
 
 use monospace_core::{Direction, Glyph, Orientation as CoreOrientation};
-use monospace_diagram::{Diagram, Endpoint as DiagramEndpoint, Shape as DiagramShape};
+use monospace_diagram::{Diagram, Endpoint as DiagramEndpoint, Position, Shape as DiagramShape};
 use serde::{Deserialize, Deserializer};
 
 /// A position, mirroring `monospace_core::Pos` for deserialization.
@@ -136,6 +136,12 @@ impl From<Terminal> for monospace_core::Terminal {
 }
 
 /// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
+///
+/// The wire format holds a point and nothing else, so the diagram's `Position` is named explicitly
+/// here: `From<Pos> for Position` does not reach this file, because the `into()` below resolves
+/// `description::Pos → monospace_core::Pos` on its way to a diagram position that has to be
+/// `Absolute`. A reference is in no description format — a caller wanting one builds the picture in
+/// code, the way the shipped demonstration does (B5.8).
 #[derive(Deserialize, Debug, Clone)]
 struct Endpoint {
     at: Pos,
@@ -146,7 +152,7 @@ struct Endpoint {
 impl From<Endpoint> for DiagramEndpoint {
     fn from(endpoint: Endpoint) -> Self {
         DiagramEndpoint {
-            at: endpoint.at.into(),
+            at: Position::Absolute(endpoint.at.into()),
             leaving: endpoint.leaving.into(),
             terminal: endpoint.terminal.into(),
         }
