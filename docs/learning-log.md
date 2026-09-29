@@ -2034,3 +2034,98 @@ describes.
   the same correction arrived after the merge, the repository would have needed a new record, and
   the maintainer would have needed to be asked twice rather than once. The slice boundary is also
   the last point at which a contradiction between two requirements is cheap to find.
+
+## 2026-09-29 — an endpoint hangs from a side, and the field that could not be migrated alone
+
+Feature 082: `Anchor`, `Reference` and `Position` in `monospace-diagram`, `Endpoint.at` becoming a
+`Position`, and a fifth picture in the shipped demonstration. Seven commits, of which three change
+nothing a person can see.
+
+### Rust design and idiom
+
+- **A field's type change cannot be separated from the rule that reads it, and the "structural half"
+  of such a refactor is the types arriving unused.** `Endpoint.at` going from `Pos` to `Position`
+  kills `From<Endpoint> for monospace_core::Endpoint` in the same instant, because the core's
+  endpoint holds a `Pos` and a `Position` has none to give it without a diagram. It also forces
+  `Shape::draw` to get a `Pos` out of a `Position` somehow — and any rule for doing so is behavior.
+  So the structural commit that the plan originally described could not exist, which was found by
+  writing the task that executes it rather than by designing it. What does work is expand/contract's
+  first half: `position.rs` lands declared, re-exported and holding nothing. A public re-exported
+  type is never dead code, so the gate has nothing to deny, which a `pub(crate)` method with no
+  caller would have given it. The useful generalization is that "structural" was never about
+  touching fewer things; it was about a commit whose diff a reviewer can read without asking what it
+  does, and a field migration's diff cannot be, ever.
+- **`u32` extents meet `i32` coordinates, and `saturating_add` is not the whole answer.** The four
+  side centers are computed from a `Size` and a `Pos`, and the first draft used
+  `at.x.saturating_add(width - 1)`. The width is a `u32`, so that is a widening cast that wraps for
+  anything above `i32::MAX` — a silent wrong answer rather than a saturated one, which is exactly
+  what `Delta::apply`'s rustdoc says the crate's arithmetic exists to avoid.
+  `saturating_add_unsigned` takes the `u32` directly and saturates without the cast, so the extents
+  are `u32` all the way and the coordinate is only ever an `i32` on one side of the call.
+- **A rule with no branch for the degenerate case is worth a test that asks for the degenerate
+  case.** A box one cell wide and one cell tall have their four side centers coinciding in pairs,
+  and the general rule produces that on its own: `saturating_sub` on the extent, a floor division
+  for the middle. A test that only asked a four-by-three would pass on an implementation that
+  special-cased the ordinary figure, so the two degenerate boxes are asked for all four and the
+  answers are written out. Same reasoning made the line's case a comparison against the same point
+  read as a flat box in **both** orientations, because the horizontal one has its top and bottom
+  centers as the same point asked twice and the vertical one does not — a transposition is invisible
+  if you only run one of them.
+- **Four `None`s are not four tests.** `Shape::anchor` answers `None` for a connector, and asking
+  one anchor proves nothing about the other three: a `match` with a default arm passes on the one it
+  happened to spell. The test asks all four, for the same reason the kind is a closed set at all.
+
+### Working this way
+
+- **A `concat!` re-wrap drops a word silently, and only a word-level diff of the result shows it.**
+  Renaming the gallery's second line from `order:` to `change:` meant re-flowing the `WHAT`
+  description, which is the description of all three committed snapshots. The check that found
+  nothing lost was `git diff --word-diff` on the rendered sentence, run before accepting: it showed
+  the only removals were the words intended, and the only additions the words written. This is the
+  second increment to pay for the same lesson, so it is a property of the artifact rather than an
+  accident — a `concat!` is a paragraph wearing Rust's clothes, and a paragraph is reflowed by
+  reading it.
+- **A dead file in `src/` is a claim, not a file.** `gallery.rs` was never declared in `lib.rs`, so
+  its three tests and three snapshots had never run and nothing was failing. Declaring it took the
+  crate from 37 tests to 40, all green against the snapshots exactly as committed, and _no review
+  was needed to accept them_ — which is the evidence, not the green. A green run only says the
+  command ran; the snapshots matching what was already on disk says the check had been right all
+  along and had simply never been asked. The completeness guarantee in the module's own doc — a
+  `match` with no arm for anything else, over a closed set — is worth more than the three pictures,
+  and it is the reason the file was worth declaring rather than deleting.
+- **A structural commit is also the only place a snapshot may move, and that is worth stating in the
+  plan rather than discovering in the hook.** The gallery rename has to reach the snapshots that
+  carry the label, and a `refactor` may not carry a change to a snapshot, so it belongs in the
+  `test` commit that declares the module. The same commit then also moved a third snapshot for a
+  reason the plan did not predict: the gallery's labels are each kind's own `Debug`, and changing a
+  field's type changes what that prints. The label did its job — it disagreed with the committed
+  snapshot, which is the only thing it is for — and the picture underneath it did not move by a
+  single cell.
+
+### Trade-offs worth remembering
+
+- **A public re-exported type that nothing reads is a real cost, paid deliberately.** The first
+  commit adds three public types and one public method, and not one of them has a caller. It is dead
+  weight in the API for the length of exactly one commit, and it is the price of making the next
+  commit reviewable: a reviewer looking at `Endpoint.at` becoming a `Position` should be able to
+  assume the vocabulary already exists, and should not have to read a new vocabulary and a
+  behavioral change in the same diff. The alternative — one commit carrying both — is a diff where
+  the interesting line and the twenty lines that define its types are indistinguishable.
+- **The demo's identities are written out on purpose, and the fifth picture is where that stops
+  being harmless.** `ShapeId::new("#3")` and `ShapeId::new("#10")` name entries of a description the
+  demonstration cannot read back, and for four pictures that was an assumption about a shipped file.
+  The fifth reads `#10` and replaces it, so a figure added before it in `demo.json` would make the
+  written value name the wrong shape and the picture would silently show the wrong claim. The test
+  catches it — the fifth is pinned against the fourth by coordinates — but the honest cost is that a
+  demonstration file and the code that names its entries are now coupled by hand, with nothing but
+  that test between them. The alternative, a listing, is #86's, and §11's own trigger is the first
+  slice reading a diagram from a file.
+- **One case the specification asks for is not reachable, and the cost is saying so in a test's name
+  rather than in a note elsewhere.** B3.2 asks for "a box put back under the removed one's
+  identity", and `remove` frees an identity permanently: `add` never hands one out twice and there
+  is no `add_under`. So `remove` then `add` cannot put anything under the removed identity, and the
+  reference stays unresolved for good. The claim is asserted through `replace` instead — the same
+  resolution reached from the other side, and a kind change as a bonus — and the test's doc says
+  which it is and why, naming #142 as where the removal question belongs. A test that quietly
+  asserted the reachable part under the unreachable part's name would have been cheaper to read and
+  would have left a reader believing the diagram can do something it cannot.
