@@ -63,13 +63,16 @@ until this lands. It is a consequence rather than a choice: the correction to th
   property of one figure, and putting the value back under an identity is what changes anything.
 - One arm per variant. `Box` and `Line` move their own `at`; a `Connector` moves `from.at` and
   `to.at` together, because its route is derived from its two endpoints and never described by the
-  caller. A connector is not the exception to displacement, and displacing one endpoint is not a
-  silent no-op.
+  caller. A connector is not the exception to displacement, and displacing one of a connector's two
+  **points** is not a silent no-op. An endpoint that names another figure is a different matter, and
+  the bullet below is where that is answered.
 - What comes back is the bare figure the caller added. The identity and the place in the order are
   the diagram's, held beside the figure rather than inside it, and nothing about a figure names
   where it sits.
-- It has no answer for a figure holding a **reference**, because none can. The model states the
-  first answer under _Positions_; issue #82 is where there is a reference to displace.
+- An endpoint's position may be a `Reference` as of feature 082, and this is where the model's first
+  answer under _Positions_ lands in code: an endpoint that hangs from another figure comes back
+  exactly as it went in, because a reference names a figure rather than a point and so has no
+  coordinates to add to. Issue #143 is where the general rule belongs.
 
 ## `Diagram` — changed
 
@@ -120,9 +123,10 @@ nothing. `remove` and `replace` return nothing, so there is nothing to discard.
 - No `ids()`, no `len`, no order, and no way to ask which shape decided a position.
 - No undo, and no history: `remove` hands back nothing, and putting a figure back means building it
   again.
-- Nothing about **references**: no `Position`, no `Anchor`, no offset, so removing a shape leaves
-  every reference to it unresolved only in the model, and displacing a reference only in the model.
-  Issue #82.
+- A **reference** is now in the crate as of feature 082, on a connector's endpoint and nowhere else,
+  and taking the figure it names out of a diagram is what leaves it unresolved — the reference
+  itself is not rewritten, reported on, or panicked over. What is still not here is the offset,
+  which is issue #82.
 - No way for a caller to choose an identity or to edit one — an open question in the model.
 - No move to the very front or the very back in one step. Not in the model.
 - No measuring, no rendering and no glyph catalog; `draw` remains the only observation a caller
@@ -130,7 +134,8 @@ nothing. `remove` and `replace` return nothing, so there is nothing to discard.
 
 Each of these is a line in the specification's **What this slice does not decide**, and the two that
 are not in the model are the ones the specification accepts with nothing to verify them, per
-principle IV: no figure can hold a reference yet, so neither is reachable from a test.
+principle IV. One of those two has since been answered in code: an endpoint's position may be a
+reference, and taking the figure it names out leaves that reference unresolved without touching it.
 
 ## Using it
 

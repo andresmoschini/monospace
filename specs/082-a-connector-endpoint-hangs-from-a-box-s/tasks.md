@@ -359,7 +359,7 @@ the rule that replaces them cannot be separated without a commit that does not b
 label. They are placed here rather than in the Polish phase because plan.md orders them between the
 diagram feature and the demonstration, and the first of them is due the moment the feature lands.
 
-- [ ] T029 [P] Correct the **three** places in
+- [x] T029 [P] Correct the **three** places in
       `specs/081-a-shape-can-be-removed-and-replaced/contracts/diagram-api.md` that say a figure
       cannot hold a reference — the `displaced_by` bullet's closing lines, the `Reference`-free
       "What is still not here" bullet, and the closing sentence of that section — so each says
