@@ -46,10 +46,12 @@ _GATE: passes before Phase 0, re-checked after Phase 1._
   and lands alone, with nothing setting the new fields but zero; the arithmetic that reads them is
   behavioral; the wire change is a third commit. The gallery's rustdoc is corrected in the commit
   that makes it wrong, which is 082's Q7's rule.
-- **VI. Decisions recorded at the altitude they belong to** — three domain entries, all unanswered,
-  and none answered in advance. Two questions a reader may look for are answered elsewhere on
-  purpose: 082's D4 for the displacement and 082's Q3 for the anchor query (research.md Q4). The
-  module-level answers are in [research.md](research.md) and in rustdoc, not on the sheet.
+- **VI. Decisions recorded at the altitude they belong to** — three domain entries, all answered by
+  the maintainer on 2026-09-29, none answered in advance. One reaches past the crate to §1's `Delta`
+  row, and lands in the building stage as a `docs` commit of its own rather than as prose here. Two
+  questions a reader may look for are answered elsewhere on purpose: 082's D4 for the displacement
+  and 082's Q3 for the anchor query (research.md Q4). The module-level answers are in
+  [research.md](research.md) and in rustdoc, not on the sheet.
 - **VII. The core stays portable** — `monospace-core` gains no item and no arithmetic. Both amounts
   are signed, as `Delta`'s fields already are, and the addition happens over a `Pos` the core
   already exports.
@@ -63,7 +65,10 @@ _GATE: passes before Phase 0, re-checked after Phase 1._
 The sheet is [`decisions.md`](decisions.md). Part two does not begin until it is answered.
 
 - Entries: 3 — domain: 3, module: 0, tooling: 0
-- Answered: _pending_
+- Answered: 2026-09-29, all three by the maintainer, each with the sheet's recommendation adopted.
+  One consequence reaches past the code: D1 reuses `Delta`, so §1's `Delta` row is one clause wider,
+  and that amendment follows the answer in the building stage rather than preceding it, which is
+  where 082's D3's one-sentence change to §3 landed (`505fd0d`).
 
 ## Design _(part two)_
 

@@ -95,16 +95,20 @@ gives the gallery and keeps nothing the marker does better.
 
 ## Q7: What the model does not need to say, and one word a contract says wrong
 
-**Decision**: no section of `docs/diagram-model.md` is amended, and one word of the description
-contract is corrected while this slice amends it anyway.
+**Decision**: §1's `Delta` row is widened by one clause, in the building stage, because D1 reuses
+`Delta` for the offset; no other section of `docs/diagram-model.md` is amended; and one word of the
+description contract is corrected while this slice amends it anyway.
 
 **Rationale**: §1's `Reference` row already names three fields and §4 already says a reference
 resolves by asking for the anchor and adding the offsets, so the slice is that sentence becoming
-true — unless D1 widens §1's `Delta` row, which is D3. What a caller may ask is 082's D5; whether an
-unresolved reference is reported is ADR-0041's option B; that only an endpoint may hold a reference
-is 082's D2. Separately, `specs/079`'s contract spells `"kind": "arrow"` and the wire tag became
-`"connector"` in `c7539bc` under ADR-0065 — measured, a description carrying `arrow` is refused by
-name. 082's Q7 called a contract that contradicts the code worse than none, and this slice amends
-that same file.
+true. `Delta`'s own row reads "how far a figure moves along each axis: a horizontal and a vertical
+amount", and D1 gives the type a second use, so the first clause no longer holds alone — its second
+does, and the row is one clause wider. The amendment follows the answer rather than preceding it,
+which is where 082's D3's one-sentence change to §3 landed (`505fd0d`, on the building branch). What
+a caller may ask is 082's D5; whether an unresolved reference is reported is ADR-0041's option B;
+that only an endpoint may hold a reference is 082's D2. Separately, `specs/079`'s contract spells
+`"kind": "arrow"` and the wire tag became `"connector"` in `c7539bc` under ADR-0065 — measured, a
+description carrying `arrow` is refused by name. 082's Q7 called a contract that contradicts the
+code worse than none, and this slice amends that same file.
 
 **Alternatives considered**: amending §4's displacement paragraph, which 082's D4 declined.
