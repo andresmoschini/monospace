@@ -97,12 +97,12 @@ Nothing here may touch a test, and nothing here may change a picture.
       `/tmp/demo-before.txt` to confirm no picture changed. This is what makes T002-T003 a
       structural commit rather than a behavioral one, and a green run on its own proves only that
       the command ran (constitution principles IV and V)
-- [ ] T005 [P] Add `#[cfg(test)] mod gallery;` to `crates/monospace-diagram/src/lib.rs`, and confirm
+- [x] T005 [P] Add `#[cfg(test)] mod gallery;` to `crates/monospace-diagram/src/lib.rs`, and confirm
       `cargo test -p monospace-diagram` now reports 40 tests, all green against the three committed
       snapshots **without** a `cargo insta review` — if `review` offers one, something else changed
       and this task is in the wrong commit. The module's own doc claims `kind_of` is the
       completeness guarantee, and this is what starts enforcing it (research.md Q5)
-- [ ] T006 [P] In `crates/monospace-diagram/src/gallery.rs`, rename `block`'s second line from
+- [x] T006 [P] In `crates/monospace-diagram/src/gallery.rs`, rename `block`'s second line from
       `order:` to `change:` and say so in the `WHAT` description beside it — the line is what was
       done between two drawings of one diagram, which 080 could only make a change to the order of,
       and this slice's block displaces a figure. `WHAT` is a `concat!` of seven string fragments, so
@@ -110,7 +110,7 @@ Nothing here may touch a test, and nothing here may change a picture.
       not by `cargo xtask setup`) and then read the rendered sentence with `git diff --word-diff`: a
       hand re-wrap of a `concat!` drops a word silently, the code compiles and the snapshots match,
       and that diff is the only place it shows (data-model.md "The gallery")
-- [ ] T007 Confirm `cargo test --workspace` is green and `cargo xtask check` is green after T005 and
+- [x] T007 Confirm `cargo test --workspace` is green and `cargo xtask check` is green after T005 and
       T006. Phase 2 ends with every snapshot this slice touches accounted for
 
 **Checkpoint**: three public types exist and nothing uses them, and a gallery that had never run now

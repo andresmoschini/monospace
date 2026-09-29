@@ -34,16 +34,18 @@ use crate::{Diagram, Endpoint, Shape, ShapeId};
 const WHAT: &str = concat!(
     "A gallery: a chosen set of examples, one block each, for reading rather than for coverage. ",
     "Each label lists the shapes in the order they were added, each one derived from its own ",
-    "Debug, so a label cannot disagree with the values it names; what was done to the order is ",
-    "the second line, because a diagram offers one query by an identity and no listing of the ",
-    "shapes it holds. Under each picture is the surface that picture came from: a count of the ",
-    "positions the diagram wrote, then a row for each of them, saying what that position renders, ",
-    "what each of its four arms holds, and the base stroke every Set arm is drawn in. A Set arm ",
-    "names the stroke; Unset and Closed are the model's own two words for the other two. A ",
-    "position left unwritten is a hole in the picture rather than a row here, and the count is ",
-    "how many there are. A literal has no arms, so its arm columns are empty. A block moving ",
-    "means a figure or an order changed, and what moved is the thing to look at — the same ",
-    "acceptance a characterization gets, without its claim of covering a range.",
+    "Debug, so a label cannot disagree with the values it names; what was done between two ",
+    "drawings of one diagram is the second line, and it is named for the change rather than for ",
+    "the order, which 080 could make and a displacement does not. It is written by hand, because ",
+    "a diagram offers one query by an identity and no listing of the shapes it holds. Under each ",
+    "picture is the surface that picture came from: a count of the positions the diagram wrote, ",
+    "then a row for each of them, saying what that position renders, what each of its four arms ",
+    "holds, and the base stroke every Set arm is drawn in. A Set arm names the stroke; Unset and ",
+    "Closed are the model's own two words for the other two. A position left unwritten is a hole ",
+    "in the picture rather than a row here, and the count is how many there are. A literal has no ",
+    "arms, so its arm columns are empty. A block moving means a figure or an order changed, and ",
+    "what moved is the thing to look at — the same acceptance a characterization gets, without its ",
+    "claim of covering a range.",
 );
 
 const COLUMNS: [&str; 7] = ["at", "glyph", "top", "right", "bottom", "left", "base"];
@@ -222,14 +224,15 @@ fn surface(buffer: &Buffer, size: Size) -> String {
     out
 }
 
-/// One block: what the diagram holds, then what was done to the order, then the picture, then
-/// the surface. `shapes` is a label rather than the values, because a `Diagram` offers one query
-/// by an identity and no listing of the shapes it holds, so there is nothing here to derive a
-/// label from.
-fn block(shapes: &str, order: &str, size: Size, diagram: &Diagram) -> String {
+/// One block: what the diagram holds, then what was done between the two drawings, then the
+/// picture, then the surface. `shapes` is a label rather than the values, because a `Diagram` offers
+/// one query by an identity and no listing of the shapes it holds, so there is nothing here to
+/// derive a label from. `change` is written by hand for the same reason, and is named for the
+/// change rather than for the order because a figure's displacement is a change too.
+fn block(shapes: &str, change: &str, size: Size, diagram: &Diagram) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "  shapes: {shapes}");
-    let _ = writeln!(out, "  order:  {order}");
+    let _ = writeln!(out, "  change: {change}");
 
     let (picture, surface) = draw(size, diagram);
     for line in picture.lines() {
