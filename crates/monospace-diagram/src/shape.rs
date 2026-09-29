@@ -7,7 +7,8 @@ use monospace_core::{
     BoxShape, Connector, Direction, Glyph, Line, Orientation, Pos, Size, Stroke, Surface, Terminal,
 };
 
-use crate::Delta;
+use crate::position::{flat_size, side_centre};
+use crate::{Anchor, Delta, Diagram, Position};
 
 /// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
 ///
@@ -16,26 +17,20 @@ use crate::Delta;
 /// type and this crate re-exports nothing: a caller takes it from `monospace_core`, exactly as it
 /// already takes the `Pos`, `Direction` and `Glyph` the other two fields hold.
 ///
+/// `at` is a [`Position`] rather than a `Pos`, and this is the only field in the crate that can
+/// hold a reference: the model's _Positions_ restriction — only a connector's endpoint may name
+/// another figure — is then the type system rather than a rule to remember (D2).
+///
 /// `PartialEq` and `Eq` are here for [`Shape`]'s sake rather than this struct's own: a derive does
 /// not reach through a field, and `Shape::Connector` holds one of these.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Endpoint {
     /// The endpoint's position. The terminal occupies this position itself.
-    pub at: Pos,
+    pub at: Position,
     /// The direction the connector leaves this endpoint in.
     pub leaving: Direction,
     /// What this endpoint contributes to the cell at `at`.
     pub terminal: Terminal,
-}
-
-impl From<Endpoint> for monospace_core::Endpoint {
-    fn from(endpoint: Endpoint) -> Self {
-        monospace_core::Endpoint {
-            at: endpoint.at,
-            leaving: endpoint.leaving,
-            terminal: endpoint.terminal,
-        }
-    }
 }
 
 /// A figure a diagram can hold: one of a closed set of kinds, each carrying every position and
@@ -80,9 +75,44 @@ pub enum Shape {
 }
 
 impl Shape {
+    /// The middle of one of this figure's four sides, or `None` when its kind answers no anchor at
+    /// all.
+    ///
+    /// A `Box` answers all four from its own `at` and `size`, a `Line` answers all four as a box one
+    /// cell thick, and a `Connector` answers none of them. `None` is the ordinary answer rather
+    /// than a failure: a connector composes two positions and belongs to neither, so a reference to
+    /// one resolves to nothing, which is what keeps a chain of references one link long and makes
+    /// a cycle impossible to build.
+    ///
+    /// It is crate-private because the anchors exist to be resolved _through_, and
+    /// [`Position::resolve`] is how. Drawing is the only consumer so far, and a caller holding a
+    /// position and the diagram can already reach the number.
+    pub(crate) fn anchor(&self, anchor: Anchor) -> Option<Pos> {
+        match self {
+            Self::Box { at, size, .. } => Some(side_centre(*at, *size, anchor)),
+            Self::Line {
+                at,
+                len,
+                orientation,
+                ..
+            } => Some(side_centre(*at, flat_size(*len, *orientation), anchor)),
+            Self::Connector { .. } => None,
+        }
+    }
+
     /// Converts this shape into the `monospace_core` shape it describes and draws it into
     /// `surface`, dropping no parameter (FR-009).
-    pub(crate) fn draw(&self, surface: &mut impl Surface) {
+    ///
+    /// It takes the diagram it is drawn from because a connector's endpoints are positions and a
+    /// position may be a reference, which only a diagram can resolve. The `Box` and `Line` arms
+    /// ignore the argument: their `at` is still a point, so the model's restriction — only a
+    /// connector's endpoint may name another figure — is a signature here rather than a rule
+    /// enforced at run time.
+    ///
+    /// A connector whose endpoints do not both resolve is not drawn at all. Both are asked before
+    /// anything is written, so an end that cannot be placed never leaves the other half of a
+    /// connector on the picture, and every other shape draws exactly what it drew.
+    pub(crate) fn draw(&self, surface: &mut impl Surface, diagram: &Diagram) {
         match self {
             Self::Box {
                 at,
@@ -108,12 +138,27 @@ impl Shape {
                 stroke: stroke.clone(),
             }
             .draw(surface),
-            Self::Connector { from, to, stroke } => Connector {
-                from: from.clone().into(),
-                to: to.clone().into(),
-                stroke: stroke.clone(),
+            Self::Connector { from, to, stroke } => {
+                let (Some(from_at), Some(to_at)) =
+                    (from.at.resolve(diagram), to.at.resolve(diagram))
+                else {
+                    return;
+                };
+                Connector {
+                    from: monospace_core::Endpoint {
+                        at: from_at,
+                        leaving: from.leaving,
+                        terminal: from.terminal.clone(),
+                    },
+                    to: monospace_core::Endpoint {
+                        at: to_at,
+                        leaving: to.leaving,
+                        terminal: to.terminal.clone(),
+                    },
+                    stroke: stroke.clone(),
+                }
+                .draw(surface);
             }
-            .draw(surface),
         }
     }
 
@@ -131,8 +176,10 @@ impl Shape {
     /// the whole read-and-displace step, and nothing is cloned at the call site. A delta of
     /// nothing gives back the same figure, which is what the widened derives are for.
     ///
-    /// What displacing a figure holding a **reference** means is not decided here: no figure can
-    /// hold one yet, and the issue that introduces one settles it.
+    /// An endpoint that holds a **reference** does not move with the figure, and that is a decision
+    /// rather than an omission: a reference names another figure rather than a point, so there are
+    /// no coordinates here to add to. What displacing such a figure means in general is
+    /// [#143](https://github.com/andresmoschini/monospace/issues/143)'s to settle.
     #[must_use]
     pub fn displaced_by(&self, by: Delta) -> Self {
         match self {
@@ -160,12 +207,12 @@ impl Shape {
             },
             Self::Connector { from, to, stroke } => Self::Connector {
                 from: Endpoint {
-                    at: by.apply(from.at),
+                    at: from.at.displaced_by(by),
                     leaving: from.leaving,
                     terminal: from.terminal.clone(),
                 },
                 to: Endpoint {
-                    at: by.apply(to.at),
+                    at: to.at.displaced_by(by),
                     leaving: to.leaving,
                     terminal: to.terminal.clone(),
                 },
@@ -182,28 +229,6 @@ mod tests {
     use monospace_core::{
         Buffer, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, render,
     };
-
-    /// User Story 1: the mirror's terminal reaches the core's intact. Both variants, because a
-    /// `From` that carried one and dropped the other would pass on a description that named only
-    /// that one. A caller takes `Terminal` from `monospace_core` and not from this crate, and this
-    /// is what says so.
-    #[test]
-    fn the_mirrors_terminal_reaches_the_cores_intact() {
-        let glyph = |text: &str| Terminal::Glyph {
-            glyph: Glyph::new(text).expect("one glyph"),
-        };
-
-        let core_of = |terminal: Terminal| {
-            monospace_core::Endpoint::from(Endpoint {
-                at: Pos { x: 2, y: 1 },
-                leaving: Direction::Right,
-                terminal,
-            })
-        };
-
-        assert_eq!(core_of(glyph("◄")).terminal, glyph("◄"));
-        assert_eq!(core_of(Terminal::Arm).terminal, Terminal::Arm);
-    }
 
     /// The window the arrangement below is drawn in: two 3×3 boxes on an 11×3 canvas, which is the
     /// one the spec measures.
@@ -234,12 +259,12 @@ mod tests {
     fn connector(from: Terminal, to: Terminal) -> Shape {
         Shape::Connector {
             from: Endpoint {
-                at: Pos { x: 2, y: 1 },
+                at: Pos { x: 2, y: 1 }.into(),
                 leaving: Direction::Right,
                 terminal: from,
             },
             to: Endpoint {
-                at: Pos { x: 8, y: 1 },
+                at: Pos { x: 8, y: 1 }.into(),
                 leaving: Direction::Left,
                 terminal: to,
             },

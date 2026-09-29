@@ -137,7 +137,7 @@ border; then ask the same of a line and of a connector, and get the flat box's a
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Add `pub(crate) fn anchor(&self, anchor: Anchor) -> Option<Pos>` to `Shape` in
+- [x] T008 [US1] Add `pub(crate) fn anchor(&self, anchor: Anchor) -> Option<Pos>` to `Shape` in
       `crates/monospace-diagram/src/shape.rs`, one arm per variant: `Box` all four from its own `at`
       and `size`, `Line` all four as a flat box, `Connector` `None` for all four. Beside it in
       `crates/monospace-diagram/src/position.rs`, add
@@ -154,20 +154,20 @@ border; then ask the same of a line and of a connector, and get the flat box's a
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Contract test: a box's four side centers, each compared with the absolute point
+- [x] T009 [P] [US1] Contract test: a box's four side centers, each compared with the absolute point
       the picture depends on rather than with the other three, in
       `crates/monospace-diagram/src/position.rs` — the anchors have no consumer outside this file's
       own tests, and that is why the query is `pub(crate)` (B1.1; research.md Q3)
-- [ ] T010 [P] [US1] Contract test: a box one cell wide and a box one cell tall, each asked for all
+- [x] T010 [P] [US1] Contract test: a box one cell wide and a box one cell tall, each asked for all
       four, in `crates/monospace-diagram/src/position.rs` (spec.md edge case: the four side centers
       coincide in pairs **by the general rule rather than by an exception** — a test that only asks
       a 4×3 would pass on an implementation that special-cases it)
-- [ ] T011 [P] [US1] Contract test: a line's four, each equal to the same point read as a flat box —
+- [x] T011 [P] [US1] Contract test: a line's four, each equal to the same point read as a flat box —
       a horizontal line answers its top and bottom centers with its middle, one point asked twice,
       and its left and right centers with its two ends — and a vertical line the same seen sideways.
       Both orientations, because one of them is the one an implementation gets wrong by
       transposition, in `crates/monospace-diagram/src/position.rs` (B1.2)
-- [ ] T012 [P] [US1] Contract test: a connector's four, each asked for and answered `None`, with no
+- [x] T012 [P] [US1] Contract test: a connector's four, each asked for and answered `None`, with no
       error, no report and no panic, in `crates/monospace-diagram/src/position.rs` (B1.3)
 
 **Checkpoint**: every kind answers the four side centers or none, asked and compared by value rather
@@ -189,7 +189,7 @@ and compare again (spec.md B2; quickstart.md B2).
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] In `crates/monospace-diagram/src/shape.rs`: change `Endpoint.at` from `Pos` to
+- [x] T013 [US2] In `crates/monospace-diagram/src/shape.rs`: change `Endpoint.at` from `Pos` to
       `Position`; delete `impl From<Endpoint> for monospace_core::Endpoint` and its rustdoc; change
       `Shape::draw` to `pub(crate) fn draw(&self, surface: &mut impl Surface, diagram: &Diagram)`;
       and rewrite its `Connector` arm to resolve both endpoints **before writing anything** —
@@ -206,7 +206,7 @@ and compare again (spec.md B2; quickstart.md B2).
       the type change forces. That `.into()` is there today and resolves `description::Pos` into the
       core's `Pos`; the explicit variant is what makes it resolve into a `Position`, and
       `From<Pos> for Position` does not reach that file (data-model.md "`description.rs`")
-- [ ] T014 [P] [US2] Add `#[must_use] pub fn resolve(&self, diagram: &Diagram) -> Option<Pos>` to
+- [x] T014 [P] [US2] Add `#[must_use] pub fn resolve(&self, diagram: &Diagram) -> Option<Pos>` to
       `Position` in `crates/monospace-diagram/src/position.rs`, in three steps: `Absolute(at)` is
       `Some(*at)`; `Reference(reference)` asks `diagram.get(&reference.id)` for the figure and takes
       `None` when the diagram holds no such shape; then asks that figure for the anchor and takes
@@ -219,36 +219,36 @@ and compare again (spec.md B2; quickstart.md B2).
 
 ### Tests for User Story 2
 
-- [ ] T015 [P] [US2] Contract test: a reference draws exactly what the absolute point draws, both
+- [x] T015 [P] [US2] Contract test: a reference draws exactly what the absolute point draws, both
       sides pinned against the point and not against each other, in
       `crates/monospace-diagram/src/diagram.rs` using the `cells` and `drawn` helpers already there
       (B2.1, SC-001)
-- [ ] T016 [P] [US2] Contract test: the referenced box displaced four cells right draws the picture
+- [x] T016 [P] [US2] Contract test: the referenced box displaced four cells right draws the picture
       where the same box added at the displaced position would draw, and the route re-routes to the
       endpoint that did not move — the reach pinned by coordinates with `differing`, so a resolution
       cached at construction rather than asked at drawing fails, in
       `crates/monospace-diagram/src/diagram.rs` (B2.2, SC-002, SC-005)
-- [ ] T017 [P] [US2] Contract test: a connector with one endpoint absolute and one a reference, each
+- [x] T017 [P] [US2] Contract test: a connector with one endpoint absolute and one a reference, each
       placed by its own rule, in `crates/monospace-diagram/src/diagram.rs` (B2.3)
-- [ ] T018 [P] [US2] Contract test: the three non-resolutions ADR-0041 enumerates — a reference to
+- [x] T018 [P] [US2] Contract test: the three non-resolutions ADR-0041 enumerates — a reference to
       an identity the diagram does not hold, a reference to an anchor a kind does not answer, and a
       connector with one endpoint that resolves and one that does not — each asserting the connector
       is **absent from the output** and that every other shape's cells are **unchanged**, in
       `crates/monospace-diagram/src/diagram.rs` (B2.4, SC-003; the second half is what distinguishes
       "the connector is not drawn" from "the drawing stopped", and a connector drawn partly passes
       the first)
-- [ ] T019 [P] [US2] Contract test: a reference to an identity nothing holds yet, then a shape added
+- [x] T019 [P] [US2] Contract test: a reference to an identity nothing holds yet, then a shape added
       under it — a **box** and the connector draws hanging from its side; a **line** and it lands on
       the line's own end or its middle; a **connector** and it stops drawing, which is the same
       answer as a reference to a shape that was never there — in
       `crates/monospace-diagram/src/diagram.rs` (B2.5; spec.md edge case)
-- [ ] T020 [P] [US2] Contract test replacing `the_mirrors_terminal_reaches_the_cores_intact` deleted
+- [x] T020 [P] [US2] Contract test replacing `the_mirrors_terminal_reaches_the_cores_intact` deleted
       with the conversion in T013: a connector with a glyph terminal and one with an arm, each drawn
       through a diagram, produce the buffer the same core `Connector` drawn directly produces, in
       `crates/monospace-diagram/src/diagram.rs`. A stronger pin than the conversion was, because it
       goes through the four hand-built lines rather than naming them
 
-- [ ] T021 [US2] Add the gallery's fourth block to `crates/monospace-diagram/src/gallery.rs`: a
+- [x] T021 [US2] Add the gallery's fourth block to `crates/monospace-diagram/src/gallery.rs`: a
       small box with no fill, a connector whose `from` is a reference to that box's right side, and
       the box displaced four cells right — two blocks in one snapshot, the before and the after,
       which is the shape `the_order_decides_a_shared_cell` already has. The `shapes:` line is
@@ -279,17 +279,17 @@ exactly what it drew, and putting a box back under that identity makes the conne
 
 ### Tests for User Story 3
 
-- [ ] T022 [P] [US3] Contract test: the referenced box taken out leaves the connector drawing
+- [x] T022 [P] [US3] Contract test: the referenced box taken out leaves the connector drawing
       nothing and the unrelated box drawing exactly what it drew **on its own** — compared cell by
       cell against the buffer that box produces alone, not against the first picture — in
       `crates/monospace-diagram/src/diagram.rs` (B3.1, SC-004)
-- [ ] T023 [P] [US3] Contract test: a box put back under the removed one's identity makes the
+- [x] T023 [P] [US3] Contract test: a box put back under the removed one's identity makes the
       connector draw again, hanging from wherever the **new** box is rather than where the old one
       was, in `crates/monospace-diagram/src/diagram.rs` (B3.2, SC-004)
 
 ### Implementation for User Story 3
 
-- [ ] T024 [US3] Add **no** code for this behavior, and say so in the commit rather than leaving it
+- [x] T024 [US3] Add **no** code for this behavior, and say so in the commit rather than leaving it
       to be found. `remove` is 081's, `Diagram::remove`'s rustdoc already says an identity this
       diagram does not hold "changes nothing, which is the same answer the model's _Positions_ gives
       a reference to a shape that is not there", and what we would rather it did is
@@ -316,7 +316,7 @@ and the route is drawn between the two (spec.md B4; quickstart.md B4).
 
 ### Implementation for User Story 4
 
-- [ ] T025 [US4] Add `pub(crate) fn displaced_by(&self, by: Delta) -> Self` to `Position` in
+- [x] T025 [US4] Add `pub(crate) fn displaced_by(&self, by: Delta) -> Self` to `Position` in
       `crates/monospace-diagram/src/position.rs`: `Absolute(at)` becomes `Absolute(by.apply(*at))`
       and `reference @ Reference(_)` comes back cloned unchanged, with a comment naming #143 as what
       replaces the second arm. In `crates/monospace-diagram/src/shape.rs`, change
@@ -327,17 +327,17 @@ and the route is drawn between the two (spec.md B4; quickstart.md B4).
 
 ### Tests for User Story 4
 
-- [ ] T026 [P] [US4] Contract test: a connector with one endpoint absolute and one a reference,
+- [x] T026 [P] [US4] Contract test: a connector with one endpoint absolute and one a reference,
       displaced two cells down, draws the picture the same connector added with the absolute
       endpoint at `y + 2` and the referenced one **where it already was** draws. The expected
       picture is built from the two positions rather than pinned as text, so an implementation that
       moved both or neither fails, in `crates/monospace-diagram/src/diagram.rs` (B4.2, SC-005; a
       displacement that did nothing passes on a connector that never hung from anything)
-- [ ] T027 [P] [US4] Contract test: a box and a line displaced take all four of their side centers
+- [x] T027 [P] [US4] Contract test: a box and a line displaced take all four of their side centers
       with them, and a connector hanging from one goes with them, in
       `crates/monospace-diagram/src/diagram.rs` (B4.3; the other side of B4 from the rule above, and
       what makes a displacement a property of a position rather than of a figure)
-- [ ] T028 [US4] Rewrite the last paragraph of `Shape::displaced_by`'s rustdoc in
+- [x] T028 [US4] Rewrite the last paragraph of `Shape::displaced_by`'s rustdoc in
       `crates/monospace-diagram/src/shape.rs`, which says a figure cannot hold a reference "yet" and
       that "the issue that introduces one settles it" — it is wrong the moment this slice lands, so
       it is corrected in the commit that makes it wrong, and it now says what the second arm of

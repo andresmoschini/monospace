@@ -28,7 +28,7 @@ use monospace_core::{
     Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, render,
 };
 
-use crate::{Diagram, Endpoint, Shape, ShapeId};
+use crate::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
 /// One description for every file, so the prose is written once rather than per level.
 const WHAT: &str = concat!(
@@ -126,14 +126,14 @@ fn line_shape(at_: Pos, len: u32) -> Shape {
 fn connector_shape(from_at: Pos, to_at: Pos) -> Shape {
     Shape::Connector {
         from: Endpoint {
-            at: from_at,
+            at: from_at.into(),
             leaving: Direction::Right,
             terminal: monospace_core::Terminal::Glyph {
                 glyph: glyph("◄")
             },
         },
         to: Endpoint {
-            at: to_at,
+            at: to_at.into(),
             leaving: Direction::Left,
             terminal: monospace_core::Terminal::Glyph {
                 glyph: glyph("►")
@@ -320,15 +320,73 @@ fn an_arm_terminal_composes_where_a_border_is() {
 fn arm_connector(from_at: Pos, to_at: Pos) -> Shape {
     Shape::Connector {
         from: Endpoint {
-            at: from_at,
+            at: from_at.into(),
             leaving: Direction::Right,
             terminal: monospace_core::Terminal::Arm,
         },
         to: Endpoint {
-            at: to_at,
+            at: to_at.into(),
             leaving: Direction::Left,
             terminal: monospace_core::Terminal::Arm,
         },
         stroke: light(),
     }
+}
+
+// ------------------------------------------ an endpoint hanging from a figure's side
+
+/// The connector of _an endpoint hangs from a side_ with its `from` named as a **reference** to the
+/// box's right side rather than as the point that side resolves to.
+fn hanging_connector(box_id: ShapeId) -> Shape {
+    Shape::Connector {
+        from: Endpoint {
+            at: Position::Reference(Reference {
+                id: box_id,
+                anchor: Anchor::Right,
+            }),
+            leaving: Direction::Right,
+            terminal: monospace_core::Terminal::Arm,
+        },
+        to: Endpoint {
+            at: at(7, 1).into(),
+            leaving: Direction::Left,
+            terminal: monospace_core::Terminal::Arm,
+        },
+        stroke: light(),
+    }
+}
+
+/// The first block is the model's §6 _Attachment_ reached with a reference where the model spells
+/// the point, and the second is the same diagram with the box displaced four cells right. Both are
+/// in one snapshot because what a reader is meant to see is the two of them together: the arrow
+/// standing on a side, and the arrow standing on the same side after the figure under it moved.
+///
+/// This is the only carrier in the crate that can reach a reference at all — a `<!-- render: -->`
+/// marker reads a description, and the wire format holds a point (ADR-0064, research.md Q4).
+#[test]
+fn an_endpoint_hangs_from_a_side_and_follows_it() {
+    let labelled = "[small_box(0,0,no fill), arm_connector(from = Reference(#1, Right) -> 7,1)]";
+    let mut diagram = Diagram::new();
+    let box_id = diagram.add(small_box(at(0, 0), None));
+    diagram.add(hanging_connector(box_id.clone()));
+    let first = block(labelled, "as written", window(8, 3), &diagram);
+
+    // The box moves four cells right, so its right side center moves from `{3, 1}` to `{7, 1}`
+    // and the arrow lands on the new side without anything naming where that is.
+    let moved = diagram
+        .get(&box_id)
+        .expect("the box is in the diagram")
+        .displaced_by(Delta { dx: 4, dy: 0 });
+    diagram.replace(&box_id, moved);
+    let after = block(
+        labelled,
+        "the box displaced four cells right",
+        window(8, 3),
+        &diagram,
+    );
+
+    snap(
+        "an_endpoint_hangs_from_a_side_and_follows_it",
+        &format!("{first}\n{after}"),
+    );
 }
