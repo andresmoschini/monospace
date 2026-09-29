@@ -194,7 +194,8 @@ its core shape. The one `match` over `Shape` stays in `shape.rs` and the `kind_o
 The test that pinned the conversion goes with it, and its claim comes back in the form the code now
 has: two connectors, one with a glyph terminal and one with an arm, each drawn through a diagram,
 produce exactly the buffer the same core `Connector` drawn directly produces. That is a stronger pin
-than the conversion was, because it goes through the four lines rather than naming them.
+than the conversion was, because it goes through the four lines rather than naming them — and it is
+a `feat` that removes a test rather than a `refactor`, so nothing about principle V is bent by it.
 
 ### `displaced_by` — a reference does not move
 
@@ -254,7 +255,7 @@ step not yet taken rather than as a rule.
 
 ## The `monospace-cli` side
 
-### `description.rs` — one line, in the first commit
+### `description.rs` — one line, in the commit that changes the field
 
 The wire format does not change and no field is added to it: `at` is still a `{"x", "y"}` on the
 wire, and the conversion wraps it.
@@ -270,9 +271,10 @@ its target by inference and its source by the value given, so today it resolves
 does not do. The explicit variant is what makes it compile, and it is why this slice's second way in
 does not reach this file.
 
-**This line lands in the structural commit, not with the feature.** It is the only change outside
-`monospace-diagram` that the field's new type forces, and a workspace that does not build is not a
-commit the constitution accepts (principle II) — so it is not a question of which commit prefers it.
+**This line lands in the same commit as the field's new type**, and cannot land anywhere earlier. It
+is the only change outside `monospace-diagram` that the type change forces, and a workspace that
+does not build is not a commit the constitution accepts (principle II) — so it is not a question of
+which commit prefers it.
 
 What it costs is that a reference is in no description format, which is why the fifth picture below
 is built in the demonstration's own code and why `cargo xtask render` cannot fill it either way
