@@ -68,9 +68,12 @@ pub enum Position {
 
 `From<Pos> for Position` is the second way in, for the caller holding a point. It is here for the
 same reason `From<(i32, i32)> for Delta` is: the field this type lands on is filled from a `Pos` at
-every site that builds an endpoint today, and without the conversion all fourteen of them in this
-crate and the one in `monospace-cli` would name the variant. The conversion is a second way in and
-does nothing else.
+every site that builds an endpoint today, and without the conversion the twelve of them in this
+crate would each name the variant. The conversion is a second way in and does nothing else.
+
+It does not reach the command-line application, which is worth saying rather than leaving to be
+found: `description.rs` holds a `Pos` of its own and only implements `From` **into** the core's, so
+there is no `into()` there to keep working — see that section.
 
 `Copy` is not derived, for the reason `Reference` gives. Two variants and no third, because §4 says
 a position is either absolute or a reference and names nothing else.
@@ -251,7 +254,7 @@ step not yet taken rather than as a rule.
 
 ## The `monospace-cli` side
 
-### `description.rs` — one line
+### `description.rs` — one line, in the first commit
 
 The wire format does not change and no field is added to it: `at` is still a `{"x", "y"}` on the
 wire, and the conversion wraps it.
@@ -260,11 +263,20 @@ wire, and the conversion wraps it.
 at: Position::Absolute(endpoint.at.into()),
 ```
 
-`endpoint.at.into()` was already there and already resolved through the field's type — it produced a
-`monospace_core::Pos` and will produce a `Position` — so the change is the variant the field now
-holds and nothing else. What it costs is that a reference is in no description format, which is why
-the fifth picture below is built in the demonstration's own code and why `cargo xtask render` cannot
-fill it either way (research.md Q4, and the specification's Clarifications for 2026-09-28).
+The `into()` is there today and stays, but it is doing less work than it looks. An `into()` names
+its target by inference and its source by the value given, so today it resolves
+`description::Pos → monospace_core::Pos` and tomorrow the same call has to resolve
+`description::Pos → Position` — and there is no such `From`, because the two-step conversion Rust
+does not do. The explicit variant is what makes it compile, and it is why this slice's second way in
+does not reach this file.
+
+**This line lands in the structural commit, not with the feature.** It is the only change outside
+`monospace-diagram` that the field's new type forces, and a workspace that does not build is not a
+commit the constitution accepts (principle II) — so it is not a question of which commit prefers it.
+
+What it costs is that a reference is in no description format, which is why the fifth picture below
+is built in the demonstration's own code and why `cargo xtask render` cannot fill it either way
+(research.md Q4, and the specification's Clarifications for 2026-09-28).
 
 `assets/demo.json` is unchanged, and so is every field of it: the displacement's amount and the
 identity the arrow hangs from are the demonstration's own constants, beside the fixed delta picture

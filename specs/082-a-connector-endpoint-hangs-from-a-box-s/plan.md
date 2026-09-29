@@ -88,12 +88,12 @@ The map, run against the five answers. The detail is in [data-model.md](data-mod
 | `Position::resolve`                           | `src/position.rs`                                  | Public and `#[must_use]`, with no offset arithmetic because there are no offsets (D5, D1)         |
 | `Position::displaced_by`                      | `src/position.rs`                                  | A displacement adds to a point; a reference has none to add to until #83 (B4)                     |
 | `displaced_by`'s connector arm                | `src/shape.rs`                                     | Both endpoints now go through it, so a hanging end stands still (B4)                              |
-| fourteen `Endpoint` literals                  | `src/shape.rs`, `src/diagram.rs`, `src/gallery.rs` | `at: Pos { … }` becomes `at: Pos { … }.into()` — counted, not estimated (Q1)                      |
+| thirteen `Endpoint` literals touched          | `src/shape.rs`, `src/diagram.rs`, `src/gallery.rs` | Twelve gain `at: … .into()`; the thirteenth goes with the test it pins (Q1)                       |
 | one test removed                              | `src/shape.rs`                                     | It pinned the conversion above; its claim returns by drawing (Q2, see Complexity Tracking)        |
 | `#[cfg(test)] mod gallery;`                   | `src/lib.rs`                                       | Three tests and three snapshots have never run (Q5)                                               |
 | `order:` becomes `change:`                    | `src/gallery.rs`                                   | A displacement is a change to a figure, not to the order                                          |
 | a fourth gallery block, and its snapshot      | `src/gallery.rs`, `src/snapshots/gallery/`         | The only carrier in the crate that can reach a reference (Q4, ADR-0064)                           |
-| `at: Position::Absolute(…)`                   | `monospace-cli/src/description.rs`                 | One line; the wire format is unchanged and grows no field (Q4)                                    |
+| `at: Position::Absolute(…)`                   | `monospace-cli/src/description.rs`                 | One line, in commit 1: the field's new type breaks the `into()` there                             |
 | the fifth picture, and the tests reading it   | `monospace-cli/src/main.rs`, `tests/cli.rs`        | B5; five pictures, appended rather than interleaved                                               |
 | one sentence in §3                            | `docs/diagram-model.md`                            | D3: a caller may spell an identity while the diagram still issues them                            |
 | three "no figure can hold a reference yet"    | `specs/081-…/contracts/diagram-api.md`             | A contract describes what a caller sees now (Q7)                                                  |
@@ -111,15 +111,17 @@ Seven commits, each green on its own, and the order is forced by principles II a
 chosen:
 
 1. `refactor(diagram)`: the three types, `Endpoint.at` becoming one, the `From` conversion gone, the
-   drawing method's argument, and the fourteen literals wrapped. No picture changes, which is the
-   whole claim, and it is first because every later commit reads the types it leaves.
+   drawing method's argument, the twelve literals wrapped, `description.rs`'s one line, and the one
+   test that pinned the conversion removed. No picture changes, which is the whole claim, and it is
+   first because every later commit reads the types it leaves and because the workspace has to build
+   at every commit.
 2. `test(diagram)`: the gallery declared, and its second line's name widened from `order:` to
    `change:`. 37 tests become 40 against snapshots exactly as committed, and the one `insta` review
    this slice offers is here rather than inside commit 3.
 3. `feat(diagram)`: the anchors, the resolution, the non-resolution that takes a whole connector
-   out, the displacement that leaves a reference alone, `description.rs`'s one line, the tests for
-   B1 through B4, and the gallery's fourth block. It is one commit and not four because the anchor
-   query has no public consumer, so a commit carrying it alone is dead code and the gate denies it.
+   out, the displacement that leaves a reference alone, the tests for B1 through B4, and the
+   gallery's fourth block. It is one commit and not four because the anchor query has no public
+   consumer, so a commit carrying it alone is dead code and the gate denies it.
 4. `docs(spec-081)`: the contract that said a figure cannot hold a reference, corrected — its own
    commit, saying what was wrong, because it is a record rather than code (Q7, and the rule in the
    constitution's _Fixing a commit_).
