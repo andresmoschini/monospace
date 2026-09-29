@@ -398,12 +398,12 @@ picture and nothing else, byte for byte what it printed before (spec.md B5; quic
 
 ### Implementation for User Story 5
 
-- [ ] T031 [US5] Change `demonstrated_pictures` in `crates/monospace-cli/src/main.rs` from a
+- [x] T031 [US5] Change `demonstrated_pictures` in `crates/monospace-cli/src/main.rs` from a
       four-tuple to a five-tuple, splitting the output four times on `\n\n`, and update its five
       destructuring call sites so `rendering_once_is_the_demonstrations_first_picture` and
       `two_overlapping_boxes_demonstrate_in_opposite_orders` keep comparing the first pictures with
       their meaning unchanged (data-model.md "The tests that read it")
-- [ ] T032 [US5] Grow `demonstrate` in `crates/monospace-cli/src/main.rs` to a fifth captioned
+- [x] T032 [US5] Grow `demonstrate` in `crates/monospace-cli/src/main.rs` to a fifth captioned
       picture over the **same** diagram mutated in place, the way pictures three and four already
       are: after `remove(&ShapeId::new("#1"))`, read the connector back with `get(&the_arrow)`,
       `match` it, and `replace` it with the same connector whose `from` is
@@ -418,7 +418,7 @@ picture and nothing else, byte for byte what it printed before (spec.md B5; quic
       [#89](https://github.com/andresmoschini/monospace/issues/89)'s. The caption is one line,
       because the tests find each picture by splitting on the blank line before it and the newline
       after the caption (B5.1; data-model.md "`demonstrate` — a fifth picture")
-- [ ] T033 [US5] In `demonstrate` in `crates/monospace-cli/src/main.rs`, carry the fifth picture's
+- [x] T033 [US5] In `demonstrate` in `crates/monospace-cli/src/main.rs`, carry the fifth picture's
       amount as a constant beside the one the third picture already carries —
       `Delta { dx: 4, dy: 0 }` is spec.md B2.2's four cells to the right, beside a comment saying
       the destination was measured against the shipped description's own rows and not chosen by eye
@@ -432,20 +432,20 @@ picture and nothing else, byte for byte what it printed before (spec.md B5; quic
 
 ### Tests for User Story 5
 
-- [ ] T034 [P] [US5] Contract test: a bare run prints **five** captioned pictures, the first the
+- [x] T034 [P] [US5] Contract test: a bare run prints **five** captioned pictures, the first the
       description as written, found by splitting the output on the blank line and pinning no
       caption's wording, in `crates/monospace-cli/src/main.rs` (B5.1, SC-006)
-- [ ] T035 [P] [US5] Contract test: the fifth differs from the fourth in exactly the box's old
+- [x] T035 [P] [US5] Contract test: the fifth differs from the fourth in exactly the box's old
       cells, its new cells and the connector's route — the same shape of claim the third picture's
       own test makes, reached with the `differing` helper already there, in
       `crates/monospace-cli/src/main.rs` (B5.1, SC-006)
-- [ ] T036 [P] [US5] Contract test: a description holding no shapes, and one holding exactly one,
+- [x] T036 [P] [US5] Contract test: a description holding no shapes, and one holding exactly one,
       each demonstrate five pictures and succeed, in `crates/monospace-cli/src/main.rs` (B5.7 — the
       no-shapes case prints five **identical** pictures, since every call is a no-op on an identity
       the diagram does not hold and there is no branch to get wrong; the one-shape case succeeds
       too, and every call in the fifth picture is a no-op as well, which is the trade the
       specification's Clarifications take knowingly and a reader of the fifth picture can see)
-- [ ] T037 [P] [US5] Confirm the existing
+- [x] T037 [P] [US5] Confirm the existing
       `the_demo_path_passed_explicitly_prints_the_demonstrations_first_picture` in
       `crates/monospace-cli/tests/cli.rs` needs **no** change to its body, and record that it still
       passes — it takes the first block and the new picture is appended below rather than inserted,
@@ -461,19 +461,19 @@ picture and nothing else, byte for byte what it printed before (spec.md B5; quic
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T038 Run `cargo run -p monospace-cli > /tmp/demo-after.txt` and
+- [x] T038 Run `cargo run -p monospace-cli > /tmp/demo-after.txt` and
       `diff /tmp/demo-before.txt /tmp/demo-after.txt` — the diff is one appended caption-and-picture
       block and nothing else; then `diff /tmp/file-before.txt /tmp/file-after.txt`, which must print
       nothing at all, since a file's picture is exactly the one it was (B5.2, B5.8, SC-007)
-- [ ] T039 Read the fifth picture from that run and confirm the box the arrow hangs from has moved
+- [x] T039 Read the fifth picture from that run and confirm the box the arrow hangs from has moved
       four cells right and the arrow has landed on its new side and re-routed to the end that did
       not move — so the slice's claim is in a picture rather than in a test (B5.1, SC-006)
-- [ ] T040 Run the two acceptance scenarios from quickstart.md: a description whose `shapes` is
+- [x] T040 Run the two acceptance scenarios from quickstart.md: a description whose `shapes` is
       empty, and one holding a single shape, each printing five pictures and exiting successfully;
       and then read the fifth picture of a **two**-shape description by hand, where neither written
       identity names a real entry, because that is the case the tests cannot see (B5.7;
       data-model.md "`demonstrate` — a fifth picture")
-- [ ] T041 Confirm the one rule the spec accepts with nothing to verify it is **named as such**
+- [x] T041 Confirm the one rule the spec accepts with nothing to verify it is **named as such**
       rather than described as tested: a shape whose own position does not resolve offers no anchor
       point, so a reference to it resolves to nothing in turn. No position but an endpoint's may
       hold a reference yet, so the rule is unreachable from a test today; it is in the model because
@@ -481,12 +481,12 @@ picture and nothing else, byte for byte what it printed before (spec.md B5; quic
       `specs/082-a-connector-endpoint-hangs-from-a-box-s/contracts/diagram-api.md` and in
       [quickstart.md](quickstart.md), and leave it as it is — this task is a check that the record
       says so, not an edit (constitution principle IV; spec.md Testing expectations)
-- [ ] T042 Run `cargo xtask check` and confirm it is green, including the `wasm` step — which
+- [x] T042 Run `cargo xtask check` and confirm it is green, including the `wasm` step — which
       already names `monospace-diagram`, so it covers the three new types and the changed field with
       no change to `xtask` and no new check. Watch the output rather than the exit code: a step that
       finds something it cannot fix still exits 0 (SC-008; plan.md Constitution Check, principle
       III)
-- [ ] T043 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T043 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and optionally a trade-off worth
       remembering. Two candidates are already paid for and are worth writing down rather than
       rediscovering: a `concat!` re-wrap drops a word silently and only a word-level diff shows it,
