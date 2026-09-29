@@ -51,13 +51,12 @@ _GATE: passes before Phase 0, re-checked after Phase 1._
   to draw a picture for.
 - **V. Structural and behavioral change never share a commit** — two changes are structural and land
   first, each alone and with no test added or changed: `Shape::draw` losing the conversion it cannot
-  keep, and the gallery being declared. Neither changes a picture. If D4's answer asks for a §4
-  amendment it is a `docs` commit, not folded into either.
-- **VI. Decisions recorded at the altitude they belong to** — five domain entries on the sheet, D5
-  answered in this session and the other four not. Two questions a reader may look for are answered
-  elsewhere on purpose: 081's D1 for the core, and the specification's own clarification for what
-  `remove` does to a reference (research.md Q6, Q8). The module-level answers are in
-  [research.md](research.md) and in rustdoc, not on the sheet.
+  keep, and the gallery being declared. Neither changes a picture. The two answers that reach past
+  the code are `docs` commits of their own: one sentence in §3 (D3), and no amendment to §4 (D4).
+- **VI. Decisions recorded at the altitude they belong to** — five domain entries, all answered. Two
+  questions a reader may look for are answered elsewhere on purpose: 081's D1 for the core, and the
+  specification's own clarification for what `remove` does to a reference (research.md Q6, Q8). The
+  module-level answers are in [research.md](research.md) and in rustdoc, not on the sheet.
 - **VII. The core stays portable** — `monospace-core` gains no item and no arithmetic, and Q2 makes
   that structural rather than merely intended: the diagram's endpoint can no longer be converted
   into the core's, so anything the core were to grow for this feature would have to be reached the
@@ -71,7 +70,14 @@ _GATE: passes before Phase 0, re-checked after Phase 1._
 The sheet is [`decisions.md`](decisions.md). Part two does not begin until it is answered.
 
 - Entries: 5 — domain: 5, module: 0, tooling: 0
-- Answered: D5 on 2026-09-29; the other four _pending_
+- Answered: 2026-09-29 — all five
+
+## Design _(part two)_
+
+Part two begins here, against the answered sheet: the modules it touches, what each one gains, the
+commits and their order, and `data-model.md`, `contracts/` and `quickstart.md`. Two of the sheet's
+answers reach further than the code — a sentence in §3 and a refusal to touch §4 — and both belong
+in the commits list rather than in a file.
 
 ## Complexity Tracking
 
@@ -82,5 +88,5 @@ The sheet is [`decisions.md`](decisions.md). Part two does not begin until it is
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `spec.md` at 243 attributable lines against a 120 | The specification's own 2026-09-28 clarification, which measured the split and chose to carry the overage, restated in `5246003` after that commit's own edit to B1 | A second deciding cycle — issue, branch, specification, sheet and pull request — to reach a number the first one already carries knowingly                                                                                             |
 | `research.md` at 148 lines against a 100 ceiling  | Eight questions, five of them carrying a measurement taken this session and cited to a line                                                                         | Compressing below a measurement's citation line costs the measurement, and the file is the only place two of the five are written down. Merging Q6 and Q8 saves four lines and one reader                                              |
-| `decisions.md` at 73 lines against a 60 ceiling   | Five entries the constitution asks for at five fields each, and prettier wraps a field at 100 columns                                                               | The format costs about twelve lines an entry whatever the prose, and the fields that would fit in a line are the ones that drop the trade-off. Dropping an entry takes a decision off the table                                        |
-| `plan.md` at 86 lines against an 80 ceiling       | Part one's own summary, constitution check, sheet tally and the table above                                                                                         | The ceiling is written for a plan written in one pass. Part two appends the design and the re-check, and the constitution's own rule puts it on its own branch after the sheet is answered, so the two halves cannot share one ceiling |
+| `decisions.md` at 79 lines against a 60 ceiling   | Five entries the constitution asks for at five fields each, plus a sixth on the one that answers D5, and prettier wraps a field at 100 columns                      | The format costs about twelve lines an entry whatever the prose, and the fields that would fit in a line are the ones that drop the trade-off. Dropping an entry takes a decision off the table                                        |
+| `plan.md` at 92 lines against an 80 ceiling       | Part one's own summary, constitution check, sheet tally, the hand-off and the table above                                                                           | The ceiling is written for a plan written in one pass. Part two appends the design and the re-check, and the constitution's own rule puts it on its own branch after the sheet is answered, so the two halves cannot share one ceiling |
