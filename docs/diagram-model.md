@@ -89,7 +89,10 @@ An identity is what makes a shape findable after it has been placed: it is how a
 another shape, how a change names what it is changing, and what a position on the screen resolves
 back to. It survives every change to the shape it names, including replacing it and reordering it.
 
-Identities being chosen by the caller, or edited after the fact, is an open question below.
+Identities being chosen by the caller, or edited after the fact, is an open question below. Spelling
+one is a different matter and is already possible: `ShapeId::new` builds an identity directly, so a
+caller may write one down while the diagram is still the one issuing them, and a diagram that hands
+no shape that identity holds nothing under it.
 
 ## 4. Positions
 

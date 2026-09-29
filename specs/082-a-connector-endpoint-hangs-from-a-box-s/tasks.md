@@ -370,7 +370,7 @@ diagram feature and the demonstration, and the first of them is due the moment t
       `checklists/requirements.md` — are a merged spec rather than a contract and stand, as does
       `specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/diagram-api.md` (research.md Q7;
       `4a851ac`'s rule as research.md Q7 applies it; constitution, Fixing a commit)
-- [ ] T030 [P] Add one sentence to §3 _Identity_ in `docs/diagram-model.md` saying a caller may
+- [x] T030 [P] Add one sentence to §3 _Identity_ in `docs/diagram-model.md` saying a caller may
       spell an identity while the diagram still issues them, and amend **nothing else**: §4 stays as
       written (D4), §5 needs no amendment, and §11's "Can a caller choose an identity?" stays open
       because its own trigger is the first slice reading a diagram from a file, which this is not.
