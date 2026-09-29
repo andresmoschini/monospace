@@ -13,50 +13,63 @@ undone by changing the code that gives it. The domain-level answers are on
 **Decision**: `Anchor` is its own four-variant enum — `Top`, `Right`, `Bottom`, `Left` — in a new
 `position.rs`, beside a `Position` of `Absolute(Pos)` and `Reference(Reference)`, and a `Reference`
 of `id: ShapeId` and `anchor: Anchor` (D1, D2). Only `Endpoint.at` becomes a `Position`. Resolution
-is `Diagram::draw`'s work: a private `Diagram::resolve(&self, &Position) -> Option<Pos>` looks the
-identity up, asks that shape for the anchor, adds the offsets, and a `None` skips the shape.
+is the position's own: `Position::resolve(&self, diagram: &Diagram) -> Option<Pos>` looks the
+identity up, asks that shape for the anchor, and adds the offsets, and a `None` skips the shape. It
+is public (D5), so `Position` is no longer a leaf: it names `Diagram`, and so does `Shape::draw`.
 
 **Rationale**: the model's _Vocabulary_ gives all three a row. `Anchor` is not `Direction`
 (geometry.rs:34, `Up`/`Right`/`Down`/`Left`) because a direction is which way a figure leaves and a
 side is where it is; the two coincide today and one name would mean the wrong thing the day a corner
 arrives with #90. `Position` on one field is what makes ADR-0041's restriction a type rather than a
 comment. `Diagram::draw` is already the only door — `Shape::draw` is `pub(crate)` (shape.rs:85) —
-and it takes `&self`, so the `find` it needs (diagram.rs:73) is in hand. `ShapeId` is `Clone` and
-not `Copy`, so a `Reference` is not; nothing here needs it to be.
+and it takes `&self`, so the lookup it needs (`get`, diagram.rs:109) is in hand and a `&Diagram`
+argument reaches it without inventing a second way in. `ShapeId` is `Clone` and not `Copy`, so a
+`Reference` is not; nothing here needs it to be.
 
 **Alternatives considered**: one `Position` on all three kinds, which is #89's shape built before
 the cycle obligation ADR-0041 attaches to widening it (D2); a pass rewriting each shape into an
-absolute one before drawing, which is a second shape type or a clone per drawing.
+absolute one before drawing, which is a second shape type or a clone per drawing; leaving `Position`
+a leaf and resolving in `Diagram::draw`, which is Q2.
 
 ## Q2: What replaces `From<Endpoint> for monospace_core::Endpoint`?
 
-**Decision**: `Shape::draw` takes a second argument, `&impl Fn(&Position) -> Option<Pos>`, and its
-`Connector` arm calls it for both endpoints and returns before writing anything if either is `None`.
-The core's `Endpoint` is then built by hand from the resolved `Pos`, the way every other arm already
-builds its core shape, and the two match sites stay in one file.
+**Decision**: `Shape::draw` takes the `&Diagram` it needs —
+`pub(crate) fn draw(&self, surface: &mut impl Surface, diagram: &Diagram)` — and its `Connector` arm
+asks each endpoint's position to resolve and returns before writing anything if either answers
+`None`. The core's `Endpoint` is then built by hand from the resolved `Pos`, the way every other arm
+already builds its core shape, and the one `match` over `Shape` stays in `shape.rs`.
 
-**Rationale**: the impl cannot survive, and this is measured rather than predicted: the core's
-`Endpoint.at` is a `Pos` (connector.rs:106) and a `Position` has no `Pos` to give it without a
-diagram. A second argument keeps the single `match` over `Shape` in `shape.rs`, and the `kind_of`
+**Rationale**: the `From` impl cannot survive, and this is measured rather than predicted: the
+core's `Endpoint.at` is a `Pos` (connector.rs:106) and a `Position` has no `Pos` to give it without
+a diagram. A named argument keeps the single `match` over `Shape` in `shape.rs`, and the `kind_of`
 match in `gallery.rs` beside it, as the closed-set checks they are. The `Box` and `Line` arms ignore
 the argument, which is ADR-0041's restriction stated as a signature rather than as a rule to enforce
-at run time. A `Resolved` newtype the `Connector` arm takes instead is the same thing spelled with a
-type and one more name.
+at run time. One endpoint that does not resolve takes the whole connector out, and that rule is the
+connector's: it composes two positions rather than belonging to either.
 
-## Q3: The removal test on two things this slice could add
+**Alternatives considered**: a closure as the second argument, which leaves `Position` with no
+behavior and lets any caller answer without consulting the diagram; a trait over the diagram, which
+has one implementor and a stub that would test the stub; and a `Placed` newtype pairing an endpoint
+with its resolved `Pos`, which is the same shape as the two `Option<Pos>` and stops the two from
+being swapped. The first two are D5, where the maintainer took the named argument.
 
-**Decision**: neither is added. The anchor query stays `pub(crate)`, and no method attaches an
-endpoint.
+## Q3: Is the anchor query public, now that a position can resolve?
 
-**Rationale**: the specification's testing expectations ask for each anchor to be "asked for", and a
-`#[cfg(test)]` module in this crate can ask a `pub(crate)` one — `diagram.rs` and `shape.rs` already
-hold all 37 tests that run today. Principle III's removal test is the constitution's own argument,
-and ADR-0041 applies it to public API in as many words: "an entry has to be shown to break something
-when taken out. It applies to public API as much as to configuration". Nothing outside the crate
-asks for an anchor: `cargo xtask render` cannot, because a reference is in no description format,
-and `monospace-cli` does not — the demonstration rebuilds the connector by matching on it, which
-`Shape`'s public fields already permit. A public anchor query is not what ADR-0040's _Confirmation_
-needs, since "positions that can be asserted directly" is satisfied from inside; and
+**Decision**: no — `Shape::anchor` stays `pub(crate)`, and no method attaches an endpoint.
+
+**Rationale**: the two are different questions, and the specification defers this one. It asks
+"whether a caller can ask a **shape** where one of its anchors is", and says the anchors exist to be
+resolved through, with drawing as the only consumer so far; D5 makes `Position::resolve` public,
+which is a caller asking a _position_ where it stands. Worth stating rather than leaving to be
+found: a caller holding a `Position` that references a shape can reach that anchor's point through
+`resolve`, so what is deferred is the direct query and not the number. The removal test points the
+same way — ADR-0041 applies it to public API in as many words, "an entry has to be shown to break
+something when taken out", and nothing outside the crate asks a shape for an anchor. ADR-0040's
+_Confirmation_ is satisfied either way, since "positions that can be asserted directly" can be
+asserted from inside the crate, where `#[cfg(test)] mod tests` in `diagram.rs` and `shape.rs`
+already holds all 37 tests that run today. `cargo xtask render` cannot ask at all, because a
+reference is in no description format, and `monospace-cli` does not: the demonstration rebuilds the
+connector by matching on it, which `Shape`'s public fields already permit, which is also why
 `Shape::attached_at(&self, which, Position) -> Self` is four lines and one more method for the
 single caller that can already match.
 
