@@ -84,7 +84,7 @@ III; D1).
 nothing reads, and every literal in the workspace is brought up to date so the crate builds. Nothing
 here may touch a test and nothing here may change a picture.
 
-- [ ] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and
+- [x] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and
       `cargo run -p monospace-cli crates/monospace-cli/assets/demo.json > /tmp/file-before.txt`, and
       keep both files until Phase 9. Then run `cargo run -p monospace-cli | sed -n '2,5p'` and read
       off the two numbers B5 rests on: the fifth entry of `crates/monospace-cli/assets/demo.json` is
@@ -95,7 +95,7 @@ here may touch a test and nothing here may change a picture.
       way `side_centre` and `Delta::apply` say they do, the tenth entry is wrong before a line of it
       is written. Record the test counts as T001's second half: `cargo test --workspace` green at
       **55 / 15 / 15** (quickstart.md "Build and test the workspace")
-- [ ] T002 In `crates/monospace-diagram/src/position.rs`, add a third public field to `Reference` —
+- [x] T002 In `crates/monospace-diagram/src/position.rs`, add a third public field to `Reference` —
       `/// How far from that side, along each screen axis, in cells.` `pub offset: Delta` — leaving
       the derives `Debug, Clone, PartialEq, Eq` and **not** `Copy` as they are, because `ShapeId` is
       a `String` and the struct inherits the weaker of the two. Rewrite `Reference`'s type-level
@@ -106,7 +106,7 @@ here may touch a test and nothing here may change a picture.
       omission**" — so it says the field exists and **is not read yet**, which is what makes this
       commit structural rather than a lie. Change **no** rustdoc on `Delta`, and add **no** line to
       the `Reference(reference) =>` arm (D1; contracts/diagram-api.md `Reference`; plan.md commit 1)
-- [ ] T003 [P] Add `offset: Delta { dx: 0, dy: 0 }` to every `Reference` literal in the workspace —
+- [x] T003 [P] Add `offset: Delta { dx: 0, dy: 0 }` to every `Reference` literal in the workspace —
       **fourteen** sites, counted rather than estimated: `position.rs:336` one,
       `crates/monospace-diagram/src/diagram.rs` eleven (lines 1486, 1530, 1620, 1629, 1676, 1680,
       1738, 1887, 1934, 1980 and 2064), `crates/monospace-diagram/src/gallery.rs` one, and
@@ -116,7 +116,7 @@ here may touch a test and nothing here may change a picture.
       those four files: the gallery's `shapes:` label and `Position::displaced_by`'s body are both
       read by later phases and neither moves here (plan.md commit 1; data-model.md "`Reference` — a
       third field")
-- [ ] T004 [P] Confirm `cargo test --workspace` is green at **55 / 15 / 15** with **no test added
+- [x] T004 [P] Confirm `cargo test --workspace` is green at **55 / 15 / 15** with **no test added
       and no test changed** — a structural commit that moves a test is a behavioral one wearing the
       other commit type's prefix — and that `cargo xtask check` is green. Then run
       `cargo run -p monospace-cli > /tmp/demo-after-1.txt` and
@@ -125,7 +125,7 @@ here may touch a test and nothing here may change a picture.
       endpoint outright at this point, so there is nothing for the missing step to change. No
       `cargo insta review` is needed or wanted in this commit, because no snapshot moved
       (constitution principles IV and V; plan.md commit 1)
-- [ ] T005 Prove the new field is inert rather than assuming it, as constitution principle IV asks:
+- [x] T005 Prove the new field is inert rather than assuming it, as constitution principle IV asks:
       restore `Position::resolve`'s old body — `shape.anchor(reference.anchor)` with no addition —
       and confirm `cargo test --workspace` is still green at the same counts, then put the body
       back. A `refactor` that quietly changed behavior would pass T004's picture diff on this

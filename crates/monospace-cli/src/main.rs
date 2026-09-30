@@ -172,6 +172,7 @@ fn demonstrate(description: Description) -> String {
                     at: Position::Reference(Reference {
                         id: the_hung_from.clone(),
                         anchor: Anchor::Right,
+                        offset: Delta { dx: 0, dy: 0 },
                     }),
                     leaving: Direction::Right,
                     terminal: Terminal::Arm,

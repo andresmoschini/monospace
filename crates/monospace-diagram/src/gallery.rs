@@ -343,6 +343,7 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
             at: Position::Reference(Reference {
                 id: box_id,
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             leaving: Direction::Right,
             terminal: monospace_core::Terminal::Arm,

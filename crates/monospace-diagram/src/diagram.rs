@@ -1486,6 +1486,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             Pos { x: 8, y: 1 }.into(),
         );
@@ -1530,6 +1531,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             the_far_end.into(),
         ));
@@ -1620,6 +1622,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id,
                 anchor: Anchor::Bottom,
+                offset: Delta { dx: 0, dy: 0 },
             }),
         ));
 
@@ -1629,6 +1632,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id,
                 anchor: Anchor::Bottom,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             the_far_end.into(),
         ));
@@ -1676,10 +1680,12 @@ mod tests {
         let unresolvable = Position::Reference(Reference {
             id: a_foreign_identity(),
             anchor: Anchor::Right,
+            offset: Delta { dx: 0, dy: 0 },
         });
         let answers_nothing = Position::Reference(Reference {
             id: crate::ShapeId::new("#3"),
             anchor: Anchor::Right,
+            offset: Delta { dx: 0, dy: 0 },
         });
         let the_other_end: Position = Pos { x: 8, y: 1 }.into();
 
@@ -1738,6 +1744,7 @@ mod tests {
                 Position::Reference(Reference {
                     id: spelled.clone(),
                     anchor,
+                    offset: Delta { dx: 0, dy: 0 },
                 }),
                 the_far_end.clone(),
             )
@@ -1887,6 +1894,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             Pos { x: 8, y: 1 }.into(),
         ));
@@ -1934,6 +1942,7 @@ mod tests {
             Position::Reference(Reference {
                 id: identity.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             the_far_end.into(),
         ));
@@ -1980,6 +1989,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
         ));
         let before = draw_of(&diagram, origin, size);
@@ -2064,6 +2074,7 @@ mod tests {
                     Position::Reference(Reference {
                         id: identity.clone(),
                         anchor,
+                        offset: Delta { dx: 0, dy: 0 },
                     }),
                     to.into(),
                 ));

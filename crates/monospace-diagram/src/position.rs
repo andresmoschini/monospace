@@ -33,12 +33,18 @@ pub enum Anchor {
 
 /// Another figure and one of its four sides, which is what a position may name instead of a point.
 ///
-/// Two fields, and that is the whole of it: the model's _Vocabulary_ gives a reference an identity,
-/// an anchor and two offsets, and the offsets arrive with their own issue. So a caller who wants an
-/// endpoint two cells off a side has no way to say it here, and places both figures by hand.
+/// Three fields, and that is the whole of it: the model's _Vocabulary_ gives a reference an
+/// identity, an anchor and two offsets, and the third field is the offsets arrived.
 ///
-/// Both fields are public, as [`Delta`](crate::Delta)'s are, so a caller names a reference as a
-/// value. [`ShapeId::new`] builds the identity it holds, and the identity a diagram's own
+/// The offset is a gap **from the side** rather than a point, and
+/// [`Position::resolve`] adds it to whatever that side answers now — so displacing the figure a
+/// reference hangs from carries the endpoint with it and the gap does not change. An offset of
+/// nothing puts the endpoint on the side itself, and a negative amount puts it on the far side of
+/// it; neither is checked against the side, and
+/// [#90](https://github.com/andresmoschini/monospace/issues/90) is where a corner would be.
+///
+/// All three fields are public, as [`Delta`](crate::Delta)'s are, so a caller names a reference as
+/// a value. [`ShapeId::new`] builds the identity it holds, and the identity a diagram's own
 /// [`add`](crate::Diagram::add) handed back is the one the reference should hold.
 ///
 /// It is not `Copy`, because `ShapeId` is a `String`. `Clone` is enough for every use here, and
@@ -49,6 +55,8 @@ pub struct Reference {
     pub id: ShapeId,
     /// Which of that shape's four sides it hangs from.
     pub anchor: Anchor,
+    /// How far from that side, along each screen axis, in cells.
+    pub offset: Delta,
 }
 
 /// Where something stands: a point, or a reference to a side of a shape.
@@ -91,12 +99,12 @@ impl Position {
     /// than a failure, and it is the model's _Positions_ applied to a case the code had described
     /// but not yet reached.
     ///
-    /// **There is no offset arithmetic here, and that is a decision rather than an omission.** A
-    /// [`Reference`] names a side and nothing else, and the offsets that would place an endpoint
-    /// beside a side rather than on it arrive with
-    /// [#83](https://github.com/andresmoschini/monospace/issues/83). Adding two zeros is an
-    /// expression the issue's own removal test would have to take back out, and the absence is
-    /// named here so that it reads as a step not yet taken.
+    /// **The offset is not read here yet, and that is a step not yet taken rather than a decision.**
+    /// A [`Reference`] carries a [`Delta`](crate::Delta) beside its identity and its anchor, and
+    /// this method does not add it to the point the anchor answered — so the field is a gap nothing
+    /// measures yet, and a caller who writes one gets the endpoint standing on the side itself.
+    /// #83's change is the addition, and the field arrives first so that widening a public type and
+    /// the arithmetic that reads it are two commits rather than one (constitution principle V).
     #[must_use]
     pub fn resolve(&self, diagram: &Diagram) -> Option<Pos> {
         match self {
@@ -336,6 +344,7 @@ mod tests {
         let reference = super::Position::Reference(crate::Reference {
             id: crate::ShapeId::new("#1"),
             anchor: Anchor::Right,
+            offset: Delta { dx: 0, dy: 0 },
         });
         let point = super::Position::Absolute(Pos { x: 1, y: 1 });
 
