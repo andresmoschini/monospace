@@ -70,11 +70,11 @@ Every shape object has a `kind` field selecting one of the three below, and that
 
 `orientation` is `"horizontal"` or `"vertical"`.
 
-### `"arrow"`
+### `"connector"`
 
 ```json
 {
-  "kind": "arrow",
+  "kind": "connector",
   "from": {
     "at": { "x": 13, "y": 3 },
     "leaving": "right",
