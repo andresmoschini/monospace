@@ -1,0 +1,84 @@
+---
+source: crates/monospace-cli/src/sweep.rs
+description: "This file records what the code does over a range too wide to assert by hand. A change here is the consequence of a decision taken elsewhere, not a decision. It is accepted after a report of how many cases moved, in which families, and three examples with their before and after."
+expression: joined
+---
+ascii over ascii
+
+    +---+
+    |   |
+  --+---+--
+    |   |
+    +---+
+
+
+ascii over light
+
+    +---+
+    |   |
+  ──┼───┼──
+    |   |
+    +---+
+
+
+light over ascii
+
+    ┌───┐
+    │   │
+  --+---+--
+    │   │
+    └───┘
+
+
+ascii over light-round
+
+    +---+
+    |   |
+  ──┼───┼──
+    |   |
+    +---+
+
+
+light-round over ascii
+
+    ╭───╮
+    │   │
+  --+---+--
+    │   │
+    ╰───╯
+
+
+ascii over heavy
+
+    +---+
+    |   |
+  ━━╋━━━╋━━
+    |   |
+    +---+
+
+
+heavy over ascii
+
+    ┏━━━┓
+    ┃   ┃
+  --+---+--
+    ┃   ┃
+    ┗━━━┛
+
+
+ascii over double
+
+    +---+
+    |   |
+  ══╬═══╬══
+    |   |
+    +---+
+
+
+double over ascii
+
+    ╔═══╗
+    ║   ║
+  --+---+--
+    ║   ║
+    ╚═══╝
