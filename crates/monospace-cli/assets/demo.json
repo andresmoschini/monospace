@@ -65,12 +65,12 @@
     {
       "kind": "connector",
       "from": {
-        "at": { "x": 12, "y": 3 },
+        "at": { "kind": "point", "x": 12, "y": 3 },
         "leaving": "right",
         "terminal": { "kind": "arm" }
       },
       "to": {
-        "at": { "x": 22, "y": 4 },
+        "at": { "kind": "point", "x": 22, "y": 4 },
         "leaving": "down",
         "terminal": { "kind": "glyph", "glyph": "▲" }
       },

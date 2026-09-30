@@ -342,7 +342,7 @@ label. They are placed here rather than in the Polish phase because plan.md orde
 diagram feature and the wire, and the first of them is due the moment the arithmetic lands. Each is
 its own commit: one amends the model, one corrects a record in another feature's directory.
 
-- [ ] T019 [P] Add one clause to the `Delta` row of §1 _Vocabulary_ in `docs/diagram-model.md` — it
+- [x] T019 [P] Add one clause to the `Delta` row of §1 _Vocabulary_ in `docs/diagram-model.md` — it
       reads "How far a figure moves along each axis: a horizontal and a vertical amount" and its
       second clause is the one that still holds, so the row gains the first meaning this slice gave
       the type. The `Reference` row above it needs **no** change: it has named three fields, and "a
@@ -351,7 +351,7 @@ its own commit: one amends the model, one corrects a record in another feature's
       endpoint's position may be a reference, and §11 stays open. The amendment follows the answer
       rather than preceding it, which is where 082's D3's one-sentence change to §3 landed
       (`505fd0d`) (D1; research.md Q7; plan.md commit 3)
-- [ ] T020 [P] Correct the one word
+- [x] T020 [P] Correct the one word
       `specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md` says
       wrong: its connector section is headed `### "arrow"` and its example carries
       `"kind": "arrow"`, and the wire tag became `"connector"` in `c7539bc` under ADR-0065 —
@@ -399,7 +399,7 @@ enum At {
 
 ### Implementation for User Story 4
 
-- [ ] T021 [US4] In `crates/monospace-cli/src/description.rs`, add the three private mirror types
+- [x] T021 [US4] In `crates/monospace-cli/src/description.rs`, add the three private mirror types
       and the union, and change one field's type. Nothing here is public and nothing here reaches
       `monospace_diagram` except through the existing conversion (ADR-0035). `At` is the enum shown
       in this phase's introduction. `AnchorDescription` is `#[serde(rename_all = "lowercase")]` with
@@ -420,21 +420,21 @@ enum At {
       Q1, Q2, Q3; data-model.md "`monospace-cli` — four private mirror types";
       contracts/description-format.md `at`)
 
-- [ ] T022 [P] [US4] Add `"kind": "point"` to the **six** endpoint literals in
+- [x] T022 [P] [US4] Add `"kind": "point"` to the **six** endpoint literals in
       `crates/monospace-cli/src/description.rs` — the two in
       `a_multi_grapheme_terminal_glyph_fails_to_deserialize` and the four inside the `ARROW` and
       `ARROW_WITHOUT_A_TERMINAL` constants the three terminal tests share. Counted, not estimated.
       The `at` spellings that belong to a `Box` or a `Line` in that file **do not change**, and a
       diff that touches one is a diff that widened the union further than ADR-0041 allows (D2;
       plan.md commit 5; quickstart.md "The wire")
-- [ ] T023 [P] [US4] Add `"kind": "point"` to the **two** endpoint literals in
+- [x] T023 [P] [US4] Add `"kind": "point"` to the **two** endpoint literals in
       `crates/monospace-cli/tests/cli.rs` — the connector in
       `a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed` — and to the two in
       `crates/monospace-cli/assets/demo.json`'s tenth entry, whose `to` is replaced wholesale by
       T028 and whose `from` stays a point. Eight literals in Rust, six and two; the eleven `at`
       spellings that belong to a `box` or a `line` in the same files do not change, which is what a
       reader checking the diff should see (data-model.md "The tests pin"; plan.md commit 5)
-- [ ] T024 [US4] Re-spell the **sixteen** endpoint `at`s in the six tracked documents, adding
+- [x] T024 [US4] Re-spell the **sixteen** endpoint `at`s in the six tracked documents, adding
       `"kind": "point"` to each and changing nothing else in those files: `README.md` two,
       `CONTRIBUTING.md` two, `docs/diagram-model.md` two, `docs/model.md` two,
       `specs/055-an-arrow-end-is-a-glyph-arm-or-nothing/spec.md` four, and
@@ -446,7 +446,7 @@ enum At {
       either number, and if it comes out something else again, write down what it came out as and
       stop: three records disagreeing about one count is worth more attention than a third guess
       (D2; research.md Q2; contracts/description-format.md "What has to be re-spelled")
-- [ ] T025 [P] [US4] Run `cargo xtask render` and then `cargo xtask check`, which rewrites and then
+- [x] T025 [P] [US4] Run `cargo xtask render` and then `cargo xtask check`, which rewrites and then
       re-checks every `<!-- render: -->` block from the description beside it — so **fourteen of the
       sixteen** are covered for free and a description edited wrongly is a red `render` step rather
       than a quietly different picture, which is the cheapest possible check on a mechanical change
@@ -454,7 +454,7 @@ enum At {
       inside a ````markdown` fence as the grammar of a marker, so the walker steps over it, and its
       description is a working example a reader copies. Read that one by eye, as an example rather
       than as a sample (research.md Q2; plan.md commit 5; quickstart.md "The wire")
-- [ ] T026 [P] [US4] Run the two refusals from [quickstart.md](quickstart.md) before the change and
+- [x] T026 [P] [US4] Run the two refusals from [quickstart.md](quickstart.md) before the change and
       watch the second one **pass** — today `from.at` is a bare point, an unknown `kind` beside `x`
       and `y` is an unknown field, and the file renders. That silence is what the tag is there to
       end, and seeing it go is the cheapest proof that the union is real. Afterwards the first file

@@ -135,9 +135,9 @@ fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
                 { "kind": "line", "at": { "x": 0, "y": 4 }, "len": 4, "orientation": "horizontal",
                   "stroke": "light" },
                 { "kind": "connector",
-                  "from": { "at": { "x": 5, "y": 0 }, "leaving": "right",
+                  "from": { "at": { "kind": "point", "x": 5, "y": 0 }, "leaving": "right",
                             "terminal": { "kind": "glyph", "glyph": ">" } },
-                  "to": { "at": { "x": 9, "y": 2 }, "leaving": "down",
+                  "to": { "at": { "kind": "point", "x": 9, "y": 2 }, "leaving": "down",
                           "terminal": { "kind": "glyph", "glyph": "v" } },
                   "stroke": "light" }
             ]

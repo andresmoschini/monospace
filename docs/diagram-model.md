@@ -179,9 +179,9 @@ an anchor rather than a corner:
     { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
     { "kind": "connector",
-      "from": { "at": { "x": 3, "y": 1 }, "leaving": "right",
+      "from": { "at": { "kind": "point", "x": 3, "y": 1 }, "leaving": "right",
                 "terminal": { "kind": "arm" } },
-      "to":   { "at": { "x": 7, "y": 1 }, "leaving": "left",
+      "to":   { "at": { "kind": "point", "x": 7, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" }
   ] }
