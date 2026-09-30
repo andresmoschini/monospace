@@ -32,6 +32,9 @@ use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, S
 /// from any working directory and from a binary copied outside a checkout (FR-022, FR-023).
 const DEMO: &str = include_str!("../assets/demo.json");
 
+#[cfg(test)]
+mod sweep;
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
