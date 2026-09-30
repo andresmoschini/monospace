@@ -84,10 +84,19 @@ that makes it wrong, and add no block for the offset.
 
 **Rationale**: measured. `gallery.rs:374` grounds the claim on "a `<!-- render: -->` marker reads a
 description, and the wire format holds a point" — both halves false once `at` can hold a reference.
-082's Q7 set the rule: a rustdoc is code, so it is corrected where it becomes false. The block's
-label comes from the shape's own `Debug`, so a `Reference` that gains a field prints it and the
-snapshot moves; what it moves to is observed when the code exists, not written here. §6's picture
-keeps spelling the point `{3, 1}`: it is the model's, and the specification amends none of it.
+082's Q7 set the rule: a rustdoc is code, so it is corrected where it becomes wrong. The block's
+label does **not** come from the shape's own `Debug` — it is a string written by hand
+(`gallery.rs:368`), which the gallery's own `WHAT` says twice over, because a diagram offers one
+query by an identity and no listing — so a `Reference` that gains a field moves the snapshot **only
+if the label is edited**, to `Reference(#1, Right, offset (0,0))`, because a label cannot disagree
+with the values it names. §6's picture keeps spelling the point `{3, 1}`: it is the model's, and the
+specification amends none of it.
+
+> **Corrected on the building branch, 2026-09-29.** The sentence read "The block's label comes from
+> the shape's own `Debug`, so a `Reference` that gains a field prints it and the snapshot moves",
+> which is wrong in its mechanism: `WHAT` says the label "is written by hand", and `gallery.rs:368`
+> confirms it. The decision above is unchanged and the snapshot still moves — by hand, in the
+> behavioral commit rather than the structural one. Q2's numbers, measured beside it, are right.
 
 **Alternatives considered**: a third block for the offset, which B1.2 already draws; handing the
 block to a marker now that one can reach it, which loses the two-block before-and-after ADR-0064

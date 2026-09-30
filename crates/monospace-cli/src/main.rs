@@ -172,6 +172,7 @@ fn demonstrate(description: Description) -> String {
                     at: Position::Reference(Reference {
                         id: the_hung_from.clone(),
                         anchor: Anchor::Right,
+                        offset: Delta { dx: 0, dy: 0 },
                     }),
                     leaving: Direction::Right,
                     terminal: Terminal::Arm,
@@ -356,6 +357,63 @@ mod tests {
         render(&buffer, &GlyphCatalog::light(), origin, size)
     }
 
+    /// User Story 5, spec's B5.1 and B5.2, SC-005: the tenth entry's far endpoint stops being a
+    /// point and becomes a reference to `#5`'s bottom with an offset of one in each axis, and
+    /// **all five pictures come out byte for byte what they were**.
+    ///
+    /// The evidence is in a file and the picture not moving is what proves the arithmetic. The
+    /// other side of each comparison is not pinned as text but built: the same demonstration with
+    /// that one entry's `to` put back to the point it spells, so a difference can only be the
+    /// entry. `{21, 3} + (1, 1)` is `{22, 4}`, which is what the entry said outright, and the
+    /// demonstration removes `#1`, displaces `#1` and displaces `#3`, so the fifth shape is none of
+    /// them and the reference resolves the same in every picture.
+    ///
+    /// A path still prints one picture and nothing else, which is what `cargo xtask render` embeds.
+    #[test]
+    fn the_tenth_entry_naming_a_reference_leaves_all_five_pictures_exactly_as_they_were() {
+        // Built through `serde_json` rather than by replacing text in the file, because the file is
+        // formatted and a needle written against one formatting of it is a test that stops matching
+        // the day prettier disagrees.
+        let mut value: serde_json::Value =
+            serde_json::from_str(super::DEMO).expect("the embedded description is well-formed");
+        for shape in value["shapes"]
+            .as_array_mut()
+            .expect("the description lists its shapes")
+        {
+            if shape["kind"] == serde_json::json!("connector")
+                && shape["from"]["at"]["kind"] == serde_json::json!("point")
+                && shape["from"]["at"]["x"] == serde_json::json!(12)
+            {
+                shape["to"]["at"] = serde_json::json!({ "kind": "point", "x": 22, "y": 4 });
+            }
+        }
+        let with_the_point = value.to_string();
+        assert_ne!(
+            super::DEMO,
+            with_the_point,
+            "the tenth entry still spells its far endpoint outright"
+        );
+
+        let (first, second, third, fourth, fifth) = demonstrated_pictures(super::DEMO);
+        let (first2, second2, third2, fourth2, fifth2) = demonstrated_pictures(&with_the_point);
+        assert_eq!(
+            (&first, &second, &third, &fourth, &fifth),
+            (&first2, &second2, &third2, &fourth2, &fifth2)
+        );
+
+        // The first picture is the shipped file's own, byte for byte, and a path prints that and
+        // nothing else.
+        assert_eq!(first, render_once(parse(super::DEMO)));
+        assert_eq!(first2, render_once(parse(&with_the_point)));
+
+        // The fifth picture still shows the box the arrow hangs from displaced four cells right,
+        // because that is the demonstration's own change to the picture and not the file's.
+        assert_ne!(
+            fourth, fifth,
+            "the fifth picture must be the fourth with a figure moved"
+        );
+    }
+
     /// User Story 5, spec's B5.1 scenario, SC-006: a bare run prints five captioned pictures and
     /// the first is the description as written.
     ///
@@ -505,16 +563,35 @@ mod tests {
     /// The shipped demonstration with its first entry left out, as the text `render_once` reads.
     ///
     /// Rewritten through `serde_json` rather than by hand, so the description the test draws is the
-    /// one the binary embeds and only the first entry differs. The identities it is given on the
-    /// way are not the demonstration's, and nothing here can tell: an identity names an entry in
-    /// the order, and the order is the same either way.
+    /// one the binary embeds and only the first entry differs.
+    ///
+    /// **It also renumbers the one reference it moves, `"#5"` to `"#4"`, and that is not a
+    /// convenience — it is the whole of what a positional identity costs.** An identity names a
+    /// place in a list, and the tenth entry's `to` names `"#5"`: the fifth entry of *this* text.
+    /// Reading the text again issues the identities from scratch in array order, so after the first
+    /// entry is gone, `#5` is the sixth entry of the original — the box at `{18, 0}`, whose bottom
+    /// centre is `{19, 2}` and whose `+ (1, 1)` is `{20, 3}` rather than `{22, 4}`. The fourth
+    /// picture would then be a different picture from the one the test compares it to, and the
+    /// difference begins at row 3. Renumbering is what keeps the two sides the same diagram, and
+    /// `the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out` fails on the two
+    /// columns of the arrow's route without it.
+    ///
+    /// That is D3 answered in the only place its consequence is observable rather than worked
+    /// around: a file names its shapes by where they are listed, and a test that removes a listing
+    /// shifts every identity after it. Nothing in the model promises a reference survives being
+    /// moved up the list, and nothing here pretends otherwise.
     fn demo_without_its_first_entry() -> String {
         let mut value: serde_json::Value =
             serde_json::from_str(super::DEMO).expect("the embedded description is well-formed");
-        value["shapes"]
+        let shapes = value["shapes"]
             .as_array_mut()
-            .expect("the description lists its shapes")
-            .remove(0);
+            .expect("the description lists its shapes");
+        shapes.remove(0);
+        for shape in shapes.iter_mut() {
+            if shape["to"]["at"]["shape"] == serde_json::json!("#5") {
+                shape["to"]["at"]["shape"] = serde_json::json!("#4");
+            }
+        }
         value.to_string()
     }
 

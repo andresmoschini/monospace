@@ -2129,3 +2129,92 @@ nothing a person can see.
   which it is and why, naming #142 as where the removal question belongs. A test that quietly
   asserted the reachable part under the unreachable part's name would have been cheaper to read and
   would have left a reader believing the diagram can do something it cannot.
+
+## 2026-09-30 — a reference carries two offsets, and the field that could not be tested alone
+
+Feature 083: `Reference` gaining the offset its row in §1 had named since 082, `Position::resolve`
+adding it, and `at` on the wire becoming a union of a point and a reference. Seven commits, of which
+two change nothing a person can see.
+
+### Rust design and idiom
+
+- **A gap from a side and a point look the same in a struct and are not the same thing.** `offset`
+  could have been added at construction — resolved once, stored as a `Pos` — and every picture would
+  be identical until something moved. Adding it to whatever the anchor answers _at draw time_ is the
+  only version where displacing the figure carries the endpoint with it and the gap does not change,
+  which is the whole claim. The two versions are the same struct and the same method signature; the
+  difference is one `?` and one `+` in the wrong order of lifetime, and nothing in the type system
+  distinguishes them. The test that separates them has to displace the box, because that is the only
+  thing that tells a point from a gap.
+- **The order of two `?`s is a rule, and the existing suite already held it before this slice knew
+  about it.** An addition written to tolerate a missing answer — `point.unwrap_or(..)` — fails
+  `a_connector_with_an_endpoint_that_does_not_resolve_is_not_drawn_at_all` and
+  `a_figure_added_under_a_spelled_identity_is_what_a_hanging_endpoint_finds`. So SC-004 was never
+  merely prose: 082's two non-resolution tests pin the `?` order as a side effect of pinning the
+  silence. Worth knowing before a later slice reaches in and "tidies" those two lines.
+- **A widening `refactor` is unverifiable by construction, and the measurement says so.** Commit 1
+  adds the field and sets fourteen literals to zero. Its own acceptance — `diff` of the bare
+  demonstration and of `demo.json` — prints nothing, which is the claim. Putting the addition in
+  early, with both `?`s before it, **also** prints nothing, and all 275 tests stay green at the same
+  counts. This demonstration holds no non-zero offset yet, so neither the picture diff nor the
+  existing suite can tell the arithmetic apart at all. The empty diff is not evidence; it is only
+  evidence once something non-zero exists to move.
+- **An internally tagged newtype variant deserializes and does not serialize.** `At::Point(Pos)` is
+  a newtype rather than a struct variant with `x` and `y` written out, and both spellings read and
+  refuse byte for byte identically, so the newtype is free. It is also a trap: a caller who later
+  wants a `Serialize` on this type cannot have one without widening the variant. It costs nothing
+  today because the format is read and never written, which is exactly why it is written down now
+  rather than discovered later.
+
+### Working this way
+
+- **A hand-written label cannot move by itself when the value it names grows a field.** The
+  gallery's block label is a string in `gallery.rs`, not a `Debug` of anything, so a `Reference`
+  gaining a field did not move the snapshot at all — which is the useful part. It also means the
+  structural commit _could_ have left a label naming two of a reference's three values, and only the
+  review of the offered snapshot caught what a type change is invisible to. A `refactor` may not
+  carry a snapshot, so the label had to wait for the behavioral commit; the two facts together are
+  the cost of a hand-written label, and neither is visible from the other.
+- **A reference named by its position in a list makes a text-mutating test helper a place where an
+  identity shifts.** `demo_without_its_first_entry` builds the demonstration with its first entry
+  removed **as text** and reads it again, and reading it again issues the identities from scratch in
+  array order. So `"#5"` silently became the sixth original entry — a different box, resolving to
+  `{20, 3}` instead of `{22, 4}` — and the fourth picture stopped matching from row 3. The fix is
+  one renumbering, and it is D3's accepted cost rather than a workaround: a file names its shapes by
+  where they are listed, and a test that removes a listing shifts every identity after it. Measured
+  both ways, because a renumbering that looks like tidying is the one place in this slice where a
+  test would pass either way without it.
+- **Three records gave three numbers for one count, and the measured one is neither of the two that
+  were written.** `contracts/description-format.md`'s prose says eighteen spellings; its own table
+  sums to sixteen. Walking `git ls-files '*.md'` with the rule `xtask` itself walks the tree with —
+  a marker inside a fence is an illustration of the grammar, not an instance of one
+  (`xtask/src/render.rs:211`) — gives **fourteen** connector endpoints, plus `CONTRIBUTING.md`'s
+  two, which the walker steps over because that marker is shown inside a
+  ````markdown`fence. Fourteen plus two is sixteen, which is the table and not the prose. Sixteen came out of a`grep`;
+  the other two did not, and the design that measured its own rule and then quoted a raw count is
+  the kind of slip a later slice re-inherits silently.
+- **A test that finds a needle in a formatted file is a test that stops matching.** The first
+  version of the demonstration's test built its other side by `str::replace` on `demo.json`, written
+  against the formatting the file had that afternoon. `cargo xtask fix` reformatted the very entry
+  the commit adds, because it passed 100 columns, and the replacement silently matched nothing.
+  Building the other side through `serde_json` — the technique the helper beside it already used —
+  has no formatting to disagree with. The gate caught it only because the test also asserts the two
+  sides differ, which is the assertion that turns a silent no-op into a failure.
+
+### Trade-offs worth remembering
+
+- **One type meaning two things is cheaper than two types, and the cost lands in the model's
+  vocabulary rather than in the code.** D1 reuses `Delta` for a reference's offset, which leaves the
+  crate with exactly one place where coordinates are added. The price is that §1's `Delta` row —
+  "how far a figure _moves_ along each axis" — became false, and a model document had to be amended
+  by a clause, in its own `docs` commit, because a type's second meaning is a sentence in the
+  vocabulary rather than a detail of an implementation. Two `i32` fields on `Reference` would have
+  left the model alone and stated the saturation rule in two places, which is the trade this project
+  keeps declining.
+- **The one rule with nothing to verify it is an inward offset, and it is named rather than
+  refused.** A horizontal offset to the left on a right side puts the endpoint inside the figure it
+  hangs from, and the code draws it there, composing in the shared cell by the rule two figures
+  sharing a cell always obey. Nothing in the model promises otherwise, no code path could refuse it,
+  and no test was written for it — so `contracts/diagram-api.md` says so in as many words, per
+  principle IV. The alternative, a check that refuses the offset, is a rule nobody asked for and a
+  behavior change in a slice about placement.

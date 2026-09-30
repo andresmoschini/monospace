@@ -1486,6 +1486,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             Pos { x: 8, y: 1 }.into(),
         );
@@ -1510,6 +1511,372 @@ mod tests {
         );
     }
 
+    /// User Story 1, spec's B1.1, B1.2, SC-001 and SC-003: a reference standing two cells clear of a
+    /// side draws exactly what the same connector standing at the point it resolves to draws.
+    ///
+    /// The partner of the zero-offset test above rather than a replacement of it, and the reason is
+    /// what each one catches. That test's offset is zero on both axes, so a `resolve` that added
+    /// nothing at all would satisfy it; this one's offset is two cells on the x, so the same failure
+    /// draws its route from `{3, 1}` instead of `{5, 1}` and the two pictures stop agreeing.
+    ///
+    /// The coordinates are asserted **before** the picture, each against the absolute point: `resolve`
+    /// has to be `{5, 1}` on its own account before the two drawings are asked to agree, so a
+    /// reference that resolved to the wrong place cannot pass on a pair that is wrong together.
+    #[test]
+    fn an_offset_endpoint_draws_what_the_point_it_resolves_to_draws() {
+        let (origin, size) = the_window();
+        let the_far_end = Pos { x: 8, y: 1 };
+
+        let mut diagram = Diagram::new();
+        let box_id = diagram.add(the_box());
+        let offset = Delta { dx: 2, dy: 0 };
+        let hanging = arm_connector(
+            Position::Reference(Reference {
+                id: box_id,
+                anchor: Anchor::Right,
+                offset,
+            }),
+            the_far_end.into(),
+        );
+        diagram.add(hanging.clone());
+
+        // Pinned by coordinates first: `{3, 1}` is the side centre and the offset is two cells right
+        // of it, so a `resolve` that ignored the field fails here rather than in the picture below.
+        let Shape::Connector { from, .. } = &hanging else {
+            unreachable!("the figure above is a connector")
+        };
+        assert_eq!(from.at.resolve(&diagram), Some(Pos { x: 5, y: 1 }));
+        assert_ne!(from.at.resolve(&diagram), Some(THE_SIDE_CENTRE));
+        assert_ne!(from.at, Pos { x: 5, y: 1 }.into());
+
+        let mut absolute = Diagram::new();
+        absolute.add(the_box());
+        absolute.add(arm_connector(Pos { x: 5, y: 1 }.into(), the_far_end.into()));
+
+        assert_eq!(
+            cells(&draw_of(&diagram, origin, size), origin, size),
+            cells(&draw_of(&absolute, origin, size), origin, size)
+        );
+    }
+
+    /// User Story 2, spec's B2.1 and SC-002: the offset is a gap **from the side**, so displacing the
+    /// figure a reference hangs from carries the endpoint with it and the gap does not change.
+    ///
+    /// The expected picture is built from the two positions — the box where it landed and the
+    /// connector starting at the point the reference resolves to *there* — rather than pinned as
+    /// text, so what is claimed is where a displacement puts a figure and not how a connector draws.
+    /// With the box four cells right its right side centre is `{7, 1}`, and the unchanged offset of
+    /// two carries the endpoint to `{9, 1}`: the same two cells of gap as before, not the same two
+    /// columns of the canvas.
+    ///
+    /// The `assert_ne!`s are what make the picture comparison mean anything here. A `resolve` that
+    /// ignored the field would still draw a valid connector in this window, because `{7, 1}` is
+    /// still a cell a route can start from — the picture alone would let it pass.
+    #[test]
+    fn a_displaced_box_carries_an_offset_endpoint_with_it_and_the_gap_does_not_change() {
+        let (origin, size) = the_window();
+        let the_far_end = Pos { x: 11, y: 1 };
+        let offset = Delta { dx: 2, dy: 0 };
+
+        let mut diagram = Diagram::new();
+        let box_id = diagram.add(the_box());
+        let hanging = arm_connector(
+            Position::Reference(Reference {
+                id: box_id.clone(),
+                anchor: Anchor::Right,
+                offset,
+            }),
+            the_far_end.into(),
+        );
+        diagram.add(hanging);
+
+        // Which endpoint the hanging connector resolves to, asked the way the drawing asks it.
+        let the_hanging_end = |d: &Diagram| {
+            let Shape::Connector { from, .. } = d
+                .get(&crate::ShapeId::new("#2"))
+                .expect("the connector is the second figure")
+            else {
+                unreachable!("the figure under test is a connector")
+            };
+            from.at.resolve(d)
+        };
+        assert_eq!(the_hanging_end(&diagram), Some(Pos { x: 5, y: 1 }));
+        assert_ne!(the_hanging_end(&diagram), Some(THE_SIDE_CENTRE));
+        let before = draw_of(&diagram, origin, size);
+
+        let moved = the_box().displaced_by(Delta { dx: 4, dy: 0 });
+        diagram.replace(&box_id, moved);
+        let after = draw_of(&diagram, origin, size);
+
+        // The same two figures with the box where it landed and the endpoint at the point the
+        // reference resolves to now: `{7, 1}` plus the unchanged two cells.
+        let mut expected = Diagram::new();
+        expected.add(the_box().displaced_by(Delta { dx: 4, dy: 0 }));
+        expected.add(arm_connector(Pos { x: 9, y: 1 }.into(), the_far_end.into()));
+
+        assert_eq!(
+            cells(&after, origin, size),
+            cells(&draw_of(&expected, origin, size), origin, size)
+        );
+
+        // The gap, pinned by coordinate rather than by eye: the endpoint moved by the same four
+        // cells the box did, and it is not where the side centre alone would leave it.
+        assert_eq!(the_hanging_end(&diagram), Some(Pos { x: 9, y: 1 }));
+        assert_ne!(the_hanging_end(&diagram), Some(Pos { x: 7, y: 1 }));
+
+        let reached = differing(&before, &after, origin, size);
+        assert!(
+            !reached.is_empty(),
+            "the displacement reached nothing at all"
+        );
+        assert!(
+            reached.iter().all(|at| at.x <= the_far_end.x),
+            "the change reached past the endpoint that did not move: {reached:?}"
+        );
+    }
+
+    /// User Story 2, spec's B2.3: a box **replaced by a line** under an offset adds it to the line's
+    /// own side middle, not to the place the box stood.
+    ///
+    /// It takes a non-zero `dy` to tell the two apart. A horizontal line read as a flat box is one
+    /// cell tall, so its top and bottom centres are **the same point asked twice** — the offset is
+    /// added to that one answer and not to two — and with `dy: 0` the endpoint would land on the
+    /// line's own row, where a `resolve` that had used the *box's* old bottom centre `{1, 2}` would
+    /// differ. So the two candidate answers are `{2, 1}` and `{1, 2}`: different cells, neither the
+    /// other, and the assertion cannot pass on a pair that is wrong together.
+    #[test]
+    fn an_offset_on_a_line_is_added_to_the_lines_own_middle_not_where_the_box_stood() {
+        let (origin, size) = the_window();
+        let the_far_end = Pos { x: 8, y: 2 };
+        let offset = Delta { dx: 0, dy: 1 };
+        let the_box_s_own_bottom = Pos { x: 1, y: 2 };
+        let the_line = Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 5,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+
+        // The line's own bottom centre is `{2, 0}`, and the offset makes it `{2, 1}`.
+        assert_eq!(the_line.anchor(Anchor::Bottom), Some(Pos { x: 2, y: 0 }));
+        assert_eq!(the_line.anchor(Anchor::Top), Some(Pos { x: 2, y: 0 }));
+        let the_line_endpoint = offset.apply(
+            the_line
+                .anchor(Anchor::Bottom)
+                .expect("a line answers every anchor"),
+        );
+        assert_eq!(the_line_endpoint, Pos { x: 2, y: 1 });
+        assert_ne!(the_line_endpoint, the_box_s_own_bottom);
+
+        // The same line, three ways, and no two of them against each other: the reference a line
+        // holds, the point that reference resolves to, and the diagram where a box was replaced.
+        let with_the_reference = || {
+            let mut d = Diagram::new();
+            let id = d.add(the_line.clone());
+            d.add(arm_connector(
+                Position::Reference(Reference {
+                    id,
+                    anchor: Anchor::Bottom,
+                    offset,
+                }),
+                the_far_end.into(),
+            ));
+            d
+        };
+        let mut with_the_point = Diagram::new();
+        with_the_point.add(the_line.clone());
+        with_the_point.add(arm_connector(the_line_endpoint.into(), the_far_end.into()));
+
+        let mut replaced = Diagram::new();
+        let identity = replaced.add(the_box());
+        replaced.add(arm_connector(
+            Position::Reference(Reference {
+                id: identity.clone(),
+                anchor: Anchor::Bottom,
+                offset,
+            }),
+            the_far_end.into(),
+        ));
+        // `replace` swaps the kind under the identity the reference already names, so the offset is
+        // held unchanged across a change of what stands there.
+        replaced.replace(&identity, the_line.clone());
+
+        assert_eq!(
+            cells(&draw_of(&with_the_reference(), origin, size), origin, size),
+            cells(&draw_of(&with_the_point, origin, size), origin, size),
+            "a reference on a line drew something other than the point it resolves to"
+        );
+        assert_eq!(
+            cells(&draw_of(&replaced, origin, size), origin, size),
+            cells(&draw_of(&with_the_point, origin, size), origin, size),
+            "a replaced box left the offset on the box's old side middle"
+        );
+    }
+
+    /// User Story 2, spec's B2.2, SC-004, and the spec's edge case: a large offset on a reference
+    /// that resolves to nothing is still nothing — asked twice, and by drawing.
+    ///
+    /// Twice because there are two different ways not to resolve and they are not the same code: an
+    /// identity no `add` ever issued, and an anchor a kind does not answer — here a connector, which
+    /// is the answer that keeps a chain of references one link long. Each carries an offset big
+    /// enough to be somewhere, because an offset of nothing is the case the zero-offset tests above
+    /// already hold.
+    ///
+    /// Each asserts two things together and the second is what makes the first mean anything: the
+    /// connector is **absent from the output**, and every other figure's cells are unchanged. That
+    /// second half is what distinguishes "the connector is not drawn" from "the drawing stopped", and
+    /// a connector drawn partly passes the first alone.
+    #[test]
+    fn a_large_offset_on_a_reference_that_resolves_to_nothing_draws_nothing_either() {
+        let (origin, size) = the_window();
+        let large = Delta { dx: 6, dy: 2 };
+        let the_other_end: Position = Pos { x: 8, y: 1 }.into();
+        let unrelated = the_unrelated_box();
+
+        let cases = [
+            (
+                "an identity nothing holds",
+                Position::Reference(Reference {
+                    id: a_foreign_identity(),
+                    anchor: Anchor::Right,
+                    offset: large,
+                }),
+            ),
+            (
+                "a kind that answers no anchor",
+                Position::Reference(Reference {
+                    id: crate::ShapeId::new("#3"),
+                    anchor: Anchor::Right,
+                    offset: large,
+                }),
+            ),
+        ];
+
+        for (what, hanging) in cases {
+            let mut with_it = Diagram::new();
+            with_it.add(the_box());
+            with_it.add(unrelated.clone());
+            // A connector, so that a reference naming it asks a kind that answers no anchor.
+            with_it.add(arm_connector(
+                Pos { x: 0, y: 3 }.into(),
+                Pos { x: 12, y: 3 }.into(),
+            ));
+            with_it.add(arm_connector(hanging, the_other_end.clone()));
+
+            let mut without_it = Diagram::new();
+            without_it.add(the_box());
+            without_it.add(unrelated.clone());
+            without_it.add(arm_connector(
+                Pos { x: 0, y: 3 }.into(),
+                Pos { x: 12, y: 3 }.into(),
+            ));
+
+            assert_eq!(
+                cells(&draw_of(&with_it, origin, size), origin, size),
+                cells(&draw_of(&without_it, origin, size), origin, size),
+                "{what} drew something, or drew something else"
+            );
+        }
+
+        // The other figure's cells are still there, which is the half that tells a whole figure
+        // missing from a drawing that stopped.
+        let drawing = draw_of(
+            &{
+                let mut d = Diagram::new();
+                d.add(the_box());
+                d.add(unrelated.clone());
+                d.add(arm_connector(
+                    Pos { x: 0, y: 3 }.into(),
+                    Pos { x: 12, y: 3 }.into(),
+                ));
+                d.add(arm_connector(
+                    Position::Reference(Reference {
+                        id: a_foreign_identity(),
+                        anchor: Anchor::Right,
+                        offset: large,
+                    }),
+                    the_other_end,
+                ));
+                d
+            },
+            origin,
+            size,
+        );
+        assert!(
+            drawing
+                .cell(
+                    the_unrelated_box()
+                        .anchor(Anchor::Top)
+                        .expect("a box answers every anchor")
+                )
+                .is_some(),
+            "the drawing stopped rather than the connector being skipped"
+        );
+    }
+
+    /// User Story 2, spec's edge case: a box **one cell wide** with an offset — its two coincident
+    /// side centres get the offset added once, and the offset is what separates them afterwards.
+    ///
+    /// The degenerate figure is what an implementation that special-cased the ordinary box gets
+    /// wrong, and 082's `a_box_one_cell_wide_or_one_cell_tall_answers_the_same_rule` in `position.rs`
+    /// is why the general rule is the claim rather than the coincidence. At width 1 the left and
+    /// right centres are the same cell, so a `resolve` that added the offset once per *side* rather
+    /// than once per *reference* would land two cells out; and an implementation that measured the
+    /// offset against the side it is named for would find two sides and no way to tell them apart.
+    #[test]
+    fn a_box_one_cell_wide_takes_the_offset_once_and_the_offset_separates_its_two_sides() {
+        let (origin, size) = the_window();
+        let the_far_end = Pos { x: 8, y: 2 };
+        let offset = Delta { dx: 3, dy: 1 };
+        let one_wide = Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 1,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        };
+
+        // The two centres coincide before the offset, and the offset is added to that one answer.
+        assert_eq!(one_wide.anchor(Anchor::Left), Some(Pos { x: 0, y: 1 }));
+        assert_eq!(one_wide.anchor(Anchor::Right), Some(Pos { x: 0, y: 1 }));
+        assert_eq!(offset.apply(Pos { x: 0, y: 1 }), Pos { x: 3, y: 2 });
+
+        for (what, anchor) in [("left", Anchor::Left), ("right", Anchor::Right)] {
+            let mut diagram = Diagram::new();
+            let box_id = diagram.add(one_wide.clone());
+            let hanging = arm_connector(
+                Position::Reference(Reference {
+                    id: box_id,
+                    anchor,
+                    offset,
+                }),
+                the_far_end.into(),
+            );
+            diagram.add(hanging.clone());
+
+            let Shape::Connector { from, .. } = &hanging else {
+                unreachable!("the figure above is a connector")
+            };
+            assert_eq!(
+                from.at.resolve(&diagram),
+                Some(Pos { x: 3, y: 2 }),
+                "the {what} side of a one-cell-wide box resolves to the offset once, not twice"
+            );
+
+            let mut absolute = Diagram::new();
+            absolute.add(one_wide.clone());
+            absolute.add(arm_connector(Pos { x: 3, y: 2 }.into(), the_far_end.into()));
+
+            assert_eq!(
+                cells(&draw_of(&diagram, origin, size), origin, size),
+                cells(&draw_of(&absolute, origin, size), origin, size),
+                "the {what} side drew something else"
+            );
+        }
+    }
+
     /// User Story 2, spec's B2.2, SC-002 and SC-005: displacing the box four cells right takes the
     /// hanging end with it, re-routes the connector to the end that did not move, and touches
     /// nothing else.
@@ -1530,6 +1897,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             the_far_end.into(),
         ));
@@ -1620,6 +1988,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id,
                 anchor: Anchor::Bottom,
+                offset: Delta { dx: 0, dy: 0 },
             }),
         ));
 
@@ -1629,6 +1998,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id,
                 anchor: Anchor::Bottom,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             the_far_end.into(),
         ));
@@ -1676,10 +2046,12 @@ mod tests {
         let unresolvable = Position::Reference(Reference {
             id: a_foreign_identity(),
             anchor: Anchor::Right,
+            offset: Delta { dx: 0, dy: 0 },
         });
         let answers_nothing = Position::Reference(Reference {
             id: crate::ShapeId::new("#3"),
             anchor: Anchor::Right,
+            offset: Delta { dx: 0, dy: 0 },
         });
         let the_other_end: Position = Pos { x: 8, y: 1 }.into();
 
@@ -1738,6 +2110,7 @@ mod tests {
                 Position::Reference(Reference {
                     id: spelled.clone(),
                     anchor,
+                    offset: Delta { dx: 0, dy: 0 },
                 }),
                 the_far_end.clone(),
             )
@@ -1887,6 +2260,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             Pos { x: 8, y: 1 }.into(),
         ));
@@ -1934,6 +2308,7 @@ mod tests {
             Position::Reference(Reference {
                 id: identity.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
             the_far_end.into(),
         ));
@@ -1980,6 +2355,7 @@ mod tests {
             Position::Reference(Reference {
                 id: box_id.clone(),
                 anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
             }),
         ));
         let before = draw_of(&diagram, origin, size);
@@ -2064,6 +2440,7 @@ mod tests {
                     Position::Reference(Reference {
                         id: identity.clone(),
                         anchor,
+                        offset: Delta { dx: 0, dy: 0 },
                     }),
                     to.into(),
                 ));

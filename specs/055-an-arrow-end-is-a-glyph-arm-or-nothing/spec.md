@@ -76,9 +76,9 @@ in the repository is:
     { "kind": "box", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" },
     { "kind": "connector",
-      "from": { "at": { "x": 2, "y": 1 }, "leaving": "right",
+      "from": { "at": { "kind": "point", "x": 2, "y": 1 }, "leaving": "right",
         "terminal": { "kind": "glyph", "glyph": "◄" } },
-      "to": { "at": { "x": 8, "y": 1 }, "leaving": "left",
+      "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
         "terminal": { "kind": "glyph", "glyph": "►" } },
       "stroke": "light" } ] }
 -->
@@ -110,9 +110,9 @@ The first scenario, drawn between the two boxes:
     { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" },
     { "kind": "connector",
-      "from": { "at": { "x": 2, "y": 1 }, "leaving": "right",
+      "from": { "at": { "kind": "point", "x": 2, "y": 1 }, "leaving": "right",
         "terminal": { "kind": "glyph", "glyph": "◄" } },
-      "to": { "at": { "x": 8, "y": 1 }, "leaving": "left",
+      "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
         "terminal": { "kind": "glyph", "glyph": "►" } },
       "stroke": "light" },
     { "kind": "box", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },

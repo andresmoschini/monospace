@@ -12,8 +12,8 @@
     { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
     { "kind": "connector",
-      "from": { "at": { "x": 4, "y": 1 }, "leaving": "right", "terminal": { "kind": "arm" } },
-      "to":   { "at": { "x": 8, "y": 1 }, "leaving": "left",
+      "from": { "at": { "kind": "point", "x": 4, "y": 1 }, "leaving": "right", "terminal": { "kind": "arm" } },
+      "to":   { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "glyph", "glyph": "►" } },
       "stroke": "light" }
   ] }
@@ -34,8 +34,8 @@
     { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
     { "kind": "connector",
-      "from": { "at": { "x": 4, "y": 3 }, "leaving": "right", "terminal": { "kind": "arm" } },
-      "to":   { "at": { "x": 8, "y": 3 }, "leaving": "left",
+      "from": { "at": { "kind": "point", "x": 4, "y": 3 }, "leaving": "right", "terminal": { "kind": "arm" } },
+      "to":   { "at": { "kind": "point", "x": 8, "y": 3 }, "leaving": "left",
                 "terminal": { "kind": "glyph", "glyph": "►" } },
       "stroke": "light" }
   ] }

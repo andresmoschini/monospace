@@ -2,12 +2,19 @@
 //! `monospace_diagram::Diagram` and the `monospace_core::Buffer` its canvas describes.
 //!
 //! Every type here is private to `monospace-cli` and exists only for this conversion (FR-019,
-//! [ADR-0035](../../../docs/decisions/0035-keep-the-cli-demo-format-out-of-the-model.md)). See
-//! `specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md` for the
-//! format itself and `data-model.md` for the field-by-field mapping onto `monospace_diagram`.
+//! [ADR-0035](../../../docs/decisions/0035-keep-the-cli-demo-format-out-of-the-model.md)). The
+//! format itself is
+//! `specs/083-a-reference-carries-a-horizontal-and-a-v/contracts/description-format.md`, which
+//! supersedes
+//! [`079's`](../../specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md)
+//! and stays the record of what the format was before an endpoint's `at` could hold a reference.
+//! The field-by-field mapping onto `monospace_diagram` is in 083's `data-model.md`.
 
 use monospace_core::{Direction, Glyph, Orientation as CoreOrientation};
-use monospace_diagram::{Diagram, Endpoint as DiagramEndpoint, Position, Shape as DiagramShape};
+use monospace_diagram::{
+    Anchor, Delta, Diagram, Endpoint as DiagramEndpoint, Position, Reference,
+    Shape as DiagramShape, ShapeId,
+};
 use serde::{Deserialize, Deserializer};
 
 /// A position, mirroring `monospace_core::Pos` for deserialization.
@@ -135,16 +142,99 @@ impl From<Terminal> for monospace_core::Terminal {
     }
 }
 
-/// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
+/// Which of a figure's four sides an endpoint hangs from, mirroring `monospace_diagram::Anchor`.
 ///
-/// The wire format holds a point and nothing else, so the diagram's `Position` is named explicitly
-/// here: `From<Pos> for Position` does not reach this file, because the `into()` below resolves
-/// `description::Pos → monospace_core::Pos` on its way to a diagram position that has to be
-/// `Absolute`. A reference is in no description format — a caller wanting one builds the picture in
-/// code, the way the shipped demonstration does (B5.8).
+/// The same four and no fifth: there is no corner and no center, and the file cannot name one.
+#[derive(Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+enum AnchorDescription {
+    Top,
+    Right,
+    Bottom,
+    Left,
+}
+
+impl From<AnchorDescription> for Anchor {
+    fn from(anchor: AnchorDescription) -> Self {
+        match anchor {
+            AnchorDescription::Top => Anchor::Top,
+            AnchorDescription::Right => Anchor::Right,
+            AnchorDescription::Bottom => Anchor::Bottom,
+            AnchorDescription::Left => Anchor::Left,
+        }
+    }
+}
+
+/// How far from that side an endpoint stands, mirroring `monospace_diagram::Delta`.
+///
+/// `Default` is what makes the field optional on the wire: `#[serde(default)]` on the field below
+/// builds a zero delta when the key is absent, so a reference that means "on the side itself" spells
+/// three fields rather than five. The two amounts are signed and are in the **screen** axes whatever
+/// side the anchor names — `dx` is cells right, `dy` cells down — and neither is checked against the
+/// side it is measured from.
+#[derive(Deserialize, Debug, Clone, Copy, Default)]
+struct OffsetDescription {
+    dx: i32,
+    dy: i32,
+}
+
+impl From<OffsetDescription> for Delta {
+    fn from(offset: OffsetDescription) -> Self {
+        Delta {
+            dx: offset.dx,
+            dy: offset.dy,
+        }
+    }
+}
+
+/// What an endpoint's `at` is on the wire, tagged by `kind`: a point, or a reference to a side of
+/// another figure (SC-004).
+///
+/// **The tag is the rule, not a sentence.** A file cannot say both, cannot say neither, and cannot
+/// say one by mistake — all three are compile-time facts about this enum rather than conventions a
+/// reader has to remember. The three spellings were measured against this crate's own `serde`
+/// rather than argued (research.md Q2): an untagged union reads every existing description and
+/// answers anything wrong with `data did not match any variant of untagged enum At`, and a sibling
+/// `reference` beside an optional `at` refuses nothing at all.
+///
+/// A reference to a shape the diagram does not hold, or to an anchor that kind does not answer, is
+/// **not** an error here or anywhere downstream: the figure holding it is simply not drawn and the
+/// run succeeds. That is the cost
+/// [ADR-0041](../../../docs/decisions/0041-resolve-a-position-through-a-reference.md) already
+/// accepts.
+///
+/// `Point` is a **newtype** over the file's own [`Pos`] rather than a struct variant with `x` and
+/// `y` written out, which keeps one `Pos` in this file instead of a second pair of coordinates to
+/// convert. Both spellings were measured and read `{"kind": "point", "x": 1, "y": 1}` and refused
+/// `{"x": 1, "y": 1}` identically, so the newtype is taken for the one `Pos` it saves. It carries a
+/// trap worth knowing: **an internally tagged newtype variant deserializes and does not serialize**.
+/// Nothing here is broken, because the format is read and never written — but a caller who later
+/// wanted a `Serialize` on this type would have to widen the variant, and this is where to find out
+/// why.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+enum At {
+    Point(Pos),
+    Reference {
+        shape: String,
+        anchor: AnchorDescription,
+        #[serde(default)]
+        offset: OffsetDescription,
+    },
+}
+
+/// One endpoint of a connector: where it stands, the direction it leaves in, and its terminal.
+///
+/// `at` is an [`At`], so the diagram's `Position` is spelled by name in the conversion below: the
+/// `into()` on a [`Pos`] resolves `description::Pos → monospace_core::Pos` and lands on
+/// `Position::Absolute`, while a reference is built field by field. A reference may only be held by
+/// a **connector's endpoint** — a `box` and a `line` keep their bare `Pos`, because a position
+/// other than an endpoint's may not be a reference
+/// ([ADR-0041](../../../docs/decisions/0041-resolve-a-position-through-a-reference.md)) and the
+/// types say so rather than the prose.
 #[derive(Deserialize, Debug, Clone)]
 struct Endpoint {
-    at: Pos,
+    at: At,
     leaving: Leaving,
     terminal: Terminal,
 }
@@ -152,7 +242,18 @@ struct Endpoint {
 impl From<Endpoint> for DiagramEndpoint {
     fn from(endpoint: Endpoint) -> Self {
         DiagramEndpoint {
-            at: Position::Absolute(endpoint.at.into()),
+            at: match endpoint.at {
+                At::Point(at) => Position::Absolute(at.into()),
+                At::Reference {
+                    shape,
+                    anchor,
+                    offset,
+                } => Position::Reference(Reference {
+                    id: ShapeId::new(shape),
+                    anchor: anchor.into(),
+                    offset: offset.into(),
+                }),
+            },
             leaving: endpoint.leaving.into(),
             terminal: endpoint.terminal.into(),
         }
@@ -284,9 +385,9 @@ mod tests {
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 1 } },
             "shapes": [
                 { "kind": "connector",
-                  "from": { "at": { "x": 0, "y": 0 }, "leaving": "right",
+                  "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right",
                             "terminal": { "kind": "glyph", "glyph": "ab" } },
-                  "to": { "at": { "x": 6, "y": 0 }, "leaving": "left",
+                  "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
                           "terminal": { "kind": "glyph", "glyph": ">" } },
                   "stroke": "light" }
             ]
@@ -298,13 +399,13 @@ mod tests {
     /// One connector, with `TERMINAL` standing where the `from` endpoint's terminal goes. The three
     /// refusals below differ only in what is written there, which is what makes them the same test
     /// three times over.
-    const ARROW: &str = r#""from": { "at": { "x": 0, "y": 0 }, "leaving": "right", "terminal": TERMINAL },
-                  "to": { "at": { "x": 6, "y": 0 }, "leaving": "left",
+    const ARROW: &str = r#""from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right", "terminal": TERMINAL },
+                  "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
                           "terminal": { "kind": "glyph", "glyph": ">" } }"#;
 
     /// The same connector with the field left out altogether.
-    const ARROW_WITHOUT_A_TERMINAL: &str = r#""from": { "at": { "x": 0, "y": 0 }, "leaving": "right" },
-                  "to": { "at": { "x": 6, "y": 0 }, "leaving": "left",
+    const ARROW_WITHOUT_A_TERMINAL: &str = r#""from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right" },
+                  "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
                           "terminal": { "kind": "glyph", "glyph": ">" } }"#;
 
     fn description_of(connector: &str) -> String {
@@ -381,6 +482,91 @@ mod tests {
                 r#"invalid type: string "arm", expected internally tagged enum Terminal"#
             ),
             "{error}"
+        );
+    }
+
+    /// The same connector as `ARROW`, with `AT` standing where the `from` endpoint's `at` goes, so
+    /// the three cases below differ only in what an `at` says and the file around it is fixed.
+    const ARROW_WITH_AN_AT: &str = r#""from": { "at": AT, "leaving": "right",
+        "terminal": { "kind": "arm" } },
+      "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
+              "terminal": { "kind": "glyph", "glyph": ">" } }"#;
+
+    /// The message the binary reports for an endpoint whose `at` is `at`, read the way a reader
+    /// reads it: the message, not the `serde_json` position that follows it.
+    fn error_for_an_at(at: &str) -> String {
+        let json = description_of(&ARROW_WITH_AN_AT.replace("AT", at));
+        serde_json::from_str::<Description>(&json)
+            .expect_err("an `at` this format does not accept must fail")
+            .to_string()
+    }
+
+    /// User Story 4, spec's B4.1, SC-004: a point written without a tag is **refused**, not read as
+    /// one of the two.
+    ///
+    /// The position that follows the message is `serde_json`'s and moves with the bytes, which is
+    /// why what is compared is the message. Before the tag landed this file rendered and exited
+    /// successfully — the silence the tag is there to end, measured both ways in research.md Q2.
+    #[test]
+    fn an_untagged_at_is_refused_by_name() {
+        let error = error_for_an_at(r#"{ "x": 0, "y": 0 }"#);
+
+        assert!(error.starts_with("missing field `kind`"), "{error}");
+    }
+
+    /// User Story 4, spec's B4.1: a `kind` the union has no arm for is refused by name, **and the
+    /// message names the two it does have** — so the value is never read as one of them.
+    ///
+    /// The same rule §6's own `kind` fields have obeyed since 079, and the message is the whole of
+    /// what choosing the tag bought over an untagged union, which would have answered the same file
+    /// with `data did not match any variant of untagged enum At`.
+    #[test]
+    fn an_unknown_at_kind_names_it_and_the_two_that_are_accepted() {
+        let error = error_for_an_at(r#"{ "kind": "arrows", "x": 0, "y": 0 }"#);
+
+        assert!(
+            error.starts_with("unknown variant `arrows`, expected `point` or `reference`"),
+            "{error}"
+        );
+    }
+
+    /// User Story 4, research.md Q2's third measurement: a `point` written beside a stray `shape` is
+    /// **accepted**, and the `shape` is dropped in silence.
+    ///
+    /// This is the format's existing behavior rather than anything this slice adds, and it is the
+    /// cost of an internal tag rather than a defect: the tag is the rule, and a field beside it is
+    /// an unknown field exactly as a description carrying `mode` was before 079 removed it. Pinned
+    /// because the alternative — refusing a file for a harmless extra key — is the change a later
+    /// slice would make silently, and this is where the present answer is written down.
+    #[test]
+    fn a_stray_field_beside_an_at_is_dropped_in_silence() {
+        let json = description_of(&ARROW_WITH_AN_AT.replace(
+            "AT",
+            r##"{ "kind": "point", "x": 1, "y": 1, "shape": "#5" }"##,
+        ));
+
+        assert!(
+            serde_json::from_str::<Description>(&json).is_ok(),
+            "a stray field beside a tagged `at` must not refuse the file"
+        );
+    }
+
+    /// User Story 4, spec's B4.3 and the case `offset` being optional exists for: a reference
+    /// carrying **no** `offset` at all reads, and is a reference standing on the side itself.
+    ///
+    /// Without `#[serde(default)]` this would be a missing-field error on `offset`, and every
+    /// reference meaning "on the border" would have to spell two zeros to say nothing — the reason
+    /// the contract calls the field optional and absent zero.
+    #[test]
+    fn a_reference_with_no_offset_is_read_as_a_reference_on_the_side_itself() {
+        let json = description_of(&ARROW_WITH_AN_AT.replace(
+            "AT",
+            r##"{ "kind": "reference", "shape": "#1", "anchor": "right" }"##,
+        ));
+
+        assert!(
+            serde_json::from_str::<Description>(&json).is_ok(),
+            "a reference without an `offset` must read"
         );
     }
 }

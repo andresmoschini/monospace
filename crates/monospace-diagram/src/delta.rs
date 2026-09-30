@@ -1,14 +1,23 @@
-//! How far a figure moves along each axis, and nothing else. See the _Vocabulary_ row for `Delta`
-//! in [`docs/diagram-model.md`](../../../docs/diagram-model.md).
+//! How far a figure moves along each axis, and how far a reference stands from the side it hangs
+//! from. See the _Vocabulary_ rows for `Delta` and for `Reference` in
+//! [`docs/diagram-model.md`](../../../docs/diagram-model.md).
 
 use monospace_core::Pos;
 
-/// How far a figure moves along each axis, in cells.
+/// How far along each axis, in cells — a figure's movement, or a gap from a side.
 ///
 /// A horizontal amount and a vertical amount, and no third thing: the model's _Vocabulary_ gives a
 /// delta that row and gives it no other. It is signed because a coordinate may be negative and a
 /// displacement is a difference between two of them, and it is not [`Size`](monospace_core::Size),
 /// which is `u32` and means an extent rather than a difference.
+///
+/// **It means two things, and the model's _Vocabulary_ row carries both.** It is how far a figure
+/// *moves*, which is what a displacement and this type's own `apply` exist for, and it is how far a
+/// reference stands *from the side it hangs from*, which is `Reference`'s `offset` — a gap rather
+/// than a point, added by [`Position::resolve`](crate::Position::resolve) to whatever the anchor
+/// answers now. One type and one addition serves both, so the crate keeps exactly one place where
+/// coordinates are added. Reusing it is also why §1's `Delta` row needed the clause this rustdoc
+/// now carries: the model's own sentence named the movement and could not have named both.
 ///
 /// It is `Copy` because a caller holding one delta applies it to as many figures as it likes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
