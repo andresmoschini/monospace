@@ -8,10 +8,11 @@
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 9, "height": 5 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "point", "x": 4, "y": 1 }, "leaving": "right", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "glyph", "glyph": "►" } },
@@ -30,10 +31,11 @@
 <!-- /render -->
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 9, "height": 5 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "point", "x": 4, "y": 3 }, "leaving": "right", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 8, "y": 3 }, "leaving": "left",
                 "terminal": { "kind": "glyph", "glyph": "►" } },
@@ -85,8 +87,9 @@
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+  "next_id": 2,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" }
   ] }
 -->
@@ -100,8 +103,9 @@
 <!-- /render -->
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+  "next_id": 2,
   "shapes": [
-    { "kind": "line", "at": { "x": 0, "y": 0 }, "len": 4, "orientation": "horizontal",
+    { "kind": "line", "id": "#1", "at": { "x": 0, "y": 0 }, "len": 4, "orientation": "horizontal",
       "stroke": "light" }
   ] }
 -->

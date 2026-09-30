@@ -107,7 +107,7 @@ III). T001 captures what must not move before anything is edited.
 and the reader **drops them in silence** — measured, three ways, in research.md's opening section.
 Nothing here may touch a test and nothing here may change a picture.
 
-- [ ] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and
+- [x] T001 Run `cargo run -p monospace-cli > /tmp/demo-before.txt` and
       `cargo run -p monospace-cli crates/monospace-cli/assets/demo.json > /tmp/file-before.txt`, and
       keep both files until Phase 6. Then run `cargo run -q -p xtask -- render --check`, which must
       print `25 generated picture(s) match their descriptions`, and `cargo test --workspace`, which
@@ -116,14 +116,14 @@ Nothing here may touch a test and nothing here may change a picture.
       the third is a four-by-three box at `{9, 2}`, and the tenth is the connector whose `▲`
       terminal stands at `(22, 4)`. Those are the figures `crates/monospace-cli/src/main.rs:111`,
       `:125` and `:126` name by hand as `#1`, `#3` and `#10`
-- [ ] T002 [P] In `crates/monospace-cli/assets/demo.json`, add `"id": "#1"` … `"id": "#26"` to the
+- [x] T002 [P] In `crates/monospace-cli/assets/demo.json`, add `"id": "#1"` … `"id": "#26"` to the
       twenty-six entries in the order they are already listed, and `"next_id": 27` beside
       `"canvas"`. **Change nothing else in that file** — no `at`, no `size`, no stroke — because the
       tenth entry's `"shape": "#5"` is what names the box at `{20, 1}` today and must keep naming it
       afterwards, and an `id` assigned in array order is what makes that true rather than lucky (D1,
       D4; spec.md B2.3; data-model.md "The demonstration"; contracts/description-format.md "What has
       to be re-spelled")
-- [ ] T003 [P] In `crates/monospace-cli/src/description.rs`, add `"next_id": N` to the **four**
+- [x] T003 [P] In `crates/monospace-cli/src/description.rs`, add `"next_id": N` to the **four**
       description literals at lines 355, 369, 385 and 414, and `"id": "#1"` to the **three** shape
       literals at lines 371, 387 and 416 — beside `kind`, which is where every entry in this
       repository already puts its first field (Q3). Line 355's entry is `{ "kind": "triangle" }` and
@@ -134,13 +134,13 @@ Nothing here may touch a test and nothing here may change a picture.
       `ARROW_WITHOUT_A_TERMINAL` and `ARROW_WITH_AN_AT` at once — **six** `next_id` values would be
       six edits where one site is the whole of it (Q3; research.md Q4; AGENTS.md "Facts that are in
       the code and in no document")
-- [ ] T004 [P] In `crates/monospace-cli/src/main.rs`, add `"next_id": 3` to the two-box description
+- [x] T004 [P] In `crates/monospace-cli/src/main.rs`, add `"next_id": 3` to the two-box description
       at line 318, `"next_id": 2` to `one_box_json()` at line 232 and to the empty description at
       line 611, and `"id": "#1"` … `"#2"` to the three shape literals at lines 234, 320 and 322. The
       empty description gets a `next_id` and **no** `id`: it lists no entries, and
       `an_empty_description_demonstrates_as_five_identical_pictures` is one of the tests that must
       pass unchanged through this whole slice (B5.7)
-- [ ] T005 [P] In `crates/monospace-cli/src/sweep.rs`, add `"next_id": 3` to the `description_of`
+- [x] T005 [P] In `crates/monospace-cli/src/sweep.rs`, add `"next_id": 3` to the `description_of`
       template at line 68 and `"id": "#1"` to the three shape templates at lines 133, 137 and 141,
       and `"id": "#1"` / `"id": "#2"` to the crossing pair at lines 189 and 191. `3` and not `2`
       because `description_of` builds **one** header for both families and the crossing pair carries
@@ -150,7 +150,7 @@ Nothing here may touch a test and nothing here may change a picture.
       description, so **none of the eight files under
       `crates/monospace-cli/src/snapshots/characterization/` may move** and no ADR-0053 report is
       owed (plan.md "What the mechanical change actually measures"; quickstart.md "Commit 1")
-- [ ] T006 [P] In `crates/monospace-cli/tests/cli.rs`, add `"next_id": N` to the **eight** real
+- [x] T006 [P] In `crates/monospace-cli/tests/cli.rs`, add `"next_id": N` to the **eight** real
       description literals — lines 106 (`2`), 131 (`5`), 176 (`3`), 254 (`2`), 328 (`3`), 340 (`3`),
       372 (`2`) and 427 (`2`) — and `"id"` to the **eleven** shape literals at lines 108, 133, 135,
       137, 163, 179, 330, 332, 342, 344 and 374. Two of those need care. Line 163 is `A_BOX`, a bare
@@ -161,38 +161,38 @@ Nothing here may touch a test and nothing here may change a picture.
       `write_description("broken", r#"{ "canvas": "#)`, a string truncated on purpose so
       `malformed_json_locates_the_problem_on_stderr_and_fails` fails for its own reason, and it is
       the seventeenth `"canvas"` in the tree that no `next_id` is written beside (Q3; B4.3)
-- [ ] T007 [P] In `docs/diagram-demo.md`, add `"id": "#1"` … to all **38** entries across its **12**
+- [x] T007 [P] In `docs/diagram-demo.md`, add `"id": "#1"` … to all **38** entries across its **12**
       markers, in the order each marker already lists them, and a `"next_id"` to each of the twelve
       beside `"canvas"`: **4, 6, 3, 3, 3, 5, 6, 6, 5, 3, 3, 3** in the order the markers appear.
       This is the largest single file in the change and the one the gate re-draws most often; take
       the twelve counts from the markers rather than from this line, and if one comes out different,
       write down what it came out as and stop (D4; research.md Q4)
-- [ ] T008 [P] In `docs/diagram-model.md`, add `"id"` to the **6** entries across its **3** markers
+- [x] T008 [P] In `docs/diagram-model.md`, add `"id"` to the **6** entries across its **3** markers
       and `"next_id": 3` to each of the three, and change **nothing else in the file**. The three
       sections this slice amends — §3, §9 and §11 — land in Phase 7 and not here, and a mechanical
       commit that also rewrites prose is a commit nobody can review (D4; plan.md commit 4)
-- [ ] T009 [P] In `README.md`, add `"id": "#1"` … `"id": "#6"` to the **6** entries of its one
+- [x] T009 [P] In `README.md`, add `"id": "#1"` … `"id": "#6"` to the **6** entries of its one
       marker and `"next_id": 7` beside `"canvas"`, and change nothing else
-- [ ] T010 [P] In `docs/model.md`, add `"id": "#1"` to the **1** entry of its one marker and
+- [x] T010 [P] In `docs/model.md`, add `"id": "#1"` to the **1** entry of its one marker and
       `"next_id": 2` beside `"canvas"`. The entry is written as `"shapes": [ { "kind": "connector",`
       on one line rather than `{ "kind"` at the start of a line, which is why a grep for
       `^ *{ "kind"` misses it and this file's count does not reproduce that way
-- [ ] T011 [P] In `CONTRIBUTING.md`, add `"id": "#1"` to the **1** entry inside the
+- [x] T011 [P] In `CONTRIBUTING.md`, add `"id": "#1"` to the **1** entry inside the
       ````markdown`fence and`"next_id": 2`beside`"canvas"`. **No gate step will notice whether this
       is right or wrong**, because that marker is shown inside a fence as the grammar of a marker
       and the walker steps over it — so read it as the working example a reader copies rather than
       as a sample, and treat "the gate is green" as no evidence at all about this one (research.md
       Q4; AGENTS.md "Facts that are in the code and in no document")
-- [ ] T012 [P] In `specs/055-an-arrow-end-is-a-glyph-arm-or-nothing/spec.md`, add `"id"` to the
+- [x] T012 [P] In `specs/055-an-arrow-end-is-a-glyph-arm-or-nothing/spec.md`, add `"id"` to the
       **6** entries across its **2** markers and `"next_id": 4` to each of the two, in the order the
       markers appear
-- [ ] T013 [P] In `specs/081-a-shape-can-be-removed-and-replaced/data-model.md`, add `"id"` to the
+- [x] T013 [P] In `specs/081-a-shape-can-be-removed-and-replaced/data-model.md`, add `"id"` to the
       **2** entries across its **2** markers and `"next_id": 2` to each of the two
-- [ ] T014 [P] In `specs/081-a-shape-can-be-removed-and-replaced/decisions.md`, add `"id"` to the
+- [x] T014 [P] In `specs/081-a-shape-can-be-removed-and-replaced/decisions.md`, add `"id"` to the
       **6** entries across its **4** markers and a `"next_id"` to each of the four: **3, 3, 2, 2**
       in the order the markers appear. This is the file a decision sheet is written from, so the
       `id` values it carries are read by the next feature's own sheet
-- [ ] T015 Run `cargo run -q -p xtask -- render` and then `cargo run -q -p xtask -- render --check`,
+- [x] T015 Run `cargo run -q -p xtask -- render` and then `cargo run -q -p xtask -- render --check`,
       which rewrites and then re-checks every `<!-- render: -->` block from the description beside
       it — so **24 of the 25** are covered for free, and a description edited wrongly enough to stop
       parsing is a red `render` step rather than a picture that silently went blank. The count must
@@ -204,7 +204,7 @@ Nothing here may touch a test and nothing here may change a picture.
       **wrong** name changes nothing at all, because the reader drops the field and a marker draws
       the picture its entries describe. What turns this step red is a description that no longer
       parses, not a misnamed shape (constitution principle IV; quickstart.md "Commit 1")
-- [ ] T016 Deliberate red, and it belongs to **this** commit: comment out the renumbering loop in
+- [x] T016 Deliberate red, and it belongs to **this** commit: comment out the renumbering loop in
       `demo_without_its_first_entry` — the `for shape in shapes.iter_mut()` that rewrites
       `shape["to"]["at"]["shape"]` from `"#5"` to `"#4"` — and run
       `cargo test -p monospace-cli the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out`,
@@ -214,7 +214,7 @@ Nothing here may touch a test and nothing here may change a picture.
       and the arrowhead still lands at `{20, 3}` instead of `{22, 4}`. **A reader that had already
       started reading `id` would pass this**, which is exactly what would make commit 1 a `feat`
       wearing a `refactor`'s prefix (constitution principles IV and V; quickstart.md "Commit 1")
-- [ ] T017 Confirm `cargo test --workspace` is green at **23 / 18 / 114 / 62 / 15 / 61** with **no
+- [x] T017 Confirm `cargo test --workspace` is green at **23 / 18 / 114 / 62 / 15 / 61** with **no
       test added and no test changed** — a structural commit that moves a test is a behavioral one
       wearing the other commit type's prefix — that `cargo run -q -p xtask -- render --check` still
       prints 25, and that `cargo insta review` is **not needed**: no file under

@@ -70,12 +70,13 @@ in the repository is:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 11, "height": 3 } },
+  "next_id": 4,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 3, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" },
-    { "kind": "box", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },
+    { "kind": "box", "id": "#2", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#3",
       "from": { "at": { "kind": "point", "x": 2, "y": 1 }, "leaving": "right",
         "terminal": { "kind": "glyph", "glyph": "◄" } },
       "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
@@ -106,16 +107,17 @@ The first scenario, drawn between the two boxes:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 11, "height": 3 } },
+  "next_id": 4,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 3, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "point", "x": 2, "y": 1 }, "leaving": "right",
         "terminal": { "kind": "glyph", "glyph": "◄" } },
       "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
         "terminal": { "kind": "glyph", "glyph": "►" } },
       "stroke": "light" },
-    { "kind": "box", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },
+    { "kind": "box", "id": "#3", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },
       "stroke": "light" } ] }
 -->
 

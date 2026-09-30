@@ -60,10 +60,11 @@ anything because the second never left those sides open:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#2", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" }
   ] }
 -->
@@ -175,10 +176,11 @@ an anchor rather than a corner:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "point", "x": 3, "y": 1 }, "leaving": "right",
                 "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 7, "y": 1 }, "leaving": "left",
@@ -220,10 +222,11 @@ in it:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 7, "height": 5 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "line", "at": { "x": 3, "y": 0 }, "len": 5, "orientation": "vertical",
+    { "kind": "line", "id": "#1", "at": { "x": 3, "y": 0 }, "len": 5, "orientation": "vertical",
       "stroke": "light" },
-    { "kind": "line", "at": { "x": 0, "y": 2 }, "len": 7, "orientation": "horizontal",
+    { "kind": "line", "id": "#2", "at": { "x": 0, "y": 2 }, "len": 7, "orientation": "horizontal",
       "stroke": "light" }
   ] }
 -->

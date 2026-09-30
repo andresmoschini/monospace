@@ -353,6 +353,7 @@ mod tests {
     fn an_unrecognized_kind_fails_to_deserialize_and_names_it() {
         let json = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 1,
             "shapes": [ { "kind": "triangle" } ]
         }"#;
 
@@ -365,13 +366,14 @@ mod tests {
     /// A `fill` of more than one grapheme cluster fails to deserialize.
     #[test]
     fn a_multi_grapheme_fill_fails_to_deserialize() {
-        let json = r#"{
+        let json = r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
             "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "ab" }
             ]
-        }"#;
+        }"##;
 
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
@@ -381,17 +383,18 @@ mod tests {
     /// the only reason the wire form is internally tagged (research.md Q3).
     #[test]
     fn a_multi_grapheme_terminal_glyph_fails_to_deserialize() {
-        let json = r#"{
+        let json = r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 1 } },
+            "next_id": 2,
             "shapes": [
-                { "kind": "connector",
+                { "kind": "connector", "id": "#1",
                   "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right",
                             "terminal": { "kind": "glyph", "glyph": "ab" } },
                   "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
                           "terminal": { "kind": "glyph", "glyph": ">" } },
                   "stroke": "light" }
             ]
-        }"#;
+        }"##;
 
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
@@ -410,14 +413,15 @@ mod tests {
 
     fn description_of(connector: &str) -> String {
         format!(
-            r#"{{
+            r##"{{
             "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 8, "height": 1 }} }},
+            "next_id": 2,
             "shapes": [
-                {{ "kind": "connector",
+                {{ "kind": "connector", "id": "#1",
                   {connector},
                   "stroke": "light" }}
             ]
-        }}"#
+        }}"##
         )
     }
 

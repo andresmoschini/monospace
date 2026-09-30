@@ -228,13 +228,14 @@ mod tests {
     use super::{Description, demonstrate, render_once};
 
     fn one_box_json() -> &'static str {
-        r#"{
+        r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
             "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" }
             ]
-        }"#
+        }"##
     }
 
     /// A one-box `Description` renders the same text as a `BoxShape` drawn directly with the same
@@ -314,15 +315,16 @@ mod tests {
     #[test]
     fn two_overlapping_boxes_demonstrate_in_opposite_orders() {
         let (first, second, ..) = demonstrated_pictures(
-            r#"{
+            r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+            "next_id": 3,
             "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" },
-                { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#2", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "▓" }
             ]
-        }"#,
+        }"##,
         );
 
         let size = Size {
@@ -609,6 +611,7 @@ mod tests {
         let pictures = demonstrated_pictures(
             r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
             "shapes": []
         }"#,
         );

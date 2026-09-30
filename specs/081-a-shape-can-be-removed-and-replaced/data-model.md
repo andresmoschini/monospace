@@ -66,8 +66,9 @@ method that is easier to see than to read:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 6 } },
+  "next_id": 2,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" }
   ] }
 -->
@@ -84,8 +85,9 @@ method that is easier to see than to read:
 <!-- /render -->
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 6 } },
+  "next_id": 2,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 2 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 2 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" }
   ] }
 -->

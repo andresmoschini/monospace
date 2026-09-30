@@ -38,12 +38,13 @@ leaving and a terminal.
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 17, "height": 3 } },
+  "next_id": 4,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" },
-    { "kind": "line", "at": { "x": 6, "y": 1 }, "len": 4, "orientation": "horizontal",
+    { "kind": "line", "id": "#2", "at": { "x": 6, "y": 1 }, "len": 4, "orientation": "horizontal",
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#3",
       "from": { "at": { "kind": "point", "x": 12, "y": 1 }, "leaving": "right",
                 "terminal": { "kind": "glyph", "glyph": "◀" } },
       "to":   { "at": { "kind": "point", "x": 16, "y": 1 }, "leaving": "left",
@@ -66,12 +67,13 @@ different ways. **Five of the nine tables draw a figure on their own:**
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 24, "height": 3 } },
+  "next_id": 6,
   "shapes": [
-    { "kind": "box", "at": { "x":  0, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "ascii" },
-    { "kind": "box", "at": { "x":  5, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light" },
-    { "kind": "box", "at": { "x": 10, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light-round" },
-    { "kind": "box", "at": { "x": 15, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "heavy" },
-    { "kind": "box", "at": { "x": 20, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "double" } ] }
+    { "kind": "box", "id": "#1", "at": { "x":  0, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "ascii" },
+    { "kind": "box", "id": "#2", "at": { "x":  5, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light" },
+    { "kind": "box", "id": "#3", "at": { "x": 10, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light-round" },
+    { "kind": "box", "id": "#4", "at": { "x": 15, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "heavy" },
+    { "kind": "box", "id": "#5", "at": { "x": 20, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "double" } ] }
 -->
 
 ```text
@@ -93,10 +95,11 @@ arms in both. The same crossing twice, the second time with both figures in one 
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 5 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 5 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 5 },
       "stroke": "light" },
-    { "kind": "line", "at": { "x": 2, "y": 2 }, "len": 6, "orientation": "horizontal",
+    { "kind": "line", "id": "#2", "at": { "x": 2, "y": 2 }, "len": 6, "orientation": "horizontal",
       "stroke": "double" } ] }
 -->
 
@@ -112,10 +115,11 @@ arms in both. The same crossing twice, the second time with both figures in one 
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 5 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 5 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 5 },
       "stroke": "light" },
-    { "kind": "line", "at": { "x": 2, "y": 2 }, "len": 6, "orientation": "horizontal",
+    { "kind": "line", "id": "#2", "at": { "x": 2, "y": 2 }, "len": 6, "orientation": "horizontal",
       "stroke": "light" } ] }
 -->
 
@@ -139,10 +143,11 @@ conventions the shipped demonstration uses rather than anything the format requi
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 9, "height": 3 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" },
-    { "kind": "box", "at": { "x": 5, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#2", "at": { "x": 5, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" } ] }
 -->
 
@@ -165,19 +170,20 @@ one from an ordinary box. The left arrow is on a border that is not there.
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 16, "height": 3 } },
+  "next_id": 5,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 1, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 1, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right",
                         "offset": { "dx": 3, "dy": -1 } },
                 "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
       "to":   { "at": { "kind": "point", "x": 7, "y": 0 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
-    { "kind": "box", "at": { "x": 6, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#3", "at": { "x": 6, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#4",
       "from": { "at": { "kind": "reference", "shape": "#3", "anchor": "right",
                         "offset": { "dx": 3, "dy": 1 } },
                 "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
@@ -211,29 +217,30 @@ head replaces the border's own glyph and a leaving arm composes with it into a j
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 22, "height": 9 } },
+  "next_id": 6,
   "shapes": [
-    { "kind": "box", "at": { "x": 9, "y": 3 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 9, "y": 3 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "top" },
                 "leaving": "up", "terminal": { "kind": "glyph", "glyph": "▼" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 0 }, "leaving": "down",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#3",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right" },
                 "leaving": "right", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 21, "y": 4 }, "leaving": "left",
                 "terminal": { "kind": "glyph", "glyph": "▶" } },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#4",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "bottom",
                         "offset": { "dx": 0, "dy": 1 } },
                 "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 8 }, "leaving": "up",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#5",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "left",
                         "offset": { "dx": -1, "dy": 0 } },
                 "leaving": "left", "terminal": { "kind": "arm" } },
@@ -281,31 +288,32 @@ negative amount is simply a point on the far side of the anchor.
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 14, "height": 9 } },
+  "next_id": 6,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 9 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 9 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right",
                         "offset": { "dx": 0, "dy": -3 } },
                 "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
       "to":   { "at": { "kind": "point", "x": 10, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#3",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right",
                         "offset": { "dx": 3, "dy": -1 } },
                 "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 3 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#4",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right",
                         "offset": { "dx": 0, "dy": 1 } },
                 "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
       "to":   { "at": { "kind": "point", "x": 10, "y": 5 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#5",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right",
                         "offset": { "dx": 3, "dy": 3 } },
                 "leaving": "right", "terminal": { "kind": "arm" } },
@@ -343,22 +351,23 @@ third in one too, while the second row's `▶` is a literal and closes both ends
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 16, "height": 12 } },
+  "next_id": 5,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "point", "x": 3, "y": 1 }, "leaving": "right",
                 "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 13, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#3",
       "from": { "at": { "kind": "point", "x": 3, "y": 5 }, "leaving": "right",
                 "terminal": { "kind": "glyph", "glyph": "◀" } },
       "to":   { "at": { "kind": "point", "x": 13, "y": 5 }, "leaving": "left",
                 "terminal": { "kind": "glyph", "glyph": "▶" } },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#4",
       "from": { "at": { "kind": "point", "x": 3, "y": 9 }, "leaving": "right",
                 "terminal": { "kind": "glyph", "glyph": "◀" } },
       "to":   { "at": { "kind": "point", "x": 13, "y": 9 }, "leaving": "left",
@@ -390,10 +399,11 @@ are drawn twice, in opposite order, and the crossing is a different character ea
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" },
-    { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#2", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" } ] }
 -->
 
@@ -408,10 +418,11 @@ are drawn twice, in opposite order, and the crossing is a different character ea
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" },
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#2", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" } ] }
 -->
 
@@ -433,10 +444,11 @@ the run succeeds. `#7` names nothing in a two-shape file. Asking which shapes co
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 11, "height": 3 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "reference", "shape": "#7", "anchor": "right",
                         "offset": { "dx": 2, "dy": 0 } },
                 "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
