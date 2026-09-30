@@ -89,29 +89,36 @@ impl From<Pos> for Position {
 impl Position {
     /// Where this position stands now, in `diagram`, or `None` when it does not resolve.
     ///
-    /// Three steps, and the third is the whole decision. An [`Position::Absolute`] is the point it
+    /// Four steps, and the last is the whole decision. An [`Position::Absolute`] is the point it
     /// holds, whatever the diagram holds or does not. A [`Position::Reference`] asks the diagram
     /// for the figure it names, and a figure this diagram does not hold is `None`. Then it asks
-    /// that figure for the anchor, and an anchor the kind does not answer is `None` again.
+    /// that figure for the anchor, and an anchor the kind does not answer is `None` again. Then it
+    /// adds the reference's offset to the point that came back.
     ///
-    /// Both failures are the one answer, and neither is an error, a report or a panic: the diagram
-    /// is unchanged and the caller carries on. That is what makes `None` an ordinary answer rather
-    /// than a failure, and it is the model's _Positions_ applied to a case the code had described
-    /// but not yet reached.
+    /// **The offset is added to what the anchor answers now, which is what makes it a gap from the
+    /// side rather than a point.** Displace the figure a reference hangs from and its side answers
+    /// somewhere else, so the endpoint travels with it and the gap between border and endpoint does
+    /// not change. An implementation that added the offset to the anchor's position when the
+    /// reference was built would be a different type with the same name.
     ///
-    /// **The offset is not read here yet, and that is a step not yet taken rather than a decision.**
-    /// A [`Reference`] carries a [`Delta`](crate::Delta) beside its identity and its anchor, and
-    /// this method does not add it to the point the anchor answered — so the field is a gap nothing
-    /// measures yet, and a caller who writes one gets the endpoint standing on the side itself.
-    /// #83's change is the addition, and the field arrives first so that widening a public type and
-    /// the arithmetic that reads it are two commits rather than one (constitution principle V).
+    /// Both `?`s come **before** the addition, so a reference that resolves to nothing is still
+    /// nothing however large its offset: there is no clamping, no fallback and no report, and the
+    /// figure holding it is not drawn. `Delta::apply` saturates rather than wrapping, and it is the
+    /// same function a displacement uses, so a coordinate past the end of any window a `u32` width
+    /// can describe draws nothing rather than wrapping back into one.
+    ///
+    /// A displacement is the other half and it is **not** reached here: a reference's offsets
+    /// travel with the figure it hangs from, so nothing adds to them. That is
+    /// [#143](https://github.com/andresmoschini/monospace/issues/143)'s decision and a deliberate
+    /// no-op rather than an omission.
     #[must_use]
     pub fn resolve(&self, diagram: &Diagram) -> Option<Pos> {
         match self {
             Self::Absolute(at) => Some(*at),
             Self::Reference(reference) => {
                 let shape = diagram.get(&reference.id)?;
-                shape.anchor(reference.anchor)
+                let point = shape.anchor(reference.anchor)?;
+                Some(reference.offset.apply(point))
             }
         }
     }
@@ -119,12 +126,16 @@ impl Position {
     /// This position, moved by `by`, changing nothing else.
     ///
     /// A displacement adds coordinates, and a point has coordinates to add to. A
-    /// [`Position::Reference`] has none yet — its identity names another figure, and that figure is
-    /// what moves when the diagram displaces it — so it comes back exactly as it went in. This is
-    /// a silent no-op on purpose, and it is what leaves a connector's hanging end standing still
-    /// while its free end travels. The offsets that will give this second arm something to do
-    /// arrive with
-    /// [#143](https://github.com/andresmoschini/monospace/issues/143).
+    /// [`Position::Reference`] is left exactly as it went in, and **the offsets it now carries do
+    /// not change that**: they are added to whatever the anchor answers at draw time, so a gap from
+    /// a side already travels with the figure it hangs from, and there is nothing left for a
+    /// displacement to add to them. This is a silent no-op on purpose, and it is what leaves a
+    /// connector's hanging end standing still while its free end travels.
+    ///
+    /// Walking the arithmetic into this arm is
+    /// [#143](https://github.com/andresmoschini/monospace/issues/143)'s decision and not this
+    /// method's to take: the model's §4 states the destination, and until that slice lands the
+    /// honest description of the gap is that it is named rather than left to be found.
     #[must_use]
     pub(crate) fn displaced_by(&self, by: Delta) -> Self {
         match self {
@@ -193,10 +204,85 @@ mod tests {
     use monospace_core::{Direction, Orientation, Pos, Size, Stroke, Terminal};
 
     use super::Anchor;
-    use crate::{Delta, Endpoint, Shape};
+    use crate::{Delta, Diagram, Endpoint, Position, Reference, Shape};
 
     fn light() -> Stroke {
         Stroke::from("light")
+    }
+
+    /// The four-by-three box at the origin that the two offset tests below resolve against.
+    ///
+    /// Built here rather than spelled out in each test, and asked through `Shape::anchor` — the
+    /// crate-private query the drawing itself goes through — so a test could not disagree with the
+    /// picture by construction. Each test adds it to a diagram of its own and keeps the identity
+    /// `add` issued, because an identity is the diagram's to hand out and not the test's to write
+    /// down (D3).
+    fn the_box_at_the_origin() -> Shape {
+        Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        }
+    }
+
+    /// User Story 1, spec's B1.1 and B1.2: `resolve` asked rather than drawn, and the offset is a
+    /// gap from the side.
+    ///
+    /// **Each answer is pinned against the absolute point, never against the other side of the
+    /// comparison.** A `resolve` that added `dx` to the y and `dy` to the x would satisfy "the two
+    /// agree with each other" while both were wrong; asked separately, each has to be right on its
+    /// own. `{3, 1}` and `{1, 2}` are the right and bottom side centres, measured rather than
+    /// chosen — `a_box_answers_its_four_side_centres` below already holds them.
+    #[test]
+    fn a_reference_resolves_to_its_anchors_point_moved_by_the_offset() {
+        let mut diagram = Diagram::new();
+        let id = diagram.add(the_box_at_the_origin());
+
+        let right = Position::Reference(Reference {
+            id: id.clone(),
+            anchor: Anchor::Right,
+            offset: Delta { dx: 2, dy: 0 },
+        });
+        let bottom = Position::Reference(Reference {
+            id,
+            anchor: Anchor::Bottom,
+            offset: Delta { dx: 0, dy: 1 },
+        });
+
+        assert_eq!(right.resolve(&diagram), Some(Pos { x: 5, y: 1 }));
+        assert_eq!(bottom.resolve(&diagram), Some(Pos { x: 1, y: 3 }));
+    }
+
+    /// User Story 1, spec's B1.3, and the `assert_ne!` is the whole of it: a reference carrying no
+    /// offset resolves to the point its anchor answers, and is **not** the bare point that answers
+    /// it.
+    ///
+    /// A `resolve` that added nothing at all would pass every equality above, because each offset
+    /// there is zero on the axis that would show it. Only the inequality catches that — and it
+    /// compares two `Position`s, the way 082's displacement test does, because a bare point
+    /// standing in the same cell is a *different position* from a reference standing on that side,
+    /// and a caller may rely on telling the two apart.
+    #[test]
+    fn a_reference_with_no_offset_stands_on_its_side_and_is_not_the_bare_point() {
+        let mut diagram = Diagram::new();
+        let the_box = the_box_at_the_origin();
+        let id = diagram.add(the_box.clone());
+
+        let on_the_side = Position::Reference(Reference {
+            id,
+            anchor: Anchor::Right,
+            offset: Delta { dx: 0, dy: 0 },
+        });
+        let the_side_middle = the_box
+            .anchor(Anchor::Right)
+            .expect("a box answers all four of its sides");
+
+        assert_eq!(on_the_side.resolve(&diagram), Some(the_side_middle));
+        assert_ne!(on_the_side, Position::Absolute(the_side_middle));
     }
 
     /// User Story 1, spec's B1.1: a four-by-three box at the origin answers all four of its side

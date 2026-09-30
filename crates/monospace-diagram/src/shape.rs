@@ -177,9 +177,10 @@ impl Shape {
     /// nothing gives back the same figure, which is what the widened derives are for.
     ///
     /// An endpoint that holds a **reference** does not move with the figure, and that is a decision
-    /// rather than an omission: a reference names another figure rather than a point, so there are
-    /// no coordinates here to add to. What displacing such a figure means in general is
-    /// [#143](https://github.com/andresmoschini/monospace/issues/143)'s to settle.
+    /// rather than an omission: the reference's offset is a gap from a side, added to whatever that
+    /// side answers when the figure is drawn, so it travels with the figure already and a
+    /// displacement has nothing to add to it. What displacing such a figure should mean in general
+    /// is [#143](https://github.com/andresmoschini/monospace/issues/143)'s to settle.
     #[must_use]
     pub fn displaced_by(&self, by: Delta) -> Self {
         match self {

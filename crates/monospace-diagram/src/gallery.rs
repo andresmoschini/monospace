@@ -362,11 +362,21 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 /// in one snapshot because what a reader is meant to see is the two of them together: the arrow
 /// standing on a side, and the arrow standing on the same side after the figure under it moved.
 ///
-/// This is the only carrier in the crate that can reach a reference at all — a `<!-- render: -->`
-/// marker reads a description, and the wire format holds a point (ADR-0064, research.md Q4).
+/// **The label names three values now, because the reference holds three.** A block cannot print a
+/// shape for itself — a `Diagram` offers one query by an identity and no listing — so this string
+/// is written by hand, and a hand-written label that named two of a reference's three values would
+/// let a reader assume a third default. `offset (0, 0)` is what says the arrow stands *on* the
+/// side rather than beside it. The offset is drawn nowhere in either picture, and §6's stays
+/// exactly as the model spells it.
+///
+/// This is no longer the only carrier in the crate that can reach a reference: since #83 a
+/// `<!-- render: -->` marker reads a description whose `at` may hold one (D2, ADR-0035). The block
+/// stays here rather than moving to a marker because the two blocks are one snapshot and a marker
+/// renders one picture per description (ADR-0064).
 #[test]
 fn an_endpoint_hangs_from_a_side_and_follows_it() {
-    let labelled = "[small_box(0,0,no fill), arm_connector(from = Reference(#1, Right) -> 7,1)]";
+    let labelled =
+        "[small_box(0,0,no fill), arm_connector(from = Reference(#1, Right, offset (0,0)) -> 7,1)]";
     let mut diagram = Diagram::new();
     let box_id = diagram.add(small_box(at(0, 0), None));
     diagram.add(hanging_connector(box_id.clone()));

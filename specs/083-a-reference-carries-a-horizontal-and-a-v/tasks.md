@@ -166,7 +166,7 @@ Self::Reference(reference) => {
 
 ### Implementation for User Story 1
 
-- [ ] T006 [US1] In `crates/monospace-diagram/src/position.rs`, give `Position::resolve`'s
+- [x] T006 [US1] In `crates/monospace-diagram/src/position.rs`, give `Position::resolve`'s
       `Reference` arm its third step — the one shown in this phase's introduction — and only its
       third step. The two `?`s come **before** the addition, which is what makes a reference that
       resolves to nothing still nothing however large the offset is (SC-004). `Delta::apply` is
@@ -177,7 +177,7 @@ Self::Reference(reference) => {
       data-model.md "`Position::resolve` — the three steps"; contracts/diagram-api.md `resolve`
       gains a step; plan.md commit 2)
 
-- [ ] T007 [P] [US1] In `crates/monospace-diagram/src/delta.rs`, give `Delta`'s rustdoc its second
+- [x] T007 [P] [US1] In `crates/monospace-diagram/src/delta.rs`, give `Delta`'s rustdoc its second
       reading. The module's first line reads "How far a figure moves along each axis, **and nothing
       else**" and the struct's says "**and no third thing**: the model's _Vocabulary_ gives a delta
       that row and gives it no other" — both are false the moment T006 lands, and this is D1's named
@@ -186,7 +186,7 @@ Self::Reference(reference) => {
       `contracts/diagram-api.md` shows `Delta`'s two fields exactly as they are and says no item is
       added, removed or retyped, and `apply` keeps both its saturation rule and its crate-private
       visibility (D1; research.md Q1; data-model.md "`Reference` — a third field")
-- [ ] T008 [P] [US1] Contract test: `resolve` asked rather than drawn — a four-by-three box at the
+- [x] T008 [P] [US1] Contract test: `resolve` asked rather than drawn — a four-by-three box at the
       origin, its right side with `Delta { dx: 2, dy: 0 }` resolving to `Some(Pos { x: 5, y: 1 })`
       and its bottom with `Delta { dx: 0, dy: 1 }` resolving to `Some(Pos { x: 1, y: 3 })`, in
       `crates/monospace-diagram/src/position.rs`. Each assertion pins the absolute point, never the
@@ -194,14 +194,14 @@ Self::Reference(reference) => {
       passing on a pair that is wrong together. Build the box through `Shape::anchor`, the
       crate-private query already there, so the test cannot disagree with the drawing by
       construction (B1.1, B1.2, SC-001; quickstart.md B1; data-model.md "What the tests pin")
-- [ ] T009 [P] [US1] Contract test: **the `assert_ne!` is the point of the no-offset case** — a
+- [x] T009 [P] [US1] Contract test: **the `assert_ne!` is the point of the no-offset case** — a
       reference with `Delta { dx: 0, dy: 0 }` resolves to the same `Pos` the same anchor answers
       **and is not equal to** that bare `Pos`, in `crates/monospace-diagram/src/position.rs`, beside
       T008. A `resolve` that added nothing at all would pass every equality in T008; only the
       inequality between a no-offset reference and a point catches it. 082's displacement test works
       the same way and this one has to as well (B1.3; quickstart.md B1; data-model.md "What the
       tests pin")
-- [ ] T010 [US1] In `crates/monospace-diagram/src/gallery.rs`, edit two strings by hand and
+- [x] T010 [US1] In `crates/monospace-diagram/src/gallery.rs`, edit two strings by hand and
       re-accept the snapshot. The `shapes:` line of `an_endpoint_hangs_from_a_side_and_follows_it`
       reads `arm_connector(from = Reference(#1, Right) -> 7,1)` and becomes
       `Reference(#1, Right, offset (0,0))` — **a label cannot disagree with the values it names**.
@@ -216,7 +216,7 @@ Self::Reference(reference) => {
       difference the diff may show is on the `shapes:` line. This is a `feat` and a `refactor` may
       not carry a snapshot, which is why the label is not in Phase 2 (Q6; ADR-0064; plan.md commit
       2; constitution, Fixing a commit)
-- [ ] T011 [P] [US1] Contract test: the reference with `Delta { dx: 2, dy: 0 }` on the box's right
+- [x] T011 [P] [US1] Contract test: the reference with `Delta { dx: 2, dy: 0 }` on the box's right
       side draws **exactly** the cells the same connector standing at the absolute point it resolves
       to draws, in `crates/monospace-diagram/src/diagram.rs` using the `cells`, `drawn`, `draw_of`
       and `differing` helpers already there. The offset is `2, 0` on `THE_SIDE_CENTRE` — the box is
@@ -248,7 +248,7 @@ B2.3; quickstart.md B2; SC-002, SC-004).
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] Contract test: the box displaced with the offset unchanged, in
+- [x] T012 [P] [US2] Contract test: the box displaced with the offset unchanged, in
       `crates/monospace-diagram/src/diagram.rs`. Build the expected picture from the two positions —
       the box at `{4, 0}` and the connector starting at the new absolute point `{7, 1}` — rather
       than pinning it as text, so what is claimed is where the endpoint lands and not how a
@@ -257,14 +257,14 @@ B2.3; quickstart.md B2; SC-002, SC-004).
       side centre is still a cell the connector can start from. `differing` must be non-empty and
       must not reach past the far endpoint (B2.1, SC-002; quickstart.md B2; data-model.md "What the
       tests pin")
-- [ ] T013 [P] [US2] Contract test: a box **replaced by a line** under an offset — the offset is
+- [x] T013 [P] [US2] Contract test: a box **replaced by a line** under an offset — the offset is
       added to the line's own side middle, not to the box's old one — in
       `crates/monospace-diagram/src/diagram.rs`. A horizontal line asked for its top and for its
       bottom centre is asked the same question twice and gets the offset added once, so the case
       that distinguishes the two answers is a horizontal line with a **non-zero** `dy`. Compare
       against the same line with the connector standing at the point the reference resolves to
       (B2.3; data-model.md "What the tests pin")
-- [ ] T014 [P] [US2] Contract test: non-resolution with a large offset, by drawing, **twice** — a
+- [x] T014 [P] [US2] Contract test: non-resolution with a large offset, by drawing, **twice** — a
       reference to an identity the diagram does not hold, and a reference to an anchor a kind does
       not answer, which is a connector and is the answer that keeps a chain of references one link
       long. Each carries an offset big enough to be somewhere, and each asserts the figure is
@@ -274,7 +274,7 @@ B2.3; quickstart.md B2; SC-002, SC-004).
       module for the shape that has nothing to do with either end (B2.2, SC-004; spec.md edge case:
       a connector answers no side, so an offset added to nothing is still nothing; data-model.md
       "What the tests pin")
-- [ ] T015 [P] [US2] Contract test: a box **one cell wide** with an offset — its two coincident side
+- [x] T015 [P] [US2] Contract test: a box **one cell wide** with an offset — its two coincident side
       centres get the offset added once, and the offset is what separates them afterwards — in
       `crates/monospace-diagram/src/diagram.rs`. The degenerate figure is the one an implementation
       that special-cased the ordinary box gets wrong, and 082's
@@ -299,13 +299,13 @@ a check rather than a claim (spec.md B3.1; quickstart.md B3; SC-006; research.md
 
 ### Implementation for User Story 3
 
-- [ ] T016 [US3] Add **no** code for this behavior, and say so in the commit rather than leaving it
+- [x] T016 [US3] Add **no** code for this behavior, and say so in the commit rather than leaving it
       to be found. `Position::displaced_by`'s reference arm still comes back cloned unchanged, and
       wiring the offsets into it would be taking
       [#143](https://github.com/andresmoschini/monospace/issues/143)'s decision (D4, Q4; B3.1;
       contracts/diagram-api.md "`displaced_by` does not change"; constitution, No decision outside
       the sheet)
-- [ ] T017 [P] [US3] Correct two rustdoc sentences that T002 and T003 made false, leaving both
+- [x] T017 [P] [US3] Correct two rustdoc sentences that T002 and T003 made false, leaving both
       bodies alone. `Position::displaced_by` in `crates/monospace-diagram/src/position.rs` says "**A
       `Position::Reference` has none yet** — its identity names another figure" and the reason it
       does not move is no longer that it has no coordinates: it has an offset, and the displacement
@@ -318,7 +318,7 @@ a check rather than a claim (spec.md B3.1; quickstart.md B3; SC-006; research.md
 
 ### Tests for User Story 3
 
-- [ ] T018 [P] [US3] Confirm `a_displacement_moves_a_point_and_leaves_a_reference_alone` in
+- [x] T018 [P] [US3] Confirm `a_displacement_moves_a_point_and_leaves_a_reference_alone` in
       `crates/monospace-diagram/src/position.rs` passes **unchanged**, and record that it passed
       before the slice as well as after it. It is the whole of B3, and the gap it leaves is named in
       the contract rather than left to be found. Its own `Reference` literal gained
