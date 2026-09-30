@@ -501,7 +501,7 @@ The tenth entry's `to`, which says the same place the file spells outright today
 
 ### Implementation for User Story 5
 
-- [ ] T027 [US5] In `crates/monospace-cli/assets/demo.json`, change the tenth entry's `to` to the
+- [x] T027 [US5] In `crates/monospace-cli/assets/demo.json`, change the tenth entry's `to` to the
       object shown in this phase's introduction, and nothing else in that file. `{21, 3} + (1, 1)`
       is `{22, 4}`, which is the point this entry spelled outright, so the rendered picture does not
       move by a character — the demonstration removes `#1`, displaces `#1` and displaces `#3`, and
@@ -510,7 +510,7 @@ The tenth entry's `to`, which says the same place the file spells outright today
       the picture and not the file's (D3, Q5; B5.1; data-model.md "The demonstration's tenth entry";
       plan.md commit 6)
 
-- [ ] T028 [US5] In `demo_without_its_first_entry` in `crates/monospace-cli/src/main.rs`, renumber
+- [x] T028 [US5] In `demo_without_its_first_entry` in `crates/monospace-cli/src/main.rs`, renumber
       the one reference the helper moves, `"#5"` to `"#4"`, and write in its doc comment why. The
       helper builds the demonstration with its first entry left out **as text** and reads it again,
       and reading it again issues the identities from scratch in array order, so the same `"#5"`
@@ -524,7 +524,7 @@ The tenth entry's `to`, which says the same place the file spells outright today
 
 ### Tests for User Story 5
 
-- [ ] T029 [P] [US5] Contract test: the two refusals the union produces, in
+- [x] T029 [P] [US5] Contract test: the two refusals the union produces, in
       `crates/monospace-cli/src/description.rs` beside the terminal refusals already there — a point
       written without a tag reports ``missing field `kind` ``, and `{"kind": "arrows", …}` reports
       ``unknown variant `arrows`, expected `point` or `reference` ``. Assert on the **message**, not
@@ -533,7 +533,7 @@ The tenth entry's `to`, which says the same place the file spells outright today
       and the stray `shape` is dropped in silence, because a tag is the rule and a field beside it
       is an unknown field exactly as a description carrying `mode` is today (B4.1; research.md Q2;
       contracts/description-format.md "What a malformed file does")
-- [ ] T030 [P] [US5] Contract test: the three wire behaviors of B4 arriving through a file, in
+- [x] T030 [P] [US5] Contract test: the three wire behaviors of B4 arriving through a file, in
       `crates/monospace-cli/tests/cli.rs`. **B4.1** a connector whose endpoint is a reference draws
       the diagram it resolves to. **B4.2** a description naming `"#7"` in a file holding one box
       draws the box and **no connector at all**, exits successfully, and says so in a comment — that
@@ -542,7 +542,7 @@ The tenth entry's `to`, which says the same place the file spells outright today
       description naming the point it resolves to draws, byte for byte, which is the case
       `{"kind": "reference", "shape": "#1", "anchor": "right"}` exists for (B4.1, B4.2, B4.3,
       SC-004; quickstart.md B5)
-- [ ] T031 [P] [US5] Contract test: the demonstration prints the **five** pictures it prints today,
+- [x] T031 [P] [US5] Contract test: the demonstration prints the **five** pictures it prints today,
       character for character, in `crates/monospace-cli/src/main.rs` — found by splitting the output
       on the blank line and pinning no caption's wording, and each picture compared against the
       output of the shipped file with that one entry changed. Read the fifth picture too: the box
@@ -550,7 +550,7 @@ The tenth entry's `to`, which says the same place the file spells outright today
       change and not the file's is what the fifth picture shows.
       `cargo run -p monospace-cli     <path>` still prints one picture and nothing else, which is
       what `cargo xtask render` embeds (B5.1, B5.2, SC-005; data-model.md "What the tests pin")
-- [ ] T032 [P] [US5] Contract test:
+- [x] T032 [P] [US5] Contract test:
       `the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out` in
       `crates/monospace-cli/src/main.rs` passes **only because of T028**, and confirm that by
       renaming the reference back to `"#5"` and watching it fail on two columns of the arrow's route

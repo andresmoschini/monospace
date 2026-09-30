@@ -484,4 +484,89 @@ mod tests {
             "{error}"
         );
     }
+
+    /// The same connector as `ARROW`, with `AT` standing where the `from` endpoint's `at` goes, so
+    /// the three cases below differ only in what an `at` says and the file around it is fixed.
+    const ARROW_WITH_AN_AT: &str = r#""from": { "at": AT, "leaving": "right",
+        "terminal": { "kind": "arm" } },
+      "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
+              "terminal": { "kind": "glyph", "glyph": ">" } }"#;
+
+    /// The message the binary reports for an endpoint whose `at` is `at`, read the way a reader
+    /// reads it: the message, not the `serde_json` position that follows it.
+    fn error_for_an_at(at: &str) -> String {
+        let json = description_of(&ARROW_WITH_AN_AT.replace("AT", at));
+        serde_json::from_str::<Description>(&json)
+            .expect_err("an `at` this format does not accept must fail")
+            .to_string()
+    }
+
+    /// User Story 4, spec's B4.1, SC-004: a point written without a tag is **refused**, not read as
+    /// one of the two.
+    ///
+    /// The position that follows the message is `serde_json`'s and moves with the bytes, which is
+    /// why what is compared is the message. Before the tag landed this file rendered and exited
+    /// successfully — the silence the tag is there to end, measured both ways in research.md Q2.
+    #[test]
+    fn an_untagged_at_is_refused_by_name() {
+        let error = error_for_an_at(r#"{ "x": 0, "y": 0 }"#);
+
+        assert!(error.starts_with("missing field `kind`"), "{error}");
+    }
+
+    /// User Story 4, spec's B4.1: a `kind` the union has no arm for is refused by name, **and the
+    /// message names the two it does have** — so the value is never read as one of them.
+    ///
+    /// The same rule §6's own `kind` fields have obeyed since 079, and the message is the whole of
+    /// what choosing the tag bought over an untagged union, which would have answered the same file
+    /// with `data did not match any variant of untagged enum At`.
+    #[test]
+    fn an_unknown_at_kind_names_it_and_the_two_that_are_accepted() {
+        let error = error_for_an_at(r#"{ "kind": "arrows", "x": 0, "y": 0 }"#);
+
+        assert!(
+            error.starts_with("unknown variant `arrows`, expected `point` or `reference`"),
+            "{error}"
+        );
+    }
+
+    /// User Story 4, research.md Q2's third measurement: a `point` written beside a stray `shape` is
+    /// **accepted**, and the `shape` is dropped in silence.
+    ///
+    /// This is the format's existing behavior rather than anything this slice adds, and it is the
+    /// cost of an internal tag rather than a defect: the tag is the rule, and a field beside it is
+    /// an unknown field exactly as a description carrying `mode` was before 079 removed it. Pinned
+    /// because the alternative — refusing a file for a harmless extra key — is the change a later
+    /// slice would make silently, and this is where the present answer is written down.
+    #[test]
+    fn a_stray_field_beside_an_at_is_dropped_in_silence() {
+        let json = description_of(&ARROW_WITH_AN_AT.replace(
+            "AT",
+            r##"{ "kind": "point", "x": 1, "y": 1, "shape": "#5" }"##,
+        ));
+
+        assert!(
+            serde_json::from_str::<Description>(&json).is_ok(),
+            "a stray field beside a tagged `at` must not refuse the file"
+        );
+    }
+
+    /// User Story 4, spec's B4.3 and the case `offset` being optional exists for: a reference
+    /// carrying **no** `offset` at all reads, and is a reference standing on the side itself.
+    ///
+    /// Without `#[serde(default)]` this would be a missing-field error on `offset`, and every
+    /// reference meaning "on the border" would have to spell two zeros to say nothing — the reason
+    /// the contract calls the field optional and absent zero.
+    #[test]
+    fn a_reference_with_no_offset_is_read_as_a_reference_on_the_side_itself() {
+        let json = description_of(&ARROW_WITH_AN_AT.replace(
+            "AT",
+            r##"{ "kind": "reference", "shape": "#1", "anchor": "right" }"##,
+        ));
+
+        assert!(
+            serde_json::from_str::<Description>(&json).is_ok(),
+            "a reference without an `offset` must read"
+        );
+    }
 }

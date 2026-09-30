@@ -158,7 +158,119 @@ fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
     assert!(output.stderr.is_empty(), "wrote to stderr");
 }
 
+/// A box at the origin, four by three, so its right side centre is `{3, 1}`. The figure the three
+/// wire cases below hang an endpoint from.
+const A_BOX: &str = r#"{ "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+        "stroke": "light" }"#;
+
+/// Runs a one-connector description over `at` and returns the whole of stdout, which for a path is
+/// one picture and nothing else (ADR-0064, and what `cargo xtask render` embeds).
+///
+/// `label` names the temp file, so it is the caller's short handle and not the JSON: a description
+/// is full of slashes and quotes and makes for no filename at all.
+fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
+    let path = write_description(
+        label,
+        &format!(
+            r#"{{
+            "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
+            "shapes": [
+                {A_BOX},
+                {{ "kind": "connector",
+                  "from": {{ "at": {at}, "leaving": "right",
+                             "terminal": {{ "kind": "glyph", "glyph": ">" }} }},
+                  "to": {{ "at": {{ "kind": "point", "x": 8, "y": 1 }}, "leaving": "left",
+                           "terminal": {{ "kind": "arm" }} }},
+                  "stroke": "light" }}
+            ]
+        }}"#
+        ),
+    );
+
+    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+    assert!(output.status.success(), "exited with {}", output.status);
+    assert!(output.stderr.is_empty(), "wrote to stderr");
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+/// User Story 4, spec's B4.1, SC-004: a file may name a side of another figure and an offset, and
+/// the picture it draws is the picture the resolved point draws.
+#[test]
+fn a_file_naming_a_reference_draws_what_the_point_it_resolves_to_draws() {
+    let named = picture_of_a_connector_hanging_from(
+        "with-offset",
+        r##"{ "kind": "reference", "shape": "#1", "anchor": "right", "offset": { "dx": 2, "dy": 0 } }"##,
+    );
+    let spelled = picture_of_a_connector_hanging_from(
+        "with-offset-point",
+        r#"{ "kind": "point", "x": 5, "y": 1 }"#,
+    );
+
+    assert_eq!(named, spelled);
+    assert!(
+        !named.trim().is_empty(),
+        "a reference to a box the file holds must draw the connector"
+    );
+}
+
+/// User Story 4, spec's B4.3: a reference carrying **no** `offset` at all draws exactly what a
+/// description naming the point it resolves to draws, byte for byte.
+///
+/// The case `{"kind": "reference", "shape": "#1", "anchor": "right"}` exists for: `offset` is
+/// optional and absent is zero, so a reference on the side itself is three fields rather than five,
+/// and it has to draw the same thing a file spelling `{3, 1}` outright does.
+#[test]
+fn a_file_naming_a_reference_with_no_offset_draws_the_point_it_stands_on() {
+    let named = picture_of_a_connector_hanging_from(
+        "no-offset",
+        r##"{ "kind": "reference", "shape": "#1", "anchor": "right" }"##,
+    );
+    let spelled = picture_of_a_connector_hanging_from(
+        "no-offset-point",
+        r#"{ "kind": "point", "x": 3, "y": 1 }"#,
+    );
+
+    assert_eq!(named, spelled);
+}
+
+/// User Story 4, spec's B4.2, SC-004: a file naming a shape it does not hold draws **a box and no
+/// connector at all**, and the run succeeds.
+///
+/// This is ADR-0041's silent hole arriving through a wire, and the offset is what makes it a test
+/// rather than a comment: a large offset is the case where an implementation might clamp, fall back
+/// or report, and none of the three happens. Nothing on stderr, a successful exit, and the picture
+/// is the box alone.
+#[test]
+fn a_file_naming_a_shape_it_does_not_hold_draws_the_box_and_no_connector_and_succeeds() {
+    let drawn = picture_of_a_connector_hanging_from(
+        "foreign-shape",
+        r##"{ "kind": "reference", "shape": "#7", "anchor": "right", "offset": { "dx": 2, "dy": 0 } }"##,
+    );
+    let box_alone = {
+        let path = write_description(
+            "just-the-box",
+            &format!(
+                r#"{{
+                "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
+                "shapes": [ {A_BOX} ]
+            }}"#
+            ),
+        );
+        let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+        assert!(output.status.success(), "exited with {}", output.status);
+        assert!(output.stderr.is_empty(), "wrote to stderr");
+        String::from_utf8_lossy(&output.stdout).into_owned()
+    };
+
+    assert_eq!(
+        drawn, box_alone,
+        "a reference to nothing must draw the box and nothing else"
+    );
+}
+
 /// The two overlapping boxes the reordering test below writes, as the `monospace_core` shapes
+/// they describe, so the expected picture in each order comes from stamping them directly rather
+/// than from a literal picture (TE-006).
 /// they describe, so the expected picture in each order comes from stamping them directly rather
 /// than from a literal picture (TE-006).
 fn overlap_boxes() -> (monospace_core::BoxShape, monospace_core::BoxShape) {

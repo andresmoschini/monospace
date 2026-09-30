@@ -70,7 +70,12 @@
         "terminal": { "kind": "arm" }
       },
       "to": {
-        "at": { "kind": "point", "x": 22, "y": 4 },
+        "at": {
+          "kind": "reference",
+          "shape": "#5",
+          "anchor": "bottom",
+          "offset": { "dx": 1, "dy": 1 }
+        },
         "leaving": "down",
         "terminal": { "kind": "glyph", "glyph": "▲" }
       },
