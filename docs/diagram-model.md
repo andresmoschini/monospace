@@ -33,7 +33,7 @@ interactive application. Those are layers above this one.
 | `Anchor`    | One of four named points a shape may offer: the center of each of its sides                                                   |
 | `Position`  | Either an absolute point or a reference                                                                                       |
 | `Reference` | A `ShapeId`, an `Anchor` on it, and a horizontal and vertical offset                                                          |
-| `Delta`     | How far a figure moves along each axis: a horizontal and a vertical amount                                                    |
+| `Delta`     | How far a figure moves along each axis, or how far from it a reference stands: a horizontal and a vertical amount             |
 | `Order`     | The sequence the diagram holds its shapes in; its front is drawn first                                                        |
 | `Ownership` | What a drawing records at every position: which shape the cell there belongs to                                               |
 
