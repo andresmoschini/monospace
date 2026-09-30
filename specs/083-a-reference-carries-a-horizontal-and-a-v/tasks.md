@@ -567,20 +567,20 @@ before, while the file those pictures came from now names a side instead of spel
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T033 Run the diff three times over, because three different things can go wrong and two of
+- [x] T033 Run the diff three times over, because three different things can go wrong and two of
       them draw the same picture as correct code: once after T026, once after T027, and once now —
       `cargo run -p monospace-cli > /tmp/demo-after.txt` and
       `diff /tmp/demo-before.txt     /tmp/demo-after.txt`, which must print **no output at all**;
       then `cargo run -p monospace-cli crates/monospace-cli/assets/demo.json > /tmp/file-after.txt`
       and `diff /tmp/file-before.txt /tmp/file-after.txt`, which must also print nothing, since a
       file's picture is exactly the one it was (B5.1, B5.2, SC-005)
-- [ ] T034 Run the acceptance scenarios from [quickstart.md](quickstart.md) that the tests do not
+- [x] T034 Run the acceptance scenarios from [quickstart.md](quickstart.md) that the tests do not
       cover: a description whose `shapes` is empty, printing five identical blank captioned pictures
       and exiting successfully; and one whose connector names a reference to a shape it does not
       hold, printing a box and **no connector at all** and exiting successfully. Read the fourth
       picture of a bare run with `sed -n '/With that same shape taken out/,/^$/p'` and confirm it is
       byte-identical to what it was — that is the picture T028 exists for (B4.2, B5.2)
-- [ ] T035 Confirm the one rule this slice accepts with nothing to verify it is **named as such**
+- [x] T035 Confirm the one rule this slice accepts with nothing to verify it is **named as such**
       rather than described as tested: an offset that puts the endpoint inside the figure it hangs
       from — a horizontal offset to the _left_ on a right side — draws it there, composing in the
       shared cell by the rule two figures sharing a cell always obey, rather than the offset being
@@ -589,19 +589,19 @@ before, while the file those pictures came from now names a side instead of spel
       `specs/083-a-reference-carries-a-horizontal-and-a-v/contracts/diagram-api.md` and in
       [spec.md](spec.md) _Edge cases_, and leave it as it is — this task is a check that the record
       says so, not an edit (constitution principle IV; spec.md Testing expectations)
-- [ ] T036 Record the count disagreement T023 carries: three records give three numbers for the
+- [x] T036 Record the count disagreement T023 carries: three records give three numbers for the
       spellings to re-spell, and sixteen is the one measured. Say in `docs/learning-log.md`'s entry,
       or in this task's own commit message, which number came out of a `grep` and which two did not
       — a design that measured its own rule (`render.rs:211`) and then quoted the raw count is the
       kind of slip a later slice re-inherits silently (constitution principle IV; AGENTS.md "Facts
       that are in the code and in no document")
-- [ ] T037 Run `cargo xtask check` and confirm it is green, including the `wasm` step — which
+- [x] T037 Run `cargo xtask check` and confirm it is green, including the `wasm` step — which
       already names `monospace-diagram`, so it covers the widened `Reference` and the changed
       `resolve` with no change to `xtask` and no new check, which is why principle III's two-commit
       rule does not apply. Watch the output rather than the exit code: `rustfmt` reports that
       `group_imports` needs nightly and exits 0, and so does a step that finds something it cannot
       fix (SC-007; plan.md Constitution Check, principle III)
-- [ ] T038 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T038 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and optionally a trade-off worth
       remembering. Two are already paid for and worth writing down rather than rediscovering: a
       hand-written snapshot label cannot move by itself when the value it names grows a field, so a
