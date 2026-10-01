@@ -48,6 +48,44 @@ fn first_demonstrated_picture(output: &str) -> String {
     format!("{picture}\n")
 }
 
+/// User Story 3, B3.1, SC-004: two entries carrying the same `id` are **both** read. Both shapes
+/// are drawn, the run exits successfully, and nothing is written to stderr.
+///
+/// **Pinned as an accepted cost rather than as a bug**, so a later slice that decides to report a
+/// repeated identity has to say so rather than discover it. The diagram-level half — both held,
+/// `get` returning the first — is `add_under_does_not_move_the_counter_and_does_not_check_the_name`
+/// in `monospace-diagram`; this is the same cost arriving through a wire, where a reader might
+/// plausibly have checked it and did not.
+#[test]
+fn two_entries_carrying_one_identity_are_both_read_and_both_drawn() {
+    let path = write_description(
+        "repeated-id",
+        r##"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+            "next_id": 2,
+            "shapes": [
+                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light" },
+                { "kind": "box", "id": "#1", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light" }
+            ]
+        }"##,
+    );
+
+    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+
+    assert!(output.status.success(), "exited with {}", output.status);
+    assert!(output.stderr.is_empty(), "wrote to stderr");
+    // Both boxes draw: the first entry's border and the second one's, overlapping. A reader that
+    // refused a repeated identity would have drawn one of them, and one that read the first and
+    // dropped the second would draw a different picture than two of them do.
+    let picture = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        picture.contains("┌──┐") && picture.contains("└──┘") && picture.lines().count() >= 4,
+        "both entries must draw, and a 6x4 window is four rows:\n{picture}"
+    );
+}
+
 /// User story 2, acceptance scenario 1: with no arguments, the binary prints the shipped
 /// demonstration and exits successfully, with nothing on stderr.
 #[test]
@@ -102,13 +140,14 @@ fn the_demo_path_passed_explicitly_prints_the_demonstrations_first_picture() {
 fn an_explicit_path_prints_the_hand_written_box() {
     let path = write_description(
         "one-box",
-        r#"{
+        r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
             "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" }
             ]
-        }"#,
+        }"##,
     );
 
     let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
@@ -127,21 +166,22 @@ fn an_explicit_path_prints_the_hand_written_box() {
 fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
     let path = write_description(
         "three-shapes",
-        r#"{
+        r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 10, "height": 5 } },
+            "next_id": 4,
             "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" },
-                { "kind": "line", "at": { "x": 0, "y": 4 }, "len": 4, "orientation": "horizontal",
+                { "kind": "line", "id": "#2", "at": { "x": 0, "y": 4 }, "len": 4, "orientation": "horizontal",
                   "stroke": "light" },
-                { "kind": "connector",
+                { "kind": "connector", "id": "#3",
                   "from": { "at": { "kind": "point", "x": 5, "y": 0 }, "leaving": "right",
                             "terminal": { "kind": "glyph", "glyph": ">" } },
                   "to": { "at": { "kind": "point", "x": 9, "y": 2 }, "leaving": "down",
                           "terminal": { "kind": "glyph", "glyph": "v" } },
                   "stroke": "light" }
             ]
-        }"#,
+        }"##,
     );
 
     let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
@@ -160,8 +200,8 @@ fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
 
 /// A box at the origin, four by three, so its right side centre is `{3, 1}`. The figure the three
 /// wire cases below hang an endpoint from.
-const A_BOX: &str = r#"{ "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-        "stroke": "light" }"#;
+const A_BOX: &str = r##"{ "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+        "stroke": "light" }"##;
 
 /// Runs a one-connector description over `at` and returns the whole of stdout, which for a path is
 /// one picture and nothing else (ADR-0064, and what `cargo xtask render` embeds).
@@ -172,18 +212,19 @@ fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
     let path = write_description(
         label,
         &format!(
-            r#"{{
+            r##"{{
             "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
+            "next_id": 3,
             "shapes": [
                 {A_BOX},
-                {{ "kind": "connector",
+                {{ "kind": "connector", "id": "#2",
                   "from": {{ "at": {at}, "leaving": "right",
                              "terminal": {{ "kind": "glyph", "glyph": ">" }} }},
                   "to": {{ "at": {{ "kind": "point", "x": 8, "y": 1 }}, "leaving": "left",
                            "terminal": {{ "kind": "arm" }} }},
                   "stroke": "light" }}
             ]
-        }}"#
+        }}"##
         ),
     );
 
@@ -252,6 +293,7 @@ fn a_file_naming_a_shape_it_does_not_hold_draws_the_box_and_no_connector_and_suc
             &format!(
                 r#"{{
                 "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
+                "next_id": 2,
                 "shapes": [ {A_BOX} ]
             }}"#
             ),
@@ -324,27 +366,29 @@ fn render_back_to_front_with_above(
 fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     let first = write_description(
         "overlap-a-then-b",
-        r#"{
+        r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+            "next_id": 3,
             "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" },
-                { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#2", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "▓" }
             ]
-        }"#,
+        }"##,
     );
     let second = write_description(
         "overlap-b-then-a",
-        r#"{
+        r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+            "next_id": 3,
             "shapes": [
-                { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#1", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "▓" },
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#2", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" }
             ]
-        }"#,
+        }"##,
     );
 
     let first_output = run(&[first.to_str().expect("temp path should be valid UTF-8")]);
@@ -368,13 +412,14 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
 fn running_the_same_file_twice_produces_identical_output() {
     let path = write_description(
         "determinism",
-        r#"{
+        r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
             "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" }
             ]
-        }"#,
+        }"##,
     );
 
     let first = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
@@ -425,6 +470,7 @@ fn an_unrecognized_kind_names_it_on_stderr_and_fails() {
         "bad-kind",
         r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 1,
             "shapes": [ { "kind": "triangle" } ]
         }"#,
     );

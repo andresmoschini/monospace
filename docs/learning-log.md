@@ -2267,3 +2267,73 @@ commits, and both started life with a defect the gate reported green.
   in means the amended commit's own body has to describe the corrected pictures, or the history
   records a rationale for arrows that no longer exist. The commit message is part of the artifact
   here for the same reason the prose is: both are claims about pictures that a reader checks.
+
+## 2026-09-30 — a description names its shapes, and the counter that meant the wrong thing
+
+Issue 148: every entry of a description carrying the identity its shape is held under, and the
+description carrying the ordinal the next shape takes. Three commits of code and three of record,
+and the one that took longest was a change to a field that already existed.
+
+### Rust design and idiom
+
+- **A counter that means "the last one issued" and a counter that means "the next one to be issued"
+  are one subtraction apart, and the subtraction belongs in the public method.** `add` incremented
+  _before_ building the identity, so the field held the last issued ordinal; `numbered_from(3)` then
+  handed back `#4` where the contract, the data model and the research note all said `#3`. Storing
+  the ordinal itself moves the `+1` from the front of `add` to the back, and the off-by-one has
+  nowhere left to hide. A counter is a **name for what the field holds**, and a name that is
+  approximately right is worse than a field that is exactly wrong: the wrong field fails a test, the
+  wrong name passes one.
+- **`Default` is a contract once a field's zero stops being meaningful.** Deriving it would have
+  left `next: 0`, and the first addition to a `Diagram::default()` would be handed `#0`. Nothing
+  outside the crate used it, and it would still have been a public trap written in four characters.
+  When a change alters what a field's zero means, the derived `Default` has to become a written one
+  in the same commit — the derive is what made it easy to forget.
+- **`Shape` is not `Copy`, and a closure returning one is the idiomatic fixture.** The test for "a
+  chosen identity is found by that identity" needs the same box three times over, and the crate's
+  own existing helper is already a closure returning a fresh `Shape::Line`. Reaching for
+  `a_box.clone()` first is the reflex from types that are `Copy`; the closure is shorter, says what
+  the fixture is, and cannot drift out of step with itself.
+
+### Working this way
+
+- **A test's geometry can be incapable of showing what the test claims, and it fails silently.** The
+  obvious pair of boxes for "forward on a chosen identity moves that shape" shares only its borders,
+  and a border composes to the same junction whichever is in front — so the assertion passed with
+  the move deleted. With three overlapping boxes, "other, chosen, third" and "other, third, chosen"
+  draw the **same picture**, so one step and two steps are indistinguishable. Only a **filled** box
+  makes the order visible, and only two non-touching boxes make one step tell. The same trap caught
+  the file-format half: two boxes two cells apart share a column, and a connector ending in the same
+  row draws the same route to either. **When a test about ordering fails, check first whether the
+  drawing can express the order at all** — an assertion that cannot fail is a false green, and it is
+  cheaper to look for than to debug.
+- **The plan's line numbers are a claim about the file, and a plan written before the code is a
+  snapshot.** Every line number in the tasks was checked before the first edit and all thirteen
+  still held. The ones that did _not_ hold were the ones no line number could check: `add`
+  incremented before use, so the field's meaning was the opposite of what the contract said, and no
+  amount of reading the plan around it would have shown that. **A design that describes a field's
+  meaning rather than a method's body is the part that goes stale**, because the body changes and
+  the meaning is what a later reader assumes.
+- **A raw string cannot hold its own delimiter, and 114 `"id": "#N"` values means 18 of them
+  cannot.** `r#"…"#` closes at the first `"#`, which inside an identity is the first two characters
+  of it. The fix is `r##"…"##`, which the test suite already used for a reference spelled `"#1"` —
+  so it was the same rule rather than a new one, and the eighteen sites were mechanical. It bit in
+  the one place nobody looks: `clippy::needless_raw_string_hashes` then objects to the `r##` in a
+  literal whose identity arrives through `{}` rather than being written out.
+- **A field the reader does not read yet is what lets a 114-value change land as one `refactor`.**
+  Adding an `id` to 43 descriptions, 25 generated pictures and 26 file entries is a large mechanical
+  diff, and it stayed one commit because the reader dropped the field in silence — measured three
+  ways rather than assumed. The counterpart is that a **misspelled extra key stays silent**:
+  `{"id": "#1", "idd": "#1"}` reads exactly as the first, while `{"idd": "#1"}` alone is a
+  `missing field` error. That asymmetry is the format's, not this slice's, and it is why the edit
+  had to be an **addition** and never a rename.
+
+### Trade-offs worth remembering
+
+- **An accepted cost and a bug look the same in the code, and the difference is only in how it was
+  recorded.** Two entries may carry one identity and the second is unreachable; a `next_id` left
+  stale hands back a name already in use. Neither errors, and a reader that reported either would be
+  a different format. Pinning both as **behaviors with a test each** — rather than leaving them
+  undocumented — is what makes the next slice that repairs one say so in its commit rather than
+  discovering it in a bug report. The cost is that a test now asserts something nobody wants; the
+  benefit is that reversing it is a deliberate act.

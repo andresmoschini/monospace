@@ -262,10 +262,22 @@ impl From<Endpoint> for DiagramEndpoint {
 
 /// One entry in a `Description`'s `shapes` array, tagged by `kind` (FR-006). An unrecognized
 /// `kind` is reported by name, since this enum is internally tagged (FR-014).
+///
+/// Every variant carries an `id`: the identity its shape is held under, and the one a `reference`
+/// names. It is required, so a file leaving it out is refused **by name**, exactly as `canvas`,
+/// `shapes`, `leaving`, `terminal` and `at`'s `kind` already are. It sits **first** in every
+/// variant because a variant's fields are read in declaration order, and `id` immediately after
+/// `kind` on the wire is where all the descriptions in this repository already put it (Q3).
+///
+/// The identity is **not** checked for uniqueness, and two entries may carry one: both are read,
+/// the first is what every change and every reference finds, and the second is reachable by no
+/// identity until the first is removed. That is B3.1's accepted cost, and it is why the model's
+/// "unique within that diagram" is amended in the `docs` commit rather than enforced here.
 #[derive(Deserialize, Debug)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum ShapeDescription {
     Box {
+        id: String,
         at: Pos,
         size: Size,
         stroke: String,
@@ -273,21 +285,39 @@ enum ShapeDescription {
         fill: Option<Glyph>,
     },
     Line {
+        id: String,
         at: Pos,
         len: u32,
         orientation: Orientation,
         stroke: String,
     },
     Connector {
+        id: String,
         from: Endpoint,
         to: Endpoint,
         stroke: String,
     },
 }
 
+impl ShapeDescription {
+    /// The identity this entry's shape is held under, read before the shape is converted.
+    ///
+    /// One method rather than three because the field is on every variant and the conversion below
+    /// drops it: the figure carries no name, and it is the diagram that holds the one the file
+    /// wrote.
+    fn id(&self) -> String {
+        match self {
+            ShapeDescription::Box { id, .. }
+            | ShapeDescription::Line { id, .. }
+            | ShapeDescription::Connector { id, .. } => id.clone(),
+        }
+    }
+}
+
 impl From<ShapeDescription> for DiagramShape {
     /// Converts this description into the matching `monospace_diagram` shape, dropping no
-    /// parameter (FR-008, FR-009).
+    /// parameter (FR-008, FR-009). The `id` goes with the diagram rather than with the figure:
+    /// nothing about a returned shape says where it sits, which is 081's arrangement and stays it.
     fn from(description: ShapeDescription) -> Self {
         match description {
             ShapeDescription::Box {
@@ -295,6 +325,7 @@ impl From<ShapeDescription> for DiagramShape {
                 size,
                 stroke,
                 fill,
+                ..
             } => DiagramShape::Box {
                 at: at.into(),
                 size: size.into(),
@@ -306,13 +337,16 @@ impl From<ShapeDescription> for DiagramShape {
                 len,
                 orientation,
                 stroke,
+                ..
             } => DiagramShape::Line {
                 at: at.into(),
                 len,
                 orientation: orientation.into(),
                 stroke: stroke.as_str().into(),
             },
-            ShapeDescription::Connector { from, to, stroke } => DiagramShape::Connector {
+            ShapeDescription::Connector {
+                from, to, stroke, ..
+            } => DiagramShape::Connector {
                 from: from.into(),
                 to: to.into(),
                 stroke: stroke.as_str().into(),
@@ -321,10 +355,20 @@ impl From<ShapeDescription> for DiagramShape {
     }
 }
 
-/// The whole of one description file: a canvas and an ordered list of shapes.
+/// The whole of one description file: a canvas, the ordinal the next shape takes, and an ordered
+/// list of shapes.
 #[derive(Deserialize, Debug)]
 pub struct Description {
     canvas: Canvas,
+    /// The ordinal the next `add` takes: a number rather than a container holding one, because it
+    /// is one number (Q3). Required, so a file leaving it out is refused by name, the way `canvas`
+    /// and `shapes` already are.
+    ///
+    /// **It is trusted, not checked.** A stale value — an entry renamed, a `#2` deleted — hands back
+    /// an identity already in use, and the shape that arrives is one nobody can name. That is D2's
+    /// accepted cost, and the repair is one line in `monospace-diagram`; nothing in this format
+    /// checks it.
+    next_id: u32,
     shapes: Vec<ShapeDescription>,
 }
 
@@ -334,11 +378,20 @@ impl Description {
         (self.canvas.origin.into(), self.canvas.size.into())
     }
 
-    /// Builds a diagram from `shapes`, in order (FR-016).
+    /// Builds a diagram from `shapes`, in order, under the identities the file wrote and with its
+    /// numbering resuming where it says (FR-016).
+    ///
+    /// **The order is still the order.** The array order remains the drawing order, so every
+    /// picture in the repository comes out byte for byte what it did — that is the claim the whole
+    /// mechanical change rests on, and it was measured rather than argued.
+    ///
+    /// A name a connector names before the entry carrying it is written still resolves, because
+    /// resolution happens at draw time and the whole diagram exists by then. That edge case needs
+    /// no code here; it is what a completed vector of placements means.
     pub(crate) fn into_diagram(self) -> Diagram {
-        let mut diagram = Diagram::new();
+        let mut diagram = Diagram::numbered_from(self.next_id);
         for shape in self.shapes {
-            diagram.add(shape.into());
+            diagram.add_under(ShapeId::new(shape.id()), shape.into());
         }
         diagram
     }
@@ -347,12 +400,14 @@ impl Description {
 #[cfg(test)]
 mod tests {
     use super::Description;
+    use crate::render_once;
 
     /// An unrecognized `kind` fails to deserialize and names the unrecognized value (FR-014).
     #[test]
     fn an_unrecognized_kind_fails_to_deserialize_and_names_it() {
         let json = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 1,
             "shapes": [ { "kind": "triangle" } ]
         }"#;
 
@@ -365,13 +420,14 @@ mod tests {
     /// A `fill` of more than one grapheme cluster fails to deserialize.
     #[test]
     fn a_multi_grapheme_fill_fails_to_deserialize() {
-        let json = r#"{
+        let json = r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
             "shapes": [
-                { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "ab" }
             ]
-        }"#;
+        }"##;
 
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
@@ -381,17 +437,18 @@ mod tests {
     /// the only reason the wire form is internally tagged (research.md Q3).
     #[test]
     fn a_multi_grapheme_terminal_glyph_fails_to_deserialize() {
-        let json = r#"{
+        let json = r##"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 1 } },
+            "next_id": 2,
             "shapes": [
-                { "kind": "connector",
+                { "kind": "connector", "id": "#1",
                   "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right",
                             "terminal": { "kind": "glyph", "glyph": "ab" } },
                   "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
                           "terminal": { "kind": "glyph", "glyph": ">" } },
                   "stroke": "light" }
             ]
-        }"#;
+        }"##;
 
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
@@ -410,14 +467,15 @@ mod tests {
 
     fn description_of(connector: &str) -> String {
         format!(
-            r#"{{
+            r##"{{
             "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 8, "height": 1 }} }},
+            "next_id": 2,
             "shapes": [
-                {{ "kind": "connector",
+                {{ "kind": "connector", "id": "#1",
                   {connector},
                   "stroke": "light" }}
             ]
-        }}"#
+        }}"##
         )
     }
 
@@ -567,6 +625,166 @@ mod tests {
         assert!(
             serde_json::from_str::<Description>(&json).is_ok(),
             "a reference without an `offset` must read"
+        );
+    }
+
+    /// B1.1, B1.2, SC-001: a reference follows the name, **both directions**.
+    ///
+    /// Two descriptions over the same window, the same two boxes and the same connector, differing
+    /// only in the order their entries are listed in. The connector naming the **box** draws the
+    /// same buffer whichever order the entries are in; the connector naming the **place** draws two
+    /// different pictures, which is what those files mean today.
+    ///
+    /// Both directions, because a reader that made the name win in one and not in the other would
+    /// pass a single test — and the second half is the one that is easy to leave out, since the
+    /// first half is what the slice is for.
+    #[test]
+    fn a_reference_follows_the_name_and_not_the_place_where_the_entry_is_written() {
+        // Two boxes at **fixed** positions, far enough apart that the route to either is a
+        // different drawing: one at `{0, 3}` and one at `{11, 3}`, and a connector falling from
+        // `{7, 0}` onto the **top** of whichever box it is told to name. The two boxes do not
+        // touch, which is what makes the two routes distinguishable at all — measured, because a
+        // pair that shares cells composes to the same picture whichever way round it is built.
+        //
+        // `left` and `right` are the identity given to the box at `{0, 3}` and the one at `{11, 3}`
+        // respectively, and `right_listed_first` says which of them the `shapes` array lists
+        // first. Nothing else changes between the four descriptions below, so the route can only
+        // move if the reader is following the place rather than the name.
+        let description_with =
+            |left: &str, right: &str, right_listed_first: bool, connector_names: &str| {
+                let left_box = format!(
+                    r#"{{ "kind": "box", "id": "{left}", "at": {{ "x": 0, "y": 3 }},
+                  "size": {{ "width": 4, "height": 3 }}, "stroke": "light" }}"#
+                );
+                let right_box = format!(
+                    r#"{{ "kind": "box", "id": "{right}", "at": {{ "x": 11, "y": 3 }},
+                  "size": {{ "width": 4, "height": 3 }}, "stroke": "light" }}"#
+                );
+                let boxes = if right_listed_first {
+                    format!("{right_box},\n                {left_box}")
+                } else {
+                    format!("{left_box},\n                {right_box}")
+                };
+                format!(
+                    r#"{{
+            "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 16, "height": 6 }} }},
+            "next_id": 3,
+            "shapes": [
+                {boxes},
+                {{ "kind": "connector", "id": "arrow",
+                  "from": {{ "at": {{ "kind": "point", "x": 7, "y": 0 }}, "leaving": "down",
+                             "terminal": {{ "kind": "glyph", "glyph": "▼" }} }},
+                  "to": {{ "at": {{ "kind": "reference", "shape": "{connector_names}",
+                                      "anchor": "top" }},
+                          "leaving": "up",
+                          "terminal": {{ "kind": "arm" }} }},
+                  "stroke": "light" }}
+            ]
+        }}"#
+                )
+            };
+        let parse = |json: String| serde_json::from_str::<Description>(&json).expect("well-formed");
+
+        // Naming the **box**: the box at `{11, 3}` is `right` in both files and is listed first in
+        // one and second in the other, so both draw the same picture. This is B1.2.
+        let right_listed_first =
+            render_once(parse(description_with("left", "right", true, "right")));
+        let right_listed_second =
+            render_once(parse(description_with("left", "right", false, "right")));
+        assert_eq!(
+            right_listed_first, right_listed_second,
+            "a reference naming a shape must not move when the entries are listed in another order"
+        );
+
+        // Naming the **place**: `"#2"` is the second entry in each file, and the two files put a
+        // different box there, so the connector lands on a different box in each. This is B1.1,
+        // what those files mean today, and the half that says the name won in one direction and
+        // not in the other — a reader that made it win in both would have failed the first half.
+        let place_right_first = render_once(parse(description_with("#2", "#1", true, "#2")));
+        let place_right_second = render_once(parse(description_with("#1", "#2", false, "#2")));
+        assert_ne!(
+            place_right_first, place_right_second,
+            "a reference naming a place must still follow the place it is written at"
+        );
+    }
+
+    /// B3.2: a missing identity is refused **by name**, exactly as `canvas`, `shapes`, `leaving`,
+    /// `terminal` and `at`'s `kind` already are.
+    ///
+    /// Asserted on the message and not on the line and column that follow it, which are serde's
+    /// and move with the bytes. The `display_with_line_column` half of the claim is the rest of the
+    /// format's existing behavior and is already pinned by
+    /// `an_omitted_terminal_field_is_refused_by_name`; this pins the two new names beside it.
+    #[test]
+    fn a_missing_identity_is_refused_by_name() {
+        let without_next_id = r##"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "shapes": [ { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"##;
+        let without_an_id = r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#;
+
+        for (json, named) in [(without_next_id, "next_id"), (without_an_id, "id")] {
+            let error = serde_json::from_str::<Description>(json)
+                .expect_err("a missing identity must fail");
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("missing field `{named}`")),
+                "expected `missing field `{named}``, got: {error}"
+            );
+        }
+    }
+
+    /// B3.3, SC-001: free text reads. A description whose entries are named `right`, `left` and
+    /// `arrow` draws **byte for byte** what the same description named `#1`, `#2` and `#3` draws.
+    ///
+    /// The format takes any string, and a format that insisted on an ordinal could not pass this
+    /// test. The `next_id` is untouched by the substitution, which is what D1 chose over deriving
+    /// an ordinal from the names: an ordinal derived from the names would have nothing to resume
+    /// from, and a name is not a number to count.
+    #[test]
+    fn free_text_reads_and_draws_what_the_ordinal_named_description_draws() {
+        let named = |ids: (&str, &str, &str)| {
+            format!(
+                r#"{{
+            "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
+            "next_id": 4,
+            "shapes": [
+                {{ "kind": "box", "id": "{}", "at": {{ "x": 0, "y": 0 }},
+                  "size": {{ "width": 4, "height": 3 }}, "stroke": "light" }},
+                {{ "kind": "box", "id": "{}", "at": {{ "x": 0, "y": 0 }},
+                  "size": {{ "width": 4, "height": 3 }}, "stroke": "light" }},
+                {{ "kind": "connector", "id": "{}",
+                  "from": {{ "at": {{ "kind": "reference", "shape": "{}",
+                                      "anchor": "right" }},
+                             "leaving": "right",
+                             "terminal": {{ "kind": "glyph", "glyph": ">" }} }},
+                  "to": {{ "at": {{ "kind": "point", "x": 8, "y": 1 }}, "leaving": "left",
+                           "terminal": {{ "kind": "glyph", "glyph": ">" }} }},
+                  "stroke": "light" }}
+            ]
+        }}"#,
+                ids.0, ids.1, ids.2, ids.0
+            )
+        };
+        let parse = |json: String| serde_json::from_str::<Description>(&json).expect("well-formed");
+
+        let ordinal_named = render_once(parse(named(("#1", "#2", "#3"))));
+        let free_text = render_once(parse(named(("left", "right", "arrow"))));
+        assert_eq!(
+            ordinal_named, free_text,
+            "free text must draw exactly what the ordinal-named description draws"
+        );
+        // The reference follows the name it was given, not the one in the other file.
+        assert!(
+            free_text.contains('>'),
+            "the connector must draw, so the reference resolved through the name"
         );
     }
 }

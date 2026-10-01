@@ -1,8 +1,10 @@
 {
   "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 50, "height": 13 } },
+  "next_id": 27,
   "shapes": [
     {
       "kind": "box",
+      "id": "#1",
       "at": { "x": 0, "y": 0 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light",
@@ -10,6 +12,7 @@
     },
     {
       "kind": "box",
+      "id": "#2",
       "at": { "x": 2, "y": 1 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light",
@@ -17,6 +20,7 @@
     },
     {
       "kind": "box",
+      "id": "#3",
       "at": { "x": 9, "y": 2 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light",
@@ -24,6 +28,7 @@
     },
     {
       "kind": "box",
+      "id": "#4",
       "at": { "x": 7, "y": 1 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light",
@@ -31,18 +36,21 @@
     },
     {
       "kind": "box",
+      "id": "#5",
       "at": { "x": 20, "y": 1 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light"
     },
     {
       "kind": "box",
+      "id": "#6",
       "at": { "x": 18, "y": 0 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light"
     },
     {
       "kind": "line",
+      "id": "#7",
       "at": { "x": 0, "y": 5 },
       "len": 8,
       "orientation": "horizontal",
@@ -50,6 +58,7 @@
     },
     {
       "kind": "line",
+      "id": "#8",
       "at": { "x": 0, "y": 5 },
       "len": 3,
       "orientation": "vertical",
@@ -57,6 +66,7 @@
     },
     {
       "kind": "line",
+      "id": "#9",
       "at": { "x": 4, "y": 3 },
       "len": 4,
       "orientation": "vertical",
@@ -64,6 +74,7 @@
     },
     {
       "kind": "connector",
+      "id": "#10",
       "from": {
         "at": { "kind": "point", "x": 12, "y": 3 },
         "leaving": "right",
@@ -83,96 +94,112 @@
     },
     {
       "kind": "box",
+      "id": "#11",
       "at": { "x": 26, "y": 0 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light"
     },
     {
       "kind": "box",
+      "id": "#12",
       "at": { "x": 28, "y": 1 },
       "size": { "width": 4, "height": 3 },
       "stroke": "ascii"
     },
     {
       "kind": "box",
+      "id": "#13",
       "at": { "x": 34, "y": 0 },
       "size": { "width": 4, "height": 3 },
       "stroke": "ascii"
     },
     {
       "kind": "box",
+      "id": "#14",
       "at": { "x": 36, "y": 1 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light"
     },
     {
       "kind": "box",
+      "id": "#15",
       "at": { "x": 0, "y": 9 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light"
     },
     {
       "kind": "box",
+      "id": "#16",
       "at": { "x": 2, "y": 10 },
       "size": { "width": 4, "height": 3 },
       "stroke": "double"
     },
     {
       "kind": "box",
+      "id": "#17",
       "at": { "x": 8, "y": 9 },
       "size": { "width": 4, "height": 3 },
       "stroke": "double"
     },
     {
       "kind": "box",
+      "id": "#18",
       "at": { "x": 10, "y": 10 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light"
     },
     {
       "kind": "box",
+      "id": "#19",
       "at": { "x": 16, "y": 9 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light"
     },
     {
       "kind": "box",
+      "id": "#20",
       "at": { "x": 18, "y": 10 },
       "size": { "width": 4, "height": 3 },
       "stroke": "heavy"
     },
     {
       "kind": "box",
+      "id": "#21",
       "at": { "x": 24, "y": 9 },
       "size": { "width": 4, "height": 3 },
       "stroke": "heavy"
     },
     {
       "kind": "box",
+      "id": "#22",
       "at": { "x": 26, "y": 10 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light"
     },
     {
       "kind": "box",
+      "id": "#23",
       "at": { "x": 32, "y": 9 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light"
     },
     {
       "kind": "box",
+      "id": "#24",
       "at": { "x": 34, "y": 10 },
       "size": { "width": 4, "height": 3 },
       "stroke": "light-round"
     },
     {
       "kind": "box",
+      "id": "#25",
       "at": { "x": 40, "y": 9 },
       "size": { "width": 4, "height": 3 },
       "stroke": "heavy"
     },
     {
       "kind": "box",
+      "id": "#26",
       "at": { "x": 42, "y": 10 },
       "size": { "width": 4, "height": 3 },
       "stroke": "double"

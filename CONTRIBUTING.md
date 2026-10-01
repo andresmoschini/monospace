@@ -231,7 +231,8 @@ is written as a marker carrying its own description, and the `render` step keeps
 ````markdown
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": -1 }, "size": { "width": 2, "height": 6 } },
-  "shapes": [ { "kind": "connector",
+  "next_id": 2,
+  "shapes": [ { "kind": "connector", "id": "#1",
     "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "up",
       "terminal": { "kind": "glyph", "glyph": "▼" } },
     "to": { "at": { "kind": "point", "x": 0, "y": 3 }, "leaving": "down",

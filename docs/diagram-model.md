@@ -60,10 +60,11 @@ anything because the second never left those sides open:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "box", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#2", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" }
   ] }
 -->
@@ -82,17 +83,21 @@ nesting.
 
 ## 3. Identity
 
-Every shape in a diagram has an identity, and it is a string. The diagram generates one when the
-shape is added — `#1`, `#2`, and so on — and it is unique within that diagram.
+Every shape in a diagram has an identity, and it is a string. A caller may choose the identity a
+shape is added under, or let the diagram issue one — `#1`, `#2`, and so on. The identities **the
+diagram issues** are unique within that diagram. An identity a caller supplies is **not checked**:
+two shapes may carry one, both are held, and the second is a shape no identity names until the first
+is removed.
 
 An identity is what makes a shape findable after it has been placed: it is how a position refers to
 another shape, how a change names what it is changing, and what a position on the screen resolves
-back to. It survives every change to the shape it names, including replacing it and reordering it.
+back to. It survives every change to the shape it names, including replacing it and reordering it —
+and, where the identity is the caller's rather than the diagram's, it survives the shape being
+**listed** somewhere else, because a name does not move when the order it is written in does.
 
-Identities being chosen by the caller, or edited after the fact, is an open question below. Spelling
-one is a different matter and is already possible: `ShapeId::new` builds an identity directly, so a
-caller may write one down while the diagram is still the one issuing them, and a diagram that hands
-no shape that identity holds nothing under it.
+Editing an identity after the fact is an open question below. Spelling one and handing it to the
+diagram is a different matter and is settled: `ShapeId::new` builds an identity directly, and a
+change that puts a shape under one puts it there under that name.
 
 ## 4. Positions
 
@@ -175,10 +180,11 @@ an anchor rather than a corner:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "box", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector",
+    { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "point", "x": 3, "y": 1 }, "leaving": "right",
                 "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 7, "y": 1 }, "leaving": "left",
@@ -220,10 +226,11 @@ in it:
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 7, "height": 5 } },
+  "next_id": 3,
   "shapes": [
-    { "kind": "line", "at": { "x": 3, "y": 0 }, "len": 5, "orientation": "vertical",
+    { "kind": "line", "id": "#1", "at": { "x": 3, "y": 0 }, "len": 5, "orientation": "vertical",
       "stroke": "light" },
-    { "kind": "line", "at": { "x": 0, "y": 2 }, "len": 7, "orientation": "horizontal",
+    { "kind": "line", "id": "#2", "at": { "x": 0, "y": 2 }, "len": 7, "orientation": "horizontal",
       "stroke": "light" }
   ] }
 -->
@@ -268,16 +275,22 @@ again produces a new one.
 
 Five changes, each naming a shape by its identity except the first:
 
-| Change   | What it does                                                             |
-| -------- | ------------------------------------------------------------------------ |
-| add      | Puts a shape at the front of the order and gives it an identity          |
-| remove   | Takes a shape out of the diagram                                         |
-| replace  | Puts a different shape under an identity, in the same place in the order |
-| forward  | Moves a shape one place toward the front of the order                    |
-| backward | Moves a shape one place toward the back of the order                     |
+| Change   | What it does                                                                            |
+| -------- | --------------------------------------------------------------------------------------- |
+| add      | Puts a shape at the front of the order and gives it an identity it has not given before |
+| remove   | Takes a shape out of the diagram                                                        |
+| replace  | Puts a different shape under an identity, in the same place in the order                |
+| forward  | Moves a shape one place toward the front of the order                                   |
+| backward | Moves a shape one place toward the back of the order                                    |
 
 None of them can fail. Naming a shape the diagram does not hold changes nothing, which is the same
 answer _Positions_ gives a reference to a shape that is not there.
+
+**The identity `add` gives is one the diagram has not handed out before**, which is what makes it
+worth taking rather than a number that happens to be free. A caller who wants a name of their own
+puts a shape under one instead, and that is a different change: it hands back nothing, and it does
+not move the counter, so what it is called and what the diagram issues next are two separate
+questions.
 
 **A shape is a value, and changing one is replacing it.** Shapes are immutable. A diagram does not
 reach into a box and widen it; it takes a box that is wider and puts it where the old one was. What
@@ -318,9 +331,10 @@ Each of these is waiting for an answer, and the answer is prose in this document
 needs. A feature spec that needs one of them answered amends this document first and then implements
 the slice.
 
-- **Can a caller choose an identity?** Today the diagram generates them and nothing else can. Issue
-  #62 anticipates editable identities without asking for them. What would settle it: the first slice
-  where a caller has a name worth keeping — reading a diagram from a file is the obvious one.
+- **Can a caller edit an identity after the fact?** Choosing one at the moment a shape is added is
+  settled — see _Identity_ and _Changing a diagram_ — and issue #62 anticipated editing without
+  asking for it. What would settle it: the first slice that edits rather than writes, which no
+  caller has asked for yet.
 - **What does a connector anchor to?** Connectors answer no anchor point, so nothing can hang off
   one. What would settle it: a figure that has to attach to a connector, most likely a label on it.
   Answering this is also one of the two ways a chain of references becomes longer than one link,
