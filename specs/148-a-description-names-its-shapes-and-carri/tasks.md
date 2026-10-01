@@ -566,7 +566,7 @@ and the ADR, and the first is due the moment the reader refuses a description mi
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T039 Run `cargo xtask check` and confirm it is green, including the `wasm` step — which
+- [x] T039 Run `cargo xtask check` and confirm it is green, including the `wasm` step — which
       already compiles `monospace-core`, `monospace-diagram` and `monospace-glyph-sets`, so it
       covers both new methods with no change to `xtask` and no new check, which is why principle
       III's two-commit rule does not apply. Watch the output rather than the exit code: `rustfmt`
@@ -574,7 +574,7 @@ and the ADR, and the first is due the moment the reader refuses a description mi
       something it cannot fix. The `render` step must still say **25** and the `numbering` step must
       still be green, which is where `0066` shows as taken rather than free (SC-007; plan.md
       Constitution Check, principle III)
-- [ ] T040 Confirm the two rules this slice **accepts with nothing to verify them** are named as
+- [x] T040 Confirm the two rules this slice **accepts with nothing to verify them** are named as
       such rather than described as tested: that a stale `next_id` — an entry renamed, a `#2`
       deleted — hands back an identity already in use, so the shape that arrives is one nobody can
       name; and that a shape held under an identity a second entry also carries is simply a shape
@@ -590,13 +590,13 @@ and the ADR, and the first is due the moment the reader refuses a description mi
       noticing. Then restore it and confirm `cargo run -q -p xtask -- render --check` still
       prints 25. Record both halves in the commit message rather than in a document (Q3;
       constitution principle IV)
-- [ ] T042 Take the count of what Phase 2 actually wrote and check it against what the tasks said:
+- [x] T042 Take the count of what Phase 2 actually wrote and check it against what the tasks said:
       114 `id` values across 13 files and 43 `next_id` values, with
       `crates/monospace-cli/tests/cli.rs:411`'s truncated string carrying neither. The count is a
       `grep`, not an estimate, and if it comes out as something other than 114 or 43, write down
       what it came out as rather than adjusting either number to make the other fit (constitution
       principle IV)
-- [ ] T043 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T043 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and optionally a trade-off worth
       remembering. Three are already paid for and worth writing down rather than rediscovering — an
       identity derived from a **position in a list** makes any test helper that edits the list a
