@@ -84,9 +84,13 @@ Three properties fall out of that rather than being written:
   does not hold comes back the same reference with a larger offset, and it still resolves to nothing
   when the figure is drawn. There is no error path to add and no report to remove (SC-003).
 - **The offset saturates**, so an offset already at the end of the window's coordinates stays there
-  and a later displacement back does not return it — `grow` keeps no memory. An absolute position
-  that saturates draws nothing and an offset that saturates draws a very far away endpoint, and that
-  is the one asymmetry between the two (the specification's _Edge cases_).
+  and a later displacement back does not return it — `grow` keeps no memory, so five cells into the
+  end and one back leaves the offset one cell short of the end rather than at it. **Measured on this
+  branch: a saturated offset and a saturated absolute position draw the same thing** — the route is
+  clipped to whatever falls inside the window, whichever of the two saturated — so the asymmetry the
+  specification's _Edge cases_ once named between them is not one. What does differ is a reference
+  that resolves to nothing, which takes the whole figure out of the output (corrected during
+  implementation, 2026-10-01; the claim is the measurement rather than the sentence it replaced).
 - **A displacement of nothing returns the reference equal to itself**, which is what the widened
   derives are for and what `a_figure_displaced_by_nothing_comes_back_equal_to_itself` already pins.
 
@@ -97,10 +101,11 @@ arms already displaced every position they hold** — a `Box` and a `Line` their
 `Connector` `from.at` and `to.at` together. 082 established that, and this slice changes nothing
 about it.
 
-What changes is one paragraph of its rustdoc, which is the fourth of the four places Q6 measured
-that declare the no-op this slice reverses. It is the one worth naming twice over:
-`Shape::displaced_by` is `pub` where `Position::displaced_by` is `pub(crate)`, so it is the
-paragraph a caller reads first, and it is the only one of the four that asks the question rather
+What changes is one paragraph of its rustdoc, which is the fourth of the **five** places Q6 measured
+that declare the no-op this slice reverses — the fifth being a test in `diagram.rs` that a grep for
+the issue number could not reach, found by running the rule instead. It is the one worth naming
+twice over: `Shape::displaced_by` is `pub` where `Position::displaced_by` is `pub(crate)`, so it is
+the paragraph a caller reads first, and it is the only one of the four that asks the question rather
 than answering it — it ends on "what displacing such a figure should mean in general is #143's to
 settle". The other three are `resolve`'s doc at `position.rs:110-113`, `displaced_by`'s own doc at
 `position.rs:126-138`, and the test `a_displacement_moves_a_point_and_leaves_a_reference_alone` at
@@ -136,7 +141,10 @@ changes either has to say so:
   anchor and its holder together and keeps the gap — displacing the box carries the endpoint, and
   displacing the connector grows the gap.
 - **A saturated offset.** `grow` saturates and keeps no memory, so an offset that has reached the
-  end of the window's coordinates stays there and a displacement back does not return it.
+  end of the window's coordinates stays there and a displacement back does not return it — five
+  cells into the end and one back leaves it one cell short. What a saturated offset and a saturated
+  absolute position **draw** was measured and the two draw the same thing; see
+  `Position::displaced_by` above for the correction that came out of it.
 
 ## The two pictures the rule yields
 

@@ -170,14 +170,21 @@ as before it. No structural change happens anywhere in the slice, so principle V
 have nothing to govern — which is why measurement 1 corrects part one rather than adding to it.
 
 **Two claims are accepted with nothing to verify them**, named here per principle IV rather than
-described as tested: that an endpoint pushed outside the window by the gap growing is clipped
-without a report — the model's own rule for any figure, carried forward — and that a `Reference`
-naming a shape the diagram does not hold still resolves to nothing after a displacement. The second
-is **pinned**, by the contract test that asserts both halves: a `displaced_by` that grew nothing
-would satisfy "resolves to nothing" by doing exactly what the code does today, which is the bug this
-slice exists to end. So the rule is verified; what is accepted without evidence is that a displaced
-figure leaves every **other** shape byte for byte, which is a claim about the whole diagram rather
-than about the value that moved.
+described as tested. The first is that an endpoint pushed outside the window by the gap growing is
+clipped without a report — the model's own rule for any figure, carried forward and nothing new,
+stated in §4 and §9 of `docs/diagram-model.md` and in the specification's _Edge cases_. The second
+is that a displaced figure leaves **every other** shape byte for byte, which is a claim about the
+whole diagram rather than about the value that moved: the test that displaces a connector whose
+reference resolves to nothing compares the whole picture against a diagram of the three figures it
+did not name, so it verifies the claim **for those three** and no single fixture can establish it
+for every diagram. Both are named in that test's own doc comment and in the ADR's _Confirmation_, so
+a reader meets them beside the rule rather than only beside this paragraph.
+
+**What is verified, and by what.** A `Reference` naming a shape the diagram does not hold still
+resolves to nothing after a displacement, **and its offsets grew** — pinned by the contract test
+that asserts both halves, because a `displaced_by` that grew nothing would satisfy "resolves to
+nothing" by doing exactly what the code did before this rule, which is the bug this slice exists to
+end.
 
 ### Artifacts
 

@@ -209,8 +209,14 @@ already draw with the endpoint written as the point it resolves to.
 - A displacement large enough to saturate an offset: the offset gets the same saturating addition
   every other coordinate here gets, so the endpoint travels to the end of the window's coordinates
   and **stays there** — a later displacement back does not return it, since the arithmetic does not
-  remember where it was. An absolute position saturating draws nothing; an offset saturating draws a
-  very far away endpoint, which is the one asymmetry between the two.
+  remember where it was, so a displacement of five cells into the end followed by one back leaves
+  the offset one cell short of the end rather than at it. What a saturated offset and a saturated
+  absolute position **draw** was measured on this branch and the two draw the same thing: the route
+  is clipped to whatever of it falls inside the window, whichever of the two was saturated. What
+  does differ from either is a reference that resolves to nothing, which takes the whole figure out
+  of the output. _Corrected during implementation, 2026-10-01: this bullet previously claimed the
+  two saturations draw differently and named that as the one asymmetry between them. Measured, they
+  do not, and the claim is now what the measurement says._
 - An endpoint pushed outside the window by the gap growing: what falls inside is drawn and the rest
   clipped, as any figure is, and nothing reports it.
 
@@ -267,8 +273,8 @@ already draw with the endpoint written as the point it resolves to.
   pinned as a snapshot rather than drawn into a document.
 - **Characterization** — none, and none moves. The connector sweep builds its descriptions from
   shape lists and never reads the shipped demonstration, so no case in it moves.
-- **What this slice rewrites rather than contradicts.** Four places declare the no-op this slice
-  reverses and all four become false with B1, so they are rewritten in the slice rather than left
+- **What this slice rewrites rather than contradicts.** **Five** places declare the no-op this slice
+  reverses and all five become false with B1, so they are rewritten in the slice rather than left
   contradicting it. `position.rs` carries two rustdoc paragraphs calling it "a deliberate no-op
   rather than an omission" and "a silent no-op on purpose" and naming this issue as the decision
   that would change it, and one test named
@@ -276,7 +282,16 @@ already draw with the endpoint written as the point it resolves to.
   carries the fourth, and it is the one worth naming: `Shape::displaced_by` is `pub` where
   `Position::displaced_by` is `pub(crate)`, so it is the paragraph a caller reads first, and it is
   the only one of the four that asks the question rather than answering it — it ends on "what
-  displacing such a figure should mean in general is #143's to settle".
+  displacing such a figure should mean in general is #143's to settle". **The fifth was found by
+  running the rule rather than by reading for it**, and it is recorded here because the count of
+  four came from a `grep -rn "143" --include=*.rs` and a grep for the issue number cannot find it:
+  `a_displaced_connector_moves_its_absolute_end_and_leaves_its_hanging_one` at `diagram.rs:2606`
+  displaces a connector whose `to` holds a reference and asserts the hanging end stayed, citing
+  **082's B4.2** and never naming this issue. It is rewritten rather than deleted — the case is the
+  only one with the reference in the `to` slot — and it now names B1.1 and B1.2. Five places, four
+  found by searching for a number and one by running the code, is the transferable half: a contract
+  test written when the decision was the other way states it just as firmly without ever writing the
+  number down (research.md Q6).
 
 ## Success criteria
 

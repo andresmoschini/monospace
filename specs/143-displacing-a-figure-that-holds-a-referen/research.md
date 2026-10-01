@@ -111,10 +111,11 @@ routing through `Pos`, which would borrow the core's type for a core-free job.
 
 ## Q6: How many places declare the no-op this slice reverses?
 
-**Decision**: four, and the specification names three of them.
+**Decision**: **five**, and the specification names three of them. The fifth was found by running
+the rule rather than by reading for it, which is the correction this answer records.
 
-**Rationale**: measured by `grep -rn "143" --include=*.rs`, which returns exactly three hits in two
-files, plus the test the specification names:
+**Rationale**: first measured by `grep -rn "143" --include=*.rs`, which returned exactly three hits
+in two files, plus the test the specification named:
 
 | Where                  | What it says                                                                                  |
 | ---------------------- | --------------------------------------------------------------------------------------------- |
@@ -124,8 +125,30 @@ files, plus the test the specification names:
 | `position.rs:428`      | the test `a_displacement_moves_a_point_and_leaves_a_reference_alone`                          |
 
 `Shape::displaced_by` is the public entry point, so its paragraph is the one a caller reads first,
-and it is the only one that names the question rather than answering it. Whether the specification
-is amended to name it is D3.
+and it is the only one of the four that names the question rather than answering it. Whether the
+specification is amended to name it is D3.
 
-**Alternatives considered**: leaving it, which would leave the crate's public rustdoc contradicting
-the specification — the thing principle VI's _Understanding changes_ exists to prevent.
+**The fifth, found by running the rule.** With T002 and T003 in place,
+`cargo test -p monospace-diagram` was **red on two tests and not one**, and the second is
+`a_displaced_connector_moves_its_absolute_end_and_leaves_its_hanging_one` at `diagram.rs:2606`. It
+displaces a connector whose `to` holds a reference and asserts both that the drawing equals a
+connector with that end left at `{3, 1}` and that the cell `{3, 1}` is byte-identical before and
+after. Both are the old rule.
+
+**Why the grep could not have found it**, and this is the transferable half: the method cites
+**082's B4.2** and never names issue 143, so it declares the no-op without the token the measurement
+searches for. Every other hit was found by the number; this one is found by the **behavior**. A grep
+for an issue number finds what someone wrote down about a decision, and a contract test written when
+the decision was the other way states it just as firmly without ever writing the number down.
+Searching for the number is necessary and not sufficient, and the run is what closes the gap.
+
+It is rewritten rather than deleted, and the case is kept: it is the arrangement with the reference
+in the **`to`** slot and an absolute in `from`, which the new
+`a_displacement_grows_a_references_offsets` does not reach. It now names B1.1 and B1.2 and its doc
+comment says what it used to claim and why that is now false.
+
+**Alternatives considered**: leaving it, which would leave a test contradicting the rule; deleting
+it, which would lose the only case with the reference in the `to` slot; and grepping for something
+other than the number — `leaves_its_hanging`, `unchanged`, `exactly where it was` — which finds this
+one and would find the next prose accident rather than the next test. Running the rule is what finds
+the ones nobody wrote a word about.

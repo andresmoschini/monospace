@@ -176,11 +176,17 @@ impl Shape {
     /// the whole read-and-displace step, and nothing is cloned at the call site. A delta of
     /// nothing gives back the same figure, which is what the widened derives are for.
     ///
-    /// An endpoint that holds a **reference** does not move with the figure, and that is a decision
-    /// rather than an omission: the reference's offset is a gap from a side, added to whatever that
-    /// side answers when the figure is drawn, so it travels with the figure already and a
-    /// displacement has nothing to add to it. What displacing such a figure should mean in general
-    /// is [#143](https://github.com/andresmoschini/monospace/issues/143)'s to settle.
+    /// An endpoint that holds a **reference** moves by the same delta, and **what it moves is its
+    /// gap rather than its place**: the reference's `id` and `anchor` come back as they went in —
+    /// they name which figure and which side, and a displacement does not move either — while its
+    /// `offset` grows on each screen axis. So displacing the connector slides that endpoint away
+    /// from the border the figure it hangs from still draws, and the connector draws as a
+    /// translation of itself rather than bending its route to reach a side that stayed put. The
+    /// model's §4 _Positions_ states where this lands, and §9 _Changing a diagram_ points there.
+    ///
+    /// That is the whole of the difference from displacing the figure a reference hangs from, and
+    /// the two are not the same rule: displacing **that** figure carries the endpoint with it and
+    /// leaves the gap alone, because the side it is measured from moved too.
     #[must_use]
     pub fn displaced_by(&self, by: Delta) -> Self {
         match self {

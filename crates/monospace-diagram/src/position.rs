@@ -107,10 +107,10 @@ impl Position {
     /// same function a displacement uses, so a coordinate past the end of any window a `u32` width
     /// can describe draws nothing rather than wrapping back into one.
     ///
-    /// A displacement is the other half and it is **not** reached here: a reference's offsets
-    /// travel with the figure it hangs from, so nothing adds to them. That is
-    /// [#143](https://github.com/andresmoschini/monospace/issues/143)'s decision and a deliberate
-    /// no-op rather than an omission.
+    /// A displacement is the other half and it is reached here **from the other side**: it grows
+    /// the offset this method adds, so a gap from a side grows with the figure that holds the
+    /// reference rather than moving with the figure the side belongs to. §4 _Positions_ states the
+    /// rule, and the two are one addition read at two different moments.
     #[must_use]
     pub fn resolve(&self, diagram: &Diagram) -> Option<Pos> {
         match self {
@@ -126,21 +126,32 @@ impl Position {
     /// This position, moved by `by`, changing nothing else.
     ///
     /// A displacement adds coordinates, and a point has coordinates to add to. A
-    /// [`Position::Reference`] is left exactly as it went in, and **the offsets it now carries do
-    /// not change that**: they are added to whatever the anchor answers at draw time, so a gap from
-    /// a side already travels with the figure it hangs from, and there is nothing left for a
-    /// displacement to add to them. This is a silent no-op on purpose, and it is what leaves a
-    /// connector's hanging end standing still while its free end travels.
+    /// [`Position::Reference`] has none — it names **which** figure and **which** of its four sides,
+    /// and neither is a place — so what it has instead is a gap, and the gap is what grows: `offset`
+    /// takes `by` on each screen axis and comes back a larger [`Delta`].
     ///
-    /// Walking the arithmetic into this arm is
-    /// [#143](https://github.com/andresmoschini/monospace/issues/143)'s decision and not this
-    /// method's to take: the model's §4 states the destination, and until that slice lands the
-    /// honest description of the gap is that it is named rather than left to be found.
+    /// **The two fields that name are unchanged, and the reason each is unchanged is what makes the
+    /// third one move.** `id` and `anchor` are read at draw time, so they are where the endpoint
+    /// will be, and a displacement does not change where a figure it did not name is going to be;
+    /// `offset` is a gap from that side rather than a point, and a gap is measured from something
+    /// that stayed. A displacement therefore slides the endpoint away from the figure it hangs from
+    /// — which is what a displacement of **one** figure means, and why the model's §4 says a
+    /// displacement is a property of one figure rather than of a diagram.
+    ///
+    /// `id` is cloned because it is a `String`, which is why [`Reference`] is not `Copy`; that is
+    /// unchanged and not this method's to fix. A displacement of nothing returns the position equal
+    /// to itself, and a reference naming something this diagram does not hold comes back the same
+    /// reference with a larger offset and still resolves to nothing — the arithmetic builds a value
+    /// and cannot fail, so there is no error path here and nothing to report.
     #[must_use]
     pub(crate) fn displaced_by(&self, by: Delta) -> Self {
         match self {
             Self::Absolute(at) => Self::Absolute(by.apply(*at)),
-            reference @ Self::Reference(_) => reference.clone(),
+            Self::Reference(reference) => Self::Reference(Reference {
+                id: reference.id.clone(),
+                anchor: reference.anchor,
+                offset: reference.offset.grow(by),
+            }),
         }
     }
 }
@@ -418,14 +429,20 @@ mod tests {
         }
     }
 
-    /// User Story 4, spec's B4.1: a displacement moves an absolute position and leaves a reference
-    /// exactly as it was.
+    /// User Story 1, spec's B1.1 and B1.2: a displacement moves an absolute position, and grows a
+    /// reference's offset while its identity and its anchor come back as they went in.
     ///
-    /// Compared by value rather than by picture, because the silent half is what there is nothing
-    /// to see. The `assert_ne!` on the absolute side keeps this honest: a `displaced_by` that moved
-    /// nothing at all would satisfy "a reference comes back unchanged" by doing exactly that.
+    /// **Rewritten rather than deleted, because one sentence of the old test is still true and only
+    /// its reason was wrong.** It read "a displacement moves a point and leaves a reference alone",
+    /// and "a reference comes back equal to itself" is still true — of a displacement of **nothing**.
+    /// What was false was the reason, and the reason was the whole claim.
+    ///
+    /// Compared by value rather than by picture, because a gap that failed to grow is what there is
+    /// nothing to see. Both sides carry an `assert_ne!`, and that is the point of the rewrite: this
+    /// test was the bug's own hiding place, since a `displaced_by` that changed **nothing at all**
+    /// would satisfy every equality here by doing exactly what the code used to do.
     #[test]
-    fn a_displacement_moves_a_point_and_leaves_a_reference_alone() {
+    fn a_displacement_moves_a_point_and_grows_a_references_offset() {
         let by = Delta { dx: 4, dy: 0 };
         let reference = super::Position::Reference(crate::Reference {
             id: crate::ShapeId::new("#1"),
@@ -439,6 +456,28 @@ mod tests {
             super::Position::Absolute(Pos { x: 5, y: 1 })
         );
         assert_ne!(point.displaced_by(by), point);
-        assert_eq!(reference.displaced_by(by), reference);
+
+        // The one field that grows, asked on its own so a rule that grew `id` or `anchor` instead
+        // cannot pass on the other two being right.
+        let super::Position::Reference(moved) = reference.displaced_by(by) else {
+            unreachable!("the position above is a reference")
+        };
+        assert_eq!(moved.offset, by);
+        assert_ne!(reference.displaced_by(by), reference);
+
+        // The two fields that name, each equal to what went in — and the offset is asserted not
+        // equal to its old value, since an offset of nothing would satisfy both equalities.
+        let super::Position::Reference(went_in) = &reference else {
+            unreachable!("the position above is a reference")
+        };
+        assert_eq!(moved.id, went_in.id);
+        assert_eq!(moved.anchor, went_in.anchor);
+        assert_ne!(moved.offset, went_in.offset);
+
+        // A displacement of nothing is the sentence that survived the rewrite, and it is a
+        // statement about the arithmetic rather than an exception to it.
+        let nothing = Delta { dx: 0, dy: 0 };
+        assert_eq!(reference.displaced_by(nothing), reference);
+        assert_eq!(point.displaced_by(nothing), point);
     }
 }

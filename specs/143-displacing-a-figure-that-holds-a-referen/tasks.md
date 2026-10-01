@@ -56,19 +56,22 @@ Every number below was measured on 2026-10-01 against the tree this branch point
 the tasks carry rather than what an artifact estimates.
 
 ```text
-   28  monospace-cli unit tests after this slice   (27 today)
+   28  monospace-cli unit tests after this slice   (27 today) — 1 added, 3 renamed, 0 removed
    19  monospace-cli integration tests              (unchanged)
   114  monospace-core                               (unchanged)
    72  monospace-diagram after this slice          (66 today: diagram.rs 52, position.rs 7,
-                                                   shape.rs 3, gallery.rs 4)
+                                                   shape.rs 3, gallery.rs 4) — 6 added,
+                                                   2 rewritten (T006, T015a), 0 removed
    15  monospace-glyph-sets                         (unchanged)
    61  xtask                                        (unchanged)
 ```
 
 `cargo test --workspace` is green at **27 / 19 / 114 / 66 / 15 / 61** today, which is exactly
-`quickstart.md`'s count minus the seven tests this slice adds. A bare run prints **five** captioned
-pictures (`grep -c '^[A-Z].*:$'` on `cargo run -q -p monospace-cli`) and a run given
-`crates/monospace-cli/assets/demo.json` prints **thirteen** rows.
+`quickstart.md`'s count minus the six tests this slice adds and the one it rewrites — the count is
+unchanged by T015a, which rewrote a test rather than adding one, so **72** is still the target. A
+bare run prints **five** captioned pictures (`grep -c '^[A-Z].*:$'` on
+`cargo run -q -p monospace-cli`) and a run given `crates/monospace-cli/assets/demo.json` prints
+**thirteen** rows. All seven figures were re-measured on 2026-10-01 and hold.
 
 Two of the counts are the ones the sixth picture rests on, and T001 reads them off the shipped file
 rather than quoting them: the third entry is a four-by-three box at `{9, 2}`, which the fifth
@@ -126,7 +129,21 @@ Self::Reference(reference) => Self::Reference(Reference {
 }),
 ```
 
-- [ ] T002 In `crates/monospace-diagram/src/delta.rs`, add
+> **Corrected during implementation, 2026-10-01.** Two claims in this file were measured and came
+> back different, and both are recorded where they were written rather than fixed silently.
+> **T002-T005's checkpoint said no existing test may move except T006's, and one more did**: with
+> T002 and T003 in place, `cargo test -p monospace-diagram` was red on **two** tests, and
+> `a_displaced_connector_moves_its_absolute_end_and_leaves_its_hanging_one` at `diagram.rs:2606` is
+> the fifth place declaring the no-op — it cites 082's B4.2 and never names 143, which is why the
+> `grep -rn "143"` behind Q6 could not return it. It is rewritten rather than deleted, as **T015a**
+> below, and the case is kept because it is the only one with the reference in the **`to`** slot.
+> **And T010's drawing claim was false**: an offset that saturates and an absolute position that
+> saturates draw the _same_ thing, not two different things, so there is no asymmetry between them
+> in what reaches the canvas. The test pins the measurement and `spec.md`'s edge case and
+> `data-model.md` now say what was measured. Neither correction changes a count: the slice still
+> adds seven tests and rewrites two, so T027's **72** stands.
+
+- [x] T002 In `crates/monospace-diagram/src/delta.rs`, add
       `pub(crate) fn grow(self, by: Delta) -> Delta` beside `Delta::apply`, growing each axis with
       `saturating_add`, and **rewrite the sentence that makes it false in the same edit**: `apply`'s
       rustdoc at **line 42** reads "The only arithmetic in this crate, and it saturates rather than
@@ -139,7 +156,7 @@ Self::Reference(reference) => Self::Reference(Reference {
       fields, its derives and its `From<(i32, i32)>` are unchanged — data-model says so, and a diff
       that touches one is a diff that widened the type (Q5; data-model.md "`Delta` — a second way to
       add one delta to another")
-- [ ] T003 In `crates/monospace-diagram/src/position.rs`, give `Position::displaced_by`'s
+- [x] T003 In `crates/monospace-diagram/src/position.rs`, give `Position::displaced_by`'s
       `Reference` arm the three fields the rule names — the second block in this phase's
       introduction — replacing `reference @ Self::Reference(_) => reference.clone()` at **line
       143**. `id` and `anchor` move nothing — they name **which** figure and **which** side, not
@@ -149,7 +166,7 @@ Self::Reference(reference) => Self::Reference(Reference {
       are not touched here (B1.1, B1.2, SC-001; data-model.md "`Position::displaced_by` — the
       reference arm, grown"; plan.md commit 1)
 
-- [ ] T004 In `crates/monospace-diagram/src/position.rs`, rewrite the **two** rustdoc paragraphs
+- [x] T004 In `crates/monospace-diagram/src/position.rs`, rewrite the **two** rustdoc paragraphs
       T003 makes false, in the same commit that makes them false — a rustdoc is code. The first is
       `resolve`'s, at **lines 110-113**: it reads "A displacement is the other half and it is
       **not** reached here: a reference's offsets travel with the figure it hangs from, so nothing
@@ -162,7 +179,7 @@ Self::Reference(reference) => Self::Reference(Reference {
       into this arm is #143's decision and not this method's to take" all go, and what replaces them
       says what the arm does and what each field does (SC-002; Q6; data-model.md "What does not
       change"; plan.md commit 1)
-- [ ] T005 [P] In `crates/monospace-diagram/src/shape.rs`, rewrite the **fourth** of the four places
+- [x] T005 [P] In `crates/monospace-diagram/src/shape.rs`, rewrite the **fourth** of the four places
       that declare the no-op, at **lines 179-183** — `Shape::displaced_by`'s own rustdoc, which ends
       on "What displacing such a figure should mean in general is #143's to settle". Say what the
       connector's `from.at` and `to.at` do now, that an endpoint holding a reference **slides**
@@ -209,7 +226,7 @@ and both offsets grow by the same amount and the figure is rigid (spec.md B1.1, 
 
 ### Implementation for User Story 1
 
-- [ ] T006 [US1] Rewrite `a_displacement_moves_a_point_and_leaves_a_reference_alone` at
+- [x] T006 [US1] Rewrite `a_displacement_moves_a_point_and_leaves_a_reference_alone` at
       `crates/monospace-diagram/src/position.rs:428` **rather than deleting it**, and rename it to
       what is now true — `a_displacement_moves_a_point_and_grows_a_references_offset`. Three things
       change and one does not: the bare reference's `offset` grows by `by` while its `id` and
@@ -222,7 +239,7 @@ and both offsets grow by the same amount and the figure is rigid (spec.md B1.1, 
       spec's B4.1", and that B4.1 is **082's** scenario, which said the opposite. Name this slice's
       B1.1 instead (B1.1, B1.2, SC-001; data-model.md "`Shape::displaced_by` — unchanged in
       behavior, and now says so"; quickstart.md "Commit 1")
-- [ ] T007 [P] [US1] Contract test: `a_displacement_grows_a_references_offsets` in
+- [x] T007 [P] [US1] Contract test: `a_displacement_grows_a_references_offsets` in
       `crates/monospace-diagram/src/diagram.rs`, **asked and then drawn**, which is the spec's
       wording and the order it asks for. By value: build the connector through the `arm_connector`
       helper already in that module — it takes two `Position`s, so a reference is expressible
@@ -236,7 +253,7 @@ and both offsets grow by the same amount and the figure is rigid (spec.md B1.1, 
       be non-empty. The two halves are the point: the value half catches a rule that grew the wrong
       field and the drawn half catches one that grew nothing, which the value half alone would also
       catch but a reader cannot see (B1.1, B1.2, SC-001; quickstart.md "Commit 1")
-- [ ] T008 [US1] Contract test: `a_displacement_grows_both_offsets_of_one_connector` in
+- [x] T008 [US1] Contract test: `a_displacement_grows_both_offsets_of_one_connector` in
       `crates/monospace-diagram/src/diagram.rs` — **B1.3**, which the spec calls "the rule above,
       twice, and one test". Both endpoints are references this time, to two different boxes, each
       with its own offset, and one displacement by `Delta { dx: 3, dy: 2 }` grows both by that
@@ -245,7 +262,7 @@ and both offsets grow by the same amount and the figure is rigid (spec.md B1.1, 
       means as cells rather than as an intention. A diagram of two boxes is the fixture; a shape
       holding **one** reference cannot answer this, and an implementation that moved only the first
       endpoint would pass T007 (B1.3, SC-001)
-- [ ] T009 [US1] In `crates/monospace-diagram/src/gallery.rs`, add the **third** `block()` to
+- [x] T009 [US1] In `crates/monospace-diagram/src/gallery.rs`, add the **third** `block()` to
       `an_endpoint_hangs_from_a_side_and_follows_it`, and **reach it from the arrangement as
       written** rather than from the block beside it. That is the one thing plan.md's measurement 2
       settles and it is easy to get backwards: the second block displaces the **box** four cells
@@ -267,7 +284,7 @@ and both offsets grow by the same amount and the figure is rigid (spec.md B1.1, 
       and the third must be exactly B1.1's picture — a box three rows tall with the connector's
       route on the fourth row, three cells clear of the border — because the block measures to the
       claim rather than to a new one (B1.1, B3.4; quickstart.md "The gallery's third block")
-- [ ] T010 [US1] Contract test: `an_offset_that_saturated_stays_saturated` in
+- [x] T010 [US1] Contract test: `an_offset_that_saturated_stays_saturated` in
       `crates/monospace-diagram/src/diagram.rs` — the **first** of the spec's two derived
       arrangements, derived from the rule rather than decided by it, and pinned so a later slice
       that changes it has to say so. Build the connector with a `from` offset of
@@ -283,8 +300,11 @@ and both offsets grow by the same amount and the figure is rigid (spec.md B1.1, 
 **Checkpoint**: a displacement reaches a reference's offsets, the gallery draws what the rule draws,
 and the rule is not a no-op dressed as one.
 
-**Commit**: `feat(diagram):` T002-T010, ticking T006-T010's boxes with it (plan.md commit 1). T002
-and T005 land here too — no user story phase begins before the rule it tests.
+**Commit**: `feat(diagram):` T002-T010 **and T015a**, ticking T006-T010's and T015a's boxes with it
+(plan.md commit 1). T002 and T005 land here too — no user story phase begins before the rule it
+tests. T015a is listed in phase 5 because it was discovered there, and it lands here because it is
+the same rule and the same file: **`diagram.rs` is one file and one commit's worth of changes**, and
+a second `feat(diagram)` for one test would be a commit whose message says less than the diff.
 
 ---
 
@@ -302,7 +322,7 @@ it slides. Ask both in one test and both must hold (spec.md B2.1, B2.2, B2.3; SC
 
 ### Tests for User Story 2
 
-- [ ] T011 [P] [US2] Contract test: `both_directions_move_the_endpoint_differently` in
+- [x] T011 [P] [US2] Contract test: `both_directions_move_the_endpoint_differently` in
       `crates/monospace-diagram/src/diagram.rs` — **B2.3**, and its doc comment carries the reason
       the spec gives for one test rather than two. Each half displaces the **same arrangement** by a
       delta and asserts what the endpoint did: displacing the box four cells right leaves the gap
@@ -312,7 +332,7 @@ it slides. Ask both in one test and both must hold (spec.md B2.1, B2.2, B2.3; SC
       would not catch on its own because T007 asks nothing about the figure being displaced. Assert
       both by resolved position **and** by drawing, and carry the `assert_ne!` that says each
       displacement changed something (B2.1, B2.3, SC-002; quickstart.md "Commit 1")
-- [ ] T012 [US2] Contract test: `a_reference_that_resolves_to_nothing_still_does` in
+- [x] T012 [US2] Contract test: `a_reference_that_resolves_to_nothing_still_does` in
       `crates/monospace-diagram/src/diagram.rs` — **SC-003**, and the assertion that makes it worth
       writing is that **the offsets grew** as well as that the reference still resolves to nothing.
       A `displaced_by` that grew nothing would satisfy "resolves to nothing" by doing exactly what
@@ -323,7 +343,7 @@ it slides. Ask both in one test and both must hold (spec.md B2.1, B2.2, B2.3; SC
       the output**, that every other shape's cells are **unchanged** (`the_unrelated_box()` is the
       shape that has nothing to do with either end), and that nothing panics or fails (SC-003;
       spec.md _Edge cases_; quickstart.md "Commit 1")
-- [ ] T013 [US2] Contract test: `displacing_the_box_and_then_the_connector` in
+- [x] T013 [US2] Contract test: `displacing_the_box_and_then_the_connector` in
       `crates/monospace-diagram/src/diagram.rs` — the **second** derived arrangement, and the one
       the spec's edge case spells out in full. Displace the box two cells down, then displace the
       connector two cells down, and the connector ends up **four** down with its gap grown by two,
@@ -335,7 +355,7 @@ it slides. Ask both in one test and both must hold (spec.md B2.1, B2.2, B2.3; SC
       carries the endpoint, moving the endpoint grows the gap — so a later slice that changes it has
       to say so rather than discover it in a picture (spec.md _Edge cases_; SC-002; data-model.md
       "The two derived arrangements, stated rather than discovered")
-- [ ] T014 [US2] **Make the rule fail on purpose before trusting it.** Restore the old arm —
+- [x] T014 [US2] **Make the rule fail on purpose before trusting it.** Restore the old arm —
       `reference @ Self::Reference(_) => reference.clone()` — and run
       `cargo test -p monospace-diagram both_directions_move_the_endpoint_differently` and
       `cargo test -p monospace-diagram a_reference_that_resolves_to_nothing_still_does`: both must
@@ -381,7 +401,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
 
 ### Implementation for User Story 3
 
-- [ ] T015 [US3] In `crates/monospace-cli/src/main.rs`, add the sixth step to `demonstrate` — the
+- [x] T015 [US3] In `crates/monospace-cli/src/main.rs`, add the sixth step to `demonstrate` — the
       block above, after the fifth picture's push. Name the delta beside the two the function
       already carries (`by` is three down and `four_right` is four right), **beside them and not by
       reusing either**: this function holds its deltas deliberately rather than taking them from the
@@ -392,7 +412,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       `"\nWith the arrow displaced as well:\n"` — and add a comment saying the sixth picture is the
       fifth with the arrow two rows lower and **both boxes where they were**, because that is the
       claim a reader checks with their eyes (B3.1, SC-004; ADR-0035; quickstart.md "B3.1")
-- [ ] T016 [US3] In the same file, turn `demonstrated_pictures` from a five-tuple into a
+- [x] T016 [US3] In the same file, turn `demonstrated_pictures` from a five-tuple into a
       **six**-tuple and fix its doc comment, which reads "The demonstration's five pictures" and
       "the five are then comparable with each other". Its `next_picture` closure needs **no**
       change: it splits on the blank line, strips the trailing newline and puts one back, and the
@@ -411,7 +431,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       compile unchanged against a six-tuple. **Count them before editing rather than from this
       list**, and if it comes out as something other than ten call sites write down what it came out
       as (B3.1, B3.3; research.md Q1; constitution principle IV)
-- [ ] T017 [US3] In the same file, update the three tests whose **names and counts** say five.
+- [x] T017 [US3] In the same file, update the three tests whose **names and counts** say five.
       `a_bare_run_prints_five_captioned_pictures_the_first_being_the_description_as_written` becomes
       `a_bare_run_prints_six_captioned_pictures_the_first_being_the_description_as_written`, with
       the `assert_eq!` count at **5** becoming **6** and the doc comment's two mentions of five
@@ -426,7 +446,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       test's name changes**: `the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it` still
       describes the fifth, and `a_path_prints_one_picture_and_nothing_else` still describes a path
       (B3.3; quickstart.md "Commit 2")
-- [ ] T018 [US3] In the same file, rename
+- [x] T018 [US3] In the same file, rename
       `the_tenth_entry_naming_a_reference_leaves_all_five_pictures_exactly_as_they_were` and extend
       it, because its name and its claim both come out of date with a sixth picture. The name
       becomes
@@ -440,7 +460,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       come out byte for byte what they were" says the first five, and its last assertion — that the
       fourth and the fifth still differ, because the demonstration's own change and not the file's
       is what the fifth shows — is unchanged and still passes (B3.2, B3.3, SC-004)
-- [ ] T019 [P] [US3] Contract test: `the_sixth_picture_moves_only_the_arrow` in
+- [x] T019 [P] [US3] Contract test: `the_sixth_picture_moves_only_the_arrow` in
       `crates/monospace-cli/src/main.rs` — **the claim B3.1 makes and nothing else pins**: the sixth
       differs from the fifth **only** in the cells the arrow holds before and after, which is the
       only statement that says both boxes stood still. Model it on
@@ -458,7 +478,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       runs it is `cargo test -p monospace-cli     the_sixth_picture`, and a check that silently runs
       zero tests is the same silent no-op this slice exists to end (B3.1, SC-004; quickstart.md
       "Commit 2"; constitution principle IV)
-- [ ] T020 [US3] The three diffs, run in one place, and they are the other side of every claim in
+- [x] T020 [US3] The three diffs, run in one place, and they are the other side of every claim in
       this phase. `cargo run -q -p monospace-cli > /tmp/demo-after.txt` against
       `/tmp/demo-before.txt` **cannot** be diffed whole — the fifth block's caption is the split
       point, so compare `sed -n '1,/With the arrow now hanging/p'` on both and it must print
@@ -471,11 +491,29 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       research.md Q1 could only take against a temporary spike (B3.1, B3.2, B3.3, SC-004;
       quickstart.md "Commit 2")
 
+- [x] T015a The **fifth** place declaring the no-op, added after the checkpoint above was measured
+      false. In `crates/monospace-diagram/src/diagram.rs`, rewrite
+      `a_displaced_connector_moves_its_absolute_end_and_leaves_its_hanging_one` as
+      `a_displaced_connector_moves_its_absolute_end_and_its_hanging_one_too`: it displaces a
+      connector whose **`to`** holds a reference, and the new rule grows that offset, so both
+      endpoints now move. **Rewritten rather than deleted, and the case is kept** — it is the only
+      arrangement with the reference in the `to` slot and an absolute in `from`, where the test
+      above has it the other way round, and a `match` written to suit one slot passes each on its
+      own. Its doc comment names the two measurements that made it necessary: that the specification
+      named three of four places and the inventory came from a `grep` for the issue number, and that
+      this one cites 082's B4.2 without naming 143. The two halves of its claim are separate
+      assertions rather than one picture: the gap grew by the delta **and** the figure the gap is
+      measured from is where it was, which is what separates a sliding endpoint from a following
+      one. Reached before T016, since T016's six-tuple is what the rewritten CLI tests destructure
+      (B1.1, B1.2, SC-001; research.md Q6 as corrected)
+
 **Checkpoint**: a person who runs the application sees six pictures, the sixth with the arrow two
 rows lower and both boxes standing still, and the file those pictures came from is untouched.
 
 **Commit**: `feat(cli):` T015-T020, ticking their checkboxes with it (plan.md commit 2). T020 is
-three diffs and not a commit.
+three diffs and not a commit. **T015a is not in this commit** and does not belong to it: it edits
+`diagram.rs`, it lands with commit 1's rule, and it is ticked here only because the phase grouping
+follows the stories rather than the files.
 
 ---
 
@@ -486,7 +524,7 @@ They are placed here rather than in the Polish phase because plan.md orders them
 the first of them is `docs(model)` and **follows** the rule, which is where 082's D3's one-sentence
 change to §3 landed (`505fd0d`).
 
-- [ ] T022 In `docs/diagram-model.md`, take §11 _Open questions_' third bullet **out** — _What does
+- [x] T022 In `docs/diagram-model.md`, take §11 _Open questions_' third bullet **out** — _What does
       displacing a figure that holds a reference mean?_ — and replace it with a bullet about
       **moving a set**: whether moving a set of figures keeps their gaps is still open, and what
       would settle it is the first consumer that displaces more than one figure at a time, which is
@@ -496,7 +534,7 @@ change to §3 landed (`505fd0d`).
       section**: §4 _Positions_ already states the rule this slice makes true and §9 _Changing a
       diagram_ already points at it, so both are left byte for byte — plan.md's table says so and
       the spec's _What this slice implements_ says so (B1; §11's own trigger; plan.md commit 3)
-- [ ] T023 In `docs/decisions/`, write the record D1 answered — **one ADR for this rule alone**,
+- [x] T023 In `docs/decisions/`, write the record D1 answered — **one ADR for this rule alone**,
       beside and citing
       [ADR-0041](https://github.com/andresmoschini/monospace/blob/main/docs/decisions/0041-resolve-a-position-through-a-reference.md),
       which is the record the same position rests on today. Take the next free number in the
@@ -521,7 +559,7 @@ change to §3 landed (`505fd0d`).
       record would only grow. **Add no `<!-- render: -->` marker to it or to anything else**: a
       marker reads a description and a description cannot displace anything (Q4; D1; ADR-0035,
       ADR-0064; principle VI; plan.md "Artifacts")
-- [ ] T024 [P] Add the row for T023's record to `docs/decisions/README.md` **as a whole row** —
+- [x] T024 [P] Add the row for T023's record to `docs/decisions/README.md` **as a whole row** —
       link, title and status written out together. A partial edit to that table leaves the rest of
       the row on the line below and prettier then reflows the damage rather than rejecting it, which
       is silent corruption of the one table every record is listed in (AGENTS.md "Facts that are in
@@ -533,7 +571,7 @@ change to §3 landed (`505fd0d`).
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T025 Run `cargo xtask check` and confirm every step is green, **including `wasm`** — which
+- [x] T025 Run `cargo xtask check` and confirm every step is green, **including `wasm`** — which
       compiles `monospace-core`, `monospace-diagram` and `monospace-glyph-sets`, so it covers the
       new arithmetic with no change to `xtask` and no new check, which is why principle III's
       two-commit rule does not apply. The new method is `pub(crate)` inside `monospace-diagram` and
@@ -542,7 +580,7 @@ change to §3 landed (`505fd0d`).
       and so does a step that finds something it cannot fix. The `render` step must still answer
       **25** markers and `numbering` must be green, which is where `0067` shows as taken rather than
       free (SC-006; plan.md Constitution Check, principles III and VII)
-- [ ] T026 Confirm the two claims this slice **accepts with nothing to verify it** are named as such
+- [x] T026 Confirm the two claims this slice **accepts with nothing to verify it** are named as such
       rather than described as tested, as principle IV asks and plan.md's re-check does on the spot:
       that **an endpoint pushed outside the window by the gap growing is clipped without a report**
       — the model's own rule for any figure, carried forward and nothing new; and that **a displaced
@@ -552,7 +590,7 @@ change to §3 landed (`505fd0d`).
       the second in T012's doc comment and T023's **Confirmation**, and leave each where it is —
       **this task is a check that the record says so, not an edit** (constitution principle IV;
       plan.md "Re-checked after Phase 1")
-- [ ] T027 Take the counts this slice claims and check them rather than asserting them:
+- [x] T027 Take the counts this slice claims and check them rather than asserting them:
       `cargo test --workspace` green at **28 / 19 / 114 / 72 / 15 / 61**, which is today's **27 / 19
       / 114 / 66 / 15 / 61** plus seven tests and no test removed but T006's. Confirm no `.snap.new`
       file is left behind under `crates/monospace-diagram/src/snapshots/gallery/`, that
@@ -563,7 +601,7 @@ change to §3 landed (`505fd0d`).
       across 16 files and none of them can express this change, because `monospace-core` has no
       displacement at all and `sweep.rs` never reads the demonstration (SC-004, SC-005; research.md
       Q3; constitution, Testing)
-- [ ] T028 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T028 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and optionally a trade-off worth
       remembering. Three are already paid for and worth writing down rather than rediscovering — a
       **private method nothing calls is red under `-D warnings`**, so "structural first, then
