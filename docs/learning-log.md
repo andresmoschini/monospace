@@ -2337,3 +2337,86 @@ and the one that took longest was a change to a field that already existed.
   undocumented — is what makes the next slice that repairs one say so in its commit rather than
   discovering it in a bug report. The cost is that a test now asserts something nobody wants; the
   benefit is that reversing it is a deliberate act.
+
+## Displacing a figure that holds a reference (issue #143)
+
+Five commits: the rule and the picture that draws it, the sixth picture in the shipped
+demonstration, the model's open question, the record, and this entry. The increment is one private
+addition to `Delta`, one changed arm in `Position::displaced_by`, and one step in `monospace-cli`.
+
+### What was learned about Rust design and idiom
+
+- **A private method nothing calls is red under `-D warnings`, so "structural first, then
+  behavioral" has no room when the new thing is private and unused.** The plan had split this
+  increment's `delta.rs` addition into a `refactor` of its own and left the arm for the `feat` after
+  it. Measured: the gate runs `cargo clippy --workspace --all-targets -- -D warnings`, and a
+  `pub(crate)` method with no caller fails it with `method grow is never used`, because `dead_code`
+  is a warning and the flag turns warnings into errors. **There was no split to make** — the
+  addition is not a structural change a behavioral one leans on, it is dead code until the arm calls
+  it, and one `feat` carries both halves. The `refactor` type was available and was not taken, which
+  is the opposite of what the plan recorded. The rule is worth stating as a shape rather than an
+  instance: _the expand/contract discipline has a precondition, and the precondition is that the
+  thing being added has a caller by the time its own commit goes green._
+- **Saturation is the right default for a second addition because the same argument applies, and
+  keeping no memory is why a displacement back does not undo a saturating one.** Growing an offset
+  is `i32` addition on the crate's own fields, and the reason `Delta::apply` saturates — a wrapped
+  amount could land inside a window a caller could really hold — holds word for word. The asymmetry
+  is _not_ between an absolute position and an offset: measured on this branch, a saturated offset
+  and a saturated absolute position **draw the same picture**, the route clipped to whatever falls
+  inside the window. What differs is a reference that resolves to nothing, which takes the whole
+  figure out of the output. The edge case had claimed an asymmetry that does not exist, and the test
+  now pins the measurement instead of the sentence.
+- **`displaced_by` taking `&self` and returning `Self` is what made the old no-op invisible.** A
+  function that builds a value cannot fail, so a rule that grew nothing was well-formed and the
+  caller who put it back got a different picture with no error. That is not an argument for a
+  `Result` here — the question has a right answer and §4 gives it — but it is an argument for
+  `assert_ne!` on **every** assertion about what moved, which is what the eight new tests carry.
+
+### What was learned about working this way
+
+- **Four places declared the behavior this slice reverses, and the specification named three; the
+  fifth was found by running the rule, not by reading for it.** `grep -rn "143" --include=*.rs` is
+  how the inventory was taken, and it returned the prose and the test that name the issue. It could
+  not return `a_displaced_connector_moves_its_absolute_end_and_leaves_its_hanging_one`, which
+  displaces a connector whose `to` holds a reference, asserts the hanging end stayed, and cites
+  **082's B4.2** without ever mentioning 143. It turned up because `cargo test -p monospace-diagram`
+  was red on **two** tests rather than one, and the checkpoint had said it would be one. **A grep
+  for an issue number finds what someone wrote down about a decision; a contract test written when
+  the decision was the other way states it just as firmly without writing the number down.**
+  Searching the number is necessary and not sufficient, and the red run is what closes the gap —
+  which is the constitution's own rule about verifying a check by making it fail, applied to a
+  plan's inventory rather than to a gate step.
+- **A deliberate red is worth more on a rewritten test than on a new one.** The two direction tests
+  and the non-resolution test were each confirmed red with the old arm restored, and all eight
+  failed together. A new test that has never been red is a test that has never been shown to ask
+  anything: a `displaced_by` that grew nothing would satisfy "a reference comes back equal to
+  itself" by doing exactly the old thing, and the only way to know the assertion bites is to remove
+  the arithmetic and watch it.
+- **A plan's "nothing else may have moved" is a claim that has to be measured against the suite, not
+  against the tasks file.** The tasks named one test to rewrite and the suite had a second one
+  asserting the old rule. The count in the artifacts (four places) and the count in the code (five)
+  agreed until the rule was run, which is the same lesson as the previous one seen from the
+  document's side: **an inventory is a hypothesis, and a hypothesis about behavior is settled by
+  behavior.**
+- **`rustfmt` and `clippy` both had something to say about a test that was correct.** Two 100-column
+  `assert_eq!`s and a 108-line test function — the latter fixed by naming the arrangement in a
+  helper rather than by allowing the lint, which removed the duplication between the two halves of
+  `both_directions_move_the_endpoint_differently` instead of hiding it.
+
+### Trade-offs worth remembering
+
+- **Moving the box and then the connector composes into an arrangement nobody chose, and the slice
+  accepts it rather than solving it.** Each displacement belongs to one figure, so the two add: the
+  hanging end ends four down with its gap grown by two. This is _derived_ from the rule rather than
+  decided by it, which is why it is pinned by a test — so a later slice that decides otherwise has
+  to say so rather than discover it in a picture — and why §11's replacement bullet is about moving
+  a _set_. The cost is a composition a caller cannot ask for and cannot undo. The benefit is that
+  the two directions are honestly **two rules**, and a caller who displaces the wrong figure gets a
+  visibly different picture instead of the same one twice.
+- **A gallery block is the only carrier that can reach a displacement, and that is a limit rather
+  than a preference.** A `<!-- render: -->` marker reads a description and a description carries no
+  field for a displacement (ADR-0035), and separately no marker in the repository can hold the
+  demonstration's 50×13 canvas — the widest is 24 columns, the tallest 12 rows. The third gallery
+  block is therefore `displaced_by`'s own output, which is what makes it drop a snapshot when the
+  rule breaks. The cost is that the evidence for this rule lives in a `.snap` file rather than in a
+  document, and a reader has to go looking for it.
