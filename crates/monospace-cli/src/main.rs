@@ -8,10 +8,10 @@
 //!
 //! **A file is rendered once; only the bare run demonstrates.** Given a path this prints one
 //! picture and nothing else — no caption, and no shape moved forward. Given no argument it prints
-//! the shipped demonstration the way spec 080 asks for it: five captioned pictures about one
-//! figure, as written, with the back-most shape moved one place toward the front, with that same
-//! shape displaced, with that same shape taken out, and with the arrow rehung from the box it
-//! already pointed at and that box displaced.
+//! the shipped demonstration the way spec 080 asks for it: **six** captioned pictures — as written,
+//! with the back-most shape moved one place toward the front, with that same shape displaced, with
+//! that same shape taken out, with the arrow rehung from the box it already pointed at and that box
+//! displaced, and with the arrow itself displaced as well.
 //!
 //! That split exists because the changes the bare run shows say something only about the
 //! shipped demonstration, whose first two entries are two partially overlapping opaque boxes.
@@ -92,19 +92,19 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 }
 
 /// Renders `description` as written, then again with its first entry moved one place toward the
-/// front, then again with that same entry displaced, then again with it taken out, and then once
-/// more with the arrow rehung from the box it already pointed at and that box displaced. Each
-/// picture is under a caption.
+/// front, then again with that same entry displaced, then again with it taken out, then once with the
+/// arrow rehung from the box it already pointed at and that box displaced, and then once more with
+/// the arrow itself displaced. Each picture is under a caption.
 ///
 /// This is the shipped demonstration's output, and spec 080's FR-018 is what asks for the captions.
 /// The changes it shows are meaningful only for that description, which is why a file the binary is
 /// handed goes through [`render_once`] instead.
 ///
 /// The first four pictures are about one figure, the entry the description lists first. The fifth
-/// is appended after them rather than interleaved, and is about two others. The identities are
-/// written out at each call rather than read back: a description names its shapes by the identity
-/// it wrote, so the demonstration already knows which entry it means, and `get` offers no listing
-/// to read the names from.
+/// and sixth are appended after them rather than interleaved, and are about two others. The
+/// identities are written out at each call rather than read back: a description names its shapes by
+/// the identity it wrote, so the demonstration already knows which entry it means, and `get` offers
+/// no listing to read the names from.
 fn demonstrate(description: Description) -> String {
     let (origin, size) = description.window();
     let mut diagram = description.into_diagram();
@@ -133,6 +133,13 @@ fn demonstrate(description: Description) -> String {
     // rectangle are the arrow's own arm at `(13, 3)` through `(15, 3)` — the arm the fifth picture
     // replaces. So the box lands on cells the picture's own change has cleared.
     let four_right = Delta { dx: 4, dy: 0 };
+
+    // How far the sixth picture's arrow moves, beside the two deltas above and **reusing neither**.
+    // Two down and not three, for the same reason the third picture's figure moves three rather
+    // than four: this function holds its deltas deliberately rather than taking them from the format
+    // or the binary, and three rows would land the arrow on cells the shipped description already
+    // draws. Two rows lands it clear of both boxes, which is what the picture is for.
+    let two_down = Delta { dx: 0, dy: 2 };
 
     let mut out = String::from("As written:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
@@ -198,6 +205,26 @@ fn demonstrate(description: Description) -> String {
         diagram.replace(&the_hung_from, moved);
     }
     out.push_str("\nWith the arrow now hanging from that box, and the box displaced:\n");
+    out.push_str(&picture(&diagram, &catalog, origin, size));
+
+    // And now the arrow itself moves, which is the sixth picture and the reason the fifth exists:
+    // at this point **both** of the arrow's endpoints are references — its `from` rehung above and
+    // the shipped `to`, which names `#5`'s bottom with an offset of one in each axis — so a
+    // displacement that did not reach a reference's offsets would draw a picture byte for byte
+    // identical to the fifth, and that is the defect this step exists to show is gone. The sixth is
+    // therefore the fifth with the arrow two rows lower and **both boxes standing exactly where
+    // they stood**, which is the claim a reader checks with their eyes.
+    //
+    // The `if let` is not optional and is the same one the third and fifth steps carry: `get` and
+    // `replace` are no-ops on an identity this diagram does not hold, which is what keeps a
+    // one-shape description — and an empty one — demonstrating at all.
+    if let Some(moved) = diagram
+        .get(&the_arrow)
+        .map(|shape| shape.displaced_by(two_down))
+    {
+        diagram.replace(&the_arrow, moved);
+    }
+    out.push_str("\nWith the arrow displaced as well:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
     out
@@ -281,19 +308,25 @@ mod tests {
         serde_json::from_str(json).expect("well-formed description")
     }
 
-    /// The demonstration's five pictures, found by the blank line between them and returned
+    /// The demonstration's **six** pictures, found by the blank line between them and returned
     /// without their captions, so nothing here pins a caption's wording.
     ///
     /// Each carries exactly the trailing newline `render` gives it. The last block already holds
     /// one, since nothing follows it, so it is stripped and put back rather than doubled, and the
-    /// five are then comparable with each other and with a picture drawn on its own.
-    fn demonstrated_pictures(json: &str) -> (String, String, String, String, String) {
+    /// six are then comparable with each other and with a picture drawn on its own.
+    ///
+    /// **The closure needed no change when the sixth arrived**, and that is worth knowing rather than
+    /// assuming: it splits on the blank line, strips the trailing newline and puts one back, and the
+    /// sixth block is the last of the output so the normalization the first five already get applies
+    /// to it identically. It is also why the sixth compared **equal to the fifth** before the rule
+    /// landed rather than one character apart — measured, and the reason no test pins the raw text.
+    fn demonstrated_pictures(json: &str) -> (String, String, String, String, String, String) {
         let output = demonstrate(parse(json));
         let mut blocks = output.split("\n\n");
         let mut next_picture = || {
             let block = blocks
                 .next()
-                .expect("five captioned pictures, each after a blank line");
+                .expect("six captioned pictures, each after a blank line");
             let (_caption, picture) = block
                 .split_once('\n')
                 .expect("a caption line precedes each picture");
@@ -301,6 +334,7 @@ mod tests {
         };
 
         (
+            next_picture(),
             next_picture(),
             next_picture(),
             next_picture(),
@@ -366,7 +400,7 @@ mod tests {
 
     /// User Story 5, spec's B5.1 and B5.2, SC-005: the tenth entry's far endpoint stops being a
     /// point and becomes a reference to `#5`'s bottom with an offset of one in each axis, and
-    /// **all five pictures come out byte for byte what they were**.
+    /// **the first five pictures come out byte for byte what they were**.
     ///
     /// The evidence is in a file and the picture not moving is what proves the arithmetic. The
     /// other side of each comparison is not pinned as text but built: the same demonstration with
@@ -375,9 +409,17 @@ mod tests {
     /// demonstration removes `#1`, displaces `#1` and displaces `#3`, so the fifth shape is none of
     /// them and the reference resolves the same in every picture.
     ///
+    /// **The sixth is compared between the two runs and not against a "before",** because it has no
+    /// before: it is the demonstration's own step, added by this slice, and both runs produce it. The
+    /// two are equal, and the reason is the rule rather than a coincidence: the run that spells `to`
+    /// outright has that endpoint grown from `{22, 4}` as an absolute point, while the run that
+    /// names a reference to `#5`'s bottom with offset `(1, 1)` has the **offset** grown to `(1, 3)`
+    /// and the reference resolving to `{22, 6}`. Same cell, two routes to it, which is the whole
+    /// claim.
+    ///
     /// A path still prints one picture and nothing else, which is what `cargo xtask render` embeds.
     #[test]
-    fn the_tenth_entry_naming_a_reference_leaves_all_five_pictures_exactly_as_they_were() {
+    fn the_tenth_entry_naming_a_reference_leaves_the_first_five_pictures_exactly_as_they_were() {
         // Built through `serde_json` rather than by replacing text in the file, because the file is
         // formatted and a needle written against one formatting of it is a test that stops matching
         // the day prettier disagrees.
@@ -401,11 +443,18 @@ mod tests {
             "the tenth entry still spells its far endpoint outright"
         );
 
-        let (first, second, third, fourth, fifth) = demonstrated_pictures(super::DEMO);
-        let (first2, second2, third2, fourth2, fifth2) = demonstrated_pictures(&with_the_point);
+        let (first, second, third, fourth, fifth, sixth) = demonstrated_pictures(super::DEMO);
+        let (first2, second2, third2, fourth2, fifth2, sixth2) =
+            demonstrated_pictures(&with_the_point);
         assert_eq!(
             (&first, &second, &third, &fourth, &fifth),
-            (&first2, &second2, &third2, &fourth2, &fifth2)
+            (&first2, &second2, &third2, &fourth2, &fifth2),
+            "naming the far endpoint as a reference changed one of the first five pictures"
+        );
+        assert_eq!(
+            sixth, sixth2,
+            "the sixth picture differs between a spelled endpoint and a named one: both are this \
+             slice's own step, and both reach the same cell two rows lower"
         );
 
         // The first picture is the shipped file's own, byte for byte, and a path prints that and
@@ -421,20 +470,21 @@ mod tests {
         );
     }
 
-    /// User Story 5, spec's B5.1 scenario, SC-006: a bare run prints five captioned pictures and
+    /// User Story 3, spec's B3.1, B3.3 and SC-006: a bare run prints **six** captioned pictures and
     /// the first is the description as written.
     ///
-    /// The count comes from the blank lines the output holds, and no caption's wording is pinned:
-    /// what is claimed is that there are five of them and that the first is the one a file's run
-    /// prints on its own.
+    /// The count comes from the blank lines the output holds, and no caption's wording is pinned —
+    /// what is claimed is that there are six of them and that the first is the one a file's run
+    /// prints on its own. The sixth is a caption like the other five, so the count is all this test
+    /// says about it; which picture it holds is `the_sixth_picture_moves_only_the_arrow`'s claim.
     #[test]
-    fn a_bare_run_prints_five_captioned_pictures_the_first_being_the_description_as_written() {
+    fn a_bare_run_prints_six_captioned_pictures_the_first_being_the_description_as_written() {
         let output = demonstrate(parse(super::DEMO));
 
         assert_eq!(
             output.split("\n\n").count(),
-            5,
-            "five captioned pictures, each after a blank line: {output:?}"
+            6,
+            "six captioned pictures, each after a blank line: {output:?}"
         );
 
         let (first, ..) = demonstrated_pictures(super::DEMO);
@@ -494,9 +544,9 @@ mod tests {
             .collect()
     }
 
-    /// User Story 5, spec's B5.3 and B5.5, SC-006: the third picture differs from the second only
-    /// in the cells the displaced figure holds, and the fourth differs from the third only in the
-    /// cells that figure occupies.
+    /// User Story 3, spec's B3.3, SC-004: the third picture differs from the second only in the
+    /// cells the displaced figure holds, and the fourth differs from the third only in the cells that
+    /// figure occupies.
     ///
     /// The fourth is pinned against the shipped description with its first entry left out and drawn
     /// on its own, which is the whole claim in one comparison: a removal leaves a gap rather than a
@@ -505,7 +555,7 @@ mod tests {
     /// differ.
     #[test]
     fn the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out() {
-        let (_first, second, third, fourth, _fifth) = demonstrated_pictures(super::DEMO);
+        let (_first, second, third, fourth, ..) = demonstrated_pictures(super::DEMO);
 
         let (columns, rows) = the_first_figures_footprint();
         let moved = differing(&second, &third);
@@ -549,7 +599,7 @@ mod tests {
     /// which is the endpoint the displacement does not reach.
     #[test]
     fn the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it() {
-        let (_first, _second, _third, fourth, fifth) = demonstrated_pictures(super::DEMO);
+        let (_first, _second, _third, fourth, fifth, ..) = demonstrated_pictures(super::DEMO);
 
         let (old_columns, old_rows, new_columns, new_rows, the_far_end_column) =
             the_hung_figures_footprint();
@@ -620,14 +670,20 @@ mod tests {
         value.to_string()
     }
 
-    /// User Story 5, spec's B5.7 scenario: an empty description demonstrates as five identical
+    /// User Story 3, spec's B3.3, SC-004: an empty description demonstrates as **six** identical
     /// pictures and fails nothing.
     ///
     /// There is no back-most shape to move, no figure to displace, no shape to take out, no tenth
     /// entry to rehang and no third entry to displace, so every call in every picture is a no-op on
     /// an identity this diagram does not hold, and there is no branch here to get wrong.
+    ///
+    /// **The sixth is the case worth having**: a description with no `#10` means the sixth step's
+    /// `get` returns `None`, so the step is a no-op and the sixth picture is the fifth — and that is
+    /// the `if let` earning its place rather than a guard against a panic. A sixth `assert_eq!` is
+    /// what makes the count six mean something rather than being a count of pictures the helper
+    /// happened to return.
     #[test]
-    fn an_empty_description_demonstrates_as_five_identical_pictures() {
+    fn an_empty_description_demonstrates_as_six_identical_pictures() {
         let pictures = demonstrated_pictures(
             r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
@@ -640,22 +696,23 @@ mod tests {
         assert_eq!(pictures.0, pictures.2);
         assert_eq!(pictures.0, pictures.3);
         assert_eq!(pictures.0, pictures.4);
+        assert_eq!(pictures.0, pictures.5);
     }
 
-    /// User Story 5, spec's B5.7 scenario: a description holding exactly one shape demonstrates
-    /// five pictures and fails nothing.
+    /// User Story 3, spec's B3.3, SC-004: a description holding exactly one shape demonstrates six
+    /// pictures and fails nothing.
     ///
     /// The reorder changes nothing, because that shape is both front-most and back-most. The
     /// displacement does not: the demonstration's fixed delta carries the only figure out of this
     /// three-row window, which the figure filled, so the third picture is that window with nothing
     /// in it. The fourth is the same, because the figure is taken out.
     ///
-    /// These five are therefore not identical, and no value of the delta would make them so: a
+    /// These six are therefore not identical, and no value of the delta would make them so: a
     /// figure that fills its own window is moved partly or wholly out of it by any delta other than
     /// none. What the rule asks of this case is that the run succeeds, which it does — and the fifth
-    /// adds two more no-ops on identities a one-shape description does not hold. See the
-    /// specification's Clarifications for the 2026-09-28 session, which corrected B5.7 on the
-    /// evidence of this test.
+    /// and sixth add two more no-ops on identities a one-shape description does not hold, since it
+    /// has no `#3` and no `#10`. See the specification's Clarifications for the 2026-09-28 session,
+    /// which corrected this scenario on the evidence of this test.
     #[test]
     fn one_shape_demonstrates_as_two_copies_of_itself_and_then_an_empty_window() {
         let pictures = demonstrated_pictures(one_box_json());
@@ -664,5 +721,91 @@ mod tests {
         assert_eq!(pictures.2, pictures.3);
         assert_ne!(pictures.0, pictures.2);
         assert_eq!(pictures.3, pictures.4);
+        // The sixth equals the fifth for the same reason the fourth equals the third: the
+        // description holds no `#10`, so the sixth step's `get` returns `None` and the step changes
+        // nothing. **A one-shape description is the case that would break if the `if let` around
+        // that step were dropped**, which is why it is asserted rather than assumed.
+        assert_eq!(pictures.4, pictures.5);
+    }
+
+    /// The two boxes' footprints at the fifth picture, and the one cell of the first that the arrow
+    /// legitimately writes.
+    ///
+    /// **Quoted rather than read from the code that produces them**, because a contract test that
+    /// asks the demonstration the same questions it answers itself checks nothing. `#3` is the
+    /// shipped description's third entry, a four-by-three box at `{9, 2}` that the fifth picture
+    /// displaces four columns right into `x 13..16, y 2..4`; `#5` is its fifth entry, a four-by-three
+    /// box at `{20, 1}` occupying `x 20..23, y 1..3`, which neither the fifth nor the sixth touches.
+    ///
+    /// **The attachment cell is named because a footprint is not the same as a figure's own cells.**
+    /// The arrow's `from` hangs from `#3`'s **right side**, whose centre is `{16, 3}` — and `{16, 3}`
+    /// is inside `#3`'s own rectangle, because the rectangle is the box and the box's border is its
+    /// rightmost column. The fifth picture has the arrow's arm welded to that border cell and the
+    /// sixth has it detached, so that one cell inside a footprint **must** change for the arrow to
+    /// have moved at all. A test that forbade every cell inside either footprint would therefore
+    /// fail on the very behavior it is meant to certify, and quoting the footprint alone would hide
+    /// that. The far end is not in this position: `to` names `#5`'s bottom with offset `(1, 1)`, and
+    /// `{21, 3} + (1, 1)` is `{22, 4}` — **one row below** `#5`, outside its rectangle — which is
+    /// why the second box's footprint is untouched entire.
+    fn the_two_boxes_and_the_attachment() -> [(Range<usize>, Range<usize>); 2] {
+        [(13..17, 2..5), (20..24, 1..4)]
+    }
+
+    /// The one cell inside a box's footprint the arrow writes: `#3`'s right side centre, `{16, 3}`.
+    const THE_ATTACHMENT: (usize, usize) = (16, 3);
+
+    /// User Story 3, spec's B3.1, SC-004: the sixth picture differs from the fifth **only** in the
+    /// cells the arrow holds before and after, which is the only statement that says both boxes
+    /// stood still.
+    ///
+    /// Modelled on `the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it` and reusing its
+    /// `differing` helper, with the claim **mirrored**: that test bounds what the fifth may reach,
+    /// and this one bounds what the sixth may reach in the same shape.
+    ///
+    /// The bound is **exact rather than one-sided**, and that is what makes it say "both boxes stood
+    /// still" rather than "no box moved very far": the cells that changed inside the two footprints
+    /// are exactly the one attachment cell and nothing else. A displacement that rewrote the shape a
+    /// reference names — moving `#3` or `#5` to follow the arrow — would change cells inside a
+    /// footprint that are not the attachment, and the assertion below is what rules it out.
+    #[test]
+    fn the_sixth_picture_moves_only_the_arrow() {
+        let (_first, _second, _third, _fourth, fifth, sixth) = demonstrated_pictures(super::DEMO);
+
+        let changed = differing(&fifth, &sixth);
+        assert!(
+            !changed.is_empty(),
+            "the sixth picture changed nothing at all"
+        );
+
+        let inside: Vec<(usize, usize)> = changed
+            .iter()
+            .copied()
+            .filter(|(x, y)| {
+                the_two_boxes_and_the_attachment()
+                    .iter()
+                    .any(|(columns, rows)| columns.contains(x) && rows.contains(y))
+            })
+            .collect();
+        assert_eq!(
+            inside,
+            vec![THE_ATTACHMENT],
+            "the sixth picture changed a cell inside a box's own footprint other than the one the \
+             arrow attaches to, so a box moved: {changed:?}"
+        );
+
+        // And the arrow did move, which the bound above cannot say on its own: the far end left the
+        // cell it welded itself to. Named rather than derived, and it is a cell **outside** both
+        // footprints — `{22, 4}` is `#5`'s bottom centre plus the shipped offset, one row below the
+        // box — so a displacement that moved nothing and a displacement that moved a box could not
+        // both satisfy this.
+        assert!(
+            changed.contains(&(22, 4)),
+            "the arrow's far end is still welded where it was: {changed:?}"
+        );
+        assert!(
+            changed.contains(&(22, 6)),
+            "the arrow's far end did not travel the two rows the demonstration's delta names: \
+             {changed:?}"
+        );
     }
 }

@@ -339,10 +339,15 @@ the slice.
   one. What would settle it: a figure that has to attach to a connector, most likely a label on it.
   Answering this is also one of the two ways a chain of references becomes longer than one link,
   which is what brings the cycle question back — see _Positions_.
-- **What does displacing a figure that holds a reference mean?** A displacement is additive in each
-  axis over absolute positions; a reference has none. Whether it reaches the reference's offsets or
-  the place the reference resolves to is not decided, and _Positions_ states the first. What would
-  settle it: the first slice that has a reference to displace.
+- **Does moving a set of figures keep their gaps?** The two directions of a single displacement are
+  settled and they are **not** the same rule: displacing the figure a reference hangs from carries
+  the endpoint with it and leaves the gap, while displacing the figure that holds the reference
+  slides the endpoint and grows the gap — see _Positions_. What is not settled is what a caller gets
+  who moves several figures in a row, since each displacement belongs to one figure and the two
+  compose into an arrangement nobody chose. Nothing displaces more than one figure today: there is
+  no selection, no group and no consumer that moves a set. What would settle it: the first consumer
+  that displaces more than one figure at a time, which is a selection
+  ([ADR-0067](decisions/0067-displace-a-figure-holding-a-reference-by-growing-its-offsets.md)).
 - **Does an attachment decide the direction a connector leaves in?** Attaching to a box's right side
   and leaving leftward is expressible today and draws something nobody wants. What would settle it:
   the first slice where the caller's direction and the anchor's side are routinely the same.

@@ -358,21 +358,31 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 }
 
 /// The first block is the model's §6 _Attachment_ reached with a reference where the model spells
-/// the point, and the second is the same diagram with the box displaced four cells right. Both are
-/// in one snapshot because what a reader is meant to see is the two of them together: the arrow
-/// standing on a side, and the arrow standing on the same side after the figure under it moved.
+/// the point; the second is the same diagram with the box displaced four cells right, so the arrow
+/// follows the side it hangs from; and the third is the arrangement as written with the **connector**
+/// displaced two cells down, so the arrow slides off that side and draws as a translation of itself.
+///
+/// All three are in one snapshot because what a reader is meant to see is them together, and the two
+/// displacements are the two directions of one rule: displacing the figure a reference hangs from
+/// carries the endpoint, displacing the figure that holds the reference moves it, and the pair is
+/// what makes the difference visible rather than asserted. The third block is **drawn by
+/// `displaced_by`** rather than built from the two positions the rule yields by hand, so a rule that
+/// stopped holding drops this snapshot instead of leaving a picture that no longer matches the code
+/// (B1.1, B3.4, §4 of the model).
 ///
 /// **The label names three values now, because the reference holds three.** A block cannot print a
 /// shape for itself — a `Diagram` offers one query by an identity and no listing — so this string
 /// is written by hand, and a hand-written label that named two of a reference's three values would
 /// let a reader assume a third default. `offset (0, 0)` is what says the arrow stands *on* the
-/// side rather than beside it. The offset is drawn nowhere in either picture, and §6's stays
-/// exactly as the model spells it.
+/// side rather than beside it. The offset is drawn nowhere in any of the three pictures, and §6's
+/// stays exactly as the model spells it.
 ///
 /// This is no longer the only carrier in the crate that can reach a reference: since #83 a
 /// `<!-- render: -->` marker reads a description whose `at` may hold one (D2, ADR-0035). The block
-/// stays here rather than moving to a marker because the two blocks are one snapshot and a marker
-/// renders one picture per description (ADR-0064).
+/// stays here rather than moving to a marker because the three blocks are one snapshot and a marker
+/// renders one picture per description (ADR-0064). It is also the only carrier that can reach a
+/// **displacement** at all: a marker reads a description and a description carries no field for one
+/// (ADR-0035), so no marker anywhere in the repository can hold a picture of this rule.
 #[test]
 fn an_endpoint_hangs_from_a_side_and_follows_it() {
     let labelled =
@@ -389,15 +399,47 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
         .expect("the box is in the diagram")
         .displaced_by(Delta { dx: 4, dy: 0 });
     diagram.replace(&box_id, moved);
-    let after = block(
+    let second = block(
         labelled,
         "the box displaced four cells right",
         window(8, 3),
         &diagram,
     );
 
+    // And the third displaces the **connector**, which is the other direction and the other rule:
+    // the endpoint slides off the side rather than following it, and the arrow draws as a
+    // translation of itself.
+    //
+    // **Reached from the arrangement as written rather than from the block beside it**, and a second
+    // diagram in this test is what that costs — six lines rather than a `get` and a `replace`. The
+    // reason is measured rather than stylistic: the second block above left the box's right side
+    // centre on `{7, 1}`, which is where the connector's own free end already stood, so a
+    // displacement applied to *that* diagram would have put both endpoints on `{7, 3}` and drawn
+    // nothing at all — degenerate in the same way the specification's own B2.1 is, one step further
+    // along. Reaching the arrangement as written is also what keeps the third block comparable with
+    // the first: the two differ by the one displacement between them and by nothing else.
+    let mut from_as_written = Diagram::new();
+    let second_box_id = from_as_written.add(small_box(at(0, 0), None));
+    let arrow_id = from_as_written.add(hanging_connector(second_box_id));
+    let moved_arrow = from_as_written
+        .get(&arrow_id)
+        .expect("the connector is in the diagram")
+        .displaced_by(Delta { dx: 0, dy: 2 });
+    from_as_written.replace(&arrow_id, moved_arrow);
+
+    // **`window(8, 4)`, and the fourth row is the reason.** The displaced connector lands on the
+    // fourth row, so a three-row window would clip it out entirely and the block would measure to
+    // nothing. A snapshot that grew a fifth row of nothing is the signature of the window being too
+    // short, so the row is worth naming rather than discovering.
+    let third = block(
+        labelled,
+        "the connector displaced two cells down",
+        window(8, 4),
+        &from_as_written,
+    );
+
     snap(
         "an_endpoint_hangs_from_a_side_and_follows_it",
-        &format!("{first}\n{after}"),
+        &format!("{first}\n{second}\n{third}"),
     );
 }
