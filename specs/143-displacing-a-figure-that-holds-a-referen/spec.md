@@ -150,7 +150,7 @@ already draw with the endpoint written as the point it resolves to.
    directions — by rewriting the shape a reference names, say — would satisfy each on its own and
    draw neither picture above.
 
-### B3 — The demonstration's arrow moves, and the sixth picture is the evidence
+### B3 — The arrow moves, and two pictures carry the evidence
 
 1. **Given** the shipped demonstration's fifth picture — the arrow rehung from the box it already
    pointed at, and that box displaced four cells right — **When** the arrow itself is then displaced
@@ -182,6 +182,12 @@ already draw with the endpoint written as the point it resolves to.
    **Then** all five are byte for byte what they are, the first of them still the one a path prints
    on its own, and the run still prints one picture for a path and nothing else. The demonstration
    grows by one picture and by nothing else.
+4. **Given** the crate's gallery test `an_endpoint_hangs_from_a_side_and_follows_it`, **When** it
+   runs, **Then** it holds three blocks — the arrangement as written, the box displaced four cells
+   right, and the connector displaced two cells down — and the third is **drawn by `displaced_by`
+   rather than built by hand**, so a rule that stops holding drops the snapshot instead of nothing.
+   It is the arrangement the two blocks beside it already use, with the direction this slice adds
+   next to the one that already worked.
 
 ## Edge cases
 
@@ -254,13 +260,23 @@ already draw with the endpoint written as the point it resolves to.
   test pins that the sixth differs from the fifth **only** in the cells the arrow holds before and
   after, which is the shape 083's own fifth-picture test uses and the only claim that says the boxes
   stood still. No caption's wording is pinned, and a path still prints one picture.
+- **Contract** — the gallery: `an_endpoint_hangs_from_a_side_and_follows_it` holds a third block,
+  the arrangement above with the connector displaced two cells down, reached through `displaced_by`
+  and not by building the two positions by hand. Its two existing blocks are byte for byte what they
+  are. This is the one picture in the slice a broken rule drops rather than leaves stale, so it is
+  pinned as a snapshot rather than drawn into a document.
 - **Characterization** — none, and none moves. The connector sweep builds its descriptions from
   shape lists and never reads the shipped demonstration, so no case in it moves.
-- **What this slice rewrites rather than contradicts.** `position.rs` carries two rustdoc paragraphs
-  calling the no-op "a deliberate no-op rather than an omission" and naming this issue as the
-  decision that would change it, and one test named
-  `a_displacement_moves_a_point_and_leaves_a_reference_alone` pins it by value. All three become
-  false with B1, so they are rewritten in the slice rather than left contradicting it.
+- **What this slice rewrites rather than contradicts.** Four places declare the no-op this slice
+  reverses and all four become false with B1, so they are rewritten in the slice rather than left
+  contradicting it. `position.rs` carries two rustdoc paragraphs calling it "a deliberate no-op
+  rather than an omission" and "a silent no-op on purpose" and naming this issue as the decision
+  that would change it, and one test named
+  `a_displacement_moves_a_point_and_leaves_a_reference_alone` pins it by value. `shape.rs:179-183`
+  carries the fourth, and it is the one worth naming: `Shape::displaced_by` is `pub` where
+  `Position::displaced_by` is `pub(crate)`, so it is the paragraph a caller reads first, and it is
+  the only one of the four that asks the question rather than answering it — it ends on "what
+  displacing such a figure should mean in general is #143's to settle".
 
 ## Success criteria
 
@@ -277,7 +293,10 @@ already draw with the endpoint written as the point it resolves to.
   rows and both boxes stand still, `assets/demo.json` and the description format are untouched, the
   first five pictures are byte for byte what they were, and a path still prints one picture and
   nothing else — so the evidence for the rule is in the shipped run and the cost of carrying it is
-  one picture rather than a new field in a format twenty-four markers read.
+  one picture rather than a new field in a format twenty-four markers read. **And the crate's
+  gallery gains the same rule beside the two blocks it already holds**, drawn by the code this slice
+  changes, so a rule that breaks drops a snapshot there and nothing in a document — the one asks
+  whether the defect was real, the other what the rule draws.
 - **SC-005**: Every tracked picture is byte for byte what it was. No `<!-- render: -->` marker draws
   the demonstration's fifty-by-thirteen canvas — the largest is twenty-four by nine — so none of
   them is stale, and none moves.

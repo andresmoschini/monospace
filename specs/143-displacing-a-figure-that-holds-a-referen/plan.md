@@ -67,10 +67,11 @@ _GATE: passes before Phase 0, re-checked after Phase 1._
   so it is domain-level and the record is the maintainer's. D1 asks whether its subject is this case
   or 082's unrecorded rules too, and no ADR in the repository mentions displacement at all.
 - **VIII. The record is sized to the decision** — three entries against a cap of seven. The
-  specification is **230 attributable lines against a 120 ceiling**, measured on this branch with
-  the count 083 and 148's own checklists used — 285 lines, less 41 blank, 10 fence markers and 4
-  HTML comment lines, which are 1, 2, 3 and the one inside SC-005 — and it goes to Complexity
-  Tracking in part two.
+  specification is **249 attributable lines against a 120 ceiling**, measured on this branch with
+  the count 083 and 148's own checklists used — 304 lines, less 41 blank, 10 fence markers and 4
+  HTML comment lines, which are 1, 2, 3 and the one inside SC-005. Nineteen of those are this
+  branch's: D2's gallery block in **B3**, **SC-004** and **Testing expectations**, and D3's naming
+  of `shape.rs:179-183` beside the three already named. It goes to Complexity Tracking in part two.
 - _The plan runs in two parts_ — this run filled Summary, this check, `research.md` and
   `decisions.md`, and stopped. `data-model.md`, `contracts/` and `quickstart.md` are part two, and
   writing them now would be taking the three answers rather than planning around them.
@@ -80,8 +81,10 @@ _GATE: passes before Phase 0, re-checked after Phase 1._
 The sheet is [`decisions.md`](decisions.md). Part two does not begin until it is answered.
 
 - Entries: 3 — domain: 3, module: 0, tooling: 0
-- Answered: _pending_. Six module-level questions were answered in [`research.md`](research.md)
-  instead, each undone by changing the code that gives it.
+- Answered: 2026-10-01 — all three, two as proposed and D2 wider than its proposal. D2 adds the
+  gallery's third block beside the demonstration's sixth picture, so the specification amends **B3**
+  and **SC-004** as well as D3's **Testing expectations**. Six module-level questions were answered
+  in [`research.md`](research.md) instead, each undone by changing the code that gives it.
 
 ## Design _(part two)_
 
@@ -103,6 +106,7 @@ and which it will not — the constitution's _Development Workflow_ owns the lis
 > Fill ONLY for a Constitution Check violation that must be justified, or a principle VIII ceiling
 > exceeded without splitting the feature.
 
-| Departure                   | Why needed     | Simpler alternative rejected because |
-| --------------------------- | -------------- | ------------------------------------ |
-| [e.g. spec.md at 140 lines] | [current need] | [why the split was rejected]         |
+| Departure                                   | Why needed                                                                                                                                                                                                        | Simpler alternative rejected because                                                                                                                                                                                                   |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `decisions.md` at 76 lines against a 60 one | Three domain entries at the constitution's five fields each, and three answers that each name a consequence outside the sheet: the record's subject, the gallery's third block, and the sections `spec.md` amends | The format costs about twelve lines an entry whatever the prose, and the fields that would fit in a line are the ones that drop the trade-off. Cutting the answers costs the consequence, and the consequence is what part two acts on |
+| `plan.md` at 86 lines against an 80 one     | Part one's own summary, check and sheet tally, plus the three lines the answered sheet added back                                                                                                                 | Part two appends the design, the artifacts and the re-check, so the number this row states is already the one part two moves; writing it now and correcting it there is cheaper than leaving the overage unrecorded                    |
