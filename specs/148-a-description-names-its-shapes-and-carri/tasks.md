@@ -404,7 +404,7 @@ exits successfully, and nothing warns.
 beside a valid entry is dropped in silence as every unknown field in this format has always been
 (Q3; contracts/description-format.md "What a malformed file does").
 
-- [ ] T027 [P] [US3] Contract test: **a missing identity is refused by name**, in
+- [x] T027 [P] [US3] Contract test: **a missing identity is refused by name**, in
       `crates/monospace-cli/src/description.rs`, beside the refusals already there. A description
       with no `next_id` reports ``missing field `next_id` `` and one whose box carries no `id`
       reports ``missing field `id` ``, each asserted on the **message** and not on the line and
@@ -412,21 +412,21 @@ beside a valid entry is dropped in silence as every unknown field in this format
       `display_with_line_column` half of the claim is the rest of the format's existing behavior and
       is already pinned by `an_omitted_terminal_field_is_refused_by_name`; this test pins the two
       new names beside it (B3.2; Q3; contracts/description-format.md)
-- [ ] T028 [P] [US3] Contract test: **free text reads**, in
+- [x] T028 [P] [US3] Contract test: **free text reads**, in
       `crates/monospace-cli/src/description.rs`. A description whose entries are named `right`,
       `left` and `arrow`, its connector naming `arrow`, draws **byte for byte** what the same
       description named `#1`, `#2` and `#3` draws — and its `next_id` is untouched by the
       substitution, which is what D1 chose over deriving an ordinal from the names. A format that
       insisted on an ordinal could not pass this test (B3.3, SC-001; data-model.md "Free text
       reads")
-- [ ] T029 [P] [US3] Contract test: **a repeated identity, the file half**, in
+- [x] T029 [P] [US3] Contract test: **a repeated identity, the file half**, in
       `crates/monospace-cli/tests/cli.rs`. Two entries carrying `"id": "#1"` are **both** read, both
       shapes are drawn, the run exits successfully with nothing on stderr, and the file is not
       refused. The reference-resolves-through-the-first half is T021's at the diagram level; this is
       the same cost arriving through a wire, where a reader might plausibly have checked it and did
       not. **Pinned as an accepted cost, not as a bug**, so a later slice that decides to report it
       has to say so rather than discover it (B3.1; Q3; D2)
-- [ ] T030 [P] [US3] Confirm
+- [x] T030 [P] [US3] Confirm
       `a_file_naming_a_shape_it_does_not_hold_draws_the_box_and_no_connector_and_succeeds` in
       `crates/monospace-cli/tests/cli.rs` passes **unchanged** and record that it passed before the
       slice as well as after it. What changes underneath is what its `"shape": "#7"` names: a place
@@ -467,7 +467,7 @@ loop has nothing left to do, and the same `assert_eq!` becomes SC-001's claim ra
     after it, and the loop undoes it"     every survivor kept its name"
 ```
 
-- [ ] T031 [US4] In `demo_without_its_first_entry` in `crates/monospace-cli/src/main.rs`, delete the
+- [x] T031 [US4] In `demo_without_its_first_entry` in `crates/monospace-cli/src/main.rs`, delete the
       renumbering loop — the `for shape in shapes.iter_mut()` that rewrites
       `shape["to"]["at"]["shape"]` from `"#5"` to `"#4"` — and the paragraph of its doc comment that
       explains it, which reads "**It also renumbers the one reference it moves, `"#5"` to `"#4"`,
@@ -477,7 +477,7 @@ loop has nothing left to do, and the same `assert_eq!` becomes SC-001's claim ra
       binary embeds, and only the first entry differs. Say in the commit message that this is the
       cost this slice removes rather than a fix to the helper (Q5; D3; data-model.md "The
       demonstration")
-- [ ] T032 [US4] Correct the two comments in `crates/monospace-cli/src/main.rs` that T022 makes
+- [x] T032 [US4] Correct the two comments in `crates/monospace-cli/src/main.rs` that T022 makes
       false, in the same commit that makes them false (083's Q6, 082's Q7). The one at **line 104**
       reads "a description names its shapes **by position**, so the demonstration already knows
       which entry it means and has nothing to read", and the one at **line 121** reads the same
@@ -486,7 +486,7 @@ loop has nothing left to do, and the same `assert_eq!` becomes SC-001's claim ra
       call rather than read back, and `get` still offers no listing to read them from. A rustdoc is
       code, so it is corrected where it becomes wrong rather than in a later `docs` commit (Q5, Q6;
       plan.md commit 3)
-- [ ] T033 [P] [US4] Contract test: the demonstration prints the **five** pictures it prints today,
+- [x] T033 [P] [US4] Contract test: the demonstration prints the **five** pictures it prints today,
       in `crates/monospace-cli/src/main.rs`, found by splitting the output on the blank line and
       pinning no caption's wording, and `cargo run -p monospace-cli <path>` still prints one picture
       and nothing else, which is what `cargo run -p xtask -- render` embeds. Most of this is already
@@ -499,7 +499,7 @@ loop has nothing left to do, and the same `assert_eq!` becomes SC-001's claim ra
       against the shipped description with its first entry left out, **without** any renumbering,
       and say in the test's doc comment that this assertion is SC-001 rather than a fixture (B4.1,
       B4.2, SC-001, SC-005; data-model.md "What the tests pin")
-- [ ] T034 [P] [US4] The three diffs, run in one place:
+- [x] T034 [P] [US4] The three diffs, run in one place:
       `cargo run -p monospace-cli > /tmp/demo-after.txt` against `/tmp/demo-before.txt`,
       `cargo run -p monospace-cli crates/monospace-cli/assets/demo.json > /tmp/file-after.txt`
       against `/tmp/file-before.txt`, and `cargo run -q -p xtask -- render --check` — **all three
@@ -582,7 +582,7 @@ and the ADR, and the first is due the moment the reader refuses a description mi
       `contracts/description-format.md`, and the second in T021, T029 and the specification's _Edge
       cases_, and leave each where it is — **this task is a check that the record says so, not an
       edit** (constitution principle IV; D2; spec.md Testing expectations)
-- [ ] T041 Make a **misspelled** `id` deliberate, once, by hand: change one entry's `"id"` to
+- [x] T041 Make a **misspelled** `id` deliberate, once, by hand: change one entry's `"id"` to
       `"idd"` in `crates/monospace-cli/assets/demo.json`, run `cargo run -p monospace-cli`, and
       watch what happens. A required field that is not there is a `missing field` error, while an
       unknown key beside a valid entry is dropped in silence — which is why Phase 2's edit is an

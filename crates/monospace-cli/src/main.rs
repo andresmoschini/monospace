@@ -102,8 +102,9 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 ///
 /// The first four pictures are about one figure, the entry the description lists first. The fifth
 /// is appended after them rather than interleaved, and is about two others. The identities are
-/// written out at each call rather than read back: a description names its shapes by position, so
-/// the demonstration already knows which entry it means and has nothing to read.
+/// written out at each call rather than read back: a description names its shapes by the identity
+/// it wrote, so the demonstration already knows which entry it means, and `get` offers no listing
+/// to read the names from.
 fn demonstrate(description: Description) -> String {
     let (origin, size) = description.window();
     let mut diagram = description.into_diagram();
@@ -119,9 +120,10 @@ fn demonstrate(description: Description) -> String {
     let by = Delta { dx: 0, dy: 3 };
 
     // The box the arrow already hangs from, and the arrow itself, both named by hand for the reason
-    // `#1` above is: a description names its shapes by position, so the demonstration already knows
-    // which entry it means and has nothing to read back. A figure added before either would make
-    // the written value name the wrong shape, and the fifth picture is what catches that.
+    // `#1` above is: a description names its shapes by the identity it wrote, so the demonstration
+    // already knows which entry it means, and `get` offers no listing to read the names from. A
+    // figure added before either would make the written value name the wrong shape, and the fifth
+    // picture is what catches that.
     let the_hung_from = ShapeId::new("#3");
     let the_arrow = ShapeId::new("#10");
 
@@ -439,6 +441,32 @@ mod tests {
         assert_eq!(first, render_once(parse(super::DEMO)));
     }
 
+    /// User Story 4, B4.2, SC-005: `render_once` over a path prints one picture and nothing else,
+    /// which is what `cargo xtask render` embeds in a document.
+    ///
+    /// Pinned as a **count and a shape**, not as a literal: one window's worth of rows, and the
+    /// first picture's own first row. The caption is absent, because a file's run is a picture with
+    /// nothing around it and the demonstration's is a picture under a caption.
+    #[test]
+    fn a_path_prints_one_picture_and_nothing_else() {
+        let (first, ..) = demonstrated_pictures(super::DEMO);
+        let once = render_once(parse(super::DEMO));
+
+        assert_eq!(
+            once, first,
+            "a path prints the first picture, byte for byte"
+        );
+        assert!(
+            !once.contains("\n\n"),
+            "a path prints no caption and no second picture: {once:?}"
+        );
+        assert_eq!(
+            once.lines().count(),
+            13,
+            "the shipped window is thirteen rows tall and nothing is added: {once:?}"
+        );
+    }
+
     /// The columns and rows the figure the third picture displaces holds, in the second and the
     /// third picture of the shipped demonstration.
     ///
@@ -570,21 +598,18 @@ mod tests {
     /// Rewritten through `serde_json` rather than by hand, so the description the test draws is the
     /// one the binary embeds and only the first entry differs.
     ///
-    /// **It also renumbers the one reference it moves, `"#5"` to `"#4"`, and that is not a
-    /// convenience — it is the whole of what a positional identity costs.** An identity names a
-    /// place in a list, and the tenth entry's `to` names `"#5"`: the fifth entry of *this* text.
-    /// Reading the text again issues the identities from scratch in array order, so after the first
-    /// entry is gone, `#5` is the sixth entry of the original — the box at `{18, 0}`, whose bottom
-    /// centre is `{19, 2}` and whose `+ (1, 1)` is `{20, 3}` rather than `{22, 4}`. The fourth
-    /// picture would then be a different picture from the one the test compares it to, and the
-    /// difference begins at row 3. Renumbering is what keeps the two sides the same diagram, and
-    /// `the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out` fails on the two
-    /// columns of the arrow's route without it.
+    /// **It renumbers nothing, and that is the cost this slice removes rather than a fix to this
+    /// helper.** While an identity named a place in a list, removing the first listing shifted
+    /// every name after it: the tenth entry's `to` named `"#5"`, the fifth entry of *this* text, and
+    /// re-reading the text issued the identities from scratch in array order, so `#5` became the
+    /// box at `{18, 0}` rather than the one at `{20, 1}`. The fourth picture would then have been a
+    /// different picture from the one the test compares it to, and the difference begins at row 3.
+    /// That loop rewriting `"#5"` to `"#4"` is what kept the two sides the same diagram.
     ///
-    /// That is D3 answered in the only place its consequence is observable rather than worked
-    /// around: a file names its shapes by where they are listed, and a test that removes a listing
-    /// shifts every identity after it. Nothing in the model promises a reference survives being
-    /// moved up the list, and nothing here pretends otherwise.
+    /// Every entry now carries the identity it was written with, so the twenty-five that survive
+    /// keep the names they had and `remove(0)` shifts nothing at all. The same `assert_eq!` in
+    /// `the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out` is SC-001's claim
+    /// now rather than a fixture a loop had to hold in place.
     fn demo_without_its_first_entry() -> String {
         let mut value: serde_json::Value =
             serde_json::from_str(super::DEMO).expect("the embedded description is well-formed");
@@ -592,11 +617,6 @@ mod tests {
             .as_array_mut()
             .expect("the description lists its shapes");
         shapes.remove(0);
-        for shape in shapes.iter_mut() {
-            if shape["to"]["at"]["shape"] == serde_json::json!("#5") {
-                shape["to"]["at"]["shape"] = serde_json::json!("#4");
-            }
-        }
         value.to_string()
     }
 
