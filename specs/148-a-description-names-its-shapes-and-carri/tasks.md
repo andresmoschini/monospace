@@ -523,7 +523,7 @@ commit 3). T026 and T034 are a read of the fifth picture and three diffs, not co
 They are placed here rather than in the Polish phase because plan.md orders them between the wire
 and the ADR, and the first is due the moment the reader refuses a description missing both fields.
 
-- [ ] T035 Amend §3 _Identity_ in `docs/diagram-model.md`, **twice, in the same paragraph**. The
+- [x] T035 Amend §3 _Identity_ in `docs/diagram-model.md`, **twice, in the same paragraph**. The
       section reads "The diagram generates one when the shape is added — `#1`, `#2`, and so on — and
       it is **unique within that diagram**", and "Identities being chosen by the caller, or edited
       after the fact, is an open question below". The first amendment says a caller may choose the
@@ -533,7 +533,7 @@ and the ADR, and the first is due the moment the reader refuses a description mi
       naming a trigger that has already fired. **Left alone: editing one after the fact**, which
       §3's own second paragraph keeps out (D2; spec.md "What this slice implements"; §11's _Can a
       caller choose an identity?)
-- [ ] T036 In `docs/diagram-model.md`, amend **two** more places and nothing else. §9 _Changing a
+- [x] T036 In `docs/diagram-model.md`, amend **two** more places and nothing else. §9 _Changing a
       diagram_'s `add` row reads "Puts a shape at the front of the order and gives it an identity",
       and it gains which identity it gives and that it is never one the diagram has handed out
       before. §11's first question — _Can a caller choose an identity?_ — comes out, and its
