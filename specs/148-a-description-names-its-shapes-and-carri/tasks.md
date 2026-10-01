@@ -541,7 +541,7 @@ and the ADR, and the first is due the moment the reader refuses a description mi
       fired. **Amend no other section**: §4 already says a reference resolves by asking for the
       anchor and adding the offsets, and §1's `Reference` row has named three fields all along (D2;
       spec.md "What this slice implements"; plan.md commit 4)
-- [ ] T037 [P] Write
+- [x] T037 [P] Write
       `docs/decisions/0066-let-a-caller-choose-an-identity-and-say-where-the-numbering-resumes.md`
       from `docs/decisions/adr-template.md`, at **`load-bearing`** — by the constitution's own test,
       `monospace-cli` calls both new methods, so something outside the module depends on it, and
@@ -554,7 +554,7 @@ and the ADR, and the first is due the moment the reader refuses a description mi
       ordinal-named picture. Say that on the spot, so the absence is a finding and not an oversight,
       which is what plan.md does for the other three artifacts (constitution principle VI; Q6;
       ADR-0064)
-- [ ] T038 [P] Add the row for ADR-0066 to `docs/decisions/README.md` **as a whole row** — link,
+- [x] T038 [P] Add the row for ADR-0066 to `docs/decisions/README.md` **as a whole row** — link,
       title and status written out together. A partial edit to that table leaves the rest of the row
       on the line below, and prettier then reflows the damage rather than rejecting it (AGENTS.md
       "Facts that are in the code and in no document")
