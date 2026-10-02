@@ -1,7 +1,14 @@
-# Specification Quality Checklist: Taking a shape out leaves what hangs from it not drawn, and the question is written down
+# Specification Quality Checklist: Taking a shape out leaves the figures that hung from it where they were
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-10-01 **Feature**: [spec.md](../spec.md)
+**Created**: 2026-10-01, revised 2026-10-02 **Feature**: [spec.md](../spec.md)
+
+> The checklist below was run against the specification that recorded the question instead of asking
+> it, and **its notes describe that superseded specification**. The 2026-10-02 revision replaced the
+> subject with the freeze; the sections above still apply, and the notes are history rather than
+> claims about the current artifact. The ceiling note is current — `spec.md` is 131 attributable
+> lines against 120, filed in [plan.md](../plan.md)'s Complexity Tracking — and the same reading
+> applies: the pictures do not count against a ceiling, and the slice is not thick.
 
 ## Content Quality
 

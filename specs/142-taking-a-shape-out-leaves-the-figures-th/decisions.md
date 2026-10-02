@@ -1,111 +1,91 @@
-# Decisions: Taking a shape out leaves what hangs from it not drawn
+# Decisions: Taking a shape out leaves the figures that hung from it where they were
 
 **Feature**: #142 | **Written**: 2026-10-01 | **Answered**: 2026-10-02 — all four, the proposal
 adopted in each
 
-Four entries, all domain-level, all the maintainer's. **Only D4 carries a picture** — D1 asks which
-file a record lives in, D2 which file a picture lives in and every option it weighs draws the same
-one, and D3 is about a paragraph of text, while D4's subject is a count of cells and a count is
-believed when the cells are visible. The 2026-10-01 clarification already answered what this slice
-takes as evidence and the seventh caption, so neither is asked again; the rest are
-[research.md](research.md)'s.
+**The four answers of the first run of this stage are void**, and there is no partial credit in
+them. They answered whether to record the question, which this slice no longer asks: the deciding
+stage that merged as [#158](https://github.com/andresmoschini/monospace/pull/158) renamed the
+issue's desire, declined it for want of a record, and left the question open. The issue's title is
+the maintainer's original and correct. `git log` carries the superseded sheet.
 
-## D1 — Where the record for a removal goes
+Four entries, all domain-level, all the maintainer's, all adopted as proposed. **None carries a
+generated picture**: the subject that renders cannot be reached by a marker, a description having no
+field that takes a shape out
+([ADR-0064](../../docs/decisions/0064-give-each-generated-picture-the-carrier-that-can-reach-its-subject.md)),
+and the arrangement is drawn once in [spec.md](spec.md)'s **Behavior**.
 
-- **Proposal**: revise
-  [ADR-0041](../../docs/decisions/0041-resolve-a-position-through-a-reference.md) in place with no
-  second record — one dated revision correcting "Today identities are generated rather than written,
-  so there is nothing to mistype", which ADR-0066 made false, one recording that a removal's silence
-  is a standing question. On the building branch, never on this one.
-- **Altitude**: domain — `load-bearing`, and a caller's reading of the rule is outside this crate.
-  Confidence: high on one record, low on its placement.
-- **If this is wrong**: a second record sits beside ADR-0041 and every reader of the removal rule
-  has to find both, which the constitution's "cannot be cited without citing the other" test
-  prevents.
-- **The alternative**: a new short record sized to the removal rule alone, leaving ADR-0041 with a
-  consequence line research.md Q5 measured false.
-- **Yours to answer**: yes — no ADR here names a removal, and ADR-0041 is over its ceiling.
-- **Answer**: confirmed — one record, revised in place on the building branch. The reader who takes
-  the resolution rule for settled is the reader a removal's silence misleads, so the line saying the
-  question is open belongs where that rule is written rather than beside it. Correcting the "nothing
-  to mistype" cost and recording the standing question are one edit, and a reader who cannot cite
-  one without the other is not left to find both.
+## D1 — Is the freeze one slice or two
 
-## D2 — Whether the crate's gallery grows a block for the removal
+- **Proposal**: one. The measuring work for the rule this replaces sits on an open pull request
+  describing the other behavior, and under the freeze every number it measured changes.
+- **Altitude**: domain, the maintainer's — what merges, and what that pull request is worth.
+- **If this is wrong**: that work merges against the old rule, and the freeze slice re-does three
+  pictures and one test.
+- **The alternative**: two slices, at the cost of a whole round of the gate for superseded numbers.
+- **Answer**: **adopted, and it settles the order too.** This deciding pull request finishes the
+  specification; the implementation is a **new** pull request. The building pull request describing
+  the opposite behavior is **closed without merging** — its four tests, its gallery block and its
+  seventh picture are the three the freeze would have re-measured anyway, and keeping it open beside
+  this specification is what made the issue and the documents disagree.
 
-- **Proposal**: both — the demonstration's seventh picture, which the specification already asks
-  for, **and** a fourth `block()` in `an_endpoint_hangs_from_a_side_and_follows_it` with
-  `change: "the box taken out"`, which needs no new machinery because
-  `the_order_decides_a_shared_cell` already mutates one diagram between two blocks.
-- **Altitude**: domain — it decides whether a snapshot grows. Confidence: medium-high.
-- **If this is wrong**: a picture of a change is left hand-drawn, and goes stale silently.
-- **The alternative**: the seventh picture alone, which is the specification's plan and is better
-  evidence since the rule's own code draws it; or a second gallery test for one block.
-- **Yours to answer**: yes — the specification's **Testing expectations** name no gallery block.
-- **Answer**: confirmed — both. The seventh picture is what a reader sees, and a picture of a change
-  is the one kind of picture no description file and no marker can reach, so the gallery is the only
-  carrier left for it and a removal is the rule most likely to move. One `remove` and one more
-  `block()` beside three that already mutate a diagram between them, and the block's `change:` line
-  is what says a removal is what was done rather than the order.
+## D2 — Where the freeze is recorded
 
-## D3 — Whether the slice also corrects the second paragraph `add_under` falsified
+- **Proposal**: one new ADR for the freeze, plus a dated `## Revisions` line in ADR-0041 for the one
+  consequence it contradicts.
+- **Altitude**: domain, the maintainer's — the rule is observable from outside the crate.
+- **If this is wrong**: a reader of the resolution rule meets two records, or one denying its own
+  outcome.
+- **The alternative**: supersede ADR-0041, which the constitution's test discourages — the
+  resolution rule and the removal rule _can_ be cited apart.
+- **Answer**: **adopted, with the maintainer's condition: as small as it can be.** An ADR is
+  created, because something has to overrule the behavior of not drawing what hung from a removed
+  shape, and **what it records is the rule and the one thing it replaces** — §9's "nothing is
+  rewritten" and ADR-0041's "an editor can delete a shape without repairing everything that
+  referenced it". **No new vocabulary, no name for the frozen position, and nothing said about
+  removals in general.** ADR-0041 itself is revised in place on the same date, since the alternative
+  was a second record a reader would have to find beside the first. **Its commitment is `working`,
+  deliberately** — that is the cheapest of the three to reverse, since reversing it is a new short
+  ADR naming what it replaces rather than a migration. The maintainer's condition and the commitment
+  are the same concern answered twice.
 
-- **Proposal**: name `diagram.rs:2350-2355` in the specification's **Testing expectations** on this
-  branch, beside the paragraph it already names, and correct both in the building stage.
-- **Altitude**: domain — it changes what the deciding branch claims, and the maintainer owns what
-  that branch merges. Confidence: high.
-- **If this is wrong**: the branch merges a specification saying "one place" beside two, and part
-  two corrects a paragraph it never mentioned.
-- **The alternative**: leave it, because `add_under` is
-  [#148](https://github.com/andresmoschini/monospace/issues/148)'s subject and ADR-0066's rather
-  than a removal's; the cost is a paragraph still asserting that a diagram offers no way to name a
-  shape into existence, beside a `load-bearing` record, on the branch that measured it false.
-- **Yours to answer**: yes — a second claim to carry changes a record this branch merges.
-- **Answer**: confirmed — both paragraphs, named in the specification's **Testing expectations** and
-  corrected in the building stage. `add_under` falsified both in the same way, and correcting one
-  and leaving the other splits one falsified claim into two with the second still standing beside a
-  `pub` method that contradicts it. Which portion found it is not a reason to leave it: the
-  specification named one place because only one had been found.
+## D3 — What a removal freezes
 
-## D4 — B3.4 counts the arrow's cells at ten, and it is six
+- **Question**: every position holding a reference to the removed identity, or only the ones that
+  resolve as it is taken out?
+- **Proposal**: only the positions that resolve now. A reference that does not resolve is left as it
+  is: still not drawn, and resolving again if the identity comes back. **Hypothetical, no code
+  produces either picture:**
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 12, "height": 3 } },
-  "next_id": 4,
-  "shapes": [
-    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-      "stroke": "light" },
-    { "kind": "box", "id": "#2", "at": { "x": 8, "y": 0 }, "size": { "width": 3, "height": 3 },
-      "stroke": "light" },
-    { "kind": "connector", "id": "#3",
-      "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right",
-          "offset": { "dx": 0, "dy": 0 } },
-        "leaving": "right", "terminal": { "kind": "arm" } },
-      "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
-        "terminal": { "kind": "arm" } },
-      "stroke": "light" } ] }
--->
+  ```text
+  the box taken out — the arrow frozen:    a reference never added:
+          ┌─┐                                      ┌─┐
+     ─────┤ │                                      │ │
+          └─┘                                      └─┘
+  ```
 
-```text
-┌──┐    ┌─┐
-│  ├────┤ │
-└──┘    └─┘
-```
+- **Altitude**: domain, the maintainer's — a caller observes what survives a removal.
+- **If this is wrong**: a removal destroys a reference it cannot replace, or freezes one to a point
+  never computed.
+- **The alternative**: rewrite every reference naming the identity, leaving unresolved ones alone.
+- **Answer**: **adopted, and stated in the maintainer's own terms**: a removal freezes **the
+  references naming the removed shape and nothing else**. A position pointing at some other shape is
+  not touched, and neither is a reference naming an identity that was never there — a case the
+  removal did not create, so the rule a caller reads is not the rule the removal changed.
 
-<!-- /render -->
+## D4 — Where the rewrite lives
 
-- **Proposal**: amend **B3.4** on this branch from ten to six, naming the measurement — the four
-  cells `{4, 1}`–`{7, 1}` the route writes and the two borders `{3, 1}` and `{8, 1}` it turns. The
-  **ten** belongs to B2.1, where it is the demonstration's `#10` and measurement confirms it.
-- **Altitude**: domain — it changes a count in a record this branch merges. Confidence: high, the
-  count is measured.
-- **If this is wrong**: the branch merges the one specification claim that is not true, and the ten
-  appears again in the checklist's note beside it.
-- **The alternative**: leave it, because the contract test compares the three routes against each
-  other rather than against a number — which is why it would then never be checked by anything.
-- **Yours to answer**: yes — the specification is the maintainer's artifact and this changes it.
-- **Answer**: confirmed — amend B3.4 on this branch from ten to six, naming the measurement. The ten
-  is measured and correct in B2.1, which is where it belongs; two arrangements sharing a count is
-  how one number reached the other, and a specification that carries it unmeasured is the one claim
-  on this branch that is not true. The contract test's comparison of the three routes against each
-  other is left as it is — the reason travels with the number rather than becoming an assertion.
+- **Proposal**: inside `remove`, in one pass, before the shape leaves.
+- **Altitude**: domain, the maintainer's — a caller observes whether the freeze happens or is asked
+  for.
+- **If this is wrong**: `remove` keeps its promise and the freeze becomes a sixth change a caller
+  must ask for, putting "what hung from it" behind a flag the issue never mentions.
+- **The alternative**: a new change beside `remove`, which lets a caller decline the freeze.
+- **Answer**: **adopted, and strengthened past the proposal: it must not be possible to remove a
+  shape without updating the references to it.** No flag, no separate change, no opt-out, and
+  therefore no sixth row in §9's table of five — `remove`'s row and its rustdoc are what change, and
+  the rustdoc's "changing nothing else" is what this slice corrects. **One mechanical consequence,
+  named so the implementer meets it in the plan rather than in the compiler**: a reference can only
+  be resolved while the shape is still held, and `Position::resolve` takes `&Diagram` where `remove`
+  holds `&mut self`. The rewrite is therefore **two passes** — collect every resolution, then write
+  them — and nothing about that is a decision.
