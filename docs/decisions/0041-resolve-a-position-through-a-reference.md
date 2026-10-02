@@ -1,5 +1,6 @@
 ---
 status: "accepted"
+commitment: working
 date: 2026-09-14
 decision-makers: "Andrés Moschini, with Claude Opus 5"
 ---
@@ -83,7 +84,10 @@ panic and no report. The rest of the diagram draws normally.
   layer above shapes inherits _Degenerate arrangements_ instead of becoming the exception to it.
 - Good, because an editor can delete a shape without repairing everything that referenced it, and
   can attach to a shape before adding it. Under option A both are errors, and the order in which a
-  diagram is assembled would start to matter.
+  diagram is assembled would start to matter. **[Superseded on this consequence by
+  [ADR-0068](0068-freeze-what-hung-from-a-removed-shape-where-it-stood.md): a removal now does
+  repair what referred to it, by freezing each reference at the point it was resolving to. The
+  resolution rule above, and the other six consequences, are unchanged.]**
 - Good, because the public API stays at what is used. A diagnostic query would be surface added for
   a consumer that does not exist yet, which is the thing the removal test exists to stop.
 - Good, because nothing has to be cycle-safe. A chain one link long has no traversal to protect, so
@@ -176,3 +180,18 @@ a legitimate state of a diagram under construction rather than an invalid one.
 - [The model](../model.md), _Degenerate arrangements_ — the rule this record extends to the layer
   above shapes.
 - [The diagram model](../diagram-model.md), _Positions_ — the prose this outcome is written into.
+
+## Revisions
+
+- 2026-09-14 — `commitment: working` added to the front matter, which this record did not carry. It
+  holds, something depends on it, and it is still under review: reversing the resolution rule would
+  be a new short ADR naming what it replaces rather than a migration of consumers, which is the
+  constitution's own definition of `working` and the maintainer's reasoning for this record on
+  2026-10-02.
+- 2026-10-02 — [ADR-0068](0068-freeze-what-hung-from-a-removed-shape-where-it-stood.md) contradicts
+  one consequence and is a revision of it rather than a second record beside it: "an editor can
+  delete a shape without repairing everything that referenced it". A removal now **does** repair
+  what referred to it, by freezing each reference naming the removed shape at the point it was
+  resolving to. What hangs from a removed shape stays drawn where it stood instead of disappearing,
+  which was never a decision anybody took here — it is what happened to nobody. The resolution rule
+  itself is not re-argued, and the other six consequences are untouched.

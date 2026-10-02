@@ -597,7 +597,7 @@ change to §3 landed (`505fd0d`).
       question is **dissolved rather than answered**, so nothing goes on the sheet and nothing goes
       in §11 (B1, B2, B3.4; SC-003; plan.md "Artifacts"; spec.md "What this slice implements")
 
-- [ ] T021 In `docs/decisions/`, write the record D2 answered — **one ADR for the freeze alone**.
+- [x] T021 In `docs/decisions/`, write the record D2 answered — **one ADR for the freeze alone**.
       Take the next free number in the directory — **0068** is free today, and if it is not when
       this task runs, take the next one and write down what it was rather than inventing a number —
       and name the file `0068-freeze-what-hung-from-a-removed-shape-where-it-stood.md`, verb first.
@@ -615,7 +615,7 @@ change to §3 landed (`505fd0d`).
       template's own words are the measure (Q5, Q7; D2; ADR-0035, ADR-0064; principle VI; principle
       VIII)
 
-- [ ] T022 In `docs/decisions/0041-resolve-a-position-through-a-reference.md`, add **one dated
+- [x] T022 In `docs/decisions/0041-resolve-a-position-through-a-reference.md`, add **one dated
       line** under its `## Revisions` — **2026-10-02**, naming the new record and what it changes:
       the consequence at line ~93, "an editor can delete a shape without repairing everything that
       referenced it", is the one consequence this record's subject contradicts, because it now
@@ -626,7 +626,7 @@ change to §3 landed (`505fd0d`).
       line saying why**: reversing the resolution rule is a new short ADR, not a migration.
       `cargo xtask numbering` is where a number not yet free shows up (D2; Q5)
 
-- [ ] T023 [P] Add the row for T021's record to `docs/decisions/README.md` **as a whole row** —
+- [x] T023 [P] Add the row for T021's record to `docs/decisions/README.md` **as a whole row** —
       link, title and status written out together. A partial edit to that table leaves the rest of
       the row on the line below and prettier then reflows the damage rather than rejecting it, which
       is silent corruption of the one table every record is listed in (AGENTS.md "Facts that are in
