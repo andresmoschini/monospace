@@ -100,9 +100,9 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 /// The changes it shows are meaningful only for that description, which is why a file the binary is
 /// handed goes through [`render_once`] instead.
 ///
-/// The first four pictures are about one figure, the entry the description lists first. The fifth
-/// and sixth are appended after them rather than interleaved, and are about two others. The
-/// identities are written out at each call rather than read back: a description names its shapes by
+/// The first four pictures are about one figure, the entry the description lists first. The fifth,
+/// sixth and seventh are appended after them rather than interleaved, and are about two others.
+/// The identities are written out at each call rather than read back: a description names its shapes by
 /// the identity it wrote, so the demonstration already knows which entry it means, and `get` offers
 /// no listing to read the names from.
 fn demonstrate(description: Description) -> String {
@@ -227,6 +227,27 @@ fn demonstrate(description: Description) -> String {
     out.push_str("\nWith the arrow displaced as well:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
+    // And now the figure the arrow hangs from is taken out, which is the seventh picture and the
+    // whole point of this increment: **the arrow goes with it, and nothing is drawn in either's
+    // place.** Twenty-two cells turn blank — the box's twelve and the arrow's ten — and the far box
+    // it reached for is untouched.
+    //
+    // **The missing `if let` is the claim here and not an oversight**, and it is the one step of the
+    // seven that breaks the pattern of the two above it. `Diagram::remove`'s own rustdoc says an
+    // identity this diagram does not hold "changes nothing, with no error, no report and no panic",
+    // so a description with no `#3` — an empty one, a one-shape one, or the shipped file with `#3`
+    // renamed — demonstrates through this call exactly as it does through the guarded ones. What
+    // would panic is `get`, which is why the third, fifth and sixth steps each ask it first. The
+    // three degenerate descriptions are what keep that difference safe, and two of them are pinned
+    // by the tests beside `an_empty_description_demonstrates_as_six_identical_pictures`.
+    //
+    // This is a step in the demonstration's own code and **not** a field in the description format
+    // (ADR-0035), beside the six changes it already makes, so `assets/demo.json` grows nothing and
+    // `cargo xtask render` regenerates nothing.
+    diagram.remove(&the_hung_from);
+    out.push_str("\nWith the box the arrow hangs from taken out:\n");
+    out.push_str(&picture(&diagram, &catalog, origin, size));
+
     out
 }
 
@@ -308,25 +329,32 @@ mod tests {
         serde_json::from_str(json).expect("well-formed description")
     }
 
-    /// The demonstration's **six** pictures, found by the blank line between them and returned
+    /// The demonstration's **seven** pictures, found by the blank line between them and returned
     /// without their captions, so nothing here pins a caption's wording.
     ///
     /// Each carries exactly the trailing newline `render` gives it. The last block already holds
     /// one, since nothing follows it, so it is stripped and put back rather than doubled, and the
-    /// six are then comparable with each other and with a picture drawn on its own.
+    /// seven are then comparable with each other and with a picture drawn on its own.
     ///
-    /// **The closure needed no change when the sixth arrived**, and that is worth knowing rather than
-    /// assuming: it splits on the blank line, strips the trailing newline and puts one back, and the
-    /// sixth block is the last of the output so the normalization the first five already get applies
-    /// to it identically. It is also why the sixth compared **equal to the fifth** before the rule
-    /// landed rather than one character apart — measured, and the reason no test pins the raw text.
-    fn demonstrated_pictures(json: &str) -> (String, String, String, String, String, String) {
+    /// **The closure needed no change when the sixth or the seventh arrived**, and that is worth
+    /// knowing rather than assuming: it splits on the blank line, strips the trailing newline and
+    /// puts one back, and each of the last two blocks is the last of the output, so the
+    /// normalization the first five already get applies to it identically. It is also why the sixth
+    /// compared **equal to the fifth** before the rule landed rather than one character apart —
+    /// measured, and the reason no test pins the raw text.
+    ///
+    /// **A seven-tuple rather than a `Vec<String>`, and the arity is part of every destructuring
+    /// site's type** — widening the return does not compile until the callers widen too, so this
+    /// could not have been a `refactor` of its own without a commit that changes nothing.
+    fn demonstrated_pictures(
+        json: &str,
+    ) -> (String, String, String, String, String, String, String) {
         let output = demonstrate(parse(json));
         let mut blocks = output.split("\n\n");
         let mut next_picture = || {
             let block = blocks
                 .next()
-                .expect("six captioned pictures, each after a blank line");
+                .expect("seven captioned pictures, each after a blank line");
             let (_caption, picture) = block
                 .split_once('\n')
                 .expect("a caption line precedes each picture");
@@ -334,6 +362,7 @@ mod tests {
         };
 
         (
+            next_picture(),
             next_picture(),
             next_picture(),
             next_picture(),
@@ -443,8 +472,9 @@ mod tests {
             "the tenth entry still spells its far endpoint outright"
         );
 
-        let (first, second, third, fourth, fifth, sixth) = demonstrated_pictures(super::DEMO);
-        let (first2, second2, third2, fourth2, fifth2, sixth2) =
+        let (first, second, third, fourth, fifth, sixth, seventh) =
+            demonstrated_pictures(super::DEMO);
+        let (first2, second2, third2, fourth2, fifth2, sixth2, seventh2) =
             demonstrated_pictures(&with_the_point);
         assert_eq!(
             (&first, &second, &third, &fourth, &fifth),
@@ -455,6 +485,11 @@ mod tests {
             sixth, sixth2,
             "the sixth picture differs between a spelled endpoint and a named one: both are this \
              slice's own step, and both reach the same cell two rows lower"
+        );
+        assert_eq!(
+            seventh, seventh2,
+            "the seventh picture differs between a spelled endpoint and a named one: it takes out a \
+             figure this slice names, and the tenth entry's far endpoint is not that figure"
         );
 
         // The first picture is the shipped file's own, byte for byte, and a path prints that and
@@ -470,21 +505,21 @@ mod tests {
         );
     }
 
-    /// User Story 3, spec's B3.1, B3.3 and SC-006: a bare run prints **six** captioned pictures and
-    /// the first is the description as written.
+    /// User Story 3, spec's B3.1, B3.3 and SC-006: a bare run prints **seven** captioned pictures
+    /// and the first is the description as written.
     ///
     /// The count comes from the blank lines the output holds, and no caption's wording is pinned —
-    /// what is claimed is that there are six of them and that the first is the one a file's run
-    /// prints on its own. The sixth is a caption like the other five, so the count is all this test
-    /// says about it; which picture it holds is `the_sixth_picture_moves_only_the_arrow`'s claim.
+    /// what is claimed is that there are seven of them and that the first is the one a file's run
+    /// prints on its own. The seventh is a caption like the other six, so the count is all this
+    /// test says about it; which picture it holds is `the_seventh_picture`'s claim.
     #[test]
-    fn a_bare_run_prints_six_captioned_pictures_the_first_being_the_description_as_written() {
+    fn a_bare_run_prints_seven_captioned_pictures_the_first_being_the_description_as_written() {
         let output = demonstrate(parse(super::DEMO));
 
         assert_eq!(
             output.split("\n\n").count(),
-            6,
-            "six captioned pictures, each after a blank line: {output:?}"
+            7,
+            "seven captioned pictures, each after a blank line: {output:?}"
         );
 
         let (first, ..) = demonstrated_pictures(super::DEMO);
@@ -670,20 +705,20 @@ mod tests {
         value.to_string()
     }
 
-    /// User Story 3, spec's B3.3, SC-004: an empty description demonstrates as **six** identical
+    /// User Story 3, spec's B3.3, SC-004: an empty description demonstrates as **seven** identical
     /// pictures and fails nothing.
     ///
     /// There is no back-most shape to move, no figure to displace, no shape to take out, no tenth
     /// entry to rehang and no third entry to displace, so every call in every picture is a no-op on
     /// an identity this diagram does not hold, and there is no branch here to get wrong.
     ///
-    /// **The sixth is the case worth having**: a description with no `#10` means the sixth step's
-    /// `get` returns `None`, so the step is a no-op and the sixth picture is the fifth — and that is
-    /// the `if let` earning its place rather than a guard against a panic. A sixth `assert_eq!` is
-    /// what makes the count six mean something rather than being a count of pictures the helper
-    /// happened to return.
+    /// **The seventh is the case worth having**: a description with no `#3` means the seventh step's
+    /// `remove` has nothing to take out — the one call here with no `if let` around it — and the
+    /// seventh picture is the sixth. That is the no-op the sixth step's `if let` earns its place
+    /// against, and a sixth `assert_eq!` is what makes the count seven mean something rather than
+    /// being a count of pictures the helper happened to return.
     #[test]
-    fn an_empty_description_demonstrates_as_six_identical_pictures() {
+    fn an_empty_description_demonstrates_as_seven_identical_pictures() {
         let pictures = demonstrated_pictures(
             r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
@@ -697,9 +732,10 @@ mod tests {
         assert_eq!(pictures.0, pictures.3);
         assert_eq!(pictures.0, pictures.4);
         assert_eq!(pictures.0, pictures.5);
+        assert_eq!(pictures.0, pictures.6);
     }
 
-    /// User Story 3, spec's B3.3, SC-004: a description holding exactly one shape demonstrates six
+    /// User Story 3, spec's B3.3, SC-004: a description holding exactly one shape demonstrates seven
     /// pictures and fails nothing.
     ///
     /// The reorder changes nothing, because that shape is both front-most and back-most. The
@@ -707,12 +743,12 @@ mod tests {
     /// three-row window, which the figure filled, so the third picture is that window with nothing
     /// in it. The fourth is the same, because the figure is taken out.
     ///
-    /// These six are therefore not identical, and no value of the delta would make them so: a
+    /// These seven are therefore not identical, and no value of the delta would make them so: a
     /// figure that fills its own window is moved partly or wholly out of it by any delta other than
-    /// none. What the rule asks of this case is that the run succeeds, which it does — and the fifth
-    /// and sixth add two more no-ops on identities a one-shape description does not hold, since it
-    /// has no `#3` and no `#10`. See the specification's Clarifications for the 2026-09-28 session,
-    /// which corrected this scenario on the evidence of this test.
+    /// none. What the rule asks of this case is that the run succeeds, which it does — and the fifth,
+    /// sixth and seventh add three more no-ops on identities a one-shape description does not hold,
+    /// since it has no `#3` and no `#10`. See the specification's Clarifications for the 2026-09-28
+    /// session, which corrected this scenario on the evidence of this test.
     #[test]
     fn one_shape_demonstrates_as_two_copies_of_itself_and_then_an_empty_window() {
         let pictures = demonstrated_pictures(one_box_json());
@@ -726,6 +762,10 @@ mod tests {
         // nothing. **A one-shape description is the case that would break if the `if let` around
         // that step were dropped**, which is why it is asserted rather than assumed.
         assert_eq!(pictures.4, pictures.5);
+        // And the seventh equals the sixth for the seventh step's version of the same reason: there
+        // is no `#3` to take out, so `remove` changes nothing. Worth having because the seventh step
+        // is the one that carries no guard — this assertion is what says the guard was not needed.
+        assert_eq!(pictures.5, pictures.6);
     }
 
     /// The two boxes' footprints at the fifth picture, and the one cell of the first that the arrow
@@ -769,7 +809,8 @@ mod tests {
     /// footprint that are not the attachment, and the assertion below is what rules it out.
     #[test]
     fn the_sixth_picture_moves_only_the_arrow() {
-        let (_first, _second, _third, _fourth, fifth, sixth) = demonstrated_pictures(super::DEMO);
+        let (_first, _second, _third, _fourth, fifth, sixth, _seventh) =
+            demonstrated_pictures(super::DEMO);
 
         let changed = differing(&fifth, &sixth);
         assert!(
@@ -806,6 +847,135 @@ mod tests {
             changed.contains(&(22, 6)),
             "the arrow's far end did not travel the two rows the demonstration's delta names: \
              {changed:?}"
+        );
+    }
+
+    /// The two territories the seventh picture's removal reaches: the box's own rectangle, and the
+    /// four rectangles the arrow's route and its head occupy.
+    ///
+    /// **Quoted rather than read from the code that produces them**, because a contract test that
+    /// asks the demonstration the same questions it answers itself checks nothing. `#3` is the
+    /// shipped description's third entry, a four-by-three box the fifth picture displaced four
+    /// columns right into `x 13..16, y 2..4`, and `#10` is the tenth entry, the arrow.
+    ///
+    /// **The arrow's ten are neither contiguous nor a rectangle, and that is why they are four
+    /// ranges rather than one.** Its top row is four cells at `x 16..19`, its two verticals sit at
+    /// `{19, 6}` and `{22, 6}`, and its bottom row is four at `x 19..22`. Reading the count off the
+    /// picture is exactly where a number like this goes wrong, so the count is asserted against the
+    /// sixth picture instead — these ranges are the bound, not the count.
+    fn the_removed_figures_footprint() -> [(Range<usize>, Range<usize>); 5] {
+        [
+            (13..17, 2..5),
+            (16..20, 5..6),
+            (19..20, 6..7),
+            (22..23, 6..7),
+            (19..23, 7..8),
+        ]
+    }
+
+    /// User Story 3, spec's B2.1, SC-001: the seventh picture differs from the sixth in exactly the
+    /// box's twelve cells and the arrow's ten, and **every one of the twenty-two turns blank**.
+    ///
+    /// Modelled on `the_sixth_picture_moves_only_the_arrow` and reusing its `differing` helper.
+    ///
+    /// **The second assertion is not optional, and twenty-two differing cells is only half the
+    /// claim.** A rule that drew *something* in the removed box's place — a frozen reference, a
+    /// stale route, a placeholder — would also produce exactly twenty-two differing cells, so the
+    /// count alone cannot tell a removal from a redrawing. What says a removal is that all
+    /// twenty-two hold a space afterwards.
+    ///
+    /// **The bound is exact rather than one-sided**, and `THE_ATTACHMENT` is the cell that makes it
+    /// exact: `{16, 3}` is inside `#3`'s own rectangle — the rectangle is the box and the box's
+    /// border is its rightmost column — and it changes as part of the box rather than as the arrow
+    /// leaving it. So all twelve of the footprint go and nothing else inside it does.
+    #[test]
+    fn the_seventh_picture() {
+        let (_first, _second, _third, _fourth, _fifth, sixth, seventh) =
+            demonstrated_pictures(super::DEMO);
+
+        let changed = differing(&sixth, &seventh);
+        assert_eq!(
+            changed.len(),
+            22,
+            "the seventh picture is the sixth with the box's twelve cells and the arrow's ten gone: \
+             {changed:?}"
+        );
+        assert!(
+            changed.iter().copied().all(|(x, y)| {
+                the_removed_figures_footprint()
+                    .iter()
+                    .any(|(columns, rows)| columns.contains(&x) && rows.contains(&y))
+            }),
+            "the removal changed a cell neither removed figure holds: {changed:?}"
+        );
+        assert!(
+            changed.contains(&THE_ATTACHMENT),
+            "the removed box's own attachment cell did not go with it: {changed:?}"
+        );
+
+        // **Every one of the twenty-two is a space in the seventh.** Not merely different: a rule
+        // that drew the route it had resolved to, or froze it where it stood, would pass the count
+        // and fail here.
+        let occupied = |(x, y): (usize, usize)| {
+            seventh
+                .lines()
+                .nth(y)
+                .and_then(|row| row.chars().nth(x))
+                .is_some_and(|glyph| glyph != ' ')
+        };
+        let left_drawing: Vec<(usize, usize)> =
+            changed.iter().copied().filter(|&at| occupied(at)).collect();
+        assert!(
+            left_drawing.is_empty(),
+            "something is drawn where the two removed figures stood: {left_drawing:?}"
+        );
+    }
+
+    /// User Story 3, spec's B2.3 and B2.2, SC-001: a description that **does** hold `#10` and
+    /// **does not** hold `#3` still demonstrates as seven pictures, and its sixth is its seventh.
+    ///
+    /// **This is the third of the three degenerate descriptions that make the seventh step's
+    /// missing `if let` safe, and the only one of the three that can catch a mistake.** The empty
+    /// description and the one-shape description both hold *nothing* the sixth step reaches either,
+    /// so they would pass against a seventh step that did anything at all to an empty diagram. This
+    /// one holds everything the sixth and seventh pictures are made of — the arrow, the box at
+    /// `{20, 1}`, the fifth entry the arrow's `to` names — and differs from the shipped description
+    /// in one thing: **`#3` is called something else.** So the seventh step's `remove` is a no-op on
+    /// an identity the diagram does not hold, and the seventh picture is the sixth.
+    ///
+    /// **If the seventh differed here, the step would be doing something other than a removal.**
+    /// That is the whole claim, and it is the one `research.md` Q4 does not reach.
+    ///
+    /// `#3` is renamed rather than removed, so the description still holds the same number of
+    /// figures and every other identity is untouched — a removal from the array would renumber
+    /// nothing but would leave a gap, and this test is about an identity that is *not there*, not
+    /// about one that was never written.
+    #[test]
+    fn a_description_naming_no_third_entry_still_demonstrates_and_its_seventh_is_its_sixth() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(super::DEMO).expect("the embedded description is well-formed");
+        for shape in value["shapes"]
+            .as_array_mut()
+            .expect("the description lists its shapes")
+        {
+            if shape["id"] == serde_json::json!("#3") {
+                shape["id"] = serde_json::json!("#99");
+            }
+        }
+        let renamed = value.to_string();
+        assert_ne!(
+            super::DEMO,
+            renamed,
+            "the third entry still carries the identity the seventh step removes"
+        );
+
+        let (_first, _second, _third, _fourth, _fifth, sixth, seventh) =
+            demonstrated_pictures(&renamed);
+
+        assert_eq!(
+            sixth, seventh,
+            "the seventh picture is not the sixth, so the seventh step did something other than a \
+             removal"
         );
     }
 }

@@ -357,7 +357,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
 
 ### Implementation for User Story 3
 
-- [ ] T012 [US3] In `crates/monospace-cli/src/main.rs`, add the **seventh** step to `demonstrate` —
+- [x] T012 [US3] In `crates/monospace-cli/src/main.rs`, add the **seventh** step to `demonstrate` —
       the block above, after the sixth picture's push at `main.rs:227-228`. `the_hung_from` is
       already bound at `main.rs:127`, so **no new name and no new delta**. The caption is the exact
       wording [data-model.md](data-model.md) gives — **no test pins it**, and no caption's wording
@@ -365,7 +365,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       the comment beside the step: `get` returning `None` would panic and `remove` cannot, which is
       why this step is the one that breaks the pattern of the two above it — and T016 measures why
       it is safe on the three degenerate descriptions (B2.1; plan.md measurement 2; ADR-0035)
-- [ ] T013 [US3] In the same file, turn `demonstrated_pictures` at **`main.rs:323`** from a
+- [x] T013 [US3] In the same file, turn `demonstrated_pictures` at **`main.rs:323`** from a
       six-tuple into a **seven**-tuple — the return type, the six `next_picture()` calls and the two
       `expect("six captioned pictures…")` messages — and fix the doc comment at `main.rs:311-322`,
       which reads "The demonstration's **six** pictures" and "the six are then comparable with each
@@ -378,7 +378,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       unchanged against a seven-tuple. **Count them yourself rather than from this list**, and if it
       comes out as something other than eleven write down what it came out as (B2.1; research.md Q4;
       constitution principle IV)
-- [ ] T014 [US3] In the same file, update the three tests whose **names and counts** say six.
+- [x] T014 [US3] In the same file, update the three tests whose **names and counts** say six.
       `a_bare_run_prints_six_captioned_pictures_the_first_being_the_description_as_written` at
       **`main.rs:481`** becomes
       `a_bare_run_prints_seven_captioned_pictures_the_first_being_the_description_as_written`, with
@@ -397,7 +397,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       `the_sixth_picture_moves_only_the_arrow` still describes the sixth, and
       `a_path_prints_one_picture_and_nothing_else` still describes a path (B2.2, B2.3; research.md
       Q4)
-- [ ] T015 [US3] Contract test: `the_seventh_picture` in `crates/monospace-cli/src/main.rs` — **the
+- [x] T015 [US3] Contract test: `the_seventh_picture` in `crates/monospace-cli/src/main.rs` — **the
       claim B2.1 makes and nothing else pins**. Model it on `the_sixth_picture_moves_only_the_arrow`
       at `main.rs:771` and reuse the `differing` helper at `main.rs:532`:
       `differing(&sixth,     &seventh)` must name **exactly 22** cells, and **every one of the
@@ -411,7 +411,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       verticals, four on its bottom row at `x 19..22` — because the arrow's ten are **neither
       contiguous nor a rectangle**, which is where reading the count off the picture goes wrong
       (B2.1; data-model.md "The demonstration's seventh picture, cell by cell")
-- [ ] T016 [US3] Measure the case research.md Q4 does **not** cover, because it is the one that can
+- [x] T016 [US3] Measure the case research.md Q4 does **not** cover, because it is the one that can
       hide a mistake: take the shipped `demo.json`, **rename `#3`** — the figure the seventh step
       removes — and run `demonstrated_pictures` over the result. Expected: **seven** pictures, and
       the **sixth equal to the seventh**, since the seventh step is then a no-op on an identity the
@@ -423,7 +423,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       say which you chose. This is the third of the three degenerate descriptions that make the
       missing `if let` in T012 safe, and the other two are T014's two (B2.3; quickstart.md, Commit
       2; plan.md measurement 2)
-- [ ] T017 [US3] The three diffs, run in one place, and they are the other side of every claim in
+- [x] T017 [US3] The three diffs, run in one place, and they are the other side of every claim in
       this phase. `sed -n '1,/With the arrow displaced as well:/p'` on `/tmp/demo-before.txt` and on
       a fresh `cargo run -q -p monospace-cli` must print **nothing**, which is B2.2 asked rather
       than assumed — the sixth caption is the split point precisely so the seventh is not compared;
