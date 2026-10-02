@@ -70,3 +70,17 @@ expression: body
   | 5,3 | ─     | Unset | light | Unset  | light | light |
   | 6,3 | ─     | Unset | light | Unset  | light | light |
   | 7,3 | ─     | Unset | Unset | Unset  | light | light |
+
+  shapes: [small_box(0,0,no fill), arm_connector(from = Reference(#1, Right, offset (0,0)) -> 7,1)]
+  change: the box taken out
+
+     ─────
+
+  wrote 5 of 24 positions
+  | at  | glyph | top   | right | bottom | left  | base  |
+  | --- | ----- | ----- | ----- | ------ | ----- | ----- |
+  | 3,1 | ─     | Unset | light | Unset  | Unset | light |
+  | 4,1 | ─     | Unset | light | Unset  | light | light |
+  | 5,1 | ─     | Unset | light | Unset  | light | light |
+  | 6,1 | ─     | Unset | light | Unset  | light | light |
+  | 7,1 | ─     | Unset | Unset | Unset  | light | light |

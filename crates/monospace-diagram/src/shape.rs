@@ -8,7 +8,7 @@ use monospace_core::{
 };
 
 use crate::position::{flat_size, side_centre};
-use crate::{Anchor, Delta, Diagram, Position};
+use crate::{Anchor, Delta, Diagram, Position, ShapeId};
 
 /// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
 ///
@@ -31,6 +31,37 @@ pub struct Endpoint {
     pub leaving: Direction,
     /// What this endpoint contributes to the cell at `at`.
     pub terminal: Terminal,
+}
+
+/// An endpoint's position, frozen against a removal of the shape `id` names, or `None` when there
+/// is nothing here to freeze.
+///
+/// Three arms and the second carries three of them, and **none of the three is a defensive check**:
+/// an absolute point has nothing to freeze and already resolves to itself; a reference naming
+/// **another** figure is not this removal's to reach; and a reference naming `id` that **does not
+/// resolve** is a broken reference the removal did not create, so the removal does not repair it.
+///
+/// That third one is the arm worth a reader's attention, and it is why the caller keeps a `Some`
+/// guard: a reference naming an identity that was never added comes back as itself and still
+/// resolves to nothing, exactly as before. Freezing it to nothing or dropping it would each be a
+/// second rule about removals, and neither is one.
+///
+/// `resolve` is asked rather than the anchor computed and the offset added by hand, because the
+/// offset is the gap and the gap is what moves with the side. Measured: the demonstration's arrow
+/// freezes to `{16, 5}`, which is `#3`'s right side centre at `{16, 3}` plus the offset `(0, 2)`
+/// the sixth picture grew.
+///
+/// It is crate-private because `remove` is the only consumer: the answer is a rewrite of a figure
+/// this diagram already holds, and there is nothing for a caller outside to do with it.
+impl Endpoint {
+    pub(crate) fn frozen_position(&self, id: &ShapeId, diagram: &Diagram) -> Option<Position> {
+        match &self.at {
+            Position::Reference(reference) if &reference.id == id => {
+                self.at.resolve(diagram).map(Position::Absolute)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// A figure a diagram can hold: one of a closed set of kinds, each carrying every position and
@@ -227,12 +258,64 @@ impl Shape {
             },
         }
     }
+
+    /// This figure with every reference **naming `id`** replaced by the point it was resolving to,
+    /// or `None` when this figure holds no such reference and nothing changed.
+    ///
+    /// **All three kinds are matched, and the two that cannot hold a reference today are matched on
+    /// purpose.** A `Box` and a `Line` hold their own `at` as a `Pos` rather than a `Position`, so
+    /// the model's restriction — only a connector's endpoint may name another figure — is the type
+    /// system's rather than a rule someone remembers. Each of those two arms becomes a
+    /// `Position::Reference` arm the day [#89](https://github.com/andresmoschini/monospace/issues/89)
+    /// widens it, and **nothing above this match changes**. Leaving them out would mean that
+    /// widening rewrote the method rather than two lines of it.
+    ///
+    /// **It answers `Option<Self>` rather than `Self`,** for three reasons that are not all about
+    /// tidiness. `None` is the ordinary answer and the crate already has that idiom — `Shape::anchor`
+    /// answers `None` for a connector and `Position::resolve` for a reference that does not resolve,
+    /// and neither is a failure. It is the shape that pays forward: the alternative pays a clone for
+    /// every figure on every removal, including the two that cannot change. And it **cannot report
+    /// a rewrite that changed nothing**, which a figure coming back equal to what went in cannot
+    /// distinguish from one that genuinely rewrote to the same value.
+    ///
+    /// **Both endpoints are rebuilt together, and that is what removes the need for anything that
+    /// remembers which end is which.** A connector may hang from the same figure at **both** ends,
+    /// at different anchors with different offsets, so the two frozen points differ: measured on a
+    /// four-by-three box at the origin, `from` on its right side at offset `(0, 0)` and `to` on its
+    /// bottom at offset `(1, 0)` freeze to `{3, 1}` and `{2, 2}`. An implementation that asked once
+    /// and wrote twice would put the first point into both ends. **Both answers are computed before
+    /// either endpoint is built**, the `(None, None)` arm is what says "this figure is not mine to
+    /// rewrite", and the two `unwrap_or_else` calls are what keep the endpoint that was not frozen
+    /// exactly as it was.
+    #[must_use]
+    pub(crate) fn with_frozen_references(&self, id: &ShapeId, diagram: &Diagram) -> Option<Self> {
+        match self {
+            Self::Box { .. } | Self::Line { .. } => None,
+            Self::Connector { from, to, stroke } => match (
+                from.frozen_position(id, diagram),
+                to.frozen_position(id, diagram),
+            ) {
+                (None, None) => None,
+                (new_from, new_to) => Some(Self::Connector {
+                    from: Endpoint {
+                        at: new_from.unwrap_or_else(|| from.at.clone()),
+                        ..from.clone()
+                    },
+                    to: Endpoint {
+                        at: new_to.unwrap_or_else(|| to.at.clone()),
+                        ..to.clone()
+                    },
+                    stroke: stroke.clone(),
+                }),
+            },
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{Delta, Endpoint, Shape};
-    use crate::Diagram;
+    use crate::{Anchor, Diagram, Position, Reference, ShapeId};
     use monospace_core::{
         Buffer, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, render,
     };
@@ -287,6 +370,89 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
+    }
+
+    /// The connector of _an endpoint hangs from a side_ with its `from` named as a **reference** to
+    /// `box_id`'s right side rather than as the point that side resolves to.
+    fn hanging_from(box_id: ShapeId) -> Shape {
+        Shape::Connector {
+            from: Endpoint {
+                at: Position::Reference(Reference {
+                    id: box_id,
+                    anchor: Anchor::Right,
+                    offset: Delta { dx: 0, dy: 0 },
+                }),
+                leaving: Direction::Right,
+                terminal: Terminal::Arm,
+            },
+            to: Endpoint {
+                at: Pos { x: 7, y: 1 }.into(),
+                leaving: Direction::Left,
+                terminal: Terminal::Arm,
+            },
+            stroke: light(),
+        }
+    }
+
+    /// User Story 1, spec's B1.1 and SC-001: `Shape::with_frozen_references` answers **`None` for
+    /// every figure holding no reference to the figure it is asked about** — over **all three
+    /// kinds** — and `Some` for the one that does.
+    ///
+    /// **Every one of the four is `None` and not a copy**, which is the whole claim. The alternative
+    /// signature returned the figure itself and let the caller assign unconditionally, and a figure
+    /// that comes back equal to what went in is indistinguishable from one that genuinely rewrote to
+    /// the same value — so a test pinning the rewrite could not tell a working method from a clone
+    /// that paid for every figure on every removal.
+    ///
+    /// **The `Box` and `Line` arms are what this test exists for.** Neither can hold a reference
+    /// today — their own `at` is a `Pos` — so the model's restriction is the type system's rather
+    /// than a rule someone remembers, and a `Box` answering `Some` is a clone being made for
+    /// nothing. Both are pinned here so that
+    /// [#89](https://github.com/andresmoschini/monospace/issues/89) widening them to a `Position`
+    /// is **two lines** rather than the method: the arms are already there to become
+    /// `Position::Reference` arms.
+    ///
+    /// **Asked of the method rather than through a `Diagram`.** A removal test would pass on a body
+    /// that never asked this method at all, and the figures are built as `Shape` values with a
+    /// diagram beside them for `resolve` to ask — the same way this module's existing tests build
+    /// theirs.
+    #[test]
+    fn a_figure_holding_no_reference_answers_nothing_and_one_holding_one_freezes() {
+        let mut beside = Diagram::new();
+        let named = beside.add(box_at(0));
+        let another = beside.add(box_at(8));
+
+        // The two kinds that cannot hold a reference today, the connector holding none, and the
+        // connector naming a figure that is not the one it is asked about.
+        for holds_nothing in [
+            box_at(0),
+            line_at(0),
+            connector(Terminal::Arm, Terminal::Arm),
+            hanging_from(another.clone()),
+        ] {
+            assert_eq!(
+                holds_nothing.with_frozen_references(&named, &beside),
+                None,
+                "{holds_nothing:?} held nothing to freeze, so this is not that case"
+            );
+        }
+
+        let holds_a_reference = hanging_from(named.clone());
+        let freezes = holds_a_reference
+            .with_frozen_references(&named, &beside)
+            .expect("a connector naming the figure it is asked about freezes");
+        let Shape::Connector { from, .. } = &freezes else {
+            unreachable!("the figure above is a connector")
+        };
+        assert_eq!(
+            from.at,
+            Position::Absolute(Pos { x: 2, y: 1 }),
+            "the end did not freeze at the point its reference was resolving to"
+        );
+        assert_ne!(
+            freezes, holds_a_reference,
+            "the frozen figure is the one that went in, so nothing changed"
+        );
     }
 
     /// User Story 1, spec's B3.4 scenario: a figure displaced by nothing at all comes back equal to

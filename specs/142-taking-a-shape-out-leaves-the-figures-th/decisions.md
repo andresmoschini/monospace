@@ -1,7 +1,7 @@
 # Decisions: Taking a shape out leaves the figures that hung from it where they were
 
 **Feature**: #142 | **Written**: 2026-10-01 | **Answered**: 2026-10-02 — all four, the proposal
-adopted in each
+adopted in each | **Revised**: 2026-10-02 — D4's mechanical consequence, measured and corrected
 
 **The four answers of the first run of this stage are void**, and there is no partial credit in
 them. They answered whether to record the question, which this slice no longer asks: the deciding
@@ -9,9 +9,10 @@ stage that merged as [#158](https://github.com/andresmoschini/monospace/pull/158
 issue's desire, declined it for want of a record, and left the question open. The issue's title is
 the maintainer's original and correct. `git log` carries the superseded sheet.
 
-Four entries, all domain-level, all the maintainer's, all adopted as proposed. **None carries a
-generated picture**: the subject that renders cannot be reached by a marker, a description having no
-field that takes a shape out
+Four entries, all domain-level, all the maintainer's, all adopted as proposed. **D4's answer stands;
+its mechanical consequence was wrong and is corrected below, dated** — nothing else moved. **None
+carries a generated picture**: the subject that renders cannot be reached by a marker, a description
+having no field that takes a shape out
 ([ADR-0064](../../docs/decisions/0064-give-each-generated-picture-the-carrier-that-can-reach-its-subject.md)),
 and the arrangement is drawn once in [spec.md](spec.md)'s **Behavior**.
 
@@ -84,8 +85,24 @@ and the arrangement is drawn once in [spec.md](spec.md)'s **Behavior**.
 - **Answer**: **adopted, and strengthened past the proposal: it must not be possible to remove a
   shape without updating the references to it.** No flag, no separate change, no opt-out, and
   therefore no sixth row in §9's table of five — `remove`'s row and its rustdoc are what change, and
-  the rustdoc's "changing nothing else" is what this slice corrects. **One mechanical consequence,
-  named so the implementer meets it in the plan rather than in the compiler**: a reference can only
-  be resolved while the shape is still held, and `Position::resolve` takes `&Diagram` where `remove`
-  holds `&mut self`. The rewrite is therefore **two passes** — collect every resolution, then write
-  them — and nothing about that is a decision.
+  the rustdoc's "changing nothing else" is what this slice corrects.
+- **Revised 2026-10-02, after measurement.** The answer stands; **the mechanical consequence this
+  entry named was wrong, and it is corrected here rather than left standing.** It read: _a reference
+  can only be resolved while the shape is still held, and `Position::resolve` takes `&Diagram` where
+  `remove` holds `&mut self`. The rewrite is therefore **two passes** — collect every resolution,
+  then write them._ The first half is right and is what survives: a reference resolves only while
+  the figure it names is still held, which is why the rewrite runs before the shape leaves. **The
+  second half does not follow from it.** Measured on the building branch,
+  `for placed in &mut self.shapes` writing `placed.shape` inside is `error[E0502]` — the mutable
+  borrow is live across the call — while `for at in 0..self.shapes.len()` compiles and is **one
+  pass**, collecting nothing. What the borrow actually forces is narrower and should have been said
+  instead: **a `&mut Shape` cannot be held across a call that wants the diagram.**
+- **Where the rewrite lives was the maintainer's call on 2026-10-02, and not a consequence of the
+  borrow.** It is **a method on `Shape`** — `Endpoint::frozen_position` and
+  `Shape::with_frozen_references`, both crate-private — and `remove` is the five lines that call it,
+  because `Diagram` already reaches into every figure it holds and which positions a figure has, and
+  what a frozen one is, belongs to the figure. That placement is **module-level and takes no entry
+  here**: a caller holds a `Diagram` either way and draws the same picture, so by the constitution's
+  own test nothing outside this module observes which of the two it is. All three kinds are matched,
+  and the two that cannot hold a reference answer `None` today, so #89 widens two lines of the match
+  rather than the method.

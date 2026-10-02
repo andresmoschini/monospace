@@ -78,6 +78,7 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0065](0065-name-a-shape-for-what-it-joins-not-for-the-head-it-may-carry.md)        | Name a shape for what it joins, not for the head it may carry                          | accepted                             |
 | [0066](0066-let-a-caller-choose-an-identity-and-say-where-the-numbering-resumes.md) | Let a caller choose an identity, and say where the numbering resumes                   | accepted                             |
 | [0067](0067-displace-a-figure-holding-a-reference-by-growing-its-offsets.md)        | Displace a figure holding a reference by growing its offsets                           | accepted                             |
+| [0068](0068-freeze-what-hung-from-a-removed-shape-where-it-stood.md)                | Freeze what hung from a removed shape where it stood                                   | accepted                             |
 
 ## How to add one
 
