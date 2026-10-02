@@ -71,7 +71,7 @@ and the same arrangement with **no connector in it at all** rather than off eith
 
 | The cell          | With the connector   | Without it |
 | ----------------- | -------------------- | ---------- |
-| `{3, 1}`          | `│`                  | `├`        |
+| `{3, 1}`          | `├`                  | `│`        |
 | `{4, 1}`–`{7, 1}` | written — four cells | blank      |
 | `{8, 1}`          | `┤`                  | `│`        |
 
@@ -79,6 +79,15 @@ Four written into blank ones and two borders turned. **The ten B3.4 named is mea
 and D4's answer amends the specification to six and names this measurement. The ten is the
 demonstration's own arrow in B2.1, where it is correct — two arrangements sharing a count is how a
 number reached the other.
+
+**The two border rows are written in opposite directions on purpose, and a reader who expects them
+to agree will read the first one backwards.** The connector _adds_ a branch at `{3, 1}` and _welds
+its arm into_ the border at `{8, 1}`: without it, `{3, 1}` is the box's own `│` and becomes a `├`
+where the route leaves, while `{8, 1}` is the far box's own `│` and becomes the `┤` the arm arrives
+at. Both are "the border with the arrow on it", and only one of them grows a new arm. This table
+carried `{3, 1}` the other way round — as `│` with the connector — and the count of six was right
+either way, which is how a wrong glyph survives a correction that checked the count and not the
+rows.
 
 ### The three routes, and why two of them are one picture
 

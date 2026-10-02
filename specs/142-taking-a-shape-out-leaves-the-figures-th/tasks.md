@@ -454,7 +454,7 @@ They are placed here rather than in the Polish phase because plan.md orders them
 — the first of them amends a count the measurement T011 now asserts, and the second is `docs(model)`
 which follows the rule, which is where 082's and 083's model amendments landed (`505fd0d`).
 
-- [ ] T018 [P] In `specs/142-taking-a-shape-out-leaves-the-figures-th/spec.md`, amend **B3.4**: the
+- [x] T018 [P] In `specs/142-taking-a-shape-out-leaves-the-figures-th/spec.md`, amend **B3.4**: the
       count of the arrow's cells goes from **ten to six**, naming the measurement — the four cells
       `{4, 1}`–`{7, 1}` its route writes and the two borders `{3, 1}` and `{8, 1}` it turns, read as
       the difference between this arrangement and the same arrangement with no connector in it.
