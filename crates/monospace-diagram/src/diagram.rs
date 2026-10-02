@@ -2747,6 +2747,13 @@ mod tests {
     /// are indistinguishable to a reader, and that the diagram stopped holding `#1` rather than
     /// merely stopped drawing it. Route A here is the specification's B3.1 — the **near box was
     /// never added at all**, not present and unreferenced.
+    ///
+    /// **One claim in this file is accepted here with nothing to verify it, and it is the one this
+    /// test's second comparison leans on**: that a removal leaves **every** other figure byte for
+    /// byte. What is asserted is that for the three figures this arrangement names. That is a claim
+    /// about the whole diagram rather than about the figure that went, and no single fixture can
+    /// establish it for every diagram — a fixture with more figures in it would be a different
+    /// test rather than a stronger one.
     #[test]
     fn a_removal_and_a_missing_identity_draw_the_same_thing() {
         let (origin, size) = the_arrangement_window();
@@ -2823,6 +2830,12 @@ mod tests {
     /// naming the identity sees a diagram that looks the same as before and hangs from nothing —
     /// which is what the last assertion is: **the two boxes and not the arrow**, a picture its
     /// author would take for a reference that still works.
+    ///
+    /// **This is the second of the three figures `a_removal_and_a_missing_identity_draw_the_same_
+    /// thing` names**, and it carries the same accepted claim that one does — that a removal leaves
+    /// every other figure byte for byte. It is named here too rather than in one place and assumed
+    /// at the other, because this test is where a caller would look for what a re-add does to the
+    /// picture around it.
     #[test]
     fn add_hands_back_an_identity_no_shape_holds_after_a_removal() {
         let (origin, size) = the_arrangement_window();

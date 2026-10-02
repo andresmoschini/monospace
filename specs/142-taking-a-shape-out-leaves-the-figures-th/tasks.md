@@ -509,7 +509,7 @@ their **edits** divide and their **commits do not** — plan.md's order is the o
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T022 Run `cargo xtask check` and confirm every step is green, **including `wasm`** — which
+- [x] T022 Run `cargo xtask check` and confirm every step is green, **including `wasm`** — which
       compiles `monospace-core`, `monospace-diagram` and `monospace-glyph-sets`, so it covers a
       slice that reaches nothing in the core (`remove`, `displaced_by` and `reference` appear
       **zero** times under `crates/monospace-core`, measured). Watch the **output** rather than the
@@ -519,7 +519,7 @@ their **edits** divide and their **commits do not** — plan.md's order is the o
       move**: no artifact in this slice carries a `<!-- render: -->` marker, because a marker reads
       a description the file carries and a description cannot take a shape out (ADR-0035, ADR-0064;
       SC-004)
-- [ ] T023 [P] Confirm the two claims this slice **accepts with nothing to verify it** are named as
+- [x] T023 [P] Confirm the two claims this slice **accepts with nothing to verify it** are named as
       such rather than described as tested, as principle IV asks and plan.md's re-check does on the
       spot: that **a removal leaves every other figure byte for byte** — a claim about the whole
       diagram rather than about the figure that went, which the contract tests verify for the three
@@ -529,7 +529,7 @@ their **edits** divide and their **commits do not** — plan.md's order is the o
       T008's doc comments, and for the second in **T006's**, where it belongs, and leave each where
       it is — **this task is a check that the record says so, not an edit** (constitution principle
       IV; plan.md "Re-checked after Phase 1")
-- [ ] T024 Take the counts this slice claims and check them rather than asserting them:
+- [x] T024 Take the counts this slice claims and check them rather than asserting them:
       `cargo test --workspace` green at **29 / 19 / 114 / 76 / 15 / 61**, which is today's **28 / 19
       / 114 / 72 / 15 / 61** plus four contract tests and one CLI test and **no test removed**.
       Confirm `grep -c '^[A-Z].*:$'` on a bare run answers **7**;
@@ -540,7 +540,7 @@ their **edits** divide and their **commits do not** — plan.md's order is the o
       characterization report is owed**: research.md Q6 measured 1916 renderings across 16 files and
       none of them can express a removal, which is why the gallery's snapshot is the **only**
       picture in the repository a removal can move (SC-004; research.md Q6; constitution, Testing)
-- [ ] T025 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T025 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and optionally a trade-off worth
       remembering. Four are already paid for and worth writing down rather than rediscovering — a
       **`remove` needs no `if let` where the three steps beside it each need one**, which is a fact

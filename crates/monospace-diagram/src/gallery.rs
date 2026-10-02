@@ -370,7 +370,13 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 /// the `#2` that stands in it, which is why it is blank where B1.1's hand-drawn one is not. The
 /// empty surface row says the number rather than leaving the impression, which is what makes it
 /// worth having at all: it is a snapshot, so a removal that ever began drawing the route — or
-/// freezing it where it had resolved — would write cells into that window and move it. **The one
+/// freezing it where it had resolved — would write cells into that window and move it.
+///
+/// **What the block is worth is a judgement and not a measurement, and it is accepted with nothing
+/// verifying it.** What it catches is measurable — the empty surface row says
+/// `wrote 0 of 24 positions`, the number rather than an impression — but what a reader makes of an
+/// empty window in a gallery is not. If a future reader decides a blank picture is not what this
+/// gallery is for, that is a call about the gallery rather than a failure of this rule. **The one
 /// thing that would change it is widening the arrangement to hold a second box**, so the block
 /// could carry B1.1's picture rather than its degenerate case; that moves all three blocks the
 /// snapshot already holds, it is **not** D2's answer, and it is named here so a maintainer can

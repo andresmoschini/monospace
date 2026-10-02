@@ -2420,3 +2420,69 @@ addition to `Delta`, one changed arm in `Position::displaced_by`, and one step i
   block is therefore `displaced_by`'s own output, which is what makes it drop a snapshot when the
   rule breaks. The cost is that the evidence for this rule lives in a `.snap` file rather than in a
   document, and a reader has to go looking for it.
+
+## Taking a shape out leaves what hung from it not drawn (issue #142)
+
+A slice that takes no decision: the rule the model already states gets a picture in the shipped run,
+four contract tests that fail if it is answered differently, two doc comments `add_under` falsified,
+and the two open questions written where a reader meets them.
+
+### Rust design and idiom
+
+- **A method's documented no-op is a fact about the method, not about the call site.** The third,
+  fifth and sixth steps of the demonstration each wrap their change in `if let`, because `get`
+  returning `None` would panic. The seventh takes a shape out and needs none, because
+  `Diagram::remove`'s rustdoc already says an identity the diagram does not hold "changes nothing,
+  with no error, no report and no panic". The difference is not a style preference — it is the only
+  reason the step is safe on a description that holds no `#3`, and **three degenerate descriptions
+  are what turn that from an assumption into a fact**: an empty one, a one-shape one, and the
+  shipped file with `#3` renamed. The third is the one worth keeping, because the first two would
+  pass against a seventh step that did anything at all to an empty diagram.
+- **A removal's silence and a missing identity are the same picture, and the only way to say so is a
+  test that puts them in one assertion.** Both are a reference naming an identity `get` does not
+  find, neither leaves a trace, and no prose distinguishes them for a reader. Written as two tests
+  they would each be satisfiable by a different answer; written as one comparison they cannot.
+- **A route's connector writes one more cell than a reader expects, and it is both endpoints.**
+  `arm_connector` from `{0, 0}` to `{2, 0}` writes `{0, 0}`, `{1, 0}` **and** `{2, 0}` — three
+  cells, where the reasoning that named the replacement's "own two cells" had counted the span
+  between the endpoints and forgotten the ends. Shortening the route to `{1, 0}` made the number
+  come out right and made the fixture the one the rest of the file already uses.
+
+### Working this way
+
+- **An inventory of the prose a change falsifies is a hypothesis.** The specification named one
+  place. Reading found three: two doc comments in `diagram.rs` and one consequence line in ADR-0041.
+  What made the third a fact rather than an opinion was not the reading — it was the test that
+  measured a removal followed by `add_under` restoring the picture byte for byte. Three claims were
+  falsified the same way, so they were corrected the same commit, which is what stops a public
+  method from standing next to prose that denies it.
+- **Two arrangements sharing a count is how a number from one reached the other.** The arrow in the
+  demonstration is ten cells; the arrow in the specification's own arrangement is six. The ten was
+  carried across, and the count was right in both places and wrong as a claim about either. The same
+  trap survived one commit longer in the same table: the count was corrected and measured by a test,
+  and the row under it still had its glyph backwards — `{3, 1}` is `├` with the connector and `│`
+  without, not the other way round. **A count that was checked while the rows under it went unread
+  is a count and a table that disagree.**
+- **B3.4 had already been corrected before the building branch opened.** The tasks file was written
+  against a branch state that had since moved: it asked for a count to be amended from ten to six,
+  and the spec already read six and already named the measurement. Worth reading the target before
+  editing it — the work that remained was the _other_ file the correction had left half-done.
+
+### Trade-offs worth remembering
+
+- **The gallery's fourth block is a blank picture, and it is kept on purpose.** It measures
+  `wrote 0 of 24 positions`, because the gallery's arrangement is one box and one connector and the
+  connector's `from` names the only other figure — so there is no survivor. The cost is a gallery
+  that ends in an empty window, and a maintainer has to be told in advance that this is the finding
+  rather than a defect. The benefit is that it is a snapshot: a removal that ever began drawing the
+  route, or freezing it where it had resolved, would write into that window and move it. Widening
+  the arrangement to hold a second box would give it the picture instead of its degenerate case, and
+  that moves all three blocks the snapshot already holds — named in the test's own doc comment so it
+  can be raised at review rather than discovered in a `.snap`.
+- **Two claims are accepted with nothing verifying them, and saying so is cheaper than a fixture
+  that cannot establish them.** That a removal leaves _every_ other figure byte for byte is a claim
+  about a whole diagram, and the contract tests verify it for the three figures their arrangement
+  names; a fixture with more figures in it would be a different test rather than a stronger one.
+  That the blank block is worth keeping is a judgement about a reader and an empty window. Both are
+  named as untested in the doc comments beside the assertions that lean on them, rather than
+  described as tested.
