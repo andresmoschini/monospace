@@ -2420,3 +2420,88 @@ addition to `Delta`, one changed arm in `Position::displaced_by`, and one step i
   block is therefore `displaced_by`'s own output, which is what makes it drop a snapshot when the
   rule breaks. The cost is that the evidence for this rule lives in a `.snap` file rather than in a
   document, and a reader has to go looking for it.
+
+---
+
+## 2026-10-02 — Taking a shape out freezes what hung from it
+
+Two crate-private methods and a five-line body, one ADR, four amended sections of the model, and a
+seventh picture in the shipped demonstration that is the sixth with the box gone and the arrow
+standing where it stood. Five commits, the first two of which are the whole increment.
+
+### Rust design and idiom
+
+- **A method that reads `&self` while its caller holds `&mut self` does not force two passes; it
+  forces you not to hold the borrow across the call.** The decision sheet named one mechanical
+  consequence and it was wrong: `Position::resolve` takes `&Diagram` where `remove` holds
+  `&mut self`, "therefore the rewrite is two passes". Measured, `for placed in &mut self.shapes`
+  writing `placed.shape` inside is `error[E0502]` and `for at in 0..self.shapes.len()` is one
+  statement per figure that compiles. The constraint is real and narrower than stated — a
+  `&mut Shape` cannot be held across a call that wants the diagram — so the loop indexes and ends
+  the borrow per statement, with no `Vec` and nothing collected. **A decision sheet can be wrong
+  about a mechanical consequence the compiler settles in one build.**
+- **One figure can hold two of the things being rewritten, and the fix that removes the whole class
+  is computing both answers before building either.** A connector may hang from the same figure at
+  both ends, and those are two different points: measured, `{3, 1}` and `{2, 2}` for a four-by-three
+  box at the origin. A method that collects `(index, point)` and then writes "the positions of that
+  figure still holding a reference" puts the first point into both ends and draws a route nobody
+  asked for. **No arrangement the slice already builds catches it**, which is why the test is
+  written for the arrangement twice on purpose: once asking the method over all three kinds, once
+  asking the diagram.
+- **Two kinds that cannot hold a reference today are matched on purpose, so the day they can, it is
+  two lines.** `Option<Self>` over a closed set of three variants is where a widening lands; leaving
+  the `Box` and `Line` arms out would mean #89 rewrote the method rather than two lines of it. It
+  also makes the model's restriction the type system's rather than a rule someone remembers, and it
+  is what lets `None` be the ordinary answer: a `Box` answering `Some` is a clone made for nothing,
+  and a figure that comes back equal to what went in cannot report that it rewrote nothing.
+- **`rustfmt` is not where an artifact's ceiling is met.** The ADR's 150-line measurement excluded
+  blank lines, fence markers, the head comment and the pictures, and it was **151** after
+  `cargo xtask fix` reflowed hand-written prose back to 100 columns. Getting under meant deleting
+  content — a duplicated bullet, a sentence about `wasm` the gate already reports, a clause in
+  Reversibility — not rewording. **Rewrapping is not a way under a ceiling, and a formatter will
+  undo the attempt.**
+
+### Working this way
+
+- **One existing test went red and the specification named none, so the measurement that catches
+  this is running the workspace against a written body.**
+  `taking_the_referenced_figure_out_stops_the_connector_and_changes_nothing_else` was the only test
+  the freeze broke, and research.md's inventory had been a `grep` for the _behavior_ rather than for
+  the issue's number. It found the prose and not the test. It is **rewritten rather than deleted**,
+  because both halves of its name were false under the rule, and its old assertion could not have
+  said where the arrow stands.
+- **A test's job is named by what it catches, and two guards catch two different wrong bodies.** The
+  design asked `a_removal_touches_nothing_else` to go red on the "never added" case when the guard
+  on _which_ figure a reference names is dropped. Measured, it does not: a reference to an identity
+  that resolves to nothing answers `None` with or without that guard, because `resolve` returns
+  nothing either way. That case catches a **dropped `Some(point)` guard**, and it only catches it
+  over an identity held by a figure answering no side, where the loop actually runs — an identity
+  never added makes `find` answer `None` and `remove` return before it. Both forms are now asserted,
+  and **the expectation in the task list was wrong in a way only running it found.**
+- **A `#[cfg(test)]` scratch module inside the file being measured is the cheapest spike there is.**
+  Every measurement in this increment was taken that way and the tree carried no trace of any of
+  them: the borrow check, the two frozen points, the twelve cells, the deliberate red, and the spike
+  that shows what the demonstration printed without the freeze.
+- **The demonstration could not show the rule, and that is why the seventh picture was not
+  optional.** T019 asked for the first-six-pictures diff to come back different when the freeze is
+  removed. Measured, it does not: the demonstration's fourth step removes `#1`, which holds no
+  reference, so nothing in the first six moves however `remove` is written. What comes back
+  different is the seventh, which draws **no arrow at all** with the freeze loop deleted. **A
+  demonstrable increment has to include the evidence, because the thing it demonstrates may be
+  invisible in what came before.**
+
+### Trade-offs worth remembering
+
+- **A frozen end is a point and a point has no side to name, so a put-back does not re-hang.** A
+  shape put back under the removed identity comes back and the connector does not follow it; put
+  back **displaced**, it slides away from the arrow rather than taking it, because a displacement
+  reaches any absolute position's coordinates. The cost is real and it is the price of not carrying
+  a record of what was frozen. The benefit is that a caller who wants the arrow to follow a
+  replacement can say so — by naming the reference again — and under the old rule there was nothing
+  to ask about at all.
+- **The freeze dissolves a question rather than answering it.** How anything would tell a removal
+  from a shape that was never there was §11's second bullet; three routes used to draw one picture
+  and now draw three, so nothing has to remember that a removal happened. The benefit is no flag, no
+  record and no sixth row in §9's table of five. The cost is a diagram whose purpose is to show
+  **which** figures were removed has nowhere to read that from, and nothing is marked as the missing
+  feature for it.

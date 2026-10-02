@@ -639,7 +639,7 @@ change to §3 landed (`505fd0d`).
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T024 Run `cargo xtask check` and confirm every one of the **twelve** steps is green,
+- [x] T024 Run `cargo xtask check` and confirm every one of the **twelve** steps is green,
       **including `wasm`** — which compiles `monospace-core`, `monospace-diagram` and
       `monospace-glyph-sets`, so it covers the new body with no change to `xtask` and no new check,
       which is why principle III's two-commit rule does not apply. The body reaches the core only
@@ -649,7 +649,7 @@ change to §3 landed (`505fd0d`).
       must still answer **26** pictures — measured on this branch — and `numbering` must be green,
       which is where `0068` shows as taken rather than free (SC-004; plan.md Constitution Check,
       principles III and VII)
-- [ ] T025 Confirm the two claims this slice **accepts with nothing to verify it** are named as such
+- [x] T025 Confirm the two claims this slice **accepts with nothing to verify it** are named as such
       rather than described as tested, as principle IV asks and plan.md's re-check does on the spot:
       that **a removal leaves every other figure byte for byte**, which is a claim about the whole
       diagram and which T005 checks only for the one shape it names; and that **two shapes under one
@@ -659,7 +659,7 @@ change to §3 landed (`505fd0d`).
       `data-model.md`'s "What the freeze is not" and T021's **Reversibility**, and leave each where
       it is — **this task is a check that the record says so, not an edit** (constitution principle
       IV; plan.md "Re-checked after Phase 1")
-- [ ] T026 Take the counts this slice claims and check them rather than asserting them:
+- [x] T026 Take the counts this slice claims and check them rather than asserting them:
       `cargo test --workspace` green at **29 / 19 / 114 / 78 / 15 / 61**, which is today's **28 / 19
       / 114 / 72 / 15 / 61** plus six tests and no test removed but T005's. Confirm no `.snap.new`
       file is left behind under `crates/monospace-diagram/src/snapshots/gallery/`, that
@@ -669,7 +669,7 @@ change to §3 landed (`505fd0d`).
       T019's. **No characterization report is owed**: research.md Q6 measured 1916 renderings across
       16 files and none of them can express a removal, because `remove` appears nowhere under
       `crates/monospace-core` and no sweep removes anything (SC-001, SC-004; research.md Q6)
-- [ ] T027 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [x] T027 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and optionally a trade-off worth
       remembering. Four are already paid for and worth writing down rather than rediscovering — **a
       method that reads `&self` while its caller holds `&mut self` does not force two passes, it
