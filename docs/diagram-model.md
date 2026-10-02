@@ -305,7 +305,9 @@ that is a reference is stated under _Positions_.
 
 Removing a shape leaves every reference to it unresolved, and those shapes stop being drawn. Nothing
 is rewritten and nothing cascades: the references stay as they were, and re-adding a shape with the
-same identity would make them resolve again.
+same identity would make them resolve again. Whether that silence is the right answer for a shape
+that is **gone** rather than coming is not settled, and the two open questions about it are in _Open
+questions_ ([#142](https://github.com/andresmoschini/monospace/issues/142)).
 
 Forward and backward at the end they are already at do nothing.
 
@@ -363,3 +365,27 @@ the slice.
   [ADR-0035](decisions/0035-keep-the-cli-demo-format-out-of-the-model.md) keeps the command-line
   application's file format out of the model, and nothing here reverses that. What would settle it:
   the first consumer that has to save a diagram rather than build one.
+- **Should what hung from a removed shape stay drawn?** A removal draws nothing that hung from the
+  shape that went, and that is what the paragraph above says and what _Positions_ already answers.
+  Issue #142 proposes the alternative: freeze each position holding a reference to the removed shape
+  at the absolute point it was resolving to, so everything hanging would stay drawn exactly where it
+  was. Nothing here refuses that and nothing implements it. What would settle it: the first consumer
+  that takes a shape out and expects the picture to keep what hung from it — **of which there is
+  none**, and the one coming is an editor.
+- **How would anything tell a removal from a shape that is not there?** Three routes reach one
+  picture, and **nothing in a diagram records which of the three happened** — so an answer to the
+  question above that treats a removal differently has to begin by remembering something the diagram
+  does not remember. The routes, with the arrow's own six cells gone in all three:
+  - **The identity was never added.** A connector's endpoint names an identity no shape is held
+    under, and the figure drawing nothing is the whole of the answer — a reference to a shape that
+    is _coming_ is a normal state, which is what ADR-0041 settled.
+  - **The identity was taken out.** The same endpoint over the same box, and the box removed. This
+    is the picture above, reached from the other side, and it is byte for byte the first one.
+  - **The identity is still held, by a figure that answers no side.** The same endpoint again, and a
+    connector now standing where the box stood. The identity is still there and still found; only
+    the figure changed kind, and the picture is the first one plus that connector's own two cells.
+
+  **The second question cannot be answered first.** Whatever the first answer turns out to be, this
+  is a consequence of it, so the two go on one sheet or on two **in that order** — a sheet that
+  answered them the other way round would be answering a question whose answer had not been chosen
+  ([#142](https://github.com/andresmoschini/monospace/issues/142)).

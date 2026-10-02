@@ -464,7 +464,7 @@ which follows the rule, which is where 082's and 083's model amendments landed (
       come from a measurement rather than from an edit. It follows the code because the count is
       measured rather than corrected on sight, and the measurement is what T011 now asserts — so the
       two land in the order the reason does (D4; quickstart.md, Commit 3; principle IV)
-- [ ] T019 In `docs/diagram-model.md`, take §9 _Changing a diagram_'s removal paragraph at
+- [x] T019 In `docs/diagram-model.md`, take §9 _Changing a diagram_'s removal paragraph at
       **`docs/diagram-model.md:306-308`** and append **one sentence** naming where the open question
       lives. **Check it says only that this one rule has a question standing next to it** — a note
       claiming the other rules are settled would be a new claim the slice has no standing to make,
@@ -473,7 +473,7 @@ which follows the rule, which is where 082's and 083's model amendments landed (
       and nothing cascades, and re-adding a shape with the same identity would make them resolve
       again. **§4 is not amended** — its two-row table already answers the question, and §9's table
       of five grows no row (B1.1; plan.md Design; spec.md "What this slice implements")
-- [ ] T020 In the same file, add **two** bullets to §11 _Open questions_. The first is the issue's
+- [x] T020 In the same file, add **two** bullets to §11 _Open questions_. The first is the issue's
       own question and it is the one on the sheet when it is answered: whether anything should
       happen at all to what hung from a removed shape, with the issue's proposal named — freeze each
       hanging position at the absolute point it was resolving to — and the trigger named as the
