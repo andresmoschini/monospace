@@ -120,6 +120,17 @@ to add to, so a displacement reaches its offsets instead, and displacing a conne
 holds a reference slides that endpoint rather than carrying the connector with the shape it hangs
 from. That is what makes a displacement a property of one figure rather than of a diagram.
 
+**Taking a shape out freezes what hung from it.** Every reference **naming the removed shape**
+becomes the absolute point it was resolving to at that moment, so what hung from it stays drawn
+exactly where it stood rather than being re-routed, dropped or repaired. A reference naming
+**another** shape is left exactly as it was, and so is one naming an identity the diagram does not
+hold: the removal did not create that broken reference and does not repair it. Only the figures that
+name the removed shape are rewritten, and only in the position that named it — which leaves every
+other figure byte for byte as a claim about a whole diagram rather than about the figure that moved,
+and no single arrangement establishes it for all of them. A frozen end is an ordinary absolute
+position, with no second kind of point and no name for it. The loop behind the rule is not visible
+from here and does not belong here.
+
 Nothing is the answer in two cases, and the model treats them as one:
 
 | The reference names                        | Resolves to |
@@ -167,6 +178,10 @@ an endpoint is the only position in this model that may be one. An endpoint atta
 moves when that shape moves, and a connector with an endpoint whose reference does not resolve is
 not drawn, by the rule in _Positions_: it is a shape whose position does not resolve. A connector
 with two attached endpoints is the figure this model exists to make possible.
+
+A **frozen** endpoint is attached to **nothing**: it is an absolute point like any other, so there
+is no side for it to name and no figure to name one against. That is the whole of what a removal
+does to an attachment, and _Positions_ is where the rule it follows is stated.
 
 The direction the connector leaves in and the terminal it carries are not derived from the
 attachment. They are the caller's. Deriving a direction from which side of a shape was attached to
@@ -303,9 +318,10 @@ once — a connector is not the exception to this. Displacing a figure builds a 
 nothing in a diagram; replacing is what puts the value in. What a displacement means for a position
 that is a reference is stated under _Positions_.
 
-Removing a shape leaves every reference to it unresolved, and those shapes stop being drawn. Nothing
-is rewritten and nothing cascades: the references stay as they were, and re-adding a shape with the
-same identity would make them resolve again.
+Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
+becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A
+shape put back under the removed identity is not re-hung from, because nothing went looking for the
+reference the frozen end was.
 
 Forward and backward at the end they are already at do nothing.
 
@@ -320,6 +336,8 @@ Forward and backward at the end they are already at do nothing.
   thing: the shape that held the reference is absent from the output and the rest of the diagram is
   unchanged.
 - A shape's identity survives a replacement and a reorder.
+- Taking a figure out leaves every figure that referenced it drawn exactly where it was, and the
+  rest of the diagram unchanged.
 - In an overlap, every position resolves to the front-most shape that decided it, and changing the
   order changes the answer.
 - A shape that stamps a position without changing anything there does not take it.

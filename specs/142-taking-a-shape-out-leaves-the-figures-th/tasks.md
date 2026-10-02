@@ -577,7 +577,7 @@ They are placed here rather than in the Polish phase because plan.md orders them
 the first of them is `docs(model)` and **follows** the rule, which is where 082's D3's one-sentence
 change to §3 landed (`505fd0d`).
 
-- [ ] T020 In `docs/diagram-model.md`, amend **four** sections and add nothing else. **§4
+- [x] T020 In `docs/diagram-model.md`, amend **four** sections and add nothing else. **§4
       _Positions_**, after the paragraph on displacement, gains the rule in a paragraph of its own:
       a removal replaces every reference **naming the removed shape** with the absolute point it was
       resolving to at that moment, so what hung from it stays drawn where it stood; a reference
