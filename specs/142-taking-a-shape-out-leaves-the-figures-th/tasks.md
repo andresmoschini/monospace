@@ -486,7 +486,7 @@ which follows the rule, which is where 082's and 083's model amendments landed (
       sheet or on two **in that order**, because a sheet that answered them the other way round
       would be answering a question whose answer had not been chosen. Amend no other section and add
       no other bullet (P2; SC-002; plan.md Decisions)
-- [ ] T021 [P] In `docs/decisions/0041-resolve-a-position-through-a-reference.md`, correct the line
+- [x] T021 [P] In `docs/decisions/0041-resolve-a-position-through-a-reference.md`, correct the line
       at **line 94** that reads "Today identities are generated rather than written, so there is
       nothing to mistype" — **false**, and ADR-0066 made it false: a caller writes an identity,
       `add_under` checks nothing, and a misspelling is silent, which is the exact cost that

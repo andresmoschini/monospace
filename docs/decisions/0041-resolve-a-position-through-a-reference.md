@@ -91,9 +91,10 @@ panic and no report. The rest of the diagram draws normally.
 - Bad, because a diagram that draws nothing and a diagram whose every reference is broken look
   identical, and nobody can ask why. This is the accepted cost, and it is the one the first editor
   will come back for; issue #88 is where it is written down.
-- Bad, because a mistyped identity is silent. Today identities are generated rather than written, so
-  there is nothing to mistype; the day they become editable, as the issue anticipates, this cost
-  grows and option C becomes the obvious answer.
+- Bad, because a mistyped identity is silent. **That cost has arrived**: identities became writable
+  with `add_under`, a caller writes the name and nothing checks it, so a misspelling is silent and
+  the figure it named simply does not draw. Option C is the obvious answer to that too, and it is
+  the same answer for the same reason — nothing in a diagram can be asked why it drew nothing.
 - Bad, because a box cannot sit relative to a box, which is half of what issue #62 asked for. The
   restriction buys the paragraph above and costs that, and issue #89 is where the half arrives —
   carrying the cycle obligation this record does not.
@@ -176,3 +177,18 @@ a legitimate state of a diagram under construction rather than an invalid one.
 - [The model](../model.md), _Degenerate arrangements_ — the rule this record extends to the layer
   above shapes.
 - [The diagram model](../diagram-model.md), _Positions_ — the prose this outcome is written into.
+
+## Revisions
+
+- 2026-10-02 — two claims corrected in place, and both were false on the branch that found them.
+  **The claim that a misspelled identity costs nothing today is no longer true**: `add_under`
+  arrived with [#148](https://github.com/andresmoschini/monospace/issues/148) and is `pub`, so a
+  caller writes an identity, nothing checks it, and a misspelling is silent — which is the exact
+  cost the paragraph above claimed was not yet being paid, in a `load-bearing` record. And **what a
+  removal leaves behind is a standing question rather than a settled answer**: a removal resolves
+  nothing and reports nothing, which is right for a reference to a shape that is coming and
+  unresolved for a shape that is gone, and nothing in a diagram tells the two apart. The three
+  routes are written out in the model's _Open questions_, and
+  [#142](https://github.com/andresmoschini/monospace/issues/142) is where they are answered. The
+  rule itself is unchanged, and so are this record's status and its title — which is why
+  `docs/decisions/README.md` is not edited.
