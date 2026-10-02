@@ -72,28 +72,33 @@ arms.
 ### B1 — Taking a shape out leaves what hung from it where it was
 
 1. **Given** the arrangement above, **When** the box the arrow hangs from is taken out, **Then** the
-   arrow is still drawn with its **six** cells unchanged, and the box is gone. No `<!-- render: -->`
-   marker can show this, a description having no field that takes a shape out:
+   arrow is still drawn and the box is gone. No `<!-- render: -->` marker can show this, a
+   description having no field that takes a shape out, so the picture below is **hand-drawn on the
+   spot from a measurement** ([research.md](research.md) Q7) rather than generated:
 
    ```text
-          ┌─┐
-     ├────┤ │
-          └─┘
+           ┌─┐
+      ─────┤ │
+           └─┘
    ```
 
-   **Hypothetical — no code produces this picture yet.**
+   **Ten cells change and nine of them blank, and all ten are the box's own drawn cells** — a
+   cleaner claim than the one this replaces. The arrow's five route cells `{4, 1}`–`{8, 1}` are
+   **byte for byte what they were**. The tenth is `{3, 1}`, where the box's `│` used to compose with
+   the arrow's arm into `├` and the arm now stands alone:
 
-   **Nine cells change and all nine blank** — the box's drawn cells, and not one cell of the arrow.
-   That is arithmetic on two measurements rather than a third: the removal **as it stands** changes
-   **15**, and the arrow's footprint is **6** of those 15, so 15 − 6 = 9. `{3, 1}` is the cell to
-   look at — `├` before and `├` after, because the box's `│` was composed there with the arrow's arm
-   and now the arm stands alone.
+   **A cell carrying one arm renders as the run through it**, which is why the lone arm reads `─`
+   rather than a half-line, and why this is the one cell where the freeze shows as a glyph rather
+   than as a blank. An earlier draft of this specification asserted `├` there without running it.
 
 2. **Given** the arrangement with that box taken out, **When** the box is put back under the same
-   identity with `add_under`, **Then** the arrow draws and the box draws where it stood, but
-   **nothing is re-attached**: the arrow's `from` is still a plain point and the put-back does not
-   reach it. **The picture does not come back byte for byte** — P3 is why, and which cells differ is
-   a measurement for the building stage rather than a claim here.
+   identity with `add_under`, **Then** the picture comes back **byte for byte**, measured: the
+   frozen point is the point the reference was resolving to, so a box put back at its own place
+   composes with the same arm into the same `├`. **Nothing is re-attached** — the arrow's `from` is
+   still a plain point and nothing goes looking for the reference it was — and P3 is what makes the
+   two compatible. The cost of P3 is narrower than it looks: a box put back **displaced**, or as
+   another kind, leaves the arrow where it was rather than hanging from it.
+
 3. **Given** that same arrangement, **When** a shape is added the ordinary way, **Then** the
    identity handed back is not the removed one — `#4` where `#1` stood — and the arrow is still
    drawn.
@@ -118,21 +123,24 @@ arms.
    the format ([ADR-0035](../../docs/decisions/0035-keep-the-cli-demo-format-out-of-the-model.md)):
 
    ```text
-   With the arrow displaced as well:             With the box the arrow hangs from taken out:
-                 ┌──┐    ┌──┐    +--+                          ┌──┐    ┌──┐    +--+
-     ┌──┐ ┌──┐       │ ┌┼─┐  │ ++-+  | ┌┼─┐        ┌──┐ ┌──┐       │ ┌┼─┐  │ ++-+  | ┌┼─┐
-     │░░│ │░░│  ┌──┐ └─┼┘ │  └─+┘ |  +-┼+ │        │░░│ │░░│  ┌──┐ └─┼┘ │  └─+┘ |  +-┼+ │
-     └─┬┘ └──┘  │░░│   └──┘    +--+    └──┘        └─┬┘ └──┘  │░░│   └──┘    +--+    └──┘
-       │        └──┘                                 │        └──┘
-   ┌───┼───        ───┐                          ┌───┼───        ───┐
-   │   │              │  ▲                       │   │              │  ▲
-   │                  └──┘                       │                  └──┘
+                     ┌──┐    ┌──┐    +--+
+     ┌──┐ ┌──┐       │ ┌┼─┐  │ ++-+  | ┌┼─┐
+     │░░│ │░░│       └─┼┘ │  └─+┘ |  +-┼+ │
+     └─┬┘ └──┘         └──┘    +--+    └──┘
+       │
+   ┌───┼───        ───┐
+   │   │              │  ▲
+   │                  └──┘
    ```
 
-   **Hypothetical**, for B1.1's reason, and measured rather than drawn: the step changes **22**
-   cells today and blanks every one — the box's twelve and the arrow's ten — so under the freeze it
-   changes **12** and blanks all twelve, the box's and none of the arrow's. That is 22 − 10, and the
-   arrow's ten are not a rectangle, which is where reading the count off the picture goes wrong.
+   **Measured** ([research.md](research.md) Q7) and **hand-drawn on the spot**, for B1.1's reason.
+   The five rows the change does not touch — a blank and the stroke gallery — are left out and the
+   run prints them. The sixth is what the shipped run prints today, and the seventh is the sixth
+   with the box gone: **the box's three rows go, not only its middle one**, the arrow's ten cells
+   are byte for byte what they were, and **twelve cells change and all twelve blank** — the whole
+   `x 13..16, y 2..4` rectangle. The step changes **22** cells today, the box's twelve and the
+   arrow's ten, which is where 22 − 10 = 12 comes from; the arrow's ten are neither contiguous nor a
+   rectangle, which is where reading that count off a picture goes wrong.
 
 2. **Given** the first six pictures and the shipped `assets/demo.json`, **When** they are compared
    with today's, **Then** all six are byte for byte what they are, the file is untouched, and a path
@@ -160,11 +168,12 @@ arms.
 
 ## Testing expectations
 
-- **Contract** — the freeze as asked and then drawn: the arrow's six cells byte for byte what they
-  were, the box's nine drawn cells blank, every other figure unchanged, the six asserted against the
-  **no-connector baseline** rather than quoted so that the claim is a measurement; and the put-back
-  re-attaches nothing, `get` answering a figure whose `from` is a plain point after `add_under` with
-  the removed identity.
+- **Contract** — the freeze as asked and then drawn: the arrow's five route cells `{4, 1}`–`{8, 1}`
+  byte for byte what they were, `{3, 1}` reading `─` rather than `├`, the box's ten drawn cells
+  gone, no other cell changed — the count asserted against the **no-connector baseline** rather than
+  quoted, so the claim is a measurement rather than a number. And the put-back in place comes back
+  **byte for byte** while re-attaching nothing: `get` answers a figure whose `from` is a plain point
+  after `add_under` with the removed identity.
 - **Contract** — the three routes of B2 as one test, **comparing whole buffers now that they
   differ**: the taken-out route is neither of the other two, which is the comparison the freeze
   retires.
