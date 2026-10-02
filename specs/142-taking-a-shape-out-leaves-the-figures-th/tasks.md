@@ -95,7 +95,7 @@ No setup is needed: no dependency is added, no crate is added, the toolchain is 
 gate step is added — `wasm` already compiles `monospace-diagram` (plan.md Constitution Check,
 principles III and VII). T001 captures what must not move before anything is edited.
 
-- [ ] T001 Run the three baseline commands and keep the output:
+- [x] T001 Run the three baseline commands and keep the output:
       `cargo run -q -p monospace-cli > /tmp/demo-before.txt` then
       `grep -c '^[A-Z].*:$' /tmp/demo-before.txt`, which must print **6**;
       `cargo run -q -p monospace-cli crates/monospace-cli/assets/demo.json > /tmp/file-before.txt`;
@@ -186,7 +186,7 @@ pub fn remove(&mut self, id: &ShapeId) {
 }
 ```
 
-- [ ] T002 In `crates/monospace-diagram/src/shape.rs`, add the two methods above, and in
+- [x] T002 In `crates/monospace-diagram/src/shape.rs`, add the two methods above, and in
       `crates/monospace-diagram/src/diagram.rs` replace the body of `remove` with the third. **Four
       things in the code are the rule rather than style, and each is measured in `data-model.md`.**
       **(1) The loop indexes instead of iterating, and this is where the borrow decides the shape of
@@ -226,7 +226,7 @@ pub fn remove(&mut self, id: &ShapeId) {
       rewritten and then dropped a line later, and excluding it would cost a comparison to buy
       nothing (B1.1, SC-001; D3, D4; data-model.md "`Diagram::remove` — five lines, and the one
       thing in it that is not obvious")
-- [ ] T003 In the same file, rewrite the **two sentences of `remove`'s own rustdoc** that T002 makes
+- [x] T003 In the same file, rewrite the **two sentences of `remove`'s own rustdoc** that T002 makes
       false, in the same commit that makes them false — a rustdoc is code. The first is **line
       146**, which reads "Takes the shape named by `id` out of the diagram, **changing nothing
       else**", and the second is **line 151**, which reads "a removal changes the holding and
@@ -240,7 +240,7 @@ pub fn remove(&mut self, id: &ShapeId) {
       all, which B1.2 depends on (SC-003; D4; data-model.md "`Diagram::remove` — five lines, and the
       there are two")
 
-- [ ] T004 In the same file, correct the doc comment of
+- [x] T004 In the same file, correct the doc comment of
       `a_figure_put_back_under_the_removed_identity_draws_the_connector_again` at **lines
       2543-2552** — **and this one is false twice over, so fix both halves in this commit and not
       one now and one later.** Its paragraph claims that "`remove` frees an identity permanently —
@@ -291,7 +291,7 @@ the box back under the same identity and the whole picture returns byte for byte
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] **Rewrite, not delete**,
+- [x] T005 [US1] **Rewrite, not delete**,
       `taking_the_referenced_figure_out_stops_the_connector_and_changes_nothing_else` at
       `crates/monospace-diagram/src/diagram.rs:2505`, and rename it to what is now true —
       `taking_the_referenced_figure_out_leaves_the_connector_where_it_was_and_changes_nothing_else`.
@@ -310,7 +310,7 @@ the box back under the same identity and the whole picture returns byte for byte
       B3.1 and SC-004; cite B1.1 and SC-001 beside it and say what changed and why (B1.1, SC-001;
       data-model.md "The pictures the rule draws")
 
-- [ ] T006 [US1] Contract test: `a_removal_freezes_what_hung_from_the_removed_shape` in
+- [x] T006 [US1] Contract test: `a_removal_freezes_what_hung_from_the_removed_shape` in
       `crates/monospace-diagram/src/diagram.rs`, **asked and then drawn**, which is the spec's
       wording and the order it asks for. By value: build the arrangement through the helpers already
       in that module, resolve `from` **before** the removal and hold the point, take the box out,
@@ -324,7 +324,7 @@ the box back under the same identity and the whole picture returns byte for byte
       the reason research.md Q7's two corrections happened: the count **10** is not `15 − 6`,
       because `{3, 1}` changes glyph rather than going blank. A number written into the test is the
       thing that was wrong (B1.1, SC-001; quickstart.md "Commit 1")
-- [ ] T007 [US1] Contract test:
+- [x] T007 [US1] Contract test:
       `a_figure_holding_no_reference_answers_nothing_and_one_holding_one_freezes` in
       `crates/monospace-diagram/src/shape.rs` — **the new method's own contract, over all three
       kinds**, and the only task whose file is `shape.rs`. Four figures answer `None`: a `Box`, a
@@ -342,7 +342,7 @@ the box back under the same identity and the whole picture returns byte for byte
       never asked it (D3; data-model.md "`Shape::with_frozen_references` — all three kinds, and why
       `Option`")
 
-- [ ] T008 [US1] Contract test: `a_shape_put_back_under_the_removed_identity_is_not_re_attached` in
+- [x] T008 [US1] Contract test: `a_shape_put_back_under_the_removed_identity_is_not_re_attached` in
       the same file — **B1.2 and B1.3 together**, because both are about what comes back. Put the
       box back **in place** under the removed identity with `add_under` and assert the picture is
       byte for byte the pre-removal one, while `get` answers a figure whose `from.at` is a plain
@@ -355,7 +355,7 @@ the box back under the same identity and the whole picture returns byte for byte
       issue and a put-back does not un-issue it (B1.2, B1.3, SC-001; data-model.md "The derived
       arrangements, stated rather than discovered")
 
-- [ ] T009 [US1] In `crates/monospace-diagram/src/gallery.rs`, add the **fourth** `block()` to
+- [x] T009 [US1] In `crates/monospace-diagram/src/gallery.rs`, add the **fourth** `block()` to
       `an_endpoint_hangs_from_a_side_and_follows_it`, with the change named `the box taken out`. Two
       things about it were measured rather than assumed, and both are the kind of thing that is easy
       to get backwards. **It is reached from a third `Diagram` in the same test, not from the block
@@ -402,7 +402,7 @@ other two while the other two still equal each other (spec.md B2.1; SC-002).
 
 ### Tests for User Story 2
 
-- [ ] T010 [US2] Contract test: `the_three_routes_to_one_picture_are_not_one_picture_now` in
+- [x] T010 [US2] Contract test: `the_three_routes_to_one_picture_are_not_one_picture_now` in
       `crates/monospace-diagram/src/diagram.rs` — **B2.1**, and its doc comment must carry the
       reason the spec gives for one test rather than three. The **taken-out route is compared
       against both of the others and against neither**, which only one place can ask: separately,
@@ -414,7 +414,7 @@ other two while the other two still equal each other (spec.md B2.1; SC-002).
       SC-002 and says that the third picture's differing is what dissolves §11's second question
       rather than answering it (B2.1, SC-002; P3)
 
-- [ ] T011 [US2] Contract test: `two_connectors_from_one_figure_both_freeze_at_their_own_points` in
+- [x] T011 [US2] Contract test: `two_connectors_from_one_figure_both_freeze_at_their_own_points` in
       the same file — the specification's _Edge cases_, which is P1 applied **twice** and not a
       cascade. Two connectors hang from the same box at **different anchors and different offsets**,
       so the two frozen points are different, and each connector freezes at its own: assert each
@@ -424,7 +424,7 @@ other two while the other two still equal each other (spec.md B2.1; SC-002).
       arrangement is not the one T006 already builds. Draw it as well, since the claim is that the
       picture holds two arrows where it held none (spec.md _Edge cases_; SC-001)
 
-- [ ] T012 [US2] Contract test: `a_removal_touches_nothing_else` in the same file — **D3's "and
+- [x] T012 [US2] Contract test: `a_removal_touches_nothing_else` in the same file — **D3's "and
       nothing else"**, which is a claim about the whole diagram and so deserves its own. Three
       diagrams, one assertion each, and each is a way the rule could be wrong: (1) a connector whose
       `from` names an identity that was **never added**, in a diagram where a removal naming
@@ -440,7 +440,7 @@ other two while the other two still equal each other (spec.md B2.1; SC-002).
       failure because it computes both answers before it builds either endpoint (D3; data-model.md
       "`Shape::with_frozen_references` — all three kinds, and why `Option`")
 
-- [ ] T013 [US2] **Make the rule fail on purpose before trusting it**, and fail it in a way that
+- [x] T013 [US2] **Make the rule fail on purpose before trusting it**, and fail it in a way that
       isolates **D3's answer** from the mechanism. Drop the guard on _which_ figure a reference
       names, turning `Position::Reference(reference) if &reference.id == id => {` in
       `Endpoint::frozen_position` into `Position::Reference(_) => {` — which is "rewrite every

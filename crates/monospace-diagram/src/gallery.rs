@@ -359,30 +359,43 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 
 /// The first block is the model's §6 _Attachment_ reached with a reference where the model spells
 /// the point; the second is the same diagram with the box displaced four cells right, so the arrow
-/// follows the side it hangs from; and the third is the arrangement as written with the **connector**
-/// displaced two cells down, so the arrow slides off that side and draws as a translation of itself.
+/// follows the side it hangs from; the third is the arrangement as written with the **connector**
+/// displaced two cells down, so the arrow slides off that side and draws as a translation of itself;
+/// and the fourth is the arrangement as written with the box **taken out**, so the arrow stands
+/// exactly where it stood and what is left of it is the arrow alone.
 ///
-/// All three are in one snapshot because what a reader is meant to see is them together, and the two
-/// displacements are the two directions of one rule: displacing the figure a reference hangs from
-/// carries the endpoint, displacing the figure that holds the reference moves it, and the pair is
-/// what makes the difference visible rather than asserted. The third block is **drawn by
-/// `displaced_by`** rather than built from the two positions the rule yields by hand, so a rule that
-/// stopped holding drops this snapshot instead of leaving a picture that no longer matches the code
-/// (B1.1, B3.4, §4 of the model).
+/// All four are in one snapshot because what a reader is meant to see is them together, and the three
+/// changes are three directions of one rule: displacing the figure a reference hangs from carries the
+/// endpoint, displacing the figure that holds the reference moves it, and taking the figure away
+/// freezes the endpoint where it stood. The pair of displacements and the removal are what makes the
+/// difference visible rather than asserted. **The fourth block is drawn by `remove` itself** rather
+/// than built by hand from the two positions the rule yields, and that is the whole reason it is in
+/// the gallery: a freeze that stopped holding would drop this snapshot instead of leaving a picture
+/// that no longer matches the code (B1.1, B3.4, §4 of the model).
+///
+/// **The three later blocks are each reached from a diagram built for that block**, and the cost is
+/// a second and a third `Diagram` in this test rather than a `get` and a `replace`. The reason is
+/// measured rather than stylistic: the second block leaves the box's right side centre on `{7, 1}`,
+/// which is where the connector's own free end already stood, so a change applied to *that* diagram
+/// would be a change to something degenerate; and a removal of a figure the arrow's reference is
+/// already resolving somewhere else would freeze the arrow **displaced**, which is a fourth picture
+/// of a different claim from B1.1's. Reaching the arrangement as written is also what keeps every
+/// block comparable with the first: they differ by the one change between them and by nothing else.
 ///
 /// **The label names three values now, because the reference holds three.** A block cannot print a
 /// shape for itself — a `Diagram` offers one query by an identity and no listing — so this string
 /// is written by hand, and a hand-written label that named two of a reference's three values would
 /// let a reader assume a third default. `offset (0, 0)` is what says the arrow stands *on* the
-/// side rather than beside it. The offset is drawn nowhere in any of the three pictures, and §6's
+/// side rather than beside it. The offset is drawn nowhere in any of the four pictures, and §6's
 /// stays exactly as the model spells it.
 ///
 /// This is no longer the only carrier in the crate that can reach a reference: since #83 a
 /// `<!-- render: -->` marker reads a description whose `at` may hold one (D2, ADR-0035). The block
-/// stays here rather than moving to a marker because the three blocks are one snapshot and a marker
+/// stays here rather than moving to a marker because the four blocks are one snapshot and a marker
 /// renders one picture per description (ADR-0064). It is also the only carrier that can reach a
-/// **displacement** at all: a marker reads a description and a description carries no field for one
-/// (ADR-0035), so no marker anywhere in the repository can hold a picture of this rule.
+/// **displacement** or a **removal** at all: a marker reads a description and a description carries
+/// no field for either (ADR-0035), so no marker anywhere in the repository can hold a picture of
+/// either rule.
 #[test]
 fn an_endpoint_hangs_from_a_side_and_follows_it() {
     let labelled =
@@ -438,8 +451,32 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
         &from_as_written,
     );
 
+    // And the fourth takes the box away, which is the rule 142 lands: **the arrow stands exactly
+    // where it stood**, because the end that referenced the box froze at the point it was resolving
+    // to rather than dropping the connector or re-routing it to nothing.
+    //
+    // **Reached from a third diagram in this test**, for the reason the third block needed a second:
+    // the two blocks above leave `#1` displaced four cells right, and a removal of a figure the
+    // arrow's reference is already resolving somewhere else freezes the arrow **displaced** — a
+    // fourth picture of a different claim, not B1.1's.
+    //
+    // **`window(8, 3)`, and this is the opposite of the row above.** That one grew to a fourth row
+    // because a displacement lands the connector lower; a removal lands nothing, so a window of
+    // `window(8, 4)` comes back with a fourth row of **nothing** in it. A snapshot that grew a
+    // fourth empty row is therefore the signature here of a window widened for no reason.
+    let mut with_the_box_taken_out = Diagram::new();
+    let the_removed = with_the_box_taken_out.add(small_box(at(0, 0), None));
+    with_the_box_taken_out.add(hanging_connector(the_removed.clone()));
+    with_the_box_taken_out.remove(&the_removed);
+    let fourth = block(
+        labelled,
+        "the box taken out",
+        window(8, 3),
+        &with_the_box_taken_out,
+    );
+
     snap(
         "an_endpoint_hangs_from_a_side_and_follows_it",
-        &format!("{first}\n{second}\n{third}"),
+        &format!("{first}\n{second}\n{third}\n{fourth}"),
     );
 }

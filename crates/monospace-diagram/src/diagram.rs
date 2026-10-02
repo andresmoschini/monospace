@@ -143,20 +143,47 @@ impl Diagram {
         self.find(id).map(|index| &self.shapes[index].shape)
     }
 
-    /// Takes the shape named by `id` out of the diagram, changing nothing else.
+    /// Takes the shape named by `id` out of the diagram, and freezes what hung from it.
+    ///
+    /// **Every position carrying a reference to the removed shape becomes the absolute point it was
+    /// resolving to at that moment, and nothing else changes.** A reference naming **another** shape
+    /// is left exactly as it was, and so is one naming an identity this diagram never held — a
+    /// broken reference the removal did not create and does not repair. §4 _Positions_ states the
+    /// rule and §4 is where a reader is sent for it; a frozen end is a `Position::Absolute` like
+    /// any other and there is no new name for it.
+    ///
+    /// So what hung from the removed shape stays drawn exactly where it stood rather than being
+    /// re-routed, dropped or repaired. Nothing goes looking for the reference afterwards: a figure
+    /// put back under the removed identity leaves the arrow where it was rather than hanging from
+    /// it again.
     ///
     /// An identity this diagram does not hold changes nothing, with no error, no report and no
-    /// panic, which is the same answer the model's _Positions_ gives a reference to a shape that
-    /// is not there. The gap is closed, so what remains of the order keeps the order it had: a
-    /// removal changes the holding and nothing else.
+    /// panic, which is the same answer the model's _Positions_ gives a reference to a shape that is
+    /// not there. The gap is closed, so what remains of the order keeps the order it had.
     ///
     /// It hands back nothing. There is no history and nothing to undo, so putting a figure back
     /// means building it again. The counter is not touched either, so an identity is never handed
-    /// out a second time.
+    /// out a second time and a put-back is `add_under` with the identity the caller kept.
     pub fn remove(&mut self, id: &ShapeId) {
-        if let Some(index) = self.find(id) {
-            self.shapes.remove(index);
+        // Read before the loop and still valid after it: the loop changes no figure's identity and
+        // no figure's place in the order, only the positions inside one of them.
+        let Some(index) = self.find(id) else {
+            return;
+        };
+
+        // **Indexed rather than iterated**, because a `&mut Shape` cannot be held across a call that
+        // wants the diagram: `for placed in &mut self.shapes` writing `placed.shape` inside is a
+        // borrow error. Ending the borrow on each statement is enough, so this is one pass and
+        // nothing is collected. Nothing excludes the figure being removed from the loop — it is
+        // rewritten and dropped a line later, and excluding it would cost a comparison to buy
+        // nothing.
+        for at in 0..self.shapes.len() {
+            if let Some(shape) = self.shapes[at].shape.with_frozen_references(id, self) {
+                self.shapes[at].shape = shape;
+            }
         }
+
+        self.shapes.remove(index);
     }
 
     /// Puts `shape` where the shape named by `id` stands, in the same place in the order.
@@ -1727,6 +1754,35 @@ mod tests {
         )
     }
 
+    /// The glyph the picture of `buffer` shows at `at`, so that a claim about a cell's character is
+    /// made against the light table rather than against the arms it composes from.
+    ///
+    /// The two claims this crate's own pictures are made of — a junction where a border meets an
+    /// arm, and a run where an arm stands alone — are claims about glyphs, and a cell read as arms
+    /// would state them in the substrate's own vocabulary instead.
+    fn the_glyph_at(buffer: &Buffer, at: Pos, size: Size) -> char {
+        let picture = render(buffer, &GlyphCatalog::light(), Pos { x: 0, y: 0 }, size);
+        picture
+            .lines()
+            .nth(at.y.cast_unsigned() as usize)
+            .and_then(|row| row.chars().nth(at.x.cast_unsigned() as usize))
+            .unwrap_or_else(|| panic!("{at:?} is inside the window {size:?}"))
+    }
+
+    /// The connector of _an endpoint hangs from a side_ with its `from` named as a **reference** to
+    /// the box's right side at the given offset and its `to` a plain point, which is the
+    /// arrangement the removal cases below all start from.
+    fn hanging_from(box_id: &ShapeId, offset: Delta, to: Pos) -> Shape {
+        arm_connector(
+            Position::Reference(Reference {
+                id: box_id.clone(),
+                anchor: Anchor::Right,
+                offset,
+            }),
+            to.into(),
+        )
+    }
+
     /// User Story 2, spec's B2.1, SC-001: a connector whose `from` hangs from a box's right side
     /// draws exactly what the same connector with `from` at that point draws.
     ///
@@ -2500,42 +2556,640 @@ mod tests {
         }
     }
 
-    /// User Story 3, spec's B3.1, SC-004: taking the referenced box out leaves the connector drawing
-    /// nothing and leaves the figure that had nothing to do with either drawing exactly what it drew
-    /// **on its own**.
+    /// User Story 3, spec's B3.1, SC-004, and User Story 1's B1.1 and SC-001: taking the referenced box
+    /// out leaves the connector drawing **exactly what it drew**, and leaves the figure that had
+    /// nothing to do with either drawing exactly what it drew **on its own**.
     ///
-    /// The second half is pinned against that box's own picture rather than against the first one,
-    /// which is what makes the claim about the figures that stayed rather than a difference between
-    /// two drawings. The reference is not rewritten, not reported and does not panic: taking the
-    /// box out is 081's verb and this is what it now means.
+    /// **This test used to say the opposite of both halves of its own name, and it was not among the
+    /// places the specification named.** It read `…_stops_the_connector_…` and asserted that the
+    /// connector drew nothing, which is true of the rule 142 reverses and false of the rule it
+    /// lands; and it pinned the whole picture against a diagram of the unrelated box alone, so the
+    /// second half of the name could not be said about the connector at all. It escaped the
+    /// inventory because it cites 081's B3.1 and never names this issue, so `grep` for the behavior
+    /// rather than for the issue's number found the prose and not the test. 143 paid for the same gap
+    /// a fifth time in a different file, and this is the same lesson written down in
+    /// `docs/learning-log.md`. **It is rewritten rather than deleted**, and the arrangement and
+    /// `the_unrelated_box()` are kept: the box that had nothing to do with either end is what makes
+    /// the second half of the name mean something.
+    ///
+    /// **Why this cannot be `assert_eq!` on the buffer and cannot be "nothing moved" either.** One
+    /// cell is the whole difference between the two pictures, and it is not one of the box's going
+    /// blank: `{3, 1}` is where the box's own right border used to compose with the arrow's arm into
+    /// one junction, so it read `├` while the box stood and reads `─` with the box gone — a cell
+    /// carrying one arm renders as the run through it. The box's other nine drawn cells go blank.
+    /// Measured, not derived: research.md Q7 corrected the specification's own `15 − 6 = 9` because
+    /// this cell changes glyph rather than going blank, and an asserted count in a test is what a
+    /// hand-drawn picture gets wrong.
+    ///
+    /// The second half is pinned against that box's **own** picture rather than against the first
+    /// one, which is what makes the claim about the figures that stayed rather than a difference
+    /// between two drawings. It is also the part that is **accepted with nothing verifying it**:
+    /// "every other figure is byte for byte" is a claim about the whole diagram, and no single
+    /// arrangement establishes it for every diagram — which is why it is named here rather than
+    /// described as tested (constitution, principle IV).
     #[test]
-    fn taking_the_referenced_figure_out_stops_the_connector_and_changes_nothing_else() {
+    fn taking_the_referenced_figure_out_leaves_the_connector_where_it_was_and_changes_nothing_else()
+    {
         let (origin, size) = the_window();
 
         let mut diagram = Diagram::new();
         let box_id = diagram.add(the_box());
-        diagram.add(arm_connector(
-            Position::Reference(Reference {
-                id: box_id.clone(),
-                anchor: Anchor::Right,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
-            Pos { x: 8, y: 1 }.into(),
+        diagram.add(hanging_from(
+            &box_id,
+            Delta { dx: 0, dy: 0 },
+            Pos { x: 8, y: 1 },
         ));
         diagram.add(the_unrelated_box());
         let before = draw_of(&diagram, origin, size);
+        assert_eq!(
+            the_glyph_at(&before, THE_SIDE_CENTRE, size),
+            '├',
+            "the box's border and the arrow's arm did not compose where they met"
+        );
 
         diagram.remove(&box_id);
         let after = draw_of(&diagram, origin, size);
 
-        assert_ne!(cells(&before, origin, size), cells(&after, origin, size));
+        // The route is byte for byte what it was, and the ten cells the box held are the whole
+        // difference — nine of them blank and `{3, 1}` a different glyph.
+        assert_eq!(
+            differing(&before, &after, origin, size),
+            vec![
+                Pos { x: 0, y: 0 },
+                Pos { x: 1, y: 0 },
+                Pos { x: 2, y: 0 },
+                Pos { x: 3, y: 0 },
+                Pos { x: 0, y: 1 },
+                THE_SIDE_CENTRE,
+                Pos { x: 0, y: 2 },
+                Pos { x: 1, y: 2 },
+                Pos { x: 2, y: 2 },
+                Pos { x: 3, y: 2 },
+            ],
+            "the removal reached a cell the box did not hold, or left one of its own holding"
+        );
+        for x in 4..=8 {
+            let on_the_route = Pos { x, y: 1 };
+            assert_eq!(
+                before.cell(on_the_route),
+                after.cell(on_the_route),
+                "the route moved at {on_the_route:?}"
+            );
+        }
+        assert_eq!(
+            the_glyph_at(&after, THE_SIDE_CENTRE, size),
+            '─',
+            "the arm still standing on its own did not render as the run through it"
+        );
+
+        // The second half of the name: the figure that had nothing to do with either end drew
+        // **exactly** what it drew, and the whole picture is the arrow standing where it stood
+        // beside it. Built from the two figures rather than pinned as text, and the arrow is named
+        // at the point the reference resolved to rather than as a reference — which is the claim in
+        // one comparison, and is what this test could not say before the rule landed.
         assert_eq!(
             cells(&after, origin, size),
             cells(
-                &drawn(vec![the_unrelated_box()], origin, size),
+                &drawn(
+                    vec![
+                        the_unrelated_box(),
+                        arm_connector(THE_SIDE_CENTRE.into(), Pos { x: 8, y: 1 }.into()),
+                    ],
+                    origin,
+                    size
+                ),
                 origin,
                 size
             )
+        );
+    }
+
+    /// The endpoint the connector named by `id` hangs **from**, or `None` when the diagram holds no
+    /// such connector.
+    ///
+    /// Borrowed rather than cloned, so a caller can hold the **resolved** point across a `remove`
+    /// and then ask what the end says afterwards — which is the only way "the point it was resolving
+    /// to" can be claimed about a moment that is gone once the figure is out.
+    fn the_hanging_end<'a>(diagram: &'a Diagram, id: &ShapeId) -> Option<&'a Endpoint> {
+        let Shape::Connector { from, .. } = diagram.get(id)? else {
+            return None;
+        };
+        Some(from)
+    }
+
+    /// User Story 1, spec's B1.1 and SC-001: taking the shape a reference names out leaves that end
+    /// standing at the point it was resolving to — **asked and then drawn**, in the specification's
+    /// wording and in the order it asks for.
+    ///
+    /// **By value first**, and the `assert_ne!` is what makes it mean anything: a body that froze
+    /// nothing leaves the endpoint holding the reference it already held, which is exactly what it
+    /// did before, so the first assertion alone would be satisfied by doing precisely nothing. The
+    /// point is resolved *before* the removal and held across it, because "the point it was
+    /// resolving to" is a claim about a moment that is gone once the figure is out.
+    ///
+    /// **By picture, and the last claim is asserted as a difference rather than as a count.** The
+    /// cells the removed box held are **discovered** — every cell inside the box's own rectangle
+    /// that held something while it stood — and the cells the arrow writes are **discovered against
+    /// a no-connector baseline**, which is how research.md Q3 measured the six-cell footprint. The
+    /// two together say the whole picture in two comparisons without a number written down: the
+    /// box's cells are gone, nothing else moved, and every cell the arrow writes outside that
+    /// rectangle is byte for byte what it was. A quoted **10** would be the thing research.md Q7
+    /// measured and found wrong — it is `15 − 6` only for the nine that go blank, because `{3, 1}`
+    /// changes glyph rather than going blank, which is why the glyph is asserted rather than left to
+    /// be counted.
+    #[test]
+    fn a_removal_freezes_what_hung_from_the_removed_shape() {
+        let (origin, size) = the_window();
+        let nothing = Delta { dx: 0, dy: 0 };
+
+        let mut diagram = Diagram::new();
+        let box_id = diagram.add(the_box());
+        diagram.add(hanging_from(&box_id, nothing, Pos { x: 8, y: 1 }));
+        diagram.add(the_unrelated_box());
+        let before = draw_of(&diagram, origin, size);
+
+        let it_resolved_to = the_hanging_end(&diagram, &ShapeId::new("#2"))
+            .expect("the reference resolves while the figure it names is held")
+            .at
+            .resolve(&diagram)
+            .expect("the box answers the anchor the reference names");
+        assert_eq!(it_resolved_to, THE_SIDE_CENTRE);
+
+        diagram.remove(&box_id);
+        let after = draw_of(&diagram, origin, size);
+
+        // By value: the end stands at the point it was resolving to, and is no longer a reference.
+        let frozen = the_hanging_end(&diagram, &ShapeId::new("#2"))
+            .expect("the connector is still held, so it is still drawn");
+        assert_eq!(
+            frozen.at,
+            Position::Absolute(it_resolved_to),
+            "the end was not frozen at the point the reference was resolving to"
+        );
+        assert_ne!(
+            frozen.at,
+            Position::Reference(Reference {
+                id: box_id.clone(),
+                anchor: Anchor::Right,
+                offset: nothing,
+            }),
+            "the end is still a reference, so nothing was frozen"
+        );
+
+        // By picture. What the box held is discovered rather than quoted, and what the arrow writes
+        // is discovered against a diagram holding no connector at all.
+        let in_the_box = |at: &Pos| (0..4).contains(&at.x) && (0..3).contains(&at.y);
+        let the_box_held: Vec<Pos> = differing(
+            &before,
+            &draw_of(&Diagram::new(), origin, size),
+            origin,
+            size,
+        )
+        .into_iter()
+        .filter(in_the_box)
+        .collect();
+        assert!(
+            !the_box_held.is_empty(),
+            "the box held no cell, so nothing here is a claim about a removal"
+        );
+        for at in the_box_held.iter().filter(|at| **at != THE_SIDE_CENTRE) {
+            assert_eq!(
+                after.cell(*at),
+                None,
+                "a cell the removed box held is still written: {at:?}"
+            );
+        }
+        assert_eq!(
+            the_glyph_at(&after, THE_SIDE_CENTRE, size),
+            '─',
+            "the arm standing on its own did not render as the run through it"
+        );
+
+        let the_arrow_wrote = differing(
+            &after,
+            &drawn(vec![the_unrelated_box()], origin, size),
+            origin,
+            size,
+        );
+        assert!(
+            !the_arrow_wrote.is_empty(),
+            "the arrow draws nothing at all, so this is not looking at a freeze"
+        );
+        for at in the_arrow_wrote.iter().filter(|at| !in_the_box(at)) {
+            assert_eq!(
+                before.cell(*at),
+                after.cell(*at),
+                "a cell of the arrow's route outside the box moved: {at:?}"
+            );
+        }
+
+        // And nothing else moved at all: the cells that differ are the box's own, and no others.
+        assert_eq!(
+            differing(&before, &after, origin, size),
+            the_box_held,
+            "the removal reached a cell the removed box did not hold, or left one of its own holding"
+        );
+    }
+
+    /// User Story 1, spec's B1.2 and B1.3, SC-001: a figure put back under the removed identity is
+    /// **not re-hung from** — what hung from the removed one stays where it was, and the identity
+    /// stays the diagram's to issue.
+    ///
+    /// Both behaviors in one test because both are about what comes back. The first half puts the
+    /// box back **in place** and the picture comes back byte for byte — the frozen point is the
+    /// point the reference was resolving to, so the same composition recurs — while `get` answers an
+    /// endpoint holding a plain point. **Nothing went looking for the reference it was**, and that
+    /// is the half a picture alone cannot say: a re-attachment that re-routed to the same place
+    /// would draw the same picture.
+    ///
+    /// The second half is what a frozen position costs. A figure put back **displaced** under the
+    /// same identity does **not** take the arrow with it, because a frozen end is a point and a
+    /// displacement reaches any absolute position's coordinates — the very displacement that carries
+    /// a reference's endpoint. Nothing is broken by it and nothing is repaired; §4's rule is one-way
+    /// by construction rather than by a decision.
+    #[test]
+    fn a_shape_put_back_under_the_removed_identity_is_not_re_attached() {
+        let (origin, size) = the_window();
+        let the_far_end = Pos { x: 8, y: 1 };
+
+        let mut diagram = Diagram::new();
+        let identity = diagram.add(the_box());
+        diagram.add(hanging_from(&identity, Delta { dx: 0, dy: 0 }, the_far_end));
+        diagram.add(the_unrelated_box());
+        let before = draw_of(&diagram, origin, size);
+
+        diagram.remove(&identity);
+        diagram.add_under(identity.clone(), the_box());
+        let put_back = draw_of(&diagram, origin, size);
+
+        assert_eq!(
+            cells(&before, origin, size),
+            cells(&put_back, origin, size),
+            "putting the box back in place did not give back the whole picture"
+        );
+        assert_eq!(
+            the_hanging_end(&diagram, &ShapeId::new("#2"))
+                .expect("the connector is still held")
+                .at,
+            Position::Absolute(THE_SIDE_CENTRE)
+        );
+        assert_ne!(
+            the_hanging_end(&diagram, &ShapeId::new("#2"))
+                .expect("the connector is still held")
+                .at,
+            Position::Reference(Reference {
+                id: identity.clone(),
+                anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
+            }),
+            "the arrow was re-hung from a figure put back under the same identity"
+        );
+
+        diagram.replace(&identity, the_box().displaced_by(Delta { dx: 0, dy: 2 }));
+        let displaced = draw_of(&diagram, origin, size);
+        // Two rows **down** rather than four right, and the direction is the point rather than
+        // taste: it puts the whole figure clear of the row the arrow runs along, so "the arrow did
+        // not go and find it" can be asked of a picture and not only of a value. Four right would
+        // stand the box across the route and answer a different question.
+        // The arm proper, from `{4, 1}` to `{8, 1}`. `{3, 1}` is excluded and deliberately so: it is the
+        // box's **own** border cell, what it composes into there is a property of both figures, and
+        // the box moving is exactly what the arrow must not be blamed for.
+        for x in 4..=8 {
+            let on_the_route = Pos { x, y: 1 };
+            assert_eq!(
+                put_back.cell(on_the_route),
+                displaced.cell(on_the_route),
+                "the arrow went and found the figure put back under the same identity at \
+                 {on_the_route:?}"
+            );
+        }
+        assert_eq!(
+            the_hanging_end(&diagram, &ShapeId::new("#2"))
+                .expect("the connector is still held")
+                .at,
+            Position::Absolute(THE_SIDE_CENTRE),
+            "the frozen end followed the figure put back under the same identity"
+        );
+
+        // And the identity is the diagram's to issue: `add_under` does not touch the counter, so a
+        // put-back does not un-issue what was taken out.
+        assert_eq!(
+            diagram.add(the_unrelated_box()),
+            ShapeId::new("#4"),
+            "a put-back under the removed identity handed that identity out again"
+        );
+        assert!(
+            draw_of(&diagram, origin, size)
+                .cell(THE_SIDE_CENTRE)
+                .is_some(),
+            "the arrow is no longer drawn, so nothing here is a claim about a freeze"
+        );
+    }
+
+    /// User Story 2, spec's B2.1 and SC-002: the three routes that reached **one** picture byte for byte
+    /// reach **three** now, and the taken-out one is the odd one out — its arrow is still there.
+    ///
+    /// **One test rather than three, and the reason is the specification's:** the taken-out route is
+    /// compared against **both** of the others and against neither, and only one place can ask that.
+    /// Separately, each is a claim about a diagram, and the claim here is about the difference
+    /// between two of them.
+    ///
+    /// The still-held route's picture is **equal to the never-added route's**, byte for byte, and
+    /// that pair is the control which says the third is what moved. It is reached by holding the two
+    /// routes' diagrams to the same shape — the figure that answers no side sits under `#1` in one
+    /// and under `#2` in the other, and the hanging connector names `#1` in both — so the two differ
+    /// by **which identity** the figure stands under and by nothing else. A reference naming a
+    /// figure that answers no side resolves to nothing, which is exactly the answer it gives an
+    /// identity that was never there (ADR-0041), and the freeze changed nothing about that.
+    ///
+    /// **Asserted as whole buffers rather than as a count of differing cells**, because the routes
+    /// differ everywhere the arrow stood and a count would not say where — which is the whole of
+    /// what §11's second question used to ask.
+    #[test]
+    fn the_three_routes_to_one_picture_are_not_one_picture_now() {
+        let (origin, size) = the_window();
+        let nothing = Delta { dx: 0, dy: 0 };
+        let the_far_end = Pos { x: 8, y: 1 };
+
+        // The figure that answers no side: a connector, which the model gives four anchors to a box
+        // and a line and none at all to this.
+        let answers_no_side = connector_leaving(
+            Pos { x: 0, y: 0 }.into(),
+            Direction::Down,
+            Pos { x: 0, y: 2 }.into(),
+            Direction::Up,
+        );
+
+        // Never added: the hanging connector names `#1` and nothing here holds it.
+        let mut never_added = Diagram::new();
+        never_added.add_under(ShapeId::new("#2"), answers_no_side.clone());
+        never_added.add_under(
+            ShapeId::new("#1"),
+            hanging_from(&ShapeId::new("#1"), nothing, the_far_end),
+        );
+        never_added.add(the_unrelated_box());
+
+        // Taken out: the same shape, held and then removed.
+        let mut taken_out = Diagram::new();
+        let box_id = taken_out.add(the_box());
+        taken_out.add(hanging_from(&box_id, nothing, the_far_end));
+        taken_out.add(the_unrelated_box());
+        taken_out.remove(&box_id);
+
+        // Still held, by a figure answering no side: the same diagram as the first, with the figure
+        // under the identity the connector names.
+        let mut held_and_answering_none = Diagram::new();
+        held_and_answering_none.add_under(ShapeId::new("#1"), answers_no_side);
+        held_and_answering_none.add(hanging_from(&ShapeId::new("#1"), nothing, the_far_end));
+        held_and_answering_none.add(the_unrelated_box());
+
+        let never = draw_of(&never_added, origin, size);
+        let out = draw_of(&taken_out, origin, size);
+        let held = draw_of(&held_and_answering_none, origin, size);
+
+        assert_eq!(
+            cells(&never, origin, size),
+            cells(&held, origin, size),
+            "the control moved: the never-added and the still-held routes were one picture before \
+             the freeze and are not one now"
+        );
+        assert_ne!(
+            cells(&never, origin, size),
+            cells(&out, origin, size),
+            "the taken-out route draws the same picture as a reference to an identity that was never \
+             there, so nothing was frozen"
+        );
+        assert_ne!(
+            cells(&held, origin, size),
+            cells(&out, origin, size),
+            "the freeze reached a figure that answers no side, which it must not"
+        );
+
+        // And the difference is the arrow, which is the claim this test exists for: the taken-out
+        // one is the only route whose picture carries one.
+        assert!(out.cell(THE_SIDE_CENTRE).is_some());
+        assert_eq!(never.cell(THE_SIDE_CENTRE), held.cell(THE_SIDE_CENTRE));
+    }
+
+    /// The specification's _Edge cases_, and **P1 applied twice rather than a cascade**: two
+    /// connectors hang from the same figure at different anchors with different offsets, so the two
+    /// points they freeze at are different, and each freezes at its own.
+    ///
+    /// A body that resolved once and wrote twice would pass `a_removal_freezes_what_hung_from_the_removed_shape`
+    /// and fail here, which is the reason the arrangement is not the one that test already builds.
+    /// A **cascade** — walking from the box to the first connector and on — would fail it too, since
+    /// a connector answers no anchor and so there is nowhere to walk to; the loop visits each figure
+    /// once and that is the whole of it.
+    #[test]
+    fn two_connectors_from_one_figure_both_freeze_at_their_own_points() {
+        let (origin, size) = the_window();
+        let nothing = Delta { dx: 0, dy: 0 };
+        let (at_the_top, at_the_bottom) = (Pos { x: 8, y: 1 }, Pos { x: 8, y: 2 });
+
+        let from_the_right = |id: &ShapeId| {
+            arm_connector(
+                Position::Reference(Reference {
+                    id: id.clone(),
+                    anchor: Anchor::Right,
+                    offset: nothing,
+                }),
+                at_the_top.into(),
+            )
+        };
+        let from_the_bottom = |id: &ShapeId| {
+            arm_connector(
+                Position::Reference(Reference {
+                    id: id.clone(),
+                    anchor: Anchor::Bottom,
+                    offset: Delta { dx: 2, dy: 0 },
+                }),
+                at_the_bottom.into(),
+            )
+        };
+
+        let mut diagram = Diagram::new();
+        let box_id = diagram.add(the_box());
+        diagram.add(from_the_right(&box_id));
+        diagram.add(from_the_bottom(&box_id));
+        diagram.add(the_unrelated_box());
+        let before = draw_of(&diagram, origin, size);
+
+        // Each end's own point, resolved before the removal and held across it.
+        let (top, bottom) = (
+            the_hanging_end(&diagram, &ShapeId::new("#2"))
+                .and_then(|end| end.at.resolve(&diagram))
+                .expect("the first connector's reference resolves while the box is held"),
+            the_hanging_end(&diagram, &ShapeId::new("#3"))
+                .and_then(|end| end.at.resolve(&diagram))
+                .expect("the second connector's reference resolves while the box is held"),
+        );
+        assert_ne!(
+            top, bottom,
+            "the two ends resolved to the same point, so this is not the arrangement that tells two \
+             apart"
+        );
+
+        diagram.remove(&box_id);
+
+        assert_eq!(
+            the_hanging_end(&diagram, &ShapeId::new("#2"))
+                .expect("the first connector is still held")
+                .at,
+            Position::Absolute(top)
+        );
+        assert_eq!(
+            the_hanging_end(&diagram, &ShapeId::new("#3"))
+                .expect("the second connector is still held")
+                .at,
+            Position::Absolute(bottom)
+        );
+
+        // And drawn: the picture holds two arrows where the removal took the figure they hung from.
+        let after = draw_of(&diagram, origin, size);
+        let mut expected = Diagram::new();
+        expected.add(arm_connector(top.into(), at_the_top.into()));
+        expected.add(arm_connector(bottom.into(), at_the_bottom.into()));
+        expected.add(the_unrelated_box());
+        assert_eq!(
+            cells(&after, origin, size),
+            cells(&draw_of(&expected, origin, size), origin, size),
+            "the two arrows did not both stand where they stood"
+        );
+        assert_ne!(
+            differing(&before, &after, origin, size),
+            Vec::new(),
+            "the removal changed nothing at all, so no arrow was standing there to freeze"
+        );
+    }
+
+    /// D3's "**and nothing else**", which is a claim about the whole diagram and so deserves a test
+    /// of its own: three diagrams, one assertion each, and each is a way the rule could be wrong.
+    ///
+    /// **(1) A reference the removal did not create is not repaired**, in both of the forms it can
+    /// take. The first is an identity **never added** at all: the removal names it, finds nothing,
+    /// and returns before its loop, so nothing is touched — which is a removal of an identity this
+    /// diagram does not hold rather than a freeze, and is asserted because a body that reached the
+    /// loop anyway would be inventing a repair nobody asked for. The second is an identity **held by
+    /// a figure that answers no side**, so the reference **does not resolve** while the loop runs:
+    /// this is the one the `Some(point)` guard in `Endpoint::frozen_position` exists for, because
+    /// freezing it to nothing or dropping it would each be a second rule about removals. The second
+    /// is the one that earns the guard; the first is the one a reader imagines.
+    ///
+    /// **(2) The asymmetry is the rule.** A connector with `from` naming a figure that **stays** and
+    /// `to` naming the one taken out keeps a `Reference` in `from` while `to` is frozen — and a body
+    /// that rewrote *every* reference naming the identity would pass every other test in this crate.
+    ///
+    /// **(3) One connector with both ends on the same figure gets two different points**, which is
+    /// the arrangement an implementation that asks once and writes twice gets wrong. Measured, they
+    /// are `{3, 1}` and `{2, 2}` for a four-by-three box at the origin, and the method has no such
+    /// failure because it computes both answers before it builds either endpoint.
+    #[test]
+    fn a_removal_touches_nothing_else() {
+        let nothing = Delta { dx: 0, dy: 0 };
+        let the_far_end = Pos { x: 8, y: 1 };
+        let naming = |id: ShapeId, anchor: Anchor, offset: Delta| {
+            Position::Reference(Reference { id, anchor, offset })
+        };
+
+        // (1a) An identity that was never there, and a removal naming exactly that identity.
+        let mut never_there = Diagram::new();
+        never_there.add_under(
+            ShapeId::new("#2"),
+            arm_connector(
+                naming(ShapeId::new("#1"), Anchor::Right, nothing),
+                the_far_end.into(),
+            ),
+        );
+        never_there.remove(&ShapeId::new("#1"));
+        let Shape::Connector { from, .. } = never_there
+            .get(&ShapeId::new("#2"))
+            .expect("the connector is under #2, which nothing removed")
+        else {
+            unreachable!("the figure under test is a connector")
+        };
+        assert_eq!(
+            from.at,
+            naming(ShapeId::new("#1"), Anchor::Right, nothing),
+            "the removal repaired a reference to an identity it never held"
+        );
+
+        // (1b) The same unresolved reference, over an identity a figure answering no side holds — so
+        // the loop runs, `resolve` answers nothing, and the `Some(point)` guard is what is left.
+        let mut held_and_unresolvable = Diagram::new();
+        held_and_unresolvable.add_under(
+            ShapeId::new("#1"),
+            connector_leaving(
+                Pos { x: 0, y: 0 }.into(),
+                Direction::Down,
+                Pos { x: 0, y: 2 }.into(),
+                Direction::Up,
+            ),
+        );
+        held_and_unresolvable.add_under(
+            ShapeId::new("#2"),
+            arm_connector(
+                naming(ShapeId::new("#1"), Anchor::Right, nothing),
+                the_far_end.into(),
+            ),
+        );
+        held_and_unresolvable.remove(&ShapeId::new("#1"));
+        let Shape::Connector { from, .. } = held_and_unresolvable
+            .get(&ShapeId::new("#2"))
+            .expect("the connector is under #2, which nothing removed")
+        else {
+            unreachable!("the figure under test is a connector")
+        };
+        assert_eq!(
+            from.at,
+            naming(ShapeId::new("#1"), Anchor::Right, nothing),
+            "an unresolved reference was frozen or dropped, which is a second rule"
+        );
+
+        // (2) One end naming a figure that stays, the other the one taken out.
+        let mut one_end = Diagram::new();
+        let stays = one_end.add(the_box());
+        let goes = one_end.add(the_unrelated_box());
+        one_end.add(arm_connector(
+            naming(stays.clone(), Anchor::Right, nothing),
+            naming(goes.clone(), Anchor::Bottom, Delta { dx: 1, dy: 0 }),
+        ));
+        one_end.remove(&goes);
+        let Shape::Connector { from, to, .. } = one_end
+            .get(&ShapeId::new("#3"))
+            .expect("the connector is still held")
+        else {
+            unreachable!("the figure under test is a connector")
+        };
+        assert_eq!(
+            from.at,
+            naming(stays, Anchor::Right, nothing),
+            "a reference naming a figure that stayed was rewritten"
+        );
+        assert_eq!(
+            to.at,
+            Position::Absolute(Pos { x: 11, y: 2 }),
+            "the end naming the removed figure did not freeze at the point it was resolving to"
+        );
+
+        // (3) Both ends on the same figure, at two different anchors.
+        let mut both_ends = Diagram::new();
+        let id = both_ends.add(the_box());
+        both_ends.add(arm_connector(
+            naming(id.clone(), Anchor::Right, nothing),
+            naming(id, Anchor::Bottom, Delta { dx: 1, dy: 0 }),
+        ));
+        both_ends.remove(&ShapeId::new("#1"));
+        let Shape::Connector { from, to, .. } = both_ends
+            .get(&ShapeId::new("#2"))
+            .expect("the connector is still held")
+        else {
+            unreachable!("the figure under test is a connector")
+        };
+        assert_eq!(from.at, Position::Absolute(Pos { x: 3, y: 1 }));
+        assert_eq!(to.at, Position::Absolute(Pos { x: 2, y: 2 }));
+        assert_ne!(
+            from.at, to.at,
+            "both ends came back at the same point, so one answer was written into both"
         );
     }
 
@@ -2544,13 +3198,20 @@ mod tests {
     /// stood.
     ///
     /// The case is put through `replace` rather than through `remove` followed by an addition, and
-    /// the reason is the model's rather than a convenience: `remove` frees an identity permanently
-    /// — `add` never hands one out twice, and there is no `add_under` — so a removal followed by an
-    /// addition cannot put anything back under the removed one's identity, and the reference stays
-    /// unresolved for good. What `replace` gives is the same resolution from the other side: the
-    /// identity is found, the kind answers the anchor, and the connector is drawn from wherever the
-    /// figure now stands. [#142](https://github.com/andresmoschini/monospace/issues/142) is where
-    /// what a removal should do to a reference is answered.
+    /// the reason is the model's rather than a convenience: `replace` answers the same resolution
+    /// **from the other side** — the identity is found, the kind answers the anchor, and the
+    /// connector is drawn from wherever the figure now stands.
+    ///
+    /// **This paragraph used to say a diagram offers no way to name a shape into existence, and both
+    /// halves of that were false before #142 was written.** `add_under` is `pub` and has been since
+    /// 148, so a removal *can* be followed by an addition under the removed identity; and since 142 a
+    /// removal **freezes** the reference rather than leaving it unresolved, so the state the old
+    /// sentence described — a reference that resolves to nothing for good — can no longer be reached
+    /// by this route. What a removal does now is in [`Diagram::remove`]: the end becomes the point
+    /// it was resolving to, and a put-back under the same identity leaves the arrow where it was
+    /// rather than hanging from it again, which is `a_shape_put_back_under_the_removed_identity_is_not_re_attached`'s
+    /// claim. [#142](https://github.com/andresmoschini/monospace/issues/142) answered the question this
+    /// comment used to carry.
     ///
     /// A **line** is what goes back, not a second box, so a kind change is covered by the same case:
     /// read as a box one cell thick, a five-cell line's right side center is its last cell, which is
