@@ -177,13 +177,17 @@ three are indistinguishable from outside.
    of the box, **Then** the arrow is not drawn either, and `get` still finds the identity the
    reference names. This is row two, and it is the sharpest of the three: not a missing shape but a
    present one that cannot answer.
-4. **Given** those three routes, **When** each is drawn, **Then** the arrow's ten cells are gone in
-   all three, the whole picture is the far box alone in A and B, and in C the only cells beyond that
-   are the replacement's own. **The three are not compared as buffers**, because C is not one — the
-   test compares the arrow's footprint and says so. What the three show is that **nothing in the
-   diagram records which route happened**, and that is the whole of §11's second question: any
-   answer that treats B differently from A has to begin by remembering something the diagram does
-   not currently remember.
+4. **Given** those three routes, **When** each is drawn, **Then** the arrow's six cells are gone in
+   all three — the four `{4, 1}` through `{7, 1}` its route writes and the two borders `{3, 1}` and
+   `{8, 1}` it turns — the whole picture is the far box alone in A and B, and in C the only cells
+   beyond that are the replacement's own. **The six is measured, and read as the difference between
+   this arrangement and the same arrangement with no connector in it rather than off either
+   picture.** The ten belongs to B2.1's arrow, where measurement confirms it, and two arrangements
+   sharing a count is how a number from one reached the other. **The three are not compared as
+   buffers**, because C is not one — the test compares the arrow's footprint and says so. What the
+   three show is that **nothing in the diagram records which route happened**, and that is the whole
+   of §11's second question: any answer that treats B differently from A has to begin by remembering
+   something the diagram does not currently remember.
 
 ## Edge cases
 
@@ -264,20 +268,36 @@ three are indistinguishable from outside.
   for byte what they are, `assets/demo.json` unchanged, and a path still printing one picture. No
   caption's wording is pinned. The twenty-two is asserted as a count against the sixth picture, so a
   rule that started drawing a fragment of the route would fail rather than shrink the block quietly.
+- **Gallery** — one block added to `an_endpoint_hangs_from_a_side_and_follows_it`, its second line
+  `change: the box taken out`, beside three that already mutate one diagram between them and so need
+  no new machinery. **A picture of a change is what no description file and no generated-picture
+  marker can reach**, which is why B1.1's is hand-drawn, and the gallery is the one carrier left
+  ([ADR-0064](../../docs/decisions/0064-give-each-generated-picture-the-carrier-that-can-reach-its-subject.md)).
+  It is the one picture this slice adds that fails loudly rather than going stale.
 - **Characterization** — none, and none moves. The connector sweep builds its descriptions from
   shape lists and reads no shipped file, and a figure vanishing from a diagram is a range small
   enough to read rather than one too wide to assert by hand.
-- **What this slice rewrites rather than contradicts.** One place, and it names this issue: the
-  rustdoc on `a_figure_put_back_under_the_referenced_identity_draws_the_connector_again` reads
-  "`remove` frees an identity permanently — `add` never hands one out twice, and there is no
-  `add_under` — so a removal followed by an addition cannot put anything back under the removed
-  one's identity, and the reference stays unresolved for good." **Two of its three claims are
-  false.** `add_under` arrived with [#148](https://github.com/andresmoschini/monospace/issues/148)
-  and is `pub`; and measured on this branch, a removal followed by `add_under` puts the box back and
-  the arrow draws again byte for byte, which is B1.2. The third claim is true, and it is why the
-  case still goes through `replace` — the reason given in the first half of that paragraph survives
-  while the reason given in the second half does not. Rewritten here rather than left standing
-  beside a behavior it denies, and `add_under`'s own rustdoc already says what it is for.
+- **What this slice rewrites rather than contradicts.** Two places, and each names what falsified
+  it. The first names this issue: the rustdoc on
+  `a_figure_put_back_under_the_referenced_identity_draws_the_connector_again` reads "`remove` frees
+  an identity permanently — `add` never hands one out twice, and there is no `add_under` — so a
+  removal followed by an addition cannot put anything back under the removed one's identity, and the
+  reference stays unresolved for good." **Two of its three claims are false.** `add_under` arrived
+  with [#148](https://github.com/andresmoschini/monospace/issues/148) and is `pub`; and measured on
+  this branch, a removal followed by `add_under` puts the box back and the arrow draws again byte
+  for byte, which is B1.2. The third claim is true, and it is why the case still goes through
+  `replace` — the reason given in the first half of that paragraph survives while the reason given
+  in the second half does not. Rewritten here rather than left standing beside a behavior it denies,
+  and `add_under`'s own rustdoc already says what it is for.
+- **What this slice rewrites rather than contradicts, second place** — `diagram.rs:2350-2355`, on
+  `a_figure_added_under_a_spelled_identity_is_what_a_hanging_endpoint_finds`, reads "a diagram
+  offers no way to name a shape into existence, so a spelled identity can only ever be the one an
+  `add` is about to issue". **False for the same reason and by the same method**: `add_under` is
+  `pub`, and that sentence is what the case above it is built to reach. It is
+  [#148](https://github.com/andresmoschini/monospace/issues/148)'s subject rather than this slice's,
+  and it is corrected here because `add_under` falsified both claims in the same way — correcting
+  one and leaving this one standing would put a paragraph beside a public method that contradicts
+  it, on the branch that measured it false.
 
 ## Success criteria
 
@@ -291,8 +311,9 @@ three are indistinguishable from outside.
   written as three routes to one picture rather than as a sentence, so it can be answered by
   somebody who has not read this issue.
 - **SC-003**: The rule as it is today cannot change silently. It is pinned by tests that fail on a
-  removal answering differently from a missing identity, and the one paragraph in the crate that
-  says a removed identity can never be filled again is corrected, so a slice that takes the freeze
-  has to say it is taking it rather than discover it in a picture.
+  removal answering differently from a missing identity, a gallery block that fails if the picture
+  of a removal moves, and both paragraphs the crate carries that `add_under` falsified are
+  corrected, so a slice that takes the freeze has to say it is taking it rather than discover it in
+  a picture.
 - **SC-004**: `cargo xtask check` is green, including `monospace-diagram` compiling for
   `wasm32-unknown-unknown`.

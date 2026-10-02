@@ -62,11 +62,12 @@ _GATE: passes before Phase 0, re-checked after Phase 1._
 - **VII. The core stays portable** — nothing in `monospace-core` moves and `monospace-diagram`'s
   public API is untouched, so the `wasm` step compiles what it compiles today.
 - **VIII. The record is sized to the decision** — four entries against a cap of seven. `research.md`
-  is at its 100-line ceiling and `decisions.md` under its 60. **`spec.md` is 255 attributable lines
-  against a 120 ceiling**, measured here as 298 lines less 35 blank, 6 fence markers and 2 HTML
-  comments, of which 17 are the one generated picture and its description that principle VIII
-  exempts — 238 without it. Both this file's and the specification's overages go to Complexity
-  Tracking below.
+  is at its 100-line ceiling. **`spec.md` is 259 attributable lines against a 120 ceiling**,
+  measured here as 319 lines less 35 blank, 6 fence markers and 2 HTML comments, of which 17 are the
+  one generated picture and its description that principle VIII exempts — the 238 it arrived at,
+  widened by the three answers that each named a consequence outside the sheet. **`decisions.md` is
+  98 attributable lines against a 60 one**, 111 less 13 blank, which the sheet crossed on being
+  answered rather than on being written. Three overages go to Complexity Tracking below.
 - _The plan runs in two parts_ — this run filled Summary, this check, `research.md` and
   `decisions.md`, and stopped. `data-model.md`, `contracts/` and `quickstart.md` are part two, and
   writing them now would be taking four answers rather than planning around them.
@@ -76,7 +77,8 @@ _GATE: passes before Phase 0, re-checked after Phase 1._
 The sheet is [`decisions.md`](decisions.md). Part two does not begin until it is answered.
 
 - Entries: 4 — domain: 4, module: 0, tooling: 0
-- Answered: _pending_
+- Answered: 2026-10-02 — all four, each the proposal adopted, and three of the four naming a
+  consequence outside the sheet that this branch therefore carries too.
 - The two questions of §11 are on no sheet, and this slice answers neither. When one is answered
   they go on one sheet or on two **in that order** — whether anything should happen at all first,
   and how anything would tell a removal from an identity nothing holds second — because the second
@@ -94,7 +96,8 @@ Run against the four answers. Part two fills this section and the one below it.
 > Fill ONLY for a Constitution Check violation that must be justified, or a principle VIII ceiling
 > exceeded without splitting the feature.
 
-| Departure                      | Why needed                                               | Simpler alternative rejected because                                                                                                          |
-| ------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `spec.md`, **255 against 120** | Four measured pictures and three clarifications          | Compressing prose buys nothing — the words return on the next `cargo xtask fix`. Splitting separates B1, B2 and B3, which are one measurement |
-| `plan.md`, **100 against 80**  | Nine principles, each named where the feature touches it | A recital instead, which principle VIII's first bullet refuses                                                                                |
+| Departure                         | Why needed                                                                                                                                                       | Simpler alternative rejected because                                                                                                                                                                                                    |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spec.md`, **259 against 120**    | Four measured pictures, three clarifications, and three answers that each named a section the answers change                                                     | Compressing prose buys nothing — the words return on the next `cargo xtask fix`. Splitting separates B1, B2 and B3, which are one measurement                                                                                           |
+| `decisions.md`, **98 against 60** | Four domain entries at the constitution's fields each, four answers that each name a consequence outside the sheet, and the one rendered picture D4's subject is | The format costs about a dozen lines an entry whatever the prose, and the fields that would fit in a line are the ones that drop the trade-off. Cutting the answers costs the consequence, and the consequence is what part two acts on |
+| `plan.md`, **103 against 80**     | Nine principles, each named where the feature touches it                                                                                                         | A recital instead, which principle VIII's first bullet refuses                                                                                                                                                                          |
