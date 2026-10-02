@@ -1,7 +1,13 @@
-# Phase 0 research: taking a shape out leaves what hung from it not drawn
+# Phase 0 research: taking a shape out leaves what hung from it not drawn — the baseline, not the answer
 
-Six questions, all measured on this branch today and all answered here. The four that are the
-maintainer's are on [decisions.md](decisions.md), not repeated.
+Six questions, all measured on the branch the previous deciding stage ran against and all answered
+here. The four that are the maintainer's are on [decisions.md](decisions.md), not repeated — and
+they are **different four**, since that sheet was reopened when the freeze became the slice's
+subject.
+
+**Every measurement below is of the rule as it stands, which is now the baseline**: the
+specification's two derived counts are arithmetic on these numbers — 15 − 6 and 22 − 10 — so none of
+them is restated here.
 
 Every measurement was taken by adding `crates/monospace-diagram/tests/scratch_142.rs` and a seventh
 step to `monospace-cli`'s `main.rs`, running both, and deleting the first and restoring the second
@@ -21,10 +27,8 @@ measured beside it: **two connectors from one box** are both gone and nothing el
 line put back under the removed identity** draws the arrow again hanging from the line's far end at
 `{4, 0}`, which is neither where the box answered nor the arrow's own far end.
 
-**Alternatives considered**:
-`taking_the_referenced_figure_out_stops_the_connector_and_changes_nothing_else` already pins the
-first of these, so the slice's contract test adds the **reasons** beside it rather than a second
-assertion of the same picture.
+**Alternatives considered**: an existing test already pins this picture, so the contract test adds
+the **reasons** beside it rather than a second assertion of the same buffer.
 
 ## Q2: Can the arrow be put back, and what does `add` hand back?
 
@@ -78,9 +82,8 @@ bare-run test's `split("\n\n").count()`, the six `assert_eq!`s of the empty desc
 `pictures.4 == pictures.5` of the one-shape description. The last two need care rather than a count:
 for a description holding no `#3` the removal is a no-op, so the seventh **equals the sixth** and
 `an_empty_description_demonstrates_as_six_identical_pictures` gains a seventh name. The rejected
-alternative is a `Vec<String>`, which every one of the eleven call sites would then index rather
-than destructure — a structural change to a test helper inside a `feat`, for a tuple that has
-already grown this way twice.
+alternative is a `Vec<String>`, which every one of the eleven call sites would index rather than
+destructure — a structural change to a test helper inside a `feat`.
 
 ## Q5: How much of the repository's text does `add_under` falsify?
 
@@ -97,9 +100,8 @@ identity can only ever be the one an `add` is about to issue" — false since `a
 And [ADR-0041](../../docs/decisions/0041-resolve-a-position-through-a-reference.md:94) still reads
 "Today identities are generated rather than written, so there is nothing to mistype", which ADR-0066
 made false: a caller writes an identity, `add_under` checks nothing, and a misspelling is silent —
-the exact cost that paragraph describes as not yet existing, in a `load-bearing` record. Leaving the
-second paragraph because `add_under` is #148's subject is D3's alternative; correcting the record
-without touching the crate splits one falsified claim from two.
+the exact cost that paragraph describes as not yet existing, in a `load-bearing` record. Correcting
+the record without touching the crate splits one falsified claim from two.
 
 ## Q6: Does anything move?
 
@@ -119,9 +121,7 @@ shape rather than about its behavior.
 ## Answered here rather than on the sheet
 
 Module-level, undone by changing the code that gives it: the seventh step is `diagram.remove(&#3)`
-after the sixth, in `monospace-cli`'s own code, with `assets/demo.json` and the description format
-untouched (ADR-0035); §9's note is one sentence appended to the removal paragraph naming where the
-question lives and claiming nothing else provisional (the 2026-10-01 clarification, P3); §11's
-second bullet is the three routes in prose, as SC-002 asks, with no picture in a section that holds
-none. **Not asked again**: whether the seventh caption's wording is pinned — no caption's wording is
-pinned today, and the specification proposes the wording.
+after the sixth, in `monospace-cli`'s own code, with `assets/demo.json` and the format untouched
+(ADR-0035); and §9 is amended by **losing** its sentence rather than gaining one, which is the
+constitution's _Understanding changes_ turned into prose. **Not asked again**: whether the seventh
+caption's wording is pinned — no caption's wording is pinned today.
