@@ -110,10 +110,14 @@ proposed, and three of them wider than the proposal asked.
   request describing the opposite behavior is **closed without merging**.
 - **[D2](decisions.md)** is one new ADR for the freeze, one dated `## Revisions` line in ADR-0041
   for the one consequence it contradicts, and a `commitment: working` added to ADR-0041's front
-  matter — all three chosen because reversing either is **a new short ADR naming what it replaces**,
-  not a migration. The new record is `working` for the same reason, which puts it under the
-  **60-line** ceiling and is what makes D2's "as small as it can be" a constraint rather than a
-  tone.
+  matter. ADR-0041 stays `working` on the maintainer's own reasoning — reversing the resolution rule
+  is **a new short ADR naming what it replaces**, not a migration. **The new record is
+  `load-bearing`**, corrected from the `working` this plan first proposed: the constitution's own
+  test asks whether **something outside the module depends on it**, and `monospace-cli` calls
+  `Diagram::remove` and its seventh picture exists because of the freeze. That answer is yes, so the
+  record takes the full template at 150 lines — including the **two options drawn side by side**,
+  which the constitution's _Show the rendering_ holds a `load-bearing` record to and which did not
+  fit under 60.
 - **[D3](decisions.md)** is stated in the maintainer's own terms: a removal freezes **the references
   naming the removed shape and nothing else**, and a reference naming an identity that was never
   there is left as it is.
@@ -133,17 +137,17 @@ The map, run against the four answers. The values and the three pictures are in
 [data-model.md](data-model.md), the commands are in [quickstart.md](quickstart.md), and the order is
 in [tasks.md](tasks.md).
 
-| Change                                                        | Where                              | Because                                                                                                            |
-| ------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `remove`'s two passes, and `Position` in its imports          | `monospace-diagram/src/diagram.rs` | D4: inside `remove`, one pass, no flag — **and two passes** because `resolve` borrows the diagram `remove` mutates |
-| `remove`'s own rustdoc, two sentences                         | `src/diagram.rs`                   | D4 names "changing nothing else" as the sentence this slice corrects, and the paragraph after it repeats it        |
-| one doc comment false twice over                              | `src/diagram.rs`                   | Q5 measured the `add_under` half; the freeze makes the other. The test's assertions do not move                    |
-| one existing test, rewritten rather than deleted              | `src/diagram.rs`                   | Measurement 1 below: it is the only one that goes red, and the specification named none                            |
-| the gallery's fourth `block()` and its snapshot               | `src/gallery.rs`                   | B3.4, and measurement 3 below on reaching it and on its window                                                     |
-| the seventh picture and its caption                           | `crates/monospace-cli/src/main.rs` | B3.1: one `remove(&the_hung_from)` and one `push_str`, beside the six already there. **No `if let`** — D4 again    |
-| `demonstrated_pictures` and its ten call sites                | `src/main.rs`                      | A six-tuple becomes seven, and every caller that names one picture now names two                                   |
-| §4 and §6 gain a sentence; §10 gains a property; §9 loses one | `docs/diagram-model.md`            | The specification's four sections, all **amended**; §11 is untouched and §9's table grows no row                   |
-| one `working` ADR, and one dated line in ADR-0041             | `docs/decisions/`                  | D2. The new record is `working` for the reason D2 gave for ADR-0041, which puts it under **60 lines**              |
+| Change                                                        | Where                              | Because                                                                                                               |
+| ------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `remove`'s two passes, and `Position` in its imports          | `monospace-diagram/src/diagram.rs` | D4: inside `remove`, one pass, no flag — **and two passes** because `resolve` borrows the diagram `remove` mutates    |
+| `remove`'s own rustdoc, two sentences                         | `src/diagram.rs`                   | D4 names "changing nothing else" as the sentence this slice corrects, and the paragraph after it repeats it           |
+| one doc comment false twice over                              | `src/diagram.rs`                   | Q5 measured the `add_under` half; the freeze makes the other. The test's assertions do not move                       |
+| one existing test, rewritten rather than deleted              | `src/diagram.rs`                   | Measurement 1 below: it is the only one that goes red, and the specification named none                               |
+| the gallery's fourth `block()` and its snapshot               | `src/gallery.rs`                   | B3.4, and measurement 3 below on reaching it and on its window                                                        |
+| the seventh picture and its caption                           | `crates/monospace-cli/src/main.rs` | B3.1: one `remove(&the_hung_from)` and one `push_str`, beside the six already there. **No `if let`** — D4 again       |
+| `demonstrated_pictures` and its ten call sites                | `src/main.rs`                      | A six-tuple becomes seven, and every caller that names one picture now names two                                      |
+| §4 and §6 gain a sentence; §10 gains a property; §9 loses one | `docs/diagram-model.md`            | The specification's four sections, all **amended**; §11 is untouched and §9's table grows no row                      |
+| one `load-bearing` ADR, and one dated line in ADR-0041        | `docs/decisions/`                  | D2. `monospace-cli` calls `remove`, so the constitution's own test says `load-bearing` and the full 150-line template |
 
 `Position`, `Reference`, `Endpoint`, `Shape`, `resolve`, `displaced_by`, `Delta` and the whole of
 `Diagram`'s surface — including `remove`'s own signature — keep what they have, so there is **no new
@@ -254,20 +258,24 @@ domain-level, and the constitution puts a domain-level decision in `docs/decisio
 beside it. Writing the rule a second time in a fourth contract is the duplication principle VIII
 refuses.
 
-So the record is **`working`**, and the reason is D2's own rather than a fresh judgement: reversing
-the freeze is **a new short ADR naming what it replaces** rather than a migration, which is the
-cheapest of the three to reverse and is exactly why D2 put `working` on ADR-0041. It is under the
-**60-line** ceiling, which is what makes D2's condition — _as small as it can be_ — a constraint the
-record has to meet rather than a tone to strike. It carries **the rule and the one thing it
-replaces** and nothing else: §9's "nothing is rewritten" and ADR-0041's "an editor can delete a
-shape without repairing everything that referenced it". **No new vocabulary and no name for the
+So the record is **`load-bearing`**, on the constitution's own test rather than on taste:
+`monospace-cli` calls `Diagram::remove`, so something outside the module depends on it, and
+reversing the freeze changes what that caller draws. Its ceiling is therefore **150 lines** and it
+takes the whole template — which is what D2's condition of _as small as it can be_ is measured
+against rather than a free hand: **the rule and the one thing it replaces** and nothing else: §9's
+"nothing is rewritten" and ADR-0041's "an editor can delete a shape without repairing everything
+that referenced it". **No new vocabulary and no name for the frozen position**, so §4 gains a
+sentence rather than a term, and a frozen end is the `Position::Absolute` that already exists.
 frozen position**, so §4 gains a sentence rather than a term, and a frozen end is the
 `Position::Absolute` that already exists.
 
 **No `<!-- render: -->` marker in any of the three artifacts**, and that is a fact rather than an
 omission: a marker reads a description the file carries, and a description has no field that takes a
 shape out, so no marker anywhere in the repository can hold a picture of this rule. The gallery
-block is the carrier that can (ADR-0064, ADR-0035).
+block is the carrier that can (ADR-0064, ADR-0035). The ADR is the one artifact where a
+`load-bearing` record **is** held to showing the options, and the two pictures it carries are
+reproduced from [data-model.md](data-model.md) and labelled **Hypothetical** on the spot, which is
+what they are until commit 1 lands.
 
 ## Complexity Tracking
 

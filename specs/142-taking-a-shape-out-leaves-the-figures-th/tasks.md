@@ -521,24 +521,31 @@ change to §3 landed (`505fd0d`).
       Take the next free number in the directory — **0068** is free today, and if it is not when
       this task runs, take the next one and write down what it was rather than inventing a number —
       and name the file `0068-freeze-what-hung-from-a-removed-shape-where-it-stood.md`, verb first.
-      Fill **`docs/decisions/adr-template.md`** at **`working`**, not `load-bearing`, and the reason
-      is D2's own: reversing the freeze is **a new short ADR naming what it replaces** rather than a
-      migration, which is the cheapest of the three to reverse and is the same reason D2 gave for
-      putting `commitment: working` on ADR-0041. Its ceiling is therefore **60 lines**, and D2's
-      condition — **as small as it can be** — is a ceiling the record has to meet rather than a tone
-      to strike. Four things it must carry: (1) the **rule and the one thing it replaces**, which
-      are §9's "nothing is rewritten" and ADR-0041's "an editor can delete a shape without repairing
-      everything that referenced it" — **nothing else**; (2) **no new vocabulary, no name for the
-      frozen position, and nothing said about removals in general**, which is D2's condition and the
-      reason §4 gains a sentence rather than a term; (3) the **pictures**, because the two options
-      differ in what they draw — the freeze's picture and today's, the arrangement as written and
-      with the box taken out, both reproduced from [data-model.md](data-model.md) and each labelled
-      on the spot as **Hypothetical**, since no `<!-- render: -->` marker can reach a removal; (4) a
-      **Confirmation** naming the six tests and the gallery block T005-T011 and T017 add, since that
-      is how anyone tells the decision is being followed. **Do not argue that the cost is small, and
-      do not write that reversing it repeatedly is expensive** — the constitution puts that cost in
-      a test rather than in prose where it reads as an instruction to stop thinking (Q5, Q7; D2;
-      ADR-0035, ADR-0064; principle VI; principle VIII)
+      Fill **`docs/decisions/adr-template.md`** **whole**, at **`load-bearing`**, and the reason is
+      the constitution's own test rather than taste: `monospace-cli` calls `Diagram::remove` and its
+      seventh picture exists because of the freeze, so **something outside the module depends on
+      it**. Its ceiling is therefore **150 lines**. **This corrects a judgment this plan's first run
+      made** — it proposed `working` on D2's reasoning that reversing the freeze is a new short ADR
+      rather than a migration, and the maintainer overruled it on 2026-10-02. Note what the
+      correction costs and what it buys: the full template requires **Considered Options with the
+      two options drawn side by side**, which the constitution's _Show the rendering_ holds a
+      `load-bearing` record to and which did not fit under 60; it requires **Pros and Cons of each
+      option**; and it requires a **Confidence with a percentage**. D2's condition — **as small as
+      it can be** — is a ceiling the record has to meet rather than a tone to strike, and the
+      template's own words are the measure (Q5, Q7; D2; ADR-0035, ADR-0064; principle VI; principle
+      VIII) to strike. Four things it must carry: (1) the **rule and the one thing it replaces**,
+      which are §9's "nothing is rewritten" and ADR-0041's "an editor can delete a shape without
+      repairing everything that referenced it" — **nothing else**; (2) **no new vocabulary, no name
+      for the frozen position, and nothing said about removals in general**, which is D2's condition
+      and the reason §4 gains a sentence rather than a term; (3) the **pictures**, because the two
+      options differ in what they draw — the freeze's picture and today's, the arrangement as
+      written and with the box taken out, both reproduced from [data-model.md](data-model.md) and
+      each labelled on the spot as **Hypothetical**, since no `<!-- render: -->` marker can reach a
+      removal; (4) a **Confirmation** naming the six tests and the gallery block T005-T011 and T017
+      add, since that is how anyone tells the decision is being followed. **Do not argue that the
+      cost is small, and do not write that reversing it repeatedly is expensive** — the constitution
+      puts that cost in a test rather than in prose where it reads as an instruction to stop
+      thinking (Q5, Q7; D2; ADR-0035, ADR-0064; principle VI; principle VIII)
 
 - [ ] T021 In `docs/decisions/0041-resolve-a-position-through-a-reference.md`, add **one dated
       line** under its `## Revisions` — **2026-10-02**, naming the new record and what it changes:
@@ -653,9 +660,10 @@ outside the sheet).
 - **No `refactor` commit.** Nothing structural happens: no type, no field, no variant, no signature
   and no new method, so principle V has nothing to separate (plan.md Constitution Check, principle
   V)
-- **No `load-bearing` record, and nothing beyond the rule and the one thing it replaces.** D2's
-  condition was that it be as small as it can be, and `working` at 60 lines is what that means here
-  (D2; principle VIII)
+- **Nothing beyond the rule and the one thing it replaces.** The record is `load-bearing` and fills
+  the whole template, and D2's condition — as small as it can be — is what keeps its _content_ to
+  the rule and the two sentences it overrides, with no third section on removals in general (D2;
+  principle VIII)
 
 ---
 
