@@ -359,10 +359,24 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 
 /// The first block is the model's §6 _Attachment_ reached with a reference where the model spells
 /// the point; the second is the same diagram with the box displaced four cells right, so the arrow
-/// follows the side it hangs from; and the third is the arrangement as written with the **connector**
-/// displaced two cells down, so the arrow slides off that side and draws as a translation of itself.
+/// follows the side it hangs from; the third is the arrangement as written with the **connector**
+/// displaced two cells down, so the arrow slides off that side and draws as a translation of itself;
+/// and the **fourth takes the box out**, so the arrow is not drawn at all — `wrote 0 of 24
+/// positions`.
 ///
-/// All three are in one snapshot because what a reader is meant to see is them together, and the two
+/// **That fourth block is empty, and the emptiness is the finding rather than a defect.** The
+/// gallery's arrangement is one box and one connector, and the connector's `from` names the only
+/// other figure, so **there is no survivor**: the block is the specification's B1.1 picture without
+/// the `#2` that stands in it, which is why it is blank where B1.1's hand-drawn one is not. The
+/// empty surface row says the number rather than leaving the impression, which is what makes it
+/// worth having at all: it is a snapshot, so a removal that ever began drawing the route — or
+/// freezing it where it had resolved — would write cells into that window and move it. **The one
+/// thing that would change it is widening the arrangement to hold a second box**, so the block
+/// could carry B1.1's picture rather than its degenerate case; that moves all three blocks the
+/// snapshot already holds, it is **not** D2's answer, and it is named here so a maintainer can
+/// raise it at review rather than find it in a snapshot.
+///
+/// All four are in one snapshot because what a reader is meant to see is them together, and the two
 /// displacements are the two directions of one rule: displacing the figure a reference hangs from
 /// carries the endpoint, displacing the figure that holds the reference moves it, and the pair is
 /// what makes the difference visible rather than asserted. The third block is **drawn by
@@ -438,8 +452,29 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
         &from_as_written,
     );
 
+    // **And the fourth takes the box out, which is the only picture in the repository that can show
+    // a removal at all.** No `<!-- render: -->` marker can reach it: a marker reads a description
+    // the file carries, and a description has no field that takes a shape out (ADR-0035), which is
+    // why D2's answer is a fourth block here rather than a fifth snapshot elsewhere (ADR-0064).
+    //
+    // **A third diagram rather than a removal on one of the two above, and that is measured rather
+    // than chosen.** Both diagrams this test holds are already mutated, and the removal would be a
+    // no-op on what remains of either: it writes **0 of 32** positions on `from_as_written` and
+    // **0 of 24** on `diagram`. The block would then be blank for a second and different reason
+    // while the comment beside it said the first, which is the one way a snapshot like this lies.
+    let mut with_the_box_taken_out = Diagram::new();
+    let third_box_id = with_the_box_taken_out.add(small_box(at(0, 0), None));
+    with_the_box_taken_out.add(hanging_connector(third_box_id.clone()));
+    with_the_box_taken_out.remove(&third_box_id);
+    let fourth = block(
+        labelled,
+        "the box taken out",
+        window(8, 3),
+        &with_the_box_taken_out,
+    );
+
     snap(
         "an_endpoint_hangs_from_a_side_and_follows_it",
-        &format!("{first}\n{second}\n{third}"),
+        &format!("{first}\n{second}\n{third}\n{fourth}"),
     );
 }

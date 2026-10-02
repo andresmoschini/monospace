@@ -93,7 +93,7 @@ gate step is added — `wasm` already compiles `monospace-diagram` (plan.md Cons
 principles III and VII). T001 captures what must not move before anything is edited, and T002 is the
 one tool the slice needs that `cargo xtask setup` does not install.
 
-- [ ] T001 Capture the baseline everything below is compared against, **before** any edit, and keep
+- [x] T001 Capture the baseline everything below is compared against, **before** any edit, and keep
       all three until T017. `cargo run -p monospace-cli > /tmp/demo-before.txt`,
       `cargo run -p monospace-cli crates/monospace-cli/assets/demo.json > /tmp/file-before.txt`, and
       `grep -c '^[A-Z].*:$' /tmp/demo-before.txt` must answer **6** — a number measured rather than
@@ -103,7 +103,7 @@ one tool the slice needs that `cargo xtask setup` does not install.
       `cargo run -q -p monospace-cli crates/monospace-cli/assets/demo.json | head -3` prints one
       picture and **no caption**, which is the guard that the split between the two modes holds
       (AGENTS.md, `monospace-cli` has two modes)
-- [ ] T002 [P] `cargo install cargo-insta`. `cargo xtask setup` is `npm ci` and nothing else, and
+- [x] T002 [P] `cargo install cargo-insta`. `cargo xtask setup` is `npm ci` and nothing else, and
       the gallery's fourth block (T006) is the **only** `cargo insta review` this slice runs, so a
       missing binary stalls at the one place where a snapshot has to be read rather than accepted
       blind (quickstart.md, Prerequisites; AGENTS.md, "Facts that are in the code")
@@ -118,7 +118,7 @@ by name. **Neither is a commit**: T003 leaves no file behind and T004 lands insi
 **⚠️ CRITICAL**: T004 is the arrangement, and T005-T011 cannot be written without it — a test that
 names a helper which is not there does not fail, it does not compile.
 
-- [ ] T003 Confirm the two counts with a scratch test, then delete it. Write
+- [x] T003 Confirm the two counts with a scratch test, then delete it. Write
       `crates/monospace-diagram/tests/scratch_142.rs`, build the arrangement of
       [data-model.md](data-model.md)'s first table twice — once with the connector and once with
       **no connector at all** — and difference the two pictures. Expected: the connector's footprint
@@ -134,7 +134,7 @@ names a helper which is not there does not fail, it does not compile.
       shows no `crates/monospace-diagram/tests/`: nothing in this slice's evidence may rest on a
       file the gate compiles, which is what `cargo xtask fix` will not catch (B1.1, B3.4;
       data-model.md "B1.1's picture, and what `remove` costs it"; constitution principle IV)
-- [ ] T004 In `crates/monospace-diagram/src/diagram.rs`, give the test module the arrangement the
+- [x] T004 In `crates/monospace-diagram/src/diagram.rs`, give the test module the arrangement the
       four contract tests below share, as named helpers beside `the_box()`, `the_unrelated_box()`
       and `the_window()` which are already there — **not** spelled out four times, which is the
       duplication principle VIII refuses. It is three values: a **four-by-three box at `{0, 0}`**, a
@@ -187,7 +187,7 @@ T012's, and it belongs to US3.
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Contract test: `a_removal_and_a_missing_identity_draw_the_same_thing` in
+- [x] T005 [US1] Contract test: `a_removal_and_a_missing_identity_draw_the_same_thing` in
       `crates/monospace-diagram/src/diagram.rs`. **B1.1 by value, and B3's route B beside route A**,
       which is why it is one test and not two: build T004's arrangement, take `#1` out, and draw it;
       then build the same arrangement with the connector's `from` naming an identity **never added**
@@ -201,7 +201,7 @@ T012's, and it belongs to US3.
       indistinguishable, which is §11's second question in the only form a test can ask it. Name
       B1.1 and SC-003 in the doc comment, and say in it that the arrangement's second box is the
       only survivor (B1.1; research.md Q1; SC-003)
-- [ ] T006 [P] [US1] In `crates/monospace-diagram/src/gallery.rs`, add the **fourth** `block()` to
+- [x] T006 [P] [US1] In `crates/monospace-diagram/src/gallery.rs`, add the **fourth** `block()` to
       `an_endpoint_hangs_from_a_side_and_follows_it` at `gallery.rs:387`, with
       `change: "the box taken out"` and `window(8, 3)`, and add the fourth block to the `format!` at
       `gallery.rs:441`. **Reach it from the arrangement as written, through a third `Diagram`** —
@@ -228,7 +228,7 @@ T012's, and it belongs to US3.
       here so the maintainer can raise it at review rather than find it in a snapshot (B1.1; D2;
       data-model.md "The gallery's fourth block measures to an empty picture"; plan.md "Three
       measurements")
-- [ ] T007 [US1] Contract test: `a_figure_put_back_under_the_removed_identity_draws_again` in
+- [x] T007 [US1] Contract test: `a_figure_put_back_under_the_removed_identity_draws_again` in
       `crates/monospace-diagram/src/diagram.rs` — **B1.2**, and the claim nothing in the crate
       states today. Take `#1` out of T004's arrangement, then put the box **back under the same
       identity** with `add_under(ShapeId::new("#1"), the_box)`, and assert the buffer is equal to
@@ -238,7 +238,7 @@ T012's, and it belongs to US3.
       The doc comment carries **the reason this is one test**: §9 says re-adding a shape with the
       same identity would make the references resolve again, and this is the slice that finds out
       whether it can (B1.2; research.md Q2; SC-003)
-- [ ] T008 [US1] Contract test: `add_hands_back_an_identity_no_shape_holds_after_a_removal` in
+- [x] T008 [US1] Contract test: `add_hands_back_an_identity_no_shape_holds_after_a_removal` in
       `crates/monospace-diagram/src/diagram.rs` — **B1.3**, "a caller walking into the hole". Take
       `#1` out, call plain `add` with the same box value, and assert the identity handed back is
       **`#4`** and **not** `#1`, that `get(&"#1")` answers `None` while `get(&"#4")` answers `Some`,
@@ -248,7 +248,7 @@ T012's, and it belongs to US3.
       `add_under` is the only way to spell an identity. **Nothing repairs the hole**, and a caller
       who re-adds without naming the identity sees a diagram that looks the same and hangs from
       nothing (B1.3; research.md Q2; data-model.md "B1.2 and B1.3, by value")
-- [ ] T009 [US1] In the same file, rewrite the **two** doc comments `add_under` falsified, in the
+- [x] T009 [US1] In the same file, rewrite the **two** doc comments `add_under` falsified, in the
       same commit that measures them false — a rustdoc is code, and both sit beside a `pub` method
       that contradicts them on the branch that measured it false (D3). The first is at
       **`diagram.rs:2350-2355`**, on
@@ -268,7 +268,7 @@ T012's, and it belongs to US3.
       answered. **`replace`'s own rustdoc at `diagram.rs:170` says the same thing and is not
       touched** — it is about `replace`, not about `remove` (D3; research.md Q5; spec.md "Testing
       expectations")
-- [ ] T010 [US1] **Make the rules fail on purpose before trusting them.** Two one-line changes to
+- [x] T010 [US1] **Make the rules fail on purpose before trusting them.** Two one-line changes to
       the tests' own fixtures, both of which must go **red**, then both restored and green again:
       for T007, spell the put-back with `add` instead of `add_under` — `add` hands back `#4`, so the
       picture comes out **the far box alone** and the test goes red on the comparison, which is B1.3
@@ -303,7 +303,7 @@ which route happened (B3.1, B3.2, B3.3, B3.4; SC-003).
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Contract test: `the_three_routes_to_one_picture` in
+- [x] T011 [US2] Contract test: `the_three_routes_to_one_picture` in
       `crates/monospace-diagram/src/diagram.rs` — **B3.1 to B3.4 as one test**, and its three
       assertions are three arrangements that each hold one of T004's variants. **A** — the
       connector's `from` names an identity never added. **B** — the same arrangement with `#1` taken

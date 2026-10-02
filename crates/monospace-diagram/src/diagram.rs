@@ -2349,10 +2349,15 @@ mod tests {
     ///
     /// The identity is spelled rather than read back, and **the connector is the first figure
     /// added** so that the figure under test is the one the counter names next. That is what makes
-    /// the case reachable at all: a diagram offers no way to name a shape into existence, so a
-    /// spelled identity can only ever be the one an `add` is about to issue. Nothing holds it at
+    /// the case reachable at all: `add_under` is `pub` and takes the caller's name rather than the
+    /// counter's, so a spelled identity is the only way to hold one the counter has not reached yet
+    /// — which `#2` is exactly here, since the connector took `#1` first. Nothing holds it at
     /// first and the hanging connector draws nothing; then a figure arrives and the same reference
     /// finds it.
+    ///
+    /// **This paragraph used to claim a diagram offers no way to name a shape into existence, and
+    /// that is what `add_under` falsified** — it is that way, and it is `pub`, which is what the
+    /// case above is built to reach (see #148).
     ///
     /// A `Box` answers, a `Line` answers as a flat box, and a `Connector` does not answer at all —
     /// which is the same picture as a reference to a shape that was never there.
@@ -2545,12 +2550,16 @@ mod tests {
     ///
     /// The case is put through `replace` rather than through `remove` followed by an addition, and
     /// the reason is the model's rather than a convenience: `remove` frees an identity permanently
-    /// — `add` never hands one out twice, and there is no `add_under` — so a removal followed by an
-    /// addition cannot put anything back under the removed one's identity, and the reference stays
-    /// unresolved for good. What `replace` gives is the same resolution from the other side: the
-    /// identity is found, the kind answers the anchor, and the connector is drawn from wherever the
-    /// figure now stands. [#142](https://github.com/andresmoschini/monospace/issues/142) is where
-    /// what a removal should do to a reference is answered.
+    /// **as far as `add` is concerned** — `remove` does not touch the counter, so the next `add`
+    /// hands out the next ordinal and never the removed one — while `add_under` puts a figure back
+    /// under that very name and the picture returns byte for byte, which is the spec's B1.2 and
+    /// `a_figure_put_back_under_the_removed_identity_draws_again`'s claim. What `replace` gives is
+    /// the same resolution from the other side: the identity is found, the kind answers the anchor,
+    /// and the connector is drawn from wherever the figure now stands. **That half is a reason about
+    /// resolution rather than about removals, and it is the half that survives** — the half this
+    /// paragraph used to give, about there being no `add_under`, did not.
+    /// [#142](https://github.com/andresmoschini/monospace/issues/142) is where what a removal
+    /// should do to a reference is answered.
     ///
     /// A **line** is what goes back, not a second box, so a kind change is covered by the same case:
     /// read as a box one cell thick, a five-cell line's right side center is its last cell, which is
@@ -2593,6 +2602,396 @@ mod tests {
             cells(&before, origin, size),
             cells(&after, origin, size),
             "the replacement did not reach the picture at all"
+        );
+    }
+
+    // ------------------------------- taking a shape out, and the three ways a reference can miss
+
+    /// The window the removal cases below are drawn in: **twelve by three at the origin**, which is
+    /// the canvas the specification's own hand-drawn picture is measured on, rather than the one
+    /// `the_window()` above uses.
+    fn the_arrangement_window() -> (Pos, Size) {
+        (
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 12,
+                height: 3,
+            },
+        )
+    }
+
+    /// The second box of the arrangement below: three by three at `{8, 0}`, clear of the first box
+    /// and of everything between them.
+    ///
+    /// **It is the whole reason this arrangement is not `the_arrangement()`'s.** A removal is only
+    /// legible if some figure stays, and this one is the figure that survives it — the sole answer
+    /// to "every other figure is drawn exactly as it would have been". `the_unrelated_box()` would
+    /// do as a bystander and cannot do here: it is filled, it stands at `{9, 0}` rather than
+    /// `{8, 0}`, and `{8, 1}` is where the arrow's own far end is.
+    fn the_far_box() -> Shape {
+        Shape::Box {
+            at: Pos { x: 8, y: 0 },
+            size: Size {
+                width: 3,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        }
+    }
+
+    /// The arrow of the arrangement below: its `from` naming `#1`'s right side with a gap of
+    /// nothing, and its `to` the plain point `{8, 1}`. Both ends arms, so what a picture shows is
+    /// the route and nothing about how a terminal draws.
+    fn the_hanging_connector(box_id: ShapeId) -> Shape {
+        arm_connector(
+            Position::Reference(Reference {
+                id: box_id,
+                anchor: Anchor::Right,
+                offset: Delta { dx: 0, dy: 0 },
+            }),
+            Pos { x: 8, y: 1 }.into(),
+        )
+    }
+
+    /// The two boxes and the identity of the first — the arrangement minus its arrow, so that a
+    /// case which leaves the arrow out is the same two figures rather than a second arrangement
+    /// spelled from scratch.
+    fn the_two_boxes() -> (Diagram, ShapeId) {
+        let mut diagram = Diagram::new();
+        let the_one_taken_out = diagram.add(the_box());
+        diagram.add(the_far_box());
+        (diagram, the_one_taken_out)
+    }
+
+    /// The arrangement as `data-model.md` spells it: `#1` the four-by-three box at the origin, `#2`
+    /// the far box, and `#3` the arrow between them.
+    ///
+    /// Returns `#1` — the identity every removal below takes out — and `#3`.
+    fn the_arrangement_with_a_survivor() -> (Diagram, ShapeId, ShapeId) {
+        let (mut diagram, the_one_taken_out) = the_two_boxes();
+        let the_arrow = diagram.add(the_hanging_connector(the_one_taken_out.clone()));
+        (diagram, the_one_taken_out, the_arrow)
+    }
+
+    /// The same two boxes with **no arrow in the arrangement at all** — the baseline the arrow's own
+    /// footprint is read as a difference against.
+    ///
+    /// A count of the arrow's cells taken off either picture would count the two boxes along with
+    /// it; this third arrangement is what makes the difference mean what it says.
+    fn the_same_arrangement_without_the_arrow() -> Diagram {
+        the_two_boxes().0
+    }
+
+    /// The connector that stands where the box stood in route C, under `#1`.
+    ///
+    /// It writes **its own two cells** at `{0, 0}` and `{1, 0}` — both endpoints included, so the
+    /// far end is a cell along and not the third one — which is what makes route C *not* the same
+    /// buffer as the other two. And it answers no anchor at all, which is §4's table's second row
+    /// reached without a removal.
+    fn the_connector_under_the_box() -> Shape {
+        arm_connector(Pos { x: 0, y: 0 }.into(), Pos { x: 1, y: 0 }.into())
+    }
+
+    /// The spec's route C: the same arrangement with **that connector** under the box's identity, so
+    /// `#1` is still held and the arrow's reference names a figure that cannot answer.
+    fn the_same_arrangement_with_a_connector_under_the_box() -> (Diagram, ShapeId, ShapeId) {
+        let mut diagram = Diagram::new();
+        diagram.add_under(ShapeId::new("#1"), the_connector_under_the_box());
+        diagram.add(the_far_box());
+        let the_arrow = diagram.add(the_hanging_connector(ShapeId::new("#1")));
+        (diagram, ShapeId::new("#1"), the_arrow)
+    }
+
+    /// An identity the arrangement above never issues and no `add` here is holding out: the
+    /// arrangement stops issuing at `#4`, and `#1`, `#2` and `#3` are all held.
+    ///
+    /// Spelled rather than read back, because the point is that **nothing can be read back for
+    /// it**. A reference to a shape that is *coming* is a normal state rather than a fault, so the
+    /// arrival has to be one a reader can see is absent.
+    fn an_identity_nothing_holds() -> ShapeId {
+        ShapeId::new("#7")
+    }
+
+    /// The spec's route A: the arrangement with **nothing at all where the near box stood** — it was
+    /// never added — so the arrow's reference names an identity no figure is held under.
+    ///
+    /// **The near box is absent rather than present-but-unreferenced, and that is the whole of
+    /// route A.** A reference to nothing while the figure still stands would draw a picture the
+    /// model calls route A's neighbor rather than route A itself: §4's table is about a position
+    /// that does not resolve, and a box nobody references is a box that draws. Here the far box
+    /// holds `#1`, the arrow is `#2`, and the identity the arrow names is one nothing holds.
+    fn the_same_arrangement_with_the_near_box_never_added() -> (Diagram, ShapeId) {
+        let mut diagram = Diagram::new();
+        diagram.add(the_far_box());
+        let the_arrow = diagram.add(the_hanging_connector(an_identity_nothing_holds()));
+        (diagram, the_arrow)
+    }
+
+    /// User Story 1, spec's B1.1, and SC-003: taking the box out draws exactly the far box, and the
+    /// picture is **byte for byte** what a reference naming an identity nothing ever held draws.
+    ///
+    /// **Two comparisons rather than one, and the order is the claim.** Putting the removal beside
+    /// the missing identity is §11's second question in the only form a test can ask it; the
+    /// comparison against `the_far_box()` drawn on its own is what says **no other figure moved**,
+    /// since two pictures agreeing is a weaker claim than a picture being a known one.
+    ///
+    /// **`#2` is the only figure in this arrangement that survives the removal**, which is what makes
+    /// the removal legible at all — without it, a removal and an empty diagram would draw the same
+    /// thing and the case would say nothing about the figures that stayed.
+    ///
+    /// **The `get` answers come first, and they are why this test exists rather than the
+    /// comparison.** `taking_the_referenced_figure_out_stops_the_connector_and_changes_nothing_else`
+    /// at `diagram.rs:2512` already pins this very picture, so what is new here is the **reasons**
+    /// beside a second assertion of the same buffer: that a removal and an identity nothing holds
+    /// are indistinguishable to a reader, and that the diagram stopped holding `#1` rather than
+    /// merely stopped drawing it. Route A here is the specification's B3.1 — the **near box was
+    /// never added at all**, not present and unreferenced.
+    #[test]
+    fn a_removal_and_a_missing_identity_draw_the_same_thing() {
+        let (origin, size) = the_arrangement_window();
+
+        let (mut diagram, the_one_taken_out, the_arrow) = the_arrangement_with_a_survivor();
+        diagram.remove(&the_one_taken_out);
+        assert_eq!(
+            diagram.get(&the_one_taken_out),
+            None,
+            "the box is still held under the identity that was removed"
+        );
+        assert_eq!(
+            diagram.get(&the_arrow),
+            Some(&the_hanging_connector(the_one_taken_out.clone())),
+            "the removal took the arrow with it rather than only what the arrow hung from"
+        );
+        let after_the_removal = draw_of(&diagram, origin, size);
+
+        let (never_added, _) = the_same_arrangement_with_the_near_box_never_added();
+        let after_a_missing_identity = draw_of(&never_added, origin, size);
+
+        assert_eq!(
+            cells(&after_the_removal, origin, size),
+            cells(&after_a_missing_identity, origin, size),
+            "a removal and a reference naming an identity nothing holds drew different things"
+        );
+        assert_eq!(
+            cells(&after_the_removal, origin, size),
+            cells(&drawn(vec![the_far_box()], origin, size), origin, size),
+            "something other than the surviving figure is still drawn"
+        );
+    }
+
+    /// User Story 1, spec's B1.2, and SC-003: a figure put back **under the removed identity**
+    /// draws the whole picture again, byte for byte — the claim nothing in the crate stated before,
+    /// so this is a measurement rather than a restatement of a rule.
+    ///
+    /// §9 says re-adding a shape with the same identity would make the references resolve again,
+    /// and this is the test that finds out whether it can. `add_under` is the only way to spell the
+    /// identity at all; `add_hands_back_an_identity_no_shape_holds_after_a_removal` is what the
+    /// ordinary way does instead, and the reason this is a separate test rather than the same one.
+    ///
+    /// The comparison is the whole buffer and not "the arrow is there", because "the arrow is there"
+    /// is what a rule drawing a fragment of the route would satisfy too.
+    #[test]
+    fn a_figure_put_back_under_the_removed_identity_draws_again() {
+        let (origin, size) = the_arrangement_window();
+        let (mut diagram, the_one_taken_out, _) = the_arrangement_with_a_survivor();
+        let before = draw_of(&diagram, origin, size);
+
+        diagram.remove(&the_one_taken_out);
+        diagram.add_under(the_one_taken_out.clone(), the_box());
+
+        assert_eq!(
+            diagram.get(&the_one_taken_out),
+            Some(&the_box()),
+            "the figure went back under a different identity"
+        );
+        assert_eq!(
+            cells(&draw_of(&diagram, origin, size), origin, size),
+            cells(&before, origin, size),
+            "the picture did not come back byte for byte"
+        );
+    }
+
+    /// User Story 1, spec's B1.3, and SC-003: after a removal `add` hands back an identity **no
+    /// shape holds** — `#4`, where `#1` was taken out — and the arrow is still not drawn. A caller
+    /// walking into the hole.
+    ///
+    /// **The last half is the one that is not arithmetic**, and it is where the value of this test
+    /// is: that `add` skips `#1` falls out of `Diagram`'s own counter rather than out of a rule.
+    /// `remove` does not touch `next`, so the counter never reissues, and `add_under` is the only
+    /// way to spell an identity. **Nothing repairs the hole**, and a caller who re-adds without
+    /// naming the identity sees a diagram that looks the same as before and hangs from nothing —
+    /// which is what the last assertion is: **the two boxes and not the arrow**, a picture its
+    /// author would take for a reference that still works.
+    #[test]
+    fn add_hands_back_an_identity_no_shape_holds_after_a_removal() {
+        let (origin, size) = the_arrangement_window();
+        let (mut diagram, the_one_taken_out, _) = the_arrangement_with_a_survivor();
+
+        diagram.remove(&the_one_taken_out);
+        let handed_back = diagram.add(the_box());
+
+        assert_eq!(
+            handed_back.to_string(),
+            "#4",
+            "the counter reissued an identity a shape had already given up"
+        );
+        assert_eq!(
+            diagram.get(&the_one_taken_out),
+            None,
+            "the removed identity is held again"
+        );
+        assert_eq!(
+            diagram.get(&handed_back),
+            Some(&the_box()),
+            "the identity the caller was handed holds nothing"
+        );
+        assert_eq!(
+            cells(&draw_of(&diagram, origin, size), origin, size),
+            cells(
+                &drawn(vec![the_box(), the_far_box()], origin, size),
+                origin,
+                size
+            ),
+            "the re-added shape hung something back from nothing"
+        );
+    }
+
+    /// The arrow's own footprint in the arrangement above: **the six cells** the specification's
+    /// B3.4 names, as coordinates rather than as two pictures to read side by side.
+    fn the_arrows_six_cells() -> [Pos; 6] {
+        [
+            Pos { x: 3, y: 1 },
+            Pos { x: 4, y: 1 },
+            Pos { x: 5, y: 1 },
+            Pos { x: 6, y: 1 },
+            Pos { x: 7, y: 1 },
+            Pos { x: 8, y: 1 },
+        ]
+    }
+
+    /// User Story 2, spec's B3.1 to B3.4, and SC-003: the three routes by which a figure's position
+    /// fails to resolve all reach **one picture**, and nothing in the diagram records which one
+    /// happened.
+    ///
+    /// **This is the first test in the repository that can fail on a decision nobody has taken.** An
+    /// implementation that answered a removal differently from an identity nothing holds would draw
+    /// two of the three routes and fail — which is the whole point of putting all three in one test
+    /// rather than one test per route: a test per route asserts nothing the single comparison does
+    /// not, and three tests can each be satisfied by three different answers.
+    #[test]
+    fn the_three_routes_to_one_picture() {
+        let (origin, size) = the_arrangement_window();
+
+        // The six is **measured against the no-arrow baseline rather than quoted**: the difference
+        // between the arrangement and the same arrangement with no connector in it at all. Three
+        // routes compared against each other could not find a count that is wrong in all three of
+        // them, and the count is one of the things this slice amends.
+        let (with_the_arrow, _, _) = the_arrangement_with_a_survivor();
+        let without_the_arrow = the_same_arrangement_without_the_arrow();
+        assert_eq!(
+            differing(
+                &draw_of(&without_the_arrow, origin, size),
+                &draw_of(&with_the_arrow, origin, size),
+                origin,
+                size,
+            ),
+            the_arrows_six_cells().to_vec(),
+            "the arrow's own footprint is not the six cells B3.4 names"
+        );
+
+        // Route A — the shape was never there, so the arrow names an identity nothing holds.
+        let (a, a_arrow) = the_same_arrangement_with_the_near_box_never_added();
+
+        // Route B — the shape was there and was taken out.
+        let (mut b, b_box, _) = the_arrangement_with_a_survivor();
+        b.remove(&b_box);
+        assert_eq!(
+            b.get(&b_box),
+            None,
+            "route B is reached by a removal and the removal did not happen"
+        );
+
+        // Route C — the identity is still held, by a figure that answers no side.
+        let (c, c_box, _) = the_same_arrangement_with_a_connector_under_the_box();
+        assert_eq!(
+            c.get(&c_box),
+            Some(&the_connector_under_the_box()),
+            "route C holds the identity and the diagram does not find it"
+        );
+
+        // **The comparison is the arrow's footprint and not the whole buffer, and the reason is
+        // written here at the comparison rather than only in the doc comment above**: route C is
+        // *not* the same buffer — it carries the replacement's own two cells at `{0, 0}` and
+        // `{1, 0}` — so a whole-buffer comparison would fail it for that difference and not for
+        // the one being claimed.
+        //
+        // **The three are compared against each other rather than against the baseline above**,
+        // and that is deliberate: the baseline still holds the near box, so its `{3, 1}` is the
+        // border `│` while every route's is blank. A route can only be told from the baseline by
+        // a comparison that already knows the box went away, and each route says so in its own
+        // arrangement rather than in the picture.
+        let a_picture = draw_of(&a, origin, size);
+        let a_six: Vec<Option<Cell>> = the_arrows_six_cells()
+            .iter()
+            .map(|at| a_picture.cell(*at).cloned())
+            .collect();
+        for (route, diagram) in [("B", &b), ("C", &c)] {
+            let by_route = draw_of(diagram, origin, size);
+            let route_six: Vec<Option<Cell>> = the_arrows_six_cells()
+                .iter()
+                .map(|at| by_route.cell(*at).cloned())
+                .collect();
+            assert_eq!(
+                route_six, a_six,
+                "route {route} and route A are not the same in the arrow's six cells"
+            );
+        }
+
+        // **Comparing the three against each other cannot say the arrow drew nothing** — three
+        // answers that all drew it would agree with one another — so each route is also compared
+        // against **its own figures with no connector among them at all**. That is what rules out
+        // a rule that answered all three routes the same wrong way.
+        assert_eq!(
+            cells(&a_picture, origin, size),
+            cells(&drawn(vec![the_far_box()], origin, size), origin, size),
+            "route A is not the far box alone, so something else is drawn"
+        );
+        assert_eq!(
+            cells(&draw_of(&b, origin, size), origin, size),
+            cells(&a_picture, origin, size),
+            "a removal and an identity nothing holds are not the same picture"
+        );
+        assert_eq!(
+            cells(&draw_of(&c, origin, size), origin, size),
+            cells(
+                &drawn(
+                    vec![the_connector_under_the_box(), the_far_box()],
+                    origin,
+                    size
+                ),
+                origin,
+                size
+            ),
+            "route C carries more than the far box and the replacement's own two cells"
+        );
+
+        // **Nothing records which route happened.** The identity names three different ways and
+        // the pictures are two, which is §11's second question in the only form a test can put it.
+        assert_eq!(
+            a_arrow.to_string(),
+            "#2",
+            "route A's arrow is not issued where this arrangement issues it"
+        );
+        assert_eq!(
+            differing(
+                &draw_of(&b, origin, size),
+                &draw_of(&c, origin, size),
+                origin,
+                size
+            ),
+            vec![Pos { x: 0, y: 0 }, Pos { x: 1, y: 0 }],
+            "the three routes are not the two pictures they are"
         );
     }
 
