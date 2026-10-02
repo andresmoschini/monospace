@@ -76,18 +76,19 @@ so nothing here needs the spike to stay.
 cargo test -p monospace-diagram
 ```
 
-Expected before the change: **72 pass**. After: **77** — the five the specification asks for, and no
-test removed or renamed:
+Expected before the change: **72 pass**. After: **78** — the six the specification asks for, and no
+test removed:
 
-| The test                                                         | Holds                                                                  |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `a_removal_freezes_what_hung_from_the_removed_shape`             | B1.1 asked and then drawn, and the three route cells byte for byte     |
-| `a_shape_put_back_under_the_removed_identity_is_not_re_attached` | B1.2: the picture comes back, and nothing re-attaches                  |
-| `the_three_routes_to_one_picture_are_not_one_picture_now`        | B2.1, the comparison the freeze retires                                |
-| `two_connectors_from_one_figure_both_freeze_at_their_own_points` | The edge case, P1 twice rather than a cascade                          |
-| `a_removal_touches_nothing_else`                                 | D3: the never-added identity and the other figure's reference stay put |
+| The test                                                                    | Holds                                                                  |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `a_removal_freezes_what_hung_from_the_removed_shape`                        | B1.1 asked and then drawn, and the three route cells byte for byte     |
+| `a_figure_holding_no_reference_answers_nothing_and_one_holding_one_freezes` | The new method's own contract, over **all three kinds**                |
+| `a_shape_put_back_under_the_removed_identity_is_not_re_attached`            | B1.2 and B1.3: the picture comes back, and nothing re-attaches         |
+| `the_three_routes_to_one_picture_are_not_one_picture_now`                   | B2.1, the comparison the freeze retires                                |
+| `two_connectors_from_one_figure_both_freeze_at_their_own_points`            | The edge case, P1 twice rather than a cascade                          |
+| `a_removal_touches_nothing_else`                                            | D3: the never-added identity and the other figure's reference stay put |
 
-Two of them are worth reading for the assertion rather than the name, because the defect is a silent
+One of them is worth reading for the assertion rather than the name, because the defect is a silent
 no-op and a no-op satisfies "nothing failed":
 
 ```sh
@@ -102,23 +103,52 @@ the box's ten drawn cells are blank, and **no other cell moved** — the last of
 a difference against a **no-connector baseline** rather than a quoted number, because a number
 written in a test is the thing research.md Q7 measured and found wrong twice.
 
-And `a_removal_touches_nothing_else` matters for the opposite reason: a freeze that reached every
-reference, or that dropped the unresolved ones, would pass every other test here. It builds three
-diagrams and asserts one thing each — a reference to an identity that was never added comes back
-still a `Reference` after a removal naming that identity; a connector whose `from` names a figure
-that stays keeps a `Reference` while its `to`, naming the removed one, is frozen; and **one
-connector with both ends on the same figure gets two different points**, which is the case a
-`(index, point)` collection gets wrong by writing the first point into both ends.
+### The method's own contract, over all three kinds
 
-**Make the rule fail on purpose before trusting it.** Comment out the write pass —
+The second test in the table is the one that pins the shape of the method rather than the shape of
+the picture, and it is where the two kinds that cannot hold a reference today are **held to
+answering nothing**:
 
-```rust
-for (at, slot, point) in frozen {
+```sh
+cargo test -p monospace-diagram a_figure_holding_no_reference_answers_nothing -- --exact
 ```
 
-— by leaving the collection in place and dropping the loop, then run the five. All five must go
-**red**, which is what shows they ask the rule rather than the code. Then put it back and confirm
-green again. A green run only proves the command ran (principle IV).
+A `Box` and a `Line` answer `None`, and so does a connector naming another figure and one naming an
+identity that was never added. All four are `None` **and not a copy**, which is the whole claim: the
+alternative signature returns the figure itself, and a figure that came back equal to what went in
+is indistinguishable from one that genuinely rewrote to the same value. Measured on this branch,
+those four all answer `None`.
+
+### `a_removal_touches_nothing_else` matters for the opposite reason
+
+A freeze that reached **every** reference, or that dropped the unresolved ones, would pass every
+other test in the table. It builds three diagrams and asserts one thing each — a reference to an
+identity that was never added comes back still a `Reference` after a removal naming that identity; a
+connector whose `from` names a figure that stays keeps a `Reference` while its `to`, naming the
+removed one, is frozen; and **one connector with both ends on the same figure gets two different
+points**, which is the arrangement a naive implementation gets wrong by writing the first point into
+both ends. Measured, the two points are `{3, 1}` and `{2, 2}` for a four-by-three box at the origin.
+
+**Make the rule fail on purpose before trusting it**, and fail it in a way that isolates D3's answer
+from the mechanism. Drop the guard on **which** figure a reference names —
+
+```rust
+Position::Reference(reference) if &reference.id == id => {
+```
+
+— turning it into `Position::Reference(_) => {`. That is "rewrite every reference", the alternative
+D3 rejected, and the shape of the result is now wrong in a way a reader can see:
+
+```sh
+cargo test -p monospace-diagram a_removal_touches_nothing_else
+```
+
+Expected: **red**, on the never-added case and on the other-figure's case, while
+`a_removal_freezes_what_hung_from_the_removed_shape` **stays green** — because that one asks about
+the figure that _was_ named and this change does not touch it. A red that takes down everything at
+once would only show that the tests are connected to `remove`; a red that takes down three and
+leaves one standing shows that they are connected to **the rule**. Then put the guard back and
+confirm green again. A green run only proves the command ran (principle IV).
 
 ### The gallery's fourth block
 
@@ -128,18 +158,8 @@ cargo insta test --review -p monospace-diagram -- an_endpoint_hangs_from_a_side_
 
 Expected: one snapshot diff, and **the first three blocks of it unchanged**. What is added is a
 fourth block, `change: the box taken out`, and it is measured on this branch to be the arrangement
-as written with the box gone and **the arrow still standing**:
-
-```text
-  shapes: [small_box(0,0,no fill), arm_connector(from = Reference(#1, Right, offset (0,0)) -> 7,1)]
-  change: the box taken out
-  ┌──┐
-  │  ├────
-  └──┘
-
-     ─────
-
-```
+as written with the box gone and **the arrow still standing**. The block itself is drawn once, in
+[data-model.md](data-model.md), and it is not repeated here.
 
 **It is reached from a third `Diagram` in the same test, not from the block beside it.** That is the
 same correction 143 had to make for its third block and it holds here for a different reason: the
@@ -196,10 +216,8 @@ cargo test -p monospace-cli one_shape_demonstrates -- --exact
 
 Expected: **seven** identical blank pictures for the first, and for the second the same picture
 sequence as today with a seventh equal to the sixth — a one-shape description has no `#3` and no
-`#10`, so the seventh step is a no-op on two identities the diagram does not hold, and `get`
-returning `None` is what keeps it so. Note that `remove` is **not** a no-op there for the reason the
-first four steps were: it finds nothing and returns before the first pass, which is the guard
-`let Some(index) = self.find(id) else { return }` is for.
+`#10`, so the seventh step is a no-op on two identities the diagram does not hold, and `remove`
+returning before its loop is what keeps it so.
 
 `assets/demo.json` is byte for byte the file it is today, which is B3.2 and SC-001's cost claim:
 
@@ -217,12 +235,12 @@ cargo test --workspace
 ```
 
 Expected: **29** in `monospace-cli`'s unit tests, **19** in its integration tests, **114** in
-`monospace-core`, **77** in `monospace-diagram`, **15** in `monospace-glyph-sets` and **61** in
+`monospace-core`, **78** in `monospace-diagram`, **15** in `monospace-glyph-sets` and **61** in
 `xtask`. The baseline these are against was measured on this branch and is **28 / 19 / 114 / 72 / 15
-/ 61**, so the six tests the slice adds and the six existing tests whose **names** change account
+/ 61**, so the six tests the slice adds and the two existing tests whose **names** change account
 for the whole difference. No characterization file moves, and no ADR-0053 report is owed:
 research.md Q6 measured **1916 renderings across 16 files** and none of them can express a removal,
-because `remove` appears nowhere in the core's sweeps and a sweep never removes anything. **The
+because `remove` appears nowhere under `crates/monospace-core` and no sweep removes anything. **The
 gallery snapshot is the only picture one change can move.**
 
 Then the gate, which is the only definition of green:
@@ -232,20 +250,24 @@ cargo xtask check
 ```
 
 All **twelve** steps green, including `wasm` — which compiles `monospace-core`, `monospace-diagram`
-and `monospace-glyph-sets`, so it covers the new body with no change to `xtask` and no new check,
-which is why principle III's two-commit rule does not apply. The body reaches the core only through
-the `Pos` that `resolve` already returned. The `render` step must still answer **26** pictures —
-measured on this branch today — and `numbering` must be green, which is where `0068` shows as taken
-rather than free. Watch the **output** rather than the exit code: `rustfmt` reports that
-`group_imports` needs nightly and exits 0, and so does a step that finds something it cannot fix.
+and `monospace-glyph-sets`, so it covers the two new methods with no change to `xtask` and no new
+check, which is why principle III's two-commit rule does not apply. The methods reach the core only
+through the `Pos` that `resolve` already returned. The `render` step must still answer **26**
+pictures — measured on this branch today — and `numbering` must be green, which is where `0068`
+shows as taken rather than free. Watch the **output** rather than the exit code: `rustfmt` reports
+that `group_imports` needs nightly and exits 0, and so does a step that finds something it cannot
+fix.
 
 ## If a check fails
 
-| The failure                                                                | What it means                                                                                                                                                                                |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `the_three_routes_to_one_picture…` fails on the **still-held** route       | The freeze reached a reference it was not given. D3 freezes the references **naming the removed shape**; a figure that answers no side resolves to nothing today and must still draw nothing |
-| `a_removal_touches_nothing_else` fails on the never-added case             | The `Some(point)` guard was dropped, so an unresolved reference is being frozen or dropped — either is a second rule                                                                         |
-| Both ends of one connector come back at the **same** point                 | The second pass is keyed on the figure's index alone. The slot is not optional and the case is in `data-model.md`                                                                            |
-| `a_shape_put_back_under_the_removed_identity…` fails with a changed column | Something re-attached, or a displacement reached an absolute position's coordinates — P3's cost, and both halves of one test                                                                 |
-| `render` shows a changed picture                                           | A tracked marker moved. SC-005 says none does; the description beside that marker was edited and `cargo xtask render` is telling you so. `assets/demo.json` is read by twenty-six of them    |
-| An `insta` snapshot fails rather than being reviewed                       | The rule changed what it draws, which is what the gallery block is for — but read the diff, and check whether the **first three** blocks moved                                               |
+| The failure                                                                           | What it means                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `method 'with_frozen_references' is never used`                                       | The two methods landed without `remove` calling them. Measured on this branch: `dead_code` is a warning and `-D warnings` makes it an error, which is why commit 1 carries both halves and there is no `refactor` to separate                            |
+| `error[E0502]` inside `remove`                                                        | The loop holds `&mut self.shapes` across the call, or writes `placed.shape` from an `iter_mut`. **A `&mut Shape` cannot be held across a method that wants the diagram** — index `0..self.shapes.len()` instead. Measured: that form compiles            |
+| `a_figure_holding_no_reference_answers_nothing…` fails on a kind that cannot hold one | The two `None` arms are missing or a variant fell through. They are there so #89 widens two lines rather than the method, and a `Box` answering `Some` is a clone being made for nothing                                                                 |
+| `the_three_routes_to_one_picture…` fails on the **still-held** route                  | The freeze reached a reference it was not given. D3 freezes the references **naming the removed shape**; a figure that answers no side resolves to nothing today and must still draw nothing                                                             |
+| `a_removal_touches_nothing_else` fails on the never-added case                        | The `Some(point)` guard was dropped, so an unresolved reference is being frozen or dropped — either is a second rule                                                                                                                                     |
+| Both ends of one connector come back at the **same** point                            | The two answers are not computed before either endpoint is built. `Shape::with_frozen_references` asks both and only then writes; an implementation that writes `from` and then reads it back cannot do this, which is why the `(None, None)` arm exists |
+| `a_shape_put_back_under_the_removed_identity…` fails with a changed column            | Something re-attached, or a displacement reached an absolute position's coordinates — P3's cost, and both halves of one test                                                                                                                             |
+| `render` shows a changed picture                                                      | A tracked marker moved. SC-005 says none does; the description beside that marker was edited and `cargo xtask render` is telling you so. `assets/demo.json` is read by twenty-six of them                                                                |
+| An `insta` snapshot fails rather than being reviewed                                  | The rule changed what it draws, which is what the gallery block is for — but read the diff, and check whether the **first three** blocks moved                                                                                                           |

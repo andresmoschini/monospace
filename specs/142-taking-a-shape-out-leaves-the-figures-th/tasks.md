@@ -19,16 +19,22 @@ field and no type, `Diagram`'s whole surface is what
 `remove`'s **behavior** changing under it, and that is what the ADR is for. Writing the rule a
 second time in a fourth contract is the duplication principle VIII refuses.
 
-**Tests**: Requested by the spec's **Testing expectations** — five contract tests in
+**Tests**: Requested by the spec's **Testing expectations** — six contract tests in
 `monospace-diagram`, **one test there rewritten rather than deleted**, one new contract test in
 `monospace-cli`, two more there **renamed**, one gallery block and **no characterization at all**.
-research.md Q6 measured 1916 renderings across 16 files and none of them can express a removal, so
-no ADR-0053 report is owed and `cargo insta review` is run once, on the gallery.
+**One of the six is not on the specification's list and its own task says so**: T007 pins the new
+method's contract over all three kinds, which is the one claim nothing else observes — that a `Box`
+and a `Line` answer `None` rather than coming back as copies. research.md Q6 measured 1916
+renderings across 16 files and none of them can express a removal, so no ADR-0053 report is owed and
+`cargo insta review` is run once, on the gallery.
 
 **Organization**: Tasks are grouped by the spec's behaviors B1 to B3, in the order
 [plan.md](plan.md)'s five commits deliver them — that order is forced by constitution principles II
 and V rather than chosen, so it is the priority order here too. **B1 and B2 share one commit** with
-the body they read, and the split into two phases is for traceability, not a license to make two.
+the two methods they read, and the split into two phases is for traceability, not a license to make
+two. **Phase 2 is one task over two files**, which reads as under-parallel until you know why: the
+methods are `pub(crate)`, nothing outside `remove` calls them, and `-D warnings` turns that into an
+error rather than a warning.
 
 **Order within a phase**: implementation before tests, where a test cannot exist before what it
 reads. That inverts the usual listing and it is deliberate: in Rust a test naming a method that is
@@ -60,14 +66,14 @@ the tasks carry rather than what an artifact estimates.
    28  monospace-cli unit tests after this slice   (28 today) — 1 added, 2 renamed, 0 removed
    19  monospace-cli integration tests              (unchanged)
   114  monospace-core                               (unchanged)
-   77  monospace-diagram after this slice          (72 today) — 5 added, 1 rewritten (T005), 0 removed
+   78  monospace-diagram after this slice          (72 today) — 6 added, 1 rewritten (T005), 0 removed
    15  monospace-glyph-sets                         (unchanged)
    61  xtask                                        (unchanged)
 ```
 
 `cargo test --workspace` is green at **28 / 19 / 114 / 72 / 15 / 61** today, which is exactly
 `quickstart.md`'s target minus the six tests this slice adds and the one it rewrites — the count is
-unchanged by T005, which rewrote a test rather than adding one, so **77** is still the target. A
+unchanged by T005, which rewrote a test rather than adding one, so **78** is still the target. A
 bare run prints **six** captioned pictures (`grep -c '^[A-Z].*:$'` on
 `cargo run -q -p monospace-cli`) and `cargo xtask render --check` answers **26** generated pictures.
 
@@ -99,47 +105,80 @@ principles III and VII). T001 captures what must not move before anything is edi
 
 ---
 
-## Phase 2: Foundational — the rule, and every sentence that said otherwise
+## Phase 2: Foundational — the two methods, the five-line body, and every sentence that said otherwise
 
-**Purpose**: one method body and the three pieces of the crate's own text that declare the opposite
-behavior. **Nothing here may touch a test**, because there is no structural commit to make: the gate
-runs `cargo clippy --workspace --all-targets -- -D warnings`, the body uses nothing new, and
-principle V has no structural half to separate — `Position`, `Reference`, `Endpoint`, `Shape`,
-`resolve` and `Diagram`'s signatures are all untouched (data-model.md "What does not change").
+**Purpose**: two crate-private methods and the body that calls them, plus the three pieces of the
+crate's own text that declare the opposite behavior. **Nothing here may touch a test**, because
+there is no structural commit to make and this phase now has to say why: the gate runs
+`cargo clippy --workspace --all-targets -- -D warnings`, and with the methods in place and `remove`
+untouched it fails with `error: method 'with_frozen_references' is never used` and
+`error: method 'frozen_position' is never used`, measured on this branch. `dead_code` is a warning
+and the flag turns it into an error, so **a crate-private method nothing calls is red** — the same
+finding 143 made for `Delta::grow`. One `feat` carries both halves and principle V has nothing to
+separate.
 
-The whole of the rule is the body below, and D4's answer is what put it inside `remove` rather than
-beside it — no flag, no separate change, and therefore no sixth row in §9's table of five:
+**The rewrite belongs to `Shape`, not to `Diagram`**, at the maintainer's direction on 2026-10-02:
+`Diagram` already reaches into every figure it holds, and which positions a figure has and what a
+frozen one is belongs to the figure. D4's answer is what put the freeze inside `remove` — no flag,
+no separate change, and therefore no sixth row in §9's table of five — and it says nothing about
+where in `remove` it goes, which is why `remove` ends up five lines long.
+
+There are three pieces of code, in two files:
 
 ```rust
-// crates/monospace-diagram/src/diagram.rs — `remove` at line 156
+// crates/monospace-diagram/src/shape.rs — `Endpoint`, above the `Shape` enum
+impl Endpoint {
+    pub(crate) fn frozen_position(&self, id: &ShapeId, diagram: &Diagram) -> Option<Position> {
+        match &self.at {
+            Position::Reference(reference) if &reference.id == id => {
+                self.at.resolve(diagram).map(Position::Absolute)
+            }
+            _ => None,
+        }
+    }
+}
+```
+
+```rust
+// crates/monospace-diagram/src/shape.rs — `Shape`, beside `displaced_by`
+pub(crate) fn with_frozen_references(
+    &self,
+    id: &ShapeId,
+    diagram: &Diagram,
+) -> Option<Self> {
+    match self {
+        Self::Box { .. } | Self::Line { .. } => None,
+        Self::Connector { from, to, stroke } => match (
+            from.frozen_position(id, diagram),
+            to.frozen_position(id, diagram),
+        ) {
+            (None, None) => None,
+            (new_from, new_to) => Some(Self::Connector {
+                from: Endpoint {
+                    at: new_from.unwrap_or_else(|| from.at.clone()),
+                    ..from.clone()
+                },
+                to: Endpoint {
+                    at: new_to.unwrap_or_else(|| to.at.clone()),
+                    ..to.clone()
+                },
+                stroke: stroke.clone(),
+            }),
+        },
+    }
+}
+```
+
+```rust
+// crates/monospace-diagram/src/diagram.rs — `remove`, replacing the body at line 156
 pub fn remove(&mut self, id: &ShapeId) {
     let Some(index) = self.find(id) else {
         return;
     };
 
-    // Pass one reads and collects; pass two writes. Two passes because `Position::resolve`
-    // takes `&Diagram` and a reference only resolves while the figure it names is held.
-    let mut frozen: Vec<(usize, usize, Pos)> = Vec::new();
-    for (at, placed) in self.shapes.iter().enumerate() {
-        let Shape::Connector { from, to, .. } = &placed.shape else {
-            continue;
-        };
-        for (slot, endpoint) in [(0, from), (1, to)] {
-            if let Position::Reference(reference) = &endpoint.at
-                && &reference.id == id
-                && let Some(point) = endpoint.at.resolve(self)
-            {
-                frozen.push((at, slot, point));
-            }
-        }
-    }
-    for (at, slot, point) in frozen {
-        if let Shape::Connector { from, to, .. } = &mut self.shapes[at].shape {
-            if slot == 0 {
-                from.at = Position::Absolute(point);
-            } else {
-                to.at = Position::Absolute(point);
-            }
+    for at in 0..self.shapes.len() {
+        if let Some(shape) = self.shapes[at].shape.with_frozen_references(id, self) {
+            self.shapes[at].shape = shape;
         }
     }
 
@@ -147,22 +186,46 @@ pub fn remove(&mut self, id: &ShapeId) {
 }
 ```
 
-- [ ] T002 In `crates/monospace-diagram/src/diagram.rs`, replace the body of `remove` at **line
-      156** with the one above, and add `Position` to the file's `use crate::{…}` at **line 9** — it
-      names `Position` twice and today imports only `Shape`. Four things in the body are the rule
-      rather than style, and each is measured in `data-model.md`: the **two passes** are forced by
-      the borrow, since `Position::resolve` takes `&Diagram` and the shape is only held while
-      nothing has been written; the **`slot`** is not optional, because one connector may hang from
-      the same figure at both ends and those are two different points — measured, `from` → `{3, 1}`
-      and `to` → `{2, 2}` for a four-by-three box at the origin; **`&reference.id == id`** is D3's
-      answer, the references naming the removed shape and nothing else; and
-      **`let Some(point) = …`** is what leaves an unresolved reference alone rather than freezing it
-      to nothing. `index` is read before the two passes and is still valid after them, because
-      neither changes the length of `self.shapes` — say so in a comment, since it is the one thing
-      in the body a reader has to take on trust. **Keep `remove`'s signature, its visibility and its
-      `&mut self`**, and add **no** method, no variant and no field anywhere (B1.1, SC-001; D3, D4;
-      data-model.md "`Diagram::remove` — two passes, and why there are two")
-
+- [ ] T002 In `crates/monospace-diagram/src/shape.rs`, add the two methods above, and in
+      `crates/monospace-diagram/src/diagram.rs` replace the body of `remove` with the third. **Four
+      things in the code are the rule rather than style, and each is measured in `data-model.md`.**
+      **(1) The loop indexes instead of iterating, and this is where the borrow decides the shape of
+      the code:** measured on this branch, `for placed in &mut self.shapes` writing `placed.shape`
+      inside is **`error[E0502]`**, because the mutable borrow is live across the call and the
+      method wants the diagram too, while `for at in 0..self.shapes.len()` compiles and is the body
+      above. **D4's answer says the rewrite is two passes because of this borrow, and that is
+      measurably wrong** — one pass compiles, and the two-pass form is available but collects a
+      `Vec` and allocates for nothing. The constraint is real and narrower than D4 states it: a
+      `&mut Shape` cannot be held across a call that wants the diagram. **Do not "fix" D4's sentence
+      in the sheet here** — the sheet says the maintainer's answer stands, and plan.md's measurement
+      5 is where the correction is recorded. **(2) Both endpoints are rebuilt together, which is
+      what removes the need for anything that remembers which end is which:** a connector may hang
+      from the same figure at **both** ends, and measured those are two different points — `{3, 1}`
+      and `{2, 2}` for a four-by-three box at the origin — so an implementation that asked once and
+      wrote twice puts the first point into both ends. The `(None, None)` arm is what says "this
+      figure is not mine to rewrite", and the two `unwrap_or_else` calls are what keep the endpoint
+      that was not frozen exactly as it was. **(3) All three kinds are matched, and the two `None`
+      arms are there on purpose:** a `Box` and a `Line` cannot hold a reference today — their `at`
+      is a `Pos` — so the model's restriction is the type system's rather than a rule someone
+      remembers, and the moment [#89](https://github.com/andresmoschini/monospace/issues/89) widens
+      it each arm becomes a `Position::Reference` arm and nothing above the match changes. **Leaving
+      them out would mean the widening rewrites the method rather than two lines of it.** **(4)
+      `Option<Self>` rather than `Self`,** which the maintainer left open: `None` is the ordinary
+      answer and the crate already has that idiom in `Shape::anchor` and `Position::resolve`, it is
+      the signature that pays forward when a box _can_ answer `Some`, and it cannot report a rewrite
+      that changed nothing, which a returning-`Self` version cannot distinguish from a real rewrite
+      to the same value. **Both methods are `pub(crate)`,** by `Shape::anchor`'s own argument — the
+      anchors exist to be resolved _through_, a caller holding a position and the diagram can
+      already reach the number, and `remove` is the only consumer. **Add `ShapeId` to `shape.rs`'s
+      `use crate::{Anchor, Delta, Diagram, Position};`** — it is imported today without it and both
+      new signatures name it. **Keep `remove`'s signature, its visibility and its `&mut self`, and
+      add no type, no field and no variant anywhere.** Two things want a comment each, because they
+      are the ones a reader takes on trust: `index` is read before the loop and is still valid after
+      it, since the loop changes no figure's identity and no figure's place in the order; and
+      **nothing excludes the figure being removed from the loop**, which is correct — it is
+      rewritten and then dropped a line later, and excluding it would cost a comparison to buy
+      nothing (B1.1, SC-001; D3, D4; data-model.md "`Diagram::remove` — five lines, and the one
+      thing in it that is not obvious")
 - [ ] T003 In the same file, rewrite the **two sentences of `remove`'s own rustdoc** that T002 makes
       false, in the same commit that makes them false — a rustdoc is code. The first is **line
       146**, which reads "Takes the shape named by `id` out of the diagram, **changing nothing
@@ -174,7 +237,7 @@ pub fn remove(&mut self, id: &ShapeId) {
       the diagram does not hold changes nothing with no error, no report and no panic, `remove`
       hands back nothing and there is no history to undo, and the counter is untouched so an
       identity is never handed out twice. The last of those is what keeps a put-back possible at
-      all, which B1.2 depends on (SC-003; D4; data-model.md "`Diagram::remove` — two passes, and why
+      all, which B1.2 depends on (SC-003; D4; data-model.md "`Diagram::remove` — five lines, and the
       there are two")
 
 - [ ] T004 In the same file, correct the doc comment of
@@ -261,7 +324,25 @@ the box back under the same identity and the whole picture returns byte for byte
       the reason research.md Q7's two corrections happened: the count **10** is not `15 − 6`,
       because `{3, 1}` changes glyph rather than going blank. A number written into the test is the
       thing that was wrong (B1.1, SC-001; quickstart.md "Commit 1")
-- [ ] T007 [US1] Contract test: `a_shape_put_back_under_the_removed_identity_is_not_re_attached` in
+- [ ] T007 [US1] Contract test:
+      `a_figure_holding_no_reference_answers_nothing_and_one_holding_one_freezes` in
+      `crates/monospace-diagram/src/shape.rs` — **the new method's own contract, over all three
+      kinds**, and the only task whose file is `shape.rs`. Four figures answer `None`: a `Box`, a
+      `Line`, a connector whose endpoints are both points, and a connector naming **another**
+      figure. A fifth answers `Some`: a connector naming the figure it is asked about, and its
+      `from` comes back `Position::Absolute` at the point it resolved to. **Every one of the four is
+      `None` and not a copy**, which is the whole claim — the alternative signature returns the
+      figure itself, and a figure that comes back equal to what went in is indistinguishable from
+      one that genuinely rewrote to the same value. The `Box` and `Line` arms are what this test
+      exists for: they are there so [#89](https://github.com/andresmoschini/monospace/issues/89)
+      widens two lines rather than the method, and **a `Box` answering `Some` is a clone being made
+      for nothing**. Build the figures directly as `Shape` values with a diagram beside them for
+      `resolve` to ask, the way `shape.rs`'s existing tests build theirs; do not go through a
+      `Diagram`, because the claim is about the method and a removal test would pass on a body that
+      never asked it (D3; data-model.md "`Shape::with_frozen_references` — all three kinds, and why
+      `Option`")
+
+- [ ] T008 [US1] Contract test: `a_shape_put_back_under_the_removed_identity_is_not_re_attached` in
       the same file — **B1.2 and B1.3 together**, because both are about what comes back. Put the
       box back **in place** under the removed identity with `add_under` and assert the picture is
       byte for byte the pre-removal one, while `get` answers a figure whose `from.at` is a plain
@@ -274,7 +355,7 @@ the box back under the same identity and the whole picture returns byte for byte
       issue and a put-back does not un-issue it (B1.2, B1.3, SC-001; data-model.md "The derived
       arrangements, stated rather than discovered")
 
-- [ ] T008 [US1] In `crates/monospace-diagram/src/gallery.rs`, add the **fourth** `block()` to
+- [ ] T009 [US1] In `crates/monospace-diagram/src/gallery.rs`, add the **fourth** `block()` to
       `an_endpoint_hangs_from_a_side_and_follows_it`, with the change named `the box taken out`. Two
       things about it were measured rather than assumed, and both are the kind of thing that is easy
       to get backwards. **It is reached from a third `Diagram` in the same test, not from the block
@@ -302,8 +383,8 @@ the box back under the same identity and the whole picture returns byte for byte
 **Checkpoint**: a removal leaves what hung from it where it was, the gallery draws what the rule
 draws, and the one existing test that said the opposite now says the opposite thing correctly.
 
-**Commit**: the rest of `feat(diagram):` — T005-T008 tick with T002-T004 (plan.md commit 1). T006
-and T007 read T002's body, so they cannot exist before it.
+**Commit**: the rest of `feat(diagram):` — T005-T009 tick with T002-T004 (plan.md commit 1). T006
+and T008 read T002's body, so they cannot exist before it.
 
 ---
 
@@ -321,7 +402,7 @@ other two while the other two still equal each other (spec.md B2.1; SC-002).
 
 ### Tests for User Story 2
 
-- [ ] T009 [US2] Contract test: `the_three_routes_to_one_picture_are_not_one_picture_now` in
+- [ ] T010 [US2] Contract test: `the_three_routes_to_one_picture_are_not_one_picture_now` in
       `crates/monospace-diagram/src/diagram.rs` — **B2.1**, and its doc comment must carry the
       reason the spec gives for one test rather than three. The **taken-out route is compared
       against both of the others and against neither**, which only one place can ask: separately,
@@ -333,7 +414,7 @@ other two while the other two still equal each other (spec.md B2.1; SC-002).
       SC-002 and says that the third picture's differing is what dissolves §11's second question
       rather than answering it (B2.1, SC-002; P3)
 
-- [ ] T010 [US2] Contract test: `two_connectors_from_one_figure_both_freeze_at_their_own_points` in
+- [ ] T011 [US2] Contract test: `two_connectors_from_one_figure_both_freeze_at_their_own_points` in
       the same file — the specification's _Edge cases_, which is P1 applied **twice** and not a
       cascade. Two connectors hang from the same box at **different anchors and different offsets**,
       so the two frozen points are different, and each connector freezes at its own: assert each
@@ -343,7 +424,7 @@ other two while the other two still equal each other (spec.md B2.1; SC-002).
       arrangement is not the one T006 already builds. Draw it as well, since the claim is that the
       picture holds two arrows where it held none (spec.md _Edge cases_; SC-001)
 
-- [ ] T011 [US2] Contract test: `a_removal_touches_nothing_else` in the same file — **D3's "and
+- [ ] T012 [US2] Contract test: `a_removal_touches_nothing_else` in the same file — **D3's "and
       nothing else"**, which is a claim about the whole diagram and so deserves its own. Three
       diagrams, one assertion each, and each is a way the rule could be wrong: (1) a connector whose
       `from` names an identity that was **never added**, in a diagram where a removal naming
@@ -353,24 +434,25 @@ other two while the other two still equal each other (spec.md B2.1; SC-002).
       a figure that **stays** and `to` naming the one taken out keeps a `Reference` in `from` while
       `to` is frozen — the asymmetry **is** the rule, and a body that rewrote every reference naming
       the identity would pass every other test here; (3) **one connector with both ends naming the
-      same figure gets two different points**, which is the case a `(index, point)` collection gets
-      wrong by writing the first point into both ends, and which is why `data-model.md` makes the
-      slot a named part of the body rather than an implementation detail (D3; data-model.md
-      "`Diagram::remove` — two passes, and why there are two")
+      (3) **one connector with both ends on the same figure gets two different points**, which is
+      the arrangement an implementation that asks once and writes twice gets wrong. Measured, they
+      are `{3, 1}` and `{2, 2}` for a four-by-three box at the origin, and the method has no such
+      failure because it computes both answers before it builds either endpoint (D3; data-model.md
+      "`Shape::with_frozen_references` — all three kinds, and why `Option`")
 
-- [ ] T012 [US2] **Make the rule fail on purpose before trusting it.** Keep T002's first pass and
-      drop the second, and run the five tests T005-T010 name — or narrower and louder: assert that
-      dropping the write pass turns `a_removal_freezes_what_hung_from_the_removed_shape` **red**
-      while `a_removal_touches_nothing_else`'s third case still passes, which is what shows the
-      tests ask the rule and not the code's tidiness. Then put the loop back and confirm green. A
-      green run only proves the command ran (quickstart.md "Commit 1"; constitution principle IV)
-
-**Checkpoint**: a removal is visible without anything remembering it, and the three routes that
-reached one picture no longer do.
-
-**Commit**: the rest of `feat(diagram):` — T009-T012 tick with T002-T008 (plan.md commit 1). The
-three behaviors in B1 and B2 are one commit, and the split into two phases is for traceability
-rather than a license to make two.
+- [ ] T013 [US2] **Make the rule fail on purpose before trusting it**, and fail it in a way that
+      isolates **D3's answer** from the mechanism. Drop the guard on _which_ figure a reference
+      names, turning `Position::Reference(reference) if &reference.id == id => {` in
+      `Endpoint::frozen_position` into `Position::Reference(_) => {` — which is "rewrite every
+      reference", the alternative D3 rejected — then run
+      `cargo test -p monospace-diagram a_removal_touches_nothing_else` and then
+      `cargo test -p monospace-diagram a_removal_freezes_what_hung_from_the_removed_shape`.
+      Expected: the first **red** on the never-added case and on the other-figure's case, and the
+      **second green**, because it asks about the figure that _was_ named and this change does not
+      touch that. **A red that takes everything down at once only shows the tests are wired to
+      `remove`; a red that takes two down and leaves one standing shows they are wired to the
+      rule.** Put the guard back and confirm both green again — a green run only proves the command
+      ran (quickstart.md "Commit 1"; constitution principle IV)
 
 ---
 
@@ -396,9 +478,7 @@ out.push_str("\nWith the box the arrow hangs from taken out:\n");
 out.push_str(&picture(&diagram, &catalog, origin, size));
 ```
 
-### Implementation for User Story 3
-
-- [ ] T013 [US3] In `crates/monospace-cli/src/main.rs`, add the seventh step to `demonstrate` — the
+- [ ] T014 [US3] In `crates/monospace-cli/src/main.rs`, add the seventh step to `demonstrate` — the
       block above, after the sixth picture's push and **before** `out` is returned. `diagram.remove`
       hands back nothing, so unlike the four steps above it there is **no `if let`** and no `get`:
       that is D4's answer, and it is why this step reads differently from the five beside it — a
@@ -409,7 +489,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       `quickstart.md`'s `sed` splits on. Add a comment saying the seventh is the sixth with the box
       gone and **the arrow exactly where it stood**, because that is the claim a reader checks with
       their eyes and it is not obvious from a `remove` (B3.1, SC-001; D4; ADR-0035)
-- [ ] T014 [US3] In the same file, turn `demonstrated_pictures` from a six-tuple into a
+- [ ] T015 [US3] In the same file, turn `demonstrated_pictures` from a six-tuple into a
       **seven**-tuple and fix its doc comment, which reads "The demonstration's **six** pictures"
       and "the six are then comparable with each other", and whose `expect` says "six captioned
       pictures". Its `next_picture` closure needs **no** change: it splits on the blank line, strips
@@ -427,22 +507,22 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       compile unchanged against a seven-tuple. **Count them before editing rather than from this
       list**, and if it comes out as something other than ten call sites write down what it came out
       as (B3.1, B3.2)
-- [ ] T015 [US3] In the same file, update the two tests whose **names and counts** say six.
+- [ ] T016 [US3] In the same file, update the two tests whose **names and counts** say six.
       `a_bare_run_prints_six_captioned_pictures_the_first_being_the_description_as_written` becomes
       `..._seven_...`, with the `assert_eq!` count at **6** becoming **7** and the doc comment's
       mentions of six corrected; it still pins **no caption's wording**, and the seventh is a
       caption like the other six. `an_empty_description_demonstrates_as_six_identical_pictures`
       becomes `..._seven_identical_pictures` with a seventh `assert_eq!` beside the six, because an
       empty description holds no `#3` and the seventh step is a no-op on an identity it does not
-      hold — which is `find` returning `None` and `remove` returning before its first pass, and is
-      what the test is for. **No other test's name changes**:
+      hold — which is `find` returning `None` and `remove` returning before its loop, and is what
+      the what the test is for. **No other test's name changes**:
       `one_shape_demonstrates_as_two_copies_of_itself_and_then_an_empty_window` keeps its name,
       which is still true, gains `assert_eq!(pictures.5, pictures.6)` — the seventh equal to the
       sixth, for the same reason — and has its doc comment's picture count corrected.
       `the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it` still describes the fifth, and
       `a_path_prints_one_picture_and_nothing_else` still describes a path (B3.1; quickstart.md
       "Commit 2")
-- [ ] T016 [US3] In the same file, extend
+- [ ] T017 [US3] In the same file, extend
       `the_tenth_entry_naming_a_reference_leaves_the_first_five_pictures_exactly_as_they_were` to
       the seventh, because its two `assert_eq!`s destructure six. Its **name stays as it is** and
       the reason is worth a comment rather than a rename: the claim is that naming the far endpoint
@@ -453,7 +533,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       reason that is the **freeze**: `remove(&#3)` freezes the arrow's `from` at `{16, 5}` in both
       runs whatever route it took to get there, which is the same "same cell, two routes to it"
       claim its existing comment makes about the sixth (B3.2, SC-001)
-- [ ] T017 [US3] Contract test: `the_seventh_picture_takes_the_box_away_and_leaves_the_arrow` in
+- [ ] T018 [US3] Contract test: `the_seventh_picture_takes_the_box_away_and_leaves_the_arrow` in
       `crates/monospace-cli/src/main.rs` — **the claim B3.1 makes and nothing else pins**: the
       seventh differs from the sixth **only** in the cells `#3` held, which is the only statement
       that says the arrow stood still. Model it on
@@ -468,7 +548,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       names B3.1 and SC-001 and says the count is asserted rather than quoted, and why: the arrow's
       footprint is neither contiguous nor a rectangle, so nothing that reads it off a picture gets
       it right (B3.1, SC-001; research.md Q4, Q7)
-- [ ] T018 [US3] The three diffs, run in one place, and they are the other side of every claim in
+- [ ] T019 [US3] The three diffs, run in one place, and they are the other side of every claim in
       this phase. `cargo run -q -p monospace-cli` against `/tmp/demo-before.txt` **cannot** be
       diffed whole — the sixth caption is the split point, so compare
       `sed -n '1,/With the arrow displaced as well:/p'` on both and it must print **nothing**;
@@ -483,7 +563,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
 **Checkpoint**: a person who runs the application sees seven pictures, the seventh with the box gone
 and the arrow exactly where it stood, and the file those pictures came from is untouched.
 
-**Commit**: `feat(cli):` T013-T018, ticking their checkboxes with it (plan.md commit 2). T018 is
+**Commit**: `feat(cli):` T014-T019, ticking their checkboxes with it (plan.md commit 2). T019 is
 three diffs and not a commit. It cannot precede commit 1: the seventh picture is the **evidence**
 for the rule rather than an independent change, and a seventh that draws no arrow is the defect
 rather than the feature.
@@ -497,13 +577,13 @@ They are placed here rather than in the Polish phase because plan.md orders them
 the first of them is `docs(model)` and **follows** the rule, which is where 082's D3's one-sentence
 change to §3 landed (`505fd0d`).
 
-- [ ] T019 In `docs/diagram-model.md`, amend **four** sections and add nothing else. **§4
+- [ ] T020 In `docs/diagram-model.md`, amend **four** sections and add nothing else. **§4
       _Positions_**, after the paragraph on displacement, gains the rule in a paragraph of its own:
       a removal replaces every reference **naming the removed shape** with the absolute point it was
       resolving to at that moment, so what hung from it stays drawn where it stood; a reference
       naming **another** shape is not touched, and neither is one naming an identity that was never
-      there — a case the removal did not create. Say that the two passes are not visible from here
-      and do not belong here. **§6 _Attachment_** gains the consequence: a frozen endpoint is
+      there — a case the removal did not create. Say that the loop behind it is not visible from
+      here and do not belong here. **§6 _Attachment_** gains the consequence: a frozen endpoint is
       attached to **nothing**, which is a point like any other and has no side to name — and **do
       not** add a second meaning for an attachment, a new anchor, or a way to name the figure a
       point came from. **§9 _Changing a diagram_** **loses** the sentence "Nothing is rewritten and
@@ -517,7 +597,7 @@ change to §3 landed (`505fd0d`).
       question is **dissolved rather than answered**, so nothing goes on the sheet and nothing goes
       in §11 (B1, B2, B3.4; SC-003; plan.md "Artifacts"; spec.md "What this slice implements")
 
-- [ ] T020 In `docs/decisions/`, write the record D2 answered — **one ADR for the freeze alone**.
+- [ ] T021 In `docs/decisions/`, write the record D2 answered — **one ADR for the freeze alone**.
       Take the next free number in the directory — **0068** is free today, and if it is not when
       this task runs, take the next one and write down what it was rather than inventing a number —
       and name the file `0068-freeze-what-hung-from-a-removed-shape-where-it-stood.md`, verb first.
@@ -533,21 +613,9 @@ change to §3 landed (`505fd0d`).
       option**; and it requires a **Confidence with a percentage**. D2's condition — **as small as
       it can be** — is a ceiling the record has to meet rather than a tone to strike, and the
       template's own words are the measure (Q5, Q7; D2; ADR-0035, ADR-0064; principle VI; principle
-      VIII) to strike. Four things it must carry: (1) the **rule and the one thing it replaces**,
-      which are §9's "nothing is rewritten" and ADR-0041's "an editor can delete a shape without
-      repairing everything that referenced it" — **nothing else**; (2) **no new vocabulary, no name
-      for the frozen position, and nothing said about removals in general**, which is D2's condition
-      and the reason §4 gains a sentence rather than a term; (3) the **pictures**, because the two
-      options differ in what they draw — the freeze's picture and today's, the arrangement as
-      written and with the box taken out, both reproduced from [data-model.md](data-model.md) and
-      each labelled on the spot as **Hypothetical**, since no `<!-- render: -->` marker can reach a
-      removal; (4) a **Confirmation** naming the six tests and the gallery block T005-T011 and T017
-      add, since that is how anyone tells the decision is being followed. **Do not argue that the
-      cost is small, and do not write that reversing it repeatedly is expensive** — the constitution
-      puts that cost in a test rather than in prose where it reads as an instruction to stop
-      thinking (Q5, Q7; D2; ADR-0035, ADR-0064; principle VI; principle VIII)
+      VIII)
 
-- [ ] T021 In `docs/decisions/0041-resolve-a-position-through-a-reference.md`, add **one dated
+- [ ] T022 In `docs/decisions/0041-resolve-a-position-through-a-reference.md`, add **one dated
       line** under its `## Revisions` — **2026-10-02**, naming the new record and what it changes:
       the consequence at line ~93, "an editor can delete a shape without repairing everything that
       referenced it", is the one consequence this record's subject contradicts, because it now
@@ -558,20 +626,20 @@ change to §3 landed (`505fd0d`).
       line saying why**: reversing the resolution rule is a new short ADR, not a migration.
       `cargo xtask numbering` is where a number not yet free shows up (D2; Q5)
 
-- [ ] T022 [P] Add the row for T020's record to `docs/decisions/README.md` **as a whole row** —
+- [ ] T023 [P] Add the row for T021's record to `docs/decisions/README.md` **as a whole row** —
       link, title and status written out together. A partial edit to that table leaves the rest of
       the row on the line below and prettier then reflows the damage rather than rejecting it, which
       is silent corruption of the one table every record is listed in (AGENTS.md "Facts that are in
-      the code and in no document"). **T021 needs no row**: the table carries no commitment column,
+      the code and in no document"). **T022 needs no row**: the table carries no commitment column,
       so ADR-0041's status is still `accepted` and its title has not changed
 
-**Commit**: `docs(model):` T019, then `docs(adr):` T020, T021 and T022 (plan.md commits 3 and 4).
+**Commit**: `docs(model):` T020, then `docs(adr):` T021, T022 and T023 (plan.md commits 3 and 4).
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T023 Run `cargo xtask check` and confirm every one of the **twelve** steps is green,
+- [ ] T024 Run `cargo xtask check` and confirm every one of the **twelve** steps is green,
       **including `wasm`** — which compiles `monospace-core`, `monospace-diagram` and
       `monospace-glyph-sets`, so it covers the new body with no change to `xtask` and no new check,
       which is why principle III's two-commit rule does not apply. The body reaches the core only
@@ -581,39 +649,43 @@ change to §3 landed (`505fd0d`).
       must still answer **26** pictures — measured on this branch — and `numbering` must be green,
       which is where `0068` shows as taken rather than free (SC-004; plan.md Constitution Check,
       principles III and VII)
-- [ ] T024 Confirm the two claims this slice **accepts with nothing to verify it** are named as such
+- [ ] T025 Confirm the two claims this slice **accepts with nothing to verify it** are named as such
       rather than described as tested, as principle IV asks and plan.md's re-check does on the spot:
       that **a removal leaves every other figure byte for byte**, which is a claim about the whole
       diagram and which T005 checks only for the one shape it names; and that **two shapes under one
       identity are a pre-existing edge** — `add_under` allows it, `find` answers the first match,
       and the freeze inherits that rather than deciding it. Look for the first in §4 and §9 of
       `docs/diagram-model.md`, §10's new bullet and T005's doc comment, and the second in
-      `data-model.md`'s "What the freeze is not" and T020's **Reversibility**, and leave each where
+      `data-model.md`'s "What the freeze is not" and T021's **Reversibility**, and leave each where
       it is — **this task is a check that the record says so, not an edit** (constitution principle
       IV; plan.md "Re-checked after Phase 1")
-- [ ] T025 Take the counts this slice claims and check them rather than asserting them:
-      `cargo test --workspace` green at **29 / 19 / 114 / 77 / 15 / 61**, which is today's **28 / 19
+- [ ] T026 Take the counts this slice claims and check them rather than asserting them:
+      `cargo test --workspace` green at **29 / 19 / 114 / 78 / 15 / 61**, which is today's **28 / 19
       / 114 / 72 / 15 / 61** plus six tests and no test removed but T005's. Confirm no `.snap.new`
       file is left behind under `crates/monospace-diagram/src/snapshots/gallery/`, that
       `a_path_prints_one_picture_and_nothing_else` passes **unchanged** — it is the guard that a
       path still prints one picture and nothing else, which is what `cargo xtask render` embeds —
       and that `git status` shows no spike left from research.md's measurements and none from
-      T018's. **No characterization report is owed**: research.md Q6 measured 1916 renderings across
+      T019's. **No characterization report is owed**: research.md Q6 measured 1916 renderings across
       16 files and none of them can express a removal, because `remove` appears nowhere under
       `crates/monospace-core` and no sweep removes anything (SC-001, SC-004; research.md Q6)
-- [ ] T026 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
+- [ ] T027 Append an entry to `docs/learning-log.md` for this increment: what was learned about Rust
       design and idiom, what was learned about working this way, and optionally a trade-off worth
-      remembering. Four are already paid for and worth writing down rather than rediscovering — a
-      **method that reads `&self` while its caller holds `&mut self` is what forces two passes**,
-      and the honest fix is the passes rather than a `Cell`; **a `Vec<(index, point)>` is not enough
-      when one figure holds two of the things being rewritten**, which is the slot and which no test
-      found until one was written on purpose; **one existing test went red and the specification
-      named none**, so the measurement that catches this is running the workspace against a written
-      body rather than grepping for the issue's number; and **a `#[cfg(test)]` scratch module inside
-      the file it measures is the cheapest spike there is** — the tree carried no trace of every
-      measurement in this plan (constitution principle II; research.md Q6, Q7)
+      remembering. Four are already paid for and worth writing down rather than rediscovering — **a
+      method that reads `&self` while its caller holds `&mut self` does not force two passes, it
+      forces you not to hold the borrow across the call**, and D4 stated the conclusion without
+      measuring the constraint, which is the kind of thing a decision sheet can be wrong about and
+      the compiler cannot; **one figure can hold two of the things being rewritten**, so a method
+      that asks once and writes twice is wrong in a way no arrangement already in the suite would
+      catch, and the fix that removes the whole class is computing both answers before building
+      either; **one existing test went red and the specification named none**, so the measurement
+      that catches this is running the workspace against a written body rather than grepping for the
+      issue's number; and **a `#[cfg(test)]` scratch module inside the file being measured is the
+      cheapest spike there is** — every measurement in this plan was taken that way and the tree
+      carried no trace of any of them (constitution principle II; research.md Q6, Q7; plan.md "Five
+      measurements that came back from the design")
 
-**Commit**: `docs:` T026. T023-T025 are a gate run and two observations, not commits.
+**Commit**: `docs:` T027. T024-T026 are a gate run and two observations, not commits.
 
 ---
 
@@ -629,12 +701,12 @@ outside the sheet).
 - **No new vocabulary and no name for the frozen position.** A frozen end is `Position::Absolute`,
   which already exists, and §4 gains a sentence rather than a term (D2; data-model.md "What does not
   change")
-- **No chain walk, no second resolution and no report.** The first pass visits each entry once and
+- **No chain walk, no second resolution and no report.** The loop visits each figure once and
   `resolve` is a lookup and an addition; a reference can only name a figure that answers an anchor,
   and a connector answers none, so one link is the most there is (ADR-0041; P2)
 - **No repair of a reference the removal did not create.** A reference naming an identity that was
   never there is left exactly as it is, and is measured to still be a `Reference` afterwards (D3;
-  T011)
+  T012)
 - **No record of a removal.** Nothing remembers that one happened, no flag is stored on a position,
   and the two pictures simply differ — which is what dissolves §11's second question rather than
   answering it (B2.1, SC-002; SC-002)
@@ -664,6 +736,14 @@ outside the sheet).
   the whole template, and D2's condition — as small as it can be — is what keeps its _content_ to
   the rule and the two sentences it overrides, with no third section on removals in general (D2;
   principle VIII)
+- **No second rewrite, on `Diagram` or anywhere else.** The freeze is `Shape`'s and `Endpoint`'s,
+  and `remove` calls it. A `Diagram::freeze_everything` beside it would be the same knowledge twice
+  (data-model.md "`Diagram::remove` — five lines")
+- **No `match` on `Shape::Connector` and no reading an `Endpoint`'s `at` inside `remove`.** Every
+  such thing moves behind `Shape::with_frozen_references`, which is what makes #89 two lines rather
+  than the method
+- **No new variant on `Position` or `Shape`, and no name for a frozen position.** A frozen end is
+  the `Position::Absolute` that already exists, and D2's condition is no new vocabulary (D2)
 
 ---
 
@@ -676,44 +756,50 @@ outside the sheet).
   that names a method which is not there does not fail, it does not compile, and T005's rewrite
   cannot exist before the body it is a rewrite of.
 - **User Story 1 (Phase 3)**: depends on Phase 2. No dependency on US2 or US3.
-- **User Story 2 (Phase 4)**: depends on Phase 2, and shares commit 1 with US1. Its T011 asserts
+- **User Story 2 (Phase 4)**: depends on Phase 2, and shares commit 1 with US1. Its T012 asserts
   what US1's rule did **not** break, so it is worth reading beside T006 rather than instead of it.
 - **User Story 3 (Phase 5)**: depends on Phases 2 to 4 and **cannot precede them**. plan.md is
   explicit that commit 2 cannot come first, because the seventh picture is the evidence for the rule
   rather than an independent change, and a seventh picture with no arrow in it is the defect rather
   than the feature.
-- **Records (Phase 6)**: T019 depends on Phase 2 — it follows the code rather than preceding it.
-  T020 depends on T019's subject and on nothing else. T021 and T022 depend on T020.
+- **Records (Phase 6)**: T020 depends on Phase 2 — it follows the code rather than preceding it.
+  T021 depends on T020's subject and on nothing else. T022 and T023 depend on T021.
 - **Polish (Phase 7)**: depends on all of them.
 
 ### Within Each User Story
 
-- US1: T005 reads T002 and is the same file; T006 and T007 read T002's body and T005's helpers; T008
+- US1: T005 reads T002 and is the same file; T006 and T008 read T002's body and T005's helpers; T009
   reads the same rule through `Diagram::remove` and moves the one snapshot in the slice.
-- US2: T009-T011 all read T002 and may be written in any order among themselves; **T012 comes
+- US2: T010-T012 all read T002 and may be written in any order among themselves; **T013 comes
   last**, because a deliberate red is one agent's work and it needs the tests above in place.
-- US3: T013 before T014 (the tuple cannot hold seven pictures the demonstration does not print),
-  T014 before T015-T017 (each of those takes the tuple apart), T017 after T013 (it compares the
-  sixth with the seventh), and T018 after all of them.
+- US3: T014 before T015 (the tuple cannot hold seven pictures the demonstration does not print),
+  T015 before T016-T018 (each of those takes the tuple apart), T018 after T014 (it compares the
+  sixth with the seventh), and T019 after all of them.
 
 ### Parallel Opportunities
 
-Parallelism here is lower than in 143 and the reason is worth stating rather than padding: **sixteen
-of the twenty-six tasks edit one of two files** — `diagram.rs` takes ten and `main.rs` takes six —
-and a seventeenth is the one snapshot move. Only **one** task carries `[P]`, where 143's list had
-five, and the slice has two more places where it looks available and is not. Both facts are worth
-recording, because a list padded to look parallel is a list that sends two agents into one file.
+Parallelism here is lower than 143 and the reason is worth stating rather than padding: **seventeen
+of the twenty-seven tasks edit one of three files** — `diagram.rs` takes ten, `main.rs` takes six
+and `shape.rs` takes one — and an eighteenth is the one snapshot move. Only **one** task carries
+`[P]`, where 143's list had five, and the slice has three more places where it looks available and
+is not. All four facts are worth recording, because a list padded to look parallel is a list that
+sends two agents into one file.
 
-- **T022** with **T020** and **T021** — `docs/decisions/README.md` against the two record files. It
+- **T023** with **T021** and **T022** — `docs/decisions/README.md` against the two record files. It
   is the only task whose file nothing else in the slice touches.
 - **T004** looks parallel and is not: it is the fourth edit to `diagram.rs`, beside T002, T003 and
   T005, and a `[P]` task is one that can land and be checked on its own. It does not — its paragraph
   is false twice over and both halves are corrected together.
-- **T015** looks parallel with T013 and T014 and is not, for the same reason and a sharper one: it
-  takes the tuple apart, so it cannot compile until T014's seven-tuple has landed.
+- **T016** looks parallel with T014 and T015 and is not, for the same reason and a sharper one: it
+  takes the tuple apart, so it cannot compile until T015's seven-tuple has landed.
+- **T002** is the one place the count went the _wrong_ way. It is now one task over **two** files,
+  where it used to be one task over one, and it is the clearest statement in this file of why a
+  structural commit is unavailable: the two methods are `pub(crate)`, nothing but `remove` calls
+  them, and `-D warnings` makes that `method … is never used` as an error. Splitting the files would
+  mean splitting the commit, and the second half would not be green.
 
-Two further tasks are deliberately **not** marked `[P]`: **T008** is the only task that moves a
-snapshot and `cargo insta review` is a single reviewer, and **T012** is a deliberate red that one
+Two further tasks are deliberately **not** marked `[P]`: **T009** is the only task that moves a
+snapshot and `cargo insta review` is a single reviewer, and **T013** is a deliberate red that one
 agent should run and restore.
 
 ---
@@ -734,11 +820,14 @@ together**.
 1. Phase 2 → taking a shape out freezes what hung from it, and the three sentences in the crate that
    said it did not now say what it does (commit 1's production half).
 2. Phases 3 and 4 → six contract tests and the gallery's fourth block: the rule by value and drawn,
+   the method's contract over all three kinds, the put-back, the three routes, two connectors on one
+   figure, nothing else touched, and the one existing test rewritten (commit 1).
+3. Phases 3 and 4 → six contract tests and the gallery's fourth block: the rule by value and drawn,
    the put-back, the three routes, two connectors on one figure, nothing else touched, and the one
    existing test rewritten (commit 1).
-3. Phase 5 → the seventh picture, its caption, the seven-tuple and its callers, and the test that
+4. Phase 5 → the seventh picture, its caption, the seven-tuple and its callers, and the test that
    pins the seventh against the sixth cell by cell (commit 2).
-4. **STOP and VALIDATE**: `cargo test --workspace` green at 29 / 19 / 114 / 77 / 15 / 61;
+5. **STOP and VALIDATE**: `cargo test --workspace` green at 29 / 19 / 114 / 78 / 15 / 61;
    `cargo run -q -p monospace-cli` prints seven captioned pictures and the seventh is the sixth with
    the box gone and the arrow exactly where it stood;
    `git diff --stat crates/monospace-cli/assets/demo.json` is empty; a path prints one picture and
@@ -746,15 +835,17 @@ together**.
 
 ### Incremental Delivery
 
+1. Phase 2 → the two methods and the body that calls them land, alone in a commit it cannot be split
+   from — they are `pub(crate)` and nothing else calls them (commit 1, first half).
 1. Phase 2 → the rule lands, alone in a commit it cannot be split from (commit 1, first half).
-2. Phases 3 and 4 → the six tests and the gallery block, and the rule is now something a broken
+1. Phases 3 and 4 → the six tests and the gallery block, and the rule is now something a broken
    implementation fails (commit 1, second half).
-3. Phase 5 → the shipped run carries the evidence, and the demonstration stops losing its arrow
+1. Phase 5 → the shipped run carries the evidence, and the demonstration stops losing its arrow
    (commit 2).
-4. Phase 6 → four sections of the model say what a frozen position is and §9 loses the sentence that
+1. Phase 6 → four sections of the model say what a frozen position is and §9 loses the sentence that
    said nothing is rewritten, and the rule has one home that is not a fourth contract (commits 3 and
    4).
-5. Phase 7 → the gate is green, the two untested claims are named as untested, and the increment is
+1. Phase 7 → the gate is green, the two untested claims are named as untested, and the increment is
    closed (commit 5).
 
 Each commit follows plan.md: one `feat(diagram)` carrying both halves, one `feat(cli)`, three
@@ -764,10 +855,10 @@ Each commit follows plan.md: one `feat(diagram)` carrying both halves, one `feat
 
 With two agents:
 
-1. Agent A takes Phase 2 and then Phases 3 and 4; Agent B takes the records in Phase 6 once T019's
+1. Agent A takes Phase 2 and then Phases 3 and 4; Agent B takes the records in Phase 6 once T020's
    subject exists — but **not before**, because a record that follows nothing is a record of an
    intention.
 2. Inside Phase 5, the seventh step and its test are one file and do not divide.
 
-The honest answer is that this slice is **not** a parallel slice. Sixteen of twenty-six tasks touch
-one of two files, and the two commits that matter are ordered by what they are evidence for.
+The honest answer is that this slice is **not** a parallel slice. Seventeen of twenty-seven tasks
+touch one of three files, and the two commits that matter are ordered by what they are evidence for.
