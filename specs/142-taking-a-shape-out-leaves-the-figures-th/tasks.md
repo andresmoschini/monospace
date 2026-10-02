@@ -478,7 +478,7 @@ out.push_str("\nWith the box the arrow hangs from taken out:\n");
 out.push_str(&picture(&diagram, &catalog, origin, size));
 ```
 
-- [ ] T014 [US3] In `crates/monospace-cli/src/main.rs`, add the seventh step to `demonstrate` — the
+- [x] T014 [US3] In `crates/monospace-cli/src/main.rs`, add the seventh step to `demonstrate` — the
       block above, after the sixth picture's push and **before** `out` is returned. `diagram.remove`
       hands back nothing, so unlike the four steps above it there is **no `if let`** and no `get`:
       that is D4's answer, and it is why this step reads differently from the five beside it — a
@@ -489,7 +489,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       `quickstart.md`'s `sed` splits on. Add a comment saying the seventh is the sixth with the box
       gone and **the arrow exactly where it stood**, because that is the claim a reader checks with
       their eyes and it is not obvious from a `remove` (B3.1, SC-001; D4; ADR-0035)
-- [ ] T015 [US3] In the same file, turn `demonstrated_pictures` from a six-tuple into a
+- [x] T015 [US3] In the same file, turn `demonstrated_pictures` from a six-tuple into a
       **seven**-tuple and fix its doc comment, which reads "The demonstration's **six** pictures"
       and "the six are then comparable with each other", and whose `expect` says "six captioned
       pictures". Its `next_picture` closure needs **no** change: it splits on the blank line, strips
@@ -507,7 +507,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       compile unchanged against a seven-tuple. **Count them before editing rather than from this
       list**, and if it comes out as something other than ten call sites write down what it came out
       as (B3.1, B3.2)
-- [ ] T016 [US3] In the same file, update the two tests whose **names and counts** say six.
+- [x] T016 [US3] In the same file, update the two tests whose **names and counts** say six.
       `a_bare_run_prints_six_captioned_pictures_the_first_being_the_description_as_written` becomes
       `..._seven_...`, with the `assert_eq!` count at **6** becoming **7** and the doc comment's
       mentions of six corrected; it still pins **no caption's wording**, and the seventh is a
@@ -522,7 +522,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       `the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it` still describes the fifth, and
       `a_path_prints_one_picture_and_nothing_else` still describes a path (B3.1; quickstart.md
       "Commit 2")
-- [ ] T017 [US3] In the same file, extend
+- [x] T017 [US3] In the same file, extend
       `the_tenth_entry_naming_a_reference_leaves_the_first_five_pictures_exactly_as_they_were` to
       the seventh, because its two `assert_eq!`s destructure six. Its **name stays as it is** and
       the reason is worth a comment rather than a rename: the claim is that naming the far endpoint
@@ -533,7 +533,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       reason that is the **freeze**: `remove(&#3)` freezes the arrow's `from` at `{16, 5}` in both
       runs whatever route it took to get there, which is the same "same cell, two routes to it"
       claim its existing comment makes about the sixth (B3.2, SC-001)
-- [ ] T018 [US3] Contract test: `the_seventh_picture_takes_the_box_away_and_leaves_the_arrow` in
+- [x] T018 [US3] Contract test: `the_seventh_picture_takes_the_box_away_and_leaves_the_arrow` in
       `crates/monospace-cli/src/main.rs` — **the claim B3.1 makes and nothing else pins**: the
       seventh differs from the sixth **only** in the cells `#3` held, which is the only statement
       that says the arrow stood still. Model it on
@@ -548,7 +548,7 @@ out.push_str(&picture(&diagram, &catalog, origin, size));
       names B3.1 and SC-001 and says the count is asserted rather than quoted, and why: the arrow's
       footprint is neither contiguous nor a rectangle, so nothing that reads it off a picture gets
       it right (B3.1, SC-001; research.md Q4, Q7)
-- [ ] T019 [US3] The three diffs, run in one place, and they are the other side of every claim in
+- [x] T019 [US3] The three diffs, run in one place, and they are the other side of every claim in
       this phase. `cargo run -q -p monospace-cli` against `/tmp/demo-before.txt` **cannot** be
       diffed whole — the sixth caption is the split point, so compare
       `sed -n '1,/With the arrow displaced as well:/p'` on both and it must print **nothing**;
