@@ -229,6 +229,16 @@ impl From<OffsetDescription> for Delta {
 /// Nothing here is broken, because the format is read and never written — but a caller who later
 /// wanted a `Serialize` on this type would have to widen the variant, and this is where to find out
 /// why.
+///
+/// The `Reference` variant's two gap fields are **two spellings of one gap**, and which one a file
+/// reaches for is the caller's: `offset` is the screen axes whatever side the anchor names, and
+/// `out` is the side's own words, so `"anchor": "bottom", "out": 1` is one cell below the border
+/// without the file knowing that "below" is `dy: 1`. Both are optional and absent is zero, so a
+/// reference on the side itself is three fields; `out` is added to `offset` rather than replacing it,
+/// and a file may write either or both. **Only the two signs are decided here and they are decided
+/// by the diagram crate, not by this one** — `Reference::new` turns `out` into an offset and never
+/// sees the anchor twice, which is what keeps four files spelling four different gaps from becoming
+/// four copies of the same arithmetic.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum At {
@@ -238,6 +248,8 @@ enum At {
         anchor: AnchorDescription,
         #[serde(default)]
         offset: OffsetDescription,
+        #[serde(default)]
+        out: i32,
     },
 }
 
@@ -266,11 +278,13 @@ impl From<Endpoint> for DiagramEndpoint {
                     shape,
                     anchor,
                     offset,
-                } => Position::Reference(Reference {
-                    id: ShapeId::new(shape),
-                    anchor: anchor.into(),
-                    offset: offset.into(),
-                }),
+                    out,
+                } => Position::Reference(Reference::new(
+                    ShapeId::new(shape),
+                    anchor.into(),
+                    offset.into(),
+                    out,
+                )),
             },
             leaving: endpoint.leaving.into(),
             terminal: endpoint.terminal.into(),
@@ -643,6 +657,28 @@ mod tests {
         assert!(
             serde_json::from_str::<Description>(&json).is_ok(),
             "a reference without an `offset` must read"
+        );
+    }
+
+    /// An unknown key **inside** a reference is dropped in silence — which is why a file could not
+    /// spell `out` before the field existed, and why `"out": 1` read by a build without it draws the
+    /// point on the border and says nothing at all.
+    ///
+    /// One level in from `a_stray_field_beside_an_at_is_dropped_in_silence`: that one puts a field
+    /// beside the tag and this one beside a reference's own fields, and both are the same cost of an
+    /// internal tag. **`along` is the key this is really about** — the second spelling of the amount
+    /// that runs along the side, declined because the offset already says it — so a file naming it
+    /// reads, and reads as a reference that says nothing about it.
+    #[test]
+    fn an_unknown_key_inside_a_reference_is_dropped_in_silence() {
+        let json = description_of(&ARROW_WITH_AN_AT.replace(
+            "AT",
+            r##"{ "kind": "reference", "shape": "#1", "anchor": "right", "along": 2 }"##,
+        ));
+
+        assert!(
+            serde_json::from_str::<Description>(&json).is_ok(),
+            "an unknown key beside a reference's own fields must not refuse the file"
         );
     }
 
