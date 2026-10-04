@@ -423,8 +423,9 @@ mod tests {
     }
 
     /// The tenth entry's far endpoint stops being a point and becomes a reference to `#5`'s bottom
-    /// with an offset of one in each axis, and **the first five pictures come out byte for byte what
-    /// they were**.
+    /// with an offset of one in each axis — spelled today as one cell along the side in the `offset`
+    /// and one cell out of it in the `out` beside it — and **the first five pictures come out byte
+    /// for byte what they were**.
     ///
     /// The evidence is in a file and the picture not moving is what proves the arithmetic. The
     /// other side of each comparison is not pinned as text but built: the same demonstration with
@@ -447,25 +448,39 @@ mod tests {
         // Built through `serde_json` rather than by replacing text in the file, because the file is
         // formatted and a needle written against one formatting of it is a test that stops matching
         // the day prettier disagrees.
+        //
+        // **The entry is found by the identity it carries, not by the shape of a field beside it.**
+        // It used to be found by looking for a connector whose `from` was a `point` at x 12, which
+        // made the form of the *near* end the only thing this test knew about an entry it is about
+        // the *far* end of. Measured: writing the near end as a reference left this test green,
+        // because the loop then matched nothing, `with_the_point` came back as the same diagram and
+        // every comparison below compared the file with itself. A name is a thing the entry
+        // carries; the form of one of its endpoints is not.
         let mut value: serde_json::Value =
             serde_json::from_str(super::DEMO).expect("the embedded description is well-formed");
-        for shape in value["shapes"]
+        let tenth = value["shapes"]
             .as_array_mut()
             .expect("the description lists its shapes")
-        {
-            if shape["kind"] == serde_json::json!("connector")
-                && shape["from"]["at"]["kind"] == serde_json::json!("point")
-                && shape["from"]["at"]["x"] == serde_json::json!(12)
-            {
-                shape["to"]["at"] = serde_json::json!({ "kind": "point", "x": 22, "y": 4 });
-            }
-        }
-        let with_the_point = value.to_string();
-        assert_ne!(
-            super::DEMO,
-            with_the_point,
-            "the tenth entry still spells its far endpoint outright"
+            .iter_mut()
+            .find(|shape| {
+                shape["kind"] == serde_json::json!("connector")
+                    && shape["id"] == serde_json::json!("#10")
+            })
+            .expect("the tenth entry is the one connector this description holds");
+
+        // **Asserted on the value rather than on the text written below it**, because a `Value` read
+        // and written back differs from the file it came from whether or not anything was replaced.
+        // That reformatting alone is what satisfied the `assert_ne!` this replaces, so the claim it
+        // carried — that the shipped file spells this endpoint as a reference — is now made where it
+        // can fail.
+        assert_eq!(
+            tenth["to"]["at"]["kind"],
+            serde_json::json!("reference"),
+            "the tenth entry spells its far endpoint as a reference, which is the other side of every \
+             comparison below"
         );
+        tenth["to"]["at"] = serde_json::json!({ "kind": "point", "x": 22, "y": 4 });
+        let with_the_point = value.to_string();
 
         let (first, second, third, fourth, fifth, sixth, seventh) =
             demonstrated_pictures(super::DEMO);
