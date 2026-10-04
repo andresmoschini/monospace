@@ -34,10 +34,10 @@
 //!
 //! ## The range, and what is outside it
 //!
-//! Four of the format's fields are **unbounded** and are therefore outside any sweep: a `fill` and
-//! a terminal's `glyph` are any single grapheme cluster, a connector's `offset` is any pair of
-//! `i32`, and a position is any point. `docs/diagram-demo.md` gives each of those one instance,
-//! which is a claim a reader can check by eye.
+//! Five of the format's fields are **unbounded** and are therefore outside any sweep: a `fill` and
+//! a terminal's `glyph` are any single grapheme cluster, a reference's `offset` is any pair of
+//! `i32` and its `out` any single one, and a position is any point. `docs/diagram-demo.md` gives
+//! each of those one instance, which is a claim a reader can check by eye.
 //!
 //! What is left is the product of two finite fields — the `kind` of a shape and the `stroke` it is
 //! drawn in — and this covers that product **whole**, in two families:
