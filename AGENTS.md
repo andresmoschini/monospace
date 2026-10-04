@@ -1,92 +1,128 @@
-# AGENTS.md
+# AGENTS
 
-OpenCode reads this file. It does not read `CLAUDE.md`, and it does not expand the import on that
-file's first line. Nothing here restates a rule: the constitution owns the rules, `CONTRIBUTING.md`
-owns the tooling, `CLAUDE.md` owns session guidance. What is left is where each of those lives, and
-the handful of facts that are in the code and in no document at all.
+Read in this order, and stop where your question is answered:
 
-The reasoning is [ADR-0056](docs/decisions/0056-give-opencode-its-own-instruction-file.md).
+1. [`.specify/memory/constitution.md`](.specify/memory/constitution.md) — every rule, the scope and
+   the process. Long enough that opening it whole is a decision.
+2. This file — how to work here, and which of the usual ways are wrong in this repository.
+3. [`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, the commands, which tool owns which file. Read the
+   section, not the file.
 
-## Read these, in this order
+Where any of them restates a rule, the constitution is the one to follow and the duplication is a
+defect.
 
-1. `.specify/memory/constitution.md` — every rule, the scope, the testing contract and the process.
-   Binding on everything below, and long enough that opening it whole is a decision.
-2. `CLAUDE.md` — session habits, and which work is a feature and which is a tooling change. Its
-   first line, `@.specify/memory/constitution.md`, is an **import** that Claude Code expands at
-   launch, not a mention. Read it as a reference; in a Claude Code session the constitution is
-   already in context and re-reading it is a cost, not a check.
-3. `CONTRIBUTING.md` — setup, the everyday commands, the two stages, which tool owns which file, and
-   what to do when a check fails. Read the section, not the file.
-4. `docs/decisions/` — numbered ADRs, `0000-kebab-slug.md`, each declaring a `scope` and a
-   `commitment`. Before writing a record, look for the one that already covers your subject.
+## What a change is
 
-Speckit's own artifacts are generated, not written by hand, and both harnesses have them:
-`.opencode/commands/` for the slash commands here, `.claude/skills/speckit-*/` for Claude Code. They
-are the same ten prompts, versioned together, and the gate does not own them.
+One GitHub issue, one branch, one pull request. The constitution's
+[One question, and where the answer goes](.specify/memory/constitution.md#one-question-and-where-the-answer-goes)
+says which shape it takes and where the record goes; nothing else is produced. There is no spec
+directory to create, no plan to write before the code, and no checklist to tick.
 
-## Facts that are in the code and in no document
+The pull request body is the record. It carries the decision table and _What proves it_, and those
+two sections are the whole difference between a change that can be reviewed and one that has to be
+re-derived from the diff.
 
-- **The gate refuses to start when the installed Node tree does not match `package-lock.json` by
-  content**, not by timestamp. Editing `package.json` or the lockfile means running
-  `cargo xtask setup` again, or nothing is checked at all. `xtask/src/main.rs`,
-  `node_tooling_state`.
-- **`cargo xtask render` only walks `git ls-files '*.md'`.** A new document that has not been
-  `git add`ed is invisible to it, and its picture silently never fills. `xtask/src/render.rs`,
-  `tracked_markdown`.
-- **The `numbering` step reads the tracked tree the same way, so it shares that limit.** A duplicate
-  left in `specs/` or `docs/decisions/` and not yet staged is not reported: the step counts 77
-  entries whether or not the file is there. The pre-commit hook runs after `git add`, so a commit
-  still cannot carry one. `xtask/src/numbering.rs`, `entries`.
-- **`cargo insta review` needs `cargo-insta`, which `cargo xtask setup` does not install** — `setup`
-  is `npm ci` and nothing else. Install it by hand.
-- **`.specify/feature.json` is gitignored and per-clone.** Speckit resolves its feature directory
-  from it, so a stale value sends a session at a directory that does not exist.
-  `cargo xtask spec use <issue>` rewrites it.
-- **`xtask` has no dependencies, deliberately.** It guards the dependency policy, so it must not be
-  the first thing to bend it; orchestrating subprocesses and propagating exit codes is `std`'s job.
-- **A gate step passes or fails on its exit code alone.** `rustfmt` reports that `group_imports`
-  needs nightly and exits 0, and Cargo reports a missing `workspace.resolver` and exits 0. The gate
-  notices neither, by deliberate choice, so watch the output rather than trusting a green run.
-- **The `wasm` step compiles three crates, not one**: `monospace-core`, `monospace-diagram` and
-  `monospace-glyph-sets`. It is what keeps the core free of terminal assumptions, so a `std::io` or
-  `std::process` reach in the core fails there even where it works locally. The table in
-  `CONTRIBUTING.md` names only `monospace-core`; the code says otherwise.
-- **`monospace-cli` has two modes, and `render` depends on the split.** Bare, it prints a
-  two-picture demonstration; given a path, it prints one picture and nothing else, because a
-  rendering that goes into a Markdown fence cannot arrive wrapped in prose. Do not add output to the
-  path form.
-- **Contract and characterization snapshots are separated by directory, not by naming** —
-  `insta::Settings::set_snapshot_path`. The connector sweep is 1856 renderings across 8 files.
-- **Prettier owns the width, at 100 columns, and it reflows rather than refusing.** Rewording a
-  paragraph to shorten it buys nothing — the words return on the next `cargo xtask fix`. Meeting an
-  artifact ceiling, 60 lines for a `working` ADR, means deleting content or splitting the decision
-  into two records. Rewrapping is not a way under it.
-- **`docs/decisions/README.md` is one prettier-aligned table, and a partial edit corrupts it
-  silently.** Anchoring on a fragment of a row leaves the rest of that row on the line below, and
-  prettier then reflows the damage rather than rejecting it. Replace a whole row, never a fragment.
+## The steps
+
+1. **Read the model, then answer the one question.** `docs/model.md` for the core,
+   `docs/diagram-model.md` for the layer above. Quote the sentence that would become false. If you
+   cannot quote one, the change is not a `decide` and there is nothing to agree first.
+2. **Draw the case.** A `<!-- render: -->` marker and `cargo xtask render`, a gallery block, or a
+   test that prints. Then say what the drawing showed that the prose did not. A case that cannot be
+   drawn is a result — say so in one line.
+3. **Draft the body.** `cargo xtask pr body` writes the template with the keyword already appended.
+   Fill every section; one with nothing to say says `None.`
+4. **Build.** Test first where you can: it is the cheap way to find out whether the rule is
+   understood, and a test naming something that is not there does not fail, it does not compile.
+5. **Amend the model where building showed it wrong,** in the same commit, quoting the sentence it
+   replaces. Not optional and not an escape.
+6. **`cargo xtask check`, then `cargo xtask pr open`.**
+
+On a `decide`, step 3 is its own pull request and it merges before any code is written.
+
+## Working with the maintainer
+
+- Do not invent something new because the ecosystem was not known well enough to ask for the usual
+  thing. Where it is settled practice, the conventional answer is the answer.
+- Talk in whatever language is being written in. What lands in the repository is English.
+
+## Habits the gate cannot check
+
+These are the failure modes the rules above have a habit of failing in. They are not the rules; the
+rules are in the constitution.
+
+- **Say it when the code disagrees with a document**, in the first paragraph. Do not reconcile
+  silently, and do not change code to match a document without asking which of the two is wrong.
+- **Default a new decision to module-level**, into that module's rustdoc under `Design notes`, and
+  promote it in the increment that makes something outside able to observe it.
+- **Look for the record of the subject before writing a new one.** A change to an existing decision
+  revises it; it does not become a second document beside it.
+- **Show the rendering in the question, not beside it.** Both options side by side, and anything
+  hand-drawn labelled on the spot.
+- **Cut the prose a picture already carries.** Keep the sentence that says why, drop the one that
+  says what.
+- **A snapshot that moved is a question, not a failure.** Report how many cases moved, in which
+  families, and three examples with before and after — and ask whether that is the movement wanted.
+  A characterization is not self-approving.
+- **Never argue that changing something repeatedly is expensive.** Where that is true the cost is
+  paid by a test, a migration or a public API, and written there.
+- **Do not manufacture a fix to fill a commit.** An increment with nothing in it says so.
+
+## Running a session
+
+Every call re-reads the whole context, so a session costs its length squared rather than its length.
+
+- **One pull request body per session**, and clear the context between them. The body is the
+  handoff; the conversation is not.
+- **Read the part, not the file.** `docs/learning-log.md`, `docs/model.md`, `docs/diagram-model.md`
+  and `docs/glyph-sets.md` are large enough that opening one in full is a decision. Take a line
+  range or grep with context. Appending needs no read at all.
+- **Delegate a lookup that spans files**, so the files never enter this context.
+- **Do not open an artifact nobody asked for.** If you catch yourself writing a plan, a design
+  document or a task list, the change does not need one; say what you would have written it in and
+  put that in the pull request body instead.
+
+## Commands
+
+```sh
+cargo xtask check          # the whole quality gate; the hook and CI run this and nothing else
+cargo xtask fix            # every automatic fix the gate knows about
+cargo xtask setup          # install the Node tooling the gate needs
+cargo xtask render         # rewrite every picture a tracked document carries, from its description
+cargo xtask pr body        # write target/pr-body.md; fill it, then `cargo xtask pr open`
+cargo xtask pr open        # push the branch and open the pull request with that body
+cargo run -p monospace-cli -- path.json   # render one description; bare `cargo run` is ambiguous
+cargo test --workspace     # tests only, for a faster loop
+cargo insta review         # accept a moved snapshot; report what moved first
+```
+
+`CONTRIBUTING.md` covers setup, which tool owns which file, and what to do when a check fails.
+
+## Frozen history
+
+Nothing adds to these and nothing new cites one for a rule. They are kept because they record why
+the code came to be this way, which is worth more than the fact that it holds — and a link into one
+is still the shortest way to say what happened.
+
+| What                                           | Why                                                                                                              |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `specs/NNN-slug/` — 19 features, 24k lines     | The eight artifacts per feature Spe Kit asked for. The flow that produced them is gone.                          |
+| `docs/decisions/` — 68 records                 | Architecture decision records. Their reasoning moved into `docs/model.md` and into rustdoc where it still holds. |
+| `docs/learning-log.md` — the first 2,182 lines | What was learned while those decisions were taken. Appending to it is still how an increment ends.               |
+| `docs/specs/` — features 0001–0005             | The home before `specs/`.                                                                                        |
 
 ## For this harness specifically
 
 - **Two plugins live in `.opencode/plugins/`, and nothing in the gate can execute them.** They are
   the only thing that installs the git hooks here and the only thing that puts a session id in a
-  commit, so a failure in either is silent, and check that they loaded before assuming either works.
-  Each logs a line when it arms, and it reaches the TUI and not
-  `~/.local/share/opencode/log/opencode.log` — measured, that file has never held a `[monospace]`
-  line whether the plugin loaded or died, so do not read its absence there as evidence. The log
-  file's own `loading plugin` and `failed to load plugin` entries are the readable signal, and the
-  second carries the cause. A reload unloads a plugin without warning: anything that checks out
-  these files, a rebase among them, drops both until they load again, and a session that loses
-  `session-trailer.js` loses the variable with it. A missing line is usually not the API moving: the
-  loader dies at module resolution first, and a local plugin's bare imports resolve from this
-  project's `node_modules`, so whatever a plugin imports has to be a dependency here. What it must
-  export is a default object carrying an `id` and a `setup`.
-  [ADR-0058](docs/decisions/0058-install-the-git-hooks-from-an-opencode-session-too.md)'s revisions
-  carry the history.
+  commit, so a failure in either is silent. Each logs a line when it arms, and it reaches the TUI
+  and not `~/.local/share/opencode/log/opencode.log` — measured, that file has never held a
+  `[monospace]` line whether the plugin loaded or died, so do not read its absence there as
+  evidence. The log file's own `loading plugin` and `failed to load plugin` entries are the readable
+  signal, and the second carries the cause. A reload unloads a plugin without warning: anything that
+  checks out these files, a rebase among them, drops both until they load again. A local plugin's
+  bare imports resolve from this project's `node_modules`, so whatever a plugin imports has to be a
+  dependency here. What it must export is a default object carrying an `id` and a `setup`.
 - **`OpenCode-Session` and `Claude-Resume` are separate trailer keys** on purpose: neither client's
   id resumes the other. `commit-msg` reads `MONOSPACE_SESSION_ID` and `CLAUDE_CODE_SESSION_ID`. A
   commit made outside an agent shell correctly carries neither.
-- **Speckit's own files are written with CRLF on Windows.** `.gitattributes` normalizes to LF and
-  `core.safecrlf` is on, so `git add` refuses them: `fatal: CRLF would be replaced by LF`. The cause
-  is the CLI, not your edit, and `cargo xtask fix` is what removes it — its `eol` step, which is the
-  only one that reaches the tree `editorconfig-checker` skips
-  ([ADR-0059](docs/decisions/0059-normalize-what-the-speckit-cli-writes-or-git-refuses-it.md)).

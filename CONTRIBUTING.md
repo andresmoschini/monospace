@@ -40,162 +40,159 @@ first, because without it nothing checks your commits until CI does.
 cargo xtask check          # the whole quality gate, about 3.5 seconds
 cargo xtask fix            # apply every automatic fix the gate knows about
 cargo xtask render         # rewrite the pictures documents carry, from the descriptions beside them
-cargo xtask spec use 23    # put this clone on the active branch of feature 23
 cargo xtask pr body        # write the pull request body this branch calls for
+cargo xtask pr open        # push the branch and open the pull request with that body
 cargo run -p monospace-cli # run the command-line application
 cargo test --workspace     # tests only, when you want a faster loop
 ```
 
 ## Starting work
 
-Two flows live here, and the first thing to settle is which one you are in. A **feature** is
-something the tool will be able to do that it cannot do today. Everything else — the gate, the
-hooks, CI, these documents, the workflow itself — is a **tooling change**.
-
-The question that decides it: does this change what `monospace` can draw, or does it change how we
-work on it? Both still start from an issue and end in a pull request; only the middle differs, and
-[Spec Kit is the workflow](.specify/memory/constitution.md#spec-kit-is-the-workflow) says which: a
-feature takes a spec directory and two staged branches, a tooling change an ADR and commits.
+One change is one GitHub issue, one branch, one pull request, and nothing else is produced. There is
+no spec directory to create, no plan to write before the code, and no checklist to tick. The
+constitution's
+[One question, and where the answer goes](.specify/memory/constitution.md#one-question-and-where-the-answer-goes)
+has the whole of it in a table; this is the procedure around that table.
 
 ### One issue, and the labels on it
 
-A feature is exactly one issue, and where the work stands is one of these three labels on it and
-nowhere else ([ADR-0033](docs/decisions/0033-keep-the-flow-state-in-labels-on-one-issue.md)):
+An issue carries a title and two or three sentences: what someone wants, not what has to be built.
+Never acceptance criteria, requirements or examples of behavior — those are what the pull request is
+for, and an issue that already holds them has settled the change before anybody read it.
 
-| Label      | What it means                                                  |
-| ---------- | -------------------------------------------------------------- |
-| `wish`     | Someone wants this. Nothing is specified yet.                  |
-| `deciding` | The deciding branch is open, or its pull request is in review. |
-| `building` | The spec and the answered sheet merged. Building is under way. |
+The exception is worth a lot. [#104](https://github.com/andresmoschini/monospace/issues/104) carries
+the smallest arrangement that shows the problem and says "16 of the 1856 renderings, in 8
+arrangements taken from both ends". That is a measurement, and it beats a paragraph of
+specification.
 
-The kinds — `capability` for a wish someone had, `foundational` for what the design demands and
-nobody asked for, `tooling` for the repository itself — are a second axis, they coexist on the same
-issue, and a `tooling` issue never enters this flow and never carries one of the three. What an
-issue may hold is [ADR-0023](docs/decisions/0023-direction-and-backlog-in-a-github-project.md): a
-title and two or three sentences, never acceptance criteria, requirements or examples. Once the spec
-exists the issue is a pointer back to where the wish was first stated.
+`wish` is the board's inbox and stays. The kinds — `capability` for a wish someone had,
+`foundational` for what the design demands and nobody asked for, `tooling` for the repository itself
+— are a second axis and coexist with it. `deciding` and `building` are gone: where the work stands
+is visible on the branch and the open pull request, and a label restating that is a second place to
+forget to update.
 
-### The two stages
+### Settle the question by reading the model
 
-A spec crosses two stages, potentially with two different people, and what each stage requires of
-`main` is
-[Two stages, and where the cut falls](.specify/memory/constitution.md#two-stages-and-where-the-cut-falls)
-in the constitution. This is what they are called and what opens them.
+This step decides everything after it, and it is reading rather than writing. Open the section of
+[`docs/model.md`](docs/model.md) the topic belongs to, or
+[`docs/diagram-model.md`](docs/diagram-model.md) for the layer above, and ask: **is there more than
+one defensible answer to how this should be done?**
 
-| Stage    | Branch              | Label      | Requires in `main`                    |
-| -------- | ------------------- | ---------- | ------------------------------------- |
-| Deciding | `NNN-slug-deciding` | `deciding` | —                                     |
-| Building | `NNN-slug-building` | `building` | `spec.md`, an answered `decisions.md` |
+- **No** — the model says what to do and the code disagrees, or the model is silent. One branch, one
+  pull request, `Closes #N`. There is no decision to agree, so nothing is agreed before the code.
+- **Yes** — a sentence of the model would become false, or a caller would observe a new shape. Two
+  branches: `NNN-slug-deciding` with `Refs #N`, merged first and carrying no code, then
+  `NNN-slug-building` with `Closes #N`.
 
-```sh
-cargo xtask spec new 23           # opens the deciding stage for issue #23
-cargo xtask spec stage 23 build   # after the deciding pull request merged
-```
+Concluding "the model says nothing about this" means the section was not read. A model that
+enumerates four anchor points says four, and the change that adds a fifth is a decide whether or not
+anybody wants it to be one.
 
-`stage` refuses to open the building stage against a deciding stage that has not merged, and says
-which file it could not find in `origin/main`. It also reads the merged sheet rather than only its
-name, and refuses while any entry still says `_pending_`, quoting the lines:
-
-```text
-xtask: `specs/023-read-a-diagram-description/decisions.md` is not answered: line 8 reads
-`- **Answer**: _pending_`. The building stage runs against an answered sheet, so answer it on the
-deciding branch and merge that first.
-```
-
-Inside each stage, the Spec Kit commands that belong to it, one per session:
-
-```text
-deciding branch   /speckit-specify   then /speckit-clarify if the spec leaves open questions
-                  /speckit-plan part one, which stops at decisions.md
-building branch   /speckit-plan part two, then /speckit-tasks
-                  /speckit-implement
-```
-
-Someone who has just cloned, or who is coming back to a feature after working on another, does not
-need to know any of the branch names:
-
-```sh
-cargo xtask spec use 23
-```
-
-It touches no label and creates no remote branch.
+The question is which _shape_ of change this is, not whether the work matters. A change to the gate,
+the hooks, CI or these documents is not smaller for being about the repository: one branch and one
+pull request like any other, and the same body asks the same questions of it.
 
 ### Names that carry the number
 
-One string finds every part of a feature:
+One string finds every part of a change:
 
 ```text
 issue     #23
-branches  023-read-a-diagram-description-deciding
-          023-read-a-diagram-description-building
-directory specs/023-read-a-diagram-description/
+branch    023-read-a-diagram-description              or  023-read-a-diagram-description-deciding
+body      target/pr-body.md
 ```
 
-The slug comes from the issue title, lowercased and hyphenated, at most forty characters. `xtask`
-derives it once, when the first stage is opened, and reads it back from the directory afterwards, so
-renaming the issue later does not rename anything.
+The slug comes from the issue title, lowercased and hyphenated, at most forty characters. Nothing
+derives it any more, so renaming the issue does not rename anything — write the branch once and it
+is yours.
 
-The `numbering` step of the gate rejects two entries claiming one number, in `specs/` and in
-`docs/decisions/` alike, and each is numbered by its own rule: a feature's is its issue's, and a
-record's is the next unused four digits. Nothing checks the other half — that a directory under
-`specs/` is named this way at all.
+### Draw the case
 
-### Commits during implementation
+The cheapest step in the flow and the one that removes the most rework. Say which case you want to
+look at; you do not need to know what you expect to see.
 
-How much goes in one commit is
-[Demonstrable increments](.specify/memory/constitution.md#ii-demonstrable-increments) in the
-constitution: a commit ticks exactly the checkboxes in `tasks.md` it completed and leaves
-`cargo xtask check` passing. You do not get to choose its size — the hooks run the gate, so a commit
-can only exist at a boundary where the tree is green.
+| To see                           | Use                                                           |
+| -------------------------------- | ------------------------------------------------------------- |
+| A picture in a tracked document  | A `<!-- render: -->` marker, then `cargo xtask render`        |
+| A picture that exists, to pin it | A gallery block, which moves on its own if the picture moves  |
+| A picture in a pull request body | The same marker; a body takes one                             |
+| A quick case, for you only       | A test that prints, or a JSON description run through the CLI |
 
-### Opening and closing the pull request
+Then answer the only question that matters: **what does the drawing say that you did not say
+before?**
 
-The keywords that close an issue go in the pull request's body, never in a commit message. Three
-reasons, and the third is the one that decides it:
+A case that cannot be drawn yet is a result, not a failed step. A connector attached to a box's
+_corner_ has no path today, because `Anchor` has no such variant and no carrier reaches it — say
+that in one line, and draw the nearest thing that does exist. A reference with an offset gets you
+_near_ a corner rather than _on_ one, which is what makes the named form worth having.
 
-- The link is visible before the merge. Only the pull request gives you that; a keyword in a commit
-  is invisible until it lands.
-- A wrong number is edited out of a body. In a commit it is a history rewrite, and a rewrite owes
-  the gate a run on **every** rewritten commit rather than only the tip
-  ([One definition of green](.specify/memory/constitution.md#iii-one-definition-of-green-non-negotiable)).
-- No single commit is "the" one that closes work that took several.
+The 142 decided whether a removal froze or dropped a connector without drawing either case, which is
+why its cell counts were wrong three times and the decision had to be reopened twice.
 
-Which keyword depends on the stage, and `cargo xtask pr` appends it rather than asking you to
-remember which. Only the last pull request of a feature finishes the issue:
-
-| Shape    | Branch              | Body                                | Keyword     |
-| -------- | ------------------- | ----------------------------------- | ----------- |
-| Deciding | `NNN-slug-deciding` | `PULL_REQUEST_TEMPLATE/deciding.md` | `Refs #N`   |
-| Building | `NNN-slug-building` | `PULL_REQUEST_TEMPLATE/building.md` | `Closes #N` |
-| Tooling  | anything else       | `pull_request_template.md`          | `Closes #N` |
-
-### Opening one
-
-Two commands, because the body has to be filled between them:
+### Draft the body
 
 ```sh
-cargo xtask pr body        # writes target/pr-body.md for whatever this branch is
-                           # a tooling branch carries no issue number: `pr body 34`
-                           # `--refs` where the change belongs to an issue it does not finish
-#                          ... fill every section; one with nothing to say says "None."
+cargo xtask pr body        # writes target/pr-body.md with the keyword already appended
+                           # ... fill every section; one with nothing to say says "None."
 cargo xtask pr open        # pushes the branch, then opens the pull request with that body
 ```
 
-`body` reads the branch, not the issue's label: `-deciding` and `-building` are the two feature
-stages, and anything else is a tooling change. `open` refuses three things before it reaches GitHub
-— a dirty working tree, a body whose sections are still empty, and `main` — and derives the title
-from the issue (`Decide:` or `Build:`) or, for a tooling change, from the first commit the branch
-added. `--title` overrides it and `--body-file` reads from somewhere else.
+`body` reads the branch, not the issue's label: `-deciding` is the one that proposes and gets
+`Refs`, and anything else closes its issue and gets `Closes`. `--refs` covers a change belonging to
+an umbrella issue it does not finish, and a branch carrying no number takes the issue as an argument
+— `cargo xtask pr body 34`.
 
-### Closing one
+`open` refuses three things before it reaches GitHub — a dirty working tree, a body whose sections
+are still empty, and `main` — and derives the title from the issue behind `Decide:` or `Build:`, or
+from the first commit the branch added where there is no issue.
+
+[`.github/pull_request_template.md`](.github/pull_request_template.md) is the whole artifact, and
+two of its sections are the ones most often left out. **The decision**, because a decision with no
+rejected alternative has not been made, it has been typed. **What proves it**, because a proposal
+nobody can observe is a wish with better formatting, and finding that out on the deciding branch
+costs one conversation instead of a merged pull request.
+
+### Build
+
+Run the gate before every commit. No hook runs it for you, and CI reports after the commit exists:
 
 ```sh
-gh pr view N --json closingIssuesReferences   # confirm GitHub parsed a Closes
+cargo xtask check
+cargo xtask fix     # when you are about to touch several files
+```
+
+You decide where a commit ends. One rule: **the commit leaves the tree green.**
+
+Four things worth doing while building, and one worth breaking once:
+
+1. **Write the test first where you can.** It is the cheap way to find out whether the rule is
+   understood. A test naming something that is not there does not fail, it does not compile.
+2. **The tests are the proof.** Every rule in _What proves it_ becomes an assertion. A rule with
+   nothing against it is named as such in the pull request rather than counted as covered.
+3. **When the code shows the model was wrong, amend the model in this pull request.** Not optional,
+   and not an escape — quote the sentence and replace it in the same commit.
+4. **Measure rather than assume.** If a characterization sweep moved, the count goes in the body.
+5. **Break the rule on purpose, once.** Remove the guard that makes the behavior work, run the
+   tests, and count what went red. If nothing goes red, the tests are wired to the method rather
+   than to the rule, and that is cheaper to find here than in review.
+
+### Merge and close
+
+Yours, not delegated:
+
+```sh
+gh pr view N --json closingIssuesReferences   # confirm GitHub parsed the Closes
 gh pr merge --merge --delete-branch
 ```
 
-[`.github/PULL_REQUEST_TEMPLATE/`](.github/PULL_REQUEST_TEMPLATE/README.md) explains why there are
-three bodies and why every section stays.
+Read the first line. An empty `closingIssuesReferences` means GitHub did not understand the keyword
+and the issue is still open, which is the check most often skipped.
+
+After the merge, and only if the pull request asks: accept the snapshots that moved, with
+`INSTA_UPDATE=always cargo test --workspace`. **A characterization snapshot is not self-approving.**
+Each carries a description demanding a report of how many cases moved, in which families, and
+examples with before and after. Reading the diff and saying "that looks right" is the exact failure
+those files exist to prevent.
 
 ## The quality gate
 
@@ -213,7 +210,6 @@ you fix problems one at a time. A step passes or fails on its exit code alone.
 | `prettier`     | Formatting of Markdown, JSON and JSONC, including prose width                  |
 | `markdownlint` | Markdown structure: heading levels, duplicate headings, bare URLs, code fences |
 | `editorconfig` | Line endings, final newlines and trailing whitespace on every tracked file     |
-| `numbering`    | No two entries under `docs/decisions/` or `specs/` claim the same number       |
 | `cspell`       | Spelling, in code and prose alike                                              |
 | `clippy`       | Lints, including `pedantic`, with warnings denied                              |
 | `build`        | The workspace compiles, tests and all                                          |
@@ -221,6 +217,20 @@ you fix problems one at a time. A step passes or fails on its exit code alone.
 | `test`         | Unit tests, integration tests and doctests                                     |
 | `doc`          | `cargo doc` builds, with broken intra-doc links denied                         |
 | `render`       | Every generated picture still matches the description beside it                |
+
+The `numbering` step went with the artifacts it policed. It rejected two entries claiming one number
+under `docs/decisions/` and `specs/`, which mattered while a change created a directory and a
+record. Neither happens any more, and a check whose subject is a frozen directory is one more thing
+to read in order to learn nothing.
+
+The `eol` fixer went the other way round: it outlived its subject and was measured rather than
+assumed. It existed because the Spec Kit CLI wrote CRLF on Windows into `.specify/`, which
+`.editorconfig-checker.json` was configured to skip. With the CLI gone, `.specify/` holds one
+hand-written file and the exclusion is gone with it — and `editorconfig-checker` then covers what
+`eol` was written for. Checked rather than reasoned about: a tracked-shape file written with CRLF
+was repaired by `cargo xtask fix` with the `eol` step deleted, and `editorconfig-checker` reported
+the same file as an error before that. What `eol` did that nothing else does — ask Git which files
+are binary and which want CRLF — matters only for a tracked binary, and this repository has none.
 
 ### A picture a document generates
 
@@ -276,33 +286,29 @@ owner.
   cannot express, like a heading level that skips or a code fence with no language.
 - **Everything else tracked** — `LICENSE`, the TOML files, the dotfiles — belongs to
   `editorconfig-checker`. Prettier cannot even infer a parser for those, so without it they would go
-  unchecked. `.specify/` is the one tree it is configured to skip, and the `eol` step below is what
-  reaches the line endings in there.
+  unchecked. It also owns the line endings, since `.editorconfig` says `end_of_line = lf` for
+  everything except `*.bat` and `*.cmd`.
 - **`.editorconfig`** is read by prettier and by `editorconfig-checker`, so indentation and line
   endings are configured once and obeyed by both. Its one exception is `*.bat` and `*.cmd`, which
   agree with `.gitattributes` rather than adding a rule: the batch interpreter does not run a file
   whose lines end in a bare LF, and a fixer that disagreed with Git here would be the thing breaking
   the file.
 - **Line endings** are the one concern with a third reader — `git add`, which refuses a CRLF file
-  rather than converting it — and the `eol` step is how that is settled.
+  rather than converting it. `editorconfig-checker` is what settles it, and it is a fixer as well as
+  a check, so `cargo xtask fix` repairs one before it can reach a commit.
 
 ### Automatic fixes
 
-`cargo xtask fix` runs `fmt`, `render`, `prettier`, `markdownlint`, `editorconfig` and `eol` in that
-order, each in its writing mode instead of its checking mode. Order is not incidental here the way
-it is for `check`: these steps rewrite the same files `check` only reads, so a formatter that ran
-last would win regardless of which one was "right". `render` writes before the Markdown formatters
-so that what it puts in a fence is theirs to normalize; the other content formatters follow;
+`cargo xtask fix` runs `fmt`, `render`, `prettier`, `markdownlint` and `editorconfig` in that order,
+each in its writing mode instead of its checking mode. Order is not incidental here the way it is
+for `check`: these steps rewrite the same files `check` only reads, so a formatter that ran last
+would win regardless of which one was "right". `render` writes before the Markdown formatters so
+that what it puts in a fence is theirs to normalize; the other content formatters follow;
 `editorconfig` runs after them because it owns files none of the others touch — `LICENSE`, the TOML
-files, the dotfiles — and otherwise only confirms what the earlier steps already left clean; and
-`eol` runs last, because every step above it writes and the ending of a line is the last thing a
-byte should be decided on.
+files, the dotfiles — and otherwise only confirms what the earlier steps already left clean.
 
-`eol` is the only step that is not a tool from `package.json`. It rewrites the CRLF of any file Git
-would stage — tracked or new, ignored files excepted — and it asks `git ls-files --eol` which files
-those are, whether their bytes are text at all, and which ones `.gitattributes` wants in CRLF. That
-last question is why it exists rather than a `sed` line: a batch file and a PNG are the two answers
-that a rule of the form "CRLF becomes LF" gets wrong, and Git already holds both.
+It also runs last for a second reason: every step above it writes, and the ending of a line is the
+last thing a byte should be decided on.
 
 `clippy` and `cspell` have no fix step. `cspell` cannot fix a spelling on its own, and
 `clippy --fix` is deliberately left out of the automatic command:
@@ -368,8 +374,9 @@ Which prefix to use follows from
 Everything else — `build`, `ci`, `docs`, `style`, `chore`, `test` — is neither, which is most of the
 tooling in this repository.
 
-How much goes in one commit, while implementing a spec, is settled by
-[Commits during implementation](#commits-during-implementation) rather than by taste.
+How much goes in one commit is settled by
+[Demonstrable increments](.specify/memory/constitution.md#ii-demonstrable-increments) rather than by
+taste: you choose where the change reaches green, and nowhere else.
 
 Write the body for someone who was not there. What the diff does is visible; why it does that is
 not.
@@ -393,9 +400,9 @@ Rewriting means proving the branch green again, on each rewritten commit rather 
 alone, because neither rebase nor cherry-pick fires the hook —
 [One definition of green](.specify/memory/constitution.md#iii-one-definition-of-green-non-negotiable).
 
-A recorded decision is the exception: what may be edited in place and what needs a new record is its
-`commitment`, whatever the commit history does
-([principle VI](.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to)).
+A frozen record is the exception, and only in one direction: a correction to what a record under
+`docs/decisions/` says about itself is edited in place whatever the commit history does. Nothing is
+added there, so nothing there is current.
 
 ### The session trailer
 
@@ -429,26 +436,39 @@ It is a convenience, not a record. Transcripts live outside the repository and d
 machine, so the reasoning that matters still belongs in the commit body or in an ADR. If a commit
 body only makes sense with the transcript open, the body is wrong.
 
-## How the constitution reaches Claude
+## How the rules reach a session
 
-`CLAUDE.md` starts with `@.specify/memory/constitution.md`. That line is an import, not a mention:
-Claude Code expands it at launch, so the constitution is in context from the first message of every
-session instead of being a file Claude has to remember to open. Relative paths resolve against
-`CLAUDE.md`, which is why the path starts at `.specify/`.
+Two files, and every harness reads the same two.
 
-To confirm it loaded, run `/context` and look for the constitution under "Memory files". If it is
-missing, nothing errors — Claude simply works without the rules, which is the failure mode worth
-checking after touching either file.
+[`.specify/memory/constitution.md`](.specify/memory/constitution.md) holds the rules and
+[AGENTS.md](AGENTS.md) holds how to work here. `CLAUDE.md` is two import lines and nothing else:
 
-OpenCode expands no import, so nothing reaches a session that way. `AGENTS.md` orders the reading
-instead, and this file is one of the three it points at
-([ADR-0056](docs/decisions/0056-give-opencode-its-own-instruction-file.md)).
+```markdown
+@.specify/memory/constitution.md
+
+@AGENTS.md
+```
+
+Those are imports, not mentions. Claude Code expands them at launch, so both files are in context
+from the first message of every session instead of being files the session has to remember to open.
+To confirm it loaded, run `/context` and look for them under "Memory files" — if either is missing,
+nothing errors, the session simply works without the rules, which is the failure mode worth checking
+after touching either file.
+
+OpenCode expands no import, so `AGENTS.md` is read directly and orders the reading itself, with the
+constitution first.
+
+**The constitution kept its path on purpose.** It was `.specify/memory/constitution.md` because Spec
+Kit put it there, and eighty-nine links across `docs/`, the crates and these files point at it by
+path — twelve of them at an anchor inside it. Nothing in the gate resolves a link to another file,
+so moving it would break all eighty-nine silently in exchange for a tidier directory name.
 
 Both files are read on **every** call of a session, and a session costs its length squared
 ([ADR-0027](docs/decisions/0027-control-token-cost-through-session-discipline.md)), so they hold the
 most expensive prose in the repository. That is why the constitution's earlier Sync Impact Reports
 moved to [`constitution-history.md`](docs/decisions/constitution-history.md): they are history for a
-person, and a person can open a file.
+person, and a person can open a file. It is also why the Spec Kit prompt files — 3,811 lines across
+two harnesses, read on demand — are gone rather than trimmed.
 
 ## Cross-references
 
@@ -461,16 +481,22 @@ file and stops there, so a link to a file that does not exist, or to an anchor i
 that does not exist, passes the gate.
 [Issue #13](https://github.com/andresmoschini/monospace/issues/13) tracks closing it.
 
-Records under `docs/decisions/` written before this convention keep their numbered citations. They
-were true when written, and an accepted record is not edited for style.
+Frozen history keeps its numbered citations. An accepted record is not edited for style, and a link
+into one of them is still the shortest way to say what happened.
 
-## Decisions and notes
+## Frozen history
 
-Three documents, and
-[Where a rationale goes](.specify/memory/constitution.md#where-a-rationale-goes) in the constitution
-says which takes what. The procedure and templates are in each:
-[`docs/decisions/`](docs/decisions/README.md), [the learning log](docs/learning-log.md), and a
-feature's own `research.md`.
+Four trees are kept and nothing adds to them. They are worth more as a record of why the code came
+to be this way than the space they take costs, and the reasoning in most of them has nowhere else to
+go now.
 
-Where specs live, and how a slice goes from spec to plan to tasks, is
-[Spec Kit is the workflow](.specify/memory/constitution.md#spec-kit-is-the-workflow).
+| What                                     | Lines  | Replaced by                                                         |
+| ---------------------------------------- | ------ | ------------------------------------------------------------------- |
+| `specs/NNN-slug/` — 19 features          | 24,101 | The pull request body. Eight artifacts per feature became one file. |
+| `docs/decisions/` — 68 records           | 7,323  | `docs/model.md` for what is observable, rustdoc for what is not.    |
+| `docs/learning-log.md` — the first 2,182 | 2,182  | Nothing; it is still appended to.                                   |
+| `docs/specs/` — features 0001–0005       | 1,145  | `specs/`, which `docs/specs/README.md` already said was frozen.     |
+
+[the learning log](docs/learning-log.md) is the exception worth stating: it is frozen above its
+current end and open below it. An increment still ends with an appended entry, because what was
+learned is the point of the repository and three lines is not what went wrong.

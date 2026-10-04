@@ -20,21 +20,23 @@
 // directory, so importing it stopped this file from loading at all. A default export carrying
 // `id` and `setup` is the whole contract. See ADR-0058's revisions.
 
-const VARIABLE = "MONOSPACE_SESSION_ID"
+const VARIABLE = "MONOSPACE_SESSION_ID";
 
 export default {
   id: "monospace.session-trailer",
   setup(ctx) {
-    let sessionID
+    let sessionID;
 
     ctx.session.hook("context", (event) => {
-      if (event.sessionID) sessionID = event.sessionID
-    })
+      if (event.sessionID) sessionID = event.sessionID;
+    });
 
     ctx.shell.hook("create.before", (event) => {
-      if (sessionID) event.env[VARIABLE] = sessionID
-    })
+      if (sessionID) event.env[VARIABLE] = sessionID;
+    });
 
-    console.log(`[monospace] session trailer armed: ${VARIABLE} reaches every shell the agent spawns`)
+    console.log(
+      `[monospace] session trailer armed: ${VARIABLE} reaches every shell the agent spawns`,
+    );
   },
-}
+};

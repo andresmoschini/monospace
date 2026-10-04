@@ -80,30 +80,33 @@ The format is MADR 4.0 with two local additions. The reasoning is in
 | [0067](0067-displace-a-figure-holding-a-reference-by-growing-its-offsets.md)        | Displace a figure holding a reference by growing its offsets                           | accepted                             |
 | [0068](0068-freeze-what-hung-from-a-removed-shape-where-it-stood.md)                | Freeze what hung from a removed shape where it stood                                   | accepted                             |
 
-## How to add one
+## Frozen
 
-1. Copy `adr-template.md` to `NNNN-short-kebab-case-title.md`, where `NNNN` is the next unused
-   number, zero-padded to four digits.
-2. Fill it in. Use `status: proposed` while it is still under discussion and `status: accepted` once
-   it is settled. Declare `scope` and `commitment`: how much of the template to fill, and how the
-   record is later changed, follow from the second
-   ([principle VI](../../.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to)).
-3. Add a row to the index above.
-4. Commit it with a `docs:` prefix, in the same commit as the change it justifies or in the commit
-   immediately before it.
+**Nothing is added here.** The last record is
+[0068](0068-freeze-what-hung-from-a-removed-shape-where-it-stood.md), and there is no procedure for
+writing a 0069, because the thing these records recorded now has two homes and both are cheaper than
+a new file: [`docs/model.md`](../model.md) for a decision something outside the module can observe,
+and a module's rustdoc under `Design notes` for one nothing outside can. That split is
+[principle VI](../../.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to),
+and it was already the rule — what changed is that nothing points here any more, so a decision
+landed in rustdoc and stayed there instead of being promoted here for a second reader nobody had.
+
+The reasoning is kept, and a link into it is still the shortest way to say what happened.
+`adr-template.md` stays for the same reason. What a record no longer does is state a rule that is
+current: where one disagrees with the constitution, the constitution is what holds.
 
 ## Rules
 
-**When a record is written, how it is changed, and whether it belongs here at all** are
-[principle VI](../../.specify/memory/constitution.md#vi-decisions-recorded-at-the-altitude-they-belong-to)
-and are not restated here. What this directory adds to it: a record is never deleted. Superseded,
-revised or `absorbed into <path>`, the file stays, because being able to see that a decision changed
-— and what argument changed it — is most of what this history is worth. Fixing a typo or a link that
-has gone stale is not a change to a record and needs no ceremony.
+**A record is never deleted.** Superseded, revised or `absorbed into <path>`, the file stays,
+because being able to see that a decision changed — and what argument changed it — is most of what
+this history is worth. Fixing a typo or a link that has gone stale is not a change to a record and
+needs no ceremony.
 
-**Records numbered 0000 to 0049 predate that principle** and carry neither `scope` nor `commitment`.
-Each is classified the next time it is cited or touched rather than in a sweep, so for a while the
-directory is mixed.
+**Records numbered 0000 to 0049 predate principle VI** and carry neither `scope` nor `commitment`.
+Each was classified the next time it was cited or touched rather than in a sweep, so the directory
+is mixed. `commitment` — which said whether a record was revised in place, superseded by a new one,
+or load-bearing — was part of that vocabulary and is gone with the rest of it; where a record
+declares one, the field is history and its meaning is in the record's own `Consequences`.
 
 **Records written before the constitution cite `docs/brief.md`, which no longer exists.** The brief
 was this project's initial spec, and it held the principles, the scope and the constraints until
@@ -116,10 +119,9 @@ question the record itself answered, the link is gone and only git history has t
 prose is untouched: a record saying "the brief requires a stable toolchain" is reporting what it
 weighed at the time, and that is not a reference to redirect.
 
-**A feature's `research.md` is not a decision record.** Spec Kit writes one per feature in almost
-this shape — decision, rationale, alternatives considered — but scoped to that feature, with no
-status and no way to supersede it. It owns investigation local to the slice: which crate, which
-version, what is idiomatic. The moment a finding will outlive the feature, the record is written
-here and `research.md` links to it. The full split, including what the Complexity Tracking table in
-a plan owns, is in [the constitution](../../.specify/memory/constitution.md) under "Development
-Workflow".
+**A link into this directory may dangle, and one does.** Four anchors in the constitution were
+removed when the workflow they named went, and
+[ADR-0032](0032-split-a-spec-into-three-staged-branches.md) still points at one of them. It was left
+pointing rather than rewritten, because a frozen record is not edited for style and a link that no
+longer resolves is a truer report of what happened than one quietly aimed at whatever replaced it.
+it.

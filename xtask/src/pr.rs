@@ -1,33 +1,38 @@
 //! `cargo xtask pr`: prepare and open the pull request this branch is for.
 //!
-//! The repository has three shapes of change and a body for each
-//! ([`.github/PULL_REQUEST_TEMPLATE/`](../../.github/PULL_REQUEST_TEMPLATE/README.md)), and GitHub
-//! offers only one of the three by default. `body` writes the right one to `target/pr-body.md`
-//! together with the closing keyword the stage calls for; `open` checks it was filled in, pushes
-//! the branch and calls `gh pr create` with it.
+//! The repository has one shape of change and one body for it
+//! ([`.github/pull_request_template.md`](../../.github/pull_request_template.md)), which GitHub reads
+//! on its own. `body` writes it to `target/pr-body.md` together with the keyword this branch calls
+//! for; `open` checks every section was filled in, pushes the branch and calls `gh pr create`.
 //!
 //! # Design notes
 //!
-//! **The shape comes from the branch, not from the issue's label.** Both answer, and they agree,
-//! but the label says where the issue stands while the branch says what is about to be proposed —
-//! and a tooling change has a branch and no state label at all. Reading the branch also costs no
-//! network, which keeps `body` usable with nothing fetched.
+//! **The stage comes from the branch, not from the issue's label.** Both answer, but the label said
+//! where the issue stood while the branch says what is about to be proposed — and a change to the
+//! tooling has a branch and no stage label at all. Reading the branch also costs no network, which
+//! keeps `body` usable with nothing fetched.
 //!
-//! **It is two verbs because a body has to be filled between them.** One verb would either submit
-//! a template with its prompts unanswered, which is the failure the three templates exist to
-//! prevent, or open an editor, which a session cannot answer. Splitting them also gives an agent
-//! the same contract a person gets: run `body`, write into the file, run `open`.
+//! **It is two verbs because a body has to be filled between them.** One verb would either submit a
+//! template with its prompts unanswered, which is the failure the template exists to prevent, or
+//! open an editor, which a session cannot answer. Splitting them also gives an agent the same
+//! contract a person gets: run `body`, write into the file, run `open`.
 //!
-//! **`open` refuses a body whose sections are all still empty**, by the same reasoning that makes
-//! `spec stage build` read the decision sheet rather than its name: the artifact that merges is the
+//! **`open` refuses a body whose sections are all still empty.** The artifact that merges is the
 //! handoff, and an unfilled section is as easy to push as a filled one. A section is empty when it
 //! holds nothing but headings, HTML comments and the keyword line — the check is textual, and it
 //! cannot tell a thoughtful paragraph from a careless one.
 //!
-//! **The keyword is appended rather than left to the author.** Which stage closes the issue and
-//! which only references it is a rule of the flow, written in `CONTRIBUTING.md`, and every pull
+//! **The keyword is appended rather than left to the author.** Which pull request closes the issue
+//! and which only references it is a rule of the flow, stated in the constitution, and every pull
 //! request had to restate it correctly from memory. `--refs` is the escape hatch for the case the
 //! rule does not cover: a change that belongs to an umbrella issue it does not finish.
+//!
+//! **There is one template, so the only thing the stage decides is the keyword.** Three templates
+//! for three shapes of change became one when a change stopped having a spec directory to describe,
+//! because a template that asks for the same eight sections regardless of the change is an artifact
+//! that costs a paragraph per section and carries nothing. What remains is the one distinction that
+//! changes what a reviewer is approving: a `-deciding` branch proposes and is referenced, and
+//! everything else finishes.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -38,53 +43,55 @@ use crate::process::{capture, ensure_gh_ready, run_visible};
 /// Where `body` writes, and where `open` reads from when no path is given.
 const DEFAULT_BODY_PATH: &str = "target/pr-body.md";
 
-/// One of the three shapes of change the repository has, each with its own pull request body.
+/// The one template every pull request body starts from, relative to the workspace root.
+///
+/// GitHub reads this path on its own, so a pull request opened by hand gets it too — which is the
+/// point of there being exactly one.
+const TEMPLATE: &str = ".github/pull_request_template.md";
+
+/// Which of the two a branch is: the one pull request that proposes, or the one that finishes.
+///
+/// There were three shapes of change here — deciding, building and tooling — because a feature had a
+/// spec directory, a plan and a task list, and each wanted its own body. A change produces a pull
+/// request and nothing else now, so what is left is the one difference a reviewer would notice: a
+/// `-deciding` branch is agreed before it is built and does not close the issue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Shape {
-    /// Stage one of a feature: the spec, the research and the answered decision sheet.
+enum Stage {
+    /// The `-deciding` branch: the decision is being agreed, no code is written, and a later pull
+    /// request closes the issue.
     Deciding,
-    /// Stage two of a feature: the design, the tasks, the code and the tests.
-    Building,
-    /// A change to the repository's own tooling, documents or rules. No spec directory, no stage.
-    Tooling,
+    /// Every other branch, including one that changes the tooling and carries no issue at all.
+    Closing,
 }
 
-impl Shape {
-    /// The template this shape's body is copied from, relative to the workspace root.
-    fn template(self) -> &'static str {
-        match self {
-            Shape::Deciding => ".github/PULL_REQUEST_TEMPLATE/deciding.md",
-            Shape::Building => ".github/PULL_REQUEST_TEMPLATE/building.md",
-            // The tooling body is GitHub's default and lives at the path GitHub reads, rather than
-            // in the directory beside the other two; the directory's README says why.
-            Shape::Tooling => ".github/pull_request_template.md",
-        }
-    }
-
-    /// The keyword this shape's body carries: only the last pull request of a feature closes the
-    /// issue, and a tooling change has exactly one.
+impl Stage {
+    /// The keyword this stage's body carries: only the last pull request of a change closes the
+    /// issue.
     fn keyword(self) -> &'static str {
         match self {
-            Shape::Deciding => "Refs",
-            Shape::Building | Shape::Tooling => "Closes",
+            Stage::Deciding => "Refs",
+            Stage::Closing => "Closes",
         }
     }
 
-    /// What this shape prefixes a derived title with, where the title comes from the issue.
-    fn title_prefix(self) -> Option<&'static str> {
+    /// What this stage prefixes a derived title with, where the title comes from the issue.
+    ///
+    /// Always a prefix, and `derive_title` applies it only to a branch carrying an issue number.
+    /// That guard is what leaves a change to the tooling with its first commit's subject as its
+    /// title, so the two concerns stay in one place rather than making this an `Option` whose `None`
+    /// means "a branch with no number", which is a property of the branch and not of the stage.
+    fn title_prefix(self) -> &'static str {
         match self {
-            Shape::Deciding => Some("Decide"),
-            Shape::Building => Some("Build"),
-            Shape::Tooling => None,
+            Stage::Deciding => "Decide",
+            Stage::Closing => "Build",
         }
     }
 
-    /// How this shape reads in a message to the operator.
+    /// How this stage reads in a message to the operator.
     fn name(self) -> &'static str {
         match self {
-            Shape::Deciding => "deciding",
-            Shape::Building => "building",
-            Shape::Tooling => "tooling",
+            Stage::Deciding => "deciding",
+            Stage::Closing => "closing",
         }
     }
 }
@@ -124,14 +131,14 @@ fn write_body(root: &Path, args: &[String]) -> Result<(), String> {
     let issue_argument = parse_issue_argument(args)?;
 
     let branch = current_branch(root)?;
-    let shape = shape_from_branch(&branch);
-    let issue = resolve_issue(&branch, shape, issue_argument)?;
+    let stage = stage_from_branch(&branch);
+    let issue = resolve_issue(&branch, stage, issue_argument)?;
 
-    let template = root.join(shape.template());
+    let template = root.join(TEMPLATE);
     let contents = fs::read_to_string(&template)
         .map_err(|error| format!("xtask: could not read {}: {error}", template.display()))?;
 
-    let keyword = if refs_only { "Refs" } else { shape.keyword() };
+    let keyword = if refs_only { "Refs" } else { stage.keyword() };
     let body = format!("{}\n{keyword} #{issue}\n", contents.trim_end());
 
     let path = root.join(DEFAULT_BODY_PATH);
@@ -142,8 +149,8 @@ fn write_body(root: &Path, args: &[String]) -> Result<(), String> {
     fs::write(&path, body)
         .map_err(|error| format!("xtask: could not write {}: {error}", path.display()))?;
 
-    println!("Shape: {} (from branch {branch})", shape.name());
-    println!("Template: {}", shape.template());
+    println!("Stage: {} (from branch {branch})", stage.name());
+    println!("Template: {TEMPLATE}");
     println!("Keyword: {keyword} #{issue}");
     println!("Body: {DEFAULT_BODY_PATH}");
     println!("Next: fill every section, then run `cargo xtask pr open`");
@@ -156,7 +163,7 @@ fn open_pull_request(root: &Path, args: &[String]) -> Result<(), String> {
     let body_argument = parse_flag(args, "--body-file")?;
 
     let branch = current_branch(root)?;
-    let shape = shape_from_branch(&branch);
+    let stage = stage_from_branch(&branch);
 
     let dirty = capture(root, "git", &["status", "--porcelain"])?;
     if !dirty.is_empty() {
@@ -191,7 +198,7 @@ fn open_pull_request(root: &Path, args: &[String]) -> Result<(), String> {
 
     let title = match title_argument {
         Some(title) => title,
-        None => derive_title(root, &branch, shape)?,
+        None => derive_title(root, &branch, stage)?,
     };
 
     run_visible(root, "git", &["push", "--set-upstream", "origin", &branch])?;
@@ -216,9 +223,9 @@ fn open_pull_request(root: &Path, args: &[String]) -> Result<(), String> {
 }
 
 /// The title to open with when none was given: the issue's own title behind the stage's verb, or
-/// for a tooling change the subject of the first commit the branch added.
-fn derive_title(root: &Path, branch: &str, shape: Shape) -> Result<String, String> {
-    if let (Some(prefix), Some(issue)) = (shape.title_prefix(), issue_from_branch(branch)) {
+/// for a change carrying no issue number the subject of the first commit the branch added.
+fn derive_title(root: &Path, branch: &str, stage: Stage) -> Result<String, String> {
+    if let Some(issue) = issue_from_branch(branch) {
         let issue_str = issue.to_string();
         let title = capture(
             root,
@@ -227,7 +234,7 @@ fn derive_title(root: &Path, branch: &str, shape: Shape) -> Result<String, Strin
                 "issue", "view", &issue_str, "--json", "title", "--jq", ".title",
             ],
         )?;
-        return Ok(format!("{prefix}: {title}"));
+        return Ok(format!("{}: {title}", stage.title_prefix()));
     }
 
     let log = capture(
@@ -255,14 +262,13 @@ fn current_branch(root: &Path) -> Result<String, String> {
     }
 }
 
-/// Which shape of change `branch` carries, read from the suffix `cargo xtask spec` gave it.
-fn shape_from_branch(branch: &str) -> Shape {
+/// Which of the two a branch is, read from the suffix that marks a decision as agreed but not yet
+/// built.
+fn stage_from_branch(branch: &str) -> Stage {
     if branch.ends_with("-deciding") {
-        Shape::Deciding
-    } else if branch.ends_with("-building") {
-        Shape::Building
+        Stage::Deciding
     } else {
-        Shape::Tooling
+        Stage::Closing
     }
 }
 
@@ -274,18 +280,18 @@ fn issue_from_branch(branch: &str) -> Option<u32> {
 
 /// Settles which issue the body references: the branch's, the argument, or an error saying which
 /// is missing or that the two disagree.
-fn resolve_issue(branch: &str, shape: Shape, argument: Option<u32>) -> Result<u32, String> {
+fn resolve_issue(branch: &str, stage: Stage, argument: Option<u32>) -> Result<u32, String> {
     match (issue_from_branch(branch), argument) {
         (Some(from_branch), None) => Ok(from_branch),
         (Some(from_branch), Some(given)) if from_branch == given => Ok(from_branch),
         (Some(from_branch), Some(given)) => Err(format!(
-            "xtask: branch `{branch}` is feature {from_branch}, but {given} was given"
+            "xtask: branch `{branch}` is issue {from_branch}, but {given} was given"
         )),
         (None, Some(given)) => Ok(given),
         (None, None) => Err(format!(
             "xtask: a {} branch carries no issue number, so this needs one: \
              `cargo xtask pr body <issue>`",
-            shape.name()
+            stage.name()
         )),
     }
 }
@@ -382,44 +388,43 @@ fn is_keyword_line(text: &str) -> bool {
 
 /// Prints usage for `cargo xtask pr`.
 fn print_usage() {
-    println!("Pull request bodies for Monospace's three shapes of change.");
+    println!("The pull request body for this branch, and the command that opens it.");
     println!();
     println!("Usage: cargo xtask pr <verb> [args]");
     println!();
     println!("Verbs:");
-    println!("  body [<issue>] [--refs]   Write target/pr-body.md from this branch's template");
+    println!("  body [<issue>] [--refs]   Write target/pr-body.md from the template");
     println!("  open [--title <text>] [--body-file <path>]");
     println!("                            Push the branch and open the pull request with it");
     println!("  help                      Show this message");
     println!();
-    println!("The shape comes from the branch: `-deciding`, `-building`, or anything else, which");
-    println!("is a tooling change. A tooling branch carries no issue number, so `body` needs one.");
+    println!("One template serves every change. A `-deciding` branch proposes and is referenced;");
+    println!("any other closes its issue, and a branch carrying no number needs `body <issue>`.");
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        Shape, empty_sections, is_keyword_line, issue_from_branch, resolve_issue, shape_from_branch,
+        Stage, empty_sections, is_keyword_line, issue_from_branch, resolve_issue, stage_from_branch,
     };
 
     #[test]
-    fn shape_reads_the_branch_suffix() {
+    fn only_the_deciding_suffix_proposes() {
         assert_eq!(
-            shape_from_branch("023-read-a-description-deciding"),
-            Shape::Deciding
+            stage_from_branch("023-read-a-description-deciding"),
+            Stage::Deciding
         );
         assert_eq!(
-            shape_from_branch("023-read-a-description-building"),
-            Shape::Building
+            stage_from_branch("023-read-a-description-building"),
+            Stage::Closing
         );
-        assert_eq!(shape_from_branch("sdd-v2-two-stages"), Shape::Tooling);
+        assert_eq!(stage_from_branch("sdd-v2-two-stages"), Stage::Closing);
     }
 
     #[test]
-    fn each_shape_carries_its_own_keyword() {
-        assert_eq!(Shape::Deciding.keyword(), "Refs");
-        assert_eq!(Shape::Building.keyword(), "Closes");
-        assert_eq!(Shape::Tooling.keyword(), "Closes");
+    fn each_stage_carries_its_own_keyword() {
+        assert_eq!(Stage::Deciding.keyword(), "Refs");
+        assert_eq!(Stage::Closing.keyword(), "Closes");
     }
 
     #[test]
@@ -435,21 +440,21 @@ mod tests {
     #[test]
     fn resolve_issue_prefers_the_branch_and_catches_a_disagreement() {
         assert_eq!(
-            resolve_issue("023-foo-deciding", Shape::Deciding, None).unwrap(),
+            resolve_issue("023-foo-deciding", Stage::Deciding, None).unwrap(),
             23
         );
         assert_eq!(
-            resolve_issue("023-foo-deciding", Shape::Deciding, Some(23)).unwrap(),
+            resolve_issue("023-foo-deciding", Stage::Deciding, Some(23)).unwrap(),
             23
         );
 
-        let error = resolve_issue("023-foo-deciding", Shape::Deciding, Some(24)).unwrap_err();
+        let error = resolve_issue("023-foo-deciding", Stage::Deciding, Some(24)).unwrap_err();
         assert!(
             error.contains("23") && error.contains("24"),
             "error did not name both numbers: {error}"
         );
 
-        let error = resolve_issue("sdd-v2-two-stages", Shape::Tooling, None).unwrap_err();
+        let error = resolve_issue("sdd-v2-two-stages", Stage::Closing, None).unwrap_err();
         assert!(
             error.contains("pr body <issue>"),
             "error did not say how to supply one: {error}"

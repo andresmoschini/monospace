@@ -13,6 +13,13 @@ constitution: something about Rust design and idiom, something about working thi
 and the trade-offs worth remembering. A lesson is only worth an entry if it came with evidence —
 what was tried, and what it turned out to be.
 
+**The entries below this line are frozen.** They were written while a change produced a spec
+directory and an architecture decision record, and they are kept because what was learned then is
+why the code is this way. Nothing rewrites them and nothing cites them for a rule that is current.
+
+**The entries below are still added to**, one per increment, and that is not changing. The flow got
+cheaper; what was learned is the point of the repository and three lines is not what went wrong.
+
 ---
 
 ## 2026-09-04 — Quality gate and project skeleton

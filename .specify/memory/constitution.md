@@ -1,23 +1,23 @@
 <!--
-Sync Impact Report — 2026-09-25 | 2.0.0 → 2.0.1
+Sync Impact Report — 2026-10-04 | 2.0.1 → 3.0.0
 
-PATCH: clarification and wording only. No principle is added, removed or redefined, and no scope is
-widened. Governance named four documents and the ones that own what; it now also names AGENTS.md,
-and says of the two session-guidance files that each is a router rather than a second copy of what
-is stated here. That is the whole change.
+MAJOR. Principle I stops mandating the volume of the process rather than its discipline, principle
+II no longer ties a commit to a checklist, and the eleven-section workflow is replaced by one
+question and one place the answer goes. Nothing that the gate enforces changed.
 
-It closes the follow-up ADR-0056 recorded when it was written: a second harness reads AGENTS.md
-rather than CLAUDE.md, and the constitution did not say who owns session guidance for it.
-Implements ADR-0056; that record holds the reasoning and this report does not repeat it.
-
-The two items version 2.0.0 named as not yet built — `cargo xtask render` and the gate step beside
-it, and `cargo xtask spec`'s two stages — are both in `xtask` and in the gate.
+Deliberately unchanged: every heading another document cites by name. Twelve anchors are linked
+from `docs/`, the crates, `AGENTS.md` and `CONTRIBUTING.md`, and no check in the gate resolves a
+link, so renaming one would break it silently. The four anchors that no longer exist are fixed at
+their seven call sites.
 
 Earlier reports: docs/decisions/constitution-history.md. Open follow-ups are `wish` issues, not a
 list here.
 -->
 
 # Monospace Constitution
+
+The rules below exist to make the next change cheaper to make correctly. One that costs more than
+the mistake it prevents is one to delete, and this file is where it gets deleted.
 
 ## Core Principles
 
@@ -26,27 +26,28 @@ list here.
 This repository exists to build proficiency in Spec-Driven Development and in idiomatic Rust
 architecture. ASCII diagramming is the vehicle, not the goal.
 
-- When the fastest route to a feature conflicts with the route that teaches better Rust design or
-  better spec-driven practice, the second MUST be taken.
-- A plan that saves effort by collapsing the process MUST be rejected. A record is never skipped; it
-  is sized to the decision it holds, per principle VIII.
+- When the fastest route to a feature conflicts with the route that teaches better Rust design, the
+  second MUST be taken.
+- A record MUST be written when a decision is taken and MUST NOT be written before one is. Nothing
+  here obliges anyone to produce an artifact they have nothing to say in.
 
-Rationale: every other principle costs time, and they are affordable only because the time is the
-point — which is also why a record nobody reads costs the time and buys nothing.
+Rationale: the time is the point, so the rules that cost time have to earn it. They earn it by being
+read, not by being thorough — the repository reached 1.7 lines of process prose per line of Rust and
+the maintainer reports not reading it, and an unread rule is worse than a missing one because it
+carries authority nobody granted it.
 
 ### II. Demonstrable increments
 
 - Every commit that lands MUST leave the workspace building, all validations green, and
   `cargo run -p monospace-cli` producing output. A bare `cargo run` is ambiguous once the workspace
   holds more than one binary and MUST NOT be used as the acceptance command.
-- Specs MUST be sliced thin. Several small specs are preferred over one large one.
-- A commit MUST tick exactly the checkboxes in `tasks.md` that it completed and leave the gate
-  green. Since the hook runs the gate and `--no-verify` is forbidden, that is one commit per task
-  where a task reaches green alone, and one per group where it does not.
+- Work MUST be sliced thin. Several small changes are preferred over one large one.
+- A commit MUST leave `cargo xtask check` green, and `--no-verify` is forbidden. That is one commit
+  where a change reaches green alone, and a small group where it does not.
 - An increment — a slice that reaches a demonstrable state, usually several commits — MUST end with
-  an appended entry in `docs/learning-log.md`: what was learned about Rust design and idiom, what
-  was learned about working this way, and optionally a trade-off worth remembering. A lesson earns
-  an entry only with evidence: what was tried, and what it turned out to be.
+  an appended entry in `docs/learning-log.md`: what was learned about Rust design, what was learned
+  about working this way, and the evidence — what was tried and what it turned out to be. Three
+  lines is the ordinary length; a section is not owed.
 
 Rationale: a slice that cannot be shown to someone cannot be judged, and unjudged work accumulates
 silently.
@@ -60,17 +61,20 @@ silently.
 - `git commit --no-verify` MUST NOT be used. When the hook fails, fix the cause or stop and report.
 - `git rebase` and `git cherry-pick` do not fire the hook. After rewriting history, the gate MUST be
   run on each rewritten commit, not only on the tip.
-- Gate configuration is kept minimal by removal: an entry MUST be shown to break something when
-  taken out, or it is removed. In a linter or a spell checker, an entry that changes nothing
-  silently permits errors.
+- Gate configuration is kept minimal by removal: an entry MUST be shown to break something when it
+  is taken out, or it is removed. A check whose subject no longer exists is removed rather than left
+  passing over a frozen directory.
+- A step passes or fails on its exit code alone. `rustfmt` reports that `group_imports` needs
+  nightly and exits 0, so a green run is evidence the command ran and not that it agreed — read the
+  output.
 
 Rationale: two definitions of green is the failure this arrangement exists to prevent. Passing
 locally and passing in CI have to mean the same thing.
 
 ### IV. Claims are measured, not assumed
 
-- Behavior MUST NOT be asserted before it has been observed, and least of all in an ADR, a spec's
-  acceptance list or a commit message. Run it first, then write down what happened.
+- Behavior MUST NOT be asserted before it has been observed, and least of all in a pull request body
+  or a commit message. Run it first, then write down what happened.
 - A new check MUST be verified by making it fail on purpose and then restoring. A green run only
   proves the command ran.
 - "Is X faster, smaller, better?" MUST be answered with a measurement: a median over several runs,
@@ -80,13 +84,15 @@ locally and passing in CI have to mean the same thing.
   broken.
 - A requirement accepted with nothing to verify it MUST be named as such where it is recorded,
   rather than described as tested.
+- What was tried and abandoned MUST be reported when it would otherwise look untried, because the
+  cost of the abandoned option is what makes the chosen one legible.
 
 #### Show the rendering
 
 Where the subject of an option, a question, a decision or a change is something this project
 renders, the artifact MUST show the rendering; prose accompanies the picture rather than replacing
-it. This holds for a decision sheet, an ADR's options and consequences, a spec's scenarios, a pull
-request body, and a question put to the maintainer in a session.
+it. This holds for a decision, a pull request body, and a question put to the maintainer in a
+session.
 
 Every picture in a tracked file MUST be unambiguously one of two things:
 
@@ -122,59 +128,46 @@ reason to avoid one — see _Understanding changes_ below.
 ### VI. Decisions recorded at the altitude they belong to
 
 A decision MUST be recorded when it is taken; if code is about to depend on an unrecorded decision,
-the record comes first. What "recorded" means depends on three things the record declares.
+the record comes first. What "recorded" means depends on one thing: the altitude.
 
 **Altitude.** A decision is **domain-level** when something outside the module implementing it can
 observe it — another crate, a caller, a second implementation of the same idea. Its home is
-`docs/model.md`, or `docs/diagram-model.md` for the layer above, together with an ADR. A decision is
-**module-level** when nothing outside can observe it beyond the output it produces. Its home is
-rustdoc on that module, under `Design notes`; it takes no ADR, amends no model document, and
-changing it is an ordinary `feat` or `fix`.
+`docs/model.md`, or `docs/diagram-model.md` for the layer above. A decision is **module-level** when
+nothing outside can observe it beyond the output it produces. Its home is rustdoc on that module,
+under `Design notes`. That is the default home, not the fallback.
 
 The test: _if this changes, must anything outside this module change with it?_ Where the answer is
-no, and where it is genuinely unclear, the decision is module-level. Promoting later costs one ADR;
-demoting later costs undoing the gravity the record already created. A module-level decision that
-becomes observable is promoted in the increment that makes it so, not in advance. A recorded
-decision whose subject stopped being observable moves its reasoning to that module's rustdoc and sets
-its status to `absorbed into <path>`. The file stays where it is: this directory is a history.
+no, and where it is genuinely unclear, the decision is module-level. Promoting one later costs
+moving a paragraph; demoting one later costs undoing the authority a published document already gave
+it.
 
 **Subject.** A record is sized to its subject, not to the moment it was taken. Where a subject
 already has a record, a change to it is a revision of that record and MUST NOT become a second
 record beside the first. The test: **if a record cannot be cited without citing another, the two are
 one record.**
 
-**Commitment.** Every ADR MUST declare one of three, and it governs how the record is changed.
-
-| | Means | Changed by |
-| --- | --- | --- |
-| `exploratory` | A hypothesis with a date; nothing depends on it yet. | Revising it in place, with a dated line saying what changed. |
-| `working` | It holds, something depends on it, it is still under review. | A new, short ADR naming what it replaces. The options are not re-argued. |
-| `load-bearing` | Something outside the module depends on it, or reversing it means migrating consumers or data. | A new ADR; this one becomes `superseded by ADR-NNNN`. |
-
-`load-bearing` is only those two conditions. Not that the record was hard to write, took a long
-argument, or that changing it would move a lot of output.
-
 **Understanding changes.** When understanding of the domain changes, the code and the documents
 describing it are rewritten to reflect the new understanding. A record of the previous understanding
 is not a constraint on the new one: it is the context explaining why the code was as it was.
-Rewriting needs no permission; deleting the record does. A record MUST NOT argue that repeated
-change is expensive — where that is true the cost is paid by a test, a migration or a public API and
-is written there, not where it reads as an instruction to stop thinking.
+Rewriting needs no permission; deleting the record does not follow from it. A decision MUST NOT be
+defended by arguing that changing it repeatedly is expensive — where that is true the cost is paid
+by a test, a migration or a public API and is written there, not where it reads as an instruction to
+stop thinking.
 
 **What needs a record at all.** It is expensive to undo, or someone will later ask "why is this like
-this?". If neither applies it belongs in the learning log. A spec MUST NOT take a decision: one
-surfaced while writing it goes on the feature's decision sheet, and the record follows the sheet.
+this?". If neither applies it belongs in the learning log.
 
-Rationale: an ADR reconstructed weeks later summarizes instead of recording, and its rejected
-options are already forgotten. But a record that outranks its subject is the opposite failure and
-the one this project met first: five accepted records on one private function, and a picture nobody
-could change without reconciling all five.
+Rationale: a rationale with three possible homes has none, and this repository had four — a decision
+sheet, a research file, an ADR and a model document — which is how five accepted records ended up on
+one private function and a picture nobody could change without reconciling all five.
 
 ### VII. The core stays portable
 
 - `crates/monospace-core` holds all domain logic. `crates/monospace-cli` holds none.
 - The core's public API MUST NOT assume a CLI, a TUI or a terminal. Later phases compile it to
-  WebAssembly, and the gate's `wasm` step enforces that boundary rather than prose.
+  WebAssembly, and the gate's `wasm` step enforces that boundary rather than prose. It compiles
+  three crates — `monospace-core`, `monospace-diagram` and `monospace-glyph-sets` — and that is what
+  keeps the core free of terminal assumptions.
 - `monospace` is reserved for the interactive TUI of a later phase and MUST NOT be taken by another
   binary.
 - Public library APIs MUST be documented with rustdoc as they are introduced, not retrofitted.
@@ -186,29 +179,21 @@ not.
 
 - An artifact MUST NOT restate what another already says; it cites it by name. A paragraph that
   would change nobody's decision if deleted is deleted.
-- Each artifact has a ceiling. Exceeding one is not a violation to justify: it signals that the
-  slice is too thick, and the first answer is to split the feature rather than compress the prose.
-  Where a ceiling is exceeded without splitting, `plan.md`'s Complexity Tracking records which
-  artifact, by how much, and why.
-
-  | `spec.md` | `decisions.md` | `research.md` | `plan.md` | ADR `exploratory`/`working` | ADR `load-bearing` |
-  | --- | --- | --- | --- | --- | --- |
-  | 120 | 60 | 100 | 80 | 60 | 150 |
-
+- A change carries one record: the pull request body. It has one ceiling, and exceeding it is not a
+  violation to justify — it is the signal that the change is too thick, and the first answer is to
+  split it rather than to compress the prose.
 - A generated picture and the description it comes from do not count against a ceiling. They replace
   prose rather than adding to it, and charging for them would push an artifact back toward
   describing what it could have shown.
 
-Rationale: this repository has produced 2.8 lines of prose per line of Rust and the maintainer
-reports not reading it. Unread prose governs nothing, yet the agent reads it and treats an
-unreviewed sentence as a rule — which makes an unread record worse than a missing one, because it
-has authority nobody granted it.
+Rationale: charging for prose is what produced a `tasks.md` of 760 lines for a change of 450, and
+the fix is not a smaller checklist but no checklist.
 
 ## Constraints and Dependencies
 
 ### Language of the artifacts
 
-Code identifiers, comments, doc comments, README, `docs/`, specs, ADRs, commit messages, PR
+Code identifiers, comments, doc comments, README, `docs/`, commit messages, pull request
 descriptions, CLI output, error messages and help text are all in English. Conversation with the
 maintainer may be in any language; what lands in the repository is English.
 
@@ -228,13 +213,14 @@ idiomatic, well-established crates over reinvention.
 
 ### Testing
 
-Each spec defines its own testing expectations, and unit tests for core logic are the minimum any
-may ask for. A behavior rule with no test named against it is an unfinished spec.
+Each change defines its own testing expectations, and unit tests for core logic are the minimum any
+may ask for. A behavior rule with no test named against it is an unfinished change.
 
 Tests come in two kinds, kept apart in separate directories where they are snapshots:
 
 - A **contract test** pins a decision, and its name or comment says which rule of the model it
-  holds. Changing one is changing the decision, so it needs an entry on the decision sheet.
+  holds. Changing one is changing the decision, so it belongs in the decision table of the pull
+  request that changed it.
 - A **characterization test** records what the code does over a range too wide to assert by hand. A
   change to it is the consequence of a decision taken elsewhere, not a decision. The file says so at
   its head, and it MUST cover its range whole rather than by sample.
@@ -252,19 +238,15 @@ Four crates, and their boundary is principle VII: `monospace-core`, the library 
 diagramming logic — input parsing, layout and positioning, ASCII rendering; `monospace-cli`, a
 minimal non-interactive consumer producing diagrams from the terminal; `monospace-glyph-sets`, the
 glyph sets the core does not ship, depending on the core and privileged no further than any other
-crate that does
-([ADR-0036](../../docs/decisions/0036-hold-every-table-but-light-outside-the-core.md)); and
-`monospace-diagram`, the model holding a diagram after it is drawn — shapes with an identity, an
-order and positions that may depend on each other — on the same terms
-([ADR-0038](../../docs/decisions/0038-hold-the-diagram-model-in-a-crate-above-the-core.md)).
+crate that does; and `monospace-diagram`, the model holding a diagram after it is drawn — shapes
+with an identity, an order and positions that may depend on each other — on the same terms.
 
-Each of the last two is here for a reason of its own, recorded in the ADR cited with it, not because
-the phase builds four things. A further crate proposed for any other reason widens this section and
-is renegotiated rather than assumed.
+Each of the last two is here for a reason of its own, and a further crate proposed for any other
+reason widens this section and is renegotiated rather than assumed.
 
 ### Out of scope for this phase
 
-A plan proposing any of these MUST be stopped and renegotiated rather than quietly widened:
+A change proposing any of these MUST be stopped and renegotiated rather than quietly widened:
 WebAssembly bindings, a web front-end, non-terminal GUIs, persistence, collaboration, and export
 formats beyond plain text. Where each is expected to arrive instead is the `Phase` field of its
 capability issue in the GitHub Project, which holds direction and no rules: nothing on the board
@@ -272,101 +254,74 @@ widens this section.
 
 ## Development Workflow
 
-### Spec Kit is the workflow
+### One question, and where the answer goes
 
-New work goes through `/speckit-specify`, then `/speckit-clarify` when the spec has open questions,
-then `/speckit-plan`, `/speckit-tasks` and `/speckit-implement`. Artifacts live under
-`specs/NNN-slug/`, where `NNN` is the number of the GitHub issue the feature implements rather than
-a position in a local sequence, so the numbering skips. Exactly one issue represents one spec, and
-its labels — `wish`, `deciding`, `building` — are the only record of where the work stands. The
-branch, the label and the pointer to the feature directory are created by `cargo xtask spec`, and
-none of the three may be done by hand. A change to the repository's own tooling is not a feature: it
-needs an ADR and commits, and MUST NOT take a spec directory or a stage branch. Features 001 to 006
-predate the rule and keep their numbers.
+Every change starts from a GitHub issue and ends in a pull request, and the first thing settled is
+one question: **is there more than one defensible answer to how this should be done?**
 
-### Two stages, and where the cut falls
+| Answer                                                                        | What happens                                                                                 |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| No — the model says what to do, and the code disagrees with it                | One branch, one pull request, `Closes #N`. No record beyond the code.                        |
+| No — the model is silent, or already agrees                                   | One branch, one pull request, `Closes #N`. No record beyond the code.                        |
+| Yes — a sentence of the model becomes false, or a caller observes a new shape | Two branches: `NNN-slug-deciding` with `Refs #N`, then `NNN-slug-building` with `Closes #N`. |
 
-A stage boundary falls where a question is answered, not where a command finishes. Each is its own
-branch and its own pull request against `main`, and a stage MUST NOT be opened before the previous
-one has merged.
+The two `No` rows differ in nothing an artifact would record, which is why they share one. They are
+the same shape of change and separating them would be ceremony.
 
-- **Deciding** — `/speckit-specify`, `/speckit-clarify`, and part one of `/speckit-plan`. Merges
-  with `spec.md`, `research.md`, an answered `decisions.md` and the part of `plan.md` part one fills.
-  Closes: is this what is wanted, and is this how it will be resolved?
-- **Building** — part two of `/speckit-plan`, `/speckit-tasks`, `/speckit-implement`. Merges with
-  the design artifacts, the tasks, the code and the tests. Closes: does it work, and is it what was
-  agreed?
+The deciding pull request is where the answer is agreed, and it is a pull request body: the decision
+table and _What proves it_. No code opens in it. The building pull request writes the code and the
+tests, and amends the model where building showed it wrong.
 
-### The plan runs in two parts
+**The record is the pull request body.** It is where a reviewer looks, GitHub versions it, and it
+cannot drift from the diff because it is written from the same change. A change that agrees nothing
+produces no record, which is the correct outcome rather than a missing one.
 
-`/speckit-plan` MUST NOT be run end to end. Part one runs Phase 0 and stops, producing `research.md`,
-`decisions.md`, and the part of `plan.md` that precedes a decision — its summary and its Constitution
-Check. It MUST NOT produce `data-model.md`, `contracts/` or `quickstart.md`, because writing those is
-taking the decisions. The maintainer then reads `decisions.md` in full — the one
-artifact read in full, which is what its ceiling buys — and answers it. Part two runs Phase 1
-against the answered sheet.
+### What a change does not have to produce
 
-Rationale: Phase 0 closes every open question by research, so a maintainer shown only the finished
-plan is reviewing conclusions whose alternatives are already spent.
+Named so that leaving them out is not a decision to be made again each time.
 
-### The decision sheet
+- **No spec directory.** `specs/NNN-slug/` and its eight files per feature are gone. The 19 that
+  exist are frozen history, and nothing adds to them.
+- **No plan, no tasks, no research, no data model, no contracts, no quickstart, no checklist.**
+  These were seven ways to write the same decision down before it was taken, and the sum of them was
+  larger than the change.
+- **No decision sheet as a separate file.** The decision table lives in the pull request body.
+- **No architecture decision record.** `docs/decisions/` is frozen history; a decision that outlives
+  its change goes to `docs/model.md`, and one nothing outside observes goes to rustdoc.
+- **No stage label.** Where the work stands is visible on the branch and the open pull request. The
+  `wish` label stays because it is the board's inbox.
 
-`specs/NNN-slug/decisions.md` holds every decision the feature has to take and nothing else. Each
-entry gives, in one line each: the question, the proposal, the altitude, what reversing it would
-cost, and the alternative not taken — shown as a rendering where the subject renders. Every
-domain-level entry is the maintainer's to answer; a module-level one may be answered by the agent
-where it is settled practice, per _Whose decision it is_.
+### No code before the decision is agreed
 
-No more than seven entries, inside the ceiling principle VIII gives it. A feature needing more is too
-thick, per principle II, and the sheet not fitting is the earliest available signal of it.
+A decision is agreed by the maintainer, not assumed. On the two `No` rows there is no decision to
+agree, so nothing blocks the code. On the `Yes` row the deciding pull request merges first.
 
-### No decision outside the sheet
+Where building meets a decision the body does not hold, work MUST stop and ask. It MUST NOT be
+resolved and recorded afterwards, or the table records what was easy to foresee rather than what was
+decided.
 
-Where `/speckit-tasks` or `/speckit-implement` meets a decision the sheet does not hold, work MUST
-stop and ask. It MUST NOT be resolved and recorded afterwards, or the sheet records what was easy to
-foresee rather than what was decided.
+### Drawing the case
 
-### Where a rationale goes
+The cheapest step in the flow and the one that removes the most rework: before settling a decision,
+draw the case it is about and say what the drawing says that the prose did not.
 
-- `docs/decisions/` owns every domain-level decision that outlives the feature which surfaced it, at
-  the commitment principle VI assigns it.
-- A module's **rustdoc**, under `Design notes`, owns every module-level decision. This is the
-  default home, not the fallback.
-- A feature's `research.md` owns investigation local to that feature. When a finding turns out to be
-  durable, the ADR is written and `research.md` links to it. Spec Kit's format for that file carries
-  no status, no consequences and no supersession, so it cannot serve as the history.
-- `plan.md`'s Complexity Tracking owns two things: justifying a departure from this constitution for
-  that feature, and recording a ceiling exceeded without a split.
+Four carriers exist and none of them is new machinery: a `<!-- render: -->` marker in a tracked
+document, a gallery block that moves on its own when the picture moves, a marker in a pull request
+body, and a test that prints. A case that cannot be drawn yet is a result, not a failure — say so in
+one line and draw the nearest thing that does exist.
 
-Rationale: a rationale with three possible homes has none.
+### What happens when the model is wrong
 
-### The model owns the design
-
-`docs/model.md` is design intent and owns the domain vocabulary. A spec names the sections it
-implements and MUST NOT restate them. If a slice needs a rule the model does not have, the model
-changes first.
-
-What belongs in it is bounded by principle VI: a rule observable from outside the module that
-implements it. The procedure a single figure follows to choose among outputs that all satisfy the
-model is not a rule of the model, however precisely it can be stated, and belongs in that figure's
-rustdoc. A document collecting such procedures MUST NOT be created: two figures may join two points
-differently, so a shared file invites the second to conform to the first — the same premature
-generalization, one floor lower.
-
-### The previous spec home is history
-
-`docs/specs/` holds specs 0001–0005, is frozen, and its numbering does not continue. Nothing is
-added to it and nothing is deleted from it.
-
-### No code before the plan is agreed
-
-A plan is agreed by the maintainer, not assumed.
+The model moves in the pull request that found it wrong, in the same commit, with the sentence
+quoted and replaced. `docs/model.md` is design intent and owns the domain vocabulary; a change names
+the sections it implements and does not restate them. If a slice needs a rule the model does not
+have, the model changes first.
 
 ### Whose decision it is
 
 When a decision belongs to the maintainer — cost, scope, taste, or a risk they carry — the real
 options MUST be presented with their trade-offs, what is reversible and what is not, a
-recommendation with a confidence level, and what information would change it. When it is settled
+recommendation with a confidence level, and what information would change it. Where it is settled
 practice and the maintainer has no stake, choose the conventional answer, say what was chosen and
 why, and carry on. Every domain-level decision belongs to the maintainer.
 
@@ -384,20 +339,18 @@ Cite a section of another document by its name, not by its number.
 ## Governance
 
 This constitution supersedes prior practice wherever the two conflict. It owns the principles, the
-scope and the constraints. [`docs/model.md`](../../docs/model.md) owns the domain's design and its
-open questions; the GitHub Project owns direction and the backlog; `CONTRIBUTING.md` owns how to run
-the tooling; session guidance is owned by the file the harness reads, `CLAUDE.md` for Claude Code
-and `AGENTS.md` for OpenCode, and each of the two is a router rather than a second copy of what is
-stated here. Where any of them restates a rule stated here, this file is the one to follow and the
-duplication is a defect to remove.
+scope and the constraints. [`docs/model.md`](../docs/model.md) owns the domain's design and its open
+questions; the GitHub Project owns direction and the backlog; `CONTRIBUTING.md` owns how to run the
+tooling; `AGENTS.md` owns session guidance for every harness, and `CLAUDE.md` is an import of it
+rather than a second copy. Where any of them restates a rule stated here, this file is the one to
+follow and the duplication is a defect to remove.
 
 ### Amendment procedure
 
 An amendment is made in the same increment as the decision that requires it, and the commit says so
-— never drifted from silently. An amendment that reverses a recorded decision also needs the ADR
-that reverses it. Every amendment updates the version line and replaces the Sync Impact Report at
-the top of this file, moving the previous one to `docs/decisions/constitution-history.md`. The
-report says what changed and names the ADRs; it does not repeat their reasoning.
+— never drifted from silently. Every amendment updates the version line and replaces the Sync Impact
+Report at the top of this file, moving the previous one to `docs/decisions/constitution-history.md`.
+The report says what changed and names where the reasoning lives; it does not repeat it.
 
 ### Versioning policy
 
@@ -406,11 +359,9 @@ or materially expanded guidance, PATCH for clarifications and wording.
 
 ### Compliance review
 
-Every `/speckit-plan` run MUST fill its Constitution Check, and a plan that cannot pass a principle
-MUST record the violation in Complexity Tracking with the reason, or be changed. The mechanical
-parts — formatting, lints, spelling, the WebAssembly boundary, tests, docs, rendered pictures — are
-enforced by `cargo xtask check` and are not a matter of review. The rest — thin slices, structural
-commits kept separate, decisions recorded at the right altitude, claims measured, the decision sheet
-answered before Phase 1 — is checked by reading, at plan time and at review time.
+The mechanical parts — formatting, lints, spelling, the WebAssembly boundary, tests, docs, rendered
+pictures — are enforced by `cargo xtask check` and are not a matter of review. The rest — thin
+slices, structural commits kept separate, decisions recorded at the right altitude, claims measured,
+a decision agreed before code — is checked by reading, at review time.
 
-**Version**: 2.0.1 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-25
+**Version**: 3.0.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-10-04

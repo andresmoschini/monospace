@@ -9,9 +9,9 @@ text.
 ## Why this project exists
 
 This isn't primarily about shipping a diagramming tool. It's a deliberate exercise in learning how
-to work effectively with **Spec-Driven Development** using Claude, and in practicing solid **Rust
-architecture, design, and idioms** along the way. The diagrams are the vehicle; the process is the
-point.
+to work effectively with **Spec-Driven Development** alongside an agent, and in practicing solid
+**Rust architecture, design, and idioms** along the way. The diagrams are the vehicle; the process
+is the point.
 
 The idea, part of the domain logic, the design and the model come from a private project of the same
 author that will not be published — see [the model](docs/model.md) for the full note. The Rust
@@ -20,7 +20,8 @@ repository's own, even where some carry over an approach already worked out in t
 
 ## How we're building it
 
-- **Methodology:** Spec-Driven Development, iterating with Claude at every step.
+- **Methodology:** Spec-Driven Development, one issue and one pull request at a time, with an agent
+  drafting and a person deciding.
 - **Language:** Rust.
 - **Cadence:** small, incremental commits. Each one aims to leave the project in a working,
   demonstrable state — no long-lived broken branches, no giant reveals.
@@ -115,20 +116,20 @@ what to do when one fails.
 
 ### Layout
 
-| Path                          | What it is                                                      |
-| ----------------------------- | --------------------------------------------------------------- |
-| `crates/monospace-core`       | The library. All domain logic lives here, and nothing else.     |
-| `crates/monospace-diagram`    | The model: a diagram as an ordered set of shapes, drawable.     |
-| `crates/monospace-glyph-sets` | The glyph tables the core does not ship as built-in data.       |
-| `crates/monospace-cli`        | The command-line application. Holds no logic of its own.        |
-| `xtask/`                      | Repository automation. `cargo xtask check` is the gate.         |
-| `docs/model.md`               | The domain's design, its provenance, and its open questions.    |
-| `docs/decisions/`             | Why things are the way they are, recorded as they were decided. |
+| Path                          | What it is                                                       |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `crates/monospace-core`       | The library. All domain logic lives here, and nothing else.      |
+| `crates/monospace-diagram`    | The model: a diagram as an ordered set of shapes, drawable.      |
+| `crates/monospace-glyph-sets` | The glyph tables the core does not ship as built-in data.        |
+| `crates/monospace-cli`        | The command-line application. Holds no logic of its own.         |
+| `xtask/`                      | Repository automation. `cargo xtask check` is the gate.          |
+| `docs/model.md`               | The domain's design, its provenance, and its open questions.     |
+| `docs/decisions/`             | Frozen: why things were the way they were, as they were decided. |
 
 ## Guiding principles
 
 Process over product, demonstrable increments, and claims that are measured rather than assumed.
-Seven of them, stated as rules a plan can be checked against, are in
+Seven of them, stated as rules a change can be checked against, are in
 [the constitution](.specify/memory/constitution.md) — which is where they are enforced from, not
 merely listed.
 
@@ -141,5 +142,5 @@ distribute the code freely, with only the requirement to include the original co
 
 ---
 
-_This project is a learning journey as much as a piece of software. Expect the specs, the code, and
+_This project is a learning journey as much as a piece of software. Expect the code, the model and
 this README to evolve together._

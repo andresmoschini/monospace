@@ -30,29 +30,32 @@
 // `define(plugin) { return plugin }`. The import bought type-checking that no step in the gate
 // performs, and cost the whole plugin. See ADR-0058's revisions.
 
-const HOOKS_PATH = ".claude/git-hooks"
+const HOOKS_PATH = ".claude/git-hooks";
 
 export default {
   id: "monospace.git-hooks",
   async setup(ctx) {
-    const directory = ctx.location.directory
+    const directory = ctx.location.directory;
     try {
-      const child = Bun.spawn(["git", "-C", directory, "config", "--local", "core.hooksPath", HOOKS_PATH], {
-        stdout: "ignore",
-        stderr: "pipe",
-      })
-      const code = await child.exited
+      const child = Bun.spawn(
+        ["git", "-C", directory, "config", "--local", "core.hooksPath", HOOKS_PATH],
+        {
+          stdout: "ignore",
+          stderr: "pipe",
+        },
+      );
+      const code = await child.exited;
       if (code !== 0) {
-        throw new Error(await new Response(child.stderr).text())
+        throw new Error(await new Response(child.stderr).text());
       }
-      console.log(`[monospace] git hooks installed: core.hooksPath=${HOOKS_PATH} in ${directory}`)
+      console.log(`[monospace] git hooks installed: core.hooksPath=${HOOKS_PATH} in ${directory}`);
     } catch (error) {
       // Logged and swallowed on purpose: a hook installer that can stop a session is worse than
       // the gap it closes. The boundary that actually holds is CI.
       console.warn(
         `[monospace] could not set core.hooksPath; commits from this session run no gate.\n` +
           `  ${error}\n  Run: git config core.hooksPath ${HOOKS_PATH}`,
-      )
+      );
     }
   },
-}
+};

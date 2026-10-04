@@ -12,12 +12,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-mod eol;
-mod numbering;
 mod pr;
 mod process;
 mod render;
-mod spec;
 
 /// The npm executable.
 ///
@@ -116,12 +113,6 @@ const GATE: &[Step] = &[
         },
     },
     Step {
-        name: "numbering",
-        // It sits beside `editorconfig` rather than with the steps that compile: it reads the
-        // tracked tree the way that step does, and costs one `git ls-files` over two directories.
-        action: Action::Here(numbering::check),
-    },
-    Step {
         name: "cspell",
         action: Action::Spawn {
             program: "node_modules/.bin/cspell",
@@ -211,11 +202,11 @@ const GATE: &[Step] = &[
 /// The steps of the gate that can fix what they find, in the order they must run.
 ///
 /// Unlike `GATE`, order here is not presentation: these steps mutate the same files, so a later
-/// step can undo or redo what an earlier one wrote. Content formatters run first, `editorconfig`
-/// after them because it owns files none of the others touch (`LICENSE`, the TOML files, the
-/// dotfiles) and otherwise only confirms what the earlier steps already left clean, and `eol` last
-/// because it owns the one concern every step above writes into, and the files `editorconfig` is
-/// configured to skip besides.
+/// step can undo or redo what an earlier one wrote. Content formatters run first and `editorconfig`
+/// after them, because it owns files none of the others touch (`LICENSE`, the TOML files, the
+/// dotfiles) and otherwise only confirms what the earlier steps already left clean. It is also last
+/// for a second reason: every step above it writes, and the ending of a line is the last thing a
+/// byte should be decided on.
 ///
 /// `clippy` and `cspell` have no entry: `cspell` cannot fix a spelling at all, and `clippy --fix`
 /// can rewrite code in ways that need a human to read the diff, which does not fit a command meant
@@ -256,14 +247,6 @@ const FIX: &[Step] = &[
             args: &["-fix"],
         },
     },
-    Step {
-        name: "eol",
-        // It sits beside `editorconfig` rather than inside it, and last rather than first.
-        // `editorconfig-checker` reads the same rule and is configured to skip `.specify/`, where a
-        // CRLF file is one `git add` refuses with no command to fix it by; and every step above this
-        // one writes, so the ending of a line is the last thing a byte should be decided on.
-        action: Action::Here(eol::fix),
-    },
 ];
 
 fn main() -> ExitCode {
@@ -274,7 +257,6 @@ fn main() -> ExitCode {
         Some("fix") => run_fix(),
         Some("setup") => run_setup(),
         Some("render") => render::run(args),
-        Some("spec") => spec::run(args),
         Some("pr") => pr::run(args),
         None | Some("help" | "--help" | "-h") => {
             print_usage();
@@ -398,8 +380,8 @@ fn run(root: &Path, step: &Step) -> bool {
 ///
 /// An `Action::Here` step owns its own failure message and has no exit code to hand back, so this is
 /// where its `Result` becomes the boolean `run` asks for. It lives beside `run` because that is the
-/// contract being adapted to, and it is shared because `render` and `eol` both need it and neither
-/// should grow a copy.
+/// contract being adapted to, and `render` is the only step that needs it now that `eol` and
+/// `numbering` are gone.
 pub(crate) fn report_failure(outcome: Result<(), String>) -> bool {
     match outcome {
         Ok(()) => true,
@@ -528,9 +510,6 @@ fn print_usage() {
     println!("  fix      Run every step of the gate that can fix what it finds");
     println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
     println!("  render   Regenerate the pictures tracked Markdown files carry");
-    println!(
-        "  spec     Manage a feature's branch lifecycle; `cargo xtask spec help` lists its verbs"
-    );
     println!("  pr       Prepare and open a pull request; `cargo xtask pr help` lists its verbs");
     println!("  help     Show this message");
 }
