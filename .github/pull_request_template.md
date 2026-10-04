@@ -30,14 +30,14 @@
 
 ## The decision
 
-<!-- One row per decision: the question, the answer, and why not the alternative. The alternative
-     is the part that matters — a decision with none was not taken, it was typed. In a
-     `-deciding` pull request this table is what the reviewer is approving, so it is the section to
-     spend the words on. -->
+<!-- One paragraph per decision: the question, the answer, and why not the alternative. The
+     alternative is the part that matters — a decision with none was not taken, it was typed. In a
+     `-deciding` pull request this section is what the reviewer is approving, so it is the one to
+     spend the words on. An unanswered one reads `**Answer:** _pending_`. -->
 
-| #   | Question | Answer | Why not the alternative |
-| --- | -------- | ------ | ----------------------- |
-| D1  |          |        |                         |
+**D1 — which question, asked as one.**
+
+**Answer:**
 
 ## What proves it
 

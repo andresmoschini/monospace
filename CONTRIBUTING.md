@@ -355,7 +355,7 @@ spec's `## Public surface` says signatures, not implementation: whether somethin
 Two kinds of test, kept apart in separate directories where they are snapshots:
 
 - A **contract test** pins a decision, and its name or comment says which rule of the model it
-  holds. **Changing one is changing the decision**, so it needs a row in `## The decision`.
+  holds. **Changing one is changing the decision**, so it needs a decision in `## The decision`.
 - A **characterization test** records what the code does over a range too wide to assert by hand. A
   change to it is the consequence of a decision taken elsewhere, not a decision of its own. The file
   says so at its head, and **it covers its range whole rather than by sample**.

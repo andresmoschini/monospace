@@ -47,10 +47,10 @@ read back from `specs/NNN-slug.md` afterwards. Renaming an issue does not rename
    checks it out.
 3. **Settle the question by reading the model.** `docs/model.md` and `docs/diagram-model.md` are the
    design. If the slice needs a rule the model does not have, the model changes first, in the same
-   increment. A spec names the sections it implements and does not restate them.
+   increment. A spec names the sections it implements or amends and does not restate them.
 4. **Decide, if the question said yes.** Write `specs/NNN-slug.md` on `-deciding`. Where the subject
-   renders, show both options with a `render` marker — the drawing is the argument. The table's
-   `Why not the alternative` column is what makes a row an agreement rather than an opinion.
+   renders, show both options with a `render` marker — the drawing is the argument. The `Why not` in
+   each decision paragraph is what makes it an agreement rather than an opinion.
 5. **Build.** On `-building`, against the merged spec. `cargo xtask pr open` refuses to open it if
    the deciding pull request did not merge or the spec still reads `_pending_`.
 6. **Draw the case.** Where the change moves a picture, `cargo xtask render` and look at it. A

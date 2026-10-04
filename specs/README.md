@@ -12,12 +12,17 @@ record. See [`docs/workflow.md`](../docs/workflow.md) for why, and
 ## What a spec is not
 
 - **Not a design document.** The design is [`docs/model.md`](../docs/model.md) and
-  [`docs/diagram-model.md`](../docs/diagram-model.md). A spec names the sections it implements and
-  does not restate them. If a spec is explaining how something works, that paragraph belongs in the
-  model.
+  [`docs/diagram-model.md`](../docs/diagram-model.md). A spec names the sections it implements or
+  amends and does not restate them. If a spec is explaining how something works, that paragraph
+  belongs in the model.
 - **Not a decision record** in its own right. A decision lives in the spec's own `## The decision`,
   and a decision that outlives the change it was taken for belongs in the rustdoc of the module that
-  depends on it. A spec follows the model; it does not redefine it.
+  depends on it.
+- **Not the model's home, and not a bar to changing it.** A change whose rule the model does not
+  have **amends the model in the same increment**, and `## Model slice` is where the spec says which
+  sections it touched. What a spec must not do is contradict the model without amending it, or leave
+  a rule where only this change's author will read it: the model is where the next change looks, so
+  the rule lands there even when this change is what made it necessary.
 - **Not a task list.** It describes the end state, not the order of the work. **There are no task
   checkboxes in this repository**, and [`docs/workflow.md`](../docs/workflow.md) sets out what
   happened to the ones there were.
@@ -51,18 +56,18 @@ table, and refuses any spec whose `## The decision` still reads `_pending_` once
 
 ## The sections, and the question each answers
 
-| Section             | Question                                                         |
-| ------------------- | ---------------------------------------------------------------- |
-| `## Why now`        | What does this unlock, and why this cut before the others?       |
-| `## Scope` `In`     | What exists when this is done?                                   |
-| `## Scope` `Out`    | What is deliberately left out, and where is it resolved instead? |
-| `## The decision`   | What was decided, and why not the alternative?                   |
-| `## Model slice`    | Which sections of which model does this implement? Nothing else. |
-| `## Public surface` | What appears in the public API? Signatures, not implementation.  |
-| `## Behavior`       | Numbered rules, each one testable on its own.                    |
-| `## Examples`       | Input and expected output. These become the tests.               |
-| `## What proves it` | What holds each rule? The test's name, or the drawing.           |
-| `## Open questions` | What surfaced while writing this and is not answered here?       |
+| Section             | Question                                                             |
+| ------------------- | -------------------------------------------------------------------- |
+| `## Why now`        | What does this unlock, and why this cut before the others?           |
+| `## Scope` `In`     | What exists when this is done?                                       |
+| `## Scope` `Out`    | What is deliberately left out, and where is it resolved instead?     |
+| `## The decision`   | What was decided, and why not the alternative?                       |
+| `## Model slice`    | Which sections of which model this amends, and where each one lands. |
+| `## Public surface` | What appears in the public API? Signatures, not implementation.      |
+| `## Behavior`       | Numbered rules, each one testable on its own.                        |
+| `## Examples`       | Input and expected output. These become the tests.                   |
+| `## What proves it` | What holds each rule? The test's name, or the drawing.               |
+| `## Open questions` | What surfaced while writing this and is not answered here?           |
 
 The section that does the real work is **`## Examples`**. A rule stated in prose can be read two
 ways; an example with its expected output cannot. If a rule is hard to write an example for, the
@@ -73,24 +78,32 @@ what the acceptance list checks, not the record of a run."_ A claimed observatio
 observed is the one failure a spec cannot recover from, because everything else in it is checked
 against it.
 
-## `## The decision` is a table
+## `## The decision` is paragraphs
+
+One decision is a bolded question on its own line and one paragraph under it. It was a table until
+it was not: a table is comfortable to read and uncomfortable to edit, and this is the section a
+reviewer argues with most.
 
 ```markdown
-| #   | Question | Answer | Why not the alternative | Answered by |
-| --- | -------- | ------ | ----------------------- | ----------- |
-| D1  |          |        |                         |             |
+**D1 — the window is the caller's rectangle.**
+
+**Answer:** the rectangle the caller draws into; the diagram neither measures itself nor is
+measured. **Why not** the diagram reporting its own extent: the model withdrew that extent because a
+shape may answer no anchor point, so there is nothing to measure from. **Answered by** the
+maintainer, in #170.
 ```
 
-- **`Why not the alternative` is the column that makes this an agreement rather than an opinion.** A
-  decision with no rejected alternative was not taken, it was typed. Where there is no real
-  alternative, it is not a decision and does not go in this table: it is a line in `## Behavior`.
-- **`Answer` reads `_pending_` exactly, while a row is unanswered.** That literal is what
-  `cargo xtask spec use` and the gate both look for, and it is the marker the flow agrees on.
-- **`Answered by`** says which row a maintainer filled and which is practice settled as it was
-  written.
+- **`Why not` is what makes this an agreement rather than an opinion.** A decision with no rejected
+  alternative was not taken, it was typed. Where there is no real alternative, it is not a decision
+  and does not go here: it is a line in `## Behavior`.
+- **`Answer` reads `_pending_` exactly, while it is unanswered.** That literal is what
+  `cargo xtask spec use` and the gate both look for, and it is the marker the flow agrees on. The
+  gate greps for the string, so it works anywhere on the line.
+- **`Answered by`** says which decisions a maintainer filled and which are practice settled as they
+  were written. Drop it where it would only say the maintainer.
 - **Where the subject renders, show both options** with a `render` marker. The drawing is the
   argument; two paragraphs describing two options are a preference.
-- **At most seven rows.** More means the cut is too coarse: say so and split the change.
+- **At most seven.** More means the cut is too coarse: say so and split the change.
 
 ## The ceiling is 250 lines, and it is not a limit to get under
 

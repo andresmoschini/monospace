@@ -79,9 +79,10 @@ format and the rule; this is what it is for.
 - **A status, not a stage.** `draft` → `agreed` → `implemented`, plus `abandoned` for a draft that
   was dropped. The frontmatter names the pull request that agreed it and the one that implemented
   it, so an agreement is citable years later.
-- **A decision table, and the column that matters is the rejected alternative.** A row is an
-  agreement, not an opinion, and `_pending_` in the `Answer` column is the marker the gate and the
-  precondition both look for.
+- **A decision per paragraph, and the part that matters is the rejected alternative.** A decision is
+  an agreement, not an opinion, and `_pending_` in the answer is the marker the gate and the
+  precondition both look for. It was a table, and reading well was never the problem: editing one by
+  hand was.
 - **Examples, with the honest note.** A rule that is hard to give an example for is a rule that is
   unclear. And an example nobody ran says so in the spec rather than pretending to be a record.
 - **A 250-line ceiling whose answer is to split the change.** Not to reword it: prettier reflows at

@@ -10,13 +10,13 @@
 //!
 //! # Design notes
 //!
-//! **The precondition for `building` reads the decision table rather than only its name.** Every
+//! **The precondition for `building` reads the spec's own text rather than only its name.** Every
 //! other precondition here asks "does this file exist in `origin/main`", because a merged file is
-//! the handoff. The handoff is an *agreed* spec, and a sheet whose rows still read `_pending_`
-//! merges exactly as easily as one that is answered. So the check opens the file and refuses on any
-//! line carrying that marker, and the marker is one string rather than a rule per field: the
-//! frontmatter's `decided` and every row's `Answer` both use it, and a spec nobody wrote at all is
-//! caught by the file being absent instead.
+//! the handoff. The handoff is an *agreed* spec, and a decision whose answer still reads
+//! `_pending_` merges exactly as easily as one that is answered. So the check opens the file and
+//! refuses on any line carrying that marker, and the marker is one string rather than a rule per
+//! field: the frontmatter's `decided` and every decision's answer both use it, and a spec nobody
+//! wrote at all is caught by the file being absent instead.
 //!
 //! **The slug is read back from the spec's name, never re-derived from the issue's title.** It is
 //! derived once, when the deciding branch is opened, and every later invocation recovers it from
@@ -60,9 +60,10 @@ const SECTIONS: [&str; 9] = [
 /// The four values `status` may take.
 const STATUSES: [&str; 4] = ["draft", "agreed", "implemented", "abandoned"];
 
-/// The marker a decision row carries until it is answered. Three places grep for this string — the
-/// gate, `verify_deciding_merged` below, and `pr`'s refusal to open a `-building` pull request — so
-/// changing it is changing the flow, not editing a document.
+/// The marker an answer carries until it is given. Three places grep for this string — the gate,
+/// `verify_deciding_merged` below, and `pr`'s refusal to open a `-building` pull request — so
+/// changing it is changing the flow, not editing a document. It is grepped rather than parsed, so
+/// where a decision puts it is the spec's business, not this module's.
 const PENDING: &str = "_pending_";
 
 pub(crate) const DECIDING: &str = "deciding";
@@ -99,10 +100,11 @@ impl Stage {
     /// rather than naming commands that no longer exist.
     fn next_step(self) -> &'static str {
         match self {
-            Stage::Deciding => concat!(
-                "write `specs/NNN-slug.md` on this branch, filling `## The decision` until no row ",
-                "reads `_pending_`, then open the pull request with `cargo xtask pr body`"
-            ),
+            Stage::Deciding => {
+                "write `specs/NNN-slug.md` on this branch, filling `## The decision` \
+                 until no answer reads `_pending_`, then open the pull request with `cargo xtask pr \
+                 body`"
+            }
             Stage::Building => concat!(
                 "build against the merged spec, complete `## What proves it` with the tests that ",
                 "hold each rule, then open the pull request with `cargo xtask pr body`"
@@ -297,8 +299,8 @@ pub(crate) fn find_slug(entries: &[String], issue_number: &str) -> Result<String
     }
 }
 
-/// Checks, against `origin/main`, that the deciding stage has merged: the spec is there, and no row
-/// of its decision table is still unanswered.
+/// Checks, against `origin/main`, that the deciding stage has merged: the spec is there, and no
+/// decision in it is still unanswered.
 ///
 /// # Errors
 ///
@@ -342,7 +344,7 @@ pub(crate) fn pending_lines(spec: &str) -> Vec<(usize, String)> {
 }
 
 /// Renders what `pending_lines` found for the operator: the first three, quoted, and a count of
-/// whatever else is left. Three is enough to recognize which rows they are; the file itself is
+/// whatever else is left. Three is enough to recognize which answers they are; the file itself is
 /// where they get read.
 pub(crate) fn describe_pending(pending: &[(usize, String)]) -> String {
     let shown = pending
@@ -616,7 +618,7 @@ fn one_spec(path: &str, text: &str) -> Vec<String> {
     if matches!(status, Some("agreed" | "implemented")) && text.contains(PENDING) {
         problems.push(format!(
             "{path}: `status` is `{}` and the spec still reads `{PENDING}`; an agreed spec has \
-             no unanswered row",
+             no unanswered decision",
             status.unwrap_or_default()
         ));
     }
@@ -883,7 +885,7 @@ mod tests {
     }
 
     /// A spec shaped like the one `specs/README.md` describes, with `agreed` deciding whether the
-    /// decision table is answered and the spec therefore names the pull request that agreed it.
+    /// decision is answered and the spec therefore names the pull request that agreed it.
     fn spec(agreed: bool) -> String {
         let (status, decided, answer) = if agreed {
             (
@@ -920,9 +922,9 @@ mod tests {
              \n\
              ## The decision\n\
              \n\
-             | # | Question | Answer | Why not the alternative | Answered by |\n\
-             | --- | --- | --- | --- | --- |\n\
-             | D1 | Which? | {answer} | The other one. | maintainer |\n\
+             **D1 — Which?**\n\
+             \n\
+             **Answer:** {answer} **Why not** the other one. **Answered by** the maintainer.\n\
              \n\
              ## Model slice\n\
              \n\
@@ -967,11 +969,11 @@ mod tests {
     #[test]
     fn describe_pending_quotes_three_and_counts_the_rest() {
         let pending: Vec<(usize, String)> = (1..=5)
-            .map(|number| (number, "| D1 | Which? | _pending_ |".to_string()))
+            .map(|number| (number, format!("**Answer:** _pending_ — D{number}")))
             .collect();
         let described = describe_pending(&pending);
         assert!(
-            described.starts_with("line 1 reads `| D1 | Which? | _pending_ |`"),
+            described.starts_with("line 1 reads `**Answer:** _pending_ — D1`"),
             "the first pending line was not quoted: {described}"
         );
         assert!(
@@ -1099,7 +1101,7 @@ mod tests {
     }
 
     #[test]
-    fn an_agreed_spec_with_a_pending_row_is_reported() {
+    fn an_agreed_spec_with_a_pending_decision_is_reported() {
         let scratch = Scratch::new();
         let unanswered =
             spec(true).replace("Yes, and the reasoning is in the module.", "_pending_");
