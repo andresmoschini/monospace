@@ -2,7 +2,8 @@
 
 One file per change: `specs/NNN-slug.md`, where `NNN` is the number of the GitHub issue the change
 implements and `slug` is that issue's title in kebab-case, up to forty characters.
-`cargo xtask spec new <issue>` derives the name and opens the branch; nothing else derives it.
+`cargo xtask change open <issue> deciding` derives the name and opens the branch; nothing else
+derives it, and every later invocation reads it back out of this file's name.
 
 **A spec is written when a change has a decision to agree before the code, and not otherwise.** A
 change with one defensible answer is a branch and a pull request, and the pull request body is the
@@ -97,8 +98,8 @@ maintainer, in #170.
   alternative was not taken, it was typed. Where there is no real alternative, it is not a decision
   and does not go here: it is a line in `## Behavior`.
 - **`Answer` reads `_pending_` exactly, while it is unanswered.** That literal is what
-  `cargo xtask spec use` and the gate both look for, and it is the marker the flow agrees on. The
-  gate greps for the string, so it works anywhere on the line.
+  `cargo xtask change open <issue> building` and the gate both look for, and it is the marker the
+  flow agrees on. The gate greps for the string, so it works anywhere on the line.
 - **`Answered by`** says which decisions a maintainer filled and which are practice settled as they
   were written. Drop it where it would only say the maintainer.
 - **Where the subject renders, show both options** with a `render` marker. The drawing is the
