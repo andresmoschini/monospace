@@ -62,14 +62,19 @@ const PENDING: &str = "_pending_";
 /// is not about a spec's content is that this path is not one.
 const NOT_A_SPEC: &str = "specs/README.md";
 
-/// The gate's `specs` step: reports every way every spec fails the format, and returns whether
-/// there were none.
+/// The gate's `specs` step: reports every way every spec fails the format, and answers whether it
+/// passed.
+///
+/// There is no second answer to give. A repository with no specs is not a failure — `specs/` holds
+/// only its own README until the first spec is written — and it used to answer `Ok(false)` to say
+/// so, which the gate's adapter read as success because the `bool` inside the `Result` is dropped.
+/// A step that reports a verdict nobody reads is a step whose verdict will be read wrong.
 ///
 /// # Errors
 ///
 /// One message naming every problem in every file, so one run says everything rather than one
 /// problem per run.
-pub fn check(root: &Path) -> Result<bool, String> {
+pub fn check(root: &Path) -> Result<(), String> {
     let listed = capture(root, "git", &["ls-files", ":(glob)specs/*.md"])?;
     let paths: Vec<&str> = listed
         .lines()
@@ -78,7 +83,8 @@ pub fn check(root: &Path) -> Result<bool, String> {
         .collect();
 
     if paths.is_empty() {
-        return Ok(false);
+        println!("no spec to check");
+        return Ok(());
     }
 
     let mut problems = Vec::new();
@@ -93,7 +99,7 @@ pub fn check(root: &Path) -> Result<bool, String> {
             "{} spec(s) checked, each with its nine sections and an answerable status",
             paths.len()
         );
-        return Ok(true);
+        return Ok(());
     }
 
     Err(format!(
@@ -498,11 +504,11 @@ mod tests {
     }
 
     #[test]
-    fn a_repository_with_no_specs_directory_is_not_a_failure() {
+    fn a_repository_with_no_specs_directory_has_nothing_to_check() {
         let scratch = Scratch::new();
         scratch.write("README.md", "# Nothing here\n");
 
-        assert_eq!(check(&scratch.path), Ok(false));
+        assert_eq!(check(&scratch.path), Ok(()));
     }
 
     #[test]
@@ -510,7 +516,7 @@ mod tests {
         let scratch = Scratch::new();
         scratch.write("specs/163-light.md", &spec(true));
 
-        assert_eq!(check(&scratch.path), Ok(true));
+        assert_eq!(check(&scratch.path), Ok(()));
     }
 
     #[test]
@@ -572,7 +578,7 @@ mod tests {
         let scratch = Scratch::new();
         scratch.write("specs/163-light.md", &spec(false));
 
-        assert_eq!(check(&scratch.path), Ok(true));
+        assert_eq!(check(&scratch.path), Ok(()));
     }
 
     #[test]
@@ -596,7 +602,7 @@ mod tests {
             );
         scratch.write("specs/163-light.md", &implemented);
 
-        assert_eq!(check(&scratch.path), Ok(true));
+        assert_eq!(check(&scratch.path), Ok(()));
 
         let without = spec(true).replace("status: agreed", "status: implemented");
         scratch.write("specs/164-other.md", &without);
@@ -635,7 +641,7 @@ mod tests {
         scratch.write("specs/163-light.md", &spec(true));
         scratch.write("specs/006-an-old-feature/spec.md", "not a spec at all\n");
 
-        assert_eq!(check(&scratch.path), Ok(true));
+        assert_eq!(check(&scratch.path), Ok(()));
     }
 
     /// `specs/README.md` documents the format and is not a spec. It sits in the same directory because
@@ -646,10 +652,10 @@ mod tests {
         let scratch = Scratch::new();
         scratch.write(NOT_A_SPEC, "# Specifications\n\nNo frontmatter here.\n");
 
-        assert_eq!(check(&scratch.path), Ok(false));
+        assert_eq!(check(&scratch.path), Ok(()));
 
         scratch.write("specs/163-light.md", &spec(true));
-        assert_eq!(check(&scratch.path), Ok(true));
+        assert_eq!(check(&scratch.path), Ok(()));
     }
 
     #[test]
