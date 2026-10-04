@@ -210,10 +210,12 @@ far end for the second, and which is which is the caller's choice rather than so
 decides. A point would have to be written down for all four, and kept true by hand whenever the box
 moved.
 
-The **bottom** and **left** connectors carry an `offset` of one cell, which is what separates them
-from the border: the bottom head stands a cell below the box and the left arm a cell to its left, so
-neither touches it. The **top** and **right** ones stand on the border itself, where an arriving
-head replaces the border's own glyph and a leaving arm composes with it into a junction.
+The **bottom** and **left** connectors carry an `out` of one cell — in the side's own words, which
+is what separates them from the border without the file knowing that "below" is `dy` and "to the
+left" is `dx`: the bottom head stands a cell below the box and the left arm a cell to its left, so
+neither touches it. The **top** and **right** ones spell an `out` of **zero**, which is the same
+reference a file writes when it spells no gap at all, and they stand on the border itself, where an
+arriving head replaces the border's own glyph and a leaving arm composes with it into a junction.
 
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 22, "height": 9 } },
@@ -222,27 +224,29 @@ head replaces the border's own glyph and a leaving arm composes with it into a j
     { "kind": "box", "id": "#1", "at": { "x": 9, "y": 3 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
     { "kind": "connector", "id": "#2",
-      "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "top" },
+      "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "top",
+                        "out": 0 },
                 "leaving": "up", "terminal": { "kind": "glyph", "glyph": "▼" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 0 }, "leaving": "down",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
     { "kind": "connector", "id": "#3",
-      "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right" },
+      "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right",
+                        "out": 0 },
                 "leaving": "right", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 21, "y": 4 }, "leaving": "left",
                 "terminal": { "kind": "glyph", "glyph": "▶" } },
       "stroke": "light" },
     { "kind": "connector", "id": "#4",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "bottom",
-                        "offset": { "dx": 0, "dy": 1 } },
+                        "out": 1 },
                 "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 8 }, "leaving": "up",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
     { "kind": "connector", "id": "#5",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "left",
-                        "offset": { "dx": -1, "dy": 0 } },
+                        "out": 1 },
                 "leaving": "left", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 0, "y": 4 }, "leaving": "right",
                 "terminal": { "kind": "glyph", "glyph": "◀" } },

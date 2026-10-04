@@ -191,7 +191,8 @@ own `─` at (2, 2), which is what a caller reaching for a gap is reaching past:
     { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 5, "height": 3 },
       "stroke": "light" },
     { "kind": "connector", "id": "#2",
-      "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "bottom" },
+      "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "bottom",
+                        "out": 0 },
                 "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
       "to":   { "at": { "kind": "point", "x": 2, "y": 4 }, "leaving": "up",
                 "terminal": { "kind": "arm" } },
@@ -219,7 +220,7 @@ And with the gap one cell out of the same side, at (2, 3), where the border is a
       "stroke": "light" },
     { "kind": "connector", "id": "#2",
       "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "bottom",
-                        "offset": { "dx": 0, "dy": 1 } },
+                        "out": 1 },
                 "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
       "to":   { "at": { "kind": "point", "x": 2, "y": 4 }, "leaving": "up",
                 "terminal": { "kind": "arm" } },
@@ -237,9 +238,10 @@ And with the gap one cell out of the same side, at (2, 3), where the border is a
 
 <!-- /render -->
 
-Both markers spell the gap with the `offset` it stands for, because the deciding stage is the one
-before the field exists. The building stage re-spells them as `out: 0` and `out: 1`, and neither
-picture moves — which is rule 4 drawn rather than asserted.
+Both markers now spell the gap in the side's own words — the first an `out` of zero, standing on the
+border, the second an `out` of one, a cell clear of it — and `cargo xtask render` reports both
+pictures already up to date, which is rule 4 drawn rather than asserted. The deciding stage wrote
+them with the `offset` each stands for, because it was the stage before the field existed.
 
 ## What proves it
 
