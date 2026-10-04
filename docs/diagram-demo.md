@@ -12,9 +12,9 @@ thing the JSON can say.
 
 That leaves a finite remainder, and it is deliberately not enumerated here either. A document that
 tried would either grow without end or claim a coverage it does not have. The remainder is the
-subject of a **characterization** instead, where a change is reported rather than reviewed
-([ADR-0053](decisions/0053-report-a-characterization-instead-of-reviewing-it.md)) and a range is
-covered whole rather than by sample.
+subject of a **characterization** instead, where a change is reported — how many cases moved, in
+which families, and three representative examples with their before and after — rather than
+reviewed, and a range is covered whole rather than by sample.
 
 It is not the model's document. [`diagram-model.md`](diagram-model.md) states the rules and
 [`model.md`](model.md) owns the vocabulary; this one only shows what those rules look like on a
@@ -22,13 +22,13 @@ canvas.
 
 ## Where this sits against the crate's own gallery
 
-Two carriers exist and they are not interchangeable.
-[ADR-0064](decisions/0064-give-each-generated-picture-the-carrier-that-can-reach-its-subject.md)
-splits them by **reach rather than by preference**: a marker owns a picture in a document, and the
-gallery inside `monospace-diagram` owns a picture of a figure. The gallery draws values the crate
-keeps private — what a `Border` or a `Head` stamps, and a surface table of every cell's arms — and
-no JSON reaches any of that. What is in this file is exactly what a description _can_ reach, which
-is the other half of the split and the reason it exists at all.
+Two carriers exist and they are not interchangeable. They split by **reach rather than by
+preference**: a marker owns a picture in a document, and the gallery inside `monospace-diagram` owns
+a picture of a figure. A marker is a description a subprocess reads, so whatever the crate keeps
+private is outside its reach by construction — what a `Border` or a `Head` stamps, and a surface
+table of every cell's arms — while a gallery draws those values themselves, which is the only way to
+see what a fragment stamps. What is in this file is exactly what a description _can_ reach, which is
+the other half of the split and the reason it exists at all.
 
 ## The three kinds
 

@@ -11,9 +11,8 @@ it, and say so in the commit.
 project by the same author that will not be published; this repository replaces it as the public
 implementation. What came across is the shape of the problem, rewritten as prose here and then
 criticized as prior art rather than adopted as given — which is why the two rules it rests on are
-argued in [ADR-0008](decisions/0008-compose-overlapping-cells-with-three-state-arms.md) and
-[ADR-0009](decisions/0009-degrade-a-cell-to-its-base-stroke.md) instead of asserted here. No code
-carried over.
+argued below rather than asserted here: _The cell_ and _Stamping_ for how overlapping cells compose,
+and _Rendering_ for what to draw when no character matches. No code carried over.
 
 This document describes three mechanisms: how cells accumulate in a buffer, how a buffer becomes
 characters, and how a shape puts cells in both without its caller computing any of them. Everything
@@ -31,10 +30,9 @@ different list: those are questions closed by choice, not waiting for one.
 
 The buffer is a temporary working surface that helps render. It is not the document.
 
-The two decisions this model rests on are recorded separately:
-[ADR-0008](decisions/0008-compose-overlapping-cells-with-three-state-arms.md) for how overlapping
-cells compose, and [ADR-0009](decisions/0009-degrade-a-cell-to-its-base-stroke.md) for what to draw
-when no character matches.
+The two decisions this model rests on are argued where they belong rather than filed elsewhere: _The
+cell_ and _Stamping_ for how overlapping cells compose, and _Rendering_ for what to draw when no
+character matches.
 
 ## 1. Vocabulary
 
@@ -85,8 +83,13 @@ lowest and highest positions it answers for.
 
 ## 3. The cell
 
-A defined cell holds a base stroke, always present, and four arms. Each arm is in one of three
-states:
+A defined cell holds a base stroke, always present, and four arms — and not a character. Merging two
+characters on the second write would need a table that grows with the square of the alphabet and is
+undefined for most pairs, since `┤` merged with `━` has no principled answer, and it destroys the
+difference between a light stroke and a heavy one by the time a third figure arrives. What a cell
+holds is what the figures meant; the character is derived from it at the end.
+
+Each arm is in one of three states:
 
 | State         | Meaning                                          |
 | ------------- | ------------------------------------------------ |
@@ -94,8 +97,14 @@ states:
 | `Closed`      | No stroke runs to that side, and that is decided |
 | `Unset`       | Whoever stamps next decides this side            |
 
-`Unset` is what makes the rest work. It does not mean "not known yet", it means **"not mine to
-decide"**:
+`Unset` is what makes the rest work, and it is there because the two obvious answers are both wrong.
+If the last writer decided every side, a horizontal line would erase the vertical one's connections
+where they cross; if the first writer did, nothing could ever sit on top of what was stamped before
+it. Both answers are needed, sometimes in the same cell, and neither figure knows the other exists —
+so a side has to be able to say _not mine to decide_ as well as _mine_, and that is what the third
+state is for.
+
+It does not mean "not known yet", it means **"not mine to decide"**:
 
 - A horizontal segment is stamped with its left and right arms `Set` and its top and bottom `Unset`,
   so anything crossing it later can connect.
@@ -161,6 +170,13 @@ whose four arms are decided and whose base stroke is set can no longer change. G
 rewrites every cell once per figure. That makes `Below` the frequent path, and it is worth being
 able to answer cheaply whether a cell is already decided.
 
+The cost sits on the same side. A decided arm cannot be undecided, and a stamp is the only write
+there is, so a figure cannot be inserted between two that were already stamped and three overlapping
+figures cannot be reordered after the fact: they have to be stamped again into a fresh buffer. A
+stack of layers per cell would be the way out of that, and it stays reachable without discarding any
+of this — a stack holds cells of exactly this shape — so the arm semantics are the expensive part of
+the rule and the buffer is not.
+
 ## 5. Strokes, glyph sets and the catalog
 
 A stroke is only a name. It has no attributes and no declaration of its own; it exists because cells
@@ -212,6 +228,22 @@ built, no lookup happens, and degradation never applies to one.
 There are no further attempts and no special conventions: two lookups. When a combination does not
 exist, the whole cell is drawn with the stroke the topmost figure imposed.
 
+Degrading the whole cell rather than as much of the mixture as still resolves is what makes the
+answer to _why that character?_ a single sentence: the figure that owns the cell imposes its stroke
+on all of it. The base stroke is written by the figure that last claimed the cell, so the rule reads
+as a rule about figures rather than about tables, it can be predicted without knowing which sets are
+loaded, and adding a set can only add exact matches — it can never silently redraw a cell that was
+already resolving. Keeping as much of the mixture as fits is the alternative, and it keeps more of
+the drawing: it is the only rule that keeps anything at all in a cell mixing three strokes, since no
+three-stroke set exists. What it costs is that the answer then depends on which sets happen to be
+loaded, so adding one can redraw cells that had nothing to do with it, and _why that character?_
+becomes _because the search found this combination first_. A fallback stroke declared per stroke,
+substituted along a chain before the base stroke, was declined for the mirror of that reason: it
+introduces an ordering question that does not otherwise exist, since the chain and the base stroke
+could each go first and the two give different characters for the same cell. Both stay available —
+the search is an addition around the same two lookups, and the chain is a map consulted before them
+— and nothing in the buffer, the cell or the tables changes to adopt either.
+
 "No glyph" and "no cell" produce the same thing: a space in the text output and, in the coordinate
 output that may come later, a position simply not emitted. With the single-stroke sets complete,
 that case only arises when a cell has no connected arm at all, or when the set for its base stroke
@@ -229,11 +261,19 @@ the caller draws them, exactly as any two stamps at those positions would.
 
 Shapes are the layer directly above the buffer, and a shape draws into a **surface** rather than
 into the buffer itself: one write operation and no reader, so a fragment cannot inspect what lies
-beneath it even by accident. [ADR-0031](decisions/0031-a-shape-draws-into-a-surface.md) records the
-trait, and the one adapter the crate ships that binds a buffer to a stamp mode for it. Shapes exist
-so that a caller describes a figure instead of computing positions and characters. Every position
-and every character inside a figure is the figure's own business. Deciding _where_ a figure goes is
-still not: the caller says where.
+beneath it even by accident. A surface is a trait carrying `stamp` and nothing else, and the one
+adapter the crate ships binds a buffer to a stamp mode for it. Both halves are there to keep
+opinions out. A surface with no reader makes "a fragment never inspects the buffer" something the
+compiler refuses rather than a rule a reviewer has to check on every fragment written after it, and
+binding the mode once at construction is what keeps `StampMode` out of every shape: a shape that
+named one would be taking an opinion on how it composes with figures behind it, which is the one
+thing a shape has no opinion about. The price is that the surface's `stamp` takes a `Cell`, so a
+shape defined outside the crate builds its cells by hand and passes through none of the rules
+_Complete and fragment_ below gives the fragments inside it.
+
+Shapes exist so that a caller describes a figure instead of computing positions and characters.
+Every position and every character inside a figure is the figure's own business. Deciding _where_ a
+figure goes is still not: the caller says where.
 
 ### Pieces
 
@@ -250,9 +290,15 @@ something.
 
 A shape does not report what it covers. It draws, and drawing is the whole of what it does: which
 positions a figure occupies is a question for the layer that decides where figures go, and that
-layer does not exist yet. [ADR-0030](decisions/0030-drop-extent-until-a-caller-needs-it.md) records
-why the extent this section used to define was withdrawn, and what would bring a bounding rectangle
-back in its place.
+layer does not exist yet. The extent this section used to define was withdrawn because the three
+things that read it were bookkeeping rather than drawing, and each has a cheaper replacement:
+comparing a filled box with an unfilled one is a fact about the rectangle rather than a question
+anyone asks the shape, a write outside the bounds is an extra character in the expected buffer of a
+test, and a compositor partitioning its extent among its pieces is the "no position is written more
+than once" property under _Properties worth testing_. A bounding rectangle was declined on the same
+test, and what brings one back in its place is a caller that needs to know what another shape
+occupies — routing around an obstacle, or sizing a canvas to its content — which is also the first
+layer to have to decide what a bound means for a figure whose written positions are sparse.
 
 Composition goes to arbitrary depth and no shape depends on knowing how deep it sits: one placed as
 a piece is drawable the same way at the top level. Defining a new kind of shape touches no existing
@@ -276,9 +322,15 @@ description. A fragment never inspects the surface it draws into and never inspe
 What a fragment writes follows from what it is — a corner, a border run, an interior, an end, a head
 — rather than from a cell handed to it. The arms of a border run are _The cell_'s decision already,
 so the figure placing one names which side of itself it is and nothing more, and the rule lives with
-the piece instead of being restated by every figure that has one.
-[ADR-0028](decisions/0028-give-each-fragment-its-own-cell-rule.md) records that, and the split
-between the sides a piece is told and the directions the figure above it reasons in.
+the piece instead of being restated by every figure that has one. A border run told which side of
+its figure it is derives both its orientation and the side it closes, so "a horizontal border whose
+interior is to its left" cannot be built at all. The alternative — one geometric leaf taking the
+cell as a parameter — would have had every figure build a base stroke and four arms before it could
+place a piece, which is one rule of _The cell_ written out once per figure, and `Arm` and the choice
+between arms and a literal would have become part of what a box, a line and a connector each know.
+The same split separates the sides a piece is told from the directions the figure above it reasons
+in: turning a connector's leaving direction into a starting position happens in the figure, and a
+path's steps into a border run's two sides happen in the route.
 
 ### The initial set
 
@@ -301,7 +353,7 @@ its two end cells hold is the next section.
 An **connector** is two **endpoints** and a stroke. An endpoint is a position, the direction the
 connector leaves it in, and a **terminal**; `at` is the cell the terminal hangs from. What a
 terminal may write is vocabulary this document owns, so naming one more of them is a change here and
-in the figure and not a change to any record. A glyph terminal's glyph points opposite to the
+in the figure, and to whatever states it as a rule. A glyph terminal's glyph points opposite to the
 direction that endpoint leaves in.
 
 ### What a terminal writes
@@ -314,7 +366,15 @@ leaves its other three sides `Unset`, so it renders through the glyph set like e
 cell and whatever reaches it afterwards may still join it. The price is that an arm is not visible
 as an arm: measured in the tables of [`glyph-sets.md`](glyph-sets.md), every single-stroke set
 already answers the four single-arm keys, so what makes a cell an end is which sides it leaves
-undecided rather than the character it draws.
+undecided rather than the character it draws. A chosen glyph was the other answer, and two things
+weighed against it. A glyph the caller supplies does not follow the style: two lines of the same
+stroke rendered against ASCII would carry whatever characters their callers happened to pass, and
+that would make the end the one place where a caller decides how a drawing looks. And a chosen glyph
+refuses to join, so two lines meeting at right angles at a shared end could not make a corner —
+which is what a diagram wants there. An end's job is to say where the stroke stops and what may join
+it there, and arms say that where a literal cannot. The measurement still holds and only the
+conclusion drawn from it went the other way: an end really is indistinguishable from a segment in
+the text, and what makes it an end is the sides it leaves undecided.
 
 A **glyph** writes one chosen glyph, in the sense of _A cell can be a literal instead_, supplied by
 the caller — and nothing connects into one, because a literal is decided on every side. It is that
@@ -323,9 +383,11 @@ answer because a glyph points and no set holds a rule that points: `▲ ► ◄ 
 the other.
 
 That asymmetry is a limit of the data rather than a preference. Heads that follow the glyph set
-would be the better answer, and they are an open question below.
-[ADR-0029](decisions/0029-draw-a-line-end-as-one-arm.md) records the decision, what it reverses, and
-what would reverse it back.
+would be the better answer, and they are an open question below. One change would reverse the half
+above as well, and it stays available rather than settled: four new single-arm rules rendering
+`╶ ╴ ╵ ╷` would make an end both derived and visibly an end. Those four keys are claimed today, so
+adding them is not a tweak but a change to what existing cells render, which is why it is a question
+for a slice of its own rather than a line to add.
 
 ### The route of a connector
 
@@ -367,8 +429,14 @@ that ranks them, and the reason each of its terms is there, are the `Design note
 observes the choice beyond the picture it produces, so changing it amends nothing here.
 
 Where no path exists the route is empty and the connector is its two terminals.
-[ADR-0055](decisions/0055-an-connectors-route-is-a-path-and-nothing-bounds-it.md) records the
-contract above, and why a route is left unbounded.
+
+Nothing bounds a path, and the bound this section used to place is gone for a measured reason. It
+was the rectangle its two starting positions span, and a rectangle one cell thick holds no
+alternating path at all, so an arrangement whose route had to escape sideways had nowhere to run
+inside it. What that bound was reaching for is the shortest path, and saying so directly costs the
+model a construct instead of earning it a second one. The arrangements that still draw no route are
+one family rather than a spread: an endpoint standing on the cell the route would arrive at, its two
+heads adjacent.
 
 ### Degenerate arrangements
 
@@ -419,8 +487,14 @@ not.
 
 ## 10. Deliberately unresolved
 
-- **Fallback chains between strokes.** ADR-0009 lists them as the rejected option and says what
-  would bring them back.
+- **Fallback chains between strokes.** Each stroke declaring a stroke to fall back to, substituted
+  along that chain before the base stroke. Declined, as _Rendering_ sets out: it introduces an
+  ordering question that does not otherwise exist, since the chain and the base stroke could each go
+  first and the two give different characters for the same cell, and the discipline it needs —
+  declaring a chain only for a genuine variant — cannot be checked by anything. It would come back
+  if a second variant stroke were declared and copying whole tables again became the cost, and
+  coming back is additive: the chain is a map consulted before the two lookups, and nothing in the
+  buffer, the cell or the tables changes to adopt it.
 - **Text and diagonals.** Out of the model, not merely out of the first slice. Connectors were on
   this list until _Shapes_ was written and are not on it any more.
 - **A coordinate-and-glyph output**, as an alternative to the string.

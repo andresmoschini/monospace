@@ -9,32 +9,40 @@ text.
 ## Why this project exists
 
 This isn't primarily about shipping a diagramming tool. It's a deliberate exercise in learning how
-to work effectively with **Spec-Driven Development** using Claude, and in practicing solid **Rust
-architecture, design, and idioms** along the way. The diagrams are the vehicle; the process is the
-point.
+to work effectively with **Spec-Driven Development**, and in practicing solid **Rust architecture,
+design, and idioms** along the way. The diagrams are the vehicle; the process is the point.
 
 The idea, part of the domain logic, the design and the model come from a private project of the same
 author that will not be published — see [the model](docs/model.md) for the full note. The Rust
-architecture, the implementation and the decisions recorded under `docs/decisions/` are this
-repository's own, even where some carry over an approach already worked out in that project.
+architecture, the implementation and the reasoning behind each decision are this repository's own,
+even where some carry over an approach already worked out in that project.
 
 ## How we're building it
 
-- **Methodology:** Spec-Driven Development, iterating with Claude at every step.
+- **Methodology:** Spec-Driven Development — one issue, one branch, one pull request, and a spec
+  when there is a decision to agree before the code.
 - **Language:** Rust.
 - **Cadence:** small, incremental commits. Each one aims to leave the project in a working,
   demonstrable state — no long-lived broken branches, no giant reveals.
 
-The scope, the constraints and what is deliberately left out are in
-[the constitution](.specify/memory/constitution.md).
+The process, the commands and what each check owns are in [CONTRIBUTING.md](CONTRIBUTING.md);
+[docs/workflow.md](docs/workflow.md) is the same thing written long, for when the question needs
+more than a table.
 
 ## Roadmap
 
 Core library, then a minimal CLI, then an interactive TUI, then WebAssembly, then the web app — each
 stage on a working foundation from the one before it. The phases and the capabilities the work is
-heading towards live on the [GitHub Project](https://github.com/users/andresmoschini/projects/2);
-why the CLI comes before the TUI is
-[ADR-0022](docs/decisions/0022-non-interactive-cli-before-the-tui.md).
+heading towards live on the [GitHub Project](https://github.com/users/andresmoschini/projects/2).
+
+**Why the CLI comes before the TUI.** The CLI is the smallest consumer that can prove the domain
+works end to end: it has no editing surface, no state and no event loop, so what it exercises is the
+drawing and nothing else. A TUI is a far larger consumer, and building it first means debugging
+rendering and input handling in the same sitting, with the drawing the least trustworthy of the
+three. Splitting them means the rendering is trusted before anything has to be interactive, and it
+means the core's public API is settled by its first consumer rather than by its most demanding one —
+the TUI then adds no domain logic at all. The name `monospace` is reserved for that interactive
+binary, which is why this one is `monospace-cli`.
 
 ## Current status
 
@@ -85,10 +93,9 @@ Behind that, and all of it enforced rather than merely intended:
 
 - **110** tests in `monospace-core`, **217** across the workspace.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
-  range too wide to assert by hand, so a change to it is
-  [reported](docs/decisions/0053-report-a-characterization-instead-of-reviewing-it.md) rather than
-  reviewed.
-- An **eleven**-step quality gate the pre-commit hook and CI run identically, including the check
+  range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
+  cases moved, in which families, and three examples with before and after.
+- A **thirteen**-step quality gate the pre-commit hook and CI run identically, including the check
   that keeps every crate but the CLI compiling for WebAssembly, so stage 4 stays reachable instead
   of becoming a rewrite.
 
@@ -105,32 +112,34 @@ cargo run -p monospace-cli -- path/to.json      # one picture, for the descripti
 cargo xtask check                               # the whole quality gate
 ```
 
-A description is JSON: a canvas and a list of shapes, documented in
-[the format's contract](specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md).
-`monospace-cli` holds no domain logic of its own — it turns a description into a `Diagram` and draws
-it.
+A description is JSON: a canvas and a list of shapes, documented by the module that owns it,
+`crates/monospace-cli/src/description.rs`. `monospace-cli` holds no domain logic of its own — it
+turns a description into a `Diagram` and draws it.
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers all of it properly, including what each check owns and
 what to do when one fails.
 
 ### Layout
 
-| Path                          | What it is                                                      |
-| ----------------------------- | --------------------------------------------------------------- |
-| `crates/monospace-core`       | The library. All domain logic lives here, and nothing else.     |
-| `crates/monospace-diagram`    | The model: a diagram as an ordered set of shapes, drawable.     |
-| `crates/monospace-glyph-sets` | The glyph tables the core does not ship as built-in data.       |
-| `crates/monospace-cli`        | The command-line application. Holds no logic of its own.        |
-| `xtask/`                      | Repository automation. `cargo xtask check` is the gate.         |
-| `docs/model.md`               | The domain's design, its provenance, and its open questions.    |
-| `docs/decisions/`             | Why things are the way they are, recorded as they were decided. |
+| Path                          | What it is                                                   |
+| ----------------------------- | ------------------------------------------------------------ |
+| `crates/monospace-core`       | The library. All domain logic lives here, and nothing else.  |
+| `crates/monospace-diagram`    | The model: a diagram as an ordered set of shapes, drawable.  |
+| `crates/monospace-glyph-sets` | The glyph tables the core does not ship as built-in data.    |
+| `crates/monospace-cli`        | The command-line application. Holds no logic of its own.     |
+| `xtask/`                      | Repository automation. `cargo xtask check` is the gate.      |
+| `docs/model.md`               | The domain's design, its provenance, and its open questions. |
+| `docs/diagram-model.md`       | The diagram model's rules: shapes, order, positions.         |
+| `docs/workflow.md`            | Why the process works the way it does, written at length.    |
+| `specs/`                      | One spec per change that had a decision to agree first.      |
 
 ## Guiding principles
 
-Process over product, demonstrable increments, and claims that are measured rather than assumed.
-Seven of them, stated as rules a plan can be checked against, are in
-[the constitution](.specify/memory/constitution.md) — which is where they are enforced from, not
-merely listed.
+Process over product, demonstrable increments, and claims that are measured rather than assumed. The
+rules are in [CONTRIBUTING.md](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md) — which is where they
+are enforced from, not merely listed. Where the reasoning behind a decision lives — the module's
+rustdoc, the model documents, or the pull request body where it was taken — is
+[the section on it](CONTRIBUTING.md#where-the-reasoning-lives).
 
 ## License
 
