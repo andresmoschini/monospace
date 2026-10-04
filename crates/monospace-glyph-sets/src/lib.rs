@@ -736,7 +736,7 @@ mod tests {
         }
     }
 
-    /// SC-004: a box drawn with `monospace_core::BoxShape` and rendered against a catalog built
+    /// A box drawn with `monospace_core::BoxShape` and rendered against a catalog built
     /// from `ascii()` alone produces only `+`, `-`, `|` or space characters.
     #[test]
     fn a_box_rendered_with_ascii_alone_uses_only_ascii_box_characters() {
@@ -764,8 +764,7 @@ mod tests {
         }
     }
 
-    /// Mirrors `ascii_answers_every_non_empty_combination_of_its_own_stroke` for the Double table
-    /// (SC-001).
+    /// Mirrors `ascii_answers_every_non_empty_combination_of_its_own_stroke` for the Double table.
     #[test]
     fn double_answers_every_non_empty_combination_of_its_own_stroke() {
         let catalog = double();
@@ -790,7 +789,7 @@ mod tests {
     }
 
     /// Mirrors `a_box_rendered_with_ascii_alone_uses_only_ascii_box_characters` for the Double
-    /// table (SC-005).
+    /// table.
     #[test]
     fn a_box_rendered_with_double_alone_uses_only_double_box_characters() {
         let origin = Pos { x: 0, y: 0 };
@@ -831,8 +830,7 @@ mod tests {
         }
     }
 
-    /// Mirrors `ascii_answers_every_non_empty_combination_of_its_own_stroke` for the Heavy table
-    /// (SC-002).
+    /// Mirrors `ascii_answers_every_non_empty_combination_of_its_own_stroke` for the Heavy table.
     #[test]
     fn heavy_answers_every_non_empty_combination_of_its_own_stroke() {
         let catalog = heavy();
@@ -857,7 +855,7 @@ mod tests {
     }
 
     /// Mirrors `a_box_rendered_with_ascii_alone_uses_only_ascii_box_characters` for the Heavy
-    /// table (SC-005).
+    /// table.
     #[test]
     fn a_box_rendered_with_heavy_alone_uses_only_heavy_box_characters() {
         let origin = Pos { x: 0, y: 0 };
@@ -899,7 +897,7 @@ mod tests {
     }
 
     /// Mirrors `ascii_answers_every_non_empty_combination_of_its_own_stroke` for the Light Round
-    /// table (SC-003).
+    /// table.
     #[test]
     fn light_round_answers_every_non_empty_combination_of_its_own_stroke() {
         let catalog = light_round();
@@ -924,7 +922,7 @@ mod tests {
     }
 
     /// Mirrors `a_box_rendered_with_ascii_alone_uses_only_ascii_box_characters` for the Light
-    /// Round table (SC-005).
+    /// Round table.
     #[test]
     fn a_box_rendered_with_light_round_alone_uses_only_light_round_box_characters() {
         let origin = Pos { x: 0, y: 0 };
@@ -965,7 +963,7 @@ mod tests {
         }
     }
 
-    /// SC-003: Light Round's four corners read `╮╭╯╰`, distinct from Light's `┐┌┘└`, for the same
+    /// Light Round's four corners read `╮╭╯╰`, distinct from Light's `┐┌┘└`, for the same
     /// keys.
     #[test]
     fn light_rounds_corners_differ_from_lights() {
@@ -1015,11 +1013,11 @@ mod tests {
         }
     }
 
-    /// FR-011, SC-007: a catalog built from all nine tables this project ships — the five
+    /// A catalog built from all nine tables this project ships — the five
     /// single-stroke ones (`monospace_core::GlyphCatalog::light()` plus this crate's `ascii()`,
     /// `double()`, `heavy()`, `light_round()`) and the four mixing ones this feature adds —
     /// answers a key from each correctly, regardless of the order the tables went in. Extends
-    /// what was originally a four single-stroke-table check (FR-008, SC-006 from feature 056).
+    /// what was originally a four single-stroke-table check.
     #[test]
     fn a_catalog_built_from_all_nine_tables_answers_each_regardless_of_order() {
         let checks = [
@@ -1104,7 +1102,7 @@ mod tests {
         }
     }
 
-    /// SC-001, SC-002: `light_double()` holds exactly the 18 rows _Mixing Light and Double_
+    /// `light_double()` holds exactly the 18 rows _Mixing Light and Double_
     /// records, and its spot-checked rows — a three-armed junction, a four-armed crossing, a
     /// corner, and that crossing with its two strokes exchanged between sides — render the
     /// characters that section publishes, `╪` and `╫` (the demonstration's own crossings) among
@@ -1138,7 +1136,7 @@ mod tests {
         }
     }
 
-    /// SC-001, SC-002: `light_heavy()` holds exactly the 50 rows _Mixing Light and Heavy_
+    /// `light_heavy()` holds exactly the 50 rows _Mixing Light and Heavy_
     /// records, and its spot-checked rows — a corner, a three-armed junction, a four-armed
     /// crossing, and that crossing with its two strokes exchanged between sides — render the
     /// characters that section publishes, `┿` and `╂` (the demonstration's own crossings) among
@@ -1172,7 +1170,7 @@ mod tests {
         }
     }
 
-    /// SC-001, SC-002: `light_round_double()` holds exactly the 18 rows _Mixing Light Round and
+    /// `light_round_double()` holds exactly the 18 rows _Mixing Light Round and
     /// Double_ records — the same shapes as _Mixing Light and Double_ with `light` replaced by
     /// `light-round` — and its spot-checked rows render the same characters.
     #[test]
@@ -1222,7 +1220,7 @@ mod tests {
         }
     }
 
-    /// SC-001, SC-002: `light_round_heavy()` holds exactly the 50 rows _Mixing Light Round and
+    /// `light_round_heavy()` holds exactly the 50 rows _Mixing Light Round and
     /// Heavy_ records — the same shapes as _Mixing Light and Heavy_ with `light` replaced by
     /// `light-round` — and its spot-checked rows render the same characters.
     #[test]
@@ -1267,7 +1265,7 @@ mod tests {
         }
     }
 
-    /// SC-005: `top: light, right: light, bottom: double, left: double` is one of the thirty-two
+    /// `top: light, right: light, bottom: double, left: double` is one of the thirty-two
     /// light/double combinations _Mixing Light and Double_ does not record. It degrades the same
     /// whether or not `light_double()` is in the catalog.
     #[test]

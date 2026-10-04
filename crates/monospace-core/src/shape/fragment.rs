@@ -1,7 +1,6 @@
 //! The fragments: the leaves that actually call [`Surface::stamp`](crate::Surface::stamp). Each
 //! writes only the cells its description names — see _Complete and fragment_ in
-//! [`docs/model.md`](../../../../docs/model.md) and
-//! [ADR-0028](../../../../docs/decisions/0028-give-each-fragment-its-own-cell-rule.md).
+//! [`docs/model.md`](../../../../docs/model.md)
 
 use crate::{Orientation, Pos, Size};
 

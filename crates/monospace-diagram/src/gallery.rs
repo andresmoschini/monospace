@@ -15,12 +15,12 @@
 //! The cost is one place the rule from the core's gallery does not hold. A `Diagram` keeps its
 //! shapes in a private `Vec<Placed>` and offers one query by an identity, with no listing of what
 //! it holds, so there is nothing to derive a label from and the block says which shapes it holds
-//! in a string written by hand. ADR-0030 withdrew `Extent` for the same reason — a shape with no
-//! reader — and the reader that has since arrived is that one query, not the read iterator that
-//! record declined and the listing it declined beside.
+//! in a string written by hand. A shape with no reader is the same reason `Extent` was withdrawn
+//! from the model, and the reader that has since arrived is that one query rather than a read
+//! iterator or a listing.
 //!
-//! [ADR-0064](../../../docs/decisions/0064-give-each-generated-picture-the-carrier-that-can-reach-its-subject.md)
-//! records why a figure's picture needs this carrier and not a `<!-- render: -->` marker.
+//! A figure's picture needs this carrier rather than a `<!-- render: -->` marker: a marker reads a
+//! description from the document it sits in, and this one needs values the crate keeps private.
 
 use std::fmt::Write as _;
 
@@ -36,7 +36,8 @@ const WHAT: &str = concat!(
     "Each label lists the shapes in the order they were added, each one derived from its own ",
     "Debug, so a label cannot disagree with the values it names; what was done between two ",
     "drawings of one diagram is the second line, and it is named for the change rather than for ",
-    "the order, which 080 could make and a displacement does not. It is written by hand, because ",
+    "the order, which the demonstration can change and a displacement does not. It is written by ",
+    "hand, because ",
     "a diagram offers one query by an identity and no listing of the shapes it holds. Under each ",
     "picture is the surface that picture came from: a count of the positions the diagram wrote, ",
     "then a row for each of them, saying what that position renders, what each of its four arms ",
@@ -371,7 +372,7 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 /// difference visible rather than asserted. **The fourth block is drawn by `remove` itself** rather
 /// than built by hand from the two positions the rule yields, and that is the whole reason it is in
 /// the gallery: a freeze that stopped holding would drop this snapshot instead of leaving a picture
-/// that no longer matches the code (B1.1, B3.4, §4 of the model).
+/// that no longer matches the code (§4 of the model).
 ///
 /// **The three later blocks are each reached from a diagram built for that block**, and the cost is
 /// a second and a third `Diagram` in this test rather than a `get` and a `replace`. The reason is
@@ -379,7 +380,7 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 /// which is where the connector's own free end already stood, so a change applied to *that* diagram
 /// would be a change to something degenerate; and a removal of a figure the arrow's reference is
 /// already resolving somewhere else would freeze the arrow **displaced**, which is a fourth picture
-/// of a different claim from B1.1's. Reaching the arrangement as written is also what keeps every
+/// of a different claim from the first's. Reaching the arrangement as written is also what keeps every
 /// block comparable with the first: they differ by the one change between them and by nothing else.
 ///
 /// **The label names three values now, because the reference holds three.** A block cannot print a
@@ -389,12 +390,12 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 /// side rather than beside it. The offset is drawn nowhere in any of the four pictures, and §6's
 /// stays exactly as the model spells it.
 ///
-/// This is no longer the only carrier in the crate that can reach a reference: since #83 a
-/// `<!-- render: -->` marker reads a description whose `at` may hold one (D2, ADR-0035). The block
+/// This is no longer the only carrier in the crate that can reach a reference: a
+/// `<!-- render: -->` marker reads a description whose `at` may hold one. The block
 /// stays here rather than moving to a marker because the four blocks are one snapshot and a marker
-/// renders one picture per description (ADR-0064). It is also the only carrier that can reach a
+/// renders one picture per description. It is also the only carrier that can reach a
 /// **displacement** or a **removal** at all: a marker reads a description and a description carries
-/// no field for either (ADR-0035), so no marker anywhere in the repository can hold a picture of
+/// no field for either, so no marker anywhere in the repository can hold a picture of
 /// either rule.
 #[test]
 fn an_endpoint_hangs_from_a_side_and_follows_it() {
@@ -428,7 +429,7 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
     // reason is measured rather than stylistic: the second block above left the box's right side
     // centre on `{7, 1}`, which is where the connector's own free end already stood, so a
     // displacement applied to *that* diagram would have put both endpoints on `{7, 3}` and drawn
-    // nothing at all — degenerate in the same way the specification's own B2.1 is, one step further
+    // nothing at all — degenerate in the same way a one-cell box is, one step further
     // along. Reaching the arrangement as written is also what keeps the third block comparable with
     // the first: the two differ by the one displacement between them and by nothing else.
     let mut from_as_written = Diagram::new();
@@ -458,7 +459,7 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
     // **Reached from a third diagram in this test**, for the reason the third block needed a second:
     // the two blocks above leave `#1` displaced four cells right, and a removal of a figure the
     // arrow's reference is already resolving somewhere else freezes the arrow **displaced** — a
-    // fourth picture of a different claim, not B1.1's.
+    // fourth picture of a different claim, not the first's.
     //
     // **`window(8, 3)`, and this is the opposite of the row above.** That one grew to a fourth row
     // because a displacement lands the connector lower; a removal lands nothing, so a window of

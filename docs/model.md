@@ -1,9 +1,14 @@
 # The buffer and render model
 
-**Status:** Design intent, not observed behavior. Nothing described here is implemented. It is
-written down first so that each feature spec can implement a slice of it and say which slice, rather
-than restating the whole model or inventing its own vocabulary. Amend it when reality contradicts
-it, and say so in the commit.
+**Status:** Written ahead of the code and kept in step with it. `monospace-core` implements this
+model, and where the two have parted the code is right — amend this document in the same pull
+request that fixes the gap, and say so in the commit. Each change implements or amends a slice and
+says which, rather than restating the whole model or inventing its own vocabulary.
+
+This model is expected to change. It records a partial understanding, not a settled one; see
+[The model moves](../CONTRIBUTING.md#the-model-moves). Write the code to match what you currently
+believe rather than waiting to understand the whole problem, because the code showing what you were
+thinking is what makes the later refactor into your next understanding a legible move.
 
 **Created:** 2026-09-07
 
@@ -11,9 +16,10 @@ it, and say so in the commit.
 project by the same author that will not be published; this repository replaces it as the public
 implementation. What came across is the shape of the problem, rewritten as prose here and then
 criticized as prior art rather than adopted as given — which is why the two rules it rests on are
-argued in [ADR-0008](decisions/0008-compose-overlapping-cells-with-three-state-arms.md) and
-[ADR-0009](decisions/0009-degrade-a-cell-to-its-base-stroke.md) instead of asserted here. No code
-carried over.
+argued where they belong rather than asserted here: how overlapping cells compose in
+[_The cell_](#3-the-cell), and what to draw when no character matches in
+[_Strokes, glyph sets and the catalog_](#5-strokes-glyph-sets-and-the-catalog). No code carried
+over.
 
 This document describes three mechanisms: how cells accumulate in a buffer, how a buffer becomes
 characters, and how a shape puts cells in both without its caller computing any of them. Everything
@@ -26,15 +32,14 @@ be designed when they arrive.
 What this document owns beyond those three mechanisms is the domain's **open questions**, including
 the ones about layers it does not describe yet. They are collected under _Open questions_, because
 each of them is answered by writing model for the layer it belongs to, and answering it anywhere
-else would leave the answer somewhere a spec has no reason to look. _Deliberately unresolved_ is a
+else would leave the answer somewhere a change has no reason to look. _Deliberately unresolved_ is a
 different list: those are questions closed by choice, not waiting for one.
 
 The buffer is a temporary working surface that helps render. It is not the document.
 
-The two decisions this model rests on are recorded separately:
-[ADR-0008](decisions/0008-compose-overlapping-cells-with-three-state-arms.md) for how overlapping
-cells compose, and [ADR-0009](decisions/0009-degrade-a-cell-to-its-base-stroke.md) for what to draw
-when no character matches.
+The two decisions this model rests on are argued where they belong: how overlapping cells compose in
+[_The cell_](#3-the-cell), and what to draw when no character matches in
+[_Strokes, glyph sets and the catalog_](#5-strokes-glyph-sets-and-the-catalog).
 
 ## 1. Vocabulary
 
@@ -229,11 +234,10 @@ the caller draws them, exactly as any two stamps at those positions would.
 
 Shapes are the layer directly above the buffer, and a shape draws into a **surface** rather than
 into the buffer itself: one write operation and no reader, so a fragment cannot inspect what lies
-beneath it even by accident. [ADR-0031](decisions/0031-a-shape-draws-into-a-surface.md) records the
-trait, and the one adapter the crate ships that binds a buffer to a stamp mode for it. Shapes exist
-so that a caller describes a figure instead of computing positions and characters. Every position
-and every character inside a figure is the figure's own business. Deciding _where_ a figure goes is
-still not: the caller says where.
+beneath it even by accident. The crate ships the trait, and one adapter that binds a buffer to a
+stamp mode for it. Shapes exist so that a caller describes a figure instead of computing positions
+and characters. Every position and every character inside a figure is the figure's own business.
+Deciding _where_ a figure goes is still not: the caller says where.
 
 ### Pieces
 
@@ -250,9 +254,8 @@ something.
 
 A shape does not report what it covers. It draws, and drawing is the whole of what it does: which
 positions a figure occupies is a question for the layer that decides where figures go, and that
-layer does not exist yet. [ADR-0030](decisions/0030-drop-extent-until-a-caller-needs-it.md) records
-why the extent this section used to define was withdrawn, and what would bring a bounding rectangle
-back in its place.
+layer does not exist yet. The extent this section used to define was withdrawn; a bounding rectangle
+would come back only for a caller that asks for one.
 
 Composition goes to arbitrary depth and no shape depends on knowing how deep it sits: one placed as
 a piece is drawable the same way at the top level. Defining a new kind of shape touches no existing
@@ -276,9 +279,8 @@ description. A fragment never inspects the surface it draws into and never inspe
 What a fragment writes follows from what it is — a corner, a border run, an interior, an end, a head
 — rather than from a cell handed to it. The arms of a border run are _The cell_'s decision already,
 so the figure placing one names which side of itself it is and nothing more, and the rule lives with
-the piece instead of being restated by every figure that has one.
-[ADR-0028](decisions/0028-give-each-fragment-its-own-cell-rule.md) records that, and the split
-between the sides a piece is told and the directions the figure above it reasons in.
+the piece instead of being restated by every figure that has one. The split runs between the sides a
+piece is told and the directions the figure above it reasons in.
 
 ### The initial set
 
@@ -324,8 +326,6 @@ the other.
 
 That asymmetry is a limit of the data rather than a preference. Heads that follow the glyph set
 would be the better answer, and they are an open question below.
-[ADR-0029](decisions/0029-draw-a-line-end-as-one-arm.md) records the decision, what it reverses, and
-what would reverse it back.
 
 ### The route of a connector
 
@@ -366,9 +366,8 @@ that ranks them, and the reason each of its terms is there, are the `Design note
 [`shape::connector`](../crates/monospace-core/src/shape/connector.rs); nothing outside that module
 observes the choice beyond the picture it produces, so changing it amends nothing here.
 
-Where no path exists the route is empty and the connector is its two terminals.
-[ADR-0055](decisions/0055-an-connectors-route-is-a-path-and-nothing-bounds-it.md) records the
-contract above, and why a route is left unbounded.
+Where no path exists the route is empty and the connector is its two terminals. Nothing bounds the
+route.
 
 ### Degenerate arrangements
 
@@ -419,8 +418,9 @@ not.
 
 ## 10. Deliberately unresolved
 
-- **Fallback chains between strokes.** ADR-0009 lists them as the rejected option and says what
-  would bring them back.
+- **Fallback chains between strokes.** Rejected on purpose: a cell with no exact answer degrades to
+  its base stroke rather than walking a chain. What would bring them back is a glyph set that has no
+  answer at the base stroke either.
 - **Text and diagonals.** Out of the model, not merely out of the first slice. Connectors were on
   this list until _Shapes_ was written and are not on it any more.
 - **A coordinate-and-glyph output**, as an alternative to the string.
@@ -430,8 +430,8 @@ not.
 ## 11. Open questions
 
 Unlike the list above, these are open rather than closed: each is waiting for an answer, and the
-answer is model prose for the layer it belongs to. A feature spec that needs one of them answered
-amends this document first and then implements the slice, the same way spec 0002 amended _The cell_.
+answer is model prose for the layer it belongs to. A change that needs one of them answered amends
+this document first and then implements the slice.
 
 An answered question leaves this list, and its answer's home is named where it was. _How does the
 core expose mutable state for editing?_ has left: the core exposes none, and

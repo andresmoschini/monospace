@@ -19,8 +19,9 @@
 //! defining a new kind of shape touches no existing shape because there is no such list. The
 //! diagram crate above can promise it, and does, by matching over its closed set of kinds.
 //!
-//! [ADR-0064](../../../../../docs/decisions/0064-give-each-generated-picture-the-carrier-that-can-reach-its-subject.md)
-//! records why a figure's picture needs this carrier and not a `<!-- render: -->` marker.
+//! A figure's picture needs this carrier rather than a `<!-- render: -->` marker: a marker reads a
+//! description from the document it sits in, and no description can reach what a `Border` or a
+//! `Head` stamps.
 
 use std::fmt::Write as _;
 
@@ -159,7 +160,7 @@ fn gallery(entries: Vec<Entry>) -> String {
         let (picture, surface) = draw(size, |s| entry(s));
         // The indent is trimmed off a line the picture left empty, or the gate's
         // `editorconfig-checker` step rejects the snapshot once it is tracked — the same
-        // trailing blanks ADR-0045 met and answered the same way.
+        // trailing blanks the rendering step answers the same way.
         for line in picture.lines() {
             let _ = writeln!(out, "{}", format!("  {line}").trim_end());
         }

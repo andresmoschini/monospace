@@ -1,6 +1,5 @@
 //! A diagram's own figures: a closed set of kinds, each holding every position and parameter the
-//! core shape it constructs takes. See [`docs/diagram-model.md`](../../../docs/diagram-model.md)
-//! and [ADR-0039](../../../docs/decisions/0039-a-diagram-shape-is-its-own-entity.md).
+//! core shape it constructs takes. See [`docs/diagram-model.md`](../../../docs/diagram-model.md).
 
 use monospace_core::Shape as _;
 use monospace_core::{
@@ -13,7 +12,7 @@ use crate::{Anchor, Delta, Diagram, Position, ShapeId};
 /// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
 ///
 /// Mirrors `monospace_core::Endpoint` rather than reusing it, so that a later change to how an
-/// endpoint is anchored stays inside this crate (research.md Q3). The terminal is the core's own
+/// endpoint is anchored stays inside this crate. The terminal is the core's own
 /// type and this crate re-exports nothing: a caller takes it from `monospace_core`, exactly as it
 /// already takes the `Pos`, `Direction` and `Glyph` the other two fields hold.
 ///
@@ -65,7 +64,7 @@ impl Endpoint {
 }
 
 /// A figure a diagram can hold: one of a closed set of kinds, each carrying every position and
-/// parameter the core shape it constructs takes (FR-007, FR-008).
+/// parameter the core shape it constructs takes.
 ///
 /// `Clone` and `PartialEq` are what let a caller compare what a diagram hands back with what it
 /// added, and what let a figure displaced by nothing at all come back equal to itself. Every leaf
@@ -132,7 +131,7 @@ impl Shape {
     }
 
     /// Converts this shape into the `monospace_core` shape it describes and draws it into
-    /// `surface`, dropping no parameter (FR-009).
+    /// `surface`, dropping no parameter.
     ///
     /// It takes the diagram it is drawn from because a connector's endpoints are positions and a
     /// position may be a reference, which only a diagram can resolve. The `Box` and `Line` arms
@@ -320,8 +319,7 @@ mod tests {
         Buffer, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, render,
     };
 
-    /// The window the arrangement below is drawn in: two 3×3 boxes on an 11×3 canvas, which is the
-    /// one the spec measures.
+    /// The window the arrangement below is drawn in: two 3×3 boxes on an 11×3 canvas.
     const ORIGIN: Pos = Pos { x: 0, y: 0 };
     const WINDOW: Size = Size {
         width: 11,
@@ -394,7 +392,7 @@ mod tests {
         }
     }
 
-    /// User Story 1, spec's B1.1 and SC-001: `Shape::with_frozen_references` answers **`None` for
+    /// `Shape::with_frozen_references` answers **`None` for
     /// every figure holding no reference to the figure it is asked about** — over **all three
     /// kinds** — and `Some` for the one that does.
     ///
@@ -455,7 +453,7 @@ mod tests {
         );
     }
 
-    /// User Story 1, spec's B3.4 scenario: a figure displaced by nothing at all comes back equal to
+    /// A figure displaced by nothing at all comes back equal to
     /// itself.
     ///
     /// All three kinds rather than one, and a `Connector` among them because it moves through an
@@ -516,7 +514,7 @@ mod tests {
         )
     }
 
-    /// User Story 2, spec's B2 scenario 1, SC-004: a glyph terminal is decided on every side, so
+    /// A glyph terminal is decided on every side, so
     /// nothing composes into the cell it shares with the left box's border and whichever figure is
     /// in front keeps it. Two orders, two pictures, and the one drawn between the boxes has lost
     /// that border cell.
@@ -547,7 +545,7 @@ mod tests {
         }
     }
 
-    /// User Story 2, spec's B2 scenario 2, SC-003: an arm terminal leaves three sides undecided,
+    /// An arm terminal leaves three sides undecided,
     /// so whatever reaches the cell afterwards still joins it. Both orders therefore draw the same
     /// picture, and the border cell is a junction in each — the equality the two rendered files
     /// measured, made permanent.

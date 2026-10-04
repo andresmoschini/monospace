@@ -34,10 +34,8 @@ pub enum Arm {
 
 /// A base stroke, always present, and four arms — one per side.
 ///
-/// Each arm carries its own stroke, per
-/// [ADR-0037](../../../docs/decisions/0037-give-each-arm-its-own-stroke.md), which superseded the
-/// one-stroke-per-cell restriction [ADR-0012](../../../docs/decisions/0012-one-stroke-per-cell.md)
-/// described as temporary.
+/// Each arm carries its own stroke. The one-stroke-per-cell restriction was lifted when this became
+/// necessary: a figure that crosses another needs different strokes on different sides.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StrokeCell {
     /// The stroke every `Set` arm draws in.
@@ -55,8 +53,7 @@ pub struct StrokeCell {
 impl StrokeCell {
     /// Whether every arm is decided: none of the four is `Unset`.
     ///
-    /// A defined cell always has a base stroke, so nothing else enters the question, per
-    /// [ADR-0017](../../../docs/decisions/0017-ask-the-cell-whether-it-is-decided.md).
+    /// A defined cell always has a base stroke, so nothing else enters the question.
     #[must_use]
     pub fn is_decided(&self) -> bool {
         !matches!(self.top, Arm::Unset)
@@ -86,7 +83,7 @@ impl StrokeCell {
     /// The degraded key this cell falls back to when [`key`](Self::key) matches nothing: the
     /// cell's own base stroke on every `Set` side, regardless of what that arm itself carries, and
     /// nothing where the arm is `Closed` or `Unset`. This is the second lookup
-    /// [ADR-0009](../../../docs/decisions/0009-degrade-a-cell-to-its-base-stroke.md) describes.
+    /// the degradation rule describes.
     #[must_use]
     pub fn degraded_key(&self) -> GlyphKey {
         let side = |arm: &Arm| match arm {
@@ -129,8 +126,7 @@ impl From<StrokeCell> for Cell {
 impl Cell {
     /// Whether the cell is already decided. For [`Cell::Strokes`] this is
     /// [`StrokeCell::is_decided`]; a [`Cell::Literal`] is decided on all four sides by
-    /// definition, since it has no arms to leave undecided. See
-    /// [ADR-0017](../../../docs/decisions/0017-ask-the-cell-whether-it-is-decided.md).
+    /// definition, since it has no arms to leave undecided.
     #[must_use]
     pub fn is_decided(&self) -> bool {
         match self {
@@ -198,7 +194,7 @@ mod tests {
         }
     }
 
-    /// FR-002: `key()` reads each arm's own stroke, not the cell's `base`.
+    /// `key()` reads each arm's own stroke, not the cell's `base`.
     #[test]
     fn key_reads_each_arms_own_stroke() {
         let key = mixed_cell().key();
@@ -209,7 +205,7 @@ mod tests {
         assert_eq!(key.left, Some(Stroke::from("heavy")));
     }
 
-    /// FR-004: `degraded_key()` names the cell's `base` stroke on every `Set` side regardless of
+    /// `degraded_key()` names the cell's `base` stroke on every `Set` side regardless of
     /// what that arm itself carries.
     #[test]
     fn degraded_key_collapses_every_set_arm_to_the_base_stroke() {
@@ -221,7 +217,7 @@ mod tests {
         assert_eq!(key.left, Some(Stroke::from("light")));
     }
 
-    /// Acceptance Scenario 1, FR-002, FR-004: `glyph_str` tries the exact key, then the degraded
+    /// `glyph_str` tries the exact key, then the degraded
     /// key, then answers `None`.
     #[test]
     fn glyph_str_tries_the_exact_key_then_the_degraded_key_then_none() {
@@ -243,7 +239,7 @@ mod tests {
         assert_eq!(cell.glyph_str(&neither), None);
     }
 
-    /// Acceptance Scenario 4, SC-006's invariant: a cell whose arms all carry the base stroke
+    /// A cell whose arms all carry the base stroke
     /// resolves the same key from both methods.
     #[test]
     fn a_cell_whose_arms_all_carry_the_base_stroke_resolves_the_same_key_from_both_methods() {
@@ -257,7 +253,7 @@ mod tests {
         assert_eq!(uniform.key(), uniform.degraded_key());
     }
 
-    /// User Story 4 Acceptance Scenario 1: an uncovered mixture degrades to the base stroke
+    /// An uncovered mixture degrades to the base stroke
     /// regardless of a partial mixing rule set covering some, but not this, combination.
     #[test]
     fn an_uncovered_mixture_degrades_to_the_base_stroke_regardless_of_a_partial_mixing_rule_set() {
@@ -284,7 +280,7 @@ mod tests {
         assert_eq!(with_result, without_result);
     }
 
-    /// User Story 4 Acceptance Scenario 2: `light` and `light-round` degrade with no mixing table
+    /// `light` and `light-round` degrade with no mixing table
     /// pairing them.
     #[test]
     fn light_and_light_round_degrade_with_no_mixing_table_pairing_them() {
@@ -301,7 +297,7 @@ mod tests {
         assert_eq!(cell_value.glyph_str(&catalog), Some(base_glyph.as_str()));
     }
 
-    /// User Story 4 Acceptance Scenario 3: `heavy` and `double` degrade with no mixing table
+    /// `heavy` and `double` degrade with no mixing table
     /// pairing them.
     #[test]
     fn heavy_and_double_degrade_with_no_mixing_table_pairing_them() {

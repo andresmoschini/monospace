@@ -4,12 +4,10 @@
 //! **This is a characterization, not a contract test.** It records what the code does over a range
 //! too wide to assert by hand, and a change to it is the consequence of a decision taken
 //! elsewhere rather than a decision here. It is accepted after a report of how many cases moved, in
-//! which families, and three examples with their before and after — per
-//! [ADR-0053](../../../docs/decisions/0053-report-a-characterization-instead-of-reviewing-it.md),
-//! which each snapshot file repeats at its own head. It is kept apart from every picture a test
+//! which families, and three examples with their before and after — a rule each snapshot file
+//! repeats at its own head. It is kept apart from every picture a test
 //! asserts by hand by its own directory, not by its name, and one file per first value so a review
-//! tool can render each diff — per
-//! [ADR-0045](../../../docs/decisions/0045-pin-every-connector-arrangement-as-a-reviewed-snapshot.md).
+//! tool can render each diff: a single 20,000-line file is what GitHub would not show at all.
 //!
 //! [`docs/diagram-demo.md`](../../../docs/diagram-demo.md) is the readable half of the same
 //! subject: it shows one instance of each decision the format makes, and this holds the finite
@@ -98,7 +96,7 @@ fn case(name: &str, shapes: &str) -> String {
     out
 }
 
-/// One snapshot per first value, with the ADR-0053 report rule at the head of every file.
+/// One snapshot per first value, with the characterization report rule at the head of every file.
 fn pin(name: &str, cases: &[String]) {
     let mut settings = insta::Settings::clone_current();
     settings.set_snapshot_path(concat!(

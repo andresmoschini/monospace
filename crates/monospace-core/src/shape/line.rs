@@ -8,11 +8,11 @@ use crate::shape::fragment::segment::Segment;
 use crate::{Orientation, Pos, Shape, Stroke, Surface};
 
 /// A line: a position, a length, an orientation and a stroke. It names no glyph of its own — an
-/// end is an arm, not a chosen glyph, per ADR-0029.
+/// end is an arm, not a chosen glyph.
 ///
 /// A **complete** shape in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../docs/model.md). No minimum length is declared: a length of 0 draws
-/// nothing, a length of 1 draws its one position as an end, and neither is rejected — FR-022.
+/// nothing, a length of 1 draws its one position as an end, and neither is rejected.
 #[derive(Debug)]
 pub struct Line {
     /// The position of the line's first cell.
@@ -98,7 +98,7 @@ mod tests {
         Stroke::from("light")
     }
 
-    /// User story 2, scenario 1: a horizontal line of length 5 renders `─────`, and the position
+    /// A horizontal line of length 5 renders `─────`, and the position
     /// one past its end holds no cell at all.
     #[test]
     fn a_horizontal_line_of_length_5_renders_and_stops_cleanly() {
@@ -123,7 +123,7 @@ mod tests {
         assert!(buffer.cell(Pos { x: 5, y: 0 }).is_none());
     }
 
-    /// User story 2, scenario 2: a vertical line of length 4 renders four `│`s, and the position
+    /// A vertical line of length 4 renders four `│`s, and the position
     /// one past its end holds no cell.
     #[test]
     fn a_vertical_line_of_length_4_renders_and_stops_cleanly() {
@@ -148,9 +148,9 @@ mod tests {
         assert!(buffer.cell(Pos { x: 0, y: 4 }).is_none());
     }
 
-    /// User story 2, scenario 3: a horizontal line's first cell has its right arm `Set` and the
+    /// A horizontal line's first cell has its right arm `Set` and the
     /// other three `Unset` — it decides nothing about what lies beyond it. `Cell` is public for
-    /// exactly this, per ADR-0011.
+    /// exactly this.
     #[test]
     fn a_horizontal_lines_first_cell_carries_only_its_forward_arm() {
         let origin = Pos { x: 0, y: 0 };
@@ -178,7 +178,7 @@ mod tests {
         assert_eq!(cell.left, Arm::Unset);
     }
 
-    /// User story 2, scenario 5: a line of length 2 is two ends side by side, with no interior
+    /// A line of length 2 is two ends side by side, with no interior
     /// run between them.
     #[test]
     fn a_line_of_length_2_is_two_ends_with_no_run_between_them() {
@@ -202,7 +202,7 @@ mod tests {
         );
     }
 
-    /// User story 2, scenario 6: a line of length 1 returns normally and writes exactly one
+    /// A line of length 1 returns normally and writes exactly one
     /// position.
     #[test]
     fn a_line_of_length_1_writes_exactly_one_position() {
@@ -225,7 +225,7 @@ mod tests {
         assert!(buffer.cell(origin).is_some());
     }
 
-    /// User story 2, scenario 7: a line of length 0 draws nothing and returns normally.
+    /// A line of length 0 draws nothing and returns normally.
     #[test]
     fn a_line_of_length_0_draws_nothing() {
         let origin = Pos { x: 0, y: 0 };
@@ -247,7 +247,7 @@ mod tests {
         assert!(buffer.cell(origin).is_none());
     }
 
-    /// User story 2, scenario 8: no line above writes any position more than once, the
+    /// No line above writes any position more than once, the
     /// length-1 line included.
     #[test]
     fn no_line_above_writes_any_position_more_than_once() {
@@ -268,10 +268,10 @@ mod tests {
         }
     }
 
-    /// User story 2, scenario 4: a horizontal line and a vertical line whose ends land on
+    /// A horizontal line and a vertical line whose ends land on
     /// `(0, 0)` render `┌` there — the corner the two make, not a segment, a T or a cross — in
     /// both drawing orders and under both stamp modes. This is the scenario a caller-supplied end
-    /// glyph could not satisfy; ADR-0029 is confirmed by it.
+    /// glyph could not satisfy.
     #[test]
     fn two_lines_sharing_an_end_compose_into_the_corner_they_make() {
         let origin = Pos { x: 0, y: 0 };

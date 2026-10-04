@@ -9,9 +9,8 @@ Double, Heavy, Light Round and the four mixing sets below by `monospace-glyph-se
 able to add their own, and a set may hold any combination it has a character for.
 
 The five single-stroke sets are complete. Each holds 15 rows, which is every combination of four
-sides except the empty one. That completeness is what the rule in
-[ADR-0009](decisions/0009-degrade-a-cell-to-its-base-stroke.md) leans on: it degrades a cell to a
-single stroke, and needs the answer to be there.
+sides except the empty one. That completeness is what the base-stroke rule leans on: it degrades a
+cell to a single stroke, and needs the answer to be there.
 
 The mixing sets cannot be complete, because they hold what Unicode provides. Light with heavy
 happens to cover all 50 mixed combinations; light with double covers 18 of them, and the other 32
@@ -19,7 +18,7 @@ degrade.
 
 `light-round` is identical to `light` except for its four corners, and its two mixing sets are
 copies of `light`'s with the name changed. Keeping them as data rather than deriving them is a cost
-recorded in ADR-0009, under the option that was not taken.
+this accepts.
 
 ## ASCII
 

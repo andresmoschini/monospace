@@ -1,5 +1,5 @@
 //! Positions and sizes, kept as separate types so the compiler refuses one where the other
-//! belongs. See [ADR-0010](../../../docs/decisions/0010-separate-position-and-size.md).
+//! belongs.
 
 /// An absolute position in the plane a buffer occupies.
 ///

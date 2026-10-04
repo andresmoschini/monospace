@@ -1,6 +1,5 @@
 //! What a shape draws into, and what a shape is. See _Shapes_ in
-//! [`docs/model.md`](../../../docs/model.md) and
-//! [ADR-0031](../../../docs/decisions/0031-a-shape-draws-into-a-surface.md).
+//! [`docs/model.md`](../../../docs/model.md)
 
 use crate::{Buffer, Cell, Pos, StampMode};
 
@@ -18,8 +17,7 @@ pub use line::Line;
 ///
 /// A fragment cannot inspect what lies beneath it or what a sibling has already written, because
 /// `Surface` gives it nothing to read with — see _Complete and fragment_ in
-/// [`docs/model.md`](../../../docs/model.md) and
-/// [ADR-0031](../../../docs/decisions/0031-a-shape-draws-into-a-surface.md).
+/// [`docs/model.md`](../../../docs/model.md)
 pub trait Surface {
     /// Writes `cell` at the absolute position `at`.
     fn stamp(&mut self, at: Pos, cell: Cell);
@@ -53,8 +51,7 @@ impl Surface for Layer<'_> {
 /// A value describing a figure.
 ///
 /// It draws, and answers nothing else about itself — see _Shapes_ in
-/// [`docs/model.md`](../../../docs/model.md) and
-/// [ADR-0030](../../../docs/decisions/0030-drop-extent-until-a-caller-needs-it.md). A shape is
+/// [`docs/model.md`](../../../docs/model.md). A shape is
 /// constructed where it is used, drawn, and discarded: it has no mutable state and no lifecycle,
 /// so drawing the same shape twice produces the same writes.
 pub trait Shape {
@@ -62,9 +59,9 @@ pub trait Shape {
     fn draw(&self, surface: &mut dyn Surface);
 }
 
-/// A [`Surface`] that counts writes per position, so a test can observe FR-020: no shape writes
+/// A [`Surface`] that counts writes per position, so a test can observe that no shape writes
 /// any position more than once in one drawing. Second only to [`Layer`] as an implementation of
-/// this trait, and it exists only in tests — see ADR-0031 and research.md Q8.
+/// this trait, and it exists only in tests.
 #[cfg(test)]
 pub(crate) mod counting {
     use std::collections::HashMap;

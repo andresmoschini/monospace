@@ -1,17 +1,20 @@
 # The diagram model
 
-**Status:** Design intent, not observed behavior. Nothing described here is implemented. It is
-written down first so that each feature spec can implement a slice of it and say which slice, rather
-than restating the whole model or inventing its own vocabulary. Amend it when reality contradicts
-it, and say so in the commit.
+**Status:** Written ahead of the code and kept in step with it. `monospace-diagram` implements this
+model, and where the two have parted the code is right — amend this document in the same pull
+request that fixes the gap, and say so in the commit.
+
+This model is expected to change. It records a partial understanding, not a settled one; see
+[The model moves](../CONTRIBUTING.md#the-model-moves). Write the code to match what you currently
+believe rather than waiting to understand the whole problem, because the code showing what you were
+thinking is what makes the later refactor into your next understanding a legible move.
 
 **Created:** 2026-09-14
 
 This document describes the layer above [the buffer and render model](model.md): what holds a figure
 after it has been drawn. [`model.md`](model.md) owns the buffer, the cell, stamping, glyph sets,
 rendering and shapes, and it is deliberately not extended here — the two layers are separate crates
-([ADR-0038](decisions/0038-hold-the-diagram-model-in-a-crate-above-the-core.md)) and separate
-documents for the same reason.
+and separate documents for the same reason.
 
 Where that model's every value is constructed, used and dropped, a diagram is kept. It is the source
 of truth, and the buffer becomes what it always was underneath: a working surface rebuilt from the
@@ -39,9 +42,8 @@ interactive application. Those are layers above this one.
 
 A diagram's `Shape` and the core's `Shape` share a name and are different things. The core's is a
 value that draws and answers nothing about itself; this one is stored, identified, replaced and
-reordered, and draws by constructing the core's
-([ADR-0039](decisions/0039-a-diagram-shape-is-its-own-entity.md)). Where both appear in one
-sentence, the core's is named as the core's.
+reordered, and draws by constructing the core's. Where both appear in one sentence, the core's is
+named as the core's.
 
 ## 2. The diagram
 
@@ -108,12 +110,11 @@ offsets, so it is derived from where that shape is now rather than from where it
 reference was made. Moving the referenced shape moves everything that hangs from it, which is the
 whole point of having references at all.
 
-**Only a connector's endpoint holds a reference, for now**
-([ADR-0041](decisions/0041-resolve-a-position-through-a-reference.md)). Every other shape's position
-is absolute, and _Attachment_ below is where the reference lives. A reference therefore names a box
-or a line, both positioned absolutely, or a connector, which answers no anchor point: the chain is
-one link long, nothing resolves through anything else, and no cycle can be built. Issue #89 is where
-a reference widens to any shape's position, and the cycle question belongs to it.
+**Only a connector's endpoint holds a reference, for now.** Every other shape's position is
+absolute, and _Attachment_ below is where the reference lives. A reference therefore names a box or
+a line, both positioned absolutely, or a connector, which answers no anchor point: the chain is one
+link long, nothing resolves through anything else, and no cycle can be built. Issue #89 is where a
+reference widens to any shape's position, and the cycle question belongs to it.
 
 Displacing a figure moves every position it holds. A position that is a reference has no coordinates
 to add to, so a displacement reaches its offsets instead, and displacing a connector whose endpoint
@@ -140,9 +141,9 @@ Nothing is the answer in two cases, and the model treats them as one:
 
 A shape whose position does not resolve is **not drawn**. It writes nothing, owns no position, and
 answers no anchor point of its own, so a reference to it resolves to nothing in turn. There is no
-error and no report: an unresolved reference is a normal state of a diagram being built, not a fault
-(ADR-0041). This is _Degenerate arrangements_ from [`model.md`](model.md) applied one layer up. A
-way to ask which shapes a diagram could not draw is issue #88.
+error and no report: an unresolved reference is a normal state of a diagram being built, not a
+fault. This is _Degenerate arrangements_ from [`model.md`](model.md) applied one layer up. A way to
+ask which shapes a diagram could not draw is issue #88.
 
 ## 5. Anchor points
 
@@ -150,10 +151,9 @@ A shape may offer four named points: the center of its top side, of its right si
 side and of its left side.
 
 An anchor point is an absolute position, computed from the shape's own position when it is asked
-for. **A shape answers each of them itself, and may answer none**
-([ADR-0040](decisions/0040-let-each-shape-answer-its-own-anchor-points.md)): the four are what can
-be asked, not what must exist. Answering nothing is an ordinary answer, and it is what lets a figure
-with no honest answer wait for a slice of its own rather than be given a fictional one.
+for. **A shape answers each of them itself, and may answer none:** the four are what can be asked,
+not what must exist. Answering nothing is an ordinary answer, and it is what lets a figure with no
+honest answer wait for a slice of its own rather than be given a fictional one.
 
 A **box** answers all four, from its position and its size.
 
@@ -222,8 +222,7 @@ A diagram draws into a buffer the caller gives it, and that buffer's origin and 
 It writes cells and stops there: turning them into text is the caller's, with the glyph catalog the
 caller holds. The diagram measures nothing and sizes nothing: a shape may answer no anchor point at
 all, so there is nothing to measure a canvas from, and what falls outside the window is clipped
-exactly as a stamp outside a buffer's window has always been
-([ADR-0042](decisions/0042-draw-a-diagram-front-to-back-into-a-given-window.md)).
+exactly as a stamp outside a buffer's window has always been.
 
 Shapes are visited from the front of the order to the back, and every cell is stamped with `Below`.
 By _The two orders are equivalent_ in [`model.md`](model.md), that produces the same buffer as
@@ -265,8 +264,7 @@ equal windows produces two equal buffers.
 
 ## 8. Ownership
 
-Drawing records, at every position, which shape the cell there belongs to
-([ADR-0043](decisions/0043-let-the-buffer-record-who-decided-each-cell.md)). The record lives in the
+Drawing records, at every position, which shape the cell there belongs to. The record lives in the
 buffer, beside its cells, so a drawn diagram is one thing rather than two and asking what is at a
 position is asking the buffer. What the buffer keeps is a token it never interprets; the mapping
 from that token to a `ShapeId` is the diagram's.
@@ -345,9 +343,8 @@ Forward and backward at the end they are already at do nothing.
 
 ## 11. Open questions
 
-Each of these is waiting for an answer, and the answer is prose in this document plus the ADR it
-needs. A feature spec that needs one of them answered amends this document first and then implements
-the slice.
+Each of these is waiting for an answer, and the answer is prose in this document. A change that
+needs one of them answered amends this document first and then implements the slice.
 
 - **Can a caller edit an identity after the fact?** Choosing one at the moment a shape is added is
   settled — see _Identity_ and _Changing a diagram_ — and issue #62 anticipated editing without
@@ -364,20 +361,17 @@ the slice.
   who moves several figures in a row, since each displacement belongs to one figure and the two
   compose into an arrangement nobody chose. Nothing displaces more than one figure today: there is
   no selection, no group and no consumer that moves a set. What would settle it: the first consumer
-  that displaces more than one figure at a time, which is a selection
-  ([ADR-0067](decisions/0067-displace-a-figure-holding-a-reference-by-growing-its-offsets.md)).
+  that displaces more than one figure at a time, which is a selection.
 - **Does an attachment decide the direction a connector leaves in?** Attaching to a box's right side
   and leaving leftward is expressible today and draws something nobody wants. What would settle it:
   the first slice where the caller's direction and the anchor's side are routinely the same.
 - **How big is a diagram?** Nothing measures one. The window stays the caller's either way — which
-  part of a diagram to draw is a question about a viewport, not about the content
-  ([ADR-0042](decisions/0042-draw-a-diagram-front-to-back-into-a-given-window.md)) — so what is
+  part of a diagram to draw is a question about a viewport, not about the content — so what is
   missing is a way to ask a diagram what it occupies. What would settle it: a consumer that has to
   choose a window with nothing to base it on, an exporter being the obvious one.
 - **What does a group of shapes do to this model?** Issue #58 asks for one, and groups are
   deliberately out of scope here. A group contains shapes, which is the first thing in this document
   that would want to speak about shapes generically rather than by kind.
-- **Is a diagram serializable, and in what?**
-  [ADR-0035](decisions/0035-keep-the-cli-demo-format-out-of-the-model.md) keeps the command-line
-  application's file format out of the model, and nothing here reverses that. What would settle it:
-  the first consumer that has to save a diagram rather than build one.
+- **Is a diagram serializable, and in what?** The command-line application's file format is kept out
+  of the model, and nothing here reverses that. What would settle it: the first consumer that has to
+  save a diagram rather than build one.

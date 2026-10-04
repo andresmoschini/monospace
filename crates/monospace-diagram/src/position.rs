@@ -1,7 +1,6 @@
 //! Where something stands: a point, or a side of another figure it hangs from. See the
 //! _Vocabulary_ and _Positions_ rows in
-//! [`docs/diagram-model.md`](../../../docs/diagram-model.md) and
-//! [ADR-0041](../../../docs/decisions/0041-resolve-a-position-through-a-reference.md).
+//! [`docs/diagram-model.md`](../../../docs/diagram-model.md)
 
 use monospace_core::{Orientation, Pos, Size};
 
@@ -240,7 +239,7 @@ mod tests {
         }
     }
 
-    /// User Story 1, spec's B1.1 and B1.2: `resolve` asked rather than drawn, and the offset is a
+    /// `resolve` asked rather than drawn, and the offset is a
     /// gap from the side.
     ///
     /// **Each answer is pinned against the absolute point, never against the other side of the
@@ -268,13 +267,13 @@ mod tests {
         assert_eq!(bottom.resolve(&diagram), Some(Pos { x: 1, y: 3 }));
     }
 
-    /// User Story 1, spec's B1.3, and the `assert_ne!` is the whole of it: a reference carrying no
+    /// The `assert_ne!` is the whole of it: a reference carrying no
     /// offset resolves to the point its anchor answers, and is **not** the bare point that answers
     /// it.
     ///
     /// A `resolve` that added nothing at all would pass every equality above, because each offset
     /// there is zero on the axis that would show it. Only the inequality catches that — and it
-    /// compares two `Position`s, the way 082's displacement test does, because a bare point
+    /// compares two `Position`s, because a bare point
     /// standing in the same cell is a *different position* from a reference standing on that side,
     /// and a caller may rely on telling the two apart.
     #[test]
@@ -296,7 +295,7 @@ mod tests {
         assert_ne!(on_the_side, Position::Absolute(the_side_middle));
     }
 
-    /// User Story 1, spec's B1.1: a four-by-three box at the origin answers all four of its side
+    /// A four-by-three box at the origin answers all four of its side
     /// centers, and each answer is the absolute point rather than one of the other three.
     ///
     /// Pinned by coordinates and not by a picture, because nothing draws an anchor. `{3, 1}` is not
@@ -320,7 +319,7 @@ mod tests {
         assert_eq!(the_box.anchor(Anchor::Left), Some(Pos { x: 0, y: 1 }));
     }
 
-    /// Spec's edge case: a box one cell wide and a box one cell tall, each asked for all four.
+    /// A box one cell wide and a box one cell tall, each asked for all four.
     ///
     /// Their centers coincide in pairs — and they coincide **by the general rule**, with no branch
     /// for the degenerate case. That is the whole claim: a test that only asked a four-by-three
@@ -358,7 +357,7 @@ mod tests {
         assert_eq!(one_tall.anchor(Anchor::Left), Some(Pos { x: 0, y: 0 }));
     }
 
-    /// User Story 1, spec's B1.2: a line answers the same four centers a flat box of the same extent
+    /// A line answers the same four centers a flat box of the same extent
     /// would, in both orientations.
     ///
     /// Both, because one of the two is the one an implementation gets wrong by transposition: a
@@ -401,7 +400,7 @@ mod tests {
         assert_eq!(across.anchor(Anchor::Right), Some(Pos { x: 4, y: 0 }));
     }
 
-    /// User Story 1, spec's B1.3: a connector answers none of the four, and `None` is an ordinary
+    /// A connector answers none of the four, and `None` is an ordinary
     /// answer rather than a failure — no error, no report, no panic.
     ///
     /// All four rather than one, because a match written with a default arm would answer the one it
@@ -429,7 +428,7 @@ mod tests {
         }
     }
 
-    /// User Story 1, spec's B1.1 and B1.2: a displacement moves an absolute position, and grows a
+    /// A displacement moves an absolute position, and grows a
     /// reference's offset while its identity and its anchor come back as they went in.
     ///
     /// **Rewritten rather than deleted, because one sentence of the old test is still true and only

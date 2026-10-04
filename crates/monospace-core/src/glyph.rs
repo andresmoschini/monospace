@@ -1,7 +1,5 @@
 //! Glyph rules and the catalog they are looked up in. See _Strokes, glyph sets and the catalog_
-//! in [`docs/model.md`](../../../docs/model.md), and
-//! [ADR-0013](../../../docs/decisions/0013-key-a-rule-by-stroke-per-side.md) and
-//! [ADR-0014](../../../docs/decisions/0014-collapse-glyph-sets-into-a-catalog.md) for why a key
+//! in [`docs/model.md`](../../../docs/model.md) for why a key
 //! carries a stroke per side and why there is one catalog rather than an ordered list of sets.
 
 use std::collections::HashMap;
@@ -69,7 +67,7 @@ pub struct GlyphCatalog {
 /// A row of a glyph table: a stroke name or nothing on each side, and the glyph it draws.
 ///
 /// The glyph is `&'static str` rather than `Glyph` so that no row moves when the invariant widens
-/// past one character (FR-014).
+/// past one character.
 type Row = (
     Option<&'static str>,
     Option<&'static str>,
@@ -139,7 +137,7 @@ impl GlyphCatalog {
     /// # Panics
     ///
     /// Panics if a row of the Light table is not a valid glyph. That is a bug in data this
-    /// library ships, never a condition a caller can trigger (FR-009).
+    /// library ships, never a condition a caller can trigger.
     #[must_use]
     pub fn light() -> Self {
         Self::from_rules(LIGHT.iter().map(|&(top, right, bottom, left, glyph)| {
@@ -167,61 +165,61 @@ mod tests {
     use super::{Glyph, GlyphCatalog, GlyphKey};
     use crate::Stroke;
 
-    /// _Examples_: `"│"` is one cluster and one character, so it is accepted and reads back
+    /// `"│"` is one cluster and one character, so it is accepted and reads back
     /// unchanged.
     #[test]
     fn a_single_character_is_accepted_and_reads_back_unchanged() {
         assert_eq!(Glyph::new("│").as_ref().map(Glyph::as_str), Some("│"));
     }
 
-    /// _Examples_, FR-002: empty text is not a glyph.
+    /// Empty text is not a glyph.
     #[test]
     fn empty_text_is_refused() {
         assert_eq!(Glyph::new(""), None);
     }
 
-    /// _Examples_, FR-003 then FR-012: two characters are two clusters too, so `"ab"` stays
+    /// Two characters are two clusters too, so `"ab"` stays
     /// refused once the invariant widens.
     #[test]
     fn more_than_one_character_is_refused() {
         assert_eq!(Glyph::new("ab"), None);
     }
 
-    /// _Examples_, FR-004: a control character on its own is refused.
+    /// A control character on its own is refused.
     #[test]
     fn a_control_character_is_refused() {
         assert_eq!(Glyph::new("\n"), None);
     }
 
-    /// SC-008: a zero-width joiner is a format character, not a control character, so it is
+    /// A zero-width joiner is a format character, not a control character, so it is
     /// accepted on its own even though it occupies no column.
     #[test]
     fn a_lone_format_character_is_accepted() {
         assert!(Glyph::new("\u{200D}").is_some());
     }
 
-    /// _Examples_, FR-011: `é` decomposed as `e` followed by a combining acute is two code
+    /// `é` decomposed as `e` followed by a combining acute is two code
     /// points and one cluster, so it is accepted as one glyph.
     #[test]
     fn a_cluster_built_from_several_code_points_is_accepted() {
         assert!(Glyph::new("e\u{301}").is_some());
     }
 
-    /// _Examples_, FR-011: a regional-indicator pair is one cluster, so it is accepted as one
+    /// A regional-indicator pair is one cluster, so it is accepted as one
     /// glyph.
     #[test]
     fn a_regional_indicator_pair_is_accepted() {
         assert!(Glyph::new("🇦🇷").is_some());
     }
 
-    /// _Examples_, FR-013: `"\r\n"` is one cluster by UAX #29 and is refused anyway, which is
+    /// `"\r\n"` is one cluster by UAX #29 and is refused anyway, which is
     /// why the invariant has two halves rather than one.
     #[test]
     fn a_control_character_is_refused_even_inside_one_cluster() {
         assert_eq!(Glyph::new("\r\n"), None);
     }
 
-    /// FR-018, SC-008: `é` as U+00E9 and as `e` followed by U+0301 both construct and compare
+    /// `é` as U+00E9 and as `e` followed by U+0301 both construct and compare
     /// unequal, because construction does not normalize.
     #[test]
     fn two_normal_forms_of_the_same_letter_compare_unequal() {
@@ -295,7 +293,7 @@ mod tests {
         }
     }
 
-    /// Acceptance Scenario 1.3: a key only one side holds answers from that side regardless of
+    /// A key only one side holds answers from that side regardless of
     /// union order.
     #[test]
     fn a_key_only_one_catalog_holds_answers_the_same_regardless_of_union_order() {
@@ -318,7 +316,7 @@ mod tests {
         assert_eq!(other_first.glyph(&other_key), Some(&other));
     }
 
-    /// Acceptance Scenario 1.4, SC-006: a key two catalogs both claim answers from whichever was
+    /// A key two catalogs both claim answers from whichever was
     /// given first to `union`, and reversing the order reverses the answer.
     #[test]
     fn a_key_two_catalogs_both_claim_answers_from_whichever_came_first() {

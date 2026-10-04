@@ -62,9 +62,9 @@ impl Delta {
     /// that reaches this — a displacement of a figure that holds a reference adds to the gap that
     /// reference carries, and §4 of the model is where that rule is stated.
     ///
-    /// It keeps no memory, so a displacement back does not undo a saturating one: the second half
-    /// of what the specification's saturation edge case asks, and the reason this is a function over
-    /// two values rather than anything that accumulates.
+    /// It keeps no memory, so a displacement back does not undo a saturating one: that is half of what
+    /// a saturating displacement asks, and the reason this is a function over two values rather than
+    /// anything that accumulates.
     ///
     /// `pub(crate)` because nothing outside this crate adds one delta to another — a displacement
     /// reaches an offset through [`Position::displaced_by`](crate::Position) and nowhere else.

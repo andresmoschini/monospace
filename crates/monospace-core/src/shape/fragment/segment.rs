@@ -1,6 +1,5 @@
 //! The segment fragment: a run that continues past both of its ends. See _Pieces_ in
-//! [`docs/model.md`](../../../../../docs/model.md) and
-//! [ADR-0028](../../../../../docs/decisions/0028-give-each-fragment-its-own-cell-rule.md).
+//! [`docs/model.md`](../../../../../docs/model.md)
 
 use super::run;
 use crate::cell::Side;
