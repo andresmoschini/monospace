@@ -4,17 +4,23 @@ Three, because the repository has three shapes of change and one body cannot ser
 
 | File                                                         | For                                                     | Answers                                                      |
 | ------------------------------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------ |
-| [`deciding.md`](deciding.md)                                 | Stage 1 of a feature                                    | Is this what is wanted, and is this how it will be resolved? |
-| [`building.md`](building.md)                                 | Stage 2 of a feature                                    | Does it work, and is it what was agreed?                     |
-| [`../pull_request_template.md`](../pull_request_template.md) | A change to the repository's own tooling, docs or rules | What changes, why now, and what breaks?                      |
+| [`deciding.md`](deciding.md)                                 | The **Decide** rung, first of two                       | Is this what is wanted, and is this how it will be resolved? |
+| [`building.md`](building.md)                                 | The **Decide** or **Slice** rung, last of one or two    | Does it work, and is it what was agreed?                     |
+| [`../pull_request_template.md`](../pull_request_template.md) | The **Fix** rung, and changes to the repo's own tooling | What changes, why now, and what breaks?                      |
 
 ## How the right one is reached
 
 `cargo xtask pr body` picks it, from the branch the working copy is on: `-deciding` and `-building`
-take the two files here, and anything else is a tooling change and takes the default. It writes the
-file to `target/pr-body.md` with the keyword line already appended — `Refs` for a deciding pull
-request, which does not finish the issue, and `Closes` for the other two. Fill it in, then
-`cargo xtask pr open`, which refuses a body whose sections are still empty.
+take the two files here, and anything else is a fix and takes the default. Whoever opens the branch
+chooses the suffix, so that suffix is the only thing saying which shape this is. Which suffix a
+change carries follows from the rung it is on — see
+[Starting work](../../../CONTRIBUTING.md#starting-work). It writes the file to `target/pr-body.md`
+with the keyword line already appended — `Refs` for a deciding pull request, which does not finish
+the issue, and `Closes` for the other two. Nothing enforces that the two come as a pair: a change
+can be agreed and built in one pull request, and `Closes` there reads correctly on its own. `Refs`
+is appended on the deciding branch because that is where the mistake is likely, not because the
+stage is required. Fill the body in, then `cargo xtask pr open`, which refuses a body whose sections
+are still empty.
 
 ```sh
 cargo xtask pr body        # on a feature branch; the issue number comes from the branch
@@ -40,10 +46,10 @@ sync for nothing.
 
 ## When it is opened, which is not automatic
 
-`cargo xtask pr` is typed, never triggered. Neither pull request is due when a Spec Kit command
-finishes — the deciding one waits for the sheet to be answered, which no command does, and the
-building one waits for a green `cargo xtask check`. Both moments are the maintainer's; what the tool
-removes is the part that was never a judgement, which is which body and which keyword.
+`cargo xtask pr` is typed, never triggered. Neither pull request is due automatically — the deciding
+one waits for the proposal to be agreed, which nothing does for you, and the building one waits for
+a green `cargo xtask check`. Both moments are the maintainer's; what the tool removes is the part
+that was never a judgement, which is which body and which keyword.
 
 ## Why every section stays
 
@@ -51,10 +57,13 @@ A section with nothing to say says **"None."** rather than being deleted. A miss
 an oversight and costs the reviewer a question; an explicit "None." is an answer, and for three of
 these sections it is the answer that should be there most of the time:
 
-- _Records this stage wrote_ — "None." means the slice decided nothing durable, which is the normal
-  and desirable case.
-- _Decisions taken here_ — "None, everything was on the sheet." is what a working decision sheet
-  produces, and anything else is the signal that the sheet is guessing.
+- _Docs touched_ — "None." means the slice decided nothing durable and left no reasoning behind in
+  prose. It is common and perfectly fine; a model change here is equally fine, and is described
+  under _The model moves_ in `CONTRIBUTING.md`.
+- _Decisions taken here_ — "None, everything was agreed in the deciding pull request." is what
+  working code produces when the proposal held. Anything else is not a failure of the author: stage
+  1 agrees from a partial understanding, so this stage is a normal place to find it incomplete. What
+  it asks for is the reasoning, not a clean sheet.
 - _Blast radius_ — "Nothing; it is additive." is common, and is worth stating rather than leaving to
   be inferred.
 
@@ -62,12 +71,12 @@ these sections it is the answer that should be there most of the time:
 
 Across 53 merged pull requests there is no template, and the bodies use more than twenty distinct
 headings for what is largely the same handful of ideas: _What was verified, not assumed_, _Measured,
-not assumed_, _Evidence_, _Verification_ and _Accepted on observation_ are five headings for
-principle IV. _What is here_, _What is in it_, _Scope_ and _Summary_ are four for one.
+not assumed_, _Evidence_, _Verification_ and _Accepted on observation_ are five headings for one
+rule. _What is here_, _What is in it_, _Scope_ and _Summary_ are four for one.
 
-That is the same failure the constitution already refuses elsewhere: two wordings of one thing is a
-thing that gets followed at random. Fixing it is worth more than the wording of any single section,
-which is why these three files are deliberately dull.
+That is the same failure this repository refuses elsewhere: two wordings of one thing is a thing
+that gets followed at random. Fixing it is worth more than the wording of any single section, which
+is why these three files are deliberately dull.
 
 What survives from current practice, because it was already right:
 

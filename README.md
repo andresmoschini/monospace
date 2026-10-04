@@ -8,33 +8,31 @@ text.
 
 ## Why this project exists
 
-This isn't primarily about shipping a diagramming tool. It's a deliberate exercise in learning how
-to work effectively with **Spec-Driven Development** using Claude, and in practicing solid **Rust
-architecture, design, and idioms** along the way. The diagrams are the vehicle; the process is the
-point.
+This isn't primarily about shipping a diagramming tool. It's a deliberate exercise in building a
+real library and command-line tool in **plain, well-documented Rust**, and in keeping its
+documentation honest as it grows. The diagrams are the vehicle; the craft is the point.
 
 The idea, part of the domain logic, the design and the model come from a private project of the same
 author that will not be published — see [the model](docs/model.md) for the full note. The Rust
-architecture, the implementation and the decisions recorded under `docs/decisions/` are this
-repository's own, even where some carry over an approach already worked out in that project.
+architecture, the implementation and the design notes in the source are this repository's own, even
+where some carry over an approach already worked out in that project.
 
 ## How we're building it
 
-- **Methodology:** Spec-Driven Development, iterating with Claude at every step.
 - **Language:** Rust.
 - **Cadence:** small, incremental commits. Each one aims to leave the project in a working,
   demonstrable state — no long-lived broken branches, no giant reveals.
-
-The scope, the constraints and what is deliberately left out are in
-[the constitution](.specify/memory/constitution.md).
+- **Criterion:** for each desired change, make the change easy, then make the easy change — Kent
+  Beck's rule. The unblocking is often the hard part, and a change spent only on making the next one
+  easy is a legitimate commit. "Small and incremental" describes how a commit ends, not how much it
+  is allowed to contain.
 
 ## Roadmap
 
 Core library, then a minimal CLI, then an interactive TUI, then WebAssembly, then the web app — each
 stage on a working foundation from the one before it. The phases and the capabilities the work is
 heading towards live on the [GitHub Project](https://github.com/users/andresmoschini/projects/2);
-why the CLI comes before the TUI is
-[ADR-0022](docs/decisions/0022-non-interactive-cli-before-the-tui.md).
+why the CLI comes before the TUI is a decision this project has already made.
 
 ## Current status
 
@@ -85,14 +83,17 @@ Behind that, and all of it enforced rather than merely intended:
 
 - **110** tests in `monospace-core`, **217** across the workspace.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
-  range too wide to assert by hand, so a change to it is
-  [reported](docs/decisions/0053-report-a-characterization-instead-of-reviewing-it.md) rather than
-  reviewed.
-- An **eleven**-step quality gate the pre-commit hook and CI run identically, including the check
-  that keeps every crate but the CLI compiling for WebAssembly, so stage 4 stays reachable instead
-  of becoming a rewrite.
+  range too wide to assert by hand, so a change to it is reported rather than reviewed.
+- A **twelve**-step quality gate, run identically by the `pre-commit` hook and by CI — including the
+  check that keeps every crate but the CLI compiling for WebAssembly, so stage 4 stays reachable
+  instead of becoming a rewrite.
 
 Still missing, and named here rather than implied: an editing surface, the TUI, and persistence.
+
+The model behind all of this is provisional, and is meant to move. It records a partial
+understanding written before the code that implements it, and it is amended whenever reality
+contradicts it — see [the model moves](CONTRIBUTING.md#the-model-moves). The domain vocabulary is
+ours to rename as the understanding changes, so nothing here should be read as a settled design.
 
 ## Getting started
 
@@ -105,8 +106,6 @@ cargo run -p monospace-cli -- path/to.json      # one picture, for the descripti
 cargo xtask check                               # the whole quality gate
 ```
 
-A description is JSON: a canvas and a list of shapes, documented in
-[the format's contract](specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md).
 `monospace-cli` holds no domain logic of its own — it turns a description into a `Diagram` and draws
 it.
 
@@ -115,22 +114,21 @@ what to do when one fails.
 
 ### Layout
 
-| Path                          | What it is                                                      |
-| ----------------------------- | --------------------------------------------------------------- |
-| `crates/monospace-core`       | The library. All domain logic lives here, and nothing else.     |
-| `crates/monospace-diagram`    | The model: a diagram as an ordered set of shapes, drawable.     |
-| `crates/monospace-glyph-sets` | The glyph tables the core does not ship as built-in data.       |
-| `crates/monospace-cli`        | The command-line application. Holds no logic of its own.        |
-| `xtask/`                      | Repository automation. `cargo xtask check` is the gate.         |
-| `docs/model.md`               | The domain's design, its provenance, and its open questions.    |
-| `docs/decisions/`             | Why things are the way they are, recorded as they were decided. |
+| Path                          | What it is                                                   |
+| ----------------------------- | ------------------------------------------------------------ |
+| `crates/monospace-core`       | The library. All domain logic lives here, and nothing else.  |
+| `crates/monospace-diagram`    | The model: a diagram as an ordered set of shapes, drawable.  |
+| `crates/monospace-glyph-sets` | The glyph tables the core does not ship as built-in data.    |
+| `crates/monospace-cli`        | The command-line application. Holds no logic of its own.     |
+| `xtask/`                      | Repository automation. `cargo xtask check` is the gate.      |
+| `docs/model.md`               | The domain's design, its provenance, and its open questions. |
 
 ## Guiding principles
 
-Process over product, demonstrable increments, and claims that are measured rather than assumed.
-Seven of them, stated as rules a plan can be checked against, are in
-[the constitution](.specify/memory/constitution.md) — which is where they are enforced from, not
-merely listed.
+Claims are measured rather than assumed, and the two that can be are enforced on every commit: a
+picture in a tracked document is either generated from a description the file carries or labelled
+hypothetical, and a change to one is reported by `cargo xtask render` rather than reviewed. The rest
+are habits the pull request body asks about.
 
 ## License
 
@@ -141,5 +139,5 @@ distribute the code freely, with only the requirement to include the original co
 
 ---
 
-_This project is a learning journey as much as a piece of software. Expect the specs, the code, and
-this README to evolve together._
+_This project is a learning journey as much as a piece of software. Expect the code and this README
+to evolve together._

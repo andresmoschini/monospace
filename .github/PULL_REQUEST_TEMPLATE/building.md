@@ -3,15 +3,18 @@
      heading here renders oversized on GitHub. Every other rule still applies. -->
 
 <!--
-  Stage 2 of 2 — BUILDING. Branch `NNN-slug-building`, issue label `building`.
-  Contains plan.md, the design artifacts, tasks.md, the code and the tests.
+  The BUILDING stage, and the last one of one or two. Branch `NNN-slug-building`. Contains the code and
+  the tests, and completes the spec.
 
   Opened once `cargo xtask check` is green: `cargo xtask pr body`, fill it in,
   `cargo xtask pr open`. The keyword is appended for you, and here it is `Closes`.
 
   This body answers one question: "does it work, and is it what was agreed?"
-  It does not restate the decisions — those merged in stage 1 and the reviewer read them there.
-  Every section stays; one with nothing to say says "None."
+  It does not restate the decisions — where there was a stage 1 they merged there and the reviewer
+  read them. A slice has no stage 1: what it was agreed against is already in the model, in `main`.
+  Where building them showed a decision was wrong, say so here rather than quietly building the
+  agreed thing: a stage-1 proposal is a partial understanding, and this stage is allowed to correct
+  it. Every section stays; one with nothing to say says "None."
 
   Ceiling: 80 lines. Render blocks and the sweep report's examples do not count.
 -->
@@ -32,8 +35,8 @@
 ## The sweep
 
 <!-- Where a characterization moved: how many cases, in which families, and three representative
-     examples with before and after. Per the constitution's Testing section, this report is what is
-     read — the file is not, and is not claimed to be reviewed.
+     examples with before and after. This report is what is read — the file is not, and is not
+     claimed to be reviewed.
 
      "Unchanged." is the expected answer for a structural commit. -->
 
@@ -44,28 +47,42 @@
 
 <!-- The honest section, and the one that keeps stage 1 meaningful.
 
-     "None — everything was on the sheet." is the answer this should have. Anything else means a
-     decision escaped the sheet, and it needs: what it was, why it could not have been foreseen,
-     and whether it was brought back to the maintainer before being taken. That is information, not
-     an accusation: a sheet that is never wrong is a sheet that is guessing. -->
+     Stage 1 agreed a proposal written from a partial understanding, so building it is a normal
+     place to learn something was wrong. That is not an escape and not an accusation — it is what
+     "make the change easy, then make the easy change" looks like when the unblocking turns out to
+     be a model change.
 
-## Records touched
+     "None — everything was agreed in the deciding pull request." is still a fine answer, and the
+     right one when the proposal held. Anything else needs: what was decided, why it could not have
+     been foreseen, and whether it came back to the maintainer before being taken. Say also what
+     made the change easy, if the answer is that something was made easy first. -->
 
-<!-- ADRs created or revised, with `scope` and `commitment`. Design notes added to a module's
-     rustdoc. Changes to docs/model.md — which should be rare here, since stage 1 owns the model.
-     A model change appearing for the first time in this stage is worth explaining. -->
+## Docs touched
+
+<!-- Design notes added to a module's rustdoc, and changes to docs/model.md or
+     docs/diagram-model.md.
+
+     A model change is expected here, not an escape — see "The model moves" in CONTRIBUTING.md.
+     The code is what proved the model wrong, so the prose saying otherwise would ship in the same
+     pull request. Say what changed and why the new understanding is the better one. -->
+
+## The spec
+
+<!-- Where `specs/NNN-slug.md` stands after this pull request. On the common path it is a flip of
+     the status line and nothing else: the code is what was decided, so say so.
+
+     When building the decisions showed that one of them was wrong, say what changed, why it could
+     not have been foreseen, and whether it came back to the maintainer before it was taken — then
+     flip the status to `the code revised it`. The gate refuses a spec that claims a revision and
+     leaves the section empty, so this and the section are one step.
+
+     "None." when there was no spec to begin with, which is every Fix and every Slice. -->
 
 ## Test plan
 
-<!-- What proves each behaviour rule, named against the spec's rule. Say which are contract tests
+<!-- What proves each behaviour rule, named against the rule. Say which are contract tests
      and which are characterization. A rule with nothing against it is named as such rather than
-     described as tested (principle IV). -->
-
-## Constitution check
-
-<!-- Only what this stage puts at risk. Include: structural and behavioural commits kept separate
-     (V), the learning-log entry if this closes an increment (II), and the ceilings —
-     plan.md N/80, ADRs N/60 or N/150. -->
+     described as tested. -->
 
 ## Worth a reviewer's attention
 

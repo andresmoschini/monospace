@@ -4,9 +4,7 @@
 
 <!--
   Not a feature. A change to the repository's own tooling, its documents or its rules: xtask, the
-  gate, CI, CONTRIBUTING.md, the constitution, an ADR on its own. Per the constitution's
-  _Spec Kit is the workflow_, it takes an ADR and commits, and MUST NOT take a spec directory or a
-  stage branch.
+  gate, CI, CONTRIBUTING.md, a document that nothing else reads. No issue, no staged branch.
 
   Opened with `cargo xtask pr body <issue>`, filled in, then `cargo xtask pr open`. A
   tooling branch carries no issue number, which is why this one takes it as an argument.
@@ -23,16 +21,15 @@
 <!-- What forced it. A tooling change with no forcing reason is a preference, and a preference is
      worth saying out loud so it can be argued with. -->
 
-## The record
+## Why this way
 
-<!-- The ADR, with its `scope` and `commitment`. Where this revises an existing record in place —
-     the `exploratory` case — link it and say what the revision changed. Where it amends the
-     constitution, give the version bump and why it is MAJOR, MINOR or PATCH. "None, and here is
-     why it needs none." is a valid answer: not everything is a decision. -->
+<!-- What was decided here, what alternatives were considered and not taken, and what is
+     reversible. "None, and here is why it needs none." is a valid answer: not everything is a
+     decision. -->
 
 ## Verified
 
-<!-- Principle IV. What was run, and what was observed — not what is expected to happen. For a new
+<!-- What was run, and what was observed — not what is expected to happen. For a new
      gate step: the run where it was made to fail on purpose, and the run where it was restored.
      For a change to xtask: the commands exercised. -->
 
