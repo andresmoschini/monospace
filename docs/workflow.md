@@ -127,8 +127,8 @@ cargo xtask change open 170 deciding
 
 It fetches, reads the issue title with `gh`, derives the slug from it in kebab-case up to forty
 characters, pads the number to three digits, creates the branch linked to the issue with
-`gh issue develop`, checks it out, and prints four lines: where the spec will live, the branch, the
-stage, and what to do next.
+`gh issue develop`, checks it out, and prints what the next two steps need: where the spec will
+live, the branch, the stage, and what to do next.
 
 **It writes no spec file.** That is deliberate: a template emitted here would be a file nobody has
 agreed to, which is the same thing as a draft nobody is writing. The spec is the deciding pull
@@ -148,15 +148,12 @@ cargo xtask change open 170            # a change of one stage, and no spec file
 ```
 
 All three link the branch to the issue, so the issue's page lists it and the name is not the only
-record of which issue it carries.
+record of which issue it carries. For a change of one stage the printed block is one line shorter,
+because there is no `Spec:` line to print: a path that will never exist is worse than no line.
 
-Asked as an instruction it is one line, and the four lines the command prints are what the next two
-steps need — where the spec goes, which branch, and what to do next:
+Asked as an instruction it is one line:
 
 > Open the deciding stage for #170 with `cargo xtask change open 170 deciding`.
-
-For a change of one stage the block is one line shorter, because there is no `Spec:` line to print:
-a path that will never exist is worse than no line.
 
 ### 4. Read the model before deciding anything
 
@@ -342,9 +339,10 @@ answered before it lands:
 gh pr merge 171 --squash --delete-branch
 ```
 
-Deleting the deciding branch here is not housekeeping. `cargo xtask change use 170 building` names
-the stage it is switching to, so a deciding branch left behind is an ambiguity it reports rather
-than a branch it puts you on.
+Deleting the deciding branch here is what makes `cargo xtask change use 170` able to choose: while
+both are there, a change of two stages has two branches and the command reports the ambiguity rather
+than picking one. Nothing requires the deletion — `cargo xtask change use 170 building` names the
+stage — and nothing is gained by keeping the branch either.
 
 ### 9. Open the building branch
 
@@ -358,13 +356,12 @@ One command for the whole step. It fetches, reads the slug back from `specs/170-
 `origin/main` rather than from the issue's title — which is why the deciding merge has to have
 happened and why renaming an issue never renames the branch — refuses if the deciding pull request
 has not merged or the merged spec still reads `_pending_`, creates the branch from `origin/main`,
-pushes it with an upstream, and prints the same four lines step 3 printed.
+pushes it with an upstream, and prints the same block step 3 printed.
 
 `cargo xtask change use 170` puts a clone on whichever of the change's branches there is only one
-of, and reports the ones there are more of rather than picking: after the deciding merge the
-deciding branch is still there until it is deleted, so the two-stage change has two branches and
-only one of them is the one anybody wants. `cargo xtask change use 170 building` is the unambiguous
-form.
+of, and reports the ones there are more of rather than picking.
+`cargo xtask change use 170 building` is the unambiguous form, and the one to reach for while the
+deciding branch is still around.
 
 **How.** One sentence to an agent, and it does not need the branch name spelled out because the
 command derives it from the merged spec:
