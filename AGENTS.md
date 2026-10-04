@@ -43,8 +43,9 @@ read back from `specs/NNN-slug.md` afterwards. Renaming an issue does not rename
 1. **An issue.** Two or three sentences: a title and what is wanted. Not acceptance criteria — those
    are what the spec is for. What surfaces mid-change and opens future work is another issue, never
    a section of the current spec.
-2. **A branch.** `cargo xtask spec new <issue>` derives the slug, links the branch to the issue and
-   checks it out.
+2. **A branch.** `cargo xtask change open <issue>` with no stage, or with the stage the change has:
+   `cargo xtask change open <issue> deciding`. It derives the slug, links the branch to the issue
+   and checks it out.
 3. **Settle the question by reading the model.** `docs/model.md` and `docs/diagram-model.md` are the
    design. If the slice needs a rule the model does not have, the model changes first, in the same
    increment. A spec names the sections it implements or amends and does not restate them.
@@ -60,16 +61,18 @@ read back from `specs/NNN-slug.md` afterwards. Renaming an issue does not rename
 ## Commands
 
 ```sh
-cargo xtask check          # the whole quality gate; the hook and CI run this and nothing else
-cargo xtask fix            # every automatic fix the gate knows about
-cargo xtask setup          # install the Node tooling the gate needs
-cargo xtask render         # rewrite every picture a tracked document carries, from its description
-cargo xtask spec new 163   # open the deciding stage for an issue
-cargo xtask spec use 163   # check out the branch of an issue's open stage
-cargo xtask pr body        # write target/pr-body.md; fill it, then `cargo xtask pr open`
-cargo run -p monospace-cli # run the application; a bare `cargo run` is ambiguous
-cargo test --workspace     # tests only, for a faster loop
-cargo insta review         # accept a moved snapshot; report what moved first
+cargo xtask check                   # the whole quality gate; the hook and CI run this and nothing else
+cargo xtask fix                     # every automatic fix the gate knows about
+cargo xtask setup                   # install the Node tooling the gate needs
+cargo xtask render                  # rewrite every picture a tracked document carries, from its description
+cargo xtask change open 163         # open the branch of a change of one stage
+cargo xtask change open 163 deciding # open the deciding stage, for a change of two stages
+cargo xtask change use 163 building # check out the branch of one stage of an issue
+cargo xtask change status 163       # where the change stands, and what to do next
+cargo xtask pr body                 # write target/pr-body.md; fill it, then `cargo xtask pr open`
+cargo run -p monospace-cli          # run the application; a bare `cargo run` is ambiguous
+cargo test --workspace              # tests only, for a faster loop
+cargo insta review                  # accept a moved snapshot; report what moved first
 ```
 
 `xtask` has **no dependencies, deliberately**: it guards the dependency policy, so it must not be

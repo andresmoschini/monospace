@@ -40,15 +40,21 @@ it nothing checks your commits until CI does.
 ## Everyday commands
 
 ```sh
-cargo xtask check          # the whole quality gate, about 3.5 seconds
-cargo xtask fix            # apply every automatic fix the gate knows about
-cargo xtask render         # rewrite the pictures documents carry, from the descriptions beside them
-cargo xtask spec new 163   # open the deciding stage for issue #163
-cargo xtask spec use 163   # put this clone on the open branch of issue #163
-cargo xtask pr body        # write the pull request body this branch calls for
-cargo run -p monospace-cli # run the command-line application
-cargo test --workspace     # tests only, when you want a faster loop
+cargo xtask check                   # the whole quality gate, about 3.5 seconds
+cargo xtask fix                     # apply every automatic fix the gate knows about
+cargo xtask render                  # rewrite the pictures documents carry, from the descriptions beside them
+cargo xtask change open 163         # open the branch of a change of one stage
+cargo xtask change use 163 building # check out the branch of one stage of issue #163
+cargo xtask change status 163       # where issue #163 stands, and what to do next
+cargo xtask pr body                 # write the pull request body this branch calls for
+cargo run -p monospace-cli          # run the command-line application
+cargo test --workspace              # tests only, when you want a faster loop
 ```
+
+The stage is the suffix the branch carries: `deciding`, `building`, or nothing at all for a change
+of one stage. Which one applies is the answer to the question in step 2 of
+[`docs/workflow.md`](docs/workflow.md), so it is given rather than guessed —
+`cargo xtask change open 163 deciding` is the form that takes it.
 
 ## The quality gate
 
