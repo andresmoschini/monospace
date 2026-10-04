@@ -238,11 +238,10 @@ the drawing: it is the only rule that keeps anything at all in a cell mixing thr
 three-stroke set exists. What it costs is that the answer then depends on which sets happen to be
 loaded, so adding one can redraw cells that had nothing to do with it, and _why that character?_
 becomes _because the search found this combination first_. A fallback stroke declared per stroke,
-substituted along a chain before the base stroke, was declined for the mirror of that reason: it
-introduces an ordering question that does not otherwise exist, since the chain and the base stroke
-could each go first and the two give different characters for the same cell. Both stay available —
-the search is an addition around the same two lookups, and the chain is a map consulted before them
-— and nothing in the buffer, the cell or the tables changes to adopt either.
+substituted along a chain before the base stroke, was declined for the mirror of that reason, and
+_Deliberately unresolved_ sets out what it costs. Either stays available additively: the search is
+an addition around the same two lookups, the chain a map consulted before them, and nothing in the
+buffer, the cell or the tables changes to adopt either.
 
 "No glyph" and "no cell" produce the same thing: a space in the text output and, in the coordinate
 output that may come later, a position simply not emitted. With the single-stroke sets complete,
@@ -492,9 +491,7 @@ not.
   ordering question that does not otherwise exist, since the chain and the base stroke could each go
   first and the two give different characters for the same cell, and the discipline it needs —
   declaring a chain only for a genuine variant — cannot be checked by anything. It would come back
-  if a second variant stroke were declared and copying whole tables again became the cost, and
-  coming back is additive: the chain is a map consulted before the two lookups, and nothing in the
-  buffer, the cell or the tables changes to adopt it.
+  if a second variant stroke were declared and copying whole tables again became the cost.
 - **Text and diagonals.** Out of the model, not merely out of the first slice. Connectors were on
   this list until _Shapes_ was written and are not on it any more.
 - **A coordinate-and-glyph output**, as an alternative to the string.

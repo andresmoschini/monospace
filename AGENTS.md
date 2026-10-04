@@ -1,7 +1,6 @@
 # AGENTS.md
 
-OpenCode reads this file at the start of every session. `CLAUDE.md` used to be the other client's
-entry point and does not exist any more, which makes this file and `CONTRIBUTING.md` **the two only
+OpenCode reads this file at the start of every session. It and `CONTRIBUTING.md` are **the two only
 entry points**: a session that reads neither has no rules at all, so any rule worth having is in one
 of the two, not in a file one of them points at.
 
@@ -90,59 +89,22 @@ the first thing to bend it. Orchestrating subprocesses and propagating exit code
 - **Toolchain.** Rust edition 2024, pinned exactly in `rust-toolchain.toml` with its components and
   the `wasm32-unknown-unknown` target; no nightly-only features. Node, at the version in `.nvmrc`,
   backs the checks Rust cannot perform.
-- **A rewriting commit runs the gate on every rewritten commit, not only the tip.** `git rebase` and
-  `git cherry-pick` do not fire the hook, and a commit that was green before the rewrite may have
-  been green by accident.
-- **A new gate step must be shown to break something when it is taken out.** An entry that changes
-  nothing in silence permits errors. The two steps here that are easiest to doubt are `numbering` —
-  two specs claiming one number — and `specs` — a renamed heading.
-- **`git commit --no-verify` is never used.** A bypassed gate is worse than no gate: the log then
-  claims a green history that was never checked.
 
 ## Habits the gate cannot check
 
-- **Do not add a dependency without asking the maintainer**, and report the version and its
-  publication date — at least seven days old. Domain logic prefers the standard library;
-  infrastructure concerns prefer idiomatic, well-established crates over reinvention.
-- **Do not batch a structural change with a behavioral one.** `refactor` for the first, `feat`/`fix`
-  for the second, never mixed. Large refactors go expand/contract, each step green and committed
-  separately.
 - **Say it in the first paragraph when the code and a document disagree.** Do not reconcile
   silently, and do not change code to match a document without asking which of the two is wrong.
-- **A moved snapshot is a question, not a failure.** Report how many cases moved, in which families,
-  and three examples with before and after — not a claim of review that nobody can keep.
 - **Do not argue that changing something repeatedly is expensive.** Where that is true the cost is
   paid by a test, a migration or a public API, and written there.
-- **A character of dialogue is not a decision.** Default a decision to module-level, into that
-  module's rustdoc, and promote it in the increment that makes something outside able to observe it.
-  The test: _if this changes, must anything outside this module change with it?_
 
 ## Facts that are in the code and in no document
 
-- **A gate step passes or fails on its exit code alone.** `rustfmt` reports that `group_imports`
-  needs nightly and exits 0; Cargo reports a missing `workspace.resolver` and exits 0. The gate
-  notices neither, by deliberate choice — **watch the output rather than trusting a green run.**
-- **The gate refuses to start when the installed Node tree does not match `package-lock.json` by
-  content**, not by timestamp. Editing either means running `cargo xtask setup` again, or nothing is
-  checked at all. `xtask/src/main.rs`, `node_tooling_state`.
-- **`render`, `numbering` and `specs` read `git ls-files`, so they read the index, not the working
-  tree.** A new file that has not been `git add`ed is invisible to all three, and a deletion that
-  has not been staged still breaks `render`. Stage deletions before running the gate.
 - **The `wasm` step compiles three crates, not one**: `monospace-core`, `monospace-diagram` and
-  `monospace-glyph-sets`. It is what keeps the core free of terminal assumptions, so a `std::io` or
-  `std::process` reach in the core fails there even where it works locally.
+  `monospace-glyph-sets`. A `std::io` or `std::process` reach in the core fails there even where it
+  works locally.
 - **`monospace-cli` has two modes, and `render` depends on the split.** Bare, it prints the
   demonstration; given a path, it prints one picture and nothing else, because a rendering that goes
   into a Markdown fence cannot arrive wrapped in prose. Do not add output to the path form.
-- **Contract and characterization snapshots are separated by directory, not by naming** —
-  `insta::Settings::set_snapshot_path`.
-- **Prettier owns the width, at 100 columns, and it reflows rather than refusing.** Rewording a
-  paragraph to shorten it buys nothing: the words return on the next `cargo xtask fix`. Meeting an
-  artifact ceiling means deleting content or splitting the change.
-- **`cargo insta review` needs `cargo-insta`, which `cargo xtask setup` does not install** — `setup`
-  is `npm ci` and nothing else. Install it by hand.
-- **The gate does not resolve cross-file links.** A link to a file that does not exist passes
-  markdownlint. A dangling link is therefore invisible until someone clicks it.
 
 ### Two plugins, and what a harness needs to know
 
@@ -160,9 +122,9 @@ in either is silent — check that they loaded before assuming either works.
 - **A reload unloads a plugin without warning.** Anything that checks out these files, a rebase
   among them, drops both until they load again, and a session that loses `session-trailer.js` loses
   the variable with it.
-- **`OpenCode-Session` and `Claude-Resume` are separate trailer keys on purpose**: neither client's
-  id resumes the other. `commit-msg` reads `MONOSPACE_SESSION_ID` and `CLAUDE_CODE_SESSION_ID`. A
-  commit made outside an agent shell correctly carries neither.
+- **The trailer key differs by client and the hook reads both.** `commit-msg` reads
+  `MONOSPACE_SESSION_ID` and `CLAUDE_CODE_SESSION_ID`; a commit made outside an agent shell
+  correctly carries neither.
 
 ## Running a session
 

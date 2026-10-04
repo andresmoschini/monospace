@@ -20,9 +20,9 @@
        claims a green history that was never checked. Where the hooks are not installed,
        `cargo xtask check` is run by hand before each commit, which is the same guarantee.
 
-     Where the change renders something, the marker is written `render:` followed by a colon and
-     the description — copy it from CONTRIBUTING.md rather than typing it out, because a comment
-     here that spells the whole marker would be closed early by whatever reads these prompts. -->
+     Where the change renders something, the marker is written `render:` and the description follows
+     it — copy it from CONTRIBUTING.md rather than typing it out, because a comment here that
+     spells the whole marker would be closed early by whatever reads these prompts. -->
 
 ## What changes
 

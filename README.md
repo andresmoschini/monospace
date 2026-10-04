@@ -116,9 +116,6 @@ A description is JSON: a canvas and a list of shapes, documented by the module t
 `crates/monospace-cli/src/description.rs`. `monospace-cli` holds no domain logic of its own — it
 turns a description into a `Diagram` and draws it.
 
-[CONTRIBUTING.md](CONTRIBUTING.md) covers all of it properly, including what each check owns and
-what to do when one fails.
-
 ### Layout
 
 | Path                          | What it is                                                   |

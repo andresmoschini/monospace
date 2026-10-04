@@ -210,8 +210,8 @@ it merges:
 5. **Coverage gaps.** **A rule of `## Behavior` with nothing in `## What proves it`** — the same
    defect the old pipeline found as _requirements with zero associated tasks_, pointing at the file
    that exists now. Also: something in `## What proves it` that no rule needs.
-6. **Inconsistency.** The same concept named two ways, or an entity the plan mentions that the spec
-   never introduces.
+6. **Inconsistency.** The same concept named two ways, or an entity the spec mentions that it never
+   introduces.
 
 **When you ask a question, never use a topic label, a section heading or a requirement id as the
 question itself.** `## Behavior` is not a question; _"does a reference's offset grow when its figure
@@ -233,13 +233,6 @@ Classify every one rather than listing it. The classification says what kind of 
 - **`unrequested`** — the code does something nobody asked for. **This is not automatically a
   defect**: it may be the better answer, in which case it is a decision to take and record, not a
   bug to fix silently.
-
-**What a checklist is, when one gets written.** A checklist is a unit test for requirements writing,
-not a progress report: each item is a claim about what a spec has to contain, and the mark on it
-means _a reviewer judged the quality of that requirement_, not that the work was delivered. That
-distinction is the whole reason the old ones went — 804 marked, 0 unmarked, and nobody reading them
-to find out what was left. **If you find yourself ticking boxes to show progress, the thing you want
-is the pull request's `## Verified` section.**
 
 ## Draw the case
 
@@ -341,10 +334,11 @@ and orchestrating subprocesses and propagating exit codes is `std`'s job.
 
 ### What is in scope
 
-Four crates, and their boundary is the rule above: `monospace-core`, the library holding the
-diagramming logic; `monospace-cli`, a minimal non-interactive consumer producing diagrams from the
-terminal; `monospace-glyph-sets`, the glyph sets the core does not ship; and `monospace-diagram`,
-the model holding a diagram after it is drawn.
+Four crates, and the boundary is that `monospace-core` holds all the domain logic while the other
+three hold none of it, and the core's public API may not assume a CLI, a TUI or a terminal:
+`monospace-core`, the library; `monospace-cli`, a minimal non-interactive consumer producing
+diagrams from the terminal; `monospace-glyph-sets`, the glyph sets the core does not ship as
+built-in data; and `monospace-diagram`, the model holding a diagram after it is drawn.
 
 **A plan proposing any of these is stopped and renegotiated rather than quietly widened:**
 WebAssembly bindings, a web front-end, non-terminal GUIs, persistence, collaboration, and export
@@ -377,7 +371,7 @@ safety net into a reason not to look.
 ## Where the reasoning lives
 
 Three homes, and the test that picks between them is the one in _Settle the question by reading the
-model_: _if this changes, must anything outside the module that implements it change with it?_
+model_.
 
 - **The module's rustdoc, under `Design notes`,** owns every module-level decision. This is the
   default home, not the fallback. It says why the module is the way it is, what was considered and
@@ -388,11 +382,9 @@ model_: _if this changes, must anything outside the module that implements it ch
 - **The pull request body** owns what was considered and not taken, for the change it belongs to.
   The `## The decision` section is that record.
 
-**A numbered record per decision is deliberately not one of the homes**, and this is the
-justification for deleting 71 of them. _A number that nothing checks is a number that drifts from
-the code it points at, and a citation to a file that does not exist is worse than none_ — it looks
-like a reason and answers nothing. The record survived its subject, the subject moved, and nothing
-failed on any commit in between.
+**A numbered record per decision is deliberately not one of the homes.** _A number that nothing
+checks is a number that drifts from the code it points at, and a citation to a file that does not
+exist is worse than none_ — it looks like a reason and answers nothing.
 
 **An artifact does not restate what another already says; it cites it by name.** A paragraph that
 would change nobody's decision if it were deleted is deleted. That is why `CONTRIBUTING.md` and
@@ -492,18 +484,3 @@ file that does not exist, passes the gate.
 [Issue #13](https://github.com/andresmoschini/monospace/issues/13) tracks closing that. Until it is
 closed, **a dangling link is invisible until somebody clicks it**, which makes fixing the ones a
 change creates part of writing the change.
-
-## Specs 0001 to 0005, and what is in git
-
-The eight-file Spec Kit flow this replaces, and the numbered decision records it used, are not
-carried forward. They are in git:
-
-```sh
-git show main:specs/006-give-a-glyph-a-type/spec.md
-git show main:docs/decisions/0052-show-the-rendering.md
-```
-
-Their reasoning was read and moved rather than dropped: into the rustdoc of the modules that hold
-it, into the two model documents, and into the pull request bodies where the decisions were taken.
-What did **not** move is named in the pull request that deleted them, so that each absence is a
-decision and not a forgetfulness.

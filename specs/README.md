@@ -9,11 +9,6 @@ change with one defensible answer is a branch and a pull request, and the pull r
 record. See [`docs/workflow.md`](../docs/workflow.md) for why, and
 [`CONTRIBUTING.md`](../CONTRIBUTING.md) for the commands.
 
-The specs written under the eight-file Spec Kit flow are in git and are not carried forward:
-`git show main:specs/006-give-a-glyph-a-type/spec.md` reads one. Their reasoning is in the rustdoc
-of the modules that hold it, in [`docs/model.md`](../docs/model.md), and in the pull request bodies
-that decided them.
-
 ## What a spec is not
 
 - **Not a design document.** The design is [`docs/model.md`](../docs/model.md) and
@@ -24,9 +19,8 @@ that decided them.
   and a decision that outlives the change it was taken for belongs in the rustdoc of the module that
   depends on it. A spec follows the model; it does not redefine it.
 - **Not a task list.** It describes the end state, not the order of the work. **There are no task
-  checkboxes in this repository.** They were measured at 804 marked and 0 unmarked across 9,187
-  lines, which is a list of work nobody reads to find out what is left to do — the pull request says
-  that.
+  checkboxes in this repository**, and [`docs/workflow.md`](../docs/workflow.md) sets out what
+  happened to the ones there were.
 
 ## Frontmatter
 
