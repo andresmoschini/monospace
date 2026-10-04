@@ -327,14 +327,22 @@ fn empty_sections(body: &str) -> Vec<String> {
         let indented_by = line.len().saturating_sub(trimmed.len());
 
         // A fence is a fence whatever sits inside it. Only a fence at the left margin opens one,
-        // and only a bare fence closes it — the same rule CommonMark states and markdownlint
-        // applies, because it is what decides where a picture in an example ends.
+        // and only a bare fence at least as long closes it — the same rule CommonMark states and
+        // markdownlint applies, because it is what decides where a picture in an example ends.
+        //
+        // What is remembered is the fence's own width, counted in backticks. It used to be the
+        // length of what followed the opening ```, which is the info string: ````text` recorded
+        // four, and the bare ````` that should have closed it offered none, so `4 <= 0` was
+        // false and a fence with an info string never closed. Every line after it was then read as
+        // fence content, so a body carrying the picture the template asks for passed with every
+        // section after the picture empty.
         if indented_by <= 3 && trimmed.starts_with("```") {
-            let after = &trimmed[3..];
+            let width = trimmed.chars().take_while(|c| *c == '`').count();
+            let after = trimmed[width..].trim();
             match open_fence {
-                Some(width) if width <= after.len() && after.trim().is_empty() => open_fence = None,
+                Some(open) if open <= width && after.is_empty() => open_fence = None,
                 Some(_) => {}
-                None => open_fence = Some(after.len()),
+                None => open_fence = Some(width),
             }
             fill_last(&mut sections);
             continue;
@@ -604,6 +612,9 @@ mod tests {
     /// A `<!--` inside a fence has no closing `-->` in it, and the comment stripper used to carry
     /// that open for the rest of the document: every section after the fence was invisible and the
     /// check passed. A body carrying a generated picture is exactly this shape.
+    ///
+    /// The section after the fence is left empty on purpose. A filled one cannot tell a fence that
+    /// closed from one that never did, because both leave the same sections filled.
     #[test]
     fn an_unclosed_comment_inside_a_fence_does_not_swallow_the_rest() {
         let body = "## What changes\n\
@@ -612,10 +623,8 @@ mod tests {
                     <!-- render:\n\
                     ```\n\
                     \n\
-                    ## Why now\n\
-                    \n\
-                    None.\n";
-        assert!(empty_sections(body).is_empty());
+                    ## Why now\n";
+        assert_eq!(empty_sections(body), vec!["Why now"]);
     }
 
     /// A `## ` inside a fence is part of an example, not a section of the body. Counting it would
@@ -655,20 +664,21 @@ mod tests {
 
     /// A longer fence closes only on a fence at least as long, which is the rule that keeps a
     /// nested example from ending its own block.
+    ///
+    /// The `## not a section` sits inside the outer fence and the section after it is left empty,
+    /// so the answer distinguishes the two ways this can go wrong: a fence that closed on the inner
+    /// ``` would turn that heading into a tenth section, and a fence that never closed would carry
+    /// the outer one over `## Why now` and report nothing.
     #[test]
     fn a_fence_is_closed_only_by_one_at_least_as_long() {
         let body = "## What changes\n\
                     \n\
                     ````markdown\n\
-                    ```text\n\
-                    +---+\n\
-                    ```\n\
+                    ## not a section\n\
                     ````\n\
                     \n\
-                    ## Why now\n\
-                    \n\
-                    None.\n";
-        assert!(empty_sections(body).is_empty());
+                    ## Why now\n";
+        assert_eq!(empty_sections(body), vec!["Why now"]);
     }
 
     /// A comment marker in ordinary prose does open a comment, and one that is never closed swallows
