@@ -6,6 +6,11 @@ job and which is an agent's. `AGENTS.md` holds the same flow as a table of rules
 holds the commands, and this is the two of them read as a procedure — for the change in front of you
 rather than in the abstract.
 
+**Most steps end in a _How_.** That is the part that makes the step usable: the command where there
+is one, and otherwise a worked instruction you can send an agent or type yourself. The examples are
+examples, not the only way — the two-stage form below is followed by the same issue taken as a
+one-stage change, and nothing in the flow requires an agent at all.
+
 Read the shape your change has and skip the rest. **The one-stage form is the two-stage form with
 the first stage collapsed**, and the delta is five lines.
 
@@ -62,11 +67,44 @@ the change and opens future work is **another issue**, never a section of the cu
 
 The issue's number becomes the branch name and the spec's name, and it is derived once, here.
 
+**How.** From a terminal, or by hand on the issue page — the two produce the same thing:
+
+```sh
+gh issue create --title "A box draws its own interior fill" \
+                --body "A filled box should fill itself rather than take a fill
+                        argument. Two figures where one meets the other still
+                        compose, so this is about who stamps the interior."
+```
+
+The title is load-bearing, because the slug is derived from it, so it is worth the thirty seconds to
+make it the name of the change rather than a description of the symptom. An agent can draft both and
+hand them over; what it cannot do is decide what is wanted.
+
 ### 2. The one question
 
 **Human**, with the agent's reading of the model attached. Answer it now: the shape of everything
 that follows depends on it, and a change that turns out to need two stages after the code is written
 has already lost the thing the first stage was for.
+
+**How.** It is a sentence, and the durable record of it is the branch name three steps later, so it
+is answered before that branch exists — in the conversation that starts the work, or as a comment on
+the issue if you want it written down before a branch is cut. It does not go in the issue's body,
+which is what is wanted rather than which shape the change takes.
+
+Two ways it reads in practice. The two-stage form, where the answer names the alternatives:
+
+> This forces a choice between two defensible answers: a box that takes a fill argument, and a box
+> that stamps its own. Both are implementable and they disagree about who owns the interior, so open
+> the deciding stage.
+
+And the one-stage form, where the answer is that there is nothing to agree:
+
+> One defensible answer here, and it is already written down — the degradation rule in
+> `docs/model.md` §6 covers the case. Cut the branch and build it.
+
+Either way the agent's first action differs, and saying which in the same sentence saves a round
+trip: `cargo xtask spec new 170` for the first, `git switch -c 170-<slug> origin/main` for the
+second.
 
 ### 3. Open the deciding branch
 
@@ -95,6 +133,11 @@ request's own output.
 Note that `spec new` needs `gh` authenticated. Nothing in `cargo xtask setup` installs it, because
 it is authenticated per person rather than vendored per repository.
 
+**How.** Asked as an instruction it is one line, and the four lines the command prints are what the
+next two steps need — where the spec goes, which branch, and what to do next:
+
+> Open the deciding stage for #170 with `cargo xtask spec new 170`.
+
 ### 4. Read the model before deciding anything
 
 **Both.** [`docs/model.md`](model.md) owns the domain vocabulary and the design intent;
@@ -109,6 +152,13 @@ Whether a decision is the model's or the module's has one test — _if this chan
 outside the module that implements it change with it?_ Where the answer is no, it is module-level
 and belongs in that module's rustdoc under `Design notes`, promoted out of it in the increment that
 makes something outside able to observe it.
+
+**How.** Both documents are long enough that reading one whole is a decision, so ask for the part
+rather than the file, and ask what it did _not_ cover as well as what it did:
+
+> Before we decide anything, read §3 _The cell_ and §6 _Rendering_ of [`docs/model.md`](model.md).
+> Tell me which of them already decides who owns the interior of a filled box and which does not
+> say. Quote the sentence, not the section name.
 
 ### 5. Write the spec
 
@@ -141,6 +191,29 @@ An agent may ask the human questions while writing it: at most three per session
 plain-language question rather than a section heading, and a fourth means the change is not
 understood yet — read the model instead.
 
+**How.** The instruction names the file, the format and the one thing the agent is not allowed to
+do. Asking for "a spec" gets a draft with the decisions already made in it, which is the one outcome
+this section cannot use:
+
+> Write `specs/170-a-box-draws-its-own-interior-fill.md`, all nine sections, in the format
+> `specs/README.md`.
+>
+> - `## The decision`: one paragraph per decision, and every answer `_pending_`. Do not choose any
+>   of them yourself — a decision is mine to take, and `_pending_` is how you say it is not taken
+>   yet. Three at most; more than that means the cut is too coarse, so tell me instead of writing a
+>   fourth.
+> - `## Examples`: write them, and where you have not run one, say that in the spec rather than
+>   presenting it as a record of a run.
+> - `## What proves it`: leave it unfinished. The tests do not exist yet.
+> - `## Model slice`: the sections of `docs/model.md` this amends, or none if the model already
+>   decides it.
+>
+> Ask me at most three questions, in plain language, each with one sentence on why the answer
+> changes what you write.
+
+The answer to "where does the file go" is in what step 3 printed: `spec new` names it, and it is the
+only place that name is derived.
+
 ### 6. Draw the case and commit
 
 **Agent.** Where the change moves a picture, `cargo xtask render` rewrites it and you look at it. A
@@ -158,6 +231,34 @@ cargo xtask check                  # what the pre-commit hook runs anyway
 invisible to all three. The `pre-commit` hook runs the whole thirteen-step gate on the commit itself
 and `commit-msg` checks the message and stamps which session wrote it, so neither needs doing by
 hand.
+
+**How.** The commit is one command, and the message carries what the diff cannot:
+
+```sh
+git commit -F - <<'EOF'
+docs(spec): what a filled box owns, and why it is not an argument
+
+## Why now
+
+Two boxes meeting at a corner cannot both own the interior cell, and today
+the answer is whoever was drawn last.
+
+## The decision
+
+**D1 — who stamps a box's interior?**
+
+**Answer:** the box, as a fill fragment over its own rectangle.
+
+**Why not** a fill argument on the box: it makes the caller decide a question
+about geometry the box already answers, and the degraded rendering of a filled
+cell is what makes it a question worth answering once.
+
+**Answered by** the maintainer, in the conversation that opened #170.
+EOF
+```
+
+An agent can write that message from the spec it just drafted. What it cannot do is choose the
+answer, which is why `decided` names the conversation rather than the agent.
 
 ### 7. Open the deciding pull request
 
@@ -184,6 +285,20 @@ enforcement it has is the gate that ran on each commit. The body of a deciding p
 the durable home of anything — the decisions live in the spec, because a pull request body is not
 somewhere an agreement can be read years later without the conversation that reached it.
 
+**How.** The two commands are the whole of it, and the body is filled by hand or by an agent that is
+told the two rules that make it acceptable — `None.` is an answer, an empty section is not:
+
+```sh
+cargo xtask pr body
+$EDITOR target/pr-body.md
+cargo xtask pr open
+```
+
+> Run `cargo xtask pr body`, fill `target/pr-body.md`, then run `cargo xtask pr open`.
+> `## The decision` summarizes the spec and points at it rather than repeating it. Where the honest
+> answer is nothing, write `None.` — a section left empty is refused, and `None.` is not empty.
+> `## Before / after` is `None.` here: this pull request moves no drawing.
+
 ### 8. Merge: this is where the agreement happens
 
 **Human.** Merging is the agreement. The spec becomes citable at the moment it lands in `main`, and
@@ -197,6 +312,17 @@ the file is in `origin/main` and reads no `_pending_`; it does not ask whether t
 `agreed`, so a spec can reach `main` still reading `draft` and nothing reports it. This is the
 flow's one known soft spot, it is not settled, and it is the argument for or against closing it
 belongs in the pull request that does.
+
+**How.** The merge button, or `gh pr merge`. This repository does not fix a strategy and nothing in
+the gate depends on one, so the choice is yours; what the flow does insist on is that the spec is
+answered before it lands:
+
+```sh
+gh pr merge 171 --squash --delete-branch
+```
+
+Deleting the deciding branch here is not housekeeping, it is what makes step 9 land on the branch
+you want rather than back on deciding.
 
 ### 9. Open the building branch
 
@@ -214,6 +340,16 @@ used before the deciding merge and why the slug is never re-derived from a renam
 the deciding branch before the building one, local before remote, so on a clone that still has
 `170-the-change-deciding` it puts you back on deciding. Deleting the deciding branch once it merges
 is what makes it land on the branch you want.
+
+**How.** The four commands above, or one sentence to an agent — with the caveat that the branch name
+comes from the merged spec, so it is read rather than invented:
+
+> Open the building stage for #170: cut `170-a-box-draws-its-own-interior-fill-building` from
+> `origin/main`, push it, then run `cargo xtask spec use 170` so the slug comes from the merged spec
+> rather than from the issue title.
+
+If `spec use` reports `Stage: deciding` instead, the deciding branch is still there: delete it, or
+check out the building branch by hand.
 
 ### 10. Build against the merged spec
 
@@ -233,6 +369,24 @@ Each commit leaves the workspace building, the gate green, and `cargo run -p mon
 producing output. A structural change never shares a commit with a behavioral one, and a rewriting
 commit runs the gate on every commit it rewrites, not only on the tip.
 
+**How.** One instruction per increment, and the instruction is what stops the agent from declaring
+the work finished while the tests are missing:
+
+> Implement what the merged spec says, one increment at a time. Every rule in `## Behavior` gets the
+> name of the test that holds it in `## What proves it`; a rule with no test named against it is
+> unfinished, so leave it unfinished rather than claiming it done. If a snapshot moves, tell me how
+> many cases, in which families, and three examples with before and after — I will review them
+> before anything is accepted. Stop and tell me if the increment turns out to need a structural
+> change first.
+
+`cargo insta review` is the step that accepts what moved, and it needs `cargo-insta` installed by
+hand:
+
+```sh
+cargo insta install
+cargo insta review
+```
+
 ### 11. Open the building pull request
 
 ```sh
@@ -245,11 +399,18 @@ unless the deciding spec is in `origin/main` with no `_pending_` left in it — 
 branch with no merged `-deciding` is a mistake a machine can see, rather than a reviewer's
 judgement. The title is derived as `Build: <issue title>`. Merging this one closes the issue.
 
+**How.** The same two commands as step 7, and the same two rules for the body. The difference is the
+keyword, which the branch decides rather than you: this body ends in `Closes #170`, so merging it
+closes the issue, and the previous one ended in `Refs #170` so it could not have.
+
 ### 12. Closed
 
 The spec is history. Extending or changing what it describes is a **new spec**, not an edit to this
 one, because seeing what was asked for and when is most of what a spec is worth afterwards. Fixing a
 typo or a broken link in place is fine.
+
+**How.** Nothing to run. GitHub closes #170 from the `Closes` in the merged body, and the only thing
+left is `git branch -d` on what is local and a `git fetch --prune` wherever else there is a clone.
 
 ## The one-stage form
 
@@ -268,6 +429,35 @@ the model change together, run the gate, `cargo xtask pr body` and fill it, `car
 review, merge. **The pull request body is the record of the change** — what changed, what was
 decided and why not the alternative, what proves it, what was observed — and `pr open` refuses to
 open it with a section left empty, so the record cannot be submitted unfilled.
+
+**How.** The same issue as above, taken as a one-stage change because the model already decided it.
+Four commands and one body, with no spec file anywhere:
+
+```sh
+git fetch origin
+git switch -c 170-a-box-draws-its-own-interior-fill origin/main
+# read docs/model.md §7, write the fill fragment and the model sentence, add the test
+cargo xtask check
+cargo xtask pr body
+$EDITOR target/pr-body.md
+cargo xtask pr open
+```
+
+The body carries the decision the spec would have carried, which is the only real difference:
+
+```markdown
+## The decision
+
+**D1 — who stamps a box's interior?**
+
+**Answer:** the box, as a fill fragment over its own rectangle. **Why not** a fill argument: it
+makes the caller decide a question about geometry the box already answers. **Answered by** the
+maintainer, in the conversation that opened #170.
+```
+
+And the branch name is what tells the two apart after the fact:
+`170-a-box-draws-its-own-interior-fill` has no suffix, so there was no agreement to reach and no
+spec to cite.
 
 ## A change to the process itself
 
