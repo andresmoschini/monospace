@@ -7,14 +7,14 @@
 //!
 //! # Design notes
 //!
-//! **The shape comes from the branch, and the number is read before the suffix.** A branch either
-//! opens with digits or it does not, and that question comes first: under this flow the common case
-//! is a one-stage change on a bare `NNN-slug`, and reading the suffix first sent every one of them
-//! down the tooling arm — the same body, the wrong keyword, and no number where the issue's was
-//! wanted. Reading the digits first is what makes the three-arm match total.
+//! **The shape comes from the branch, and the number is read before the suffix.** The stage is
+//! `change`'s to name and this module asks it, but the order in which a branch is read is worth
+//! keeping in mind: under this flow the common case is a change of one stage on a bare `NNN-slug`,
+//! and a reader that takes the suffix first sends every one of them down the arm for branches that
+//! carry no issue at all.
 //!
 //! **There are two forms of change and three branch names, and that is not a contradiction.** A
-//! one-stage change is `NNN-slug` with no suffix; a two-stage change has *both* `-deciding` and
+//! change of one stage is `NNN-slug` with no suffix; a change of two has *both* `-deciding` and
 //! `-building`. There is deliberately no suffix meaning "no decision to take": its absence is what
 //! says that, so "is a decision pending?" is a question about the name that can be answered, and a
 //! `-building` with no `-deciding` merged is a detectable mistake.
@@ -25,7 +25,7 @@
 //! contract a person gets: run `body`, write into the file, run `open`.
 //!
 //! **`open` refuses a body whose sections are all still empty**, by the same reasoning that makes
-//! the building stage read the decision table rather than its name: the artifact that merges is the
+//! the building stage read the spec's text rather than its name: the artifact that merges is the
 //! handoff, and an unfilled section is as easy to push as a filled one. A section is empty when it
 //! holds nothing but headings, HTML comments and the keyword line — the check is textual, and it
 //! cannot tell a thoughtful paragraph from a careless one.
@@ -46,6 +46,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use crate::change::{self, Stage};
 use crate::process::{capture, ensure_gh_ready, run_visible};
 
 /// Where `body` writes, and where `open` reads from when no path is given.
@@ -57,65 +58,51 @@ const DEFAULT_BODY_PATH: &str = "target/pr-body.md";
 /// template now and a directory holding one file is a directory with nothing to say.
 const TEMPLATE: &str = ".github/pull_request_template.md";
 
-/// The stage suffix `cargo xtask spec` gives the deciding branch.
-const DECIDING: &str = crate::spec::DECIDING;
-/// The stage suffix `cargo xtask spec` gives the building branch.
-const BUILDING: &str = crate::spec::BUILDING;
-
-/// What a branch says about the change it carries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Stage {
-    /// The spec alone, before the code: branch `NNN-slug-deciding`.
-    Deciding,
-    /// The code, against a spec already agreed and merged: branch `NNN-slug-building`.
-    Building,
-    /// The whole change in one pull request: branch `NNN-slug`, no suffix.
-    Single,
-    /// A branch carrying no issue number, so it cannot be an issue's change at all.
-    Unnumbered,
-}
-
 impl Stage {
-    /// The keyword this stage's body carries: only the deciding pull request of a two-stage change
-    /// references its issue rather than closing it.
+    /// The keyword this stage's body carries: only the deciding pull request of a change of two
+    /// stages references its issue rather than closing it.
+    ///
+    /// A branch that carries no issue closes nothing and says `Closes` about the number it was
+    /// given, which is the only number there is to write.
     fn keyword(self) -> &'static str {
         match self {
             Stage::Deciding => "Refs",
-            Stage::Building | Stage::Single | Stage::Unnumbered => "Closes",
+            Stage::Building | Stage::Single => "Closes",
         }
     }
 
     /// What this stage prefixes a derived title with, where the title comes from the issue.
     ///
-    /// `None` is only for a branch with no issue to take a title from, and it means the other
-    /// answer: the subject of the first commit the branch added. A one-stage change prefixes
-    /// nothing, so its title is the issue's own.
-    fn title_prefix(self) -> Option<&'static str> {
+    /// A branch carrying no issue has no stage and therefore no prefix, and takes the subject of
+    /// the first commit it added instead. A change of one stage prefixes nothing, so its title is
+    /// the issue's own.
+    fn title_prefix(self) -> &'static str {
         match self {
-            Stage::Deciding => Some("Decide: "),
-            Stage::Building => Some("Build: "),
-            Stage::Single => Some(""),
-            Stage::Unnumbered => None,
+            Stage::Deciding => "Decide: ",
+            Stage::Building => "Build: ",
+            Stage::Single => "",
         }
     }
+}
 
-    /// How this stage reads in a message to the operator.
-    fn name(self) -> &'static str {
-        match self {
-            Stage::Deciding => "deciding",
-            Stage::Building => "building",
-            Stage::Single => "single-stage",
-            Stage::Unnumbered => "unnumbered",
-        }
-    }
+/// The keyword for `stage`, which is `None` on a branch that carries no issue.
+fn keyword(stage: Option<Stage>) -> &'static str {
+    stage.map_or("Closes", Stage::keyword)
+}
+
+/// How `branch` reads in a message to the operator: its stage, or that it is not a change's branch.
+fn stage_name(stage: Option<Stage>) -> &'static str {
+    stage.map_or("unnumbered", Stage::name)
 }
 
 /// Runs the `pr` command: dispatches to `body` or `open` from the remaining arguments.
 pub fn run(mut args: impl Iterator<Item = String>) -> ExitCode {
     let rest: Vec<String> = args.by_ref().collect();
     match rest.first().map(String::as_str) {
-        Some("body") => to_exit_code(write_body(&crate::workspace_root(), &rest[1..])),
-        Some("open") => to_exit_code(open_pull_request(&crate::workspace_root(), &rest[1..])),
+        Some("body") => crate::to_exit_code(write_body(&crate::workspace_root(), &rest[1..])),
+        Some("open") => {
+            crate::to_exit_code(open_pull_request(&crate::workspace_root(), &rest[1..]))
+        }
         None | Some("help" | "--help" | "-h") => {
             print_usage();
             ExitCode::SUCCESS
@@ -128,32 +115,21 @@ pub fn run(mut args: impl Iterator<Item = String>) -> ExitCode {
     }
 }
 
-/// Converts a `Result` into the `ExitCode` `main` returns, printing the error if there is one.
-fn to_exit_code(result: Result<(), String>) -> ExitCode {
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(message) => {
-            eprintln!("{message}");
-            ExitCode::FAILURE
-        }
-    }
-}
-
 /// Writes the body for this branch's stage to `target/pr-body.md`, keyword included.
 fn write_body(root: &Path, args: &[String]) -> Result<(), String> {
     let refs_only = args.iter().any(|argument| argument == "--refs");
     let issue_argument = parse_issue_argument(args)?;
 
     let branch = current_branch(root)?;
-    let stage = stage_from_branch(&branch);
+    let stage = Stage::from_branch(&branch);
     let issue = resolve_issue(&branch, stage, issue_argument)?;
 
     let template = root.join(TEMPLATE);
     let contents = fs::read_to_string(&template)
         .map_err(|error| format!("xtask: could not read {}: {error}", template.display()))?;
 
-    let keyword = if refs_only { "Refs" } else { stage.keyword() };
-    let body = format!("{}\n{keyword} #{issue}\n", contents.trim_end());
+    let closing = if refs_only { "Refs" } else { keyword(stage) };
+    let body = format!("{}\n{closing} #{issue}\n", contents.trim_end());
 
     let path = root.join(DEFAULT_BODY_PATH);
     if let Some(parent) = path.parent() {
@@ -163,9 +139,9 @@ fn write_body(root: &Path, args: &[String]) -> Result<(), String> {
     fs::write(&path, body)
         .map_err(|error| format!("xtask: could not write {}: {error}", path.display()))?;
 
-    println!("Stage: {} (from branch {branch})", stage.name());
+    println!("Stage: {} (from branch {branch})", stage_name(stage));
     println!("Template: {TEMPLATE}");
-    println!("Keyword: {keyword} #{issue}");
+    println!("Keyword: {closing} #{issue}");
     println!("Body: {DEFAULT_BODY_PATH}");
     println!("Next: fill every section, then run `cargo xtask pr open`");
     Ok(())
@@ -177,7 +153,7 @@ fn open_pull_request(root: &Path, args: &[String]) -> Result<(), String> {
     let body_argument = parse_flag(args, "--body-file")?;
 
     let branch = current_branch(root)?;
-    let stage = stage_from_branch(&branch);
+    let stage = Stage::from_branch(&branch);
 
     let dirty = capture(root, "git", &["status", "--porcelain"])?;
     if !dirty.is_empty() {
@@ -210,7 +186,7 @@ fn open_pull_request(root: &Path, args: &[String]) -> Result<(), String> {
 
     ensure_gh_ready(root)?;
 
-    if stage == Stage::Building {
+    if stage == Some(Stage::Building) {
         verify_deciding_stage_merged(root, &branch)?;
     }
 
@@ -241,62 +217,24 @@ fn open_pull_request(root: &Path, args: &[String]) -> Result<(), String> {
 }
 
 /// Refuses a building branch whose deciding pull request has not merged, or whose spec is merged
-/// with a row still unanswered.
+/// with a decision still unanswered.
 ///
-/// This is the flow's only mechanical precondition, and it is the one the deciding stage exists
-/// for: without it, `-building` is a name anybody can type and the agreement it is supposed to rest
-/// on is a memory.
+/// This is the flow's only mechanical precondition, and it is the one the deciding stage exists for:
+/// without it, `-building` is a name anybody can type and the agreement it is supposed to rest on is
+/// a memory. `change` makes the same check a step earlier, when it cuts the branch, and it is the
+/// same function: one rule read in two places is two rules.
 fn verify_deciding_stage_merged(root: &Path, branch: &str) -> Result<(), String> {
     // The answer is a question about `origin/main`, so origin has to be current for it to be one.
     run_visible(root, "git", &["fetch", "origin", "--prune"])?;
-
-    let issue = issue_from_branch(branch)
-        .ok_or_else(|| format!("xtask: `{branch}` carries no issue number"))?;
-    let issue_number = crate::spec::format_issue_number(issue);
-    let slug = crate::spec::find_slug(&crate::spec::list_specs(root)?, &issue_number)?;
-
-    let deciding = format!("{issue_number}-{slug}-{DECIDING}");
-    let merged = capture(
-        root,
-        "gh",
-        &[
-            "pr", "list", "--state", "merged", "--head", &deciding, "--json", "number",
-        ],
-    )?;
-    if !lists_a_pull_request(&merged) {
-        return Err(format!(
-            "xtask: `{deciding}` has no merged pull request, so there is no agreed spec to build \
-             against. Merge it first, or open this change as one stage on `{issue_number}-{slug}`."
-        ));
-    }
-
-    crate::spec::verify_deciding_merged(root, &issue_number, &slug)
-}
-
-/// Whether `gh`'s answer to `pr list --json number` holds a pull request.
-///
-/// It is JSON this crate does not parse, and the whole question is whether the array is empty, so
-/// the test is textual on purpose: `[]` is what `gh` prints for nothing, and anything carrying a
-/// `number` key is a pull request.
-fn lists_a_pull_request(answer: &str) -> bool {
-    let answer = answer.trim();
-    !answer.is_empty() && answer != "[]"
+    change::verify_deciding_merged(root, branch)
 }
 
 /// The title to open with when none was given: the issue's own title behind the stage's verb, or
 /// for a branch carrying no issue the subject of the first commit the branch added.
-fn derive_title(root: &Path, branch: &str, stage: Stage) -> Result<String, String> {
-    if let Some(prefix) = stage.title_prefix()
-        && let Some(issue) = issue_from_branch(branch)
-    {
-        let issue_str = issue.to_string();
-        let title = capture(
-            root,
-            "gh",
-            &[
-                "issue", "view", &issue_str, "--json", "title", "--jq", ".title",
-            ],
-        )?;
+fn derive_title(root: &Path, branch: &str, stage: Option<Stage>) -> Result<String, String> {
+    let prefix = stage.map(Stage::title_prefix);
+    if let (Some(prefix), Some(issue)) = (prefix, change::issue_from_branch(branch)) {
+        let title = change::title_of_issue(root, issue)?;
         return Ok(if prefix.is_empty() {
             title
         } else {
@@ -330,33 +268,10 @@ fn current_branch(root: &Path) -> Result<String, String> {
     }
 }
 
-/// Which stage `branch` carries: a leading digit first, the suffix second.
-///
-/// The order is the whole function. Reading the suffix first made every branch without one a
-/// change with no issue, and under this flow the branch without a suffix is the ordinary case.
-fn stage_from_branch(branch: &str) -> Stage {
-    if !branch.starts_with(|character: char| character.is_ascii_digit()) {
-        return Stage::Unnumbered;
-    }
-    if branch.ends_with(DECIDING) {
-        return Stage::Deciding;
-    }
-    if branch.ends_with(BUILDING) {
-        return Stage::Building;
-    }
-    Stage::Single
-}
-
-/// The issue number `branch` starts with, where it starts with one.
-fn issue_from_branch(branch: &str) -> Option<u32> {
-    let digits: String = branch.chars().take_while(char::is_ascii_digit).collect();
-    digits.parse().ok()
-}
-
 /// Settles which issue the body references: the branch's, the argument, or an error saying which
 /// is missing or that the two disagree.
-fn resolve_issue(branch: &str, stage: Stage, argument: Option<u32>) -> Result<u32, String> {
-    match (issue_from_branch(branch), argument) {
+fn resolve_issue(branch: &str, stage: Option<Stage>, argument: Option<u32>) -> Result<u32, String> {
+    match (change::issue_from_branch(branch), argument) {
         (Some(from_branch), None) => Ok(from_branch),
         (Some(from_branch), Some(given)) if from_branch == given => Ok(from_branch),
         (Some(from_branch), Some(given)) => Err(format!(
@@ -366,7 +281,7 @@ fn resolve_issue(branch: &str, stage: Stage, argument: Option<u32>) -> Result<u3
         (None, None) => Err(format!(
             "xtask: a {} branch carries no issue number, so this needs one: \
              `cargo xtask pr body <issue>`",
-            stage.name()
+            stage_name(stage)
         )),
     }
 }
@@ -527,26 +442,30 @@ fn print_usage() {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Stage, empty_sections, is_keyword_line, issue_from_branch, lists_a_pull_request,
-        resolve_issue, stage_from_branch,
-    };
+    use super::{Stage, empty_sections, is_keyword_line, keyword, resolve_issue, stage_name};
+    use crate::change;
 
     #[test]
     fn a_branch_with_a_number_and_no_suffix_is_the_whole_change() {
-        assert_eq!(stage_from_branch("163-light-spec-driven"), Stage::Single);
-        assert_eq!(stage_from_branch("023-read-a-description"), Stage::Single);
+        assert_eq!(
+            Stage::from_branch("163-light-spec-driven"),
+            Some(Stage::Single)
+        );
+        assert_eq!(
+            Stage::from_branch("023-read-a-description"),
+            Some(Stage::Single)
+        );
     }
 
     #[test]
     fn each_two_stage_suffix_is_its_own_stage() {
         assert_eq!(
-            stage_from_branch("023-read-a-description-deciding"),
-            Stage::Deciding
+            Stage::from_branch("023-read-a-description-deciding"),
+            Some(Stage::Deciding)
         );
         assert_eq!(
-            stage_from_branch("023-read-a-description-building"),
-            Stage::Building
+            Stage::from_branch("023-read-a-description-building"),
+            Some(Stage::Building)
         );
     }
 
@@ -556,63 +475,75 @@ mod tests {
     #[test]
     fn a_number_beats_the_absence_of_a_suffix() {
         assert_ne!(
-            stage_from_branch("163-light-spec-driven"),
-            Stage::Unnumbered
+            Stage::from_branch("163-light-spec-driven"),
+            Stage::from_branch("readme-typo")
         );
     }
 
     #[test]
     fn a_branch_opening_with_no_digit_carries_no_issue() {
-        assert_eq!(stage_from_branch("readme-typo"), Stage::Unnumbered);
-        assert_eq!(stage_from_branch("main"), Stage::Unnumbered);
-        assert_eq!(stage_from_branch("readme-typo-deciding"), Stage::Unnumbered);
+        assert_eq!(Stage::from_branch("readme-typo"), None);
+        assert_eq!(Stage::from_branch("main"), None);
+        assert_eq!(Stage::from_branch("readme-typo-deciding"), None);
+    }
+
+    /// A branch that is not a change's still has to be openable — a typo fix has no issue — so
+    /// `pr` reads it as no stage at all rather than as a stage of its own.
+    #[test]
+    fn a_branch_with_no_issue_has_no_stage_and_says_so() {
+        assert_eq!(stage_name(None), "unnumbered");
+        assert_eq!(keyword(None), "Closes");
     }
 
     #[test]
     fn only_the_deciding_stage_references_its_issue() {
-        assert_eq!(Stage::Deciding.keyword(), "Refs");
-        assert_eq!(Stage::Building.keyword(), "Closes");
-        assert_eq!(Stage::Single.keyword(), "Closes");
-        assert_eq!(Stage::Unnumbered.keyword(), "Closes");
+        assert_eq!(keyword(Some(Stage::Deciding)), "Refs");
+        assert_eq!(keyword(Some(Stage::Building)), "Closes");
+        assert_eq!(keyword(Some(Stage::Single)), "Closes");
     }
 
     #[test]
-    fn a_one_stage_change_prefixes_its_title_with_nothing() {
-        assert_eq!(Stage::Single.title_prefix(), Some(""));
-        assert_eq!(Stage::Deciding.title_prefix(), Some("Decide: "));
-        assert_eq!(Stage::Building.title_prefix(), Some("Build: "));
-        assert_eq!(Stage::Unnumbered.title_prefix(), None);
+    fn a_change_of_one_stage_prefixes_its_title_with_nothing() {
+        assert_eq!(Stage::Single.title_prefix(), "");
+        assert_eq!(Stage::Deciding.title_prefix(), "Decide: ");
+        assert_eq!(Stage::Building.title_prefix(), "Build: ");
     }
 
     #[test]
     fn issue_from_branch_reads_the_leading_digits_only() {
         assert_eq!(
-            issue_from_branch("023-read-a-description-deciding"),
+            change::issue_from_branch("023-read-a-description-deciding"),
             Some(23)
         );
-        assert_eq!(issue_from_branch("1234-something-building"), Some(1234));
-        assert_eq!(issue_from_branch("163-light-spec-driven"), Some(163));
-        assert_eq!(issue_from_branch("readme-typo"), None);
+        assert_eq!(
+            change::issue_from_branch("1234-something-building"),
+            Some(1234)
+        );
+        assert_eq!(
+            change::issue_from_branch("163-light-spec-driven"),
+            Some(163)
+        );
+        assert_eq!(change::issue_from_branch("readme-typo"), None);
     }
 
     #[test]
     fn resolve_issue_prefers_the_branch_and_catches_a_disagreement() {
         assert_eq!(
-            resolve_issue("023-foo-deciding", Stage::Deciding, None).unwrap(),
+            resolve_issue("023-foo-deciding", Some(Stage::Deciding), None).unwrap(),
             23
         );
         assert_eq!(
-            resolve_issue("023-foo-deciding", Stage::Deciding, Some(23)).unwrap(),
+            resolve_issue("023-foo-deciding", Some(Stage::Deciding), Some(23)).unwrap(),
             23
         );
 
-        let error = resolve_issue("023-foo-deciding", Stage::Deciding, Some(24)).unwrap_err();
+        let error = resolve_issue("023-foo-deciding", Some(Stage::Deciding), Some(24)).unwrap_err();
         assert!(
             error.contains("23") && error.contains("24"),
             "error did not name both numbers: {error}"
         );
 
-        let error = resolve_issue("readme-typo", Stage::Unnumbered, None).unwrap_err();
+        let error = resolve_issue("readme-typo", None, None).unwrap_err();
         assert!(
             error.contains("pr body <issue>"),
             "error did not say how to supply one: {error}"
@@ -764,12 +695,5 @@ mod tests {
         assert!(is_keyword_line("Closes #1234"));
         assert!(!is_keyword_line("Closes #"));
         assert!(!is_keyword_line("Closes the loop on #23"));
-    }
-
-    #[test]
-    fn an_empty_gh_answer_is_no_pull_request() {
-        assert!(!lists_a_pull_request("[]"));
-        assert!(!lists_a_pull_request(""));
-        assert!(lists_a_pull_request("[{\"number\":170}]"));
     }
 }

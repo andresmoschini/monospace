@@ -20,6 +20,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod change;
 mod eol;
 mod numbering;
 mod pr;
@@ -291,7 +292,7 @@ fn main() -> ExitCode {
         Some("fix") => run_fix(),
         Some("setup") => run_setup(),
         Some("render") => render::run(args),
-        Some("spec") => spec::run(args),
+        Some("change") => change::run(args),
         Some("pr") => pr::run(args),
         None | Some("help" | "--help" | "-h") => {
             print_usage();
@@ -428,6 +429,21 @@ pub(crate) fn report_failure<T>(outcome: Result<T, String>) -> bool {
     }
 }
 
+/// The other adapter between a `Result` and what `main` hands back: a command's answer rather than a
+/// step's.
+///
+/// It is here rather than in either command's module because there are three of them and a verb that
+/// failed has said what was wrong already — the message is the whole report.
+pub(crate) fn to_exit_code<T>(outcome: Result<T, String>) -> ExitCode {
+    match outcome {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 /// Resolves a step's executable, following the rule a shell already uses: a bare name is looked up
 /// on `PATH`, and anything containing a separator is a path relative to the workspace root.
 ///
@@ -547,7 +563,7 @@ fn print_usage() {
     println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
     println!("  render   Regenerate the pictures tracked Markdown files carry");
     println!(
-        "  spec     Open a change's branch, and check the specs; `cargo xtask spec help` lists its verbs"
+        "  change   Open, switch to, or report on a change's branch; `cargo xtask change help` lists its verbs"
     );
     println!("  pr       Prepare and open a pull request; `cargo xtask pr help` lists its verbs");
     println!("  help     Show this message");

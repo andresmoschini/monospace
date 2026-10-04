@@ -152,7 +152,7 @@ fn report(clash: &Clash<'_>) -> String {
 
     format!(
         "\nxtask: {n} entries under {NUMBERED} claim the number {}:\n\n{entries}\n\n    \
-         `cargo xtask spec new` derives this name from the issue, so a second entry under one \
+         `cargo xtask change open` derives this name from the issue, so a second entry under one \
          number was not made by it. Remove the one that should not be there, or rename it.",
         clash.number,
         n = clash.claiming.len()
@@ -234,7 +234,7 @@ mod tests {
         assert!(message.contains("163"), "{message}");
         assert!(message.contains("specs/0163-a.md"), "{message}");
         assert!(message.contains("specs/0163-b.md"), "{message}");
-        assert!(message.contains("cargo xtask spec new"), "{message}");
+        assert!(message.contains("cargo xtask change open"), "{message}");
     }
 
     /// A name of nothing but digits claims all of itself rather than none of it, so a degenerate
