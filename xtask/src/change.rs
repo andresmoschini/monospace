@@ -871,6 +871,63 @@ fn branch_name(issue_number: &str, slug: &str, stage: Stage) -> String {
     }
 }
 
+/// Latin-1 accented letters (both cases) folded to their plain ASCII letter.
+///
+/// Every target is lower case, and `slugify` pushes it as written: only its ASCII branch
+/// lowercases, so a target written `('É', 'E')` puts a capital in a slug, and from there in a
+/// branch name and a spec filename. The table is the only place that case is decided, which is why
+/// it lives beside the function rather than inside it — a test asserts the property over every row.
+const ACCENTED: &[(char, char)] = &[
+    ('á', 'a'),
+    ('é', 'e'),
+    ('í', 'i'),
+    ('ó', 'o'),
+    ('ú', 'u'),
+    ('à', 'a'),
+    ('è', 'e'),
+    ('ì', 'i'),
+    ('ò', 'o'),
+    ('ù', 'u'),
+    ('ä', 'a'),
+    ('ë', 'e'),
+    ('ï', 'i'),
+    ('ö', 'o'),
+    ('ü', 'u'),
+    ('â', 'a'),
+    ('ê', 'e'),
+    ('î', 'i'),
+    ('ô', 'o'),
+    ('û', 'u'),
+    ('ã', 'a'),
+    ('õ', 'o'),
+    ('ñ', 'n'),
+    ('ç', 'c'),
+    ('Á', 'a'),
+    ('É', 'e'),
+    ('Í', 'i'),
+    ('Ó', 'o'),
+    ('Ú', 'u'),
+    ('À', 'a'),
+    ('È', 'e'),
+    ('Ì', 'i'),
+    ('Ò', 'o'),
+    ('Ù', 'u'),
+    ('Ä', 'a'),
+    ('Ë', 'e'),
+    ('Ï', 'i'),
+    ('Ö', 'o'),
+    ('Ü', 'u'),
+    ('Â', 'a'),
+    ('Ê', 'e'),
+    ('Î', 'i'),
+    ('Ô', 'o'),
+    ('Û', 'u'),
+    ('Ã', 'a'),
+    ('Õ', 'o'),
+    ('Ñ', 'n'),
+    ('Ç', 'c'),
+];
+
 /// Derives a slug from an issue title: lowercase, accented Latin-1 letters folded to ASCII, any run
 /// of characters that are not `[a-z0-9]` collapsed to one hyphen, truncated to 40 characters with
 /// no trailing hyphen.
@@ -879,58 +936,6 @@ fn branch_name(issue_number: &str, slug: &str, stage: Stage) -> String {
 ///
 /// A title with nothing left after folding (punctuation only) is an error.
 fn slugify(title: &str) -> Result<String, String> {
-    /// Latin-1 accented letters (both cases) folded to their plain ASCII letter.
-    const ACCENTED: &[(char, char)] = &[
-        ('á', 'a'),
-        ('é', 'e'),
-        ('í', 'i'),
-        ('ó', 'o'),
-        ('ú', 'u'),
-        ('à', 'a'),
-        ('è', 'e'),
-        ('ì', 'i'),
-        ('ò', 'o'),
-        ('ù', 'u'),
-        ('ä', 'a'),
-        ('ë', 'e'),
-        ('ï', 'i'),
-        ('ö', 'o'),
-        ('ü', 'u'),
-        ('â', 'a'),
-        ('ê', 'e'),
-        ('î', 'i'),
-        ('ô', 'o'),
-        ('û', 'u'),
-        ('ã', 'a'),
-        ('õ', 'o'),
-        ('ñ', 'n'),
-        ('ç', 'c'),
-        ('Á', 'A'),
-        ('É', 'E'),
-        ('Í', 'I'),
-        ('Ó', 'O'),
-        ('Ú', 'U'),
-        ('À', 'A'),
-        ('È', 'E'),
-        ('Ì', 'I'),
-        ('Ò', 'O'),
-        ('Ù', 'U'),
-        ('Ä', 'A'),
-        ('Ë', 'E'),
-        ('Ï', 'I'),
-        ('Ö', 'O'),
-        ('Ü', 'U'),
-        ('Â', 'A'),
-        ('Ê', 'E'),
-        ('Î', 'I'),
-        ('Ô', 'O'),
-        ('Û', 'U'),
-        ('Ã', 'A'),
-        ('Õ', 'O'),
-        ('Ñ', 'N'),
-        ('Ç', 'C'),
-    ];
-
     let mut slug = String::new();
     let mut pending_hyphen = false;
 
@@ -1058,7 +1063,9 @@ fn print_usage() {
 
 #[cfg(test)]
 mod tests {
-    use super::{Stage, branch_name, find_slug, format_issue_number, slug_from_branch, slugify};
+    use super::{
+        ACCENTED, Stage, branch_name, find_slug, format_issue_number, slug_from_branch, slugify,
+    };
 
     #[test]
     fn slugify_plain_title() {
@@ -1074,6 +1081,28 @@ mod tests {
             slugify("A naïve café soirée, jalapeño").unwrap(),
             "a-naive-cafe-soiree-jalapeno"
         );
+    }
+
+    /// Every folded letter is a lower-case ASCII letter, over all forty-eight rows rather than by
+    /// example. `slugify` pushes the target as written and lowercases only on its ASCII branch, so
+    /// a capital in this table is a capital in a slug, in a branch name and in a spec filename.
+    ///
+    /// Asserting the property rather than one title is what makes it hold for the other twenty-three
+    /// rows: every other slugify test spells its accented letters in lower case, so all of them pass
+    /// against a table whose upper-case half reads `('É', 'E')`.
+    #[test]
+    fn every_folded_letter_is_lower_case_ascii() {
+        for (from, to) in ACCENTED {
+            assert!(
+                to.is_ascii_lowercase(),
+                "ACCENTED folds {from:?} to {to:?}, which is not lower-case ASCII"
+            );
+            assert!(
+                !from.is_ascii(),
+                "ACCENTED holds {from:?}, which the fold would have left alone anyway"
+            );
+        }
+        assert_eq!(ACCENTED.len(), 48, "the table lost or gained a row");
     }
 
     #[test]
