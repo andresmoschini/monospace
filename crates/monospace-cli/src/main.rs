@@ -1,25 +1,23 @@
 //! Minimal non-interactive command-line front end for Monospace.
 //!
-//! It holds no domain logic of its own: it converts its description format — documented in
-//! `specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md` — into a
-//! `monospace_diagram::Diagram` and draws it.
+//! It holds no domain logic of its own: it converts the description format its `description`
+//! module documents in prose into a `monospace_diagram::Diagram` and draws it.
 //!
 //! # Design notes
 //!
 //! **A file is rendered once; only the bare run demonstrates.** Given a path this prints one
 //! picture and nothing else — no caption, and no shape moved forward. Given no argument it prints
-//! the shipped demonstration the way spec 080 asks for it: **seven** captioned pictures — as
-//! written, with the back-most shape moved one place toward the front, with that same shape
-//! displaced, with that same shape taken out, with the arrow rehung from the box it already pointed
-//! at and that box displaced, with the arrow itself displaced as well, and with the box the arrow
-//! hangs from taken out — which leaves the arrow exactly where it stood.
+//! the shipped demonstration: **seven** captioned pictures — as written, with the back-most shape
+//! moved one place toward the front, with that same shape displaced, with that same shape taken
+//! out, with the arrow rehung from the box it already pointed at and that box displaced, with the
+//! arrow itself displaced as well, and with the box the arrow hangs from taken out — which
+//! leaves the arrow exactly where it stood.
 //!
 //! That split exists because the changes the bare run shows say something only about the
 //! shipped demonstration, whose first two entries are two partially overlapping opaque boxes.
 //! Applied to a file someone hands the binary they are a demonstration's assumptions imposed on
-//! their description. It is also what lets `cargo xtask render` embed this output in a document
-//! ([ADR-0052](../../../docs/decisions/0052-show-the-rendering.md)): a picture that goes into a
-//! Markdown fence cannot arrive wrapped in prose.
+//! their description. It is also what lets `cargo xtask render` embed this output in a document: a
+//! picture that goes into a Markdown fence cannot arrive wrapped in prose.
 
 mod description;
 
@@ -30,7 +28,7 @@ use monospace_core::{Buffer, Direction, GlyphCatalog, Pos, Size, Terminal};
 use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
-/// from any working directory and from a binary copied outside a checkout (FR-022, FR-023).
+/// from any working directory and from a binary copied outside a checkout.
 const DEMO: &str = include_str!("../assets/demo.json");
 
 #[cfg(test)]
@@ -74,8 +72,7 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Renders `description` into its own window, as one picture and nothing else (FR-013, FR-014,
-/// FR-015, FR-018, FR-019).
+/// Renders `description` into its own window, as one picture and nothing else.
 fn render_once(description: Description) -> String {
     let (origin, size) = description.window();
     let diagram = description.into_diagram();
@@ -98,7 +95,7 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 /// arrow itself displaced, and once more again with the box the arrow hangs from taken out. Each
 /// picture is under a caption.
 ///
-/// This is the shipped demonstration's output, and spec 080's FR-018 is what asks for the captions.
+/// This is the shipped demonstration's output, and every one of its pictures carries a caption.
 /// The changes it shows are meaningful only for that description, which is why a file the binary is
 /// handed goes through [`render_once`] instead.
 ///
@@ -117,10 +114,11 @@ fn demonstrate(description: Description) -> String {
 
     // How far the third picture's figure moves. A fixed value this function carries rather than a
     // field in the description format or an argument on the binary, so a file's picture is exactly
-    // the one it was (B5.8, [ADR-0035]). An assumption about this demonstration, like the reorder
-    // below, and not a rule about descriptions. The value lands the figure on cells the shipped
-    // description already draws, which is what lets the third picture tell a displacement from the
-    // reorder the second one shows.
+    // the one it was. An assumption about this demonstration, like the reorder below, and not
+    // a rule about descriptions: nothing in the format carries it, and a caller who wanted one
+    // would have to argue for it there. The value lands the figure on cells the shipped description
+    // already draws, which is what lets the third picture tell a displacement from the reorder the
+    // second one shows.
     let by = Delta { dx: 0, dy: 3 };
 
     // The box the arrow already hangs from, and the arrow itself, both named by hand for the reason
@@ -148,13 +146,13 @@ fn demonstrate(description: Description) -> String {
     let mut out = String::from("As written:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
-    // `forward` is a safe no-op when there is no such shape — e.g. an empty description (FR-016).
+    // `forward` is a safe no-op when there is no such shape — e.g. an empty description.
     diagram.forward(&the_back_most);
     out.push_str("\nWith the back-most shape moved one place forward:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
     // `get` and `replace` are no-ops on an identity this diagram does not hold, so an empty
-    // description demonstrates through both of them unchanged (B5.7).
+    // description demonstrates through both of them unchanged.
     if let Some(moved) = diagram
         .get(&the_back_most)
         .map(|shape| shape.displaced_by(by))
@@ -369,8 +367,8 @@ mod tests {
         )
     }
 
-    /// TE-007: two partially overlapping opaque boxes demonstrate as two pictures — the first the
-    /// two boxes in the order written, the second the two in the opposite order.
+    /// Two partially overlapping opaque boxes demonstrate as two pictures — the first the two
+    /// boxes in the order written, the second the two in the opposite order.
     ///
     /// This used to run the binary against a file. A file no longer demonstrates, so the claim is
     /// made here, against the function that does.
@@ -424,9 +422,9 @@ mod tests {
         render(&buffer, &GlyphCatalog::light(), origin, size)
     }
 
-    /// User Story 5, spec's B5.1 and B5.2, SC-005: the tenth entry's far endpoint stops being a
-    /// point and becomes a reference to `#5`'s bottom with an offset of one in each axis, and
-    /// **the first five pictures come out byte for byte what they were**.
+    /// The tenth entry's far endpoint stops being a point and becomes a reference to `#5`'s bottom
+    /// with an offset of one in each axis, and **the first five pictures come out byte for byte what
+    /// they were**.
     ///
     /// The evidence is in a file and the picture not moving is what proves the arithmetic. The
     /// other side of each comparison is not pinned as text but built: the same demonstration with
@@ -508,8 +506,7 @@ mod tests {
         );
     }
 
-    /// User Story 3, spec's B3.1, B3.3 and SC-006: a bare run prints **seven** captioned pictures and
-    /// the first is the description as written.
+    /// A bare run prints **seven** captioned pictures and the first is the description as written.
     ///
     /// The count comes from the blank lines the output holds, and no caption's wording is pinned —
     /// what is claimed is that there are seven of them and that the first is the one a file's run
@@ -531,8 +528,8 @@ mod tests {
         assert_eq!(first, render_once(parse(super::DEMO)));
     }
 
-    /// User Story 4, B4.2, SC-005: `render_once` over a path prints one picture and nothing else,
-    /// which is what `cargo xtask render` embeds in a document.
+    /// `render_once` over a path prints one picture and nothing else, which is what `cargo xtask
+    /// render` embeds in a document.
     ///
     /// Pinned as a **count and a shape**, not as a literal: one window's worth of rows, and the
     /// first picture's own first row. The caption is absent, because a file's run is a picture with
@@ -597,9 +594,8 @@ mod tests {
             .collect()
     }
 
-    /// User Story 3, spec's B3.3, SC-004: the third picture differs from the second only in the
-    /// cells the displaced figure holds, and the fourth differs from the third only in the cells that
-    /// figure occupies.
+    /// The third picture differs from the second only in the cells the displaced figure holds, and
+    /// the fourth differs from the third only in the cells that figure occupies.
     ///
     /// The fourth is pinned against the shipped description with its first entry left out and drawn
     /// on its own, which is the whole claim in one comparison: a removal leaves a gap rather than a
@@ -641,9 +637,9 @@ mod tests {
         ((9..13), (2..5), (13..17), (2..5), 22)
     }
 
-    /// User Story 5, spec's B5.1, SC-006: the fifth picture differs from the fourth in exactly the
-    /// box's old cells, the box's new cells and the connector's route — the same shape of claim the
-    /// third picture's own test makes, reached with the same `differing` helper.
+    /// The fifth picture differs from the fourth in exactly the box's old cells, the box's new cells
+    /// and the connector's route — the same shape of claim the third picture's own test makes,
+    /// reached with the same `differing` helper.
     ///
     /// The route is bounded rather than listed: it is the cells from the box's **new** side across
     /// to the far endpoint, on the rows it runs along, so the range is read off the box's own
@@ -711,8 +707,8 @@ mod tests {
     ///
     /// Every entry now carries the identity it was written with, so the twenty-five that survive
     /// keep the names they had and `remove(0)` shifts nothing at all. The same `assert_eq!` in
-    /// `the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out` is SC-001's claim
-    /// now rather than a fixture a loop had to hold in place.
+    /// `the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out` is the claim now
+    /// rather than a fixture a loop had to hold in place.
     fn demo_without_its_first_entry() -> String {
         let mut value: serde_json::Value =
             serde_json::from_str(super::DEMO).expect("the embedded description is well-formed");
@@ -723,8 +719,7 @@ mod tests {
         value.to_string()
     }
 
-    /// User Story 3, spec's B3.3, SC-004: an empty description demonstrates as **seven** identical
-    /// pictures and fails nothing.
+    /// An empty description demonstrates as **seven** identical pictures and fails nothing.
     ///
     /// There is no back-most shape to move, no figure to displace, no shape to take out, no tenth
     /// entry to rehang and no third entry to displace, so every call in every picture is a no-op on
@@ -755,8 +750,7 @@ mod tests {
         assert_eq!(pictures.0, pictures.6);
     }
 
-    /// User Story 3, spec's B3.3, SC-004: a description holding exactly one shape demonstrates **seven**
-    /// pictures and fails nothing.
+    /// A description holding exactly one shape demonstrates **seven** pictures and fails nothing.
     ///
     /// The reorder changes nothing, because that shape is both front-most and back-most. The
     /// displacement does not: the demonstration's fixed delta carries the only figure out of this
@@ -829,16 +823,15 @@ mod tests {
     /// those two cells the route writes **ten** of the twenty-one the rectangle holds, and it writes
     /// them in three rows: four across the top, two in the middle and four along the bottom. It is
     /// neither contiguous nor a rectangle, so nothing that reads it off a picture gets it right —
-    /// which is how the specification's own `22 − 10 = 12` was wrong and how research.md Q7 corrected
+    /// which is how the specification's own `22 − 10 = 12` was wrong and how measurement corrected
     /// it. The count is therefore **asserted against the pictures** and the rectangle is only what
     /// bounds where to look.
     fn the_arrow_and_its_removed_box() -> [(Range<usize>, Range<usize>); 2] {
         [(16..23, 5..8), (13..17, 2..5)]
     }
 
-    /// User Story 3, spec's B3.1 and SC-001: the seventh picture differs from the sixth **only** in
-    /// the cells `#3` held, which is the only statement in the slice that says the arrow stood
-    /// still.
+    /// The seventh picture differs from the sixth **only** in the cells `#3` held, which is the
+    /// only statement in the slice that says the arrow stood still.
     ///
     /// Modelled on `the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it` and reusing its
     /// `differing` helper, with the claim **in both directions**: what the removal may reach, and
@@ -895,9 +888,8 @@ mod tests {
         }
     }
 
-    /// User Story 3, spec's B3.1, SC-004: the sixth picture differs from the fifth **only** in the
-    /// cells the arrow holds before and after, which is the only statement that says both boxes
-    /// stood still.
+    /// The sixth picture differs from the fifth **only** in the cells the arrow holds before and
+    /// after, which is the only statement that says both boxes stood still.
     ///
     /// Modelled on `the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it` and reusing its
     /// `differing` helper, with the claim **mirrored**: that test bounds what the fifth may reach,

@@ -1,6 +1,5 @@
 //! The corner fragment: one cell where a stroke opens toward two sides. See _Pieces_ in
-//! [`docs/model.md`](../../../../../docs/model.md) and
-//! [ADR-0028](../../../../../docs/decisions/0028-give-each-fragment-its-own-cell-rule.md).
+//! [`docs/model.md`](../../../../../docs/model.md).
 
 use crate::cell::Side;
 use crate::{Arm, Cell, Pos, Shape, Stroke, StrokeCell, Surface};
@@ -45,7 +44,7 @@ mod tests {
     use crate::cell::Side;
     use crate::{Arm, Buffer, Cell, Layer, Pos, Shape, Size, StampMode, Stroke, StrokeCell};
 
-    /// The example research.md checked by hand: `(0, 0)` of `stamp_box`'s box is
+    /// The example checked by hand: `(0, 0)` of `stamp_box`'s box is
     /// `(Unset, Set, Set, Unset)`, which is a corner opening right and bottom.
     #[test]
     fn a_corner_sets_its_two_sides_and_leaves_the_other_two_unset() {
@@ -78,7 +77,7 @@ mod tests {
     }
 
     /// `Corner` opening two opposite sides is a straight run — the general rule answering, not a
-    /// case, per data-model.md's note on the type.
+    /// case.
     #[test]
     fn a_corner_opening_opposite_sides_is_a_straight_run() {
         let mut buffer = Buffer::new(

@@ -48,8 +48,8 @@ fn first_demonstrated_picture(output: &str) -> String {
     format!("{picture}\n")
 }
 
-/// User Story 3, B3.1, SC-004: two entries carrying the same `id` are **both** read. Both shapes
-/// are drawn, the run exits successfully, and nothing is written to stderr.
+/// Two entries carrying the same `id` are **both** read. Both shapes are drawn, the run exits
+/// successfully, and nothing is written to stderr.
 ///
 /// **Pinned as an accepted cost rather than as a bug**, so a later slice that decides to report a
 /// repeated identity has to say so rather than discover it. The diagram-level half — both held,
@@ -86,8 +86,8 @@ fn two_entries_carrying_one_identity_are_both_read_and_both_drawn() {
     );
 }
 
-/// User story 2, acceptance scenario 1: with no arguments, the binary prints the shipped
-/// demonstration and exits successfully, with nothing on stderr.
+/// With no arguments, the binary prints the shipped demonstration and exits successfully, with
+/// nothing on stderr.
 #[test]
 fn no_arguments_prints_the_demonstration_and_exits_successfully() {
     let output = run(&[]);
@@ -97,9 +97,9 @@ fn no_arguments_prints_the_demonstration_and_exits_successfully() {
     assert!(output.stderr.is_empty(), "wrote to stderr");
 }
 
-/// User story 2, acceptance scenario 2, FR-022: running with no arguments from a different
-/// working directory prints the same diagram, since the demonstration is embedded in the binary
-/// rather than read from a path relative to the working directory.
+/// Running with no arguments from a different working directory prints the same diagram, since
+/// the demonstration is embedded in the binary rather than read from a path relative to the
+/// working directory.
 #[test]
 fn running_from_a_different_working_directory_prints_the_same_diagram() {
     let from_temp_dir = Command::new(env!("CARGO_BIN_EXE_monospace-cli"))
@@ -117,10 +117,9 @@ fn running_from_a_different_working_directory_prints_the_same_diagram() {
 /// The shipped demonstration's own path, passed explicitly, prints the picture the no-argument
 /// run prints first — and stops there.
 ///
-/// User story 2's acceptance scenario 3 asked for byte-identical output from both. It no longer
-/// holds, deliberately: the caption and the moved shape belong to the demonstration, not to a
-/// description someone hands the binary. What survives of the scenario is that both parse the
-/// same text and draw it the same way.
+/// Byte-identical output from both runs was asked for once. It no longer holds, deliberately: the
+/// caption and the moved shape belong to the demonstration, not to a description someone hands
+/// the binary. What survives is that both parse the same text and draw it the same way.
 #[test]
 fn the_demo_path_passed_explicitly_prints_the_demonstrations_first_picture() {
     let no_arguments = run(&[]);
@@ -134,8 +133,7 @@ fn the_demo_path_passed_explicitly_prints_the_demonstrations_first_picture() {
     );
 }
 
-/// User story 1, acceptance scenario 1: an explicit path to a hand-written single-box file
-/// prints exactly that box.
+/// An explicit path to a hand-written single-box file prints exactly that box.
 #[test]
 fn an_explicit_path_prints_the_hand_written_box() {
     let path = write_description(
@@ -160,8 +158,7 @@ fn an_explicit_path_prints_the_hand_written_box() {
     assert!(output.stderr.is_empty(), "wrote to stderr");
 }
 
-/// User story 1, acceptance scenario 2: a box, a line and a connector at stated positions print
-/// all three composed.
+/// A box, a line and a connector at stated positions print all three composed.
 #[test]
 fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
     let path = write_description(
@@ -204,7 +201,8 @@ const A_BOX: &str = r##"{ "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "
         "stroke": "light" }"##;
 
 /// Runs a one-connector description over `at` and returns the whole of stdout, which for a path is
-/// one picture and nothing else (ADR-0064, and what `cargo xtask render` embeds).
+/// one picture and nothing else — nothing else because a picture bound for a Markdown fence cannot
+/// arrive wrapped in prose, and `cargo xtask render` embeds this output in one.
 ///
 /// `label` names the temp file, so it is the caller's short handle and not the JSON: a description
 /// is full of slashes and quotes and makes for no filename at all.
@@ -234,8 +232,8 @@ fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 
-/// User Story 4, spec's B4.1, SC-004: a file may name a side of another figure and an offset, and
-/// the picture it draws is the picture the resolved point draws.
+/// A file may name a side of another figure and an offset, and the picture it draws is the
+/// picture the resolved point draws.
 #[test]
 fn a_file_naming_a_reference_draws_what_the_point_it_resolves_to_draws() {
     let named = picture_of_a_connector_hanging_from(
@@ -254,8 +252,8 @@ fn a_file_naming_a_reference_draws_what_the_point_it_resolves_to_draws() {
     );
 }
 
-/// User Story 4, spec's B4.3: a reference carrying **no** `offset` at all draws exactly what a
-/// description naming the point it resolves to draws, byte for byte.
+/// A reference carrying **no** `offset` at all draws exactly what a description naming the point
+/// it resolves to draws, byte for byte.
 ///
 /// The case `{"kind": "reference", "shape": "#1", "anchor": "right"}` exists for: `offset` is
 /// optional and absent is zero, so a reference on the side itself is three fields rather than five,
@@ -274,13 +272,14 @@ fn a_file_naming_a_reference_with_no_offset_draws_the_point_it_stands_on() {
     assert_eq!(named, spelled);
 }
 
-/// User Story 4, spec's B4.2, SC-004: a file naming a shape it does not hold draws **a box and no
-/// connector at all**, and the run succeeds.
+/// A file naming a shape it does not hold draws **a box and no connector at all**, and the run
+/// succeeds.
 ///
-/// This is ADR-0041's silent hole arriving through a wire, and the offset is what makes it a test
-/// rather than a comment: a large offset is the case where an implementation might clamp, fall back
-/// or report, and none of the three happens. Nothing on stderr, a successful exit, and the picture
-/// is the box alone.
+/// This is a hole that was silent below the wire arriving through it — a position that cannot be
+/// resolved is not drawn and nothing reports that it was skipped — and the offset is what makes it
+/// a test rather than a comment: a large offset is the case where an implementation might clamp,
+/// fall back or report, and none of the three happens. Nothing on stderr, a successful exit, and
+/// the picture is the box alone.
 #[test]
 fn a_file_naming_a_shape_it_does_not_hold_draws_the_box_and_no_connector_and_succeeds() {
     let drawn = picture_of_a_connector_hanging_from(
@@ -312,9 +311,9 @@ fn a_file_naming_a_shape_it_does_not_hold_draws_the_box_and_no_connector_and_suc
 
 /// The two overlapping boxes the reordering test below writes, as the `monospace_core` shapes
 /// they describe, so the expected picture in each order comes from stamping them directly rather
-/// than from a literal picture (TE-006).
+/// than from a literal picture.
 /// they describe, so the expected picture in each order comes from stamping them directly rather
-/// than from a literal picture (TE-006).
+/// than from a literal picture.
 fn overlap_boxes() -> (monospace_core::BoxShape, monospace_core::BoxShape) {
     use monospace_core::{BoxShape, Glyph, Pos, Size, Stroke};
 
@@ -359,9 +358,9 @@ fn render_back_to_front_with_above(
     render(&buffer, &GlyphCatalog::light(), origin, size)
 }
 
-/// User story 1, acceptance scenario 3, TE-006: the same file with its shapes reordered changes
-/// which one is drawn on top where they overlap — the last entry in `shapes` is front-most and
-/// decides the shared cells, matching the two core shapes stamped back to front with `Above`.
+/// The same file with its shapes reordered changes which one is drawn on top where they overlap
+/// — the last entry in `shapes` is front-most and decides the shared cells, matching the two core
+/// shapes stamped back to front with `Above`.
 #[test]
 fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     let first = write_description(
@@ -406,8 +405,7 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     assert_ne!(first_output.stdout, second_output.stdout);
 }
 
-/// User story 1, acceptance scenario 4, FR-017: running the same file twice produces identical
-/// output.
+/// Running the same file twice produces identical output.
 #[test]
 fn running_the_same_file_twice_produces_identical_output() {
     let path = write_description(
@@ -428,8 +426,7 @@ fn running_the_same_file_twice_produces_identical_output() {
     assert_eq!(first.stdout, second.stdout);
 }
 
-/// User story 3, acceptance scenario 1: a path that does not exist prints nothing to stdout,
-/// names the path on stderr, and fails.
+/// A path that does not exist prints nothing to stdout, names the path on stderr, and fails.
 #[test]
 fn a_missing_path_names_it_on_stderr_and_fails() {
     let path = std::env::temp_dir().join(format!(
@@ -449,8 +446,7 @@ fn a_missing_path_names_it_on_stderr_and_fails() {
     );
 }
 
-/// User story 3, acceptance scenario 2: malformed JSON prints nothing to stdout, locates the
-/// problem on stderr, and fails.
+/// Malformed JSON prints nothing to stdout, locates the problem on stderr, and fails.
 #[test]
 fn malformed_json_locates_the_problem_on_stderr_and_fails() {
     let path = write_description("broken", r#"{ "canvas": "#);
@@ -462,8 +458,7 @@ fn malformed_json_locates_the_problem_on_stderr_and_fails() {
     assert!(!output.stderr.is_empty(), "wrote nothing to stderr");
 }
 
-/// User story 3, acceptance scenario 3: an unrecognized shape kind prints nothing to stdout,
-/// names the kind on stderr, and fails.
+/// An unrecognized shape kind prints nothing to stdout, names the kind on stderr, and fails.
 #[test]
 fn an_unrecognized_kind_names_it_on_stderr_and_fails() {
     let path = write_description(
@@ -496,7 +491,7 @@ fn more_than_one_argument_prints_usage_and_fails() {
 
 /// Returns the character at `(x, y)` in the first picture of `output`, treating each line as a
 /// row and each `char` as a column, the same coordinates the demo's `canvas` uses. `+ 1` skips
-/// the caption line FR-018 adds above that picture.
+/// the caption line the demonstration puts above that picture.
 fn char_at(output: &str, x: usize, y: usize) -> char {
     output
         .lines()
@@ -505,8 +500,8 @@ fn char_at(output: &str, x: usize, y: usize) -> char {
         .unwrap_or_else(|| panic!("no character at ({x}, {y}) in {output:?}"))
 }
 
-/// User story 3, SC-003: with no arguments, the demonstration contains both a box-drawing
-/// character (from Light) and one of `+`, `-`, `|` (from ASCII).
+/// With no arguments, the demonstration contains both a box-drawing character (from Light) and
+/// one of `+`, `-`, `|` (from ASCII).
 #[test]
 fn the_demonstration_contains_both_light_and_ascii_characters() {
     let output = run(&[]);
@@ -522,8 +517,8 @@ fn the_demonstration_contains_both_light_and_ascii_characters() {
     );
 }
 
-/// User story 3, FR-017, SC-009: at the two crossings between an ASCII figure and a Light figure
-/// added to the demo, the shared cell reads from whichever figure is in front. `(28, 2)` is where
+/// At the two crossings between an ASCII figure and a Light figure added to the demo, the shared
+/// cell reads from whichever figure is in front. `(28, 2)` is where
 /// an ASCII box, added after a Light box already on the canvas and so front-most, shares a border
 /// cell with it; `(36, 2)` is where a Light box, added after an ASCII box and so front-most,
 /// shares a border cell with it.
@@ -570,8 +565,10 @@ fn the_demonstration_contains_double_heavy_and_light_round_characters() {
 /// tables. Feature 060 loads mixing tables for two of the six pairs here — Light with Double and
 /// Light with Heavy — so their crossing now draws the character the exact mixed arms produce
 /// instead of degrading. The other two pairs (Light Round with Light, Double with Heavy) still
-/// have no mixing table pairing them, so per ADR-0009 they still degrade every connected arm to
-/// one base stroke — whichever figure is added last, since it is front-most and decides first.
+/// have no mixing table pairing them, so they still degrade every connected arm to the one base
+/// stroke — the stroke of the figure that last claimed the cell, which is what makes the answer to
+/// "why that character?" a single sentence, and whichever figure is added last since it is
+/// front-most and decides first.
 /// Each crossing cell below is the same position the original two crossings use: where the first
 /// box's bottom border meets the second box's left side.
 #[test]

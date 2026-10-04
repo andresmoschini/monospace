@@ -1,6 +1,18 @@
 //! The diagram: an ordered set of shapes, drawable into a buffer the caller gives it. See
-//! [`docs/diagram-model.md`](../../../docs/diagram-model.md) and
-//! [ADR-0042](../../../docs/decisions/0042-draw-a-diagram-front-to-back-into-a-given-window.md).
+//! [`docs/diagram-model.md`](../../../docs/diagram-model.md).
+//!
+//! **The window is the caller's and the order is this crate's.** A buffer is a window with an
+//! origin and a size, and stamping outside it does nothing, so somebody has to choose that window
+//! and the question hides two: how much the diagram occupies, which is the diagram's to answer, and
+//! which part of it is wanted, which is the caller's by nature — a terminal draws what fits at the
+//! scroll position it is at, and no measurement of the content answers that. Since each kind answers
+//! its own sides or answers none at all, the diagram holds nothing it could measure itself from even
+//! if it were asked, so [`draw`](Diagram::draw) takes the window it is given.
+//!
+//! Within that window the shapes are drawn **front to back**, each stamped with `Below`, which is
+//! the order that can stop early because a fully decided cell can no longer change. The other
+//! direction is available and produces the same buffer; what it carries is not appearance but
+//! ownership, because which figure reaches a position first is what decides the cell it decides.
 
 use std::fmt;
 
@@ -9,7 +21,7 @@ use monospace_core::{Buffer, Layer, StampMode};
 use crate::Shape;
 
 /// A shape's identity. The identities **the diagram issues** through [`Diagram::add`] are unique
-/// within it (FR-001, FR-002), and one supplied through [`Diagram::add_under`] is **not checked**:
+/// within it, and one supplied through [`Diagram::add_under`] is **not checked**:
 /// two shapes may carry the same identity, and the second is then a shape no identity names.
 /// [`ShapeId::new`] builds one directly from its text.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,10 +48,10 @@ struct Placed {
 }
 
 /// A diagram: an ordered set of shapes, and nothing else — no buffer, no glyph catalog, no
-/// rendered picture (FR-005).
+/// rendered picture.
 pub struct Diagram {
-    /// The order the shapes draw in. The **last** element is the front of the order (research.md
-    /// Q2): it is drawn first and decides a shared cell before anything behind it.
+    /// The order the shapes draw in. The **last** element is the front of the order: it is drawn
+    /// first and decides a shared cell before anything behind it.
     shapes: Vec<Placed>,
     /// The ordinal the next `add` takes. It is the ordinal itself rather than the last one issued,
     /// so seeding it is a plain assignment and no public method carries a subtraction (Q1).
@@ -75,7 +87,7 @@ impl Diagram {
     }
 
     /// Puts `shape` at the front of the order, in front of everything already there, and returns
-    /// the identity the diagram gave it (FR-002, FR-006).
+    /// the identity the diagram gave it.
     pub fn add(&mut self, shape: Shape) -> ShapeId {
         let id = ShapeId(format!("#{}", self.next));
         self.next += 1;
@@ -108,8 +120,7 @@ impl Diagram {
     }
 
     /// Moves the shape named by `id` one place toward the front of the order. Does nothing when
-    /// `id` names no shape here, or when it is already the front-most (FR-007, FR-009, FR-010,
-    /// FR-011).
+    /// `id` names no shape here, or when it is already the front-most.
     pub fn forward(&mut self, id: &ShapeId) {
         if let Some(index) = self.find(id)
             && index + 1 < self.shapes.len()
@@ -119,8 +130,7 @@ impl Diagram {
     }
 
     /// Moves the shape named by `id` one place toward the back of the order. Does nothing when
-    /// `id` names no shape here, or when it is already the back-most (FR-008, FR-009, FR-010,
-    /// FR-011).
+    /// `id` names no shape here, or when it is already the back-most.
     pub fn backward(&mut self, id: &ShapeId) {
         if let Some(index) = self.find(id)
             && index > 0
@@ -203,8 +213,8 @@ impl Diagram {
     }
 
     /// Draws every shape into `buffer`, front to back, stamping every cell with
-    /// [`StampMode::Below`] (FR-010 to FR-012). Drawing changes nothing about this diagram
-    /// (FR-015), so two drawings into equal windows produce equal buffers.
+    /// [`StampMode::Below`]. Drawing changes nothing about this diagram, so two drawings into
+    /// equal windows produce equal buffers.
     ///
     /// The diagram is what a connector's endpoints resolve through, which is why it is the one that
     /// hands itself to each figure. A connector with an endpoint that does not resolve — an identity
@@ -235,7 +245,7 @@ mod tests {
     }
 
     /// Collects every cell of `buffer` over the window `origin`/`size`, so two buffers can be
-    /// compared by value even though `Buffer` derives no `PartialEq` (research.md Q7).
+    /// compared by value even though `Buffer` derives no `PartialEq`.
     fn cells(buffer: &Buffer, origin: Pos, size: Size) -> Vec<Option<Cell>> {
         (0..size.height)
             .flat_map(|dy| (0..size.width).map(move |dx| (dx, dy)))
@@ -249,7 +259,7 @@ mod tests {
             .collect()
     }
 
-    /// TE-003, scenarios 1 and 2: a diagram holding a box and a line, drawn twice into equal
+    /// A diagram holding a box and a line, drawn twice into equal
     /// windows, produces equal buffers.
     #[test]
     fn drawing_the_same_diagram_twice_produces_equal_buffers() {
@@ -300,7 +310,7 @@ mod tests {
         );
     }
 
-    /// TE-002, scenario 4: a box partly outside the window draws what falls inside and nothing
+    /// A box partly outside the window draws what falls inside and nothing
     /// else, with no error.
     #[test]
     fn a_box_partly_outside_the_window_draws_only_what_falls_inside() {
@@ -327,7 +337,7 @@ mod tests {
         assert!(buffer.cell(Pos { x: 4, y: 4 }).is_none());
     }
 
-    /// TE-005, scenario 5: a box drawn through a diagram matches the same `BoxShape` drawn
+    /// A box drawn through a diagram matches the same `BoxShape` drawn
     /// directly.
     #[test]
     fn a_box_shape_matches_the_core_box_drawn_directly() {
@@ -361,7 +371,7 @@ mod tests {
         );
     }
 
-    /// TE-005: a line drawn through a diagram matches the same `Line` drawn directly.
+    /// A line drawn through a diagram matches the same `Line` drawn directly.
     #[test]
     fn a_line_shape_matches_the_core_line_drawn_directly() {
         let origin = Pos { x: 0, y: 0 };
@@ -394,7 +404,7 @@ mod tests {
         );
     }
 
-    /// TE-005: a connector drawn through a diagram matches the same `Connector` drawn directly, both
+    /// A connector drawn through a diagram matches the same `Connector` drawn directly, both
     /// endpoints included.
     #[test]
     fn a_connector_shape_matches_the_core_connector_drawn_directly() {
@@ -453,9 +463,9 @@ mod tests {
         );
     }
 
-    /// B2.1, SC-003: a diagram told where its numbering resumes hands the next `add` **that**
-    /// ordinal, and a further addition a different one. Asked by the identity's own text, because
-    /// this is the one rule in the slice no picture can show.
+    /// A diagram told where its numbering resumes hands the next `add` **that** ordinal, and a
+    /// further addition a different one. Asked by the identity's own text, because this is the one
+    /// rule in the slice no picture can show.
     ///
     /// A counter holding the *last issued* ordinal would hand back `#4` in the first half below,
     /// which is the off-by-one `numbered_from` exists to make impossible rather than to document.
@@ -477,7 +487,7 @@ mod tests {
         assert_ne!(first, second);
     }
 
-    /// 081's rule, run against a diagram that was told where its numbering resumes rather than
+    /// The same rule, run against a diagram that was told where its numbering resumes rather than
     /// one that started at `#1`: taking `#10` out of a diagram seeded at 10 still leaves the next
     /// addition as `#12`, so a seeded counter resumes rather than restarts.
     #[test]
@@ -500,8 +510,8 @@ mod tests {
         assert_eq!(after_the_removal.to_string(), "#12");
     }
 
-    /// B1.3, SC-002: a shape put under a chosen identity is the one every change that names that
-    /// identity acts on, and by **any other** identity it is not a shape this diagram holds.
+    /// A shape put under a chosen identity is the one every change that names that identity acts
+    /// on, and by **any other** identity it is not a shape this diagram holds.
     ///
     /// The second half is the one that is easy to leave out, and the one that keeps "unique" a
     /// claim about what the diagram issues rather than a promise it keeps on a caller's behalf.
@@ -678,7 +688,7 @@ mod tests {
         );
     }
 
-    /// TE-001: adding three shapes to one diagram yields three identities that differ from one
+    /// Adding three shapes to one diagram yields three identities that differ from one
     /// another and read as `#1`, `#2`, `#3` in the order added.
     #[test]
     fn adding_three_shapes_yields_three_identities_in_order() {
@@ -775,8 +785,8 @@ mod tests {
         )
     }
 
-    /// TE-001, scenario 1, SC-005: two overlapping boxes drawn front to back with `Below` produce
-    /// the buffer that stamping the same two core shapes back to front with `Above` produces.
+    /// Two overlapping boxes drawn front to back with `Below` produce the buffer that stamping
+    /// the same two core shapes back to front with `Above` produces.
     #[test]
     fn front_to_back_with_below_equals_back_to_front_with_above() {
         let origin = Pos { x: 0, y: 0 };
@@ -799,8 +809,8 @@ mod tests {
         assert_eq!(cells(&actual, origin, size), cells(&expected, origin, size));
     }
 
-    /// TE-004, scenarios 2 and 5: the same two overlapping boxes in opposite orders produce
-    /// different buffers, and in each the front-most shape's stroke decides the shared cells.
+    /// The same two overlapping boxes in opposite orders produce different buffers, and in each
+    /// the front-most shape's stroke decides the shared cells.
     #[test]
     fn opposite_orders_produce_different_buffers() {
         let origin = Pos { x: 0, y: 0 };
@@ -884,7 +894,7 @@ mod tests {
         );
     }
 
-    /// TE-002: two partially overlapping opaque boxes, drawn before and after the back one moves
+    /// Two partially overlapping opaque boxes, drawn before and after the back one moves
     /// forward, produce different buffers, and the second equals what the same two boxes added in
     /// the opposite order produce.
     #[test]
@@ -920,7 +930,7 @@ mod tests {
         );
     }
 
-    /// TE-003: the same expected buffer comes from moving the front one backward instead, against
+    /// The same expected buffer comes from moving the front one backward instead, against
     /// the same two boxes.
     #[test]
     fn moving_the_front_one_backward_matches_moving_the_back_one_forward() {
@@ -950,7 +960,7 @@ mod tests {
         );
     }
 
-    /// TE-004: moving the front-most forward, and moving the back-most backward, each leave the
+    /// Moving the front-most forward, and moving the back-most backward, each leave the
     /// drawn buffer unchanged.
     #[test]
     fn moving_the_front_most_forward_or_the_back_most_backward_changes_nothing() {
@@ -983,7 +993,7 @@ mod tests {
         );
     }
 
-    /// TE-004, edge case: a diagram holding one shape is unchanged by either move, since that
+    /// A diagram holding one shape is unchanged by either move, since that
     /// shape is both front-most and back-most.
     #[test]
     fn a_diagram_holding_one_shape_is_unchanged_by_either_move() {
@@ -1013,7 +1023,7 @@ mod tests {
         assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
     }
 
-    /// TE-005, edge case: an identity kept from another diagram changes nothing through either
+    /// An identity kept from another diagram changes nothing through either
     /// method, with no panic.
     #[test]
     fn an_identity_from_another_diagram_changes_nothing_and_does_not_panic() {
@@ -1045,7 +1055,7 @@ mod tests {
         assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
     }
 
-    /// TE-005, edge case: an empty diagram is unchanged by either method, with no panic.
+    /// An empty diagram is unchanged by either method, with no panic.
     #[test]
     fn an_empty_diagram_is_unchanged_by_either_move() {
         let mut other = Diagram::new();
@@ -1074,7 +1084,7 @@ mod tests {
         );
     }
 
-    /// TE-006: a shape moved forward and then backward by the same identity draws exactly what it
+    /// A shape moved forward and then backward by the same identity draws exactly what it
     /// drew at the start.
     #[test]
     fn moving_a_shape_forward_then_backward_restores_the_original_drawing() {
@@ -1215,8 +1225,8 @@ mod tests {
         other.add(a_line())
     }
 
-    /// User Story 1, spec's B3.1 scenario, SC-004: a box displaced two cells right draws exactly
-    /// what the same box added at the displaced position draws.
+    /// A box displaced two cells right draws exactly what the same box added at the displaced
+    /// position draws.
     ///
     /// The expected picture is built by adding the box where it landed rather than pinned as text,
     /// so what is asserted is where a displacement puts a figure and not how a box draws. A
@@ -1247,8 +1257,8 @@ mod tests {
         );
     }
 
-    /// User Story 1, spec's B3.2 scenario, SC-004: a connector displaced two cells down draws
-    /// exactly what the same connector added with **both** endpoints at `y + 2` draws.
+    /// A connector displaced two cells down draws exactly what the same connector added with
+    /// **both** endpoints at `y + 2` draws.
     ///
     /// Both endpoints is the whole claim, and it is why the expected picture is built from the two
     /// positions rather than pinned as text. A displacement that moved one endpoint draws a
@@ -1297,9 +1307,9 @@ mod tests {
         );
     }
 
-    /// User Story 1, spec's B3.3 scenario: displacing a figure a diagram holds changes no cell of
-    /// it. A displacement builds a value; putting that value back under an identity is what changes
-    /// anything. The second half of the rule is T026, which needs `replace` to exist.
+    /// Displacing a figure a diagram holds changes no cell of it. A displacement builds a value;
+    /// putting that value back under an identity is what changes anything. The second half of the
+    /// rule is T026, which needs `replace` to exist.
     ///
     /// The `assert_ne!` is what keeps the test honest: without it a `displaced_by` that moved
     /// nothing would satisfy "changed no cell" by doing exactly that, and the rule would go
@@ -1328,8 +1338,7 @@ mod tests {
 
     // ------------------------------------------- reading a figure back, and the two changes
 
-    /// User Story 2, spec's B4.1 scenario: `get` on the identity `add` handed back returns a figure
-    /// equal by value to the one added.
+    /// `get` on the identity `add` handed back returns a figure equal by value to the one added.
     ///
     /// Compared by value rather than by picture, because this is the only rule in the slice no
     /// picture can show. The widened derives are what make it sayable at all, and what comes back
@@ -1344,10 +1353,10 @@ mod tests {
         assert_eq!(diagram.get(&id), Some(&a));
     }
 
-    /// User Story 2, spec's B4.2 scenario, SC-003: `get` on an identity this diagram does not hold
-    /// gives nothing, and the picture it draws is the one it drew before.
+    /// `get` on an identity this diagram does not hold gives nothing, and the picture it draws is
+    /// the one it drew before.
     ///
-    /// The identity is one another diagram issued, which is the case the specification means.
+    /// The identity is one another diagram issued rather than one never issued at all.
     #[test]
     fn get_on_an_identity_from_another_diagram_gives_nothing_and_changes_nothing() {
         let origin = Pos { x: 0, y: 0 };
@@ -1368,9 +1377,8 @@ mod tests {
         );
     }
 
-    /// User Story 3, spec's B1.1 scenario, SC-001: a diagram of several figures, drawn before and
-    /// after one is taken out, produces different buffers, and the figures that stayed draw exactly
-    /// what they drew on their own.
+    /// A diagram of several figures, drawn before and after one is taken out, produces different
+    /// buffers, and the figures that stayed draw exactly what they drew on their own.
     ///
     /// Three overlapping boxes rather than a row, and the one taken out is the first of the three
     /// rather than a figure in the middle. That is what makes the test say something a swap with
@@ -1402,10 +1410,9 @@ mod tests {
         );
     }
 
-    /// User Story 3, spec's B1.2 scenario, SC-003: taking out an identity this diagram does not
-    /// hold leaves the buffer exactly as it was, with no error, no report and no panic. The
-    /// identity is one another diagram issued, which is the case worth running: a well-formed
-    /// value that matches nothing here.
+    /// Taking out an identity this diagram does not hold leaves the buffer exactly as it was,
+    /// with no error, no report and no panic. The identity is one another diagram issued, which is
+    /// the case worth running: a well-formed value that matches nothing here.
     #[test]
     fn taking_out_an_identity_from_another_diagram_changes_nothing_and_does_not_panic() {
         let origin = Pos { x: 0, y: 0 };
@@ -1427,8 +1434,7 @@ mod tests {
         );
     }
 
-    /// User Story 3, spec's B1.3 scenario, SC-005: take `#1` out, add a figure, and the identity
-    /// handed back is `#3` rather than `#1`.
+    /// Take `#1` out, add a figure, and the identity handed back is `#3` rather than `#1`.
     ///
     /// Asserted by the identity's own text rather than by a picture, and it needs no code beyond
     /// the absence of a decrement, because `add` already increments before use.
@@ -1474,8 +1480,7 @@ mod tests {
         );
     }
 
-    /// User Story 4, spec's B2.1 scenario, SC-002: a box put back as a wider box draws exactly what
-    /// that wider box added on its own produces.
+    /// A box put back as a wider box draws exactly what that wider box added on its own produces.
     ///
     /// Pinned against the wider box's own picture rather than against the box it replaced, which is
     /// what makes the claim about the figure handed in and not about a difference between two.
@@ -1503,8 +1508,8 @@ mod tests {
         );
     }
 
-    /// User Story 4, spec's B2.2 scenario, SC-002: a box put back as a line draws the line, kind
-    /// included, and nothing of the previous figure survives.
+    /// A box put back as a line draws the line, kind included, and nothing of the previous figure
+    /// survives.
     ///
     /// The pair the specification draws by hand and calls hypothetical, each side pinned against
     /// the figure handed in rather than against the other, which is what turns "nothing of the
@@ -1542,8 +1547,8 @@ mod tests {
         );
     }
 
-    /// User Story 4, spec's B2.3 scenario: a figure overlapping another, put back under its own
-    /// identity unchanged, resolves the overlap as it did.
+    /// A figure overlapping another, put back under its own identity unchanged, resolves the
+    /// overlap as it did.
     ///
     /// This is what shows a replacement is not a reorder, and the second assertion says so
     /// directly: it holds up the order a remove-and-add would have produced as the picture that
@@ -1573,8 +1578,8 @@ mod tests {
         );
     }
 
-    /// User Story 4, spec's B2.4 scenario, SC-003: a shape put under an identity this diagram does
-    /// not hold leaves the picture alone **and adds nothing**.
+    /// A shape put under an identity this diagram does not hold leaves the picture alone **and
+    /// adds nothing**.
     ///
     /// The figure handed in is placed where it would be plainly visible, so a `replace` that fell
     /// back to removing the old entry and adding the new one would fail on the picture rather than
@@ -1611,9 +1616,8 @@ mod tests {
         assert_eq!(diagram.get(&ShapeId::new("#1")), Some(&a));
     }
 
-    /// User Story 1, spec's B3.3 scenario, second half: draw, displace, `replace`, and the picture
-    /// is the one the same three figures draw with the middle one standing where the displacement
-    /// put it.
+    /// Draw, displace, `replace`, and the picture is the one the same three figures draw with the
+    /// middle one standing where the displacement put it.
     ///
     /// It lands beside the replacement rather than beside the displacement because it is the half
     /// that needs `replace` to exist. The reach is then pinned by coordinates: the cells the
@@ -1783,8 +1787,8 @@ mod tests {
         )
     }
 
-    /// User Story 2, spec's B2.1, SC-001: a connector whose `from` hangs from a box's right side
-    /// draws exactly what the same connector with `from` at that point draws.
+    /// A connector whose `from` hangs from a box's right side draws exactly what the same
+    /// connector with `from` at that point draws.
     ///
     /// Each side is pinned against the point rather than against the other, which is what keeps a
     /// reference resolving to the wrong place from passing on a pair that are wrong together. So the
@@ -1825,8 +1829,8 @@ mod tests {
         );
     }
 
-    /// User Story 1, spec's B1.1, B1.2, SC-001 and SC-003: a reference standing two cells clear of a
-    /// side draws exactly what the same connector standing at the point it resolves to draws.
+    /// A reference standing two cells clear of a side draws exactly what the same connector
+    /// standing at the point it resolves to draws.
     ///
     /// The partner of the zero-offset test above rather than a replacement of it, and the reason is
     /// what each one catches. That test's offset is zero on both axes, so a `resolve` that added
@@ -1873,8 +1877,8 @@ mod tests {
         );
     }
 
-    /// User Story 2, spec's B2.1 and SC-002: the offset is a gap **from the side**, so displacing the
-    /// figure a reference hangs from carries the endpoint with it and the gap does not change.
+    /// The offset is a gap **from the side**, so displacing the figure a reference hangs from
+    /// carries the endpoint with it and the gap does not change.
     ///
     /// The expected picture is built from the two positions — the box where it landed and the
     /// connector starting at the point the reference resolves to *there* — rather than pinned as
@@ -1949,8 +1953,8 @@ mod tests {
         );
     }
 
-    /// User Story 2, spec's B2.3: a box **replaced by a line** under an offset adds it to the line's
-    /// own side middle, not to the place the box stood.
+    /// A box **replaced by a line** under an offset adds it to the line's own side middle, not to
+    /// the place the box stood.
     ///
     /// It takes a non-zero `dy` to tell the two apart. A horizontal line read as a flat box is one
     /// cell tall, so its top and bottom centres are **the same point asked twice** — the offset is
@@ -2027,8 +2031,8 @@ mod tests {
         );
     }
 
-    /// User Story 2, spec's B2.2, SC-004, and the spec's edge case: a large offset on a reference
-    /// that resolves to nothing is still nothing — asked twice, and by drawing.
+    /// A large offset on a reference that resolves to nothing is still nothing — asked twice,
+    /// and by drawing.
     ///
     /// Twice because there are two different ways not to resolve and they are not the same code: an
     /// identity no `add` ever issued, and an anchor a kind does not answer — here a connector, which
@@ -2128,11 +2132,11 @@ mod tests {
         );
     }
 
-    /// User Story 2, spec's edge case: a box **one cell wide** with an offset — its two coincident
-    /// side centres get the offset added once, and the offset is what separates them afterwards.
+    /// A box **one cell wide** with an offset — its two coincident side centres get the offset
+    /// added once, and the offset is what separates them afterwards.
     ///
     /// The degenerate figure is what an implementation that special-cased the ordinary box gets
-    /// wrong, and 082's `a_box_one_cell_wide_or_one_cell_tall_answers_the_same_rule` in `position.rs`
+    /// wrong, and `a_box_one_cell_wide_or_one_cell_tall_answers_the_same_rule` in `position.rs`
     /// is why the general rule is the claim rather than the coincidence. At width 1 the left and
     /// right centres are the same cell, so a `resolve` that added the offset once per *side* rather
     /// than once per *reference* would land two cells out; and an implementation that measured the
@@ -2191,9 +2195,8 @@ mod tests {
         }
     }
 
-    /// User Story 2, spec's B2.2, SC-002 and SC-005: displacing the box four cells right takes the
-    /// hanging end with it, re-routes the connector to the end that did not move, and touches
-    /// nothing else.
+    /// Displacing the box four cells right takes the hanging end with it, re-routes the connector
+    /// to the end that did not move, and touches nothing else.
     ///
     /// The expected picture is built from the two positions rather than pinned as text, so what is
     /// claimed is where a displacement puts a figure and not how a connector draws. The reach is
@@ -2256,8 +2259,7 @@ mod tests {
         );
     }
 
-    /// User Story 2, spec's B2.3: a connector with one endpoint absolute and one hanging, each
-    /// placed by its own rule.
+    /// A connector with one endpoint absolute and one hanging, each placed by its own rule.
     ///
     /// Both orders, because the two positions are the same field with different rules and a match
     /// written to suit one of them is the failure this case is for. Nothing here is pinned against
@@ -2327,9 +2329,9 @@ mod tests {
         );
     }
 
-    /// User Story 2, spec's B2.4, SC-003, and the three non-resolutions ADR-0041 enumerates: a
-    /// reference to an identity this diagram does not hold, a reference to a kind that answers no
-    /// anchor, and a connector with one endpoint that resolves and one that does not.
+    /// The three ways a reference can fail to resolve: a reference to an identity this diagram
+    /// does not hold, a reference to a kind that answers no anchor, and a connector with one
+    /// endpoint that resolves and one that does not.
     ///
     /// Each case asserts two things together, and the second is what makes the first mean anything.
     /// The connector is **absent from the output**, and every other figure's cells are unchanged —
@@ -2400,8 +2402,8 @@ mod tests {
         }
     }
 
-    /// User Story 2, spec's B2.5: a reference to an identity nothing holds yet, and then a figure
-    /// added under it — three kinds, because a kind answers anchors differently.
+    /// A reference to an identity nothing holds yet, and then a figure added under it — three
+    /// kinds, because a kind answers anchors differently.
     ///
     /// The identity is spelled rather than read back, and **the connector is the first figure
     /// added** so that the figure under test is the one the counter names next. That is what makes
@@ -2498,9 +2500,9 @@ mod tests {
         );
     }
 
-    /// User Story 2, and the claim the conversion's own test used to carry: a connector with a glyph
-    /// terminal and a connector with an arm, each drawn through a diagram, produce the buffer the
-    /// same core `Connector` drawn directly produces.
+    /// The claim the conversion's own test used to carry: a connector with a glyph terminal and a
+    /// connector with an arm, each drawn through a diagram, produce the buffer the same core
+    /// `Connector` drawn directly produces.
     ///
     /// A stronger pin than the conversion was, because it goes through the four lines that built it
     /// rather than naming them: a terminal or a direction dropped on the way would change the
@@ -2556,28 +2558,27 @@ mod tests {
         }
     }
 
-    /// User Story 3, spec's B3.1, SC-004, and User Story 1's B1.1 and SC-001: taking the referenced box
-    /// out leaves the connector drawing **exactly what it drew**, and leaves the figure that had
-    /// nothing to do with either drawing exactly what it drew **on its own**.
+    /// Taking the referenced box out leaves the connector drawing **exactly what it drew**, and
+    /// leaves the figure that had nothing to do with either drawing exactly what it drew **on its
+    /// own**.
     ///
     /// **This test used to say the opposite of both halves of its own name, and it was not among the
     /// places the specification named.** It read `…_stops_the_connector_…` and asserted that the
     /// connector drew nothing, which is true of the rule 142 reverses and false of the rule it
     /// lands; and it pinned the whole picture against a diagram of the unrelated box alone, so the
     /// second half of the name could not be said about the connector at all. It escaped the
-    /// inventory because it cites 081's B3.1 and never names this issue, so `grep` for the behavior
-    /// rather than for the issue's number found the prose and not the test. 143 paid for the same gap
-    /// a fifth time in a different file, and this is the same lesson written down in
-    /// `docs/learning-log.md`. **It is rewritten rather than deleted**, and the arrangement and
-    /// `the_unrelated_box()` are kept: the box that had nothing to do with either end is what makes
-    /// the second half of the name mean something.
+    /// inventory because it cited a rule by number and never named this issue, so `grep` for the
+    /// behavior rather than for the issue's number found the prose and not the test. 143 paid for
+    /// the same gap a fifth time in a different file. **It is rewritten rather than deleted**, and
+    /// the arrangement and `the_unrelated_box()` are kept: the box that had nothing to do with
+    /// either end is what makes the second half of the name mean something.
     ///
     /// **Why this cannot be `assert_eq!` on the buffer and cannot be "nothing moved" either.** One
     /// cell is the whole difference between the two pictures, and it is not one of the box's going
     /// blank: `{3, 1}` is where the box's own right border used to compose with the arrow's arm into
     /// one junction, so it read `├` while the box stood and reads `─` with the box gone — a cell
     /// carrying one arm renders as the run through it. The box's other nine drawn cells go blank.
-    /// Measured, not derived: research.md Q7 corrected the specification's own `15 − 6 = 9` because
+    /// Measured, not derived: measurement corrected the specification's own `15 − 6 = 9` because
     /// this cell changes glyph rather than going blank, and an asserted count in a test is what a
     /// hand-drawn picture gets wrong.
     ///
@@ -2586,7 +2587,7 @@ mod tests {
     /// between two drawings. It is also the part that is **accepted with nothing verifying it**:
     /// "every other figure is byte for byte" is a claim about the whole diagram, and no single
     /// arrangement establishes it for every diagram — which is why it is named here rather than
-    /// described as tested (constitution, principle IV).
+    /// described as tested, which is what CONTRIBUTING.md asks for in that case.
     #[test]
     fn taking_the_referenced_figure_out_leaves_the_connector_where_it_was_and_changes_nothing_else()
     {
@@ -2677,9 +2678,8 @@ mod tests {
         Some(from)
     }
 
-    /// User Story 1, spec's B1.1 and SC-001: taking the shape a reference names out leaves that end
-    /// standing at the point it was resolving to — **asked and then drawn**, in the specification's
-    /// wording and in the order it asks for.
+    /// Taking the shape a reference names out leaves that end standing at the point it was
+    /// resolving to — **asked and then drawn**, in that order.
     ///
     /// **By value first**, and the `assert_ne!` is what makes it mean anything: a body that froze
     /// nothing leaves the endpoint holding the reference it already held, which is exactly what it
@@ -2690,13 +2690,12 @@ mod tests {
     /// **By picture, and the last claim is asserted as a difference rather than as a count.** The
     /// cells the removed box held are **discovered** — every cell inside the box's own rectangle
     /// that held something while it stood — and the cells the arrow writes are **discovered against
-    /// a no-connector baseline**, which is how research.md Q3 measured the six-cell footprint. The
-    /// two together say the whole picture in two comparisons without a number written down: the
-    /// box's cells are gone, nothing else moved, and every cell the arrow writes outside that
-    /// rectangle is byte for byte what it was. A quoted **10** would be the thing research.md Q7
-    /// measured and found wrong — it is `15 − 6` only for the nine that go blank, because `{3, 1}`
-    /// changes glyph rather than going blank, which is why the glyph is asserted rather than left to
-    /// be counted.
+    /// a no-connector baseline**, which is how the six-cell footprint was measured. The two
+    /// together say the whole picture in two comparisons without a number written down: the box's
+    /// cells are gone, nothing else moved, and every cell the arrow writes outside that rectangle
+    /// is byte for byte what it was. A quoted **10** would be the thing measurement found wrong —
+    /// it is `15 − 6` only for the nine that go blank, because `{3, 1}` changes glyph rather than
+    /// going blank, which is why the glyph is asserted rather than left to be counted.
     #[test]
     fn a_removal_freezes_what_hung_from_the_removed_shape() {
         let (origin, size) = the_window();
@@ -2791,9 +2790,8 @@ mod tests {
         );
     }
 
-    /// User Story 1, spec's B1.2 and B1.3, SC-001: a figure put back under the removed identity is
-    /// **not re-hung from** — what hung from the removed one stays where it was, and the identity
-    /// stays the diagram's to issue.
+    /// A figure put back under the removed identity is **not re-hung from** — what hung from the
+    /// removed one stays where it was, and the identity stays the diagram's to issue.
     ///
     /// Both behaviors in one test because both are about what comes back. The first half puts the
     /// box back **in place** and the picture comes back byte for byte — the frozen point is the
@@ -2886,8 +2884,8 @@ mod tests {
         );
     }
 
-    /// User Story 2, spec's B2.1 and SC-002: the three routes that reached **one** picture byte for byte
-    /// reach **three** now, and the taken-out one is the odd one out — its arrow is still there.
+    /// The three routes that reached **one** picture byte for byte reach **three** now, and the
+    /// taken-out one is the odd one out — its arrow is still there.
     ///
     /// **One test rather than three, and the reason is the specification's:** the taken-out route is
     /// compared against **both** of the others and against neither, and only one place can ask that.
@@ -2900,7 +2898,9 @@ mod tests {
     /// and under `#2` in the other, and the hanging connector names `#1` in both — so the two differ
     /// by **which identity** the figure stands under and by nothing else. A reference naming a
     /// figure that answers no side resolves to nothing, which is exactly the answer it gives an
-    /// identity that was never there (ADR-0041), and the freeze changed nothing about that.
+    /// identity that was never there, and the freeze changed nothing about that: it rewrites a
+    /// reference whose subject has just been removed, and this one names an identity nothing ever
+    /// held, which no removal created and so no removal repairs.
     ///
     /// **Asserted as whole buffers rather than as a count of differing cells**, because the routes
     /// differ everywhere the arrow stood and a count would not say where — which is the whole of
@@ -3193,9 +3193,8 @@ mod tests {
         );
     }
 
-    /// User Story 3, spec's B3.2, SC-004: a figure put back under the referenced identity makes the
-    /// connector draw again, hanging from the **new** figure's side rather than where the old one
-    /// stood.
+    /// A figure put back under the referenced identity makes the connector draw again, hanging
+    /// from the **new** figure's side rather than where the old one stood.
     ///
     /// The case is put through `replace` rather than through `remove` followed by an addition, and
     /// the reason is the model's rather than a convenience: `replace` answers the same resolution
@@ -3257,15 +3256,15 @@ mod tests {
         );
     }
 
-    /// User Story 1, spec's B1.1 and B1.2: a connector with one endpoint absolute and one hanging,
-    /// displaced, moves **both** of them — and what the hanging one moved is its gap.
+    /// A connector with one endpoint absolute and one hanging, displaced, moves **both** of them
+    /// — and what the hanging one moved is its gap.
     ///
     /// **This test used to say the opposite, and it was not among the four places the
     /// specification named.** It read `…_leaves_its_hanging_one` and asserted that the cell the
     /// hanging end stood on was byte-identical before and after, which is true of the rule this
-    /// slice reverses and false of the rule it lands. It escaped the inventory because its own
-    /// citation is 082's B4.2 and it never names this issue, so `grep -rn "143"` — the measurement
-    /// behind that inventory — did not return it. The count was four and the truth is five.
+    /// slice reverses and false of the rule it lands. It escaped the inventory because it cited a
+    /// rule by number and never named this issue, so `grep -rn "143"` — the measurement behind
+    /// that inventory — did not return it. The count was four and the truth is five.
     ///
     /// **It is rewritten rather than deleted, and the case is kept** because this is the arrangement
     /// its sibling does not reach: the reference sits in the **`to`** slot with an absolute in
@@ -3355,11 +3354,11 @@ mod tests {
         );
     }
 
-    /// User Story 4, spec's B4.3: displacing a box or a line takes all four of its side centers with
-    /// it, and a connector hanging from any of them goes with them.
+    /// Displacing a box or a line takes all four of its side centers with it, and a connector
+    /// hanging from any of them goes with them.
     ///
-    /// The other side of B4 from the rule above, and what makes a displacement a property of a
-    /// position rather than of a figure. All four anchors rather than one, each with a destination
+    /// The other half of the rule above, and what makes a displacement a property of a position
+    /// rather than of a figure. All four anchors rather than one, each with a destination
     /// of its own so that no two arms share a cell and no wrong answer can hide behind a right one:
     /// an implementation that moved three centers and left the fourth would draw three correct
     /// routes and one that goes nowhere.
@@ -3534,9 +3533,8 @@ mod tests {
         (from.at.resolve(d), to.at.resolve(d))
     }
 
-    /// User Story 1, spec's B1.1 and B1.2, SC-001: displacing the connector grows the reference's
-    /// offset and moves the absolute end, **asked by value and then drawn** — which is the spec's
-    /// own order and the order the two halves are only worth anything in.
+    /// Displacing the connector grows the reference's offset and moves the absolute end, **asked
+    /// by value and then drawn** — which is the order the two halves are only worth anything in.
     ///
     /// The value half catches a rule that grew the wrong field: `id` and `anchor` are held equal to
     /// what went in, and each is asked on its own rather than as a pair. The drawn half catches one
@@ -3631,8 +3629,8 @@ mod tests {
         );
     }
 
-    /// User Story 1, spec's B1.3, SC-001: a figure holding **two** references grows both offsets by
-    /// the same amount and is translated rigidly — the rule above, twice, and one test.
+    /// A figure holding **two** references grows both offsets by the same amount and is
+    /// translated rigidly — the rule above, twice, and one test.
     ///
     /// A diagram of **two** boxes rather than one, because a shape holding a single reference cannot
     /// ask this and an implementation that moved only the first endpoint would pass the test above.
@@ -3881,8 +3879,8 @@ mod tests {
         );
     }
 
-    /// User Story 2, spec's B2.1, B2.2 and B2.3, SC-002: the two directions are distinguishable
-    /// from outside, and **both of them are asked in one test**.
+    /// The two directions are distinguishable from outside, and **both of them are asked in one
+    /// test**.
     ///
     /// One test is the specification's own reason and it is the whole of the reason: an
     /// implementation that reached the same place in both directions — by rewriting the shape a
@@ -4012,9 +4010,8 @@ mod tests {
         );
     }
 
-    /// User Story 2, spec's B2.2 and SC-003, and the edge case the specification spells out: a
-    /// reference that resolves to nothing still resolves to nothing after a displacement — **and
-    /// its offsets grew anyway**.
+    /// A reference that resolves to nothing still resolves to nothing after a displacement —
+    /// **and its offsets grew anyway**.
     ///
     /// That second half is the assertion that makes this test worth writing, and it is why the
     /// test is not simply the one beside it with a displacement added. A `displaced_by` that grew
@@ -4123,8 +4120,8 @@ mod tests {
         }
     }
 
-    /// User Story 2, and the **second** derived arrangement: the box displaced two cells down and
-    /// then the connector displaced two cells down.
+    /// The **second** derived arrangement: the box displaced two cells down and then the connector
+    /// displaced two cells down.
     ///
     /// **Derived from the rule rather than decided by it**, and stated so a reader is not surprised
     /// by it and so a later slice that changes it has to say so rather than discover it in a

@@ -3,13 +3,28 @@
 //!
 //! **This is a characterization, not a contract test.** It records what the code does over a range
 //! too wide to assert by hand, and a change to it is the consequence of a decision taken
-//! elsewhere rather than a decision here. It is accepted after a report of how many cases moved, in
-//! which families, and three examples with their before and after — per
-//! [ADR-0053](../../../docs/decisions/0053-report-a-characterization-instead-of-reviewing-it.md),
-//! which each snapshot file repeats at its own head. It is kept apart from every picture a test
-//! asserts by hand by its own directory, not by its name, and one file per first value so a review
-//! tool can render each diff — per
-//! [ADR-0045](../../../docs/decisions/0045-pin-every-connector-arrangement-as-a-reviewed-snapshot.md).
+//! elsewhere rather than a decision here. The two kinds of test are kept apart on purpose: a
+//! contract test pins a decision, so moving one belongs on the decision sheet, while a
+//! characterization records what the code does.
+//!
+//! **A moved snapshot is reported, not reviewed.** Each time one moves, what is produced is **how
+//! many cases moved, in which families of arrangement, and three representative examples with their
+//! before and after** — that report is what is read, and the file is not claimed to be. Nothing
+//! checks that the report was produced or that its three examples are representative, so it is a
+//! habit rather than a gate step. What is deliberately **not** claimed is that the whole sweep was
+//! read once against the model: a reviewed-once artifact decays, because the review that mattered
+//! happened when the file was written and every later reader meets a diff against a baseline they
+//! did not read. A claim nobody can keep is worse than no claim, since it is believed by whoever
+//! reads it next — and a believed one becomes a reason not to change the ranking at all. The
+//! report is what makes a diff legible: a reader can tell at a glance whether it is a decision or a
+//! derivation. The rule is repeated at the head of every snapshot file, which is where it is met.
+//!
+//! **One file per first value, in a directory of their own.** Contract snapshots and
+//! characterization snapshots are separated by directory rather than by naming, and a family splits
+//! one file per first value, so a review tool renders each diff whole instead of cutting one diff
+//! across two files. Nothing outside the tests depends on any of it: `insta` is a dev-dependency, so
+//! it reaches neither the library nor the WebAssembly build, and a file of pinned pictures is not
+//! something anyone reads end to end — its whole value is in the diff.
 //!
 //! [`docs/diagram-demo.md`](../../../docs/diagram-demo.md) is the readable half of the same
 //! subject: it shows one instance of each decision the format makes, and this holds the finite
@@ -98,7 +113,7 @@ fn case(name: &str, shapes: &str) -> String {
     out
 }
 
-/// One snapshot per first value, with the ADR-0053 report rule at the head of every file.
+/// One snapshot per first value, with the characterization's report rule at the head of every file.
 fn pin(name: &str, cases: &[String]) {
     let mut settings = insta::Settings::clone_current();
     settings.set_snapshot_path(concat!(

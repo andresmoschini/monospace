@@ -12,7 +12,7 @@ use crate::{Glyph, Pos, Shape, Size, Stroke, Surface};
 /// A **complete** shape in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../docs/model.md): what a library user sees. Its decomposition depends
 /// on `size` rather than on its kind — a 2×2 box is four corners and nothing else — and below 2
-/// in either dimension it draws nothing at all, per _Degenerate arrangements_ and FR-021.
+/// in either dimension it draws nothing at all, per _Degenerate arrangements_.
 #[derive(Debug)]
 pub struct BoxShape {
     /// The box's top-left corner.
@@ -134,7 +134,7 @@ mod tests {
         Stroke::from("light")
     }
 
-    /// User story 1, scenario 1: a 6×3 box renders its border exactly.
+    /// A 6×3 box renders its border exactly.
     #[test]
     fn a_6x3_box_renders_its_border() {
         let origin = Pos { x: 0, y: 0 };
@@ -156,7 +156,7 @@ mod tests {
         assert_eq!(text, "┌────┐\n│    │\n└────┘\n");
     }
 
-    /// User story 1, scenario 2: the same box filled keeps its border and fills exactly its 4×1
+    /// The same box filled keeps its border and fills exactly its 4×1
     /// interior.
     #[test]
     fn a_6x3_box_filled_keeps_its_border_and_fills_only_its_interior() {
@@ -179,7 +179,7 @@ mod tests {
         assert_eq!(text, "┌────┐\n│░░░░│\n└────┘\n");
     }
 
-    /// User story 1, scenario 3: a 2×2 box is four corners and nothing else.
+    /// A 2×2 box is four corners and nothing else.
     #[test]
     fn a_2x2_box_is_four_corners_and_nothing_else() {
         let origin = Pos { x: 0, y: 0 };
@@ -201,7 +201,7 @@ mod tests {
         assert_eq!(text, "┌┐\n└┘\n");
     }
 
-    /// User story 1, scenario 4: below 2 in either dimension, nothing is drawn at all.
+    /// Below 2 in either dimension, nothing is drawn at all.
     #[test]
     fn a_box_below_2_in_either_dimension_draws_nothing() {
         let origin = Pos { x: 0, y: 0 };
@@ -239,7 +239,7 @@ mod tests {
         }
     }
 
-    /// User story 1, scenario 5: none of the boxes above writes any position more than once.
+    /// None of the boxes above writes any position more than once.
     #[test]
     fn no_box_above_writes_any_position_more_than_once() {
         for (size, fill) in [
@@ -281,7 +281,7 @@ mod tests {
         }
     }
 
-    /// Bug 049, acceptance scenarios 1 and 3: two unfilled boxes positioned so one's border
+    /// Two unfilled boxes positioned so one's border
     /// crosses into the other's interior render a crossing (`┼`) at every cell where that
     /// happens, not a closed junction.
     #[test]
@@ -322,7 +322,7 @@ mod tests {
         );
     }
 
-    /// Bug 049, FR-002 and acceptance scenario 2: a fill keeps closing its own interior side, even
+    /// A fill keeps closing its own interior side, even
     /// while an unfilled box elsewhere still lets a crossing show through.
     #[test]
     fn a_filled_box_among_unfilled_ones_still_closes_its_interior() {

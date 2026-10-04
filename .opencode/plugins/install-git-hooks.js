@@ -1,11 +1,10 @@
-// Installs this repository's git hooks, which nothing but a Claude Code session would otherwise
-// install. `.claude/settings.json` does the same through a `SessionStart` entry; this is the same
-// arrangement for OpenCode, and it exists for the reason ADR-0005 records — a commit made with the
-// hooks absent runs no gate and says nothing, which is worse than a hook that fails loudly.
+// Installs this repository's git hooks, which nothing but a session would otherwise install.
+// `.claude/settings.json` does the same through a `SessionStart` entry; this is the same
+// arrangement for OpenCode, and it exists for a reason worth stating: a commit made with the hooks
+// absent runs no gate and says nothing, which is worse than a hook that fails loudly.
 //
 // OpenCode V2 shape: a default export carrying an `id`, with `setup` holding the work. The V1
-// function-export shape this replaced did not run at all on V2, which is written down in
-// ADR-0058's revisions.
+// function-export shape this replaced did not run at all on V2.
 //
 // The two flags on the command are load-bearing. `--local` and `-C` together mean a session whose
 // working directory is not a checkout writes nothing at all, where a bare `git config` outside a
@@ -28,31 +27,34 @@
 // does not fit — "Plugin must export a default definition with an id and an effect or setup
 // function" — is a default export and nothing else, and `Plugin.define` in that package is
 // `define(plugin) { return plugin }`. The import bought type-checking that no step in the gate
-// performs, and cost the whole plugin. See ADR-0058's revisions.
+// performs, and cost the whole plugin.
 
-const HOOKS_PATH = ".claude/git-hooks"
+const HOOKS_PATH = ".claude/git-hooks";
 
 export default {
   id: "monospace.git-hooks",
   async setup(ctx) {
-    const directory = ctx.location.directory
+    const directory = ctx.location.directory;
     try {
-      const child = Bun.spawn(["git", "-C", directory, "config", "--local", "core.hooksPath", HOOKS_PATH], {
-        stdout: "ignore",
-        stderr: "pipe",
-      })
-      const code = await child.exited
+      const child = Bun.spawn(
+        ["git", "-C", directory, "config", "--local", "core.hooksPath", HOOKS_PATH],
+        {
+          stdout: "ignore",
+          stderr: "pipe",
+        },
+      );
+      const code = await child.exited;
       if (code !== 0) {
-        throw new Error(await new Response(child.stderr).text())
+        throw new Error(await new Response(child.stderr).text());
       }
-      console.log(`[monospace] git hooks installed: core.hooksPath=${HOOKS_PATH} in ${directory}`)
+      console.log(`[monospace] git hooks installed: core.hooksPath=${HOOKS_PATH} in ${directory}`);
     } catch (error) {
       // Logged and swallowed on purpose: a hook installer that can stop a session is worse than
       // the gap it closes. The boundary that actually holds is CI.
       console.warn(
         `[monospace] could not set core.hooksPath; commits from this session run no gate.\n` +
           `  ${error}\n  Run: git config core.hooksPath ${HOOKS_PATH}`,
-      )
+      );
     }
   },
-}
+};

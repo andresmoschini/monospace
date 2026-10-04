@@ -6,6 +6,7 @@
 # unless it is a large dictionary pulled in for a single word.
 Andrés
 doctests
+frontmatter
 insta
 Moschini
 msvc
@@ -13,10 +14,14 @@ newtype
 nvmrc
 Nygard
 opencode
+pathspec
 PATHEXT
 RUSTFLAGS
 safecrlf
 speckit
+TKTK
+underspecification
+unrequested
 valueonly
 worktree
 xtask

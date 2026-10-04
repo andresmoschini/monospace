@@ -1,4 +1,5 @@
-//! A stroke's name. See [ADR-0015](../../../docs/decisions/0015-represent-a-stroke-as-a-string.md).
+//! A stroke's name: an owned `String`, because a stroke is only a name and that name can arrive
+//! from a set loaded at runtime rather than being known at compile time.
 
 /// The name of a stroke. A stroke has no attributes of its own: it exists only because a cell or
 /// a glyph rule mentions it.

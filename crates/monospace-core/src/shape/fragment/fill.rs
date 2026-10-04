@@ -1,6 +1,5 @@
 //! The fill fragment: a rectangle written as one chosen glyph. See _Pieces_ in
-//! [`docs/model.md`](../../../../../docs/model.md) and
-//! [ADR-0028](../../../../../docs/decisions/0028-give-each-fragment-its-own-cell-rule.md).
+//! [`docs/model.md`](../../../../../docs/model.md).
 
 use super::rect;
 use crate::{Cell, Glyph, Pos, Shape, Size, Surface};

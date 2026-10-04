@@ -7,11 +7,20 @@
 //! It deliberately has no dependencies. Orchestrating a list of subprocesses and propagating their
 //! exit codes is what the standard library is for, and a tool whose job is to guard the project's
 //! dependency policy should not be the first thing to bend it.
+//!
+//! # Design notes
+//!
+//! **`git rebase` and `git cherry-pick` do not fire the hook.** A history rewrite therefore owes a
+//! run of the gate to *every* rewritten commit, not only to the tip: a commit that was green before
+//! the rewrite can have been green by accident, and the tip being green says nothing about the ones
+//! under it. This is why `CONTRIBUTING.md` fixes a commit by where its correction belongs rather
+//! than by amending, and why `--force-with-lease` is the only way to push a rewrite.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod change;
 mod eol;
 mod numbering;
 mod pr;
@@ -122,6 +131,14 @@ const GATE: &[Step] = &[
         action: Action::Here(numbering::check),
     },
     Step {
+        name: "specs",
+        // It sits beside `numbering` rather than with the steps that compile: both read the tracked
+        // tree the way `editorconfig` does, and this one is about the shape of a document rather
+        // than about Rust. Renaming one of a spec's nine sections is what it catches, and there is
+        // no way to lose one without the file ceasing to be the thing the flow reads.
+        action: Action::Here(|root| crate::report_failure(spec::check(root))),
+    },
+    Step {
         name: "cspell",
         action: Action::Spawn {
             program: "node_modules/.bin/cspell",
@@ -164,8 +181,8 @@ const GATE: &[Step] = &[
         name: "wasm",
         action: Action::Spawn {
             program: "cargo",
-            // ADR-0001 asks the core to stay free of terminal and command-line assumptions so it can
-            // back a WebAssembly build later. This is what turns that from a claim in a document into
+            // The core is asked to stay free of terminal and command-line assumptions so it can back
+            // a WebAssembly build later, and this is what turns that from a claim in a document into
             // something the compiler refuses to let through. The target installs itself via
             // rust-toolchain.toml, so this needs no setup.
             args: &[
@@ -201,9 +218,9 @@ const GATE: &[Step] = &[
     Step {
         name: "render",
         // This is what stops a picture in a document from lying: it re-renders every description a
-        // tracked Markdown file carries and fails where the picture beside it has moved
-        // (ADR-0052). It sits last because it builds and runs the workspace's own binary, so it
-        // belongs with the steps that compile rather than with the ones that read text.
+        // tracked Markdown file carries and fails where the picture beside it has moved. It sits
+        // last because it builds and runs the workspace's own binary, so it belongs with the steps
+        // that compile rather than with the ones that read text.
         action: Action::Here(render::check),
     },
 ];
@@ -214,8 +231,8 @@ const GATE: &[Step] = &[
 /// step can undo or redo what an earlier one wrote. Content formatters run first, `editorconfig`
 /// after them because it owns files none of the others touch (`LICENSE`, the TOML files, the
 /// dotfiles) and otherwise only confirms what the earlier steps already left clean, and `eol` last
-/// because it owns the one concern every step above writes into, and the files `editorconfig` is
-/// configured to skip besides.
+/// because it owns the one concern every step above writes into: the ending of a line is the last
+/// thing a byte should be decided on.
 ///
 /// `clippy` and `cspell` have no entry: `cspell` cannot fix a spelling at all, and `clippy --fix`
 /// can rewrite code in ways that need a human to read the diff, which does not fit a command meant
@@ -231,8 +248,8 @@ const FIX: &[Step] = &[
     Step {
         name: "render",
         // Ahead of the Markdown formatters, so that whatever it writes into a fence is theirs to
-        // normalize rather than the other way round. It qualifies as a fixer on ADR-0020's own
-        // test: a picture's one right answer is what its description renders.
+        // normalize rather than the other way round. It qualifies as a fixer by one test: a picture's one
+        // right answer is what its description renders.
         action: Action::Here(render::fix),
     },
     Step {
@@ -259,9 +276,10 @@ const FIX: &[Step] = &[
     Step {
         name: "eol",
         // It sits beside `editorconfig` rather than inside it, and last rather than first.
-        // `editorconfig-checker` reads the same rule and is configured to skip `.specify/`, where a
-        // CRLF file is one `git add` refuses with no command to fix it by; and every step above this
-        // one writes, so the ending of a line is the last thing a byte should be decided on.
+        // `editorconfig-checker` reads the same rule, so this is belt-and-braces rather than the only
+        // reach, and it is asked which files Git would stage in CRLF and which of those are text at
+        // all; and every step above this one writes, so the ending of a line is the last thing a
+        // byte should be decided on.
         action: Action::Here(eol::fix),
     },
 ];
@@ -274,7 +292,7 @@ fn main() -> ExitCode {
         Some("fix") => run_fix(),
         Some("setup") => run_setup(),
         Some("render") => render::run(args),
-        Some("spec") => spec::run(args),
+        Some("change") => change::run(args),
         Some("pr") => pr::run(args),
         None | Some("help" | "--help" | "-h") => {
             print_usage();
@@ -398,14 +416,30 @@ fn run(root: &Path, step: &Step) -> bool {
 ///
 /// An `Action::Here` step owns its own failure message and has no exit code to hand back, so this is
 /// where its `Result` becomes the boolean `run` asks for. It lives beside `run` because that is the
-/// contract being adapted to, and it is shared because `render` and `eol` both need it and neither
-/// should grow a copy.
-pub(crate) fn report_failure(outcome: Result<(), String>) -> bool {
+/// contract being adapted to, and it is shared because `render`, `eol`, `numbering` and `spec` all
+/// need it and none should grow a copy. `Ok` carries whatever the step wants to report and nothing
+/// is done with it: the answer is the boolean.
+pub(crate) fn report_failure<T>(outcome: Result<T, String>) -> bool {
     match outcome {
-        Ok(()) => true,
+        Ok(_) => true,
         Err(message) => {
             eprintln!("{message}");
             false
+        }
+    }
+}
+
+/// The other adapter between a `Result` and what `main` hands back: a command's answer rather than a
+/// step's.
+///
+/// It is here rather than in either command's module because there are three of them and a verb that
+/// failed has said what was wrong already — the message is the whole report.
+pub(crate) fn to_exit_code<T>(outcome: Result<T, String>) -> ExitCode {
+    match outcome {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::FAILURE
         }
     }
 }
@@ -529,7 +563,7 @@ fn print_usage() {
     println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
     println!("  render   Regenerate the pictures tracked Markdown files carry");
     println!(
-        "  spec     Manage a feature's branch lifecycle; `cargo xtask spec help` lists its verbs"
+        "  change   Open, switch to, or report on a change's branch; `cargo xtask change help` lists its verbs"
     );
     println!("  pr       Prepare and open a pull request; `cargo xtask pr help` lists its verbs");
     println!("  help     Show this message");

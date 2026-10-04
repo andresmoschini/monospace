@@ -1,6 +1,14 @@
 //! A diagram's own figures: a closed set of kinds, each holding every position and parameter the
-//! core shape it constructs takes. See [`docs/diagram-model.md`](../../../docs/diagram-model.md)
-//! and [ADR-0039](../../../docs/decisions/0039-a-diagram-shape-is-its-own-entity.md).
+//! core shape it constructs takes. See [`docs/diagram-model.md`](../../../docs/diagram-model.md).
+//!
+//! The set is closed on purpose, because every question this layer exists to answer is a question
+//! about which kind a shape is and a closed set is the only one of the three ways of holding them
+//! where the compiler answers it. A diagram's shape is therefore a value of this crate's own type —
+//! an identity, a position that may be a reference, and the parameters of its figure — which is the
+//! opposite of a core shape in every one of those respects: a core shape is a value with no
+//! identity, no lifecycle and no mutable state, which draws itself and answers nothing else about
+//! itself. The two are not the same concept and are not made to share one, so the core learns
+//! nothing about diagrams and its public API is not widened for a layer it does not know about.
 
 use monospace_core::Shape as _;
 use monospace_core::{
@@ -13,9 +21,9 @@ use crate::{Anchor, Delta, Diagram, Position, ShapeId};
 /// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
 ///
 /// Mirrors `monospace_core::Endpoint` rather than reusing it, so that a later change to how an
-/// endpoint is anchored stays inside this crate (research.md Q3). The terminal is the core's own
-/// type and this crate re-exports nothing: a caller takes it from `monospace_core`, exactly as it
-/// already takes the `Pos`, `Direction` and `Glyph` the other two fields hold.
+/// endpoint is anchored stays inside this crate. The terminal is the core's own type and this crate
+/// re-exports nothing: a caller takes it from `monospace_core`, exactly as it already takes the
+/// `Pos`, `Direction` and `Glyph` the other two fields hold.
 ///
 /// `at` is a [`Position`] rather than a `Pos`, and this is the only field in the crate that can
 /// hold a reference: the model's _Positions_ restriction — only a connector's endpoint may name
@@ -65,7 +73,7 @@ impl Endpoint {
 }
 
 /// A figure a diagram can hold: one of a closed set of kinds, each carrying every position and
-/// parameter the core shape it constructs takes (FR-007, FR-008).
+/// parameter the core shape it constructs takes.
 ///
 /// `Clone` and `PartialEq` are what let a caller compare what a diagram hands back with what it
 /// added, and what let a figure displaced by nothing at all come back equal to itself. Every leaf
@@ -132,7 +140,7 @@ impl Shape {
     }
 
     /// Converts this shape into the `monospace_core` shape it describes and draws it into
-    /// `surface`, dropping no parameter (FR-009).
+    /// `surface`, dropping no parameter.
     ///
     /// It takes the diagram it is drawn from because a connector's endpoints are positions and a
     /// position may be a reference, which only a diagram can resolve. The `Box` and `Line` arms
@@ -394,9 +402,9 @@ mod tests {
         }
     }
 
-    /// User Story 1, spec's B1.1 and SC-001: `Shape::with_frozen_references` answers **`None` for
-    /// every figure holding no reference to the figure it is asked about** — over **all three
-    /// kinds** — and `Some` for the one that does.
+    /// `Shape::with_frozen_references` answers **`None` for every figure holding no reference to
+    /// the figure it is asked about** — over **all three kinds** — and `Some` for the one that
+    /// does.
     ///
     /// **Every one of the four is `None` and not a copy**, which is the whole claim. The alternative
     /// signature returned the figure itself and let the caller assign unconditionally, and a figure
@@ -455,8 +463,7 @@ mod tests {
         );
     }
 
-    /// User Story 1, spec's B3.4 scenario: a figure displaced by nothing at all comes back equal to
-    /// itself.
+    /// A figure displaced by nothing at all comes back equal to itself.
     ///
     /// All three kinds rather than one, and a `Connector` among them because it moves through an
     /// `Endpoint`: a derive that stopped short of that struct would leave this case failing and
@@ -516,10 +523,9 @@ mod tests {
         )
     }
 
-    /// User Story 2, spec's B2 scenario 1, SC-004: a glyph terminal is decided on every side, so
-    /// nothing composes into the cell it shares with the left box's border and whichever figure is
-    /// in front keeps it. Two orders, two pictures, and the one drawn between the boxes has lost
-    /// that border cell.
+    /// A glyph terminal is decided on every side, so nothing composes into the cell it shares
+    /// with the left box's border and whichever figure is in front keeps it. Two orders, two
+    /// pictures, and the one drawn between the boxes has lost that border cell.
     #[test]
     fn glyph_terminals_draw_two_different_pictures_and_the_border_cell_is_lost_in_one() {
         let (from, to) = glyph_terminals();
@@ -547,10 +553,9 @@ mod tests {
         }
     }
 
-    /// User Story 2, spec's B2 scenario 2, SC-003: an arm terminal leaves three sides undecided,
-    /// so whatever reaches the cell afterwards still joins it. Both orders therefore draw the same
-    /// picture, and the border cell is a junction in each — the equality the two rendered files
-    /// measured, made permanent.
+    /// An arm terminal leaves three sides undecided, so whatever reaches the cell afterwards still
+    /// joins it. Both orders therefore draw the same picture, and the border cell is a junction in
+    /// each — the equality the two rendered files measured, made permanent.
     #[test]
     fn arm_terminals_draw_one_identical_picture_with_a_junction_in_both_orders() {
         let (second_box_after, second_box_before) = both_orders(Terminal::Arm, Terminal::Arm);
