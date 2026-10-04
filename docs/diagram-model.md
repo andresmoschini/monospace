@@ -112,6 +112,19 @@ offsets, so it is derived from where that shape is now rather than from where it
 reference was made. Moving the referenced shape moves everything that hangs from it, which is the
 whole point of having references at all.
 
+**The gap from that side may also be written in the side's own words.** An `out` of one cell is one
+cell away from the shape, whichever of the four sides names it — `(0, -1)` out of a `top`, `(+1, 0)`
+out of a `right`, `(0, +1)` out of a `bottom` and `(-1, 0)` out of a `left`, which is the one axis
+the side does not run in. It is **added to** the offset rather than put in its place, so a figure
+may write either one or both, and one that writes neither is a reference standing on the border. It
+is signed, so a negative `out` is a point inside the shape; like every other amount in the format it
+is not checked against the side or clamped, so an `out` and an offset pushing one axis in opposite
+directions add and may cancel, and nothing reports it. **What a reference stores is the sum**, which
+is why nothing in it records which of the two spellings it was written in and a displacement reaches
+both exactly as it reaches the offset it already reached. The amount _along_ the side gets no second
+spelling, because it is the other of the two amounts the offset already carries — and one pair of
+screen amounts is one gap, which is what tells a gap from a slide.
+
 **Only a connector's endpoint holds a reference, for now.** Every other shape's position is
 absolute, and _Attachment_ below is where the reference lives. A reference therefore names a box or
 a line, both positioned absolutely, or a connector, which answers no anchor point: the chain is one

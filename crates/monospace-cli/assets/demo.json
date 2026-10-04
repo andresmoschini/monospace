@@ -76,7 +76,12 @@
       "kind": "connector",
       "id": "#10",
       "from": {
-        "at": { "kind": "point", "x": 12, "y": 3 },
+        "at": {
+          "kind": "reference",
+          "shape": "#3",
+          "anchor": "right",
+          "offset": { "dx": 0, "dy": 0 }
+        },
         "leaving": "right",
         "terminal": { "kind": "arm" }
       },
@@ -85,7 +90,8 @@
           "kind": "reference",
           "shape": "#5",
           "anchor": "bottom",
-          "offset": { "dx": 1, "dy": 1 }
+          "offset": { "dx": 1, "dy": 0 },
+          "out": 1
         },
         "leaving": "down",
         "terminal": { "kind": "glyph", "glyph": "▲" }

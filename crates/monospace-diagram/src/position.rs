@@ -43,6 +43,43 @@ pub enum Anchor {
     Left,
 }
 
+impl Anchor {
+    /// `out` cells away from the shape through this side, in the screen axes
+    /// [`Delta`](crate::Delta) carries.
+    ///
+    /// **One rule read in four directions**, and the rule is that a side's outward normal runs along
+    /// the axis the side itself does not: `top` and `bottom` are horizontal borders, so they move a
+    /// point vertically, and `left` and `right` are vertical borders, so they move one horizontally.
+    /// Each amount is negated or not so that **a positive `out` is always further from the shape**,
+    /// which is what lets a caller name a gap without knowing which way up the screen is and which
+    /// way the figure faces.
+    ///
+    /// The four signs belong to this crate rather than to whoever reads a file, because a sign is a
+    /// fact about which way a side faces and this is the module that answers that. A caller that
+    /// wants the screen axes anyway holds the [`offset`](Reference::offset), which is two `i32`s it
+    /// can put anything into — this is a second spelling of a gap, not a replacement for one.
+    ///
+    /// `saturating_neg` rather than `-`, because `i32::MIN` has no positive counterpart and a plain
+    /// negation of it overflows, which in a debug build is a panic on a value a description is free
+    /// to spell. Saturating puts that one input a cell nearer than it could have gone rather than
+    /// turning a picture into a crash, which is the same trade [`Delta::apply`](crate::Delta)
+    /// makes and for the same reason.
+    pub(crate) fn outward(self, out: i32) -> Delta {
+        match self {
+            Self::Top => Delta {
+                dx: 0,
+                dy: out.saturating_neg(),
+            },
+            Self::Right => Delta { dx: out, dy: 0 },
+            Self::Bottom => Delta { dx: 0, dy: out },
+            Self::Left => Delta {
+                dx: out.saturating_neg(),
+                dy: 0,
+            },
+        }
+    }
+}
+
 /// Another figure and one of its four sides, which is what a position may name instead of a point.
 ///
 /// Three fields, and that is the whole of it: the model's _Vocabulary_ gives a reference an
@@ -68,7 +105,42 @@ pub struct Reference {
     /// Which of that shape's four sides it hangs from.
     pub anchor: Anchor,
     /// How far from that side, along each screen axis, in cells.
+    ///
+    /// This is where an `out` lands rather than a field of its own — [`Reference::new`] adds it
+    /// here — so a gap spelled in the side's own words and a gap spelled as an offset are one value
+    /// by the time anything reads it.
     pub offset: Delta,
+}
+
+impl Reference {
+    /// A reference hanging from `anchor` on `id`, standing `offset` from that side **plus `out`
+    /// cells outward from it**, in the side's own words.
+    ///
+    /// **The two amounts are added here, once, and what comes back holds the sum.** The model's §4
+    /// _Positions_ says an `out` is written beside an offset and added to it, so a figure may write
+    /// either one or both — and one that writes neither is a reference standing on the border, which
+    /// is this constructor with a zero offset and a zero `out`. Adding rather than replacing is what
+    /// keeps every figure that exists today standing exactly where it stands.
+    ///
+    /// **Nothing in the result records which of the two spellings it was written in**, and that is
+    /// the whole of what a displacement relies on: it grows the offset this constructor grew, and it
+    /// neither can nor needs to know whether the gap arrived as one amount or as two. Storing the
+    /// `out` instead would have given that method two readings of one reference and sent it looking
+    /// for which spelling it was handed.
+    ///
+    /// `out` is signed and is not checked against the side it is measured from, so a negative one is
+    /// a point inside the shape and an `out` and an offset pushing the same axis in opposite
+    /// directions add and may cancel. Neither is reported: a reference that resolves to nothing
+    /// resolves to nothing however large its gap, which is §4's answer for an unresolved reference
+    /// and no exception to it.
+    #[must_use]
+    pub fn new(id: ShapeId, anchor: Anchor, offset: Delta, out: i32) -> Self {
+        Self {
+            id,
+            anchor,
+            offset: offset.grow(anchor.outward(out)),
+        }
+    }
 }
 
 /// Where something stands: a point, or a reference to a side of a shape.
@@ -224,10 +296,12 @@ pub(crate) fn flat_size(len: u32, orientation: Orientation) -> Size {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{Direction, Orientation, Pos, Size, Stroke, Terminal};
+    use monospace_core::{
+        Buffer, Direction, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, render,
+    };
 
     use super::Anchor;
-    use crate::{Delta, Diagram, Endpoint, Position, Reference, Shape};
+    use crate::{Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -489,5 +563,422 @@ mod tests {
         let nothing = Delta { dx: 0, dy: 0 };
         assert_eq!(reference.displaced_by(nothing), reference);
         assert_eq!(point.displaced_by(nothing), point);
+    }
+
+    /// Draws `diagram` into a `size` window at the origin and renders it as text, so that a claim
+    /// about what a gap draws is made in the vocabulary a reader reads a picture in.
+    ///
+    /// Half the rules of §4 _Positions_ are about the picture rather than about the fields, and a
+    /// diagram that resolved a point and drew something else from it would satisfy every field
+    /// comparison below.
+    fn picture_of(diagram: &Diagram, size: Size) -> String {
+        let origin = Pos { x: 0, y: 0 };
+        let mut buffer = Buffer::new(origin, size);
+        diagram.draw(&mut buffer);
+        render(&buffer, &GlyphCatalog::light(), origin, size)
+    }
+
+    /// A connector whose `from` is whatever `hanging_from` builds from the identity the box holds,
+    /// and whose far end is the fixed point below it — so two runs of this differ only in how the
+    /// near end was spelled.
+    ///
+    /// The identity is handed to the closure rather than spelled beside it, because an identity is
+    /// the diagram's to issue and not a test's to write down (D3) — the same reason
+    /// [`the_box_at_the_origin`]'s own tests keep the one `add` returned. A reference naming an
+    /// identity this diagram does not hold is reachable only by spelling one, which is what
+    /// `an_out_on_a_reference_that_resolves_to_nothing_still_draws_nothing` does.
+    fn diagram_hanging_from(hanging_from: impl FnOnce(ShapeId) -> Position) -> Diagram {
+        let mut diagram = Diagram::new();
+        let id = diagram.add(the_box_at_the_origin());
+        diagram.add(Shape::Connector {
+            from: Endpoint {
+                at: hanging_from(id),
+                leaving: Direction::Down,
+                terminal: Terminal::Arm,
+            },
+            to: Endpoint {
+                at: Pos { x: 1, y: 5 }.into(),
+                leaving: Direction::Up,
+                terminal: Terminal::Arm,
+            },
+            stroke: light(),
+        });
+        diagram
+    }
+
+    /// The `out` is **added to** the offset rather than put in its place, so all three go into one
+    /// answer: the anchor's point, then the offset, then the outward amount.
+    ///
+    /// The box is the four-by-three one every other test here resolves against, whose bottom centre
+    /// `{1, 2}` `a_box_answers_its_four_side_centres` already holds. **The two amounts are non-zero
+    /// and on different axes** — one cell along the side and three down it — because a test that put
+    /// them on the same axis would satisfy itself whether the outward one was added, overwritten or
+    /// dropped.
+    #[test]
+    fn a_reference_with_an_out_resolves_to_its_side_moved_by_the_offset_and_by_the_out() {
+        let mut diagram = Diagram::new();
+        let id = diagram.add(the_box_at_the_origin());
+
+        let reference = Reference::new(id, Anchor::Bottom, Delta { dx: 1, dy: 3 }, 1);
+
+        assert_eq!(
+            reference.offset,
+            Delta { dx: 1, dy: 4 },
+            "one cell out of a bottom side is one row down, added to the offset rather than put in \
+             its place"
+        );
+        assert_eq!(
+            Position::Reference(reference).resolve(&diagram),
+            Some(Pos { x: 2, y: 6 }),
+            "{{1, 2}} plus (1, 3) plus (0, 1) is {{2, 6}}"
+        );
+    }
+
+    /// A negative `out` is a point inside the shape rather than a fault, which is what makes the
+    /// amount signed: one cell out of a side means one cell further from it whichever way that is.
+    ///
+    /// **The point is asserted rather than the absence of a report**, because a description format
+    /// has no channel to report on and a reference naming a point inside a figure is an ordinary
+    /// arrangement — §4 says the offset's own amounts are unchecked against their side too.
+    #[test]
+    fn a_negative_out_is_a_point_into_the_shape_rather_than_an_error() {
+        let mut diagram = Diagram::new();
+        let id = diagram.add(the_box_at_the_origin());
+        let nothing = Delta { dx: 0, dy: 0 };
+
+        let into_the_box = Reference::new(id, Anchor::Bottom, nothing, -1);
+
+        assert_eq!(
+            Position::Reference(into_the_box).resolve(&diagram),
+            Some(Pos { x: 1, y: 1 }),
+            "one cell into the box from its bottom centre {{1, 2}} is {{1, 1}}"
+        );
+    }
+
+    /// All four signs, and **each one moves a point along the axis its own side does not run in**.
+    ///
+    /// A five-by-three box at the origin, an `out` of one on each of the four anchors and no offset
+    /// at all, so every answer is the side's own point plus one cell away from it. Both halves are
+    /// asked: the four points, and then — separately — that no side moved along the axis it runs
+    /// in, which is the half a transposed sign would satisfy while the four points above still
+    /// looked right to a reader.
+    #[test]
+    fn the_four_signs_are_the_outward_normal_of_the_side_they_are_named_from() {
+        let mut diagram = Diagram::new();
+        let id = diagram.add(Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 5,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+        });
+        let nothing = Delta { dx: 0, dy: 0 };
+        let stands_at = |anchor| {
+            let reference = Reference::new(id.clone(), anchor, nothing, 1);
+            (
+                reference.offset,
+                Position::Reference(reference).resolve(&diagram),
+            )
+        };
+
+        assert_eq!(
+            stands_at(Anchor::Top),
+            (Delta { dx: 0, dy: -1 }, Some(Pos { x: 2, y: -1 }))
+        );
+        assert_eq!(
+            stands_at(Anchor::Right),
+            (Delta { dx: 1, dy: 0 }, Some(Pos { x: 5, y: 1 }))
+        );
+        assert_eq!(
+            stands_at(Anchor::Bottom),
+            (Delta { dx: 0, dy: 1 }, Some(Pos { x: 2, y: 3 }))
+        );
+        assert_eq!(
+            stands_at(Anchor::Left),
+            (Delta { dx: -1, dy: 0 }, Some(Pos { x: -1, y: 1 }))
+        );
+
+        // A `top` or a `bottom` is a horizontal border and moves a point vertically; a `left` or a
+        // `right` is a vertical one and moves it horizontally. An amount of three rather than one,
+        // so a rule that dropped a non-zero amount cannot pass this by being zero.
+        for (anchor, dx, dy) in [
+            (Anchor::Top, 0, -3),
+            (Anchor::Right, 3, 0),
+            (Anchor::Bottom, 0, 3),
+            (Anchor::Left, -3, 0),
+        ] {
+            let outward = Anchor::outward(anchor, 3);
+            assert_eq!(
+                (outward.dx, outward.dy),
+                (dx, dy),
+                "{anchor:?} moved along the axis its own side runs in"
+            );
+        }
+    }
+
+    /// An `out` of zero is the reference written without the field: the same three fields, the same
+    /// resolution and the same picture.
+    ///
+    /// **The three spellings are compared as values and as pictures, and the third one differs from
+    /// them.** A picture alone would be satisfied by a `new` that ignored its fourth argument
+    /// altogether, because the offset is zero in every case here — so a non-zero `out` is drawn too,
+    /// which is what makes the equalities mean something.
+    #[test]
+    fn an_out_of_zero_is_the_reference_written_without_it() {
+        let size = Size {
+            width: 6,
+            height: 6,
+        };
+        let nothing = Delta { dx: 0, dy: 0 };
+
+        assert_eq!(
+            Reference::new(ShapeId::new("#1"), Anchor::Bottom, nothing, 0),
+            Reference {
+                id: ShapeId::new("#1"),
+                anchor: Anchor::Bottom,
+                offset: nothing,
+            },
+            "an `out` of zero is the three fields the reference has always held"
+        );
+
+        let as_an_out = picture_of(
+            &diagram_hanging_from(|id| {
+                Position::Reference(Reference::new(id, Anchor::Bottom, nothing, 0))
+            }),
+            size,
+        );
+        let as_an_offset = picture_of(
+            &diagram_hanging_from(|id| {
+                Position::Reference(Reference {
+                    id,
+                    anchor: Anchor::Bottom,
+                    offset: nothing,
+                })
+            }),
+            size,
+        );
+        let a_cell_clear = picture_of(
+            &diagram_hanging_from(|id| {
+                Position::Reference(Reference::new(id, Anchor::Bottom, nothing, 1))
+            }),
+            size,
+        );
+
+        assert_eq!(as_an_out, as_an_offset, "the same picture");
+        assert_ne!(
+            as_an_out, a_cell_clear,
+            "an `out` of zero drew the same as an `out` of one, so the field is being dropped"
+        );
+    }
+
+    /// Nothing in a reference records which of the two spellings its gap was written in, and **all
+    /// three agree as whole values** rather than merely resolving alike.
+    ///
+    /// That is what lets a displacement reach a gap by reaching the offset: a method that grew it
+    /// would have had two readings of one reference and no way to tell which it was handed. So the
+    /// assertion is on the struct — the one thing a reader could have asked to inspect for a
+    /// leftover field — and not on the resolution, which agrees whatever the reference happened to
+    /// hold.
+    #[test]
+    fn a_reference_cannot_be_told_which_of_the_two_spellings_it_was_written_in() {
+        let nothing = Delta { dx: 0, dy: 0 };
+        let one_down = Delta { dx: 0, dy: 1 };
+
+        assert_eq!(
+            Reference::new(ShapeId::new("#1"), Anchor::Bottom, one_down, 0),
+            Reference::new(ShapeId::new("#1"), Anchor::Bottom, nothing, 1),
+            "one cell out of a bottom side is one value however it was spelled"
+        );
+        assert_eq!(
+            Reference::new(ShapeId::new("#1"), Anchor::Bottom, one_down, 0),
+            Reference {
+                id: ShapeId::new("#1"),
+                anchor: Anchor::Bottom,
+                offset: one_down,
+            },
+            "and it is the value the offset spelled on its own already names"
+        );
+    }
+
+    /// A displacement grows the offset of a reference written with an `out` exactly as it grows any
+    /// other: the gap comes out of the same field and the point slides by the displacement.
+    ///
+    /// The displacement is of **the figure holding the reference**, which is what the rule is about —
+    /// a gap from a side grows with the figure it is hung on rather than traveling with the figure
+    /// the side belongs to. The box is left where it is precisely so that the slide is the only
+    /// thing the two resolutions can differ by.
+    #[test]
+    fn a_displacement_grows_the_offset_of_a_reference_written_with_an_out_as_it_grows_any_other() {
+        let by = Delta { dx: 0, dy: 3 };
+        let mut diagram = Diagram::new();
+        let id = diagram.add(the_box_at_the_origin());
+        let hanging = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: 0 }, 1);
+        let connector = Shape::Connector {
+            from: Endpoint {
+                at: Position::Reference(hanging.clone()),
+                leaving: Direction::Down,
+                terminal: Terminal::Arm,
+            },
+            to: Endpoint {
+                at: Pos { x: 1, y: 5 }.into(),
+                leaving: Direction::Up,
+                terminal: Terminal::Arm,
+            },
+            stroke: light(),
+        };
+
+        let Shape::Connector { from, .. } = connector.displaced_by(by) else {
+            unreachable!("the figure above is a connector")
+        };
+        let Position::Reference(moved) = from.at else {
+            unreachable!("its near end was a reference")
+        };
+
+        assert_eq!(
+            moved.offset,
+            Delta { dx: 0, dy: 4 },
+            "three rows of displacement added to the one cell the `out` grew"
+        );
+        assert_eq!(
+            Position::Reference(moved).resolve(&diagram),
+            Some(Pos { x: 1, y: 6 }),
+            "{{1, 3}} slid three rows down and nothing else moved"
+        );
+        assert_eq!(
+            Position::Reference(hanging).resolve(&diagram),
+            Some(Pos { x: 1, y: 3 }),
+            "the gap the caller wrote is the same reference's: {{1, 2}} and one cell out"
+        );
+    }
+
+    /// An `out` and an offset pushing the same axis in opposite directions add, and may cancel —
+    /// and the cancellation is a point rather than a report.
+    ///
+    /// **Both directions, because either one alone is the easy half.** An offset of one cell up
+    /// against an `out` of one is the side itself, which a rule that dropped either amount would
+    /// also produce; the offset of three is what shows that the two really are added rather than one
+    /// of them winning.
+    #[test]
+    fn an_out_and_an_offset_against_each_other_add_and_nothing_reports_the_cancellation() {
+        let mut diagram = Diagram::new();
+        let id = diagram.add(the_box_at_the_origin());
+
+        let cancelling = Reference::new(id.clone(), Anchor::Bottom, Delta { dx: 0, dy: -1 }, 1);
+        let past_the_side = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: -3 }, 1);
+
+        assert_eq!(cancelling.offset, Delta { dx: 0, dy: 0 });
+        assert_eq!(
+            Position::Reference(cancelling).resolve(&diagram),
+            Some(Pos { x: 1, y: 2 }),
+            "one cell up against one cell down is the side itself, which is a point and not a fault"
+        );
+        assert_eq!(
+            Position::Reference(past_the_side).resolve(&diagram),
+            Some(Pos { x: 1, y: 0 }),
+            "three cells up against one cell down leaves two, neither clamped nor reported"
+        );
+    }
+
+    /// An `out` on a reference that resolves to nothing still draws nothing, and **both ways of not
+    /// resolving are asked**: an identity nothing holds, and a side a connector does not answer.
+    ///
+    /// Each reference carries an `out` of one, so this is the claim that the outward amount is
+    /// turned into the offset at construction and never reaches a diagram — there is no cell left
+    /// for it to move. The picture compared against is the box on its own, so a connector that drew
+    /// something over it, or something anywhere else, fails.
+    #[test]
+    fn an_out_on_a_reference_that_resolves_to_nothing_still_draws_nothing() {
+        let size = Size {
+            width: 6,
+            height: 6,
+        };
+        let nothing = Delta { dx: 0, dy: 0 };
+        let arm = |at: Position, leaving, to: Pos| Shape::Connector {
+            from: Endpoint {
+                at,
+                leaving,
+                terminal: Terminal::Arm,
+            },
+            to: Endpoint {
+                at: to.into(),
+                leaving: Direction::Up,
+                terminal: Terminal::Arm,
+            },
+            stroke: light(),
+        };
+
+        let mut chain = Diagram::new();
+        chain.add(the_box_at_the_origin());
+        let the_first = chain.add(arm(
+            Position::Reference(Reference::new(
+                ShapeId::new("#99"),
+                Anchor::Bottom,
+                nothing,
+                1,
+            )),
+            Direction::Down,
+            Pos { x: 1, y: 5 },
+        ));
+        chain.add(arm(
+            Position::Reference(Reference::new(the_first, Anchor::Right, nothing, 1)),
+            Direction::Right,
+            Pos { x: 3, y: 5 },
+        ));
+
+        let mut just_the_box = Diagram::new();
+        just_the_box.add(the_box_at_the_origin());
+
+        assert_eq!(
+            picture_of(&chain, size),
+            picture_of(&just_the_box, size),
+            "a reference that resolves to nothing drew something, whatever its `out`"
+        );
+    }
+
+    /// A line answers the four centres of a flat box, so on a horizontal line the top centre and the
+    /// bottom centre are **one point** — and an `out` from either of them stands the same one cell
+    /// clear of that line, one above it and one below it.
+    ///
+    /// **The gap is asserted as a distance from the line rather than as two absolute points.** The
+    /// two sides face away from each other, so the cells they reach are not one cell, and this is
+    /// the whole claim: a one-cell-tall figure has no interior for its two sides to share, and
+    /// naming either of them reaches the same distance from it. The two cells are named beside it,
+    /// so the distance is not the only thing being said — a test that compared them against each
+    /// other alone would pass on two implementations that both moved up.
+    #[test]
+    fn an_out_from_the_top_or_the_bottom_of_a_horizontal_line_moves_the_same_one_cell() {
+        let mut diagram = Diagram::new();
+        let the_line = Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 5,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        let id = diagram.add(the_line.clone());
+        let on_the_line = the_line
+            .anchor(Anchor::Top)
+            .expect("a line answers all four of its sides");
+        let nothing = Delta { dx: 0, dy: 0 };
+        let stands_at = |anchor| {
+            Position::Reference(Reference::new(id.clone(), anchor, nothing, 1)).resolve(&diagram)
+        };
+
+        for (anchor, at) in [
+            (Anchor::Top, Pos { x: 2, y: -1 }),
+            (Anchor::Bottom, Pos { x: 2, y: 1 }),
+        ] {
+            assert_eq!(stands_at(anchor), Some(at), "{anchor:?}");
+            assert_eq!(
+                at.x, on_the_line.x,
+                "{anchor:?} moved the point along the line rather than away from it"
+            );
+            assert_eq!(
+                (at.y - on_the_line.y).abs(),
+                1,
+                "{anchor:?} did not stand one cell clear of the line"
+            );
+        }
     }
 }
