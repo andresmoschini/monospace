@@ -35,17 +35,19 @@ Two forms of change and three branch names, and no suffix meaning "no decision t
 absence is what says that, so the question is answerable from the name. A change to the gate, the
 hooks, CI or these documents is an ordinary one-stage change: no permission needed.
 
-`NNN` is the issue number, and the slug is derived **once**, when the deciding branch opens, and
-read back from `specs/NNN-slug.md` afterwards. Renaming an issue does not rename anything.
+`NNN` is the issue number, and the slug is derived **once**, from the issue's title, and derived
+again never: a change of two stages reads it back from `specs/NNN-slug.md`, and a change of one
+stage from its own branch name, which is the only place that change writes it. Renaming an issue
+does not rename anything.
 
 ## The six steps
 
 1. **An issue.** Two or three sentences: a title and what is wanted. Not acceptance criteria — those
    are what the spec is for. What surfaces mid-change and opens future work is another issue, never
    a section of the current spec.
-2. **A branch.** `cargo xtask change open <issue>` with no stage, or with the stage the change has:
-   `cargo xtask change open <issue> deciding`. It derives the slug, links the branch to the issue
-   and checks it out.
+2. **A branch.** `cargo xtask change open <issue> [deciding|building]`, with no stage at all for a
+   change of one stage. It derives the slug, links the branch to the issue and checks it out, and it
+   refuses a `building` branch until the deciding stage has merged.
 3. **Settle the question by reading the model.** `docs/model.md` and `docs/diagram-model.md` are the
    design. If the slice needs a rule the model does not have, the model changes first, in the same
    increment. A spec names the sections it implements or amends and does not restate them.

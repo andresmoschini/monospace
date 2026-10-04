@@ -137,17 +137,26 @@ request's own output.
 Note that `change open` needs `gh` authenticated. Nothing in `cargo xtask setup` installs it,
 because it is authenticated per person rather than vendored per repository.
 
-**How.** Asked as an instruction it is one line, and the four lines the command prints are what the
-next two steps need — where the spec goes, which branch, and what to do next:
+**How.** One command opens a branch in each of the three shapes, and the stage is the only
+difference. There is no word for the third one on purpose: the absence is what says there is no
+decision to take, and it is the same rule the branch name states.
+
+```sh
+cargo xtask change open 170 deciding   # the deciding stage
+cargo xtask change open 170 building   # the building stage, once the deciding one has merged
+cargo xtask change open 170            # a change of one stage, and no spec file anywhere
+```
+
+All three link the branch to the issue, so the issue's page lists it and the name is not the only
+record of which issue it carries.
+
+Asked as an instruction it is one line, and the four lines the command prints are what the next two
+steps need — where the spec goes, which branch, and what to do next:
 
 > Open the deciding stage for #170 with `cargo xtask change open 170 deciding`.
 
-The same command opens the other two shapes of change, and the stage is the only difference:
-`cargo xtask change open 170 building` for the building stage, and `cargo xtask change open 170`
-with nothing after the number for a change of one stage. There is no word for that third one, on
-purpose: the absence is what says there is no decision to take, and it is the same rule the branch
-name states. All three link the branch to the issue, so the issue's page lists it and the name is
-not the only record of which issue it carries.
+For a change of one stage the block is one line shorter, because there is no `Spec:` line to print:
+a path that will never exist is worse than no line.
 
 ### 4. Read the model before deciding anything
 
@@ -446,7 +455,7 @@ observed — and `pr open` refuses to open it with a section left empty, so the 
 submitted unfilled.
 
 **How.** The same issue as above, taken as a one-stage change because the model already decided it.
-One command to cut the branch, then the same four as the other form, with no spec file anywhere:
+One command to cut the branch, then the code, the gate and the body, with no spec file anywhere:
 
 ```sh
 cargo xtask change open 170
@@ -456,9 +465,6 @@ cargo xtask pr body
 $EDITOR target/pr-body.md
 cargo xtask pr open
 ```
-
-`change open` prints no `Spec:` line here, and there is none to print: a change of one stage has no
-spec file, so the block it prints is one line shorter than the other two stages'.
 
 The body carries the decision the spec would have carried, which is the only real difference:
 
