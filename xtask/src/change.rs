@@ -306,8 +306,12 @@ fn status(root: &Path, args: &[String]) -> Result<(), String> {
     };
 
     let issue_number = format_issue_number(issue);
-    let title = title_of_issue(root, issue).unwrap_or_else(|_| format!("#{issue_number}"));
-    println!("Issue: #{issue_number} — {title}");
+    // A number nobody can see the title of is still a number worth reporting, and `gh`'s complaint
+    // about an issue that does not exist is not this command's to relay.
+    match title_of_issue(root, issue) {
+        Ok(title) => println!("Issue: #{issue_number} — {title}"),
+        Err(_) => println!("Issue: #{issue_number}"),
+    }
 
     let found = whereabouts(root, &issue_number)?;
     for entry in &found {

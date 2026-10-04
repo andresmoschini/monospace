@@ -1,8 +1,9 @@
-//! `cargo xtask spec`: the specification document.
+//! The specification document.
 //!
 //! The format is in `specs/README.md`, and the gate's `specs` step is what holds every spec to it: it
-//! reads the frontmatter and the set of `## ` headings, and reports every way every file fails. This
-//! module is that step, and the two things `change` reads out of a spec — a name and an answer.
+//! reads the frontmatter and the set of `## ` headings, and reports every way every file fails. There
+//! is no command of its own: `cargo xtask check` is where this runs, and the two things `change`
+//! reads out of a spec — a name and an answer — are the functions below.
 //!
 //! The change a spec belongs to is `change`'s business: a change is one issue, one branch and one
 //! file, and where it stands is in the branch's name rather than in anything read here.
