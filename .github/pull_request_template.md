@@ -47,11 +47,16 @@
      Say which rows the maintainer answered and which were settled practice taken on the way past.
 
      "None — the model already says what to do" is a real answer for a change that exercised no
-     judgement, and it tells a reviewer that reading this body is enough. -->
+     judgement, and it tells a reviewer that reading this body is enough.
 
-| #   | Question | Answer | Why not the alternative | Answered by                   |
-| --- | -------- | ------ | ----------------------- | ----------------------------- |
-| D1  |          |        |                         | maintainer / settled practice |
+     The row below is a shape, not an answer. `cargo xtask pr open` cannot tell it from a real one —
+     it reads the section as filled because the table has content in it — so replace it, or delete
+     the table and write the sentence above. Leaving it is the one mistake here that nothing
+     catches. -->
+
+| #   | Question                   | Answer | Why not the alternative | Answered by |
+| --- | -------------------------- | ------ | ----------------------- | ----------- |
+| D1  | REPLACE ME - not an answer |        |                         |             |
 
 ## What proves it
 
@@ -61,7 +66,11 @@
      observed is a wish with better formatting.
 
      On a deciding pull request this is what makes the proposal checkable rather than merely
-     plausible: finding out here costs one conversation instead of a merged pull request. -->
+     plausible: finding out here costs one conversation instead of a merged pull request.
+
+     This one has to be written rather than copied: `open` refuses it empty, and it is the section a
+     reviewer reads to decide whether the change is finished. Write "None." and say why if there is
+     genuinely nothing, which for a pure refactor is a true and common answer. -->
 
 ## Before / after
 
@@ -80,8 +89,8 @@
      "Unchanged." is the expected answer for a structural commit, and saying so is how a reviewer
      knows the number was looked at rather than assumed. -->
 
-- Cases moved: N of M, in {families}
-- Representative examples: below
+- Cases moved: REPLACE ME - or `0 of 1856`, or `Unchanged.`
+- Representative examples: below, or `None.`
 
 ## Verified
 
