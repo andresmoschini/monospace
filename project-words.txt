@@ -13,6 +13,7 @@ newtype
 nvmrc
 Nygard
 opencode
+pathspec
 PATHEXT
 RUSTFLAGS
 safecrlf

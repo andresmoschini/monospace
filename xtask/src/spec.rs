@@ -1,29 +1,41 @@
-//! `cargo xtask spec`: the feature branch lifecycle described in
-//! [ADR-0051](../../docs/decisions/0051-stop-at-the-decision-sheet-and-merge-three-stages-into-two.md),
-//! [ADR-0033](../../docs/decisions/0033-keep-the-flow-state-in-labels-on-one-issue.md) and
-//! [ADR-0034](../../docs/decisions/0034-let-xtask-own-the-feature-branch.md).
+//! `cargo xtask spec`: open a change's branch, and check the specs the gate reads.
 //!
-//! A feature is one GitHub issue, crossing two branches (`NNN-slug-deciding`, `NNN-slug-building`),
-//! each with its own label (`deciding`, `building`) and its own precondition checked against
-//! `origin/main`. `new` opens the first branch, `stage <issue> build` opens the second after
-//! checking its precondition, and `use` puts a clone on whichever branch the issue's labels say is
-//! current. None of this is part of the quality gate: `cargo xtask check` has no notion of `git`
-//! branches or GitHub labels, and this module is not on its call graph.
+//! A change is one GitHub issue, and where it stands is in its branch's name rather than in a label:
+//! `NNN-slug` carries a change of one stage, and `NNN-slug-deciding` with `NNN-slug-building` carry
+//! a change of two. `new` opens the deciding branch and links it to the issue, `use` puts a clone on
+//! whichever of the two branches the issue already has, and `check` is the gate's `specs` step.
 //!
-//! Every subprocess call lives behind a thin wrapper (`run_visible`, `capture`) so the logic that
-//! decides *what* to run — slugging a title, naming a branch, reading a precondition, mapping
-//! labels to a stage — stays in plain functions that take values and return `Result`, and can be
-//! unit tested with no network and no repository.
+//! Only `check` is on the quality gate's call graph. `cargo xtask check` has no notion of `git`
+//! branches or GitHub pull requests, so the two verbs are not part of what "green" means.
 //!
 //! # Design notes
 //!
-//! **The precondition for `building` reads the decision sheet rather than only its name.** Every
+//! **The precondition for `building` reads the decision table rather than only its name.** Every
 //! other precondition here asks "does this file exist in `origin/main`", because a merged file is
-//! the handoff. The handoff ADR-0051 names is an *answered* sheet, and a sheet whose entries still
-//! read `_pending_` merges exactly as easily as one that is answered. So the check opens the file
-//! and refuses on any line carrying that marker: the header's `**Answered**` field and every
-//! entry's `**Answer**` field both use it, so neither needs a rule of its own, and a sheet the
-//! template never touched is caught by `decisions.md` being absent instead.
+//! the handoff. The handoff is an *agreed* spec, and a sheet whose rows still read `_pending_`
+//! merges exactly as easily as one that is answered. So the check opens the file and refuses on any
+//! line carrying that marker, and the marker is one string rather than a rule per field: the
+//! frontmatter's `decided` and every row's `Answer` both use it, and a spec nobody wrote at all is
+//! caught by the file being absent instead.
+//!
+//! **The slug is read back from the spec's name, never re-derived from the issue's title.** It is
+//! derived once, when the deciding branch is opened, and every later invocation recovers it from
+//! `specs/NNN-*.md` in `origin/main`. Re-deriving it per invocation looks equivalent and is not:
+//! renaming an issue then renames the branch `use` looks for, and the change becomes unreachable
+//! by number.
+//!
+//! **`check` counts frontmatter, not prose.** It reads the status and the pull request references,
+//! and the set of `## ` headings. It does not read section order and it does not read the body,
+//! because a heading someone reformatted is a thing people learn to work around, and a rule that
+//! can be satisfied by renaming a line stops being a rule. Every problem in every file is collected
+//! before anything is reported, so one run says everything.
+//!
+//! **The listing is a `:(glob)` pathspec and the magic word is load-bearing.** A bare `specs/*.md`
+//! is an ordinary git pathspec, where `*` crosses `/` and therefore matches every `spec.md` that
+//! ever lived under a feature directory — which is what the tree used to hold. There were 1,994
+//! files down there and the step reported all of them as broken specs. `:(glob)` says `*` stops at
+//! the separator. A regression test asserts the nested file is invisible, and it was checked by
+//! reverting the prefix: without it the test fails.
 
 use std::fs;
 use std::path::Path;
@@ -31,57 +43,80 @@ use std::process::{Command, ExitCode, Stdio};
 
 use crate::process::{capture, capture_untrimmed, ensure_gh_ready, run_visible};
 
-/// One of the two stages a feature crosses, in order.
+/// The `## ` headings every spec carries. Nine of them, which is the count the flow's format was
+/// arrived at by deleting eight files; a tenth heading is a tenth thing to keep in step.
+const SECTIONS: [&str; 9] = [
+    "Why now",
+    "Scope",
+    "The decision",
+    "Model slice",
+    "Public surface",
+    "Behavior",
+    "Examples",
+    "What proves it",
+    "Open questions",
+];
+
+/// The four values `status` may take.
+const STATUSES: [&str; 4] = ["draft", "agreed", "implemented", "abandoned"];
+
+/// The marker a decision row carries until it is answered. Three places grep for this string — the
+/// gate, `verify_deciding_merged` below, and `pr`'s refusal to open a `-building` pull request — so
+/// changing it is changing the flow, not editing a document.
+const PENDING: &str = "_pending_";
+
+pub(crate) const DECIDING: &str = "deciding";
+/// The suffix the building branch carries.
+pub(crate) const BUILDING: &str = "building";
+
+/// One of the two stages a two-stage change crosses, in order.
+///
+/// A change of one stage has no suffix at all, which is what makes `NNN-slug` distinguishable from
+/// a branch that never went through this command: it opens neither stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stage {
-    /// The spec, the research and the decision sheet are being written; branch `NNN-slug-deciding`,
-    /// label `deciding`.
+    /// The spec is being written; branch `NNN-slug-deciding`.
     Deciding,
-    /// The sheet is answered and merged, and the design, the tasks and the code follow it; branch
-    /// `NNN-slug-building`, label `building`.
+    /// The spec is agreed and merged, and the code follows it; branch `NNN-slug-building`.
     Building,
 }
 
 impl Stage {
-    /// The word this stage is named by, which is both its branch suffix and its label.
+    /// The word this stage is named by, which is also its branch suffix.
+    fn suffix(self) -> &'static str {
+        match self {
+            Stage::Deciding => DECIDING,
+            Stage::Building => BUILDING,
+        }
+    }
+
+    /// Both stages, in the order a change crosses them.
+    const ALL: [Stage; 2] = [Stage::Deciding, Stage::Building];
+
+    /// What to do once this stage's branch is checked out.
     ///
-    /// The two differed under the three stages ADR-0051 replaced — the branch was `-impl` and the
-    /// label was `doing` — and the rename brought them together.
-    fn name(self) -> &'static str {
-        match self {
-            Stage::Deciding => "deciding",
-            Stage::Building => "building",
-        }
-    }
-
-    /// The label the previous stage left behind, which moving into this stage removes.
-    fn label_to_remove(self) -> &'static str {
-        match self {
-            Stage::Deciding => "wish",
-            Stage::Building => "deciding",
-        }
-    }
-
-    /// The Spec Kit commands to run once this stage's branch is checked out, one per session.
+    /// This is printed output rather than documentation, so it says what to do under this flow
+    /// rather than naming commands that no longer exist.
     fn next_step(self) -> &'static str {
         match self {
             Stage::Deciding => concat!(
-                "run `/speckit-specify`, then `/speckit-clarify` if the spec leaves open ",
-                "questions, then `/speckit-plan` part one, which stops at `decisions.md`"
+                "write `specs/NNN-slug.md` on this branch, filling `## The decision` until no row ",
+                "reads `_pending_`, then open the pull request with `cargo xtask pr body`"
             ),
-            Stage::Building => {
-                "run `/speckit-plan` part two, then `/speckit-tasks`, then `/speckit-implement`"
-            }
+            Stage::Building => concat!(
+                "build against the merged spec, complete `## What proves it` with the tests that ",
+                "hold each rule, then open the pull request with `cargo xtask pr body`"
+            ),
         }
     }
 }
 
-/// Runs the `spec` command: dispatches to `new`, `stage` or `use` from the remaining arguments.
+/// Runs the `spec` command: dispatches to `new`, `use` or `check` from the remaining arguments.
 pub fn run(mut args: impl Iterator<Item = String>) -> ExitCode {
     match args.next().as_deref() {
         Some("new") => run_new(args),
-        Some("stage") => run_stage(args),
         Some("use") => run_use(args),
+        Some("check") => to_exit_code(check(&crate::workspace_root()).map(|_| ())),
         None | Some("help" | "--help" | "-h") => {
             print_usage();
             ExitCode::SUCCESS
@@ -97,27 +132,15 @@ pub fn run(mut args: impl Iterator<Item = String>) -> ExitCode {
 /// Parses `spec new`'s argument and runs it.
 fn run_new(mut args: impl Iterator<Item = String>) -> ExitCode {
     match parse_issue(args.next()) {
-        Ok(issue) => to_exit_code(new_feature(&crate::workspace_root(), issue)),
+        Ok(issue) => to_exit_code(new_change(&crate::workspace_root(), issue)),
         Err(message) => fail(&message),
     }
-}
-
-/// Parses `spec stage`'s arguments and runs it.
-fn run_stage(mut args: impl Iterator<Item = String>) -> ExitCode {
-    let issue = match parse_issue(args.next()) {
-        Ok(issue) => issue,
-        Err(message) => return fail(&message),
-    };
-    if let Err(message) = parse_stage(args.next().as_deref()) {
-        return fail(&message);
-    }
-    to_exit_code(build_feature(&crate::workspace_root(), issue))
 }
 
 /// Parses `spec use`'s argument and runs it.
 fn run_use(mut args: impl Iterator<Item = String>) -> ExitCode {
     match parse_issue(args.next()) {
-        Ok(issue) => to_exit_code(use_feature(&crate::workspace_root(), issue)),
+        Ok(issue) => to_exit_code(use_change(&crate::workspace_root(), issue)),
         Err(message) => fail(&message),
     }
 }
@@ -127,19 +150,6 @@ fn parse_issue(raw: Option<String>) -> Result<u32, String> {
     let raw = raw.ok_or_else(|| "xtask: spec requires an issue number".to_string())?;
     raw.parse::<u32>()
         .map_err(|_| format!("xtask: `{raw}` is not a valid issue number"))
-}
-
-/// Parses `stage`'s second argument, which must be `build`.
-///
-/// `build` is the only stage `stage` can move into: `new` opens the deciding stage, and there is no
-/// third one. The verb still takes the word, so the command says which stage it opens rather than
-/// leaving a reader of the shell history to remember that there is only one.
-fn parse_stage(raw: Option<&str>) -> Result<(), String> {
-    match raw {
-        Some("build") => Ok(()),
-        Some(other) => Err(format!("xtask: stage must be `build`, not `{other}`")),
-        None => Err("xtask: spec stage requires `build`".to_string()),
-    }
 }
 
 /// Prints `message` to standard error and reports failure.
@@ -156,9 +166,13 @@ fn to_exit_code(result: Result<(), String>) -> ExitCode {
     }
 }
 
-/// Opens the deciding stage for `issue`: fetches, reads the issue's title, derives its slug, opens
-/// `NNN-slug-deciding`, moves the label to `deciding`, and writes `.specify/feature.json`.
-fn new_feature(root: &Path, issue: u32) -> Result<(), String> {
+/// Opens the deciding stage for `issue`: fetches, reads the issue's title, derives its slug, links
+/// the branch to the issue, and checks it out.
+///
+/// It writes no spec file. The spec is the deciding pull request's own output, and a template
+/// emitted here would be a file nothing had agreed to yet — which is the same thing as a `draft`
+/// that nobody is writing.
+fn new_change(root: &Path, issue: u32) -> Result<(), String> {
     ensure_gh_ready(root)?;
     run_visible(root, "git", &["fetch", "origin", "--prune"])?;
 
@@ -172,74 +186,69 @@ fn new_feature(root: &Path, issue: u32) -> Result<(), String> {
     )?;
     let slug = slugify(&title)?;
     let issue_number = format_issue_number(issue);
-    let branch = branch_name(&issue_number, &slug, Stage::Deciding);
-
-    ensure_branch(root, issue, &branch)?;
-    move_label(root, issue, Stage::Deciding)?;
-
-    let feature_directory = format!("specs/{issue_number}-{slug}");
-    write_feature_json(root, &feature_directory)?;
-
-    println!("Feature directory: {feature_directory}");
-    println!("Branch: {branch}");
-    println!("Next: {}", Stage::Deciding.next_step());
-    Ok(())
-}
-
-/// Opens the building stage for `issue`, after checking against `origin/main` that the deciding
-/// stage merged and that the decision sheet it merged is answered.
-fn build_feature(root: &Path, issue: u32) -> Result<(), String> {
-    ensure_gh_ready(root)?;
-    run_visible(root, "git", &["fetch", "origin", "--prune"])?;
-
-    let issue_number = format_issue_number(issue);
-    let entries = list_spec_directories(root)?;
-    let slug = find_slug(&entries, &issue_number)?;
-
-    verify_deciding_merged(root, &issue_number, &slug)?;
-
-    let branch = branch_name(&issue_number, &slug, Stage::Building);
-    ensure_branch(root, issue, &branch)?;
-    move_label(root, issue, Stage::Building)?;
-
-    let feature_directory = format!("specs/{issue_number}-{slug}");
-    write_feature_json(root, &feature_directory)?;
-
-    println!("Feature directory: {feature_directory}");
-    println!("Branch: {branch}");
-    println!("Next: {}", Stage::Building.next_step());
-    Ok(())
-}
-
-/// Puts the working copy on the branch of whatever stage `issue`'s labels say is current, with no
-/// side effects on labels or remote branches.
-fn use_feature(root: &Path, issue: u32) -> Result<(), String> {
-    ensure_gh_ready(root)?;
-    run_visible(root, "git", &["fetch", "origin", "--prune"])?;
-
-    let issue_number = format_issue_number(issue);
-    let entries = list_spec_directories(root)?;
-    let slug = find_slug(&entries, &issue_number)?;
-
-    let labels = current_labels(root, issue)?;
-    let stage = stage_from_labels(&labels)?;
-
+    let stage = Stage::Deciding;
     let branch = branch_name(&issue_number, &slug, stage);
-    checkout_branch(root, &branch)?;
 
-    let feature_directory = format!("specs/{issue_number}-{slug}");
-    write_feature_json(root, &feature_directory)?;
+    ensure_branch(root, issue, &branch)?;
 
-    println!("Feature directory: {feature_directory}");
+    println!("Spec: {}", spec_path(&issue_number, &slug));
     println!("Branch: {branch}");
-    println!("Stage: {}", stage.name());
+    println!("Stage: {}", stage.suffix());
     println!("Next: {}", stage.next_step());
     Ok(())
 }
 
-/// Lists the immediate entries of `specs/` in `origin/main`, one per line, as
+/// Puts the working copy on whichever stage of `issue` has a branch, local before remote, deciding
+/// before building.
+///
+/// A one-stage change has no branch from this command and is checked out by hand like any other
+/// branch; `use` only knows the two names it is the one to have written.
+fn use_change(root: &Path, issue: u32) -> Result<(), String> {
+    ensure_gh_ready(root)?;
+    run_visible(root, "git", &["fetch", "origin", "--prune"])?;
+
+    let issue_number = format_issue_number(issue);
+    let slug = find_slug(&list_specs(root)?, &issue_number)?;
+
+    for stage in Stage::ALL {
+        let branch = branch_name(&issue_number, &slug, stage);
+        if local_branch_exists(root, &branch)? {
+            return checkout_branch(root, &branch)
+                .map(|()| announce(&issue_number, &slug, stage, &branch));
+        }
+        if remote_branch_exists(root, &branch)? {
+            return checkout_branch(root, &branch)
+                .map(|()| announce(&issue_number, &slug, stage, &branch));
+        }
+    }
+
+    let tried = Stage::ALL
+        .iter()
+        .map(|stage| branch_name(&issue_number, &slug, *stage))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(format!(
+        "xtask: no branch for issue {issue_number} was found locally or on origin: {tried}. \
+         `cargo xtask spec new {issue_number}` opens the deciding stage."
+    ))
+}
+
+/// Prints what `use` settled on.
+fn announce(issue_number: &str, slug: &str, stage: Stage, branch: &str) {
+    println!("Spec: {}", spec_path(issue_number, slug));
+    println!("Branch: {branch}");
+    println!("Stage: {}", stage.suffix());
+    println!("Next: {}", stage.next_step());
+}
+
+/// The spec file for `issue_number` and `slug`.
+pub(crate) fn spec_path(issue_number: &str, slug: &str) -> String {
+    format!("specs/{issue_number}-{slug}.md")
+}
+
+/// Lists the entries of `specs/` in `origin/main`, one per line, as
 /// `git ls-tree --name-only origin/main specs/` reports them.
-fn list_spec_directories(root: &Path) -> Result<Vec<String>, String> {
+pub(crate) fn list_specs(root: &Path) -> Result<Vec<String>, String> {
     let listing = capture(
         root,
         "git",
@@ -252,55 +261,90 @@ fn list_spec_directories(root: &Path) -> Result<Vec<String>, String> {
         .collect())
 }
 
-/// Checks, against `origin/main`, that the deciding stage has merged: `spec.md` and `decisions.md`
-/// are there, and no entry of the sheet is still unanswered.
+/// Finds the single entry in `entries` whose name is `specs/{issue_number}-*.md`, and returns the
+/// slug between the number and the extension.
+///
+/// # Errors
+///
+/// Names what was found when there is no match or more than one.
+pub(crate) fn find_slug(entries: &[String], issue_number: &str) -> Result<String, String> {
+    let prefix = format!("specs/{issue_number}-");
+    let matches: Vec<&String> = entries
+        .iter()
+        .filter(|entry| entry.starts_with(&prefix))
+        .collect();
+
+    match matches.as_slice() {
+        [single] => Ok(single[prefix.len()..]
+            .strip_suffix(".md")
+            .unwrap_or(&single[prefix.len()..])
+            .to_string()),
+        [] => Err(format!(
+            "xtask: no spec matching `specs/{issue_number}-*.md` was found in origin/main"
+        )),
+        multiple => {
+            let found = multiple
+                .iter()
+                .map(|entry| entry.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(format!(
+                "xtask: expected exactly one spec matching `specs/{issue_number}-*.md` in \
+                 origin/main, found {}: {found}",
+                multiple.len()
+            ))
+        }
+    }
+}
+
+/// Checks, against `origin/main`, that the deciding stage has merged: the spec is there, and no row
+/// of its decision table is still unanswered.
 ///
 /// # Errors
 ///
 /// Names the missing file and says explicitly that the deciding pull request is not merged, or
-/// quotes the lines on which the sheet is still pending.
-fn verify_deciding_merged(root: &Path, issue_number: &str, slug: &str) -> Result<(), String> {
-    for file in ["spec.md", "decisions.md"] {
-        let path = format!("specs/{issue_number}-{slug}/{file}");
-        if !file_exists_in_origin_main(root, &path)? {
-            return Err(format!(
-                "xtask: the deciding pull request is not merged: `{path}` does not exist in \
-                 origin/main"
-            ));
-        }
+/// quotes the lines on which the spec is still pending.
+pub(crate) fn verify_deciding_merged(
+    root: &Path,
+    issue_number: &str,
+    slug: &str,
+) -> Result<(), String> {
+    let path = spec_path(issue_number, slug);
+    if !file_exists_in_origin_main(root, &path)? {
+        return Err(format!(
+            "xtask: the deciding pull request is not merged: `{path}` does not exist in origin/main"
+        ));
     }
 
-    let path = format!("specs/{issue_number}-{slug}/decisions.md");
     let object = format!("origin/main:{path}");
-    let sheet = capture_untrimmed(root, "git", &["show", &object])?;
-    let pending = pending_lines(&sheet);
+    let spec = capture_untrimmed(root, "git", &["show", &object])?;
+    let pending = pending_lines(&spec);
 
     if pending.is_empty() {
         Ok(())
     } else {
         Err(format!(
-            "xtask: `{path}` is not answered: {}. The building stage runs against an answered \
-             sheet, so answer it on the deciding branch and merge that first.",
+            "xtask: `{path}` is not answered: {}. The building stage runs against an agreed spec, \
+             so answer it on the deciding branch and merge that first.",
             describe_pending(&pending)
         ))
     }
 }
 
-/// The lines of a decision sheet that still carry the template's `_pending_` marker, as
-/// one-based line numbers paired with the trimmed text of the line.
-fn pending_lines(sheet: &str) -> Vec<(usize, String)> {
-    sheet
-        .lines()
+/// The lines of a spec that still carry the `_pending_` marker, as one-based line numbers paired
+/// with the trimmed text of the line.
+pub(crate) fn pending_lines(spec: &str) -> Vec<(usize, String)> {
+    spec.lines()
         .enumerate()
-        .filter(|(_, line)| line.contains("_pending_"))
+        .filter(|(_, line)| line.contains(PENDING))
         .map(|(index, line)| (index + 1, line.trim().to_string()))
         .collect()
 }
 
 /// Renders what `pending_lines` found for the operator: the first three, quoted, and a count of
-/// whatever else is left. Three is enough to recognize which entries they are; the file itself is
+/// whatever else is left. Three is enough to recognize which rows they are; the file itself is
 /// where they get read.
-fn describe_pending(pending: &[(usize, String)]) -> String {
+pub(crate) fn describe_pending(pending: &[(usize, String)]) -> String {
     let shown = pending
         .iter()
         .take(3)
@@ -316,6 +360,9 @@ fn describe_pending(pending: &[(usize, String)]) -> String {
 
 /// Ensures `branch` exists, checking it out. Uses the remote branch if `gh issue develop` (or an
 /// earlier run of this command) already created it; otherwise creates it linked to `issue`.
+///
+/// This is the only thing that ties a branch to an issue, and `gh issue develop` is what does it —
+/// the branch name alone is a name.
 fn ensure_branch(root: &Path, issue: u32, branch: &str) -> Result<(), String> {
     if remote_branch_exists(root, branch)? {
         checkout_branch(root, branch)
@@ -385,137 +432,14 @@ fn file_exists_in_origin_main(root: &Path, path: &str) -> Result<bool, String> {
     Ok(status.success())
 }
 
-/// The names of the labels currently on `issue`.
-fn current_labels(root: &Path, issue: u32) -> Result<Vec<String>, String> {
-    let issue_str = issue.to_string();
-    let output = capture(
-        root,
-        "gh",
-        &[
-            "issue",
-            "view",
-            &issue_str,
-            "--json",
-            "labels",
-            "--jq",
-            ".labels[].name",
-        ],
-    )?;
-    Ok(output
-        .lines()
-        .map(str::to_string)
-        .filter(|line| !line.is_empty())
-        .collect())
-}
-
-/// Moves `issue`'s label to `stage`, removing the previous stage's label and adding this one, and
-/// calling `gh issue edit` only when at least one of those is actually needed.
-fn move_label(root: &Path, issue: u32, stage: Stage) -> Result<(), String> {
-    let labels = current_labels(root, issue)?;
-    let issue_str = issue.to_string();
-    let remove = stage.label_to_remove();
-    let add = stage.name();
-
-    let mut args: Vec<&str> = vec!["issue", "edit", &issue_str];
-    if labels.iter().any(|label| label == remove) {
-        args.push("--remove-label");
-        args.push(remove);
-    }
-    if !labels.iter().any(|label| label == add) {
-        args.push("--add-label");
-        args.push(add);
-    }
-
-    if args.len() > 3 {
-        run_visible(root, "gh", &args)
-    } else {
-        Ok(())
-    }
-}
-
-/// Writes `.specify/feature.json` at the workspace root, pointing Spec Kit at `feature_directory`.
-fn write_feature_json(root: &Path, feature_directory: &str) -> Result<(), String> {
-    let path = root.join(".specify").join("feature.json");
-    let contents = format!("{{\"feature_directory\": \"{feature_directory}\"}}\n");
-    fs::write(&path, contents)
-        .map_err(|error| format!("xtask: could not write {}: {error}", path.display()))
-}
-
 /// Zero-pads `issue` to at least three digits; an issue number with more digits keeps all of them.
-fn format_issue_number(issue: u32) -> String {
+pub(crate) fn format_issue_number(issue: u32) -> String {
     format!("{issue:03}")
 }
 
-/// The branch name for `stage` of the feature identified by `issue_number` and `slug`.
+/// The branch name for `stage` of the change identified by `issue_number` and `slug`.
 fn branch_name(issue_number: &str, slug: &str, stage: Stage) -> String {
-    format!("{issue_number}-{slug}-{}", stage.name())
-}
-
-/// Finds the single entry in `entries` (as `git ls-tree --name-only origin/main specs/` reports
-/// them) whose name is `specs/{issue_number}-*`, and returns the slug that follows the prefix.
-///
-/// # Errors
-///
-/// Names what was found when there is no match or more than one.
-fn find_slug(entries: &[String], issue_number: &str) -> Result<String, String> {
-    let prefix = format!("specs/{issue_number}-");
-    let matches: Vec<&String> = entries
-        .iter()
-        .filter(|entry| entry.starts_with(&prefix))
-        .collect();
-
-    match matches.as_slice() {
-        [single] => Ok(single[prefix.len()..].to_string()),
-        [] => Err(format!(
-            "xtask: no directory matching `specs/{issue_number}-*` was found in origin/main"
-        )),
-        multiple => {
-            let found = multiple
-                .iter()
-                .map(|entry| entry.as_str())
-                .collect::<Vec<_>>()
-                .join(", ");
-            Err(format!(
-                "xtask: expected exactly one directory matching `specs/{issue_number}-*` in \
-                 origin/main, found {}: {found}",
-                multiple.len()
-            ))
-        }
-    }
-}
-
-/// Maps an issue's current labels to the stage they say is active.
-///
-/// # Errors
-///
-/// A `wish` label says the deciding stage has not been opened yet and names the command that opens
-/// it, rather than failing obscurely. Neither state label names which labels the issue does carry
-/// instead.
-fn stage_from_labels(labels: &[String]) -> Result<Stage, String> {
-    let has = |name: &str| labels.iter().any(|label| label == name);
-
-    if has("building") {
-        Ok(Stage::Building)
-    } else if has("deciding") {
-        Ok(Stage::Deciding)
-    } else if has("wish") {
-        Err(
-            "xtask: the deciding stage has not been opened yet; `cargo xtask spec new <issue>` \
-             opens it."
-                .to_string(),
-        )
-    } else if labels.is_empty() {
-        Err(
-            "xtask: the issue carries neither the deciding nor the building label; it carries no \
-             labels at all"
-                .to_string(),
-        )
-    } else {
-        Err(format!(
-            "xtask: the issue carries neither the deciding nor the building label; it carries: {}",
-            labels.join(", ")
-        ))
-    }
+    format!("{issue_number}-{slug}-{}", stage.suffix())
 }
 
 /// Derives a slug from an issue title: lowercase, accented Latin-1 letters folded to ASCII, any run
@@ -619,25 +543,240 @@ fn slugify(title: &str) -> Result<String, String> {
     Ok(slug)
 }
 
+/// The file in `specs/` that is not a spec: the format's own documentation.
+///
+/// It is named rather than recognized by a shape, because a shape test would quietly stop
+/// excluding it the day somebody gave it frontmatter, and because the one rule this step has that
+/// is not about a spec's content is that this path is not one.
+const NOT_A_SPEC: &str = "specs/README.md";
+
+/// The gate's `specs` step: reports every way every spec fails the format, and returns whether
+/// there were none.
+///
+/// # Errors
+///
+/// One message naming every problem in every file, so one run says everything rather than one
+/// problem per run.
+pub fn check(root: &Path) -> Result<bool, String> {
+    let listed = capture(root, "git", &["ls-files", ":(glob)specs/*.md"])?;
+    let paths: Vec<&str> = listed
+        .lines()
+        .map(str::trim)
+        .filter(|path| !path.is_empty() && *path != NOT_A_SPEC)
+        .collect();
+
+    if paths.is_empty() {
+        return Ok(false);
+    }
+
+    let mut problems = Vec::new();
+    for path in &paths {
+        let text = fs::read_to_string(root.join(path))
+            .map_err(|error| format!("xtask: could not read {path}: {error}"))?;
+        problems.extend(one_spec(path, &text));
+    }
+
+    if problems.is_empty() {
+        println!(
+            "{} spec(s) checked, each with its nine sections and an answerable status",
+            paths.len()
+        );
+        return Ok(true);
+    }
+
+    Err(format!(
+        "xtask: {} problem(s) in {} spec(s):\n{}",
+        problems.len(),
+        paths.len(),
+        problems
+            .iter()
+            .map(|problem| format!("  {problem}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    ))
+}
+
+/// Every way `text`, the spec at `path`, fails the format.
+fn one_spec(path: &str, text: &str) -> Vec<String> {
+    let mut problems = Vec::new();
+
+    if !text.lines().any(|line| line.starts_with("# ")) {
+        problems.push(format!("{path}: no `# ` title"));
+    }
+
+    let Some(frontmatter) = frontmatter_of(text) else {
+        problems.push(format!("{path}: no frontmatter; a spec starts with `---`"));
+        return problems;
+    };
+
+    problems.extend(frontmatter_problems(path, frontmatter));
+    problems.extend(section_problems(path, text));
+
+    let status = field(frontmatter, "status").map(unquoted);
+    if matches!(status, Some("agreed" | "implemented")) && text.contains(PENDING) {
+        problems.push(format!(
+            "{path}: `status` is `{}` and the spec still reads `{PENDING}`; an agreed spec has \
+             no unanswered row",
+            status.unwrap_or_default()
+        ));
+    }
+
+    problems
+}
+
+/// The lines between the `---` that opens a spec's frontmatter and the `---` that closes it.
+///
+/// `None` when the file does not open with the fence, or never closes it — both of which are a
+/// spec with no frontmatter as far as anything reading it is concerned.
+fn frontmatter_of(text: &str) -> Option<&str> {
+    let rest = text.strip_prefix("---\n")?;
+    let end = rest.find("\n---")?;
+    Some(&rest[..end])
+}
+
+/// Every way `frontmatter`, a spec's field block, fails the field table.
+fn frontmatter_problems(path: &str, frontmatter: &str) -> Vec<String> {
+    let mut problems = Vec::new();
+    let status = field(frontmatter, "status").map(unquoted);
+
+    match status {
+        None => problems.push(format!("{path}: frontmatter has no `status`")),
+        Some(given) if !STATUSES.contains(&given) => problems.push(format!(
+            "{path}: `status` reads `{given}`, which is not one of {}",
+            STATUSES.join(", ")
+        )),
+        Some(_) => {}
+    }
+
+    if field(frontmatter, "date").is_none() {
+        problems.push(format!("{path}: frontmatter has no `date`"));
+    }
+
+    // `decided` is what makes an agreed spec citable, so it is required exactly once there is a
+    // pull request that agreed it. A draft has none, which is the normal case and not a defect.
+    if matches!(status, Some("agreed" | "implemented")) {
+        problems.extend(reference_problems(
+            path,
+            frontmatter,
+            "decided",
+            "`status` is agreed or implemented",
+        ));
+    }
+
+    if status == Some("implemented") {
+        problems.extend(reference_problems(
+            path,
+            frontmatter,
+            "implemented",
+            "`status` is implemented",
+        ));
+    }
+
+    problems
+}
+
+/// The problem with a `name: value` field of `frontmatter`, if it is required and does not name a
+/// pull request.
+fn reference_problems(path: &str, frontmatter: &str, name: &str, why: &str) -> Vec<String> {
+    match field(frontmatter, name) {
+        None => vec![format!(
+            "{path}: frontmatter has no `{name}`, which it needs because {why}"
+        )],
+        Some(value) if names_a_pull_request(unquoted(value)) => Vec::new(),
+        Some(value) => vec![format!(
+            "{path}: `{name}` reads `{}`, which is not a pull request number like `#163`",
+            unquoted(value)
+        )],
+    }
+}
+
+/// The `name: value` field called `name` in a frontmatter block, value untrimmed.
+fn field<'a>(frontmatter: &'a str, name: &str) -> Option<&'a str> {
+    frontmatter.lines().find_map(|line| {
+        let (key, value) = line.split_once(':')?;
+        (key.trim() == name).then_some(value)
+    })
+}
+
+/// A field value with the quotes the format puts around a pull request number taken off.
+fn unquoted(value: &str) -> &str {
+    let value = value.trim();
+    value
+        .strip_prefix('"')
+        .and_then(|inner| inner.strip_suffix('"'))
+        .unwrap_or(value)
+}
+
+/// Whether `value` is a pull request reference: a `#` and the digits after it, and nothing else.
+fn names_a_pull_request(value: &str) -> bool {
+    let Some(digits) = value.strip_prefix('#') else {
+        return false;
+    };
+    !digits.is_empty() && digits.chars().all(|character| character.is_ascii_digit())
+}
+
+/// Every way `text`'s `## ` headings fail to be the nine sections.
+///
+/// Order is not checked and neither is the body: a heading someone reformatted is a thing people
+/// learn to work around, and a rule that can be satisfied by renaming a line stops being a rule.
+fn section_problems(path: &str, text: &str) -> Vec<String> {
+    let found: Vec<&str> = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("## "))
+        .map(str::trim)
+        .collect();
+
+    let missing: Vec<&&str> = SECTIONS
+        .iter()
+        .filter(|section| !found.contains(section))
+        .collect();
+    let extra: Vec<&&str> = found
+        .iter()
+        .filter(|heading| !SECTIONS.contains(heading))
+        .collect();
+
+    let named = |headings: &[&&str]| {
+        headings
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+
+    [
+        (!missing.is_empty())
+            .then(|| format!("{path}: no `## ` section named {}", named(&missing))),
+        (!extra.is_empty()).then(|| {
+            format!(
+                "{path}: `## ` section(s) not one of the nine: {}",
+                named(&extra)
+            )
+        }),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
 /// Prints usage for `cargo xtask spec`.
 fn print_usage() {
-    println!("Feature branch lifecycle for Monospace's two-stage Spec Kit workflow.");
+    println!("Open a change's branch, and check the specs the gate reads.");
     println!();
     println!("Usage: cargo xtask spec <verb> [args]");
     println!();
     println!("Verbs:");
-    println!("  new <issue>           Open the deciding stage for an issue");
-    println!("  stage <issue> build   Open the building stage, once the answered sheet has merged");
-    println!("  use <issue>           Check out the branch of an issue's active stage");
-    println!("  help                  Show this message");
+    println!("  new <issue>   Open the deciding stage for an issue, linked to it");
+    println!("  use <issue>   Check out the branch of an issue's open stage");
+    println!("  check         Report every spec that fails the format (the gate's step)");
+    println!("  help          Show this message");
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Stage, branch_name, describe_pending, find_slug, format_issue_number, parse_stage,
-        pending_lines, slugify, stage_from_labels,
-    };
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
 
     #[test]
     fn slugify_plain_title() {
@@ -700,31 +839,25 @@ mod tests {
     }
 
     #[test]
-    fn parse_stage_takes_build_and_nothing_else() {
-        assert!(parse_stage(Some("build")).is_ok());
-
-        let error = parse_stage(Some("plan")).unwrap_err();
-        assert!(
-            error.contains("`build`"),
-            "error did not name the only stage: {error}"
-        );
-
-        let error = parse_stage(None).unwrap_err();
-        assert!(
-            error.contains("`build`"),
-            "error did not name the only stage: {error}"
+    fn a_spec_is_named_after_its_issue_and_its_slug() {
+        assert_eq!(
+            spec_path("163", "light-spec-driven"),
+            "specs/163-light-spec-driven.md"
         );
     }
 
     #[test]
-    fn find_slug_picks_the_single_match() {
-        let entries = vec!["specs/006-foo".to_string(), "specs/012-bar".to_string()];
-        assert_eq!(find_slug(&entries, "012").unwrap(), "bar");
+    fn find_slug_reads_the_name_back_and_leaves_the_extension_off() {
+        let entries = vec![
+            "specs/006-give-a-glyph-a-type.md".to_string(),
+            "specs/163-light-spec-driven.md".to_string(),
+        ];
+        assert_eq!(find_slug(&entries, "163").unwrap(), "light-spec-driven");
     }
 
     #[test]
     fn find_slug_errors_on_no_match() {
-        let entries = vec!["specs/006-foo".to_string()];
+        let entries = vec!["specs/006-give-a-glyph-a-type.md".to_string()];
         let error = find_slug(&entries, "999").unwrap_err();
         assert!(
             error.contains("999"),
@@ -734,102 +867,353 @@ mod tests {
 
     #[test]
     fn find_slug_errors_on_two_matches() {
-        let entries = vec!["specs/012-bar".to_string(), "specs/012-baz".to_string()];
-        let error = find_slug(&entries, "012").unwrap_err();
+        let entries = vec![
+            "specs/163-light.md".to_string(),
+            "specs/163-light-spec-driven.md".to_string(),
+        ];
+        let error = find_slug(&entries, "163").unwrap_err();
         assert!(
-            error.contains("specs/012-bar"),
+            error.contains("specs/163-light.md"),
             "error did not name what was found: {error}"
         );
         assert!(
-            error.contains("specs/012-baz"),
+            error.contains("specs/163-light-spec-driven.md"),
             "error did not name what was found: {error}"
         );
     }
 
-    #[test]
-    fn stage_from_labels_maps_each_state_label() {
-        assert_eq!(
-            stage_from_labels(&["deciding".to_string()]).unwrap(),
-            Stage::Deciding
-        );
-        assert_eq!(
-            stage_from_labels(&["building".to_string()]).unwrap(),
-            Stage::Building
-        );
-    }
-
-    #[test]
-    fn stage_from_labels_names_wish_explicitly() {
-        let error = stage_from_labels(&["wish".to_string()]).unwrap_err();
-        assert!(
-            error.contains("spec new"),
-            "error did not point at `spec new`: {error}"
-        );
-    }
-
-    #[test]
-    fn stage_from_labels_errors_naming_what_it_carries() {
-        let error = stage_from_labels(&["triage".to_string()]).unwrap_err();
-        assert!(
-            error.contains("triage"),
-            "error did not name the labels found: {error}"
-        );
-    }
-
-    /// A sheet shaped like `.specify/templates/decisions-template.md`, with `answered` deciding
-    /// whether its three `_pending_` markers are still there.
-    fn sheet(answered: bool) -> String {
-        let (header, first, second) = if answered {
+    /// A spec shaped like the one `specs/README.md` describes, with `agreed` deciding whether the
+    /// decision table is answered and the spec therefore names the pull request that agreed it.
+    fn spec(agreed: bool) -> String {
+        let (status, decided, answer) = if agreed {
             (
-                "2026-09-21",
-                "Yes, the ranking stays.",
-                "Module, in arrow.rs.",
+                "agreed",
+                "decided: \"#170\"",
+                "Yes, and the reasoning is in the module.",
             )
         } else {
-            ("_pending_", "_pending_", "_pending_")
+            ("draft", "", "_pending_")
         };
 
         format!(
-            "# Decisions: Route an arrow\n\
+            "---\n\
+             status: {status}\n\
+             {decided}\n\
+             date: 2026-10-05\n\
+             ---\n\
              \n\
-             **Feature**: `103-route` | **Written**: 2026-09-20 | **Answered**: {header}\n\
+             # 163 — The change\n\
              \n\
-             ## D1 — Which route wins a tie?\n\
+             ## Why now\n\
              \n\
-             - **Answer**: {first}\n\
+             Because.\n\
              \n\
-             ## D2 — Where does the rule live?\n\
+             ## Scope\n\
              \n\
-             - **Answer**: {second}\n"
+             ### In\n\
+             \n\
+             One thing.\n\
+             \n\
+             ### Out\n\
+             \n\
+             Another thing.\n\
+             \n\
+             ## The decision\n\
+             \n\
+             | # | Question | Answer | Why not the alternative | Answered by |\n\
+             | --- | --- | --- | --- | --- |\n\
+             | D1 | Which? | {answer} | The other one. | maintainer |\n\
+             \n\
+             ## Model slice\n\
+             \n\
+             Section 3.\n\
+             \n\
+             ## Public surface\n\
+             \n\
+             `fn thing()`.\n\
+             \n\
+             ## Behavior\n\
+             \n\
+             1. A rule.\n\
+             \n\
+             ## Examples\n\
+             \n\
+             ```text\n\
+             a\n\
+             ```\n\
+             \n\
+             ## What proves it\n\
+             \n\
+             The test named after it.\n\
+             \n\
+             ## Open questions\n\
+             \n\
+             None.\n"
         )
     }
 
     #[test]
-    fn pending_lines_finds_nothing_in_an_answered_sheet() {
-        assert!(pending_lines(&sheet(true)).is_empty());
+    fn pending_lines_finds_nothing_in_an_agreed_spec() {
+        assert!(pending_lines(&spec(true)).is_empty());
     }
 
     #[test]
-    fn pending_lines_finds_the_header_and_every_entry() {
-        let pending = pending_lines(&sheet(false));
-        let numbers: Vec<usize> = pending.iter().map(|(number, _)| *number).collect();
-        assert_eq!(numbers, vec![3, 7, 11]);
-        assert_eq!(pending[1].1, "- **Answer**: _pending_");
+    fn pending_lines_finds_the_marker_in_a_draft() {
+        let pending = pending_lines(&spec(false));
+        assert_eq!(pending.len(), 1);
+        assert!(pending[0].1.contains("_pending_"));
     }
 
     #[test]
     fn describe_pending_quotes_three_and_counts_the_rest() {
         let pending: Vec<(usize, String)> = (1..=5)
-            .map(|number| (number, "- **Answer**: _pending_".to_string()))
+            .map(|number| (number, "| D1 | Which? | _pending_ |".to_string()))
             .collect();
         let described = describe_pending(&pending);
         assert!(
-            described.starts_with("line 1 reads `- **Answer**: _pending_`"),
+            described.starts_with("line 1 reads `| D1 | Which? | _pending_ |`"),
             "the first pending line was not quoted: {described}"
         );
         assert!(
             described.ends_with("and 2 more"),
             "the rest were not counted: {described}"
+        );
+    }
+
+    /// A throwaway git repository, holding nothing, that deletes itself.
+    ///
+    /// This is the only fixture in the crate, and it is here for one reason: the `specs` step reads
+    /// git's index rather than the working tree, so there is no way to exercise it against this
+    /// repository without also staging real specs into it.
+    struct Scratch {
+        path: PathBuf,
+    }
+
+    impl Scratch {
+        /// A new repository under the system temporary directory, named by a counter so two tests
+        /// running at once cannot land on the same one.
+        fn new() -> Scratch {
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "monospace-spec-scratch-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).expect("the scratch directory can be created");
+            run_git(&path, &["init", "--quiet"]);
+            Scratch { path }
+        }
+
+        /// Writes `contents` at `relative` and stages it, which is what puts it in the index — the
+        /// only place `check` looks.
+        fn write(&self, relative: &str, contents: &str) {
+            let path = self.path.join(relative);
+            fs::create_dir_all(path.parent().expect("a relative path has a parent"))
+                .expect("the scratch directory can hold the file");
+            fs::write(&path, contents).expect("the scratch file can be written");
+            run_git(&self.path, &["add", "--all"]);
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    /// Runs `git` in `root`, failing loudly: a fixture that did not set itself up would otherwise
+    /// make every assertion below it pass for the wrong reason.
+    fn run_git(root: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("git runs");
+        assert!(
+            status.success(),
+            "git {args:?} failed in {}",
+            root.display()
+        );
+    }
+
+    #[test]
+    fn a_repository_with_no_specs_directory_is_not_a_failure() {
+        let scratch = Scratch::new();
+        scratch.write("README.md", "# Nothing here\n");
+
+        assert_eq!(check(&scratch.path), Ok(false));
+    }
+
+    #[test]
+    fn an_agreed_spec_in_the_right_shape_passes() {
+        let scratch = Scratch::new();
+        scratch.write("specs/163-light.md", &spec(true));
+
+        assert_eq!(check(&scratch.path), Ok(true));
+    }
+
+    #[test]
+    fn a_renamed_heading_is_reported() {
+        let scratch = Scratch::new();
+        scratch.write(
+            "specs/163-light.md",
+            &spec(true).replace("## Examples", "## Sample"),
+        );
+
+        let error = check(&scratch.path).unwrap_err();
+        assert!(error.contains("no `## ` section named Examples"), "{error}");
+        assert!(
+            error.contains("not one of the nine"),
+            "the extra heading was not reported: {error}"
+        );
+    }
+
+    #[test]
+    fn a_status_outside_the_four_is_reported() {
+        let scratch = Scratch::new();
+        scratch.write(
+            "specs/163-light.md",
+            &spec(true).replace("status: agreed", "status: merged"),
+        );
+
+        let error = check(&scratch.path).unwrap_err();
+        assert!(
+            error.contains("`status` reads `merged`"),
+            "the bad status was not reported: {error}"
+        );
+    }
+
+    #[test]
+    fn a_missing_date_is_reported() {
+        let scratch = Scratch::new();
+        scratch.write(
+            "specs/163-light.md",
+            &spec(true).replace("date: 2026-10-05\n", ""),
+        );
+
+        let error = check(&scratch.path).unwrap_err();
+        assert!(error.contains("no `date`"), "{error}");
+    }
+
+    #[test]
+    fn an_agreed_spec_with_a_pending_row_is_reported() {
+        let scratch = Scratch::new();
+        let unanswered =
+            spec(true).replace("Yes, and the reasoning is in the module.", "_pending_");
+        scratch.write("specs/163-light.md", &unanswered);
+
+        let error = check(&scratch.path).unwrap_err();
+        assert!(error.contains("still reads `_pending_`"), "{error}");
+    }
+
+    #[test]
+    fn a_draft_may_have_no_decided_and_may_still_be_pending() {
+        let scratch = Scratch::new();
+        scratch.write("specs/163-light.md", &spec(false));
+
+        assert_eq!(check(&scratch.path), Ok(true));
+    }
+
+    #[test]
+    fn an_agreed_spec_with_no_decided_is_reported() {
+        let scratch = Scratch::new();
+        let agreed = spec(false).replace("status: draft", "status: agreed");
+        scratch.write("specs/163-light.md", &agreed);
+
+        let error = check(&scratch.path).unwrap_err();
+        assert!(error.contains("no `decided`"), "{error}");
+    }
+
+    #[test]
+    fn an_implemented_spec_names_both_pull_requests() {
+        let scratch = Scratch::new();
+        let implemented = spec(true)
+            .replace("status: agreed", "status: implemented")
+            .replace(
+                "decided: \"#170\"",
+                "decided: \"#170\"\nimplemented: \"#171\"",
+            );
+        scratch.write("specs/163-light.md", &implemented);
+
+        assert_eq!(check(&scratch.path), Ok(true));
+
+        let without = spec(true).replace("status: agreed", "status: implemented");
+        scratch.write("specs/164-other.md", &without);
+        let error = check(&scratch.path).unwrap_err();
+        assert!(error.contains("no `implemented`"), "{error}");
+    }
+
+    #[test]
+    fn a_decided_field_that_names_no_pull_request_is_reported() {
+        let scratch = Scratch::new();
+        scratch.write(
+            "specs/163-light.md",
+            &spec(true).replace("decided: \"#170\"", "decided: 170"),
+        );
+
+        let error = check(&scratch.path).unwrap_err();
+        assert!(error.contains("not a pull request number"), "{error}");
+    }
+
+    #[test]
+    fn a_spec_without_a_title_or_frontmatter_is_reported() {
+        let scratch = Scratch::new();
+        scratch.write("specs/163-light.md", "## Why now\n\nNothing else.\n");
+
+        let error = check(&scratch.path).unwrap_err();
+        assert!(error.contains("no `# ` title"), "{error}");
+        assert!(error.contains("no frontmatter"), "{error}");
+    }
+
+    /// The `:(glob)` is load-bearing: a bare `specs/*.md` is an ordinary pathspec where `*` crosses
+    /// `/`, so it would read every `spec.md` a feature directory ever held. The old tree had 1,994
+    /// of them and the step reported all of them. Reverting the prefix makes this fail.
+    #[test]
+    fn a_spec_nested_below_specs_is_not_a_spec() {
+        let scratch = Scratch::new();
+        scratch.write("specs/163-light.md", &spec(true));
+        scratch.write("specs/006-an-old-feature/spec.md", "not a spec at all\n");
+
+        assert_eq!(check(&scratch.path), Ok(true));
+    }
+
+    /// `specs/README.md` documents the format and is not a spec. It sits in the same directory because
+    /// that is where a reader looks for it, so the step names it rather than looking for a shape it
+    /// would stop recognizing the day somebody gave it frontmatter.
+    #[test]
+    fn the_formats_own_readme_is_not_checked_as_a_spec() {
+        let scratch = Scratch::new();
+        scratch.write(NOT_A_SPEC, "# Specifications\n\nNo frontmatter here.\n");
+
+        assert_eq!(check(&scratch.path), Ok(false));
+
+        scratch.write("specs/163-light.md", &spec(true));
+        assert_eq!(check(&scratch.path), Ok(true));
+    }
+
+    #[test]
+    fn every_problem_in_every_file_is_reported_by_one_run() {
+        let scratch = Scratch::new();
+        scratch.write(
+            "specs/163-one.md",
+            &spec(true).replace("## Behavior", "## Rules"),
+        );
+        scratch.write(
+            "specs/164-two.md",
+            &spec(true).replace("status: agreed", "status: done"),
+        );
+
+        let error = check(&scratch.path).unwrap_err();
+        assert!(error.contains("specs/163-one.md"), "{error}");
+        assert!(error.contains("Behavior"), "{error}");
+        assert!(error.contains("specs/164-two.md"), "{error}");
+        assert!(error.contains("`done`"), "{error}");
+        assert!(
+            error.contains("3 problem(s) in 2 spec(s)"),
+            "the count did not cover both files: {error}"
         );
     }
 }

@@ -2,9 +2,7 @@
 //!
 //! `.gitattributes` sets one rule for everything Git considers text — `* text=auto eol=lf` — and
 //! `core.safecrlf` is on, so a file written with CRLF is one `git add` refuses rather than
-//! converts. The Speckit CLI writes CRLF on Windows and rewrites several files on every `specify
-//! update`, which is what puts the two rules in conflict
-//! ([ADR-0059](../../docs/decisions/0059-normalize-what-the-speckit-cli-writes-or-git-refuses-it.md)).
+//! converts. An editor on Windows produces one without meaning to, and `.gitattributes` says LF.
 //!
 //! # Design notes
 //!
@@ -46,9 +44,9 @@ struct Reported<'a> {
 /// does not ask for.
 ///
 /// It sits beside `editorconfig` rather than inside it, and last rather than first:
-/// `editorconfig-checker` reads the same rule and is configured to skip `.specify/`, where a CRLF
-/// file is one `git add` refuses with no command to fix it by; and every step before this one
-/// writes, so the ending of a line is the last thing a byte should be decided on.
+/// `editorconfig-checker` reads the same rule and now covers every tracked file, so this is
+/// belt-and-braces rather than the only reach; and every step before this one writes, so the ending
+/// of a line is the last thing a byte should be decided on.
 pub fn fix(root: &Path) -> bool {
     crate::report_failure(rewrite(root))
 }
@@ -110,7 +108,7 @@ fn reported(root: &Path) -> Result<String, String> {
 /// a space, a quote or a newline intact between the two:
 ///
 /// ```text
-/// i/lf    w/crlf  attr/text=auto eol=lf<TAB>.specify/integration.json
+/// i/lf    w/crlf  attr/text=auto eol=lf<TAB>crates/notes.md
 /// ```
 fn parse(record: &str) -> Result<Reported<'_>, String> {
     let Some((fields, relative)) = record.split_once('\t') else {
@@ -243,10 +241,10 @@ mod tests {
     /// has staged yet and the attribute field holds however many attributes there are.
     #[test]
     fn a_record_is_read_by_prefix_rather_than_by_position() {
-        let file = parse("i/      w/mixed attr/text=auto eol=lf\t.specify/integration.json")
+        let file = parse("i/      w/mixed attr/text=auto eol=lf\tcrates/notes.md")
             .expect("a record Git would print");
 
-        assert_eq!(file.relative, ".specify/integration.json");
+        assert_eq!(file.relative, "crates/notes.md");
         assert_eq!(file.endings, "mixed");
         assert!(!file.wants_crlf);
     }
