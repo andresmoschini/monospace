@@ -8,18 +8,16 @@
 //!
 //! # Design notes
 //!
-//! **The shape comes from the branch, not from the issue's label.** Both answer, and they agree,
-//! but the label says where the issue stands while the branch says what is about to be proposed —
-//! and a tooling change has a branch and no state label at all. Reading the branch also costs no
-//! network, which keeps `body` usable with nothing fetched.
+//! **The shape comes from the branch, and the branch is the only thing that says.** It says what
+//! is about to be proposed, and a tooling change has a branch that fits no feature shape at all.
+//! Reading it also costs no network, which keeps `body` usable with nothing fetched.
 //!
 //! **It is two verbs because a body has to be filled between them.** One verb would either submit
 //! a template with its prompts unanswered, which is the failure the three templates exist to
-//! prevent, or open an editor, which a session cannot answer. Splitting them also gives an agent
-//! the same contract a person gets: run `body`, write into the file, run `open`.
+//! prevent, or open an editor, which a session cannot answer. Splitting them also gives whoever is
+//! driving the same contract a person gets: run `body`, write into the file, run `open`.
 //!
-//! **`open` refuses a body whose sections are all still empty**, by the same reasoning that makes
-//! `spec stage build` read the decision sheet rather than its name: the artifact that merges is the
+//! **`open` refuses a body whose sections are all still empty**: the artifact that merges is the
 //! handoff, and an unfilled section is as easy to push as a filled one. A section is empty when it
 //! holds nothing but headings, HTML comments and the keyword line — the check is textual, and it
 //! cannot tell a thoughtful paragraph from a careless one.
@@ -33,7 +31,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use crate::process::{capture, ensure_gh_ready, run_visible};
+use crate::process::{capture, ensure_gh_ready, run_visible, to_exit_code};
 
 /// Where `body` writes, and where `open` reads from when no path is given.
 const DEFAULT_BODY_PATH: &str = "target/pr-body.md";
@@ -41,11 +39,11 @@ const DEFAULT_BODY_PATH: &str = "target/pr-body.md";
 /// One of the three shapes of change the repository has, each with its own pull request body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Shape {
-    /// Stage one of a feature: the spec, the research and the answered decision sheet.
+    /// Stage one of a feature: the proposal and the agreement on it.
     Deciding,
-    /// Stage two of a feature: the design, the tasks, the code and the tests.
+    /// Stage two of a feature: the code and the tests.
     Building,
-    /// A change to the repository's own tooling, documents or rules. No spec directory, no stage.
+    /// A change to the repository's own tooling, documents or rules. No issue, no stage.
     Tooling,
 }
 
@@ -102,17 +100,6 @@ pub fn run(mut args: impl Iterator<Item = String>) -> ExitCode {
         Some(unknown) => {
             eprintln!("xtask: unknown `pr` verb `{unknown}`\n");
             print_usage();
-            ExitCode::FAILURE
-        }
-    }
-}
-
-/// Converts a `Result` into the `ExitCode` `main` returns, printing the error if there is one.
-fn to_exit_code(result: Result<(), String>) -> ExitCode {
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(message) => {
-            eprintln!("{message}");
             ExitCode::FAILURE
         }
     }
@@ -255,7 +242,7 @@ fn current_branch(root: &Path) -> Result<String, String> {
     }
 }
 
-/// Which shape of change `branch` carries, read from the suffix `cargo xtask spec` gave it.
+/// Which shape of change `branch` carries, read from the suffix whoever opened it chose.
 fn shape_from_branch(branch: &str) -> Shape {
     if branch.ends_with("-deciding") {
         Shape::Deciding
@@ -393,7 +380,9 @@ fn print_usage() {
     println!("  help                      Show this message");
     println!();
     println!("The shape comes from the branch: `-deciding`, `-building`, or anything else, which");
-    println!("is a tooling change. A tooling branch carries no issue number, so `body` needs one.");
+    println!("is a tooling change. Whoever opens the branch chooses the suffix; it is the only");
+    println!("thing that says which shape this is. A tooling branch carries no issue number, so");
+    println!("`body` needs one.");
 }
 
 #[cfg(test)]
@@ -412,7 +401,7 @@ mod tests {
             shape_from_branch("023-read-a-description-building"),
             Shape::Building
         );
-        assert_eq!(shape_from_branch("sdd-v2-two-stages"), Shape::Tooling);
+        assert_eq!(shape_from_branch("tooling-cleanup"), Shape::Tooling);
     }
 
     #[test]
@@ -429,7 +418,7 @@ mod tests {
             Some(23)
         );
         assert_eq!(issue_from_branch("1234-something-building"), Some(1234));
-        assert_eq!(issue_from_branch("sdd-v2-two-stages"), None);
+        assert_eq!(issue_from_branch("tooling-cleanup"), None);
     }
 
     #[test]
@@ -449,7 +438,7 @@ mod tests {
             "error did not name both numbers: {error}"
         );
 
-        let error = resolve_issue("sdd-v2-two-stages", Shape::Tooling, None).unwrap_err();
+        let error = resolve_issue("tooling-cleanup", Shape::Tooling, None).unwrap_err();
         assert!(
             error.contains("pr body <issue>"),
             "error did not say how to supply one: {error}"

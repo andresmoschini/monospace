@@ -1,8 +1,8 @@
 //! Repository automation for Monospace.
 //!
-//! This is the single entry point for the quality gate. The pre-commit hook and CI both invoke
-//! `cargo xtask check` and nothing else, so there is exactly one definition of what "green" means
-//! and no way for the two to drift apart.
+//! This is the single entry point for the quality gate. CI invokes `cargo xtask check` and nothing
+//! else, and whoever is about to commit should invoke it too, so there is exactly one definition
+//! of what "green" means and no way for two answers to drift apart.
 //!
 //! It deliberately has no dependencies. Orchestrating a list of subprocesses and propagating their
 //! exit codes is what the standard library is for, and a tool whose job is to guard the project's
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 mod eol;
-mod numbering;
+mod feature;
 mod pr;
 mod process;
 mod render;
@@ -116,12 +116,6 @@ const GATE: &[Step] = &[
         },
     },
     Step {
-        name: "numbering",
-        // It sits beside `editorconfig` rather than with the steps that compile: it reads the
-        // tracked tree the way that step does, and costs one `git ls-files` over two directories.
-        action: Action::Here(numbering::check),
-    },
-    Step {
         name: "cspell",
         action: Action::Spawn {
             program: "node_modules/.bin/cspell",
@@ -135,6 +129,13 @@ const GATE: &[Step] = &[
             // it cannot report success from a stale result after the rules change.
             args: &["--no-progress", "--gitignore", "--cache", "**"],
         },
+    },
+    Step {
+        name: "specs",
+        // Beside the other steps that read tracked text and report rather than rewrite. It is here
+        // and not in `FIX` because there is no automatic version of it: a missing status line is a
+        // sentence somebody has to write, not a line a formatter can produce.
+        action: Action::Here(spec::check),
     },
     Step {
         name: "clippy",
@@ -164,9 +165,9 @@ const GATE: &[Step] = &[
         name: "wasm",
         action: Action::Spawn {
             program: "cargo",
-            // ADR-0001 asks the core to stay free of terminal and command-line assumptions so it can
-            // back a WebAssembly build later. This is what turns that from a claim in a document into
-            // something the compiler refuses to let through. The target installs itself via
+            // The core stays free of terminal and command-line assumptions so it can back a
+            // WebAssembly build. This is what turns that from a claim in a document into something
+            // the compiler refuses to let through. The target installs itself via
             // rust-toolchain.toml, so this needs no setup.
             args: &[
                 "check",
@@ -201,9 +202,9 @@ const GATE: &[Step] = &[
     Step {
         name: "render",
         // This is what stops a picture in a document from lying: it re-renders every description a
-        // tracked Markdown file carries and fails where the picture beside it has moved
-        // (ADR-0052). It sits last because it builds and runs the workspace's own binary, so it
-        // belongs with the steps that compile rather than with the ones that read text.
+        // tracked Markdown file carries and fails where the picture beside it has moved. It sits
+        // last because it builds and runs the workspace's own binary, so it belongs with the steps
+        // that compile rather than with the ones that read text.
         action: Action::Here(render::check),
     },
 ];
@@ -214,8 +215,8 @@ const GATE: &[Step] = &[
 /// step can undo or redo what an earlier one wrote. Content formatters run first, `editorconfig`
 /// after them because it owns files none of the others touch (`LICENSE`, the TOML files, the
 /// dotfiles) and otherwise only confirms what the earlier steps already left clean, and `eol` last
-/// because it owns the one concern every step above writes into, and the files `editorconfig` is
-/// configured to skip besides.
+/// because it asks Git rather than a formatter, and because every step above this one writes, so
+/// the ending of a line is the last thing a byte should be decided on.
 ///
 /// `clippy` and `cspell` have no entry: `cspell` cannot fix a spelling at all, and `clippy --fix`
 /// can rewrite code in ways that need a human to read the diff, which does not fit a command meant
@@ -231,8 +232,8 @@ const FIX: &[Step] = &[
     Step {
         name: "render",
         // Ahead of the Markdown formatters, so that whatever it writes into a fence is theirs to
-        // normalize rather than the other way round. It qualifies as a fixer on ADR-0020's own
-        // test: a picture's one right answer is what its description renders.
+        // normalize rather than the other way round. It qualifies as a fixer on its own test: a
+        // picture has one right answer, which is what its description renders.
         action: Action::Here(render::fix),
     },
     Step {
@@ -258,10 +259,14 @@ const FIX: &[Step] = &[
     },
     Step {
         name: "eol",
-        // It sits beside `editorconfig` rather than inside it, and last rather than first.
-        // `editorconfig-checker` reads the same rule and is configured to skip `.specify/`, where a
-        // CRLF file is one `git add` refuses with no command to fix it by; and every step above this
-        // one writes, so the ending of a line is the last thing a byte should be decided on.
+        // It sits beside `editorconfig` rather than inside it, and last rather than
+        // first. `editorconfig-checker` answers from `.editorconfig`, matched by glob; this
+        // step answers from `.gitattributes`, matched by attribute, and `git add` is what
+        // obeys the second one. The two files can disagree, and when they do it is `git add`
+        // that breaks rather than a formatter. `*.bat` and `*.cmd` are the live case: both
+        // configurations agree they are CRLF on purpose, and only Git's answer is asked.
+        // Every step above this one writes, so the ending of a line is the last thing a byte
+        // should be decided on.
         action: Action::Here(eol::fix),
     },
 ];
@@ -274,7 +279,7 @@ fn main() -> ExitCode {
         Some("fix") => run_fix(),
         Some("setup") => run_setup(),
         Some("render") => render::run(args),
-        Some("spec") => spec::run(args),
+        Some("feature") => feature::run(args),
         Some("pr") => pr::run(args),
         None | Some("help" | "--help" | "-h") => {
             print_usage();
@@ -524,12 +529,12 @@ fn print_usage() {
     println!("Usage: cargo xtask <command>");
     println!();
     println!("Commands:");
-    println!("  check    Run every quality gate step; this is what the hook and CI run");
+    println!("  check    Run every quality gate step; this is what CI runs, and what you run");
     println!("  fix      Run every step of the gate that can fix what it finds");
     println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
     println!("  render   Regenerate the pictures tracked Markdown files carry");
     println!(
-        "  spec     Manage a feature's branch lifecycle; `cargo xtask spec help` lists its verbs"
+        "  feature  Open the branch a change is worked on; `cargo xtask feature help` lists its verbs"
     );
     println!("  pr       Prepare and open a pull request; `cargo xtask pr help` lists its verbs");
     println!("  help     Show this message");

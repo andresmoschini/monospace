@@ -1,23 +1,18 @@
 //! Regenerating the pictures a tracked Markdown file carries.
 //!
-//! The constitution's _Show the rendering_ asks that every picture in a tracked file be either
-//! generated from a description the file carries or labelled hypothetical. This is the half that
-//! makes the first kind mechanical: `cargo xtask render` rewrites each fence from its description,
-//! and the same code run in checking mode fails the gate when the two have parted
-//! ([ADR-0052](../../docs/decisions/0052-show-the-rendering.md)).
+//! Every picture in a tracked file is either generated from a description the file carries, or
+//! labelled hypothetical. This is the half that makes the first kind mechanical: `cargo xtask
+//! render` rewrites each fence from its description, and the same code run in checking mode fails
+//! the gate when the two have parted.
 //!
 //! # Design notes
 //!
 //! **The description lives in the file, not beside it.** A marker carries its own JSON rather than
-//! a path to it, so a reader sees what produced the picture without opening anything, and
-//! principle VIII's exemption — a picture "and the description it comes from" costs an artifact
-//! nothing — has something to exempt.
+//! a path to it, so a reader sees what produced the picture without opening anything.
 //!
 //! **A picture is written with its trailing blanks trimmed.** A rendering is padded to the
 //! window's width, and the gate runs `editorconfig-checker` with `trim_trailing_whitespace` over
-//! everything Git tracks. [ADR-0045](../../docs/decisions/0045-pin-every-arrow-arrangement-as-a-reviewed-snapshot.md)
-//! met this first for the arrow sweep and answered it the same way; comparing trimmed against
-//! trimmed keeps one answer rather than two.
+//! everything Git tracks. Comparing trimmed against trimmed keeps one answer rather than two.
 //!
 //! **The grammar is strict and says so when it is broken.** A half-written marker is reported by
 //! file and line instead of being skipped, because a marker silently ignored is a picture nothing
@@ -84,9 +79,8 @@ pub fn check(root: &Path) -> bool {
 
 /// `cargo xtask fix`'s step: rewrites every picture from its description.
 ///
-/// It belongs there by [ADR-0020](../../docs/decisions/0020-scope-cargo-xtask-fix-to-deterministic-fixers.md)'s
-/// own test — a fixer is in when it rewrites a file to match a rule with exactly one right answer,
-/// and a picture's one right answer is what its description renders.
+/// It belongs there on its own test: a fixer is in when it rewrites a file to match a rule with
+/// exactly one right answer, and a picture's one right answer is what its description renders.
 pub fn fix(root: &Path) -> bool {
     crate::report_failure(walk(root, false))
 }
@@ -147,7 +141,7 @@ fn walk(root: &Path, checking: bool) -> Result<(), String> {
 /// description renders.
 ///
 /// Both pictures are shown whole. The subject of this failure is something the project draws, so
-/// prose describing the difference would be the thing _Show the rendering_ exists to remove.
+/// prose describing the difference would be the thing this step exists to remove.
 fn report(relative: &str, line: usize, current: &str, wanted: &str) -> String {
     format!(
         "\n{relative}:{line}: the picture is not what its description renders.\n\n  in the file:\n\
@@ -209,8 +203,8 @@ fn parse(lines: &[&str], relative: &str) -> Result<Vec<Marker>, String> {
 
     while index < lines.len() {
         // A marker shown inside a fence is an illustration of the grammar, not an instance of it.
-        // The decision sheet's template and CONTRIBUTING.md both show one, and a longer fence is
-        // how Markdown already spells "the fence inside this is content".
+        // CONTRIBUTING.md shows one, and a longer fence is how Markdown already spells "the fence
+        // inside this is content".
         if let Some(width) = fence_width(lines[index]) {
             index += 1;
             while index < lines.len() && fence_width(lines[index]).is_none_or(|w| w < width) {
@@ -497,8 +491,8 @@ mod tests {
         assert!(error.contains("/render"), "{error}");
     }
 
-    /// A marker shown inside a longer fence is an illustration, not an instance: the decision
-    /// sheet's template shows one, and rendering it would mean rendering `…`.
+    /// A marker shown inside a longer fence is an illustration, not an instance: CONTRIBUTING.md shows
+    /// one, and rendering it would mean rendering `…`.
     #[test]
     fn a_marker_inside_a_longer_fence_is_not_a_marker() {
         let lines = vec![

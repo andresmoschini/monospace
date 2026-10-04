@@ -1,12 +1,12 @@
 //! The subprocess wrappers the repository's automation shares.
 //!
-//! `spec` and `pr` both drive `git` and `gh`, and both want the same two shapes: a command whose
+//! `feature` and `pr` both drive `git` and `gh`, and both want the same two shapes: a command whose
 //! progress the operator watches, and a command whose output is read back. Keeping them here is
 //! what lets the logic that decides *what* to run stay in plain functions that take values and
 //! return `Result`, in the module that owns the decision.
 
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, ExitCode};
 
 /// Confirms `gh` is installed and authenticated, distinguishing the two failure modes so the
 /// fix is never ambiguous.
@@ -36,6 +36,20 @@ pub(crate) fn ensure_gh_ready(root: &Path) -> Result<(), String> {
             "xtask: `gh` is installed but not authenticated. Run `gh auth login` and try again."
                 .to_string(),
         )
+    }
+}
+
+/// Converts a `Result` into the `ExitCode` `main` returns, printing the message on failure.
+///
+/// Every verb of every command ends here, so a failure reads the same whichever command produced
+/// it: the message on standard error, and a failing exit code for the shell and CI.
+pub(crate) fn to_exit_code(result: Result<(), String>) -> ExitCode {
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::FAILURE
+        }
     }
 }
 
