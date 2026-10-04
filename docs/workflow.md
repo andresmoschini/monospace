@@ -40,9 +40,12 @@ two branches, and the one-stage form has no suffix at all.
 **There is deliberately no third suffix meaning "no decision to take".** Its absence is what says
 that, so "is a decision pending?" is a question about the branch name that has an answer.
 
-Only one precondition is enforced anywhere, and it is enforced in `cargo xtask pr open`: a
-`-building` pull request is refused unless the deciding spec is in `origin/main` with no `_pending_`
-left in it. Everything else that goes wrong is caught by the gate on the way in.
+**One precondition is enforced anywhere, and it is the same precondition in both places it is
+checked.** A `-building` stage runs against an agreed spec, so
+`cargo xtask change open 170 building` refuses to cut the branch unless the deciding spec is in
+`origin/main` with no `_pending_` left in it, and `cargo xtask pr open` refuses the pull request for
+the same reason and with the same function. Everything else that goes wrong is caught by the gate on
+the way in.
 
 ## Who does what
 
@@ -103,8 +106,9 @@ And the one-stage form, where the answer is that there is nothing to agree:
 > `docs/model.md` §6 covers the case. Cut the branch and build it.
 
 Either way the agent's first action differs, and saying which in the same sentence saves a round
-trip: `cargo xtask spec new 170` for the first, `git switch -c 170-<slug> origin/main` for the
-second.
+trip: `cargo xtask change open 170 deciding` for the first, `cargo xtask change open 170` for the
+second. The stage is the branch's own suffix and it is given rather than guessed, because the answer
+to this question is the answer to which one applies.
 
 ### 3. Open the deciding branch
 
@@ -118,7 +122,7 @@ cargo xtask setup          # npm ci; the gate needs it
 Then, for the two-stage form:
 
 ```sh
-cargo xtask spec new 170
+cargo xtask change open 170 deciding
 ```
 
 It fetches, reads the issue title with `gh`, derives the slug from it in kebab-case up to forty
@@ -130,13 +134,20 @@ stage, and what to do next.
 agreed to, which is the same thing as a draft nobody is writing. The spec is the deciding pull
 request's own output.
 
-Note that `spec new` needs `gh` authenticated. Nothing in `cargo xtask setup` installs it, because
-it is authenticated per person rather than vendored per repository.
+Note that `change open` needs `gh` authenticated. Nothing in `cargo xtask setup` installs it,
+because it is authenticated per person rather than vendored per repository.
 
 **How.** Asked as an instruction it is one line, and the four lines the command prints are what the
 next two steps need — where the spec goes, which branch, and what to do next:
 
-> Open the deciding stage for #170 with `cargo xtask spec new 170`.
+> Open the deciding stage for #170 with `cargo xtask change open 170 deciding`.
+
+The same command opens the other two shapes of change, and the stage is the only difference:
+`cargo xtask change open 170 building` for the building stage, and `cargo xtask change open 170`
+with nothing after the number for a change of one stage. There is no word for that third one, on
+purpose: the absence is what says there is no decision to take, and it is the same rule the branch
+name states. All three link the branch to the issue, so the issue's page lists it and the name is
+not the only record of which issue it carries.
 
 ### 4. Read the model before deciding anything
 
@@ -211,8 +222,8 @@ this section cannot use:
 > Ask me at most three questions, in plain language, each with one sentence on why the answer
 > changes what you write.
 
-The answer to "where does the file go" is in what step 3 printed: `spec new` names it, and it is the
-only place that name is derived.
+The answer to "where does the file go" is in what step 3 printed: `change open` names it, and it is
+the only place that name is derived.
 
 ### 6. Draw the case and commit
 
@@ -305,13 +316,14 @@ cargo xtask pr open
 what lands there has to be an answered spec.
 
 **The one thing this flow asserts rather than observes.** No command writes `status` or `decided` —
-`spec new` deliberately writes no spec file and nothing else rewrites one — so the deciding pull
+`change open` deliberately writes no spec file and nothing else rewrites one — so the deciding pull
 request carries `status: agreed` and `decided: "#170"` written into it before it merges, which
-claims the agreement slightly before it is true. Worse, `verify_deciding_merged` asks only whether
-the file is in `origin/main` and reads no `_pending_`; it does not ask whether the file says
-`agreed`, so a spec can reach `main` still reading `draft` and nothing reports it. This is the
-flow's one known soft spot, it is not settled, and it is the argument for or against closing it
-belongs in the pull request that does.
+claims the agreement slightly before it is true. What the tooling does check is that the file is in
+`origin/main` and that no line of it reads `_pending_`; it does not ask whether the file says
+`agreed`, so a spec can reach `main` still reading `draft` and nothing reports it.
+`cargo xtask change status 170` prints the status `main` has, so it is visible from the command that
+talks about changes, but nothing refuses it. This is the flow's one known soft spot, it is not
+settled, and it is the argument for or against closing it belongs in the pull request that does.
 
 **How.** The merge button, or `gh pr merge`. This repository does not fix a strategy and nothing in
 the gate depends on one, so the choice is yours; what the flow does insist on is that the spec is
@@ -321,35 +333,35 @@ answered before it lands:
 gh pr merge 171 --squash --delete-branch
 ```
 
-Deleting the deciding branch here is not housekeeping, it is what makes step 9 land on the branch
-you want rather than back on deciding.
+Deleting the deciding branch here is not housekeeping. `cargo xtask change use 170 building` names
+the stage it is switching to, so a deciding branch left behind is an ambiguity it reports rather
+than a branch it puts you on.
 
 ### 9. Open the building branch
 
-**Agent, by hand — no command does this.**
+**Agent.**
 
 ```sh
-git fetch origin
-git switch -c 170-the-change-building origin/main
-git push -u origin 170-the-change-building
-cargo xtask spec use 170
+cargo xtask change open 170 building
 ```
 
-`spec use` reads the slug back from `specs/170-*.md` **in `origin/main`**, which is why it cannot be
-used before the deciding merge and why the slug is never re-derived from a renamed issue. It tries
-the deciding branch before the building one, local before remote, so on a clone that still has
-`170-the-change-deciding` it puts you back on deciding. Deleting the deciding branch once it merges
-is what makes it land on the branch you want.
+One command for the whole step. It fetches, reads the slug back from `specs/170-*.md` in
+`origin/main` rather than from the issue's title — which is why the deciding merge has to have
+happened and why renaming an issue never renames the branch — refuses if the deciding pull request
+has not merged or the merged spec still reads `_pending_`, creates the branch from `origin/main`,
+pushes it with an upstream, and prints the same four lines step 3 printed.
 
-**How.** The four commands above, or one sentence to an agent — with the caveat that the branch name
-comes from the merged spec, so it is read rather than invented:
+`cargo xtask change use 170` puts a clone on whichever of the change's branches there is only one
+of, and reports the ones there are more of rather than picking: after the deciding merge the
+deciding branch is still there until it is deleted, so the two-stage change has two branches and
+only one of them is the one anybody wants. `cargo xtask change use 170 building` is the unambiguous
+form.
 
-> Open the building stage for #170: cut `170-a-box-draws-its-own-interior-fill-building` from
-> `origin/main`, push it, then run `cargo xtask spec use 170` so the slug comes from the merged spec
-> rather than from the issue title.
+**How.** One sentence to an agent, and it does not need the branch name spelled out because the
+command derives it from the merged spec:
 
-If `spec use` reports `Stage: deciding` instead, the deciding branch is still there: delete it, or
-check out the building branch by hand.
+> Open the building stage for #170 with `cargo xtask change open 170 building`, then tell me what
+> `cargo xtask change status 170` says.
 
 ### 10. Build against the merged spec
 
@@ -394,10 +406,12 @@ cargo xtask pr body      # `Closes #170` this time
 cargo xtask pr open
 ```
 
-**This is where the flow's one precondition fires.** `pr open` refuses a `-building` pull request
-unless the deciding spec is in `origin/main` with no `_pending_` left in it — so a `-building`
-branch with no merged `-deciding` is a mistake a machine can see, rather than a reviewer's
-judgement. The title is derived as `Build: <issue title>`. Merging this one closes the issue.
+**This is where the flow's one precondition fires a second time.** `pr open` refuses a `-building`
+pull request unless the deciding spec is in `origin/main` with no `_pending_` left in it — the check
+step 9 already made when it cut the branch, run again because a pull request is what merges and a
+branch is not — so a `-building` branch with no merged `-deciding` is a mistake a machine can see,
+rather than a reviewer's judgement. The title is derived as `Build: <issue title>`. Merging this one
+closes the issue.
 
 **How.** The same two commands as step 7, and the same two rules for the body. The difference is the
 keyword, which the branch decides rather than you: this body ends in `Closes #170`, so merging it
@@ -424,24 +438,27 @@ The same walkthrough with the deciding stage removed, which is five differences 
 | Where the model change lands | the same increment, named in `## Model slice`            | the same increment, named in the body     |
 | Keyword and title            | `Refs`, and `Build:` + the issue's title                 | `Closes`, and the issue's own title       |
 
-So: issue, the one question answered no, a branch cut by hand, read the model, write the code and
-the model change together, run the gate, `cargo xtask pr body` and fill it, `cargo xtask pr open`,
-review, merge. **The pull request body is the record of the change** — what changed, what was
-decided and why not the alternative, what proves it, what was observed — and `pr open` refuses to
-open it with a section left empty, so the record cannot be submitted unfilled.
+So: issue, the one question answered no, a branch cut by the same command with no stage after it,
+read the model, write the code and the model change together, run the gate, `cargo xtask pr body`
+and fill it, `cargo xtask pr open`, review, merge. **The pull request body is the record of the
+change** — what changed, what was decided and why not the alternative, what proves it, what was
+observed — and `pr open` refuses to open it with a section left empty, so the record cannot be
+submitted unfilled.
 
 **How.** The same issue as above, taken as a one-stage change because the model already decided it.
-Four commands and one body, with no spec file anywhere:
+One command to cut the branch, then the same four as the other form, with no spec file anywhere:
 
 ```sh
-git fetch origin
-git switch -c 170-a-box-draws-its-own-interior-fill origin/main
+cargo xtask change open 170
 # read docs/model.md §7, write the fill fragment and the model sentence, add the test
 cargo xtask check
 cargo xtask pr body
 $EDITOR target/pr-body.md
 cargo xtask pr open
 ```
+
+`change open` prints no `Spec:` line here, and there is none to print: a change of one stage has no
+spec file, so the block it prints is one line shorter than the other two stages'.
 
 The body carries the decision the spec would have carried, which is the only real difference:
 
