@@ -2,8 +2,8 @@
 //!
 //! A change is one GitHub issue, and where it stands is in its branch's name rather than in a label:
 //! `NNN-slug` carries a change of one stage, and `NNN-slug-deciding` with `NNN-slug-building` carry
-//! a change of two. Those three names are the flow's whole vocabulary for where a change is, and
-//! each of them used to be something a person typed.
+//! a change of two. Those three names are the flow's whole vocabulary for where a change is, and each
+//! command here opens or finds one of them.
 //!
 //! `open` cuts the branch a change's shape calls for and leaves the clone on it, `use` puts a clone
 //! on a branch that already exists, and `status` says where a change stands without cutting
@@ -18,10 +18,11 @@
 //! deliberately no word meaning "no decision to take": its absence is what says that, which is the
 //! rule the branch names already state and the reason the argument can have a default at all.
 //!
-//! **`use` without a stage reports an ambiguity rather than resolving it.** It used to try deciding
-//! before building, local before remote, which meant a clone still holding the deciding branch landed
-//! on it — at exactly the moment the flow tells you to want the building one. A command that cannot
-//! know answers by asking, and here asking costs one word.
+//! **`use` without a stage reports an ambiguity rather than resolving it.** It has to choose between
+//! a change of two stages' deciding and building branches, and after the deciding merge the deciding
+//! branch is still there — so the moment somebody most wants the building one is the moment a fixed
+//! order is most likely to be wrong. A command that cannot know answers by asking, and here asking
+//! costs one word.
 //!
 //! **The branches are found by asking git, not by deriving names.** `use` and `status` read
 //! `refs/heads/NNN-*` and `refs/remotes/origin/NNN-*` rather than assembling a name from the issue
@@ -29,15 +30,14 @@
 //! spec in `origin/main` to read a slug back from, and the branch is the only place its name is
 //! written down.
 //!
-//! **`git branch` answers "does this branch exist" on both sides, and `ls-remote` is gone.** Every
-//! verb here starts by fetching, so the remote-tracking refs are current by the time anything asks,
-//! and both answers come back in the same shape: a name per line. Asking the remote directly as well
-//! bought a second code path and a second failure mode for no question this module cannot already
-//! answer.
+//! **Both sides of "does this branch exist" are answered from the tracking refs.** Every verb here
+//! starts by fetching, so they are current by the time anything asks, and both answers come back the
+//! same shape: a name per line. Asking the remote as well would be a second code path, and a second
+//! failure mode, for a question this module has already answered.
 //!
-//! **A branch is tied to its issue by `gh issue develop`, for all three names.** The branch of a
-//! change of one stage used to be cut with `git switch -c`, which leaves no link: the name is then
-//! the only record of which issue it carries, and the issue's page cannot list it.
+//! **A branch is tied to its issue by `gh issue develop`, for all three names.** It is the only thing
+//! that ties one, and a branch name alone is a name: without the link the issue's page cannot list
+//! the branch, and which issue it carries is a thing somebody has to remember.
 //!
 //! **`open` refuses to cut a building branch before the deciding stage merged.** It is the check
 //! `pr open` already made, called one step earlier, and the reader of it is the same function: a
@@ -46,13 +46,13 @@
 //!
 //! **The number is read before the suffix.** A branch either opens with digits or it does not, and
 //! that question comes first: under this flow the common case is a change of one stage on a bare
-//! `NNN-slug`, and reading the suffix first sent every one of them down the arm for branches that are
-//! not a change at all.
+//! `NNN-slug`, and reading the suffix first sends every one of them down the arm for branches that
+//! carry no issue at all.
 //!
-//! **`gh`'s answers are read as text.** This crate parses no JSON, and each of the three questions it
-//! asks `gh` is answered by whether something was printed and what it says: `[]` for no pull request,
-//! `number state` per line for the rest. Every one of them is a line a person reads in the output of
-//! `status`, so nothing is gained by turning them into a value first.
+//! **`gh`'s answers are read as text.** This crate parses no JSON. `title_of_issue` asks for one
+//! title and `pull_requests` for one list, and the second is printed as it comes — `number state` a
+//! line per pull request, nothing at all where there are none — because it is a line of a person's
+//! `status` output and a value first would buy nothing.
 
 use std::path::Path;
 use std::process::{Command, ExitCode, Stdio};
@@ -65,7 +65,7 @@ pub(crate) const DECIDING: &str = "deciding";
 /// The suffix the building branch carries.
 pub(crate) const BUILDING: &str = "building";
 
-/// The three branches a change can stand on, in the order the flow crosses them.
+/// The three branches a change can stand on.
 ///
 /// A branch with no issue number is not a stage of anything, so it is `None` rather than a fourth
 /// variant: `pr` is the only thing that has to reason about one.
@@ -194,7 +194,7 @@ fn open(root: &Path, args: &[String]) -> Result<(), String> {
         Stage::Deciding | Stage::Single => {
             let slug = slug_of_title(root, issue)?;
             if stage == Stage::Single {
-                refuse_two_stage(root, &issue_number, &slug)?;
+                refuse_two_stage(root, &issue_number)?;
             }
             slug
         }
@@ -255,15 +255,14 @@ fn switch(root: &Path, args: &[String]) -> Result<(), String> {
             let first = candidates[0].stage();
             let hint = if candidates.iter().all(|entry| entry.stage() == first) {
                 format!(
-                    "they are all `{}` stages, so `cargo xtask change use` cannot choose between \
-                     them: check the one you want out by hand",
+                    "they are all `{}` stages, so check the one you want out by hand",
                     first.name()
                 )
             } else {
                 format!("name the stage: `cargo xtask change use {issue_number} deciding`")
             };
             return Err(format!(
-                "xtask: issue {issue_number} has {} branches: {listed}. {hint}.",
+                "xtask: issue {issue_number} has {} branches — {listed} — and {hint}.",
                 candidates.len()
             ));
         }
@@ -319,9 +318,15 @@ fn status(root: &Path, args: &[String]) -> Result<(), String> {
         println!("Branch: {} ({}){pull}", entry.branch, entry.place());
     }
 
-    let slug = found
+    // A branch is where the slug is written down, and a change with no branch left is a change whose
+    // merged spec is the only place its name survives. Both are read, and neither is derived.
+    let slug = match found
         .iter()
-        .find_map(|entry| slug_from_branch(&entry.branch));
+        .find_map(|entry| slug_from_branch(&entry.branch))
+    {
+        Some(slug) => Some(slug),
+        None => find_slug(&list_specs(root)?, &issue_number)?,
+    };
     let merged = slug
         .as_deref()
         .map(|slug| merged_spec(root, &issue_number, slug))
@@ -339,8 +344,7 @@ fn status(root: &Path, args: &[String]) -> Result<(), String> {
             "Spec: {} — not in origin/main",
             spec_path(&issue_number, slug)
         ),
-        (None, Some(spec)) => println!("Spec: {} — in origin/main", spec.path),
-        (None, None) => {}
+        (None, _) => {}
     }
 
     println!(
@@ -419,15 +423,21 @@ fn what_opens(stage: Stage, issue_number: &str) -> String {
 ///
 /// The deciding branch is what says the change is of two stages, and opening a bare `NNN-slug` beside
 /// it would leave the two halves of one change on two branches that say nothing about each other.
-fn refuse_two_stage(root: &Path, issue_number: &str, slug: &str) -> Result<(), String> {
-    let deciding = branch_name(issue_number, slug, Stage::Deciding);
-    if !branch_exists(root, &deciding)? {
+///
+/// It looks for that branch by listing rather than by assembling its name from the slug it just
+/// derived, because the two are not the same string when the issue was renamed after the deciding
+/// branch was cut — and the rule this module follows everywhere else is that a name is read back,
+/// never re-derived.
+fn refuse_two_stage(root: &Path, issue_number: &str) -> Result<(), String> {
+    let found = whereabouts(root, issue_number)?;
+    let Some(deciding) = found.iter().find(|entry| entry.stage() == Stage::Deciding) else {
         return Ok(());
-    }
+    };
     Err(format!(
-        "xtask: issue {issue_number} already has a deciding stage on `{deciding}`, so this is a \
-         change of two stages. `cargo xtask change open {issue_number} deciding` opens that, and \
-         `cargo xtask change open {issue_number} building` opens the one after it merges."
+        "xtask: issue {issue_number} already has a deciding stage on `{}`, so this is a change of \
+         two stages. `cargo xtask change open {issue_number} deciding` opens that, and \
+         `cargo xtask change open {issue_number} building` opens the one after it merges.",
+        deciding.branch
     ))
 }
 
@@ -658,7 +668,9 @@ fn slug_of_title(root: &Path, issue: u32) -> Result<String, String> {
 /// Says that no spec in `origin/main` carries the name, which is what a change that has not been
 /// opened yet looks like from here.
 fn merged_slug(root: &Path, issue_number: &str) -> Result<String, String> {
-    find_slug(&list_specs(root)?, issue_number)
+    find_slug(&list_specs(root)?, issue_number)?.ok_or_else(|| {
+        format!("xtask: no spec matching `specs/{issue_number}-*.md` was found in origin/main")
+    })
 }
 
 /// Refuses `branch` unless its change has a merged deciding stage with an answered decision.
@@ -765,13 +777,14 @@ fn list_specs(root: &Path) -> Result<Vec<String>, String> {
         .collect())
 }
 
-/// Finds the single entry in `entries` whose name is `specs/{issue_number}-*.md`, and returns the
-/// slug between the number and the extension.
+/// The slug of the one entry in `entries` named `specs/{issue_number}-*.md`, or `None` where there
+/// is none.
 ///
 /// # Errors
 ///
-/// Names what was found when there is no match or more than one.
-fn find_slug(entries: &[String], issue_number: &str) -> Result<String, String> {
+/// Names what it found when there is more than one, which is a change with two names and therefore
+/// unreachable by number.
+fn find_slug(entries: &[String], issue_number: &str) -> Result<Option<String>, String> {
     let prefix = format!("specs/{issue_number}-");
     let matches: Vec<&String> = entries
         .iter()
@@ -779,12 +792,12 @@ fn find_slug(entries: &[String], issue_number: &str) -> Result<String, String> {
         .collect();
 
     match matches.as_slice() {
-        [single] => Ok(single[prefix.len()..]
-            .strip_suffix(".md")
-            .unwrap_or(&single[prefix.len()..])
-            .to_string()),
-        [] => Err(format!(
-            "xtask: no spec matching `specs/{issue_number}-*.md` was found in origin/main"
+        [] => Ok(None),
+        [single] => Ok(Some(
+            single[prefix.len()..]
+                .strip_suffix(".md")
+                .unwrap_or(&single[prefix.len()..])
+                .to_string(),
         )),
         multiple => {
             let found = multiple
@@ -1041,7 +1054,7 @@ fn print_usage() {
 
 #[cfg(test)]
 mod tests {
-    use super::{Stage, branch_name, format_issue_number, slug_from_branch, slugify};
+    use super::{Stage, branch_name, find_slug, format_issue_number, slug_from_branch, slugify};
 
     #[test]
     fn slugify_plain_title() {
@@ -1172,5 +1185,37 @@ mod tests {
             Some("light-spec-driven")
         );
         assert_eq!(slug_from_branch("readme-typo"), None);
+    }
+
+    #[test]
+    fn find_slug_reads_the_name_back_and_leaves_the_extension_off() {
+        let entries = vec![
+            "specs/006-give-a-glyph-a-type.md".to_string(),
+            "specs/163-light-spec-driven.md".to_string(),
+        ];
+        assert_eq!(
+            find_slug(&entries, "163").unwrap().as_deref(),
+            Some("light-spec-driven")
+        );
+        // A spec of another change is not this one's, which is what makes `None` an answer rather
+        // than a prefix match.
+        assert_eq!(find_slug(&entries, "999").unwrap(), None);
+    }
+
+    #[test]
+    fn find_slug_refuses_an_issue_with_two_specs() {
+        let entries = vec![
+            "specs/163-light.md".to_string(),
+            "specs/163-light-spec-driven.md".to_string(),
+        ];
+        let error = find_slug(&entries, "163").unwrap_err();
+        assert!(
+            error.contains("specs/163-light.md"),
+            "error did not name what was found: {error}"
+        );
+        assert!(
+            error.contains("specs/163-light-spec-driven.md"),
+            "error did not name what was found: {error}"
+        );
     }
 }
