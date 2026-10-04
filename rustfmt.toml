@@ -1,7 +1,6 @@
 # Deliberately close to stock. The options worth adding — group_imports, imports_granularity — are
 # nightly-only, and using them would mean a second toolchain in every clean environment and in CI,
 # spending the reproducibility that pinning the toolchain buys in order to sort imports.
-# See docs/decisions/0003-pin-the-toolchain-exactly.md.
 
 # Never infer line endings from the file being formatted. .gitattributes and .editorconfig both say
 # LF; leaving rustfmt on "Auto" would let a stray CRLF file keep its endings and disagree with them.

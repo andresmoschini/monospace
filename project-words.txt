@@ -4,19 +4,19 @@
 # dictionary does not already cover it: every entry is a word the spell checker will stop
 # questioning forever. Prefer adding a dictionary to cspell.jsonc when one exists for the domain,
 # unless it is a large dictionary pulled in for a single word.
+#
+# A word nothing in the tree uses is not an entry, it is debt: remove it rather than leave it, and
+# measure before you do — `grep -riw <word>` over everything but `target/` answers it.
 Andrés
+commitlintrc
 doctests
 insta
 Moschini
-msvc
 newtype
 nvmrc
-Nygard
 opencode
+pathspec
 PATHEXT
-RUSTFLAGS
 safecrlf
-speckit
-valueonly
 worktree
 xtask
