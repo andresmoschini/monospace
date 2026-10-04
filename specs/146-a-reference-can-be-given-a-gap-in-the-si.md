@@ -139,7 +139,9 @@ beside its `offset`, and a file that omits it is a file that wrote `out: 0`:
 8. A reference whose shape the diagram does not hold, or whose anchor point that shape does not
    answer, resolves to nothing and draws nothing whatever its `out` is.
 9. A line answers the four centres of a flat box, so on a horizontal line the top centre and the
-   bottom centre are one point and `out: 1` from either of them moves it one cell down.
+   bottom centre are one point — and an `out` from either of them moves it one cell clear of that
+   line, one above it and one below it, because the two sides face away from each other and a
+   one-cell-tall figure has no interior for them to share.
 10. An unknown key inside a reference is dropped in silence today, which is why the field has to
     exist before any file spells it: `"out": 1` read by a build without the field draws the point on
     the border and says nothing at all.
