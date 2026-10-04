@@ -1,7 +1,8 @@
 //! The fragments: the leaves that actually call [`Surface::stamp`](crate::Surface::stamp). Each
-//! writes only the cells its description names — see _Complete and fragment_ in
-//! [`docs/model.md`](../../../../docs/model.md) and
-//! [ADR-0028](../../../../docs/decisions/0028-give-each-fragment-its-own-cell-rule.md).
+//! writes only the cells its description names, and derives those cells from the sides and
+//! positions it is handed rather than being given a cell — so the rule that fixes a cell is stated
+//! once, in the fragment that owns it, instead of once per figure above. See _Complete and
+//! fragment_ in [`docs/model.md`](../../../../docs/model.md).
 
 use crate::{Orientation, Pos, Size};
 

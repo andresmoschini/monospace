@@ -1,7 +1,19 @@
 //! Where something stands: a point, or a side of another figure it hangs from. See the
 //! _Vocabulary_ and _Positions_ rows in
-//! [`docs/diagram-model.md`](../../../docs/diagram-model.md) and
-//! [ADR-0041](../../../docs/decisions/0041-resolve-a-position-through-a-reference.md).
+//! [`docs/diagram-model.md`](../../../docs/diagram-model.md).
+//!
+//! **A position is either absolute or a reference, and resolving one never fails.** A reference is
+//! a shape's identity, one of its four sides and a gap from that side, and resolving it means asking
+//! the named shape where that side stands now and adding the gap — derived when it is needed rather
+//! than stored once, which is what makes movement carry everything hanging from the figure. What
+//! cannot be resolved is **not drawn**: a reference naming a shape the diagram does not hold, or an
+//! anchor that kind does not answer, resolves to nothing, and a figure with no resolved position is
+//! absent from the picture, writes nothing and answers no side of its own, so anything hanging from
+//! it resolves to nothing in turn. There is no error, no panic and no report, and the rest of the
+//! diagram draws normally. That silence is the deliberate answer rather than a missing feature —
+//! drawing must never fail, and a reference naming a figure that is not added yet is an ordinary
+//! state of a diagram being built — and what it costs is that a diagram which drew nothing and a
+//! diagram whose every reference is broken look identical, with nothing to ask about the difference.
 
 use monospace_core::{Orientation, Pos, Size};
 
@@ -240,8 +252,7 @@ mod tests {
         }
     }
 
-    /// User Story 1, spec's B1.1 and B1.2: `resolve` asked rather than drawn, and the offset is a
-    /// gap from the side.
+    /// `resolve` asked rather than drawn, and the offset is a gap from the side.
     ///
     /// **Each answer is pinned against the absolute point, never against the other side of the
     /// comparison.** A `resolve` that added `dx` to the y and `dy` to the x would satisfy "the two
@@ -268,13 +279,12 @@ mod tests {
         assert_eq!(bottom.resolve(&diagram), Some(Pos { x: 1, y: 3 }));
     }
 
-    /// User Story 1, spec's B1.3, and the `assert_ne!` is the whole of it: a reference carrying no
-    /// offset resolves to the point its anchor answers, and is **not** the bare point that answers
-    /// it.
+    /// The `assert_ne!` is the whole of it: a reference carrying no offset resolves to the point
+    /// its anchor answers, and is **not** the bare point that answers it.
     ///
     /// A `resolve` that added nothing at all would pass every equality above, because each offset
     /// there is zero on the axis that would show it. Only the inequality catches that — and it
-    /// compares two `Position`s, the way 082's displacement test does, because a bare point
+    /// compares two `Position`s the way the displacement test below does, because a bare point
     /// standing in the same cell is a *different position* from a reference standing on that side,
     /// and a caller may rely on telling the two apart.
     #[test]
@@ -296,8 +306,8 @@ mod tests {
         assert_ne!(on_the_side, Position::Absolute(the_side_middle));
     }
 
-    /// User Story 1, spec's B1.1: a four-by-three box at the origin answers all four of its side
-    /// centers, and each answer is the absolute point rather than one of the other three.
+    /// A four-by-three box at the origin answers all four of its side centers, and each answer is
+    /// the absolute point rather than one of the other three.
     ///
     /// Pinned by coordinates and not by a picture, because nothing draws an anchor. `{3, 1}` is not
     /// an arbitrary number here: it is where the shipped demonstration's connector already stands,
@@ -358,8 +368,8 @@ mod tests {
         assert_eq!(one_tall.anchor(Anchor::Left), Some(Pos { x: 0, y: 0 }));
     }
 
-    /// User Story 1, spec's B1.2: a line answers the same four centers a flat box of the same extent
-    /// would, in both orientations.
+    /// A line answers the same four centers a flat box of the same extent would, in both
+    /// orientations.
     ///
     /// Both, because one of the two is the one an implementation gets wrong by transposition: a
     /// horizontal line has one cell for a row and any number for a column, so its top and bottom
@@ -401,8 +411,8 @@ mod tests {
         assert_eq!(across.anchor(Anchor::Right), Some(Pos { x: 4, y: 0 }));
     }
 
-    /// User Story 1, spec's B1.3: a connector answers none of the four, and `None` is an ordinary
-    /// answer rather than a failure — no error, no report, no panic.
+    /// A connector answers none of the four, and `None` is an ordinary answer rather than a
+    /// failure — no error, no report, no panic.
     ///
     /// All four rather than one, because a match written with a default arm would answer the one it
     /// happened to spell. This is the answer that keeps a chain of references one link long: a
@@ -429,8 +439,8 @@ mod tests {
         }
     }
 
-    /// User Story 1, spec's B1.1 and B1.2: a displacement moves an absolute position, and grows a
-    /// reference's offset while its identity and its anchor come back as they went in.
+    /// A displacement moves an absolute position, and grows a reference's offset while its
+    /// identity and its anchor come back as they went in.
     ///
     /// **Rewritten rather than deleted, because one sentence of the old test is still true and only
     /// its reason was wrong.** It read "a displacement moves a point and leaves a reference alone",

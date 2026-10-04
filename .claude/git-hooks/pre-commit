@@ -17,7 +17,7 @@
 #
 # So this does not run for someone working outside Claude Code. That is deliberate:
 # CI is the enforcement boundary, and this hook is fast feedback rather than the
-# guarantee. See docs/decisions/0005-install-the-git-hooks-from-claude-code.md.
+# guarantee. See CONTRIBUTING.md, under The hooks.
 
 if ! command -v cargo >/dev/null 2>&1; then
     echo "pre-commit: cargo was not found on PATH." >&2

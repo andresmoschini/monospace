@@ -1,6 +1,5 @@
 //! The end fragment: the cell where a stroke stops. See _What a terminal writes_ in
-//! [`docs/model.md`](../../../../../docs/model.md) and
-//! [ADR-0029](../../../../../docs/decisions/0029-draw-a-line-end-as-one-arm.md).
+//! [`docs/model.md`](../../../../../docs/model.md).
 
 use crate::cell::Side;
 use crate::{Arm, Cell, Pos, Shape, Stroke, StrokeCell, Surface};
@@ -9,7 +8,7 @@ use crate::{Arm, Cell, Pos, Shape, Stroke, StrokeCell, Surface};
 ///
 /// A fragment in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../../../docs/model.md). It renders through the glyph set like any
-/// other stroke cell — ADR-0029 — so two ends meeting at a shared position compose into the
+/// other stroke cell, so two ends meeting at a shared position compose into the
 /// corner the two make rather than into a chosen glyph that refuses every junction.
 #[derive(Debug)]
 pub(crate) struct End {
@@ -46,7 +45,7 @@ mod tests {
     use crate::cell::Side;
     use crate::{Arm, Buffer, Cell, Layer, Pos, Shape, Size, StampMode, Stroke, StrokeCell};
 
-    /// User story 2, scenario 3: an end toward `Right` carries `Set` there and `Unset` on the
+    /// An end toward `Right` carries `Set` there and `Unset` on the
     /// other three sides — decided nothing about what lies beyond it.
     #[test]
     fn an_end_carries_one_arm_and_leaves_the_other_three_unset() {

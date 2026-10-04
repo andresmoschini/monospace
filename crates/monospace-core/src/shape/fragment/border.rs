@@ -1,6 +1,5 @@
 //! The border fragment: a run bounding a figure's interior. See _Pieces_ in
-//! [`docs/model.md`](../../../../../docs/model.md) and
-//! [ADR-0028](../../../../../docs/decisions/0028-give-each-fragment-its-own-cell-rule.md).
+//! [`docs/model.md`](../../../../../docs/model.md).
 
 use super::run;
 use crate::cell::Side;
@@ -72,7 +71,7 @@ mod tests {
     use crate::cell::Side;
     use crate::{Arm, Buffer, Cell, Layer, Pos, Shape, Size, StampMode, Stroke, StrokeCell};
 
-    /// The example research.md checked by hand: `(1, 0)` of `stamp_box`'s box is
+    /// The example checked by hand: `(1, 0)` of `stamp_box`'s box is
     /// `(Unset, Set, Closed, Set)`, which is `Border { side: Top }`.
     #[test]
     fn a_top_border_closes_toward_the_interior_and_leaves_its_own_side_unset() {

@@ -5,8 +5,8 @@
 #
 # Installed by the SessionStart hook in .claude/settings.json, and equivalently by
 # .opencode/plugins/install-git-hooks.js. It therefore does not run outside a session; CI is
-# what enforces the convention for everyone.
-# See docs/decisions/0005-install-the-git-hooks-from-claude-code.md.
+# what enforces the convention for everyone. The trade and its cost are recorded in
+# CONTRIBUTING.md, under The hooks.
 
 MSG_FILE="$1"
 
@@ -32,8 +32,7 @@ MSG_FILE="$1"
 # The key is Claude-Resume, not Claude-Session: Claude Code writes the latter itself when Remote
 # Control is on, carrying a browser URL. Those are different handles on the same conversation,
 # not two formats of one, so they get separate keys rather than one key whose shape depends on a
-# setting invisible from this repository. See
-# docs/decisions/0007-rename-the-session-trailer-to-claude-resume.md. OpenCode gets its own key
+# setting invisible from this repository. OpenCode gets its own key
 # for the same reason: neither client's id can resume the other.
 #
 # --if-exists doNothing keeps `git commit --amend` idempotent, and keeps the session that first
@@ -55,7 +54,7 @@ OPENCODE='ses_?[A-Za-z0-9]*'
 # shapes: measured across this repository's own sessions, a Claude Code id is a UUID and an
 # OpenCode id is `ses_` followed by more of the same, never a UUID. Validating both against the
 # UUID pattern therefore stamped nothing at all from this harness, silently, which is the one
-# failure mode ADR-0006 ruled out.
+# failure mode this whole arrangement exists to rule out.
 #
 # The prefix is the whole guard, and the width is deliberately not pinned. An exact length would
 # be a claim about OpenCode's internal id scheme, which this repository does not control, and a

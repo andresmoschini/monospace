@@ -2,9 +2,8 @@
 //!
 //! This crate is where all domain logic lives: parsing a diagram description, computing a layout on
 //! a character grid, and rendering that grid as text. The first slice of it exists — stamping cells
-//! into a [`Buffer`] and [`render`]-ing them to text, per
-//! [`docs/specs/0001-stamp-cells-and-render-them.md`](../../../docs/specs/0001-stamp-cells-and-render-them.md)
-//! — with an input format, layout and everything above the buffer still to come.
+//! into a [`Buffer`] and [`render`]-ing them to text — with an input format, layout and everything
+//! above the buffer still to come.
 //!
 //! The crate deliberately carries no dependency on any terminal, command-line or user-interface
 //! concern, so that the same code can later back an interactive application and a WebAssembly

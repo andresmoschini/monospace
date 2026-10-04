@@ -67,13 +67,15 @@ impl Buffer {
                 *target = match mode {
                     // Above onto a decided stamp always reproduces the stamp itself: every arm
                     // it names wins outright, so the merge that would compute the same thing is
-                    // skipped. Mirrors the Below branch below it, per ADR-0018. A literal is
+                    // skipped. Mirrors the Below branch below it: the rule that the topmost
+                    // figure owns each side it decides names no stamp mode, so implementing it in
+                    // one direction only would read as a deliberate asymmetry. A literal is
                     // decided by definition, so this is also where it wins outright.
                     StampMode::Above if cell.is_decided() => cell,
                     StampMode::Above => merge(cell, target),
                     // Below never changes a decided target: merging would reproduce it exactly,
                     // so this returns instead of rebuilding and storing an identical cell. No
-                    // test can fail for this arm either way (ADR-0017) — deleting the guard
+                    // test can fail for this arm either way — deleting the guard
                     // leaves every buffer byte-identical. A literal target is decided too, so
                     // this is also where it is left alone.
                     StampMode::Below if target.is_decided() => return,
@@ -119,7 +121,7 @@ impl Buffer {
 /// arms, so [`merge_arm`] never sees one:
 ///
 /// - **A literal on top** always wins outright, whatever `bottom` is. Unreachable through
-///   [`Buffer::stamp`] today, because its two `is_decided` shortcuts (ADR-0017, ADR-0018) catch
+///   [`Buffer::stamp`] today, because its two `is_decided` shortcuts catch
 ///   every decided cell first — written as a returning branch rather than `unreachable!()` so
 ///   those shortcuts stay deletable optimizations instead of becoming load-bearing.
 /// - **A stroke cell over a literal** wins as a stroke cell, with every side it left `Unset`
@@ -444,7 +446,7 @@ mod tests {
         assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&decided));
     }
 
-    /// The mirror of the example above, per ADR-0018: a fully decided `Above` stamp wins
+    /// The mirror of the example above: a fully decided `Above` stamp wins
     /// outright, whatever the target already had — the merge that would produce this cell is
     /// skipped, and the cell is the same as if it had run.
     #[test]
@@ -483,8 +485,8 @@ mod tests {
     }
 
     /// The example named "The two orders agree": three figures overlap at one position, front to
-    /// back with `Below` and back to front with `Above`, and ADR-0008's equivalence property says
-    /// the resulting cell must be the same either way.
+    /// back with `Below` and back to front with `Above`, and the two drawing orders are
+    /// equivalent, so the resulting cell must be the same either way.
     #[test]
     fn front_to_back_with_below_equals_back_to_front_with_above() {
         let pos = Pos { x: 0, y: 0 };

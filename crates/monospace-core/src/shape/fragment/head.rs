@@ -1,11 +1,11 @@
 //! The head fragment: a connector's head, one chosen glyph. See _What a terminal writes_ in
-//! [`docs/model.md`](../../../../../docs/model.md) and
-//! [ADR-0029](../../../../../docs/decisions/0029-draw-a-line-end-as-one-arm.md).
+//! [`docs/model.md`](../../../../../docs/model.md).
 
 use crate::{Cell, Glyph, Pos, Shape, Surface};
 
-/// A head: one cell written as a chosen glyph, supplied by the caller because no glyph set holds
-/// a rule that points — ADR-0029, FR-027.
+/// A head: one cell written as a chosen glyph, supplied by the caller because no glyph set in the
+/// repository holds a rule that points — `▲`, `►`, `◄` and `▼` are in no set, and `╾` and `╼` are
+/// already claimed by keys that mean heavy on one side and light on the other.
 ///
 /// A fragment in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../../../docs/model.md).

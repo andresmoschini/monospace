@@ -1,14 +1,30 @@
 //! The diagram description format: JSON types deserialized from a file and converted into a
 //! `monospace_diagram::Diagram` and the `monospace_core::Buffer` its canvas describes.
 //!
-//! Every type here is private to `monospace-cli` and exists only for this conversion (FR-019,
-//! [ADR-0035](../../../docs/decisions/0035-keep-the-cli-demo-format-out-of-the-model.md)). The
-//! format itself is
-//! `specs/083-a-reference-carries-a-horizontal-and-a-v/contracts/description-format.md`, which
-//! supersedes
-//! [`079's`](../../specs/079-a-diagram-holds-shapes-and-draws-itself/contracts/description-format.md)
-//! and stays the record of what the format was before an endpoint's `at` could hold a reference.
-//! The field-by-field mapping onto `monospace_diagram` is in 083's `data-model.md`.
+//! Every type here is private to `monospace-cli` and exists only for this conversion. The
+//! format is **provisional**: a demo convenience never designed to be the core's own description,
+//! kept in this binary so that what the core accepts stays a question waiting for a slice that
+//! needs it, which is the evidence that question asks for.
+//!
+//! # The envelope
+//!
+//! One file is one JSON object of three fields, and all three are required:
+//!
+//! ```json
+//! {
+//!   "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 20, "height": 10 } },
+//!   "next_id": 3,
+//!   "shapes": []
+//! }
+//! ```
+//!
+//! - **`canvas`** is the window drawn into and rendered from: an `origin` of `x` and `y` beside a
+//!   `size` of `width` and `height`.
+//! - **`next_id`** is the ordinal the next shape added takes, which is where numbering **resumes**
+//!   rather than a count of what was read: `#1`, `#7` and `#9` under `next_id: 10` hands back `#10`.
+//! - **`shapes`** is the figures in drawing order, empty or not, the last front-most and deciding a
+//!   shared cell first. Each entry names a `kind` and carries the `id` its shape is held under —
+//!   [`ShapeDescription`] is the three kinds and [`Description`] the whole of the file.
 
 use monospace_core::{Direction, Glyph, Orientation as CoreOrientation};
 use monospace_diagram::{
@@ -86,7 +102,7 @@ impl From<Leaving> for Direction {
 
 /// Deserializes a required glyph field: the text must be exactly one grapheme cluster with no
 /// control character, or this reports the same data-error kind `serde_json` reports for anything
-/// else wrong with the file (FR-014).
+/// else wrong with the file.
 fn deserialize_glyph<'de, D>(deserializer: D) -> Result<Glyph, D::Error>
 where
     D: Deserializer<'de>,
@@ -109,20 +125,20 @@ where
     Ok(Option::<Wrapper>::deserialize(deserializer)?.map(|wrapper| wrapper.0))
 }
 
-/// The window a diagram is drawn on and rendered from.
+/// The window a diagram is drawn on and rendered from: the `origin` is its top left corner and the
+/// `size` its width and height. Both are required, so a file leaving either out is refused by name.
 #[derive(Deserialize, Debug)]
 struct Canvas {
     origin: Pos,
     size: Size,
 }
 
-/// What an endpoint's `terminal` is on the wire, tagged by `kind` (FR-006): one chosen glyph or one
-/// arm. An unrecognized `kind` is reported by name, and the message names the two accepted.
+/// What an endpoint's `terminal` is on the wire, tagged by `kind`: one chosen glyph or one arm.
+/// An unrecognized `kind` is reported by name, and the message names the two accepted.
 ///
 /// Internally tagged rather than externally, because `deserialize_glyph` needs a _named_ field to
 /// sit on and the external form has none — `Glyph(Glyph)` does not compile, since `Glyph` derives
-/// no `Deserialize` (research.md Q3). A field an `arm` does not know is ignored, as everywhere else
-/// in this format.
+/// no `Deserialize`. A field an `arm` does not know is ignored, as everywhere else in this format.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum Terminal {
@@ -188,20 +204,22 @@ impl From<OffsetDescription> for Delta {
 }
 
 /// What an endpoint's `at` is on the wire, tagged by `kind`: a point, or a reference to a side of
-/// another figure (SC-004).
+/// another figure.
 ///
 /// **The tag is the rule, not a sentence.** A file cannot say both, cannot say neither, and cannot
 /// say one by mistake — all three are compile-time facts about this enum rather than conventions a
 /// reader has to remember. The three spellings were measured against this crate's own `serde`
-/// rather than argued (research.md Q2): an untagged union reads every existing description and
+/// rather than argued: an untagged union reads every existing description and
 /// answers anything wrong with `data did not match any variant of untagged enum At`, and a sibling
 /// `reference` beside an optional `at` refuses nothing at all.
 ///
 /// A reference to a shape the diagram does not hold, or to an anchor that kind does not answer, is
 /// **not** an error here or anywhere downstream: the figure holding it is simply not drawn and the
-/// run succeeds. That is the cost
-/// [ADR-0041](../../../docs/decisions/0041-resolve-a-position-through-a-reference.md) already
-/// accepts.
+/// run succeeds. **The silence is the answer, on purpose** — a reference naming a shape that is not
+/// there yet is an ordinary state of a diagram being built rather than an invalid one, so the only
+/// thing this layer owes anybody is to refuse to draw something it cannot place. What it pays for
+/// that is that a diagram which drew nothing and a diagram whose every reference is broken look
+/// identical, and there is nothing to ask about the difference.
 ///
 /// `Point` is a **newtype** over the file's own [`Pos`] rather than a struct variant with `x` and
 /// `y` written out, which keeps one `Pos` in this file instead of a second pair of coordinates to
@@ -228,10 +246,10 @@ enum At {
 /// `at` is an [`At`], so the diagram's `Position` is spelled by name in the conversion below: the
 /// `into()` on a [`Pos`] resolves `description::Pos → monospace_core::Pos` and lands on
 /// `Position::Absolute`, while a reference is built field by field. A reference may only be held by
-/// a **connector's endpoint** — a `box` and a `line` keep their bare `Pos`, because a position
-/// other than an endpoint's may not be a reference
-/// ([ADR-0041](../../../docs/decisions/0041-resolve-a-position-through-a-reference.md)) and the
-/// types say so rather than the prose.
+/// a **connector's endpoint** — a `box` and a `line` keep their bare `Pos` — and the types say so
+/// rather than the prose. The restriction is what keeps a chain of references one link long: a
+/// reference names a box or a line, both positioned absolutely, or a connector, which answers no
+/// side at all, so nothing recurses and no cycle can be built.
 #[derive(Deserialize, Debug, Clone)]
 struct Endpoint {
     at: At,
@@ -260,19 +278,19 @@ impl From<Endpoint> for DiagramEndpoint {
     }
 }
 
-/// One entry in a `Description`'s `shapes` array, tagged by `kind` (FR-006). An unrecognized
-/// `kind` is reported by name, since this enum is internally tagged (FR-014).
+/// One entry in a `Description`'s `shapes` array, tagged by `kind`. An unrecognized `kind` is
+/// reported by name, since this enum is internally tagged.
 ///
 /// Every variant carries an `id`: the identity its shape is held under, and the one a `reference`
 /// names. It is required, so a file leaving it out is refused **by name**, exactly as `canvas`,
 /// `shapes`, `leaving`, `terminal` and `at`'s `kind` already are. It sits **first** in every
 /// variant because a variant's fields are read in declaration order, and `id` immediately after
-/// `kind` on the wire is where all the descriptions in this repository already put it (Q3).
+/// `kind` on the wire is where all the descriptions in this repository already put it.
 ///
 /// The identity is **not** checked for uniqueness, and two entries may carry one: both are read,
 /// the first is what every change and every reference finds, and the second is reachable by no
-/// identity until the first is removed. That is B3.1's accepted cost, and it is why the model's
-/// "unique within that diagram" is amended in the `docs` commit rather than enforced here.
+/// identity until the first is removed. That cost is accepted, and it is why the model's "unique
+/// within that diagram" is amended in the `docs` commit rather than enforced here.
 #[derive(Deserialize, Debug)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum ShapeDescription {
@@ -316,8 +334,8 @@ impl ShapeDescription {
 
 impl From<ShapeDescription> for DiagramShape {
     /// Converts this description into the matching `monospace_diagram` shape, dropping no
-    /// parameter (FR-008, FR-009). The `id` goes with the diagram rather than with the figure:
-    /// nothing about a returned shape says where it sits, which is 081's arrangement and stays it.
+    /// parameter. The `id` goes with the diagram rather than with the figure: nothing about a
+    /// returned shape says where it sits, which is the arrangement here and stays it.
     fn from(description: ShapeDescription) -> Self {
         match description {
             ShapeDescription::Box {
@@ -361,7 +379,7 @@ impl From<ShapeDescription> for DiagramShape {
 pub struct Description {
     canvas: Canvas,
     /// The ordinal the next `add` takes: a number rather than a container holding one, because it
-    /// is one number (Q3). Required, so a file leaving it out is refused by name, the way `canvas`
+    /// is one number. Required, so a file leaving it out is refused by name, the way `canvas`
     /// and `shapes` already are.
     ///
     /// **It is trusted, not checked.** A stale value — an entry renamed, a `#2` deleted — hands back
@@ -369,6 +387,8 @@ pub struct Description {
     /// accepted cost, and the repair is one line in `monospace-diagram`; nothing in this format
     /// checks it.
     next_id: u32,
+    /// The figures, in the order they are drawn. Required, and the order is load-bearing: the array
+    /// order is the drawing order, so the last entry is front-most and decides a shared cell first.
     shapes: Vec<ShapeDescription>,
 }
 
@@ -379,7 +399,7 @@ impl Description {
     }
 
     /// Builds a diagram from `shapes`, in order, under the identities the file wrote and with its
-    /// numbering resuming where it says (FR-016).
+    /// numbering resuming where it says.
     ///
     /// **The order is still the order.** The array order remains the drawing order, so every
     /// picture in the repository comes out byte for byte what it did — that is the claim the whole
@@ -402,7 +422,7 @@ mod tests {
     use super::Description;
     use crate::render_once;
 
-    /// An unrecognized `kind` fails to deserialize and names the unrecognized value (FR-014).
+    /// An unrecognized `kind` fails to deserialize and names the unrecognized value.
     #[test]
     fn an_unrecognized_kind_fails_to_deserialize_and_names_it() {
         let json = r#"{
@@ -432,9 +452,9 @@ mod tests {
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
 
-    /// FR-014 through the rename: a `terminal`'s glyph of more than one grapheme cluster fails to
-    /// deserialize. The grapheme check sits on the named field inside the tagged object, which is
-    /// the only reason the wire form is internally tagged (research.md Q3).
+    /// A `terminal`'s glyph of more than one grapheme cluster fails to deserialize. The grapheme
+    /// check sits on the named field inside the tagged object, which is the only reason the wire
+    /// form is internally tagged.
     #[test]
     fn a_multi_grapheme_terminal_glyph_fails_to_deserialize() {
         let json = r##"{
@@ -490,8 +510,8 @@ mod tests {
             .to_string()
     }
 
-    /// SC-005, spec's B1 scenario 3: a `kind` the model has not named is refused by name, and the
-    /// message names the two that are accepted — so the value is never read as one of them.
+    /// A `kind` the model has not named is refused by name, and the message names the two that are
+    /// accepted — so the value is never read as one of them.
     #[test]
     fn an_unrecognized_terminal_kind_names_it_and_the_two_that_are_accepted() {
         let error = error_for(r#"{ "kind": "dot" }"#);
@@ -502,8 +522,8 @@ mod tests {
         );
     }
 
-    /// FR-014 through the rename: a `glyph` that is not exactly one grapheme cluster is rejected
-    /// with the message the old `head` produced, byte for byte.
+    /// A `glyph` that is not exactly one grapheme cluster is rejected with the message the old
+    /// `head` produced, byte for byte.
     #[test]
     fn a_multi_grapheme_terminal_glyph_is_rejected_with_the_message_the_old_head_produced() {
         let error = error_for(r#"{ "kind": "glyph", "glyph": "ab" }"#);
@@ -514,9 +534,9 @@ mod tests {
         );
     }
 
-    /// B1 scenario 3: the field is required for both values, so a file that omits it is refused
-    /// rather than read as a connector with no terminal at either end. A terminal's presence never
-    /// decides what a description means.
+    /// The field is required for both values, so a file that omits it is refused rather than read
+    /// as a connector with no terminal at either end. A terminal's presence never decides what a
+    /// description means.
     #[test]
     fn an_omitted_terminal_field_is_refused_by_name() {
         let json = description_of(ARROW_WITHOUT_A_TERMINAL);
@@ -528,9 +548,8 @@ mod tests {
         assert!(error.starts_with("missing field `terminal`"), "{error}");
     }
 
-    /// B1 scenario 3, and the externally tagged spelling research.md Q3 measured: every value of
-    /// `terminal` is an object tagged by `kind`, so a bare string is refused on purpose rather
-    /// than read as an arm.
+    /// The externally tagged spelling was measured too: every value of `terminal` is an object
+    /// tagged by `kind`, so a bare string is refused on purpose rather than read as an arm.
     #[test]
     fn an_externally_tagged_terminal_is_refused() {
         let error = error_for(r#""arm""#);
@@ -559,12 +578,11 @@ mod tests {
             .to_string()
     }
 
-    /// User Story 4, spec's B4.1, SC-004: a point written without a tag is **refused**, not read as
-    /// one of the two.
+    /// A point written without a tag is **refused**, not read as one of the two.
     ///
     /// The position that follows the message is `serde_json`'s and moves with the bytes, which is
     /// why what is compared is the message. Before the tag landed this file rendered and exited
-    /// successfully — the silence the tag is there to end, measured both ways in research.md Q2.
+    /// successfully — the silence the tag is there to end, measured both ways.
     #[test]
     fn an_untagged_at_is_refused_by_name() {
         let error = error_for_an_at(r#"{ "x": 0, "y": 0 }"#);
@@ -572,12 +590,12 @@ mod tests {
         assert!(error.starts_with("missing field `kind`"), "{error}");
     }
 
-    /// User Story 4, spec's B4.1: a `kind` the union has no arm for is refused by name, **and the
-    /// message names the two it does have** — so the value is never read as one of them.
+    /// A `kind` the union has no arm for is refused by name, **and the message names the two it
+    /// does have** — so the value is never read as one of them.
     ///
-    /// The same rule §6's own `kind` fields have obeyed since 079, and the message is the whole of
-    /// what choosing the tag bought over an untagged union, which would have answered the same file
-    /// with `data did not match any variant of untagged enum At`.
+    /// The same rule this format's other `kind` fields have always obeyed, and the message is the
+    /// whole of what choosing the tag bought over an untagged union, which would have answered the
+    /// same file with `data did not match any variant of untagged enum At`.
     #[test]
     fn an_unknown_at_kind_names_it_and_the_two_that_are_accepted() {
         let error = error_for_an_at(r#"{ "kind": "arrows", "x": 0, "y": 0 }"#);
@@ -588,14 +606,14 @@ mod tests {
         );
     }
 
-    /// User Story 4, research.md Q2's third measurement: a `point` written beside a stray `shape` is
-    /// **accepted**, and the `shape` is dropped in silence.
+    /// A `point` written beside a stray `shape` is **accepted**, and the `shape` is dropped in
+    /// silence.
     ///
     /// This is the format's existing behavior rather than anything this slice adds, and it is the
     /// cost of an internal tag rather than a defect: the tag is the rule, and a field beside it is
-    /// an unknown field exactly as a description carrying `mode` was before 079 removed it. Pinned
-    /// because the alternative — refusing a file for a harmless extra key — is the change a later
-    /// slice would make silently, and this is where the present answer is written down.
+    /// an unknown field exactly as a description carrying `mode` was before the format dropped it.
+    /// Pinned because the alternative — refusing a file for a harmless extra key — is the change a
+    /// later slice would make silently, and this is where the present answer is written down.
     #[test]
     fn a_stray_field_beside_an_at_is_dropped_in_silence() {
         let json = description_of(&ARROW_WITH_AN_AT.replace(
@@ -609,12 +627,12 @@ mod tests {
         );
     }
 
-    /// User Story 4, spec's B4.3 and the case `offset` being optional exists for: a reference
-    /// carrying **no** `offset` at all reads, and is a reference standing on the side itself.
+    /// A reference carrying **no** `offset` at all reads, and is a reference standing on the side
+    /// itself — which is the case the field's being optional exists for.
     ///
     /// Without `#[serde(default)]` this would be a missing-field error on `offset`, and every
     /// reference meaning "on the border" would have to spell two zeros to say nothing — the reason
-    /// the contract calls the field optional and absent zero.
+    /// the field is optional and absent zero.
     #[test]
     fn a_reference_with_no_offset_is_read_as_a_reference_on_the_side_itself() {
         let json = description_of(&ARROW_WITH_AN_AT.replace(
@@ -628,7 +646,7 @@ mod tests {
         );
     }
 
-    /// B1.1, B1.2, SC-001: a reference follows the name, **both directions**.
+    /// A reference follows the name, **both directions**.
     ///
     /// Two descriptions over the same window, the same two boxes and the same connector, differing
     /// only in the order their entries are listed in. The connector naming the **box** draws the
@@ -686,7 +704,7 @@ mod tests {
         let parse = |json: String| serde_json::from_str::<Description>(&json).expect("well-formed");
 
         // Naming the **box**: the box at `{11, 3}` is `right` in both files and is listed first in
-        // one and second in the other, so both draw the same picture. This is B1.2.
+        // one and second in the other, so both draw the same picture.
         let right_listed_first =
             render_once(parse(description_with("left", "right", true, "right")));
         let right_listed_second =
@@ -697,8 +715,8 @@ mod tests {
         );
 
         // Naming the **place**: `"#2"` is the second entry in each file, and the two files put a
-        // different box there, so the connector lands on a different box in each. This is B1.1,
-        // what those files mean today, and the half that says the name won in one direction and
+        // different box there, so the connector lands on a different box in each. That is what
+        // those files mean today, and the half that says the name won in one direction and
         // not in the other — a reader that made it win in both would have failed the first half.
         let place_right_first = render_once(parse(description_with("#2", "#1", true, "#2")));
         let place_right_second = render_once(parse(description_with("#1", "#2", false, "#2")));
@@ -708,7 +726,7 @@ mod tests {
         );
     }
 
-    /// B3.2: a missing identity is refused **by name**, exactly as `canvas`, `shapes`, `leaving`,
+    /// A missing identity is refused **by name**, exactly as `canvas`, `shapes`, `leaving`,
     /// `terminal` and `at`'s `kind` already are.
     ///
     /// Asserted on the message and not on the line and column that follow it, which are serde's
@@ -741,8 +759,8 @@ mod tests {
         }
     }
 
-    /// B3.3, SC-001: free text reads. A description whose entries are named `right`, `left` and
-    /// `arrow` draws **byte for byte** what the same description named `#1`, `#2` and `#3` draws.
+    /// Free text reads. A description whose entries are named `right`, `left` and `arrow` draws
+    /// **byte for byte** what the same description named `#1`, `#2` and `#3` draws.
     ///
     /// The format takes any string, and a format that insisted on an ordinal could not pass this
     /// test. The `next_id` is untouched by the substitution, which is what D1 chose over deriving
