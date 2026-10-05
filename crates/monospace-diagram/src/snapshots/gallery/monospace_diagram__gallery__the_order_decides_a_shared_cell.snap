@@ -34,7 +34,7 @@ expression: body
   | 5,3 | ┘     | light  | Unset  | Unset  | light  | light |
 
   shapes: [small_box(0,0,fill=░), small_box(2,1,fill=▓)]
-  change: #1 moved one place toward the front
+  change: 1 moved one place toward the front
   ┌──┐
   │░░├─┐
   └─┬┘▓│

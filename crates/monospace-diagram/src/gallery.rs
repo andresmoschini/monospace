@@ -8,7 +8,7 @@
 //!
 //! Two of the three files earn their place by showing something the core's gallery cannot. The
 //! order is the only part of `docs/diagram-model.md` that leaves a trace in a buffer, and moving
-//! `#1` one place toward the front is the only operation in the project that changes a picture
+//! `1` one place toward the front is the only operation in the project that changes a picture
 //! without changing a figure. The other is the arm terminal meeting a box border, which reads `├`
 //! and is written by neither figure.
 //!
@@ -33,6 +33,8 @@ use std::fmt::Write as _;
 use monospace_core::{
     Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, render,
 };
+
+use std::num::NonZeroU32;
 
 use crate::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
@@ -74,6 +76,15 @@ fn light() -> Stroke {
 
 fn glyph(text: &str) -> Glyph {
     Glyph::new(text).expect("one glyph")
+}
+
+/// The identity of the ordinal `ordinal`, which is how every label below names one.
+///
+/// **Hand-written rather than read back from the diagram**, which is what the gallery's own `WHAT`
+/// says: a diagram offers one query by an identity and no listing of the shapes it holds, so a label
+/// naming one is a claim about what was added rather than a reading of what is held.
+fn id(ordinal: u32) -> ShapeId {
+    ShapeId::new(NonZeroU32::new(ordinal).expect("no gallery names zero"))
 }
 
 fn window(width: u32, height: u32) -> Size {
@@ -285,7 +296,7 @@ fn the_three_kinds() {
 
 #[test]
 fn the_order_decides_a_shared_cell() {
-    // As written: `#1` behind, `#2` in front, so `▓` covers where they share. Rebuilt rather than
+    // As written: `1` behind, `2` in front, so `▓` covers where they share. Rebuilt rather than
     // cloned: `Shape` is `Clone` now, and rebuilding from the factory is what keeps both blocks
     // drawing the two boxes as written rather than one of them drawing a second pair.
     let labelled = "[small_box(0,0,fill=░), small_box(2,1,fill=▓)]";
@@ -295,10 +306,10 @@ fn the_order_decides_a_shared_cell() {
     let first = block(labelled, "as written", window(6, 4), &diagram);
 
     // One place toward the front, which puts `░` over `▓` and changes three cells.
-    diagram.forward(&ShapeId::new("#1"));
+    diagram.forward(id(1));
     let moved = block(
         labelled,
-        "#1 moved one place toward the front",
+        "1 moved one place toward the front",
         window(6, 4),
         &diagram,
     );
@@ -405,19 +416,19 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 #[test]
 fn an_endpoint_hangs_from_a_side_and_follows_it() {
     let labelled =
-        "[small_box(0,0,no fill), arm_connector(from = Reference(#1, Right, offset (0,0)) -> 7,1)]";
+        "[small_box(0,0,no fill), arm_connector(from = Reference(1, Right, offset (0,0)) -> 7,1)]";
     let mut diagram = Diagram::new();
     let box_id = diagram.add(small_box(at(0, 0), None));
-    diagram.add(hanging_connector(box_id.clone()));
+    diagram.add(hanging_connector(box_id));
     let first = block(labelled, "as written", window(8, 3), &diagram);
 
     // The box moves four cells right, so its right side center moves from `{3, 1}` to `{7, 1}`
     // and the arrow lands on the new side without anything naming where that is.
     let moved = diagram
-        .get(&box_id)
+        .get(box_id)
         .expect("the box is in the diagram")
         .displaced_by(Delta { dx: 4, dy: 0 });
-    diagram.replace(&box_id, moved);
+    diagram.replace(box_id, moved);
     let second = block(
         labelled,
         "the box displaced four cells right",
@@ -441,10 +452,10 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
     let second_box_id = from_as_written.add(small_box(at(0, 0), None));
     let arrow_id = from_as_written.add(hanging_connector(second_box_id));
     let moved_arrow = from_as_written
-        .get(&arrow_id)
+        .get(arrow_id)
         .expect("the connector is in the diagram")
         .displaced_by(Delta { dx: 0, dy: 2 });
-    from_as_written.replace(&arrow_id, moved_arrow);
+    from_as_written.replace(arrow_id, moved_arrow);
 
     // **`window(8, 4)`, and the fourth row is the reason.** The displaced connector lands on the
     // fourth row, so a three-row window would clip it out entirely and the block would measure to
@@ -462,7 +473,7 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
     // to rather than dropping the connector or re-routing it to nothing.
     //
     // **Reached from a third diagram in this test**, for the reason the third block needed a second:
-    // the two blocks above leave `#1` displaced four cells right, and a removal of a figure the
+    // the two blocks above leave `1` displaced four cells right, and a removal of a figure the
     // arrow's reference is already resolving somewhere else freezes the arrow **displaced** — a
     // fourth picture of a different claim.
     //
@@ -472,8 +483,8 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
     // fourth empty row is therefore the signature here of a window widened for no reason.
     let mut with_the_box_taken_out = Diagram::new();
     let the_removed = with_the_box_taken_out.add(small_box(at(0, 0), None));
-    with_the_box_taken_out.add(hanging_connector(the_removed.clone()));
-    with_the_box_taken_out.remove(&the_removed);
+    with_the_box_taken_out.add(hanging_connector(the_removed));
+    with_the_box_taken_out.remove(the_removed);
     let fourth = block(
         labelled,
         "the box taken out",

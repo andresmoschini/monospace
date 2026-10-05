@@ -96,9 +96,9 @@ impl Anchor {
 /// a value. [`ShapeId::new`] builds the identity it holds, and the identity a diagram's own
 /// [`add`](crate::Diagram::add) handed back is the one the reference should hold.
 ///
-/// It is not `Copy`, because `ShapeId` is a `String`. `Clone` is enough for every use here, and
-/// [`Position`] inherits the same.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// It is `Copy`, because every field is: an identity is four bytes and `Delta` is two `i32`s, and a
+/// reference is a value a caller hands on rather than one it has to keep track of.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reference {
     /// The identity of the shape the position hangs from.
     pub id: ShapeId,
@@ -149,8 +149,8 @@ impl Reference {
 /// and names nothing else. A point is [`Position::Absolute`] and a hanging position is
 /// [`Position::Reference`].
 ///
-/// It is not `Copy`, for the reason [`Reference`] gives.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// It is `Copy`, for the reason [`Reference`] gives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Position {
     /// A point on the canvas, which resolves to itself whatever the diagram holds.
     Absolute(Pos),
@@ -200,7 +200,7 @@ impl Position {
         match self {
             Self::Absolute(at) => Some(*at),
             Self::Reference(reference) => {
-                let shape = diagram.get(&reference.id)?;
+                let shape = diagram.get(reference.id)?;
                 let point = shape.anchor(reference.anchor)?;
                 Some(reference.offset.apply(point))
             }
@@ -222,17 +222,17 @@ impl Position {
     /// — which is what a displacement of **one** figure means, and why the model's §4 says a
     /// displacement is a property of one figure rather than of a diagram.
     ///
-    /// `id` is cloned because it is a `String`, which is why [`Reference`] is not `Copy`; that is
-    /// unchanged and not this method's to fix. A displacement of nothing returns the position equal
-    /// to itself, and a reference naming something this diagram does not hold comes back the same
-    /// reference with a larger offset and still resolves to nothing — the arithmetic builds a value
-    /// and cannot fail, so there is no error path here and nothing to report.
+    /// Nothing here is cloned: the identity is four bytes and the side is a unit variant, so the
+    /// only field a displacement grows is the gap. A displacement of nothing returns the position
+    /// equal to itself, and a reference naming something this diagram does not hold comes back the
+    /// same reference with a larger offset and still resolves to nothing — the arithmetic builds a
+    /// value and cannot fail, so there is no error path here and nothing to report.
     #[must_use]
     pub(crate) fn displaced_by(&self, by: Delta) -> Self {
         match self {
             Self::Absolute(at) => Self::Absolute(by.apply(*at)),
             Self::Reference(reference) => Self::Reference(Reference {
-                id: reference.id.clone(),
+                id: reference.id,
                 anchor: reference.anchor,
                 offset: reference.offset.grow(by),
             }),
@@ -296,12 +296,19 @@ pub(crate) fn flat_size(len: u32, orientation: Orientation) -> Size {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use monospace_core::{
         Buffer, Direction, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, render,
     };
 
     use super::Anchor;
     use crate::{Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
+
+    /// An identity of the ordinal `ordinal`, which is how every test below names one.
+    fn identity(ordinal: u32) -> ShapeId {
+        ShapeId::new(NonZeroU32::new(ordinal).expect("no test names zero"))
+    }
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -339,7 +346,7 @@ mod tests {
         let id = diagram.add(the_box_at_the_origin());
 
         let right = Position::Reference(Reference {
-            id: id.clone(),
+            id,
             anchor: Anchor::Right,
             offset: Delta { dx: 2, dy: 0 },
         });
@@ -529,7 +536,7 @@ mod tests {
     fn a_displacement_moves_a_point_and_grows_a_references_offset() {
         let by = Delta { dx: 4, dy: 0 };
         let reference = super::Position::Reference(crate::Reference {
-            id: crate::ShapeId::new("#1"),
+            id: identity(1),
             anchor: Anchor::Right,
             offset: Delta { dx: 0, dy: 0 },
         });
@@ -676,7 +683,7 @@ mod tests {
         });
         let nothing = Delta { dx: 0, dy: 0 };
         let stands_at = |anchor| {
-            let reference = Reference::new(id.clone(), anchor, nothing, 1);
+            let reference = Reference::new(id, anchor, nothing, 1);
             (
                 reference.offset,
                 Position::Reference(reference).resolve(&diagram),
@@ -734,9 +741,9 @@ mod tests {
         let nothing = Delta { dx: 0, dy: 0 };
 
         assert_eq!(
-            Reference::new(ShapeId::new("#1"), Anchor::Bottom, nothing, 0),
+            Reference::new(identity(1), Anchor::Bottom, nothing, 0),
             Reference {
-                id: ShapeId::new("#1"),
+                id: identity(1),
                 anchor: Anchor::Bottom,
                 offset: nothing,
             },
@@ -787,14 +794,14 @@ mod tests {
         let one_down = Delta { dx: 0, dy: 1 };
 
         assert_eq!(
-            Reference::new(ShapeId::new("#1"), Anchor::Bottom, one_down, 0),
-            Reference::new(ShapeId::new("#1"), Anchor::Bottom, nothing, 1),
+            Reference::new(identity(1), Anchor::Bottom, one_down, 0),
+            Reference::new(identity(1), Anchor::Bottom, nothing, 1),
             "one cell out of a bottom side is one value however it was spelled"
         );
         assert_eq!(
-            Reference::new(ShapeId::new("#1"), Anchor::Bottom, one_down, 0),
+            Reference::new(identity(1), Anchor::Bottom, one_down, 0),
             Reference {
-                id: ShapeId::new("#1"),
+                id: identity(1),
                 anchor: Anchor::Bottom,
                 offset: one_down,
             },
@@ -817,7 +824,7 @@ mod tests {
         let hanging = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: 0 }, 1);
         let connector = Shape::Connector {
             from: Endpoint {
-                at: Position::Reference(hanging.clone()),
+                at: Position::Reference(hanging),
                 leaving: Direction::Down,
                 terminal: Terminal::Arm,
             },
@@ -865,7 +872,7 @@ mod tests {
         let mut diagram = Diagram::new();
         let id = diagram.add(the_box_at_the_origin());
 
-        let cancelling = Reference::new(id.clone(), Anchor::Bottom, Delta { dx: 0, dy: -1 }, 1);
+        let cancelling = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: -1 }, 1);
         let past_the_side = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: -3 }, 1);
 
         assert_eq!(cancelling.offset, Delta { dx: 0, dy: 0 });
@@ -912,12 +919,7 @@ mod tests {
         let mut chain = Diagram::new();
         chain.add(the_box_at_the_origin());
         let the_first = chain.add(arm(
-            Position::Reference(Reference::new(
-                ShapeId::new("#99"),
-                Anchor::Bottom,
-                nothing,
-                1,
-            )),
+            Position::Reference(Reference::new(identity(99), Anchor::Bottom, nothing, 1)),
             Direction::Down,
             Pos { x: 1, y: 5 },
         ));
@@ -961,9 +963,8 @@ mod tests {
             .anchor(Anchor::Top)
             .expect("a line answers all four of its sides");
         let nothing = Delta { dx: 0, dy: 0 };
-        let stands_at = |anchor| {
-            Position::Reference(Reference::new(id.clone(), anchor, nothing, 1)).resolve(&diagram)
-        };
+        let stands_at =
+            |anchor| Position::Reference(Reference::new(id, anchor, nothing, 1)).resolve(&diagram);
 
         for (anchor, at) in [
             (Anchor::Top, Pos { x: 2, y: -1 }),
