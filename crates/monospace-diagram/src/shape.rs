@@ -56,15 +56,15 @@ pub struct Endpoint {
 ///
 /// `resolve` is asked rather than the anchor computed and the offset added by hand, because the
 /// offset is the gap and the gap is what moves with the side. Measured: the demonstration's arrow
-/// freezes to `{16, 5}`, which is `#3`'s right side centre at `{16, 3}` plus the offset `(0, 2)`
+/// freezes to `{16, 5}`, which is `3`'s right side centre at `{16, 3}` plus the offset `(0, 2)`
 /// the sixth picture grew.
 ///
 /// It is crate-private because `remove` is the only consumer: the answer is a rewrite of a figure
 /// this diagram already holds, and there is nothing for a caller outside to do with it.
 impl Endpoint {
-    pub(crate) fn frozen_position(&self, id: &ShapeId, diagram: &Diagram) -> Option<Position> {
+    pub(crate) fn frozen_position(&self, id: ShapeId, diagram: &Diagram) -> Option<Position> {
         match &self.at {
-            Position::Reference(reference) if &reference.id == id => {
+            Position::Reference(reference) if reference.id == id => {
                 self.at.resolve(diagram).map(Position::Absolute)
             }
             _ => None,
@@ -293,10 +293,10 @@ impl Shape {
     /// bottom at offset `(1, 0)` freeze to `{3, 1}` and `{2, 2}`. An implementation that asked once
     /// and wrote twice would put the first point into both ends. **Both answers are computed before
     /// either endpoint is built**, the `(None, None)` arm is what says "this figure is not mine to
-    /// rewrite", and the two `unwrap_or_else` calls are what keep the endpoint that was not frozen
+    /// rewrite", and the two `unwrap_or` calls are what keep the endpoint that was not frozen
     /// exactly as it was.
     #[must_use]
-    pub(crate) fn with_frozen_references(&self, id: &ShapeId, diagram: &Diagram) -> Option<Self> {
+    pub(crate) fn with_frozen_references(&self, id: ShapeId, diagram: &Diagram) -> Option<Self> {
         match self {
             Self::Box { .. } | Self::Line { .. } => None,
             Self::Connector { from, to, stroke } => match (
@@ -306,11 +306,11 @@ impl Shape {
                 (None, None) => None,
                 (new_from, new_to) => Some(Self::Connector {
                     from: Endpoint {
-                        at: new_from.unwrap_or_else(|| from.at.clone()),
+                        at: new_from.unwrap_or(from.at),
                         ..from.clone()
                     },
                     to: Endpoint {
-                        at: new_to.unwrap_or_else(|| to.at.clone()),
+                        at: new_to.unwrap_or(to.at),
                         ..to.clone()
                     },
                     stroke: stroke.clone(),
@@ -436,18 +436,18 @@ mod tests {
             box_at(0),
             line_at(0),
             connector(Terminal::Arm, Terminal::Arm),
-            hanging_from(another.clone()),
+            hanging_from(another),
         ] {
             assert_eq!(
-                holds_nothing.with_frozen_references(&named, &beside),
+                holds_nothing.with_frozen_references(named, &beside),
                 None,
                 "{holds_nothing:?} held nothing to freeze, so this is not that case"
             );
         }
 
-        let holds_a_reference = hanging_from(named.clone());
+        let holds_a_reference = hanging_from(named);
         let freezes = holds_a_reference
-            .with_frozen_references(&named, &beside)
+            .with_frozen_references(named, &beside)
             .expect("a connector naming the figure it is asked about freezes");
         let Shape::Connector { from, .. } = &freezes else {
             unreachable!("the figure above is a connector")

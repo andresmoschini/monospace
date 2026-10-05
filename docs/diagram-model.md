@@ -32,7 +32,7 @@ interactive application. Those are layers above this one.
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `Diagram`   | Shapes in an order, drawable, changeable; the source of truth                                                                 |
 | `Shape`     | One figure in a diagram: its kind, its parameters and its position; its identity and its place in the order are the diagram's |
-| `ShapeId`   | A shape's identity: a string, unique within its diagram                                                                       |
+| `ShapeId`   | A shape's identity: an ordinal, unique within its diagram when the diagram issued it                                          |
 | `Anchor`    | One of four named points a shape may offer: the center of each of its sides                                                   |
 | `Position`  | Either an absolute point or a reference                                                                                       |
 | `Reference` | A `ShapeId`, an `Anchor` on it, and a horizontal and vertical offset                                                          |
@@ -66,9 +66,9 @@ anything because the second never left those sides open:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
   "next_id": 3,
   "shapes": [
-    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "box", "id": "#2", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 2, "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" }
   ] }
 -->
@@ -87,23 +87,28 @@ nesting.
 
 ## 3. Identity
 
-Every shape in a diagram has an identity, and it is a string. A caller may choose the identity a
-shape is added under, or let the diagram issue one — `#1`, `#2`, and so on. The identities **the
-diagram issues** are unique within that diagram. An identity a caller supplies is **not checked**:
-two shapes may carry one, both are held, and the second is a shape no identity names until the first
-is removed.
+Every shape in a diagram has an identity, and it is an ordinal — a number, `1`, `2`, and so on, and
+never `0`. A caller may choose the identity a shape is added under, or let the diagram issue one.
+The identities **the diagram issues** are unique within that diagram. An identity a caller supplies
+is **not checked**: two shapes may carry one, both are held, and the second is a shape no identity
+names until the first is removed.
+
+**Zero is not an identity**, and that is the one rule the type itself carries rather than this
+document. It is a rule about the value rather than about a diagram: nothing here ever issued a `0`,
+and a diagram whose first addition is `1` says so. Who issues an identity and whether two may share
+one are the questions above, and they stay here.
 
 An identity is what makes a shape findable after it has been placed: it is how a position refers to
 another shape, how a change names what it is changing, and what a position on the screen resolves
 back to. It survives every change to the shape it names, including replacing it and reordering it —
 and, where the identity is the caller's rather than the diagram's, it survives the shape being
-**listed** somewhere else, because a name does not move when the order it is written in does.
+**listed** somewhere else, because an identity does not move when the order it is written in does.
 
-Editing an identity after the fact is an open question below. Spelling one and handing it to the
-diagram is a different matter and is settled: `ShapeId::new` builds an identity directly, and a
-change that puts a shape under one puts it there under that name. **The type itself is the core's**
-— it is what a stamp records, and the core cannot hold what only this layer names — while the rules
-above stay here, because which identities a diagram issues is not a question the core has.
+Editing an identity after the fact is an open question below. Handing one to the diagram is a
+different matter and is settled: `ShapeId::new` builds an identity from its ordinal, and a change
+that puts a shape under one puts it there under that ordinal. **The type itself is the core's** — it
+is what a stamp records, and the core cannot hold what only this layer names — while the rules above
+stay here, because which identities a diagram issues is not a question the core has.
 
 ## 4. Positions
 
@@ -223,9 +228,9 @@ an anchor rather than a corner:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 } },
   "next_id": 3,
   "shapes": [
-    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector", "id": "#2",
+    { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "point", "x": 3, "y": 1 }, "leaving": "right",
                 "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 7, "y": 1 }, "leaving": "left",
@@ -271,9 +276,9 @@ in it:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 7, "height": 5 } },
   "next_id": 3,
   "shapes": [
-    { "kind": "line", "id": "#1", "at": { "x": 3, "y": 0 }, "len": 5, "orientation": "vertical",
+    { "kind": "line", "id": 1, "at": { "x": 3, "y": 0 }, "len": 5, "orientation": "vertical",
       "stroke": "light" },
-    { "kind": "line", "id": "#2", "at": { "x": 0, "y": 2 }, "len": 7, "orientation": "horizontal",
+    { "kind": "line", "id": 2, "at": { "x": 0, "y": 2 }, "len": 7, "orientation": "horizontal",
       "stroke": "light" }
   ] }
 -->

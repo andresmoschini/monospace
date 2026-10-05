@@ -34,13 +34,13 @@ pub trait Surface {
 ///
 /// A layer bound by [`new`](Self::new) is bound to nobody and owns nothing, which is what the
 /// core's own figures ask for — they are values that draw and nothing more.
-pub struct Layer<'a, 'b> {
+pub struct Layer<'a> {
     buffer: &'a mut Buffer,
     mode: StampMode,
-    owner: Option<&'b ShapeId>,
+    owner: Option<ShapeId>,
 }
 
-impl<'a, 'b> Layer<'a, 'b> {
+impl<'a> Layer<'a> {
     /// Binds `buffer` to `mode` for every stamp drawn through this layer, under no identity.
     #[must_use]
     pub fn new(buffer: &'a mut Buffer, mode: StampMode) -> Self {
@@ -56,8 +56,13 @@ impl<'a, 'b> Layer<'a, 'b> {
     /// One layer per figure rather than one per stamp, which is what keeps the identity off
     /// [`Surface::stamp`]: a figure with an identity parameter is a figure that can be drawn under
     /// two, or under none, and the caller above is the only thing that knows which.
+    ///
+    /// The identity is taken **by value**, which is what leaves this struct with a single lifetime:
+    /// an identity is four bytes and `Copy`, so a layer holds one without borrowing it, and nothing
+    /// downstream of this constructor has to keep a shape's identity alive for the length of a
+    /// drawing.
     #[must_use]
-    pub fn stamped_by(buffer: &'a mut Buffer, mode: StampMode, owner: &'b ShapeId) -> Self {
+    pub fn stamped_by(buffer: &'a mut Buffer, mode: StampMode, owner: ShapeId) -> Self {
         Self {
             buffer,
             mode,
@@ -66,7 +71,7 @@ impl<'a, 'b> Layer<'a, 'b> {
     }
 }
 
-impl Surface for Layer<'_, '_> {
+impl Surface for Layer<'_> {
     fn stamp(&mut self, at: Pos, cell: Cell) {
         self.buffer.stamp(at, cell, self.mode, self.owner);
     }

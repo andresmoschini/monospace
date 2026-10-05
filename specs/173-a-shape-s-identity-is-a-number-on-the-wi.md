@@ -1,6 +1,7 @@
 ---
-status: agreed
+status: implemented
 decided: "#182"
+implemented: "#184"
 date: 2026-10-05
 ---
 
@@ -240,7 +241,7 @@ that reaches the buffer.
    matches nothing here — the same answer a reference to an absent shape already gets.
 7. A caller-supplied identity is not checked: two shapes may carry one ordinal, both are held, and
    the second is a shape no ordinal names until the first is removed.
-8. The description file's `id` and `shape` are integers. `"id": "#1"` is refused, as a data error
+8. The description file's `id` and `shape` are integers. `"id": 1` is refused, as a data error
    naming the field.
 9. `next_id` is a nonzero integer. `"next_id": 0` is refused the same way, because the counter D4
    takes cannot hold it.
@@ -257,7 +258,7 @@ spelled as it is today:
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": -1 }, "size": { "width": 2, "height": 6 } },
   "next_id": 2,
-  "shapes": [ { "kind": "connector", "id": "#1",
+  "shapes": [ { "kind": "connector", "id": 1,
     "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "up",
       "terminal": { "kind": "glyph", "glyph": "▼" } },
     "to": { "at": { "kind": "point", "x": 0, "y": 3 }, "leaving": "down",
@@ -281,54 +282,81 @@ the argument for D1 and D2 together, and it is the one thing a picture can say t
 cannot: the identity is not drawn, so nothing about the output moves — which is exactly why the
 change can be made now, before a front end exists to read an identity off a screen.
 
-**That second picture is not in a marker, and cannot be in one on this branch.** The reader parses
-`"id"` as a string today, so a marker carrying a number does not render yet; hand-writing the fence
-would make it hypothetical, and `cargo xtask render` would overwrite it the moment the building
-stage lands. It is drawn as the identical picture above rather than asserted. **What settles it is
-the building stage**: this marker's own `id` becomes `1`, `cargo xtask render` refills the fence,
-and `cargo xtask render --check` holding is the proof that rule 8 is what the shipped reader does.
+**That second picture is now in a marker, because the reader takes the number.** The marker above
+carries `"id": 1`, `cargo xtask render` refilled its fence rather than a hand having written it, and
+`cargo xtask render --check` reports all 22 pictures matching their descriptions — which is the
+proof that rule 8 is what the shipped reader does and that the identity is not drawn.
 
 **A file the reader refuses.** `"id": "#1"` and `"next_id": 0` are both refused as data errors, in
 the vocabulary `deserialize_glyph` already uses at `crates/monospace-cli/src/description.rs:106` and
 that `malformed_json_locates_the_problem_on_stderr_and_fails` already asserts for other failures:
-stderr names the problem, stdout is empty, and the exit code is 1. The exact wording is not written
-here because it has not been observed, and it is the acceptance list's job to pin it.
+stderr names the problem, stdout is empty, and the exit code is 1. The wording is now observed, and
+it is the field's name in front of `serde`'s own:
+
+```text
+`id` is an ordinal: invalid type: string "#1", expected a nonzero u32 at line 7 column 13
+`shape` is an ordinal: invalid type: string "#1", expected a nonzero u32 at line 1 column 474
+`next_id` is an ordinal: invalid value: integer `0`, expected a nonzero u32 at line 1 column 88
+```
+
+`serde` alone reports the second half of each of those, which names neither `id` nor `shape` nor
+`next_id`, and the three are the whole of what a caller has to go on — so the three fields share one
+deserializer that puts its own field's name in front. The line and column are `serde_json`'s and
+move with the bytes; the acceptance list asserts the rest.
 
 **Three identities that were not ordinals.** `crates/monospace-diagram/src/diagram.rs` tells two
 shapes apart by the strings `"chosen"` and `"other"`, and asks a third diagram for an identity
-nothing here holds — `a_foreign_identity()`, which its own doc at `:1425-1428` says takes the
-_third_ identity precisely because `ShapeId` was a string and `#1` would collide. All three become
-ordinals, and that helper's reasoning inverts: a foreign identity is now an ordinal this diagram
-never issued, which is a statement about the counter rather than about the spelling. The tests keep
-their names and lose their wording;
-`a_chosen_identity_is_found_by_that_identity_and_by_no_other_one` is still about an identity that
-was chosen by a caller, not one the diagram issued.
+nothing here holds — `a_foreign_identity()`, whose own doc says it takes the _third_ identity
+precisely because `ShapeId` was a string and `1` would collide. All three became ordinals, and that
+helper's reasoning inverted: a foreign identity is now an ordinal this diagram never issued, which
+is a statement about the counter rather than about the spelling. The tests kept their names and lost
+their wording; `a_chosen_identity_is_found_by_that_identity_and_by_no_other_one` is still about an
+identity a caller chose, and now reads `chosen` as `2`, `other` as `3` and the one nothing holds as
+`9`.
 
 ## What proves it
 
-None of these tests exists yet; the deciding stage adds no code. The names are what the building
-stage is held to.
+Each of these tests exists, and the column beside it says where. The names are the ones the deciding
+stage fixed; the building stage's job was to make them answer their rule, and the three crates are
+the answer's three addresses — the type itself, the diagram, and the wire.
 
-| Rule | Test                                                                                         |
-| ---- | -------------------------------------------------------------------------------------------- |
-| 1    | `an_identity_cannot_be_zero_and_nothing_in_the_reader_or_the_type_allows_it_to_be_asked_for` |
-| 2    | `an_identity_writes_its_ordinal_and_nothing_else`                                            |
-| 3    | `a_diagram_issues_the_counter_and_a_shape_added_under_a_callers_identity_does_not_move_it`   |
-| 4    | `a_seeded_diagram_hands_back_the_ordinal_it_was_seeded_with_and_then_a_different_one`        |
-| 5    | `a_diagram_that_has_run_out_of_ordinals_says_so_rather_than_issuing_zero`                    |
-| 6    | `an_identity_from_another_diagram_changes_nothing_and_does_not_panic`                        |
-| 7    | `two_shapes_carrying_one_identity_both_record_it_as_get_cannot_tell_them_apart`              |
-| 8    | `an_identity_written_as_a_string_is_refused_by_name_on_stderr_and_fails`                     |
-| 9    | `a_next_id_of_zero_is_refused_by_name_on_stderr_and_fails`                                   |
-| 10   | `a_shape_drawn_by_nobody_owns_nothing_even_where_it_writes`                                  |
-| 11   | `owner_answers_for_an_offset_into_the_window_and_none_for_one_it_does_not_hold`              |
+| Rule | Test                                                                                         | Where                             |
+| ---- | -------------------------------------------------------------------------------------------- | --------------------------------- |
+| 1    | `an_identity_cannot_be_zero_and_nothing_in_the_reader_or_the_type_allows_it_to_be_asked_for` | `monospace-core`, `identity.rs`   |
+| 2    | `an_identity_writes_its_ordinal_and_nothing_else`                                            | `monospace-core`, `identity.rs`   |
+| 3    | `a_diagram_issues_the_counter_and_a_shape_added_under_a_callers_identity_does_not_move_it`   | `monospace-diagram`, `diagram.rs` |
+| 4    | `a_seeded_diagram_hands_back_the_ordinal_it_was_seeded_with_and_then_a_different_one`        | `monospace-diagram`, `diagram.rs` |
+| 5    | `a_diagram_that_has_run_out_of_ordinals_says_so_rather_than_issuing_zero`                    | `monospace-diagram`, `diagram.rs` |
+| 6    | `an_identity_from_another_diagram_changes_nothing_and_does_not_panic`                        | `monospace-diagram`, `diagram.rs` |
+| 7    | `two_shapes_carrying_one_identity_both_record_it_as_get_cannot_tell_them_apart`              | `monospace-diagram`, `diagram.rs` |
+| 8    | `an_identity_written_as_a_string_is_refused_by_name_on_stderr_and_fails`                     | `monospace-cli`, `tests/cli.rs`   |
+| 9    | `a_next_id_of_zero_is_refused_by_name_on_stderr_and_fails`                                   | `monospace-cli`, `tests/cli.rs`   |
+| 10   | `a_shape_drawn_by_nobody_owns_nothing_even_where_it_writes`                                  | `monospace-core`, `buffer.rs`     |
+| 11   | `owner_answers_for_an_offset_into_the_window_and_none_for_one_it_does_not_hold`              | `monospace-core`, `buffer.rs`     |
+
+**Rule 3 took the name of the test it replaced.**
+`add_under_does_not_move_the_counter_and_does_not_check_the_name` said the second half of the rule
+and nothing about the first — it never asked what a diagram-issued identity _is_ — and "the name" is
+a word this change retires. It now asserts all three: the counter's own value, the advance by one,
+and that a caller's `7` beside a counter at `3` leaves it there. Its accepted cost — two shapes
+under one identity, both held — came with it, and `crates/monospace-cli/tests/cli.rs` points at the
+new name where it used to point at the old one.
+
+**Two names changed because the thing they are about did.**
+`a_reference_follows_the_identity_and_not_the_place_where_the_entry_is_written` was
+`...the_name...`, and `free_text_reads_and_draws_what_the_ordinal_named_description_draws` is gone:
+it pinned the format's willingness to take any text as an `id`, which is exactly what this change
+refuses. What replaced it is three tests in `crates/monospace-cli/src/description.rs` — the two
+refusals at the serde level, beside an `an_ordinal_is_read_where_the_format_names_a_shape` that says
+the same field reads the other way — and the wire's own version of that refusal is rule 8 below.
 
 Rules 1 and 2 are held by a test on the type itself and, for the reader, by rule 8's negative case.
-Rule 5 is held at the boundary with `NonZeroU32::new(u32::MAX)` and one further `add`. Rules 8 and 9
-are spawned against the real binary the way `an_unrecognized_kind_names_it_on_stderr_and_fails`
-(`crates/monospace-cli/tests/cli.rs:501`) is, and neither may disturb
-`two_entries_carrying_one_identity_are_both_read_and_both_drawn` (`cli.rs:60`), which asserts
-success and empty stderr for a file with duplicate identities — the case D6 leaves alone.
+Rule 5 is held at the boundary with `NonZeroU32::new(u32::MAX)` and one further `add`, and it is a
+`#[should_panic]` with the exhaustion named rather than a catch and an assertion. Rules 8 and 9 are
+spawned against the real binary the way `an_unrecognized_kind_names_it_on_stderr_and_fails`
+(`crates/monospace-cli/tests/cli.rs`) is, and neither disturbs
+`two_entries_carrying_one_identity_are_both_read_and_both_drawn`, which asserts success and empty
+stderr for a file with duplicate identities — the case D6 leaves alone.
 
 The 22 markers are held by themselves: `cargo xtask render --check` redraws every one, and a picture
 that moved without a change here is the failure. Two snapshots carry an ordinal as a hand-written
@@ -344,16 +372,18 @@ label and are held by `cargo insta review`: `an_endpoint_hangs_from_a_side_and_f
   them, which nothing does and §2's "a shape belongs to a diagram directly" discourages.
 - **Whether a shape's ordinal should be stable when it is removed.** §3 holds an identity to its
   shape across removal and reordering, and
-  `a_seeded_diagram_never_hands_out_an_identity_it_issued_before` at
-  `crates/monospace-diagram/src/diagram.rs:716` is what pins it. A number invites reuse in a way a
-  name does not — `#1` reads as a slot, `1` reads as a count. Nothing in the model forbids reuse and
-  the test forbids it, so the answer is today the test. What would settle it: an editor that deletes
-  a shape and expects the next `add` to land where the deleted one was.
+  `a_seeded_diagram_never_hands_out_an_identity_it_issued_before` is what pins it. A number invites
+  reuse in a way a name does not — `#1` reads as a slot, `1` reads as a count. Nothing in the model
+  forbids reuse and the test forbids it, so the answer is today the test. What would settle it: an
+  editor that deletes a shape and expects the next `add` to land where the deleted one was.
 - **Where a friendly name lives**, which the issue puts out of scope and which this change makes
-  room for without answering. Two shapes are distinguished only by strings in the diagram's own
-  tests, so the need is visible today and the shape of the answer is not.
-- **The dangling `Q1`** at `crates/monospace-diagram/src/diagram.rs:33`, on the `next` field this
-  change rewrites. Nothing in the repository is labelled `Q1`; the spec that asked the question it
-  points at is not in `specs/`. What would settle it: nothing in this change, which should keep the
-  comment's actual claim — that seeding is a plain assignment and no public method carries a
-  subtraction — and drop the marker.
+  room for without answering. The two shapes the diagram's own tests tell apart are told apart by
+  ordinals a caller chose — `2` and `3` — and that is the same need as before with one fewer thing
+  in the way: nothing in a number says which box it means. The shape of the answer is still
+  unstated.
+- **The dangling `Q1`**, which was at `crates/monospace-diagram/src/diagram.rs:33` on the `next`
+  field this change rewrites. Nothing in the repository is labelled `Q1`; the spec that asked the
+  question it pointed at is not in `specs/`. **The marker is gone and the claim it hung on is
+  kept**, which is what this bullet asked of the building stage — the field's own doc says that
+  seeding is a plain assignment and no public method carries a subtraction, and now says the field
+  is nonzero as well. The question the marker stood for is unanswered rather than settled.

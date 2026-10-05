@@ -58,11 +58,11 @@ const DEMO: &str = include_str!("../assets/demo.json");
 /// **The first three name a cell only that one shape wrote**, which is what makes the answer that
 /// shape rather than a fact about the order: a cell two of them wrote resolves to whichever is in
 /// front, so asking there would be asking about a crossing instead. Measured against the shipped
-/// description — `(0, 0)` is `#1`'s own top-left corner, `(9, 4)` is `#3`'s bottom-left corner, and
+/// description — `(0, 0)` is `1`'s own top-left corner, `(9, 4)` is `3`'s bottom-left corner, and
 /// `(14, 3)` is the middle of the arrow's own horizontal run.
 ///
 /// **The fourth is deliberately the opposite case**: a cell two shapes *did* write, where the
-/// character on screen cannot say which. `#6`'s bottom border runs through it and `#5`'s left border
+/// character on screen cannot say which. `6`'s bottom border runs through it and `5`'s left border
 /// runs down it, so it renders `┼`.
 const THE_BACK_MOST_AT: Offset = Offset { x: 0, y: 0 };
 const THE_HUNG_FROM_AT: Offset = Offset { x: 9, y: 4 };
@@ -175,12 +175,13 @@ fn demonstrate(description: Description) -> String {
     // what makes the offsets above checkable — a name in this function would answer every offset,
     // including a wrong one, and there would be nothing left to fail.
     //
-    // The `.cloned()` is because each answer outlives the borrow `owner` hands back: `the_back_most`
-    // is read four times across the steps below, after the buffer has been drawn into again.
+    // Each answer is a four-byte ordinal rather than a borrow of one, so nothing has to outlive the
+    // borrow `owner` hands back and the `.cloned()` this used to need is gone: `the_back_most` is
+    // read four times across the steps below, after the buffer has been drawn into again.
     let (as_written, first_picture) = drawn(&diagram, &catalog, origin, size);
-    let the_back_most = as_written.owner(THE_BACK_MOST_AT).cloned();
-    let the_hung_from = as_written.owner(THE_HUNG_FROM_AT).cloned();
-    let the_arrow = as_written.owner(THE_ARROW_AT).cloned();
+    let the_back_most = as_written.owner(THE_BACK_MOST_AT);
+    let the_hung_from = as_written.owner(THE_HUNG_FROM_AT);
+    let the_arrow = as_written.owner(THE_ARROW_AT);
 
     // The caption names the offsets and not the answers, because the answers are whatever the record
     // holds and a line of text cannot know.
@@ -228,13 +229,13 @@ fn demonstrate(description: Description) -> String {
     // `forward` and `remove` are separately no-ops on an identity the diagram does not hold, so
     // these guards are narrower than the steps' own: they skip a shape the record never named, which
     // is a different case from one this diagram does not hold.
-    if let Some(the_back_most) = the_back_most.as_ref() {
+    if let Some(the_back_most) = the_back_most {
         diagram.forward(the_back_most);
     }
     out.push_str("\nWith the back-most shape moved one place forward:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
-    if let Some(the_back_most) = the_back_most.as_ref()
+    if let Some(the_back_most) = the_back_most
         && let Some(moved) = diagram
             .get(the_back_most)
             .map(|shape| shape.displaced_by(by))
@@ -244,7 +245,7 @@ fn demonstrate(description: Description) -> String {
     out.push_str("\nWith that same shape displaced:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
-    if let Some(the_back_most) = the_back_most.as_ref() {
+    if let Some(the_back_most) = the_back_most {
         diagram.remove(the_back_most);
     }
     out.push_str("\nWith that same shape taken out:\n");
@@ -263,7 +264,7 @@ fn demonstrate(description: Description) -> String {
     // A description whose tenth entry is not a connector, one with no tenth entry at all, and one
     // whose record names nothing at `(14, 3)`, all have nothing to rehang: the guard falls through
     // and the picture is the fourth's.
-    if let (Some(the_arrow), Some(the_hung_from)) = (the_arrow.as_ref(), the_hung_from.as_ref())
+    if let (Some(the_arrow), Some(the_hung_from)) = (the_arrow, the_hung_from)
         && let Some(Shape::Connector { to, stroke, .. }) = diagram.get(the_arrow).cloned()
     {
         diagram.replace(
@@ -271,7 +272,7 @@ fn demonstrate(description: Description) -> String {
             Shape::Connector {
                 from: Endpoint {
                     at: Position::Reference(Reference {
-                        id: the_hung_from.clone(),
+                        id: the_hung_from,
                         anchor: Anchor::Right,
                         offset: Delta { dx: 0, dy: 0 },
                     }),
@@ -287,7 +288,7 @@ fn demonstrate(description: Description) -> String {
     // And now the figure it hangs from moves, which is what the reference is for: the arrow lands
     // on the box's new side and re-routes to the end that did not move, because that endpoint is
     // still a point and a displacement reaches points.
-    if let Some(the_hung_from) = the_hung_from.as_ref()
+    if let Some(the_hung_from) = the_hung_from
         && let Some(moved) = diagram
             .get(the_hung_from)
             .map(|shape| shape.displaced_by(four_right))
@@ -299,7 +300,7 @@ fn demonstrate(description: Description) -> String {
 
     // And now the arrow itself moves, which is the sixth picture and the reason the fifth exists:
     // at this point **both** of the arrow's endpoints are references — its `from` rehung above and
-    // the shipped `to`, which names `#5`'s bottom with an offset of one in each axis — so a
+    // the shipped `to`, which names `5`'s bottom with an offset of one in each axis — so a
     // displacement that did not reach a reference's offsets would draw a picture byte for byte
     // identical to the fifth, and that is the defect this step exists to show is gone. The sixth is
     // therefore the fifth with the arrow two rows lower and **both boxes standing exactly where
@@ -309,7 +310,7 @@ fn demonstrate(description: Description) -> String {
     // may name nothing at `(14, 3)`, and `get` and `replace` are separately no-ops on an identity
     // this diagram does not hold, which is what keeps a one-shape description — and an empty one —
     // demonstrating at all.
-    if let Some(the_arrow) = the_arrow.as_ref()
+    if let Some(the_arrow) = the_arrow
         && let Some(moved) = diagram
             .get(the_arrow)
             .map(|shape| shape.displaced_by(two_down))
@@ -331,10 +332,10 @@ fn demonstrate(description: Description) -> String {
     // **No `if let` around the call itself and no `get`**, which is what makes this step read
     // differently from the six beside it: `remove` hands back nothing, so there is nothing about the
     // removal to ask. There is an `if let` around **which** shape, and there has to be, because the
-    // record may name none. `#3` is the box the demonstration hangs the arrow
+    // record may name none. `3` is the box the demonstration hangs the arrow
     // from — the same identity the fifth picture displaced — so this step takes out exactly what the
     // arrow hangs from.
-    if let Some(the_hung_from) = the_hung_from.as_ref() {
+    if let Some(the_hung_from) = the_hung_from {
         diagram.remove(the_hung_from);
     }
     out.push_str("\nWith the box the arrow hangs from taken out:\n");
@@ -347,19 +348,19 @@ fn demonstrate(description: Description) -> String {
     // the binary printed before this showed what the record is for. Here nothing is chosen — `(20, 2)`
     // is asked for and the record answers, and the eighth is the seventh with whatever it named gone.
     //
-    // **The offset is measured, not chosen by eye** — see [`THE_CROSSING_AT`]. `#5` is listed after
-    // `#6` and so is in front, and the record names `#6` — the shape behind — because `#6` reached the
-    // cell first. Taking `#6` out leaves `#5`'s arm standing alone, and `┼` becomes `│`, which is the
+    // **The offset is measured, not chosen by eye** — see [`THE_CROSSING_AT`]. `5` is listed after
+    // `6` and so is in front, and the record names `6` — the shape behind — because `6` reached the
+    // cell first. Taking `6` out leaves `5`'s arm standing alone, and `┼` becomes `│`, which is the
     // one reader can check with their eyes. Asking anywhere else would give a cell one shape wrote,
     // where the picture already says which shape it was.
     //
     // **Asked of the first drawing and not of the seventh**, which is the point: the record belongs to
     // the drawing that produced it, so a buffer the demonstration has since redrawn would still be
-    // holding it and a drawing taken now would answer about something else. `#6` is not one of the
+    // holding it and a drawing taken now would answer about something else. `6` is not one of the
     // three shapes the earlier steps touch, so what is removed here is the record's answer and not a
     // side effect of them.
-    if let Some(named) = as_written.owner(THE_CROSSING_AT).cloned() {
-        diagram.remove(&named);
+    if let Some(named) = as_written.owner(THE_CROSSING_AT) {
+        diagram.remove(named);
     }
     let crossing_caption = format!(
         "\nWith the shape the picture names at ({}, {}) taken out:\n",
@@ -389,6 +390,7 @@ fn glyph_catalog() -> GlyphCatalog {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
     use std::ops::Range;
 
     use monospace_core::{
@@ -399,15 +401,20 @@ mod tests {
 
     use super::{Description, demonstrate, drawn, glyph_catalog, render_once};
 
+    /// An identity of the ordinal `ordinal`, which is how every test below names one.
+    fn identity(ordinal: u32) -> ShapeId {
+        ShapeId::new(NonZeroU32::new(ordinal).expect("no test names zero"))
+    }
+
     fn one_box_json() -> &'static str {
-        r##"{
+        r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
-                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" }
             ]
-        }"##
+        }"#
     }
 
     /// A one-box `Description` renders the same text as a `BoxShape` drawn directly with the same
@@ -508,16 +515,16 @@ mod tests {
     #[test]
     fn two_overlapping_boxes_demonstrate_in_opposite_orders() {
         let (first, second, ..) = demonstrated_pictures(
-            r##"{
+            r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 3,
             "shapes": [
-                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" },
-                { "kind": "box", "id": "#2", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 2, "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "▓" }
             ]
-        }"##,
+        }"#,
         );
 
         let size = Size {
@@ -555,7 +562,7 @@ mod tests {
         render(&buffer, &GlyphCatalog::light(), origin, size)
     }
 
-    /// The tenth entry's far endpoint stops being a point and becomes a reference to `#5`'s bottom
+    /// The tenth entry's far endpoint stops being a point and becomes a reference to `5`'s bottom
     /// with an offset of one in each axis — spelled today as one cell along the side in the `offset`
     /// and one cell out of it in the `out` beside it — and **the first five pictures come out byte
     /// for byte what they were**.
@@ -564,14 +571,14 @@ mod tests {
     /// other side of each comparison is not pinned as text but built: the same demonstration with
     /// that one entry's `to` put back to the point it spells, so a difference can only be the
     /// entry. `{21, 3} + (1, 1)` is `{22, 4}`, which is what the entry said outright, and the
-    /// demonstration removes `#1`, displaces `#1` and displaces `#3`, so the fifth shape is none of
+    /// demonstration removes `1`, displaces `1` and displaces `3`, so the fifth shape is none of
     /// them and the reference resolves the same in every picture.
     ///
     /// **The sixth is compared between the two runs and not against a "before",** because it has no
     /// before: it is the demonstration's own step, added by this slice, and both runs produce it. The
     /// two are equal, and the reason is the rule rather than a coincidence: the run that spells `to`
     /// outright has that endpoint grown from `{22, 4}` as an absolute point, while the run that
-    /// names a reference to `#5`'s bottom with offset `(1, 1)` has the **offset** grown to `(1, 3)`
+    /// names a reference to `5`'s bottom with offset `(1, 1)` has the **offset** grown to `(1, 3)`
     /// and the reference resolving to `{22, 6}`. Same cell, two routes to it, which is the whole
     /// claim.
     ///
@@ -597,7 +604,7 @@ mod tests {
             .iter_mut()
             .find(|shape| {
                 shape["kind"] == serde_json::json!("connector")
-                    && shape["id"] == serde_json::json!("#10")
+                    && shape["id"] == serde_json::json!(10)
             })
             .expect("the tenth entry is the one connector this description holds");
 
@@ -630,9 +637,9 @@ mod tests {
              slice's own step, and both reach the same cell two rows lower"
         );
         // **The seventh joins the sixth for the same stated reason, and the reason is the freeze.**
-        // `remove(&#3)` freezes the arrow's `from` at `{16, 5}` in both runs whatever route it took
+        // `remove(3)` freezes the arrow's `from` at `{16, 5}` in both runs whatever route it took
         // to get there: the run that spells `to` outright grows that absolute point from `{22, 4}`,
-        // and the run that names a reference to `#5`'s bottom grows the **offset** to `(1, 3)` and
+        // and the run that names a reference to `5`'s bottom grows the **offset** to `(1, 3)` and
         // freezes the other end there. Same cell, two routes to it — the claim the sixth's existing
         // comment already made, now with the seventh beside it. Neither has a "before": both are the
         // demonstration's own step and both runs produce them.
@@ -642,7 +649,7 @@ mod tests {
         );
         // **And the eighth joins them for a different stated reason: it asks the picture.** The record
         // is drawn from the diagram as it stands, so a diagram whose tenth entry resolves its far end
-        // by a different route records the same owners at `(20, 2)` — `#6` in both runs — and removes
+        // by a different route records the same owners at `(20, 2)` — `6` in both runs — and removes
         // the same shape. The arrow's route to that cell does not reach it, so the spelling of the
         // tenth entry is not what decides which shape the eighth removes.
         assert_eq!(
@@ -856,15 +863,15 @@ mod tests {
     /// one the binary embeds and only the first entry differs.
     ///
     /// **It renumbers nothing, and that is the cost this slice removes rather than a fix to this
-    /// helper.** While an identity named a place in a list, removing the first listing shifted
-    /// every name after it: the tenth entry's `to` named `"#5"`, the fifth entry of *this* text, and
-    /// re-reading the text issued the identities from scratch in array order, so `#5` became the
-    /// box at `{18, 0}` rather than the one at `{20, 1}`. The fourth picture would then have been a
-    /// different picture from the one the test compares it to, and the difference begins at row 3.
-    /// That loop rewriting `"#5"` to `"#4"` is what kept the two sides the same diagram.
+    /// helper.** While an identity was issued in array order rather than carried, removing the first
+    /// listing shifted every identity after it: the tenth entry's `to` named `5`, the fifth entry of
+    /// *this* text, and re-reading the text issued the identities from scratch in array order, so
+    /// `5` became the box at `{18, 0}` rather than the one at `{20, 1}`. The fourth picture would
+    /// then have been a different picture from the one the test compares it to, and the difference
+    /// begins at row 3. That loop rewriting `5` to `4` is what kept the two sides the same diagram.
     ///
     /// Every entry now carries the identity it was written with, so the twenty-five that survive
-    /// keep the names they had and `remove(0)` shifts nothing at all. The same `assert_eq!` in
+    /// keep the identities they had and `remove(0)` shifts nothing at all. The same `assert_eq!` in
     /// `the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out` is the claim now
     /// rather than a fixture a loop had to hold in place.
     fn demo_without_its_first_entry() -> String {
@@ -884,7 +891,7 @@ mod tests {
     /// an identity this diagram does not hold, and there is no branch here to get wrong.
     ///
     /// **The seventh is the case worth having**, and it is worth having because it is a `remove`
-    /// rather than an `if let`. An empty description holds no `#3`, so the seventh step calls
+    /// rather than an `if let`. An empty description holds no `3`, so the seventh step calls
     /// `remove` on an identity this diagram does not hold: `find` answers `None` and `remove`
     /// returns before its loop, which is a different guard from the `if let` the sixth step carries
     /// and is the only reason a removal can be called unconditionally at all. The seventh picture is
@@ -928,7 +935,7 @@ mod tests {
     /// figure that fills its own window is moved partly or wholly out of it by any delta other than
     /// none. What the rule asks of this case is that the run succeeds, which it does — and the fifth
     /// through eighth add four more no-ops on identities a one-shape description does not hold, since
-    /// it has no `#3` and no `#10`. See the specification's Clarifications for the 2026-09-28
+    /// it has no `3` and no `10`. See the specification's Clarifications for the 2026-09-28
     /// session, which corrected this scenario on the evidence of this test.
     #[test]
     fn one_shape_demonstrates_as_two_copies_of_itself_and_then_an_empty_window() {
@@ -939,14 +946,14 @@ mod tests {
         assert_ne!(pictures.0, pictures.2);
         assert_eq!(pictures.3, pictures.4);
         // The sixth equals the fifth for the same reason the fourth equals the third: the
-        // description holds no `#10`, so the sixth step's `get` returns `None` and the step changes
+        // description holds no `10`, so the sixth step's `get` returns `None` and the step changes
         // nothing. **A one-shape description is the case that would break if the `if let` around
         // that step were dropped**, which is why it is asserted rather than assumed.
         assert_eq!(pictures.4, pictures.5);
         // And the seventh equals the sixth for the reason of its own: the description holds no
-        // `#3` either, so `remove` finds nothing and returns before its loop. The name is unchanged
-        // and still true — this is two copies of itself and then an empty window, whatever comes
-        // after — and the count beside it is what changed.
+        // `3` either, so `remove` finds nothing and returns before its loop. The test's name is
+        // unchanged and still true — this is two copies of itself and then an empty window,
+        // whatever comes after — and the count beside it is what changed.
         assert_eq!(pictures.5, pictures.6);
         // **And the eighth equals the seventh for a third reason of its own**, and this one is the
         // one the record introduces: the window is four by three, so `(20, 2)` is outside it, the
@@ -960,37 +967,37 @@ mod tests {
     /// legitimately writes.
     ///
     /// **Quoted rather than read from the code that produces them**, because a contract test that
-    /// asks the demonstration the same questions it answers itself checks nothing. `#3` is the
+    /// asks the demonstration the same questions it answers itself checks nothing. `3` is the
     /// shipped description's third entry, a four-by-three box at `{9, 2}` that the fifth picture
-    /// displaces four columns right into `x 13..16, y 2..4`; `#5` is its fifth entry, a four-by-three
+    /// displaces four columns right into `x 13..16, y 2..4`; `5` is its fifth entry, a four-by-three
     /// box at `{20, 1}` occupying `x 20..23, y 1..3`, which neither the fifth nor the sixth touches.
     ///
     /// **The attachment cell is named because a footprint is not the same as a figure's own cells.**
-    /// The arrow's `from` hangs from `#3`'s **right side**, whose centre is `{16, 3}` — and `{16, 3}`
-    /// is inside `#3`'s own rectangle, because the rectangle is the box and the box's border is its
+    /// The arrow's `from` hangs from `3`'s **right side**, whose centre is `{16, 3}` — and `{16, 3}`
+    /// is inside `3`'s own rectangle, because the rectangle is the box and the box's border is its
     /// rightmost column. The fifth picture has the arrow's arm welded to that border cell and the
     /// sixth has it detached, so that one cell inside a footprint **must** change for the arrow to
     /// have moved at all. A test that forbade every cell inside either footprint would therefore
     /// fail on the very behavior it is meant to certify, and quoting the footprint alone would hide
-    /// that. The far end is not in this position: `to` names `#5`'s bottom with offset `(1, 1)`, and
-    /// `{21, 3} + (1, 1)` is `{22, 4}` — **one row below** `#5`, outside its rectangle — which is
+    /// that. The far end is not in this position: `to` names `5`'s bottom with offset `(1, 1)`, and
+    /// `{21, 3} + (1, 1)` is `{22, 4}` — **one row below** `5`, outside its rectangle — which is
     /// why the second box's footprint is untouched entire.
     fn the_two_boxes_and_the_attachment() -> [(Range<usize>, Range<usize>); 2] {
         [(13..17, 2..5), (20..24, 1..4)]
     }
 
-    /// The one cell inside a box's footprint the arrow writes: `#3`'s right side centre, `{16, 3}`.
+    /// The one cell inside a box's footprint the arrow writes: `3`'s right side centre, `{16, 3}`.
     const THE_ATTACHMENT: (usize, usize) = (16, 3);
 
     /// The rectangle the arrow's own cells fall inside at the sixth picture, and the rectangle the
     /// box it hangs from stands in at the sixth and is gone by the seventh.
     ///
     /// **Quoted rather than read from the code that produces them**, because a contract test that
-    /// asks the demonstration the same questions it answers itself checks nothing. `#3` is the
+    /// asks the demonstration the same questions it answers itself checks nothing. `3` is the
     /// shipped description's third entry, a four-by-three box at `{9, 2}` that the fifth picture
     /// displaces four columns right into `x 13..16, y 2..4`. The arrow's `from` stands at
-    /// `{16, 5}` — `#3`'s right side centre at `{16, 3}` plus the offset `(0, 2)` the sixth picture
-    /// grew — and its `to` names `#5`'s bottom with offset `(1, 3)`, which is `{22, 6}`.
+    /// `{16, 5}` — `3`'s right side centre at `{16, 3}` plus the offset `(0, 2)` the sixth picture
+    /// grew — and its `to` names `5`'s bottom with offset `(1, 3)`, which is `{22, 6}`.
     ///
     /// **The arrow's rectangle is a bound and not its footprint, and that is the point.** Between
     /// those two cells the route writes **ten** of the twenty-one the rectangle holds, and it writes
@@ -1003,7 +1010,7 @@ mod tests {
         [(16..23, 5..8), (13..17, 2..5)]
     }
 
-    /// The seventh picture differs from the sixth **only** in the cells `#3` held, which is the
+    /// The seventh picture differs from the sixth **only** in the cells `3` held, which is the
     /// only statement in the slice that says the arrow stood still.
     ///
     /// Modelled on `the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it` and reusing its
@@ -1019,7 +1026,7 @@ mod tests {
         let [arrow, the_box] = the_arrow_and_its_removed_box();
         let (arrow_columns, arrow_rows) = (arrow.0, arrow.1);
 
-        // What the removal may reach: exactly the twelve cells `#3` stood in, and all twelve blank
+        // What the removal may reach: exactly the twelve cells `3` stood in, and all twelve blank
         // rather than carrying a different glyph — a box's border cells are the only thing that
         // could still be written there.
         let changed = differing(&sixth, &seventh);
@@ -1071,7 +1078,7 @@ mod tests {
     /// The bound is **exact rather than one-sided**, and that is what makes it say "both boxes stood
     /// still" rather than "no box moved very far": the cells that changed inside the two footprints
     /// are exactly the one attachment cell and nothing else. A displacement that rewrote the shape a
-    /// reference names — moving `#3` or `#5` to follow the arrow — would change cells inside a
+    /// reference names — moving `3` or `5` to follow the arrow — would change cells inside a
     /// footprint that are not the attachment, and the assertion below is what rules it out.
     #[test]
     fn the_sixth_picture_moves_only_the_arrow() {
@@ -1102,7 +1109,7 @@ mod tests {
 
         // And the arrow did move, which the bound above cannot say on its own: the far end left the
         // cell it welded itself to. Named rather than derived, and it is a cell **outside** both
-        // footprints — `{22, 4}` is `#5`'s bottom centre plus the shipped offset, one row below the
+        // footprints — `{22, 4}` is `5`'s bottom centre plus the shipped offset, one row below the
         // box — so a displacement that moved nothing and a displacement that moved a box could not
         // both satisfy this.
         assert!(
@@ -1124,15 +1131,15 @@ mod tests {
     /// shipped description's first and fourth entries — two filled boxes at `(0, 0)` and `(7, 1)`,
     /// the second listed later and so in front — and the three cells below are where their fills and
     /// a corner meet.
-    const THE_CROSSING_CELLS: [(usize, usize, char, &str); 3] =
-        [(9, 2, '░', "#4"), (10, 3, '┘', "#4"), (11, 3, '░', "#3")];
+    const THE_CROSSING_CELLS: [(usize, usize, char, u32); 3] =
+        [(9, 2, '░', 4), (10, 3, '┘', 4), (11, 3, '░', 3)];
 
     /// The shape a position resolves to is the front-most of the two that wrote it, and the character
     /// there cannot say which that is.
     ///
     /// **The first and third cells of [`THE_CROSSING_CELLS`] print the same character and belong to
-    /// different shapes**: `(9, 2)` is inside `#4`'s fill alone and `(11, 3)` is inside `#3`'s fill
-    /// alone, because `#3` spans `x 9..12` and `#4` spans `x 7..10`, so their interiors do not
+    /// different shapes**: `(9, 2)` is inside `4`'s fill alone and `(11, 3)` is inside `3`'s fill
+    /// alone, because `3` spans `x 9..12` and `4` spans `x 7..10`, so their interiors do not
     /// overlap. Both renders as `░`, and only the record tells them apart — which is the whole
     /// reason the record is kept beside the cell rather than derived from it.
     ///
@@ -1157,22 +1164,19 @@ mod tests {
                     x: u32::try_from(x).expect("a fifty-column window"),
                     y: u32::try_from(y).expect("a thirteen-row window"),
                 }),
-                Some(&ShapeId::new(expected)),
+                Some(identity(expected)),
                 "{at:?} is written by two shapes and resolves to the one in front"
             );
         }
 
-        // And the first two cells resolve to `#4` while the third does not, which is what makes the
-        // first two a crossing and the third the shape behind: `#4` is listed after `#3` and is
+        // And the first two cells resolve to `4` while the third does not, which is what makes the
+        // first two a crossing and the third the shape behind: `4` is listed after `3` and is
         // therefore in front of it.
-        assert_eq!(
-            buffer.owner(Offset { x: 9, y: 2 }),
-            Some(&ShapeId::new("#4"))
-        );
+        assert_eq!(buffer.owner(Offset { x: 9, y: 2 }), Some(identity(4)));
         assert_eq!(
             buffer.owner(Offset { x: 11, y: 3 }),
-            Some(&ShapeId::new("#3")),
-            "a cell only #3 wrote is #3's, whichever way the order runs"
+            Some(identity(3)),
+            "a cell only 3 wrote is 3's, whichever way the order runs"
         );
     }
 
@@ -1181,9 +1185,9 @@ mod tests {
     ///
     /// **Measured on the demonstration's own output rather than on a drawing built beside it**, so
     /// the claim is about what a reader sees: at `(20, 2)` the seventh picture renders `┼` and the
-    /// eighth renders `│`. Two shapes wrote that cell — `#6`'s bottom border runs through it and
-    /// `#5`'s left border runs down it — and the record names `#6`, the one **behind**, because `#6`
-    /// is listed later and so is in front. Taking `#6` out leaves `#5`'s arm standing alone.
+    /// eighth renders `│`. Two shapes wrote that cell — `6`'s bottom border runs through it and
+    /// `5`'s left border runs down it — and the record names `6`, the one **behind**, because `6`
+    /// is listed later and so is in front. Taking `6` out leaves `5`'s arm standing alone.
     ///
     /// **The eighth is not the seventh with something blanked**: it differs at exactly the cells the
     /// record named, and every one of them is either now blank or now shows what was behind it.
@@ -1219,7 +1223,7 @@ mod tests {
     ///
     /// **The fourth is the case the first three avoid**, and it is here because the demonstration's
     /// eighth step is built on it: `(20, 2)` is a cell two shapes wrote, and the answer is the one
-    /// **behind**. `#5` is listed after `#6` and so is in front, which is why the record names `#6`.
+    /// **behind**. `5` is listed after `6` and so is in front, which is why the record names `6`.
     #[test]
     fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
         let (origin, size) = parse(super::DEMO).window();
@@ -1229,28 +1233,28 @@ mod tests {
         for (at, expected, what) in [
             (
                 super::THE_BACK_MOST_AT,
-                "#1",
+                1,
                 "the back-most shape's own top-left corner",
             ),
             (
                 super::THE_HUNG_FROM_AT,
-                "#3",
+                3,
                 "the box the arrow hangs from, at its bottom-left corner",
             ),
             (
                 super::THE_ARROW_AT,
-                "#10",
+                10,
                 "the middle of the arrow's own horizontal run",
             ),
             (
                 super::THE_CROSSING_AT,
-                "#6",
+                6,
                 "a crossing two shapes wrote, and the record names the one behind",
             ),
         ] {
             assert_eq!(
                 buffer.owner(at),
-                Some(&ShapeId::new(expected)),
+                Some(identity(expected)),
                 "the offset ({}, {}) is {what}, and the record names {expected}",
                 at.x,
                 at.y
@@ -1262,7 +1266,7 @@ mod tests {
     /// it follows whatever the record names rather than whatever the file happens to call them.
     ///
     /// **A description where the three answers differ from the three names**, which is the only way
-    /// to tell asking from writing: an extra box is added at the origin on top of `#1`, so the cell
+    /// to tell asking from writing: an extra box is added at the origin on top of `1`, so the cell
     /// at `(0, 0)` is decided by the newcomer rather than by the entry the demonstration used to
     /// name. The demonstration's first four pictures are then **about the newcomer** — it is the
     /// shape the picture names at `(0, 0)`, so it is what gets moved and what gets taken out.
@@ -1270,7 +1274,7 @@ mod tests {
     /// Pinned as a **difference from the shipped run rather than as a picture of its own**: what is
     /// claimed is that adding a shape changes which shape the demonstration acts on, and comparing
     /// the two runs says that in one comparison. Under the identities written out by hand the first
-    /// four pictures would come out byte for byte what they are in the shipped run, because `#1`
+    /// four pictures would come out byte for byte what they are in the shipped run, because `1`
     /// would still be the shape found there.
     #[test]
     fn the_demonstration_asks_the_picture_which_shapes_to_act_on() {
@@ -1280,7 +1284,7 @@ mod tests {
             .as_array_mut()
             .expect("the description lists its shapes")
             .push(serde_json::json!({
-                "kind": "box", "id": "#27", "at": { "x": 0, "y": 0 },
+                "kind": "box", "id": 27, "at": { "x": 0, "y": 0 },
                 "size": { "width": 4, "height": 3 }, "stroke": "light", "fill": "▓"
             }));
 
@@ -1297,7 +1301,7 @@ mod tests {
 
         // **And the fourth is the first with the newcomer gone**, which is the claim: it was the
         // shape at `(0, 0)`, so it is the one taken out. Under identities written out by hand the
-        // newcomer would still be standing there and `#1` would be the one gone.
+        // newcomer would still be standing there and `1` would be the one gone.
         assert_eq!(
             the_glyph_at(&fourth, (1, 1)),
             '░',

@@ -76,7 +76,7 @@ impl Buffer {
     /// only when nobody holds it already. A shape behind therefore cannot take a cell from one in
     /// front of it however much it decides there, and since every stamp in front takes, the record
     /// comes out the same whichever order a diagram is drawn in.
-    pub fn stamp(&mut self, at: Pos, cell: Cell, mode: StampMode, owner: Option<&ShapeId>) {
+    pub fn stamp(&mut self, at: Pos, cell: Cell, mode: StampMode, owner: Option<ShapeId>) {
         if !self.contains(at) {
             return;
         }
@@ -121,7 +121,7 @@ impl Buffer {
         };
 
         if takes && let Some(owner) = owner {
-            self.owners.insert((at.x, at.y), owner.clone());
+            self.owners.insert((at.x, at.y), owner);
         }
     }
 
@@ -137,6 +137,11 @@ impl Buffer {
     /// The identity of whoever decided the cell at the offset `at`, counted from this window's own
     /// top-left corner, or `None` when nobody holds that position.
     ///
+    /// **The answer is a value rather than a borrow of one.** An identity is four bytes and `Copy`,
+    /// so a caller holds what it is given and may go on drawing into this buffer and ask again,
+    /// which is what a front end deciding what to do with a cell it was handed has to be able to
+    /// do. Nothing is owed by holding it and nothing is spent by copying it.
+    ///
     /// **`None` covers three cases and distinguishes none of them**, in the type or in the answer: a
     /// position no shape wrote, a position inside the window whose cell no shape decided, and an
     /// offset the window does not hold at all. Nothing was ever recorded at any of them, so there
@@ -149,10 +154,10 @@ impl Buffer {
     /// other part in the answer, so a caller that reads it, adds it to a click and asks with the sum
     /// has asked about a different cell — and gets a truthful answer about that one.
     #[must_use]
-    pub fn owner(&self, at: Offset) -> Option<&ShapeId> {
+    pub fn owner(&self, at: Offset) -> Option<ShapeId> {
         let x = self.origin.x.checked_add_unsigned(at.x)?;
         let y = self.origin.y.checked_add_unsigned(at.y)?;
-        self.owners.get(&(x, y))
+        self.owners.get(&(x, y)).copied()
     }
 
     /// Whether `at` falls inside this buffer's window.
@@ -269,6 +274,8 @@ fn merge_arm(top: Arm, bottom: Arm) -> Arm {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use super::{Buffer, StampMode};
     use crate::{
         Arm, BoxShape, Cell, Glyph, Layer, Offset, Pos, Shape as _, ShapeId, Size, Stroke,
@@ -291,9 +298,9 @@ mod tests {
         Glyph::new(text).unwrap_or_else(|| panic!("{text:?} is one glyph"))
     }
 
-    /// An identity a stamp can be attributed to.
-    fn id(text: &str) -> ShapeId {
-        ShapeId::new(text)
+    /// An identity of the ordinal `ordinal`, which is how every test below states who stamped.
+    fn id(ordinal: u32) -> ShapeId {
+        ShapeId::new(NonZeroU32::new(ordinal).expect("no test asks for zero"))
     }
 
     /// A window `width` by `height` at `origin`, which is how every test below states where the
@@ -1008,26 +1015,26 @@ mod tests {
     /// the shipped demonstration's own arrangement — its first two entries are two filled boxes
     /// whose fills print the same character at cells belonging to different shapes. The claim is
     /// the equality *and* the difference: the cells compare equal as cells, and the record says
-    /// `#1` wrote one and `#2` wrote the other. An identity carried inside the cell would have made
+    /// `1` wrote one and `2` wrote the other. An identity carried inside the cell would have made
     /// that equality false, which is the whole reason the record is a second map.
     #[test]
     fn two_cells_that_render_the_same_are_the_same_cell_and_the_record_does_not_change_that() {
         let mut buffer = window(Pos { x: 0, y: 0 }, 2, 1);
-        let first = id("#1");
-        let second = id("#2");
+        let first = id(1);
+        let second = id(2);
         let fill = Cell::Literal(glyph("░"));
 
         buffer.stamp(
             Pos { x: 0, y: 0 },
             fill.clone(),
             StampMode::Above,
-            Some(&first),
+            Some(first),
         );
         buffer.stamp(
             Pos { x: 1, y: 0 },
             fill.clone(),
             StampMode::Below,
-            Some(&second),
+            Some(second),
         );
 
         assert_eq!(
@@ -1036,10 +1043,10 @@ mod tests {
             "the same cell value written by two identities is one cell value"
         );
         assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&fill));
-        assert_eq!(buffer.owner(Offset { x: 0, y: 0 }), Some(&first));
+        assert_eq!(buffer.owner(Offset { x: 0, y: 0 }), Some(first));
         assert_eq!(
             buffer.owner(Offset { x: 1, y: 0 }),
-            Some(&second),
+            Some(second),
             "the record tells the two apart where the cell cannot"
         );
     }
@@ -1048,7 +1055,7 @@ mod tests {
     ///
     /// **The arrangement is the spec's first measured window**, a seven-by-five window at `(-3, -2)`
     /// holding a light box at `(0, 0)`, a filled double box at `(-2, -1)` written last and therefore
-    /// in front, and a heavy box at `(6, 3)` lying wholly outside. `#3` is in the arrangement on
+    /// in front, and a heavy box at `(6, 3)` lying wholly outside. `3` is in the arrangement on
     /// purpose: it stamps nothing, so a buffer that recorded a stamp it did not perform would give
     /// it every position in the window.
     ///
@@ -1061,31 +1068,31 @@ mod tests {
     fn in_an_overlap_every_position_resolves_to_the_front_most_shape_that_decided_it() {
         let origin = Pos { x: -3, y: -2 };
         let mut buffer = window(origin, 7, 5);
-        let back = id("#1");
-        let front = id("#2");
-        let outside = id("#3");
+        let back = id(1);
+        let front = id(2);
+        let outside = id(3);
 
         // Front to back, which is the order `Diagram::draw` uses: the front-most shape stamps
-        // first and decides a shared cell before anything behind it. `#3` is drawn last of the three
+        // first and decides a shared cell before anything behind it. `3` is drawn last of the three
         // because it is the back-most of the three, and it writes nothing either way.
         a_box(Pos { x: -2, y: -1 }, double(), Some("░")).draw(&mut Layer::stamped_by(
             &mut buffer,
             StampMode::Below,
-            &front,
+            front,
         ));
         a_box(Pos { x: 0, y: 0 }, light(), None).draw(&mut Layer::stamped_by(
             &mut buffer,
             StampMode::Below,
-            &back,
+            back,
         ));
         a_box(Pos { x: 6, y: 3 }, heavy(), None).draw(&mut Layer::stamped_by(
             &mut buffer,
             StampMode::Below,
-            &outside,
+            outside,
         ));
 
-        // `#2` is filled, so it decides every position of its own rectangle; `#1` is not, so it
-        // decides only its border; `#3` is outside the window and decides nothing at all.
+        // `2` is filled, so it decides every position of its own rectangle; `1` is not, so it
+        // decides only its border; `3` is outside the window and decides nothing at all.
         let decided_by_front = |at: Pos| (-2..=1).contains(&at.x) && (-1..=1).contains(&at.y);
         let decided_by_back = |at: Pos| {
             (0..=3).contains(&at.x)
@@ -1095,9 +1102,9 @@ mod tests {
 
         for (offset, at) in every_offset(origin, 7, 5) {
             let expected = if decided_by_front(at) {
-                Some(&front)
+                Some(front)
             } else if decided_by_back(at) {
-                Some(&back)
+                Some(back)
             } else {
                 None
             };
@@ -1113,7 +1120,7 @@ mod tests {
 
     /// A stamp that changes nothing at a position takes nothing.
     ///
-    /// `#2` is stamped `Below` onto a cell `#1` already decided, which is the one case where the
+    /// `2` is stamped `Below` onto a cell `1` already decided, which is the one case where the
     /// merge provably reproduces the target and the buffer returns before writing. The cell is
     /// asserted unchanged as well as the record, because "changed nothing" and "changed the cell
     /// but not the record" are different defects and only one of them is this rule.
@@ -1125,15 +1132,10 @@ mod tests {
     #[test]
     fn a_shape_that_stamps_a_position_without_changing_anything_there_does_not_take_it() {
         let mut buffer = window(Pos { x: 0, y: 0 }, 1, 1);
-        let first = id("#1");
-        let second = id("#2");
+        let first = id(1);
+        let second = id(2);
 
-        buffer.stamp(
-            Pos { x: 0, y: 0 },
-            decided(),
-            StampMode::Above,
-            Some(&first),
-        );
+        buffer.stamp(Pos { x: 0, y: 0 }, decided(), StampMode::Above, Some(first));
         let before = buffer.cell(Pos { x: 0, y: 0 }).cloned();
         assert!(
             before.is_some(),
@@ -1150,7 +1152,7 @@ mod tests {
                 left: Arm::Set(heavy()),
             }),
             StampMode::Below,
-            Some(&second),
+            Some(second),
         );
 
         assert_eq!(
@@ -1160,7 +1162,7 @@ mod tests {
         );
         assert_eq!(
             buffer.owner(Offset { x: 0, y: 0 }),
-            Some(&first),
+            Some(first),
             "the stamp behind changed nothing there, so it owns nothing there"
         );
     }
@@ -1175,8 +1177,8 @@ mod tests {
     #[test]
     fn a_stamp_that_decides_no_side_takes_nothing_and_leaves_the_owner_it_found() {
         let mut buffer = window(Pos { x: 0, y: 0 }, 1, 1);
-        let nobody = id("#1");
-        let second = id("#2");
+        let nobody = id(1);
+        let second = id(2);
 
         // A stamp by nobody at an undefined position writes a cell and records nothing, which is
         // the starting state this rule needs: a position holding a cell and owned by nobody.
@@ -1184,7 +1186,7 @@ mod tests {
             Pos { x: 0, y: 0 },
             deciding_nothing(),
             StampMode::Above,
-            Some(&nobody),
+            Some(nobody),
         );
         assert_eq!(
             buffer.owner(Offset { x: 0, y: 0 }),
@@ -1196,23 +1198,23 @@ mod tests {
             Pos { x: 0, y: 0 },
             horizontal_run(),
             StampMode::Above,
-            Some(&second),
+            Some(second),
         );
 
         // And the same stamp onto a position somebody *does* hold leaves that owner standing.
         let mut held = window(Pos { x: 0, y: 0 }, 1, 1);
-        let holder = id("#3");
+        let holder = id(3);
         held.stamp(
             Pos { x: 0, y: 0 },
             horizontal_run(),
             StampMode::Above,
-            Some(&holder),
+            Some(holder),
         );
         held.stamp(
             Pos { x: 0, y: 0 },
             deciding_nothing(),
             StampMode::Above,
-            Some(&second),
+            Some(second),
         );
 
         assert_eq!(
@@ -1222,7 +1224,7 @@ mod tests {
         );
         assert_eq!(
             held.owner(Offset { x: 0, y: 0 }),
-            Some(&holder),
+            Some(holder),
             "the owner it found is the owner it leaves"
         );
     }
@@ -1230,26 +1232,26 @@ mod tests {
     /// A shape behind cannot take a cell from one in front of it, however much it decides there.
     ///
     /// **The cell behind really does decide more than the cell in front** — it fills the two sides
-    /// `#1` abstained on — and the record does not move. That is the whole claim, and it is the one
+    /// `1` abstained on — and the record does not move. That is the whole claim, and it is the one
     /// a reader cannot check by looking at the picture: the glyph at `(0, 0)` reads `┼`, four sides
     /// joined, and nothing about it says that one shape wrote two of them and the other two.
     #[test]
     fn a_shape_behind_cannot_take_a_cell_from_one_in_front_of_it_however_much_it_decides() {
         let mut buffer = window(Pos { x: 0, y: 0 }, 1, 1);
-        let front = id("#1");
-        let behind = id("#2");
+        let front = id(1);
+        let behind = id(2);
 
         buffer.stamp(
             Pos { x: 0, y: 0 },
             vertical_run(),
             StampMode::Above,
-            Some(&front),
+            Some(front),
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
             horizontal_run(),
             StampMode::Below,
-            Some(&behind),
+            Some(behind),
         );
 
         assert_eq!(
@@ -1259,7 +1261,7 @@ mod tests {
         );
         assert_eq!(
             buffer.owner(Offset { x: 0, y: 0 }),
-            Some(&front),
+            Some(front),
             "and the record names the one in front, because it reached the cell first"
         );
     }
@@ -1277,31 +1279,31 @@ mod tests {
     #[test]
     fn the_record_is_the_same_whether_a_diagram_is_drawn_front_to_back_or_back_to_front() {
         let origin = Pos { x: 0, y: 0 };
-        let back = id("#1");
-        let front = id("#2");
+        let back = id(1);
+        let front = id(2);
 
         let mut front_to_back = window(origin, 6, 4);
         a_box(Pos { x: 2, y: 1 }, double(), Some("▓")).draw(&mut Layer::stamped_by(
             &mut front_to_back,
             StampMode::Below,
-            &front,
+            front,
         ));
         a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
             &mut front_to_back,
             StampMode::Below,
-            &back,
+            back,
         ));
 
         let mut back_to_front = window(origin, 6, 4);
         a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
             &mut back_to_front,
             StampMode::Above,
-            &back,
+            back,
         ));
         a_box(Pos { x: 2, y: 1 }, double(), Some("▓")).draw(&mut Layer::stamped_by(
             &mut back_to_front,
             StampMode::Above,
-            &front,
+            front,
         ));
 
         for (offset, at) in every_offset(origin, 6, 4) {
@@ -1321,12 +1323,12 @@ mod tests {
             );
         }
 
-        // And the two cells the boxes share are `#2`'s in both, which is what "the same record"
+        // And the two cells the boxes share are `2`'s in both, which is what "the same record"
         // has to mean rather than merely agreeing.
         for offset in [Offset { x: 2, y: 1 }, Offset { x: 3, y: 2 }] {
             assert_eq!(
                 front_to_back.owner(offset),
-                Some(&front),
+                Some(front),
                 "the shape in front owns the cell it decided"
             );
         }
@@ -1343,20 +1345,20 @@ mod tests {
     fn owner_answers_for_an_offset_into_the_window_and_none_for_one_it_does_not_hold() {
         let origin = Pos { x: -1, y: -1 };
         let mut buffer = window(origin, 2, 2);
-        let writer = id("#1");
+        let writer = id(1);
 
         buffer.stamp(
             Pos { x: 0, y: 0 },
             decided(),
             StampMode::Above,
-            Some(&writer),
+            Some(writer),
         );
 
         for (offset, at) in every_offset(origin, 2, 2) {
             let written = offset == Offset { x: 1, y: 1 };
             assert_eq!(
                 buffer.owner(offset),
-                written.then_some(&writer),
+                written.then_some(writer),
                 "the offset ({}, {}) reaches {at:?}, and only one of them is written",
                 offset.x,
                 offset.y
@@ -1395,19 +1397,19 @@ mod tests {
     fn a_caller_that_adds_the_windows_origin_to_a_click_asks_about_another_cell() {
         let origin = Pos { x: -2, y: -1 };
         let mut buffer = window(origin, 4, 4);
-        let writer = id("#1");
+        let writer = id(1);
         let clicked = Offset { x: 2, y: 3 };
 
         buffer.stamp(
             Pos { x: 0, y: 2 },
             decided(),
             StampMode::Above,
-            Some(&writer),
+            Some(writer),
         );
 
         assert_eq!(
             buffer.owner(clicked),
-            Some(&writer),
+            Some(writer),
             "the click reaches the cell as written"
         );
         assert_eq!(
@@ -1437,7 +1439,7 @@ mod tests {
         a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
             &mut buffer,
             StampMode::Below,
-            &id("#1"),
+            id(1),
         ));
 
         for y in 0..3 {
@@ -1475,11 +1477,11 @@ mod tests {
             .draw(&mut Layer::new(&mut by_nobody, StampMode::Above));
 
         let mut by_somebody = window(Pos { x: 0, y: 0 }, 4, 3);
-        let writer = id("#1");
+        let writer = id(1);
         a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
             &mut by_somebody,
             StampMode::Above,
-            &writer,
+            writer,
         ));
 
         let mut wrote_something = false;
@@ -1495,7 +1497,7 @@ mod tests {
             );
             assert_eq!(
                 by_somebody.owner(offset),
-                Some(&writer),
+                Some(writer),
                 "the same box under an identity owns every cell it decided"
             );
         }
