@@ -113,7 +113,7 @@ beside its `offset`, and a file that omits it is a file that wrote `out: 0`:
 ```json
 {
   "kind": "reference",
-  "shape": "#1",
+  "shape": 1,
   "anchor": "bottom",
   "offset": { "dx": 1, "dy": 3 },
   "out": 1
@@ -189,10 +189,10 @@ own `─` at (2, 2), which is what a caller reaching for a gap is reaching past:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 5 } },
   "next_id": 3,
   "shapes": [
-    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 5, "height": 3 },
+    { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 5, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector", "id": "#2",
-      "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "bottom",
+    { "kind": "connector", "id": 2,
+      "from": { "at": { "kind": "reference", "shape": 1, "anchor": "bottom",
                         "out": 0 },
                 "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
       "to":   { "at": { "kind": "point", "x": 2, "y": 4 }, "leaving": "up",
@@ -217,10 +217,10 @@ And with the gap one cell out of the same side, at (2, 3), where the border is a
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 5 } },
   "next_id": 3,
   "shapes": [
-    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 5, "height": 3 },
+    { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 5, "height": 3 },
       "stroke": "light" },
-    { "kind": "connector", "id": "#2",
-      "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "bottom",
+    { "kind": "connector", "id": 2,
+      "from": { "at": { "kind": "reference", "shape": 1, "anchor": "bottom",
                         "out": 1 },
                 "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
       "to":   { "at": { "kind": "point", "x": 2, "y": 4 }, "leaving": "up",

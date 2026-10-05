@@ -54,7 +54,7 @@ character matches.
 | `Offset`        | A position inside one window, counted from its corner                          |
 | `Surface`       | One write operation and no reader; what a shape draws into                     |
 | `Shape`         | A value describing a figure, which draws itself into a surface                 |
-| `ShapeId`       | The name a figure is drawn under, and what a stamp records beside the cell     |
+| `ShapeId`       | The ordinal a figure is drawn under, and what a stamp records beside the cell  |
 | `Piece`         | A shape placed by another shape, given the positions it is to write            |
 | `Direction`     | Up, right, down or left: a way to move in the plane                            |
 | `Endpoint`      | Where a connector ends: a position, the direction it leaves in, and a terminal |
@@ -417,7 +417,7 @@ joined by a route that travels around the outside, however far apart they are:
 <!-- render:
 { "canvas": { "origin": { "x": 0, "y": -1 }, "size": { "width": 2, "height": 6 } },
   "next_id": 2,
-  "shapes": [ { "kind": "connector", "id": "#1",
+  "shapes": [ { "kind": "connector", "id": 1,
     "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "up",
       "terminal": { "kind": "glyph", "glyph": "▼" } },
     "to": { "at": { "kind": "point", "x": 0, "y": 3 }, "leaving": "down",

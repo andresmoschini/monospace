@@ -55,20 +55,20 @@ corner — and the front-most shape's fill is what covers what is behind it:
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 20, "height": 7 } },
   "next_id": 7,
   "shapes": [
-    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light", "fill": "░" },
-    { "kind": "box", "id": "#2", "at": { "x": 3, "y": 1 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 2, "at": { "x": 3, "y": 1 }, "size": { "width": 4, "height": 3 },
       "stroke": "double", "fill": "░" },
-    { "kind": "line", "id": "#3", "at": { "x": 0, "y": 5 }, "len": 9, "orientation": "horizontal",
+    { "kind": "line", "id": 3, "at": { "x": 0, "y": 5 }, "len": 9, "orientation": "horizontal",
       "stroke": "light" },
-    { "kind": "line", "id": "#4", "at": { "x": 5, "y": 3 }, "len": 4, "orientation": "vertical",
+    { "kind": "line", "id": 4, "at": { "x": 5, "y": 3 }, "len": 4, "orientation": "vertical",
       "stroke": "light" },
-    { "kind": "connector", "id": "#5", "from": { "at": { "kind": "point", "x": 7, "y": 1 }, "leaving": "right",
+    { "kind": "connector", "id": 5, "from": { "at": { "kind": "point", "x": 7, "y": 1 }, "leaving": "right",
         "terminal": { "kind": "glyph", "glyph": "◄" } },
       "to": { "at": { "kind": "point", "x": 16, "y": 4 }, "leaving": "left",
         "terminal": { "kind": "arm" } },
       "stroke": "light" },
-    { "kind": "box", "id": "#6", "at": { "x": 16, "y": 3 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 6, "at": { "x": 16, "y": 3 }, "size": { "width": 4, "height": 3 },
       "stroke": "heavy", "fill": "▓" } ] }
 -->
 

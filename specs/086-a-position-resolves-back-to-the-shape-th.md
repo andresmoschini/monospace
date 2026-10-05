@@ -260,11 +260,11 @@ outside the window. The window is seven by five and starts at `(-3, -2)`, so it 
 { "canvas": { "origin": { "x": -3, "y": -2 }, "size": { "width": 7, "height": 5 } },
   "next_id": 4,
   "shapes": [
-    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
-    { "kind": "box", "id": "#2", "at": { "x": -2, "y": -1 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 2, "at": { "x": -2, "y": -1 }, "size": { "width": 4, "height": 3 },
       "stroke": "double", "fill": "░" },
-    { "kind": "box", "id": "#3", "at": { "x": 6, "y": 3 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 3, "at": { "x": 6, "y": 3 }, "size": { "width": 4, "height": 3 },
       "stroke": "heavy" } ] }
 -->
 
@@ -306,7 +306,7 @@ matter here sit at the **front** of their rows, which is what keeps them in the 
 { "canvas": { "origin": { "x": 1, "y": 1 }, "size": { "width": 3, "height": 3 } },
   "next_id": 2,
   "shapes": [
-    { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+    { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" } ] }
 -->
 
