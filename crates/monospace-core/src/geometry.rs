@@ -13,6 +13,21 @@ pub struct Pos {
     pub y: i32,
 }
 
+/// A position **inside one window**, counted from its top-left corner.
+///
+/// Not the same thing as a [`Pos`], and kept apart for the same reason the two conventions a cell
+/// carries are: a `Pos` is a point in the plane and may be negative, an `Offset` is a column and a
+/// row within a rectangle and never is. Which one a method takes is the question it is asking —
+/// a figure is placed at a `Pos`, a click arrives as an `Offset` — so the two are separate types
+/// rather than one rectangle's worth of interchangeable numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Offset {
+    /// Grows to the right, from the window's own leftmost column.
+    pub x: u32,
+    /// Grows downward, from the window's own topmost row.
+    pub y: u32,
+}
+
 /// The extent of a window or a rendered area, in cells.
 ///
 /// A width or height of zero is allowed: it describes an area with no positions, rather than

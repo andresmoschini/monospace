@@ -296,11 +296,19 @@ equal windows produces two equal buffers.
 Drawing records, at every position, which shape the cell there belongs to. The record lives in the
 buffer, beside its cells rather than inside one, so a drawn diagram is one thing rather than two,
 asking what is at a position is asking the buffer, and two cells that look the same are the same
-cell whoever wrote them. What the buffer keeps is a token it never interprets; the mapping from that
-token to a `ShapeId` is the diagram's. The buffer is the only place that could hold the record at
-all: a shape writes through a surface with no reader, so anything watching from outside sees stamps
-go past without learning what they did, and telling a stamp that decided something from one that
-changed nothing is not available to a writer that cannot read.
+cell whoever wrote them. **What the buffer keeps is the `ShapeId` itself**, which the core now holds
+for exactly this reason, and it is asked for with a position **counted from the window's own
+corner** — the column and row a click arrives as, rather than a point in the plane — so a caller
+that draws a rectangle asks about that rectangle without reading the window's origin first. The
+buffer is the only place that could hold the record at all: a shape writes through a surface with no
+reader, so anything watching from outside sees stamps go past without learning what they did, and
+telling a stamp that decided something from one that changed nothing is not available to a writer
+that cannot read.
+
+The identity rides on the layer a figure draws through rather than on the write itself, so a figure
+is never told which identity it draws under and a figure with an identity parameter — one that could
+be drawn under two, or under none — is not something this model has. A figure drawn by nobody owns
+nothing, which is what a shape the core draws on its own gallery gets.
 
 **A cell belongs to the front-most shape that decided it.** A shape that stamps a position and
 changes nothing there takes nothing, because ownership is about what is on the screen rather than
@@ -373,6 +381,11 @@ Forward and backward at the end they are already at do nothing.
   order changes the answer.
 - A shape that stamps a position without changing anything there does not take it.
 - A position no shape decided resolves to nothing, and so does one outside the window.
+- A position resolves to the same shape whether the diagram is drawn front to back or back to front.
+  **This is the property the viewport sentence of _Ownership_ is for**, because a caller rendering a
+  rectangle other than the window asks with offsets relative to that rectangle and gets a truthful
+  answer about a different cell: the offsets are the rectangle's, and no answer tells them
+  otherwise.
 
 ## 11. Open questions
 

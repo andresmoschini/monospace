@@ -1,7 +1,7 @@
 //! What a shape draws into, and what a shape is. See _Shapes_ in
 //! [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Buffer, Cell, Pos, StampMode};
+use crate::{Buffer, Cell, Pos, ShapeId, StampMode};
 
 mod box_shape;
 mod connector;
@@ -23,28 +23,52 @@ pub trait Surface {
     fn stamp(&mut self, at: Pos, cell: Cell);
 }
 
-/// A buffer and a stamp mode, bound together at construction.
+/// A buffer, a stamp mode and **who is stamping**, bound together at construction.
 ///
 /// The caller's choice between the two stamp modes is taken here, once: no shape or fragment
 /// this crate defines ever names a [`StampMode`] itself, since a shape has no opinion about how
 /// it composes with the figures it draws alongside — see _Shapes_ in
-/// [`docs/model.md`](../../../docs/model.md). `Layer` is the only [`Surface`] this crate ships.
-pub struct Layer<'a> {
+/// [`docs/model.md`](../../../docs/model.md). The same holds for the identity: **ownership is per
+/// shape, not per cell**, so it rides here rather than on [`Surface::stamp`], and a shape is never
+/// told which identity it draws under. `Layer` is the only [`Surface`] this crate ships.
+///
+/// A layer bound by [`new`](Self::new) is bound to nobody and owns nothing, which is what the
+/// core's own figures ask for — they are values that draw and nothing more.
+pub struct Layer<'a, 'b> {
     buffer: &'a mut Buffer,
     mode: StampMode,
+    owner: Option<&'b ShapeId>,
 }
 
-impl<'a> Layer<'a> {
-    /// Binds `buffer` to `mode` for every stamp drawn through this layer.
+impl<'a, 'b> Layer<'a, 'b> {
+    /// Binds `buffer` to `mode` for every stamp drawn through this layer, under no identity.
     #[must_use]
     pub fn new(buffer: &'a mut Buffer, mode: StampMode) -> Self {
-        Self { buffer, mode }
+        Self {
+            buffer,
+            mode,
+            owner: None,
+        }
+    }
+
+    /// Binds `buffer` to `mode` and to `owner` for every stamp drawn through this layer.
+    ///
+    /// One layer per figure rather than one per stamp, which is what keeps the identity off
+    /// [`Surface::stamp`]: a figure with an identity parameter is a figure that can be drawn under
+    /// two, or under none, and the caller above is the only thing that knows which.
+    #[must_use]
+    pub fn stamped_by(buffer: &'a mut Buffer, mode: StampMode, owner: &'b ShapeId) -> Self {
+        Self {
+            buffer,
+            mode,
+            owner: Some(owner),
+        }
     }
 }
 
-impl Surface for Layer<'_> {
+impl Surface for Layer<'_, '_> {
     fn stamp(&mut self, at: Pos, cell: Cell) {
-        self.buffer.stamp(at, cell, self.mode);
+        self.buffer.stamp(at, cell, self.mode, self.owner);
     }
 }
 

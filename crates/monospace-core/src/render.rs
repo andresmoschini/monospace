@@ -72,6 +72,7 @@ mod tests {
             }
             .into(),
             StampMode::Above,
+            None,
         );
 
         let text = render(
@@ -113,51 +114,61 @@ mod tests {
             Pos { x: 0, y: 0 },
             corner(Arm::Closed, set(), set(), Arm::Closed),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 1, y: 0 },
             corner(Arm::Closed, set(), Arm::Closed, set()),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 2, y: 0 },
             corner(Arm::Closed, set(), Arm::Closed, set()),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 3, y: 0 },
             corner(Arm::Closed, Arm::Closed, set(), set()),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 0, y: 1 },
             corner(set(), Arm::Closed, set(), Arm::Closed),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 3, y: 1 },
             corner(set(), Arm::Closed, set(), Arm::Closed),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 0, y: 2 },
             corner(set(), set(), Arm::Closed, Arm::Closed),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 1, y: 2 },
             corner(Arm::Closed, set(), Arm::Closed, set()),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 2, y: 2 },
             corner(Arm::Closed, set(), Arm::Closed, set()),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 3, y: 2 },
             corner(set(), Arm::Closed, Arm::Closed, set()),
             StampMode::Above,
+            None,
         );
 
         let text = render(
@@ -195,6 +206,7 @@ mod tests {
             }
             .into(),
             StampMode::Above,
+            None,
         );
         buffer.stamp(
             Pos { x: 0, y: 0 },
@@ -207,6 +219,7 @@ mod tests {
             }
             .into(),
             StampMode::Above,
+            None,
         );
 
         let text = render(
@@ -244,6 +257,7 @@ mod tests {
             }
             .into(),
             StampMode::Above,
+            None,
         );
 
         let text = render(
@@ -282,6 +296,7 @@ mod tests {
             }
             .into(),
             StampMode::Above,
+            None,
         );
 
         let text = render(
@@ -317,6 +332,7 @@ mod tests {
             }
             .into(),
             StampMode::Above,
+            None,
         );
 
         let text = render(
@@ -369,6 +385,7 @@ mod tests {
             }
             .into(),
             StampMode::Above,
+            None,
         );
 
         let text = render(
@@ -399,6 +416,7 @@ mod tests {
             Pos { x: 0, y: 0 },
             Cell::Literal(Glyph::new("A").expect("\"A\" is one glyph")),
             StampMode::Above,
+            None,
         );
 
         let text = render(
