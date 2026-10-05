@@ -479,24 +479,50 @@ mod tests {
             fs::write(&path, contents).expect("the scratch file can be written");
             run_git(&self.path, &["add", "--all"]);
         }
+
+        /// Takes the directory and everything under it away, twice over.
+        ///
+        /// Two attempts, because one is not always enough on Windows: git can hold a handle on a
+        /// directory for long enough that the removal fails, and the handle is gone a moment later.
+        /// The retry is not what fixed the 21 empty directories this left behind while the fixture
+        /// was writing into the caller's repository — three runs since added none — it is here
+        /// because a fixture that leaks a directory per test fills the temporary directory, and
+        /// because a failure here is silent either way.
+        fn remove(&self) {
+            for _ in 0..2 {
+                if fs::remove_dir_all(&self.path).is_ok() {
+                    return;
+                }
+            }
+        }
     }
 
     impl Drop for Scratch {
         fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
+            self.remove();
         }
+    }
+
+    /// Builds the fixture's own `git` command: silenced, and pointed at a scratch repository.
+    ///
+    /// The environment clearing comes from `process::command` rather than being repeated here,
+    /// because it is the same decision wherever a subprocess is built and a second copy is a second
+    /// thing to keep. Without it the fixture does not talk to its own scratch repository when the
+    /// gate runs from inside the pre-commit hook: its `git init` rewrote the repository being
+    /// committed to, and its `git add` put the fixture's paths into that repository's index.
+    fn git(root: &Path, args: &[&str]) -> Command {
+        let mut command = crate::process::command(root, "git");
+        command
+            .args(args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        command
     }
 
     /// Runs `git` in `root`, failing loudly: a fixture that did not set itself up would otherwise
     /// make every assertion below it pass for the wrong reason.
     fn run_git(root: &Path, args: &[&str]) {
-        let status = Command::new("git")
-            .args(args)
-            .current_dir(root)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .expect("git runs");
+        let status = git(root, args).status().expect("git runs");
         assert!(
             status.success(),
             "git {args:?} failed in {}",
