@@ -51,8 +51,10 @@ character matches.
 | `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it  |
 | `stamp`         | The single write operation                                                     |
 | `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided   |
+| `Offset`        | A position inside one window, counted from its corner                          |
 | `Surface`       | One write operation and no reader; what a shape draws into                     |
 | `Shape`         | A value describing a figure, which draws itself into a surface                 |
+| `ShapeId`       | The name a figure is drawn under, and what a stamp records beside the cell     |
 | `Piece`         | A shape placed by another shape, given the positions it is to write            |
 | `Direction`     | Up, right, down or left: a way to move in the plane                            |
 | `Endpoint`      | Where a connector ends: a position, the direction it leaves in, and a terminal |
@@ -136,6 +138,18 @@ in front, exactly as the base stroke does.
 The only write is `stamp(x, y, cell, mode)`. What is stamped has the same type as what is stored: a
 cell. That works because `Unset` means the same thing on both sides of the operation — "not mine to
 decide" — so there is no state the stamp needs and the stored cell cannot hold.
+
+A stamp also carries **who is stamping**, and the buffer keeps that **beside the cell rather than
+inside it**: the record is what decides which shape a position belongs to, and it is a note about a
+cell rather than part of one, so two cells that render alike stay one cell value whoever wrote them.
+A stamp by nobody records nothing rather than recording an absence. The record is asked for with a
+position **counted from the window's own corner** — an `Offset`, not a `Pos`, because a `Pos` is a
+point in the plane and may be negative while an `Offset` is a column and a row of what was rendered
+and never is. **The window's origin decides which cells the window holds and takes no other part in
+the answer**, so a caller that adds it to a click before asking has asked about a different cell and
+gets a truthful answer about that one. A caller keeping one buffer for a whole diagram and rendering
+a viewport out of it holds click offsets relative to the _viewport_, and has to know it is drawing a
+rectangle other than the window.
 
 | Target                        | `Above`                                                                        | `Below`                                                                   |
 | ----------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |

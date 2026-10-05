@@ -14,14 +14,16 @@ mod buffer;
 mod cell;
 mod geometry;
 mod glyph;
+mod identity;
 mod render;
 mod shape;
 mod stroke;
 
 pub use buffer::{Buffer, StampMode};
 pub use cell::{Arm, Cell, StrokeCell};
-pub use geometry::{Direction, Orientation, Pos, Size};
+pub use geometry::{Direction, Offset, Orientation, Pos, Size};
 pub use glyph::{Glyph, GlyphCatalog, GlyphKey};
+pub use identity::ShapeId;
 pub use render::render;
 pub use shape::{BoxShape, Connector, Endpoint, Layer, Line, Shape, Surface, Terminal};
 pub use stroke::Stroke;
