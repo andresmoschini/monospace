@@ -45,10 +45,8 @@ runs, that a key reaches an action, and that the terminal comes back.
 - **Drawing a diagram on the screen**, and with it editing one. `docs/diagram-model.md` _Changing a
   diagram_ names five changes and says none of them can fail; this slice drives none of them, and a
   menu with one leaf has nothing to drive them from.
-- **A widget framework.** The issue names `crossterm`, and the first thing that would want a
-  framework is a widget — a menu with more than one leaf, a shape list, a cursor. None of those is
-  this slice, and a second dependency is a second thing to audit under a rule that asks the
-  maintainer before any of them is added.
+- **`ratatui`, and `cursive`.** D6 records why the crate depends on `crossterm` alone, and what
+  would reopen it.
 - **A library API.** The crate is a binary, as `monospace-cli` is, and its state and actions are
   tested from inside it rather than published for a consumer that does not exist.
 - **Undo.** The seam is what makes it a case to add rather than a refactor to survive, and there is
@@ -106,7 +104,7 @@ that spells it — a change that moves the format collides with that one instead
 rewrites, for a slice that has no use for either. **Answered by** the maintainer, in the session
 that wrote this.
 
-**D5 — does the application take the mouse?**
+**D5 — the application takes the mouse.**
 
 **Answer:** capture is enabled when the application starts and released when it ends, and nothing
 routes a click yet. **Why not** leaving it off until something routes a click: capture is a mode the
@@ -115,10 +113,37 @@ slice that first routes a click would then be debugging input handling in the sa
 thing being built, which is the argument `README.md` already makes about the CLI coming before the
 TUI, one level up. Enabling it now costs the terminal's own text selection for as long as the
 application is up, and that is a cost worth naming rather than discovering later: a user who needs
-to select and copy with the mouse gets the keyboard's selection instead, or quits. **Why not** the
-application exiting on a click outside the menu: there is no outside yet, and a full-screen
-application has no place to put a click that means "not here". **Answered by** the maintainer, in
-the session that wrote this.
+to select and copy with the mouse gets the keyboard's selection instead, or quits. **Answered by**
+the maintainer, in the session that wrote this.
+
+**D6 — the crate depends on `crossterm` alone, and not on a widget framework.**
+
+**Answer:** `crossterm`, drawn with directly. `ratatui` and `cursive` are both rejected. **The mouse
+does not decide this**, which is worth saying because it is why it was raised: `ratatui` contributes
+no input handling, no hit-testing, no focus and no mouse capture — its own documentation says it
+"does not directly expose any event catching", and mouse capture belongs to the backend — so the
+application reads `crossterm::event` and matches on `Event::Mouse` either way. The same mouse code
+is written in both designs. **Why not** `ratatui`: what it offers is a cell `Buffer` with
+double-buffered diffing, a layout engine, widgets, and `autoresize`, and of those the diffing is
+work this crate would otherwise hand-write. What is against it is narrower. It re-exports
+`crossterm`, so the application would reach crossterm's event types through an indirection rather
+than directly, and its documentation warns that two semver-incompatible crossterm majors "keep
+separate event queues (which can lead to race conditions and lost events)" — a hazard bought for no
+abstraction of the input this application is mostly about. And its `Buffer` is a contract rather
+than a canvas: widgets do not clear their area, so a renderer that repaints selectively either
+clears defensively on every draw or inherits earlier cells, which its own documentation describes as
+content that "bleed"s through. **Why not** `cursive`: it is the only one of the three that ships
+focus traversal and event routing down a view tree, so this gives up something real — but its model
+is retained and callback-driven, where the application owns no render function and rebuilds nothing
+per frame, which is a poor fit for one that must repaint continuously while a drag is in progress.
+It is also much the smallest by usage, and it pulls two backends carrying unpatched advisories,
+which under this repository's dependency rule is friction this project does not need to take on.
+**What it costs:** the application hand-writes its diffing, and gives up `autoresize()` —
+re-querying the terminal's size inside the draw rather than trusting a resize event that may have
+been coalesced — which is the feature that most reduces resize bugs, and a stale size here means a
+wrong hit-test rather than a wrong picture. **What reopens it:** the first screen that is mostly
+chrome around the drawing rather than the drawing. **Answered by** the maintainer, in the session
+that wrote this.
 
 ## Model slice
 
@@ -220,6 +245,6 @@ Two things are measured rather than tested, and both are reported in the buildin
 ## Open questions
 
 None. What surfaced while writing this became other issues rather than sections here — a portable
-crate that the `wasm` step does not name, and the first widget that would want a framework. Neither
-is a question this spec has to answer to be implemented, and neither belongs to the change that
-noticed it.
+crate that the `wasm` step does not name, and the first screen that is mostly chrome, which is what
+D6 says would reopen the framework question. Neither is a question this spec has to answer to be
+implemented, and neither belongs to the change that noticed it.

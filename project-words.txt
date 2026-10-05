@@ -5,6 +5,7 @@
 # questioning forever. Prefer adding a dictionary to cspell.jsonc when one exists for the domain,
 # unless it is a large dictionary pulled in for a single word.
 Andrés
+autoresize
 crossterm
 doctests
 frontmatter
@@ -17,6 +18,7 @@ Nygard
 opencode
 pathspec
 PATHEXT
+ratatui
 RUSTFLAGS
 safecrlf
 speckit
