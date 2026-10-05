@@ -32,8 +32,8 @@ runs, that a key reaches an action, and that the terminal comes back.
 - The prose a fifth crate makes false, in three places: `CONTRIBUTING.md`'s table for the gate says
   "Every crate but `monospace-cli`", its _What is in scope_ counts four crates and repeats the same
   claim, and `README.md` says "every crate but the CLI" beside a layout table that lists what is in
-  the workspace. `AGENTS.md` already says the `wasm` step compiles three crates, and that sentence
-  stays true.
+  the workspace. `AGENTS.md` already says the `wasm` step compiles three crates, and that stays
+  true.
 - The measurement that the `wasm` step would catch this crate rather than passing it by not naming
   it, reported in the building pull request.
 
@@ -45,12 +45,12 @@ runs, that a key reaches an action, and that the terminal comes back.
 - **Drawing a diagram on the screen**, and with it editing one. `docs/diagram-model.md` _Changing a
   diagram_ names five changes and says none of them can fail; this slice drives none of them, and a
   menu with one leaf has nothing to drive them from.
-- **`ratatui`, and `cursive`.** D6 records why the crate depends on `crossterm` alone, and what
-  would reopen it.
+- **`ratatui`, `cursive`, `termion`, and no dependency at all.** D6 records why the crate depends on
+  `crossterm` alone, what it costs, and what would reopen it.
 - **A library API.** The crate is a binary, as `monospace-cli` is, and its state and actions are
   tested from inside it rather than published for a consumer that does not exist.
 - **Undo.** The seam is what makes it a case to add rather than a refactor to survive, and there is
-  nothing yet to undo.
+  nothing yet to undo. The framework question reopens on the first screen that is mostly chrome.
 - Persistence, collaboration, WebAssembly bindings, a web front end and non-terminal GUIs, which
   `CONTRIBUTING.md` names as renegotiated rather than quietly widened.
 
@@ -90,19 +90,21 @@ step checks. **Why not** naming the two exclusions in the step: a list of what i
 second list to keep in step with the first, and it would say less than the omission does — the
 omission is what keeps every crate that is not named out, including one added after this slice.
 **Why not** a check asserting the allow-list is exactly the portable crates: the portable set is the
-list, and a check that repeats it in a second form is a second form to keep. **Answered by** the
-maintainer, in the session that wrote this.
+list, and a check that repeats it in a second form is a second form to keep. **What makes the
+omission safe:** the new crate could not be compiled for that target even if the step named it,
+which `## What proves it` records as measured. **Answered by** the maintainer, in the session that
+wrote this.
 
 **D4 — this slice reads no description file, and the format stays where it is.**
 
 **Answer:** the new crate depends on `crossterm` and on nothing else in the workspace. The
 description format keeps its home in `monospace-cli`, unchanged, provisional and private. **Why
 not** moving the format into `monospace-diagram` so that two consumers can share it: there is one
-consumer and a second that reads nothing, and issue #173 is rewriting that format and every file
+consumer and a second that reads nothing, and #173 has since rewritten that format and every file
 that spells it — a change that moves the format collides with that one instead of following it.
 **Why not** duplicating it into the new crate: a provisional format in two places, one of which #173
-rewrites, for a slice that has no use for either. **Answered by** the maintainer, in the session
-that wrote this.
+rewrote, for a slice that has no use for either. **Answered by** the maintainer, in the session that
+wrote this.
 
 **D5 — the application takes the mouse.**
 
@@ -111,39 +113,51 @@ routes a click yet. **Why not** leaving it off until something routes a click: c
 terminal is put into, and turning it on is a change every event after it has to be read under — the
 slice that first routes a click would then be debugging input handling in the same sitting as the
 thing being built, which is the argument `README.md` already makes about the CLI coming before the
-TUI, one level up. Enabling it now costs the terminal's own text selection for as long as the
-application is up, and that is a cost worth naming rather than discovering later: a user who needs
-to select and copy with the mouse gets the keyboard's selection instead, or quits. **Answered by**
-the maintainer, in the session that wrote this.
+TUI, one level up. The cost is the terminal's own text selection for as long as the application is
+up, and it is worth naming rather than discovering later: a user who needs to select and copy with
+the mouse gets the keyboard's selection instead, or quits. **Answered by** the maintainer, in the
+session that wrote this.
 
 **D6 — the crate depends on `crossterm` alone, and not on a widget framework.**
 
-**Answer:** `crossterm`, drawn with directly. `ratatui` and `cursive` are both rejected. **The mouse
-does not decide this**, which is worth saying because it is why it was raised: `ratatui` contributes
-no input handling, no hit-testing, no focus and no mouse capture — its own documentation says it
-"does not directly expose any event catching", and mouse capture belongs to the backend — so the
-application reads `crossterm::event` and matches on `Event::Mouse` either way. The same mouse code
-is written in both designs. **Why not** `ratatui`: what it offers is a cell `Buffer` with
-double-buffered diffing, a layout engine, widgets, and `autoresize`, and of those the diffing is
-work this crate would otherwise hand-write. What is against it is narrower. It re-exports
-`crossterm`, so the application would reach crossterm's event types through an indirection rather
-than directly, and its documentation warns that two semver-incompatible crossterm majors "keep
-separate event queues (which can lead to race conditions and lost events)" — a hazard bought for no
-abstraction of the input this application is mostly about. And its `Buffer` is a contract rather
-than a canvas: widgets do not clear their area, so a renderer that repaints selectively either
-clears defensively on every draw or inherits earlier cells, which its own documentation describes as
+**Answer:** `crossterm`, drawn with directly. **The mouse does not decide this**, which is worth
+saying because it is why it was raised: `ratatui` contributes no input handling, no hit-testing, no
+focus and no mouse capture — its own documentation says it "does not directly expose any event
+catching", and mouse capture belongs to the backend — so the application reads `crossterm::event`
+and matches on `Event::Mouse` either way. The same mouse code is written in both designs. **What
+decides it** is that the state belongs to the application rather than to a framework, and
+`monospace-core` already settles that without help: `Buffer::owner` takes an `Offset` relative to
+the buffer's own window, so a click arrives as a column and a row of what was rendered, and what is
+highlighted at a cell is asked per cell. A framework's state and a struct holding a selected
+`ShapeId` are both available here, and only the second one is the shape the repository already has.
+**Why not** `ratatui`: measured, it is 91 packages against `crossterm`'s 38 even with every default
+feature off, and 53 of those are transitive rather than chosen — `serde`, `thiserror`, `palette`,
+`time` among them. It re-exports `crossterm`, so the application would reach crossterm's event types
+through an indirection rather than directly, and its documentation warns that two
+semver-incompatible crossterm majors "keep separate event queues (which can lead to race conditions
+and lost events)" — a hazard bought for no abstraction of the input this application is mostly
+about. Its `Buffer`, `Cell` and `Line` are the names `monospace-core` already uses, so a framework
+of that name is a second vocabulary in the same program. And its `Buffer` is a contract rather than
+a canvas: widgets do not clear their area, so a renderer that repaints selectively either clears
+defensively on every draw or inherits earlier cells, which its own documentation describes as
 content that "bleed"s through. **Why not** `cursive`: it is the only one of the three that ships
 focus traversal and event routing down a view tree, so this gives up something real — but its model
 is retained and callback-driven, where the application owns no render function and rebuilds nothing
 per frame, which is a poor fit for one that must repaint continuously while a drag is in progress.
-It is also much the smallest by usage, and it pulls two backends carrying unpatched advisories,
-which under this repository's dependency rule is friction this project does not need to take on.
-**What it costs:** the application hand-writes its diffing, and gives up `autoresize()` —
-re-querying the terminal's size inside the draw rather than trusting a resize event that may have
-been coalesced — which is the feature that most reduces resize bugs, and a stale size here means a
-wrong hit-test rather than a wrong picture. **What reopens it:** the first screen that is mostly
-chrome around the drawing rather than the drawing. **Answered by** the maintainer, in the session
-that wrote this.
+It is the smallest by usage by a wide margin, its last release is the oldest of the four candidates
+measured, and it pulls two backends carrying unpatched advisories. **Why not** `termion`, which was
+also measured and is not named by the issue: it is Unix and Redox only, and this repository is
+worked on under Windows. **Why not** no dependency at all: that means reimplementing raw mode, the
+alternate screen, mouse capture and key reading, which is the reinvention `CONTRIBUTING.md` names
+when it says infrastructure concerns prefer idiomatic crates. **What it costs:** the application
+hand-writes its diffing, and gives up `autoresize()` — re-querying the terminal's size inside the
+draw rather than trusting a resize event that may have been coalesced — which is the feature that
+most reduces resize bugs, and a stale size here means a wrong hit-test rather than a wrong picture.
+The diffing is the smaller half of that: a scroll of an ASCII canvas changes nearly the whole screen
+anyway, which is what a double buffer is for. `TestBackend` goes with it, so this slice's drawing is
+proved by what the application produces rather than by a snapshot of a test backend. **What reopens
+it:** the first screen that is mostly chrome around the drawing rather than the drawing. **Answered
+by** the maintainer, in the session that wrote this.
 
 ## Model slice
 
@@ -161,7 +175,8 @@ that wrote this.
 
 Nothing appears. The crate is a binary named `monospace`, its state and its action enum are private
 to it, and no library in the workspace gains or changes an item. On the wire nothing changes: this
-slice reads no file and writes none.
+slice reads no file and writes none. The one dependency is `crossterm`, pinned with `=` at the
+version the building stage reports.
 
 ## Behavior
 
@@ -183,8 +198,10 @@ slice reads no file and writes none.
 ## Examples
 
 **The screen, before anything has happened.** Hypothetical, and labelled so: no code produces this
-picture yet, and it cannot be a `render` marker because a menu is not a diagram and
-`cargo xtask render` draws diagrams.
+picture yet. It is a picture rather than a `render` marker because a menu is not a diagram and
+`cargo xtask render` draws diagrams. D6 considered drawing both framework options this way and did
+not: two spellings of a menu that draws no diagram would be two fences the gate cannot redraw, which
+is decoration rather than argument.
 
 ```text
 ┌──────────────────────────────────────────┐
@@ -198,12 +215,11 @@ picture yet, and it cannot be a `render` marker because a menu is not a diagram 
 
 **A whole run, as the acceptance list will drive it.** The application starts, takes the screen, and
 by rule 7 asks the terminal for mouse capture; the screen above is what is there. A key that names
-no action arrives, and by rule 6 the screen is unchanged. A click arrives at some point, and by rule
-7 it changes nothing, because the only action the enum holds is the way out. `q` arrives, and by
-rules 4 and 5 it becomes that action and ends the application; by rule 2 the terminal is what it was
-before — the screen it was given, the cursor, and the input mode, which includes mouse capture
-released. What the terminal no longer has while the application is up is its own text selection, and
-rule 2 gives that back. The shell the binary was started from is the next thing on screen.
+no action arrives, and by rule 6 the screen is unchanged. A click arrives, and by rule 7 it changes
+nothing, because the only action the enum holds is the way out. `q` arrives, and by rules 4 and 5 it
+becomes that action and ends the application; by rule 2 the terminal is what it was before. What it
+no longer has while the application is up is its own text selection, and rule 2 gives that back. The
+shell the binary was started from is the next thing on screen.
 
 None of this has been observed. It is the acceptance list of this slice, not the record of a run.
 
@@ -231,20 +247,24 @@ in the gate reaches it — the `wasm` step does not name this crate precisely be
 portable, and that is the same omission D3 keeps. It is written down because `README.md` promises
 it, and it is reviewed by reading the manifest.
 
-Two things are measured rather than tested, and both are reported in the building pull request:
+Three things are measured rather than tested:
 
 - **The `wasm` step has teeth.** `-p monospace` added to the step on purpose, the step run, its
-  failure recorded, the addition removed. What this proves is that the step would catch a terminal
-  crate rather than passing it because the list forgot it, which is what makes the omission in D3 a
-  decision instead of a gap. The issue states that `crossterm` does not compile for
-  `wasm32-unknown-unknown`; that is not verified here, because the dependency is not added here, and
-  the measurement above is what settles it.
-- **The sweep.** Nothing renders, so no snapshot moves. `Unchanged.` is the report `CONTRIBUTING.md`
-  asks for when a snapshot could have moved, with the count of cases it covers.
+  failure recorded, the addition removed — reported in the building pull request. What this proves
+  is that the step would catch a terminal crate rather than passing it because the list forgot it,
+  which is what makes the omission in D3 a decision instead of a gap.
+- **That `crossterm` does not compile for `wasm32-unknown-unknown`.** Measured outside the
+  repository, against `crossterm =0.29.0` on its own: nine errors in the crate, two of them
+  unresolved imports of `sys` modules that do not exist for that target. This is why D3's answer
+  holds — the crate cannot be one the step compiles even if someone named it.
+- **That the dependency is 38 packages and not 91**, resolved the same way: `crossterm` alone is 38,
+  and `ratatui` with every default feature off is 91. D6 rests on that number. The sweep is
+  `Unchanged.` — nothing renders, so no snapshot moves.
 
 ## Open questions
 
 None. What surfaced while writing this became other issues rather than sections here — a portable
-crate that the `wasm` step does not name, and the first screen that is mostly chrome, which is what
-D6 says would reopen the framework question. Neither is a question this spec has to answer to be
-implemented, and neither belongs to the change that noticed it.
+crate that the `wasm` step does not name, and the shape of the selection highlight, which needs a
+rule about color that `docs/model.md` holds open under _Deliberately unresolved_. Neither is a
+question this spec has to answer to be implemented, and neither belongs to the change that noticed
+it.

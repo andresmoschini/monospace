@@ -22,6 +22,8 @@ ratatui
 RUSTFLAGS
 safecrlf
 speckit
+termion
+thiserror
 TKTK
 underspecification
 unrequested
