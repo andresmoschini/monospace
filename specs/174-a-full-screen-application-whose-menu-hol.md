@@ -108,13 +108,17 @@ that wrote this.
 
 **D5 — does the application take the mouse?**
 
-**Answer:** _pending_. **The two answers.** Enabling capture puts the terminal in the mode that
-delivers mouse events, and it is what stops the terminal's own text selection, so a user cannot
-select and copy text with the mouse while the application is up. Not enabling it leaves selection
-working, and leaves a click answered by the terminal rather than by the application. The issue says
-the application "takes the keyboard and the mouse", and nothing in this slice routes a click, so the
-question is whether the terminal is put in that mode before there is anything to do with a click
-arriving. **Answered by** — not yet taken.
+**Answer:** capture is enabled when the application starts and released when it ends, and nothing
+routes a click yet. **Why not** leaving it off until something routes a click: capture is a mode the
+terminal is put into, and turning it on is a change every event after it has to be read under — the
+slice that first routes a click would then be debugging input handling in the same sitting as the
+thing being built, which is the argument `README.md` already makes about the CLI coming before the
+TUI, one level up. Enabling it now costs the terminal's own text selection for as long as the
+application is up, and that is a cost worth naming rather than discovering later: a user who needs
+to select and copy with the mouse gets the keyboard's selection instead, or quits. **Why not** the
+application exiting on a click outside the menu: there is no outside yet, and a full-screen
+application has no place to put a click that means "not here". **Answered by** the maintainer, in
+the session that wrote this.
 
 ## Model slice
 
@@ -145,8 +149,10 @@ slice reads no file and writes none.
 5. The way out is an action, and applying it ends the application. It is the only action the enum
    holds.
 6. A key that names no action changes nothing and reports nothing.
-7. Nothing of a diagram is drawn, and no file is read: the screen holds the menu and nothing else.
-8. The crate holds no domain logic and reaches no other crate in the workspace, which is what
+7. Mouse events are captured while the application runs and released when it ends. A click that
+   arrives is delivered to the application, and changes nothing, because no action is a click yet.
+8. Nothing of a diagram is drawn, and no file is read: the screen holds the menu and nothing else.
+9. The crate holds no domain logic and reaches no other crate in the workspace, which is what
    `README.md` promises of the TUI when it explains why the CLI comes first.
 
 ## Examples
@@ -165,11 +171,14 @@ picture yet, and it cannot be a `render` marker because a menu is not a diagram 
 └──────────────────────────────────────────┘
 ```
 
-**A whole run, as the acceptance list will drive it.** The application starts and the screen above
-is what is there. A key that names no action arrives, and by rule 6 the screen is unchanged. `q`
-arrives, and by rules 4 and 5 it becomes the one action and ends the application; by rule 2 the
-terminal is what it was before, including its own text selection, which rule 1 does not cost it. The
-shell the binary was started from is the next thing on screen.
+**A whole run, as the acceptance list will drive it.** The application starts, takes the screen, and
+by rule 7 asks the terminal for mouse capture; the screen above is what is there. A key that names
+no action arrives, and by rule 6 the screen is unchanged. A click arrives at some point, and by rule
+7 it changes nothing, because the only action the enum holds is the way out. `q` arrives, and by
+rules 4 and 5 it becomes that action and ends the application; by rule 2 the terminal is what it was
+before — the screen it was given, the cursor, and the input mode, which includes mouse capture
+released. What the terminal no longer has while the application is up is its own text selection, and
+rule 2 gives that back. The shell the binary was started from is the next thing on screen.
 
 None of this has been observed. It is the acceptance list of this slice, not the record of a run.
 
@@ -187,10 +196,12 @@ stage is held to.
 | 4    | `a_key_reaches_the_state_only_as_an_action`                        |
 | 5    | `applying_the_way_out_ends_the_application`                        |
 | 6    | `a_key_that_names_no_action_changes_nothing_and_reports_nothing`   |
-| 7    | `the_screen_holds_the_menu_and_nothing_else`                       |
-| 8    | nothing holds this, and it is named here rather than claimed done  |
+| 7    | `a_click_arrives_and_changes_nothing_because_no_action_is_a_click` |
+| 7    | `the_terminal_gives_up_mouse_capture_when_the_application_ends`    |
+| 8    | `the_screen_holds_the_menu_and_nothing_else`                       |
+| 9    | nothing holds this, and it is named here rather than claimed done  |
 
-Rule 8 is not a rule a test can read: it is a statement about what the crate depends on, and nothing
+Rule 9 is not a rule a test can read: it is a statement about what the crate depends on, and nothing
 in the gate reaches it — the `wasm` step does not name this crate precisely because it is not
 portable, and that is the same omission D3 keeps. It is written down because `README.md` promises
 it, and it is reviewed by reading the manifest.
