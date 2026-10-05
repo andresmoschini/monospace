@@ -21,10 +21,14 @@
 //! - **`canvas`** is the window drawn into and rendered from: an `origin` of `x` and `y` beside a
 //!   `size` of `width` and `height`.
 //! - **`next_id`** is the ordinal the next shape added takes, which is where numbering **resumes**
-//!   rather than a count of what was read: `#1`, `#7` and `#9` under `next_id: 10` hands back `#10`.
+//!   rather than a count of what was read: `1`, `7` and `9` under `next_id: 10` hands back `10`. It
+//!   is a **nonzero** ordinal, because zero is not an identity; `"next_id": 0` is refused here
+//!   rather than seeded with something no shape can carry.
 //! - **`shapes`** is the figures in drawing order, empty or not, the last front-most and deciding a
 //!   shared cell first. Each entry names a `kind` and carries the `id` its shape is held under —
 //!   [`ShapeDescription`] is the three kinds and [`Description`] the whole of the file.
+
+use std::num::NonZeroU32;
 
 use monospace_core::{Direction, Glyph, Orientation as CoreOrientation};
 use monospace_diagram::{
@@ -123,6 +127,51 @@ where
     struct Wrapper(#[serde(deserialize_with = "deserialize_glyph")] Glyph);
 
     Ok(Option::<Wrapper>::deserialize(deserializer)?.map(|wrapper| wrapper.0))
+}
+
+/// The ordinal the three identity fields share, and the reason each names itself on a refusal.
+///
+/// An identity is a number greater than zero — `1`, not `"#1"` — so a file spelling it any other
+/// way is a **data error**, and the message says which field was wrong rather than leaving a reader
+/// to work back from a position: `serde` reports `invalid type: string "#1", expected a nonzero
+/// u32`, which names neither `id` nor `shape` nor `next_id`, and the three are the whole of what a
+/// caller has to go on.
+///
+/// The name is the field's, written beside the field rather than read from serde's error, because
+/// serde cannot know it: the same [`NonZeroU32`] is deserialized from three different keys. The
+/// underlying message is carried through whole, so what the file actually said survives next to the
+/// field it was said in.
+fn ordinal<'de, D>(field: &'static str, deserializer: D) -> Result<NonZeroU32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    NonZeroU32::deserialize(deserializer)
+        .map_err(|error| serde::de::Error::custom(format!("`{field}` is an ordinal: {error}")))
+}
+
+/// The `id` of an entry in `shapes`. A thin wrapper over [`ordinal`] so that the name in the message
+/// is the field's own, beside the field it belongs to.
+fn id<'de, D>(deserializer: D) -> Result<NonZeroU32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    ordinal("id", deserializer)
+}
+
+/// The `next_id` a diagram's numbering resumes from.
+fn next_id<'de, D>(deserializer: D) -> Result<NonZeroU32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    ordinal("next_id", deserializer)
+}
+
+/// The `shape` a reference names.
+fn shape<'de, D>(deserializer: D) -> Result<NonZeroU32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    ordinal("shape", deserializer)
 }
 
 /// The window a diagram is drawn on and rendered from: the `origin` is its top left corner and the
@@ -244,7 +293,8 @@ impl From<OffsetDescription> for Delta {
 enum At {
     Point(Pos),
     Reference {
-        shape: String,
+        #[serde(deserialize_with = "shape")]
+        shape: NonZeroU32,
         anchor: AnchorDescription,
         #[serde(default)]
         offset: OffsetDescription,
@@ -301,6 +351,10 @@ impl From<Endpoint> for DiagramEndpoint {
 /// variant because a variant's fields are read in declaration order, and `id` immediately after
 /// `kind` on the wire is where all the descriptions in this repository already put it.
 ///
+/// **The identity is an ordinal rather than any text.** One number greater than zero, deserialized
+/// by [`id`] so that `"#1"` is refused by name rather than read as a string nobody can resolve,
+/// and the same spelling the `next_id` beside it has always used.
+///
 /// The identity is **not** checked for uniqueness, and two entries may carry one: both are read,
 /// the first is what every change and every reference finds, and the second is reachable by no
 /// identity until the first is removed. That cost is accepted, and it is why the model's "unique
@@ -309,7 +363,8 @@ impl From<Endpoint> for DiagramEndpoint {
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum ShapeDescription {
     Box {
-        id: String,
+        #[serde(deserialize_with = "id")]
+        id: NonZeroU32,
         at: Pos,
         size: Size,
         stroke: String,
@@ -317,14 +372,16 @@ enum ShapeDescription {
         fill: Option<Glyph>,
     },
     Line {
-        id: String,
+        #[serde(deserialize_with = "id")]
+        id: NonZeroU32,
         at: Pos,
         len: u32,
         orientation: Orientation,
         stroke: String,
     },
     Connector {
-        id: String,
+        #[serde(deserialize_with = "id")]
+        id: NonZeroU32,
         from: Endpoint,
         to: Endpoint,
         stroke: String,
@@ -335,13 +392,13 @@ impl ShapeDescription {
     /// The identity this entry's shape is held under, read before the shape is converted.
     ///
     /// One method rather than three because the field is on every variant and the conversion below
-    /// drops it: the figure carries no name, and it is the diagram that holds the one the file
+    /// drops it: the figure carries no identity, and it is the diagram that holds the one the file
     /// wrote.
-    fn id(&self) -> String {
+    fn id(&self) -> ShapeId {
         match self {
             ShapeDescription::Box { id, .. }
             | ShapeDescription::Line { id, .. }
-            | ShapeDescription::Connector { id, .. } => id.clone(),
+            | ShapeDescription::Connector { id, .. } => ShapeId::new(*id),
         }
     }
 }
@@ -396,11 +453,14 @@ pub struct Description {
     /// is one number. Required, so a file leaving it out is refused by name, the way `canvas`
     /// and `shapes` already are.
     ///
-    /// **It is trusted, not checked.** A stale value — an entry renamed, a `#2` deleted — hands back
-    /// an identity already in use, and the shape that arrives is one nobody can name. That is D2's
-    /// accepted cost, and the repair is one line in `monospace-diagram`; nothing in this format
-    /// checks it.
-    next_id: u32,
+    /// **It is trusted, not checked, beyond being nonzero.** A stale value — an entry removed, a
+    /// `2` deleted — hands back an identity already in use, and the shape that arrives is one
+    /// nobody can name. That is D6's accepted cost, and the repair is one line in
+    /// `monospace-diagram`; nothing in this format checks it. What **is** checked is the zero: zero
+    /// is not an identity, so `"next_id": 0` is a data error naming the field rather than a counter
+    /// seeded with something the diagram could not carry.
+    #[serde(deserialize_with = "next_id")]
+    next_id: NonZeroU32,
     /// The figures, in the order they are drawn. Required, and the order is load-bearing: the array
     /// order is the drawing order, so the last entry is front-most and decides a shared cell first.
     shapes: Vec<ShapeDescription>,
@@ -419,13 +479,13 @@ impl Description {
     /// picture in the repository comes out byte for byte what it did — that is the claim the whole
     /// mechanical change rests on, and it was measured rather than argued.
     ///
-    /// A name a connector names before the entry carrying it is written still resolves, because
+    /// A shape a connector names before the entry carrying it is written still resolves, because
     /// resolution happens at draw time and the whole diagram exists by then. That edge case needs
     /// no code here; it is what a completed vector of placements means.
     pub(crate) fn into_diagram(self) -> Diagram {
         let mut diagram = Diagram::numbered_from(self.next_id);
         for shape in self.shapes {
-            diagram.add_under(ShapeId::new(shape.id()), shape.into());
+            diagram.add_under(shape.id(), shape.into());
         }
         diagram
     }
@@ -454,14 +514,14 @@ mod tests {
     /// A `fill` of more than one grapheme cluster fails to deserialize.
     #[test]
     fn a_multi_grapheme_fill_fails_to_deserialize() {
-        let json = r##"{
+        let json = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
-                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "ab" }
             ]
-        }"##;
+        }"#;
 
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
@@ -471,18 +531,18 @@ mod tests {
     /// form is internally tagged.
     #[test]
     fn a_multi_grapheme_terminal_glyph_fails_to_deserialize() {
-        let json = r##"{
+        let json = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 1 } },
             "next_id": 2,
             "shapes": [
-                { "kind": "connector", "id": "#1",
+                { "kind": "connector", "id": 1,
                   "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right",
                             "terminal": { "kind": "glyph", "glyph": "ab" } },
                   "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
                           "terminal": { "kind": "glyph", "glyph": ">" } },
                   "stroke": "light" }
             ]
-        }"##;
+        }"#;
 
         assert!(serde_json::from_str::<Description>(json).is_err());
     }
@@ -501,15 +561,15 @@ mod tests {
 
     fn description_of(connector: &str) -> String {
         format!(
-            r##"{{
+            r#"{{
             "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 8, "height": 1 }} }},
             "next_id": 2,
             "shapes": [
-                {{ "kind": "connector", "id": "#1",
+                {{ "kind": "connector", "id": 1,
                   {connector},
                   "stroke": "light" }}
             ]
-        }}"##
+        }}"#
         )
     }
 
@@ -630,10 +690,9 @@ mod tests {
     /// later slice would make silently, and this is where the present answer is written down.
     #[test]
     fn a_stray_field_beside_an_at_is_dropped_in_silence() {
-        let json = description_of(&ARROW_WITH_AN_AT.replace(
-            "AT",
-            r##"{ "kind": "point", "x": 1, "y": 1, "shape": "#5" }"##,
-        ));
+        let json = description_of(
+            &ARROW_WITH_AN_AT.replace("AT", r#"{ "kind": "point", "x": 1, "y": 1, "shape": 5 }"#),
+        );
 
         assert!(
             serde_json::from_str::<Description>(&json).is_ok(),
@@ -651,7 +710,7 @@ mod tests {
     fn a_reference_with_no_offset_is_read_as_a_reference_on_the_side_itself() {
         let json = description_of(&ARROW_WITH_AN_AT.replace(
             "AT",
-            r##"{ "kind": "reference", "shape": "#1", "anchor": "right" }"##,
+            r#"{ "kind": "reference", "shape": 1, "anchor": "right" }"#,
         ));
 
         assert!(
@@ -673,7 +732,7 @@ mod tests {
     fn an_unknown_key_inside_a_reference_is_dropped_in_silence() {
         let json = description_of(&ARROW_WITH_AN_AT.replace(
             "AT",
-            r##"{ "kind": "reference", "shape": "#1", "anchor": "right", "along": 2 }"##,
+            r#"{ "kind": "reference", "shape": 1, "anchor": "right", "along": 2 }"#,
         ));
 
         assert!(
@@ -682,36 +741,40 @@ mod tests {
         );
     }
 
-    /// A reference follows the name, **both directions**.
+    /// A reference follows the identity, **both directions**.
     ///
     /// Two descriptions over the same window, the same two boxes and the same connector, differing
     /// only in the order their entries are listed in. The connector naming the **box** draws the
     /// same buffer whichever order the entries are in; the connector naming the **place** draws two
     /// different pictures, which is what those files mean today.
     ///
-    /// Both directions, because a reader that made the name win in one and not in the other would
-    /// pass a single test — and the second half is the one that is easy to leave out, since the
-    /// first half is what the slice is for.
+    /// Both directions, because a reader that made the identity win in one and not in the other
+    /// would pass a single test — and the second half is the one that is easy to leave out, since
+    /// the first half is what the slice is for.
+    ///
+    /// **The identities are ordinals rather than the free text this test used to give them**,
+    /// which is the whole cost the format change names: the two halves are still about the same
+    /// thing — an identity is not a place — and they say it with `1` and `2`.
     #[test]
-    fn a_reference_follows_the_name_and_not_the_place_where_the_entry_is_written() {
+    fn a_reference_follows_the_identity_and_not_the_place_where_the_entry_is_written() {
         // Two boxes at **fixed** positions, far enough apart that the route to either is a
         // different drawing: one at `{0, 3}` and one at `{11, 3}`, and a connector falling from
         // `{7, 0}` onto the **top** of whichever box it is told to name. The two boxes do not
         // touch, which is what makes the two routes distinguishable at all — measured, because a
         // pair that shares cells composes to the same picture whichever way round it is built.
         //
-        // `left` and `right` are the identity given to the box at `{0, 3}` and the one at `{11, 3}`
+        // `left` and `right` are the ordinals given to the box at `{0, 3}` and the one at `{11, 3}`
         // respectively, and `right_listed_first` says which of them the `shapes` array lists
         // first. Nothing else changes between the four descriptions below, so the route can only
-        // move if the reader is following the place rather than the name.
+        // move if the reader is following the place rather than the identity.
         let description_with =
-            |left: &str, right: &str, right_listed_first: bool, connector_names: &str| {
+            |left: u32, right: u32, right_listed_first: bool, connector_names| {
                 let left_box = format!(
-                    r#"{{ "kind": "box", "id": "{left}", "at": {{ "x": 0, "y": 3 }},
+                    r#"{{ "kind": "box", "id": {left}, "at": {{ "x": 0, "y": 3 }},
                   "size": {{ "width": 4, "height": 3 }}, "stroke": "light" }}"#
                 );
                 let right_box = format!(
-                    r#"{{ "kind": "box", "id": "{right}", "at": {{ "x": 11, "y": 3 }},
+                    r#"{{ "kind": "box", "id": {right}, "at": {{ "x": 11, "y": 3 }},
                   "size": {{ "width": 4, "height": 3 }}, "stroke": "light" }}"#
                 );
                 let boxes = if right_listed_first {
@@ -725,10 +788,10 @@ mod tests {
             "next_id": 3,
             "shapes": [
                 {boxes},
-                {{ "kind": "connector", "id": "arrow",
+                {{ "kind": "connector", "id": 3,
                   "from": {{ "at": {{ "kind": "point", "x": 7, "y": 0 }}, "leaving": "down",
                              "terminal": {{ "kind": "glyph", "glyph": "▼" }} }},
-                  "to": {{ "at": {{ "kind": "reference", "shape": "{connector_names}",
+                  "to": {{ "at": {{ "kind": "reference", "shape": {connector_names},
                                       "anchor": "top" }},
                           "leaving": "up",
                           "terminal": {{ "kind": "arm" }} }},
@@ -739,23 +802,22 @@ mod tests {
             };
         let parse = |json: String| serde_json::from_str::<Description>(&json).expect("well-formed");
 
-        // Naming the **box**: the box at `{11, 3}` is `right` in both files and is listed first in
-        // one and second in the other, so both draw the same picture.
-        let right_listed_first =
-            render_once(parse(description_with("left", "right", true, "right")));
-        let right_listed_second =
-            render_once(parse(description_with("left", "right", false, "right")));
+        // Naming the **box**: the box at `{11, 3}` is `2` in both files and is listed first in one
+        // and second in the other, so both draw the same picture.
+        let right_listed_first = render_once(parse(description_with(1, 2, true, 2)));
+        let right_listed_second = render_once(parse(description_with(1, 2, false, 2)));
         assert_eq!(
             right_listed_first, right_listed_second,
             "a reference naming a shape must not move when the entries are listed in another order"
         );
 
-        // Naming the **place**: `"#2"` is the second entry in each file, and the two files put a
-        // different box there, so the connector lands on a different box in each. That is what
-        // those files mean today, and the half that says the name won in one direction and
-        // not in the other — a reader that made it win in both would have failed the first half.
-        let place_right_first = render_once(parse(description_with("#2", "#1", true, "#2")));
-        let place_right_second = render_once(parse(description_with("#1", "#2", false, "#2")));
+        // Naming the **place**: `2` is the identity the second entry carries in each file, and the
+        // two files put a different box there, so the connector lands on a different box in each.
+        // That is what those files mean today, and the half that says the identity won in one
+        // direction and not in the other — a reader that made it win in both would have failed the
+        // first half.
+        let place_right_first = render_once(parse(description_with(2, 1, true, 2)));
+        let place_right_second = render_once(parse(description_with(1, 2, false, 2)));
         assert_ne!(
             place_right_first, place_right_second,
             "a reference naming a place must still follow the place it is written at"
@@ -771,11 +833,11 @@ mod tests {
     /// `an_omitted_terminal_field_is_refused_by_name`; this pins the two new names beside it.
     #[test]
     fn a_missing_identity_is_refused_by_name() {
-        let without_next_id = r##"{
+        let without_next_id = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
-            "shapes": [ { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 },
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
-        }"##;
+        }"#;
         let without_an_id = r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
@@ -795,50 +857,107 @@ mod tests {
         }
     }
 
-    /// Free text reads. A description whose entries are named `right`, `left` and `arrow` draws
-    /// **byte for byte** what the same description named `#1`, `#2` and `#3` draws.
+    /// Free text is **refused**, and the message names the field it was refused on.
     ///
-    /// The format takes any string, and a format that insisted on an ordinal could not pass this
-    /// test. The `next_id` is untouched by the substitution, which is what D1 chose over deriving
-    /// an ordinal from the names: an ordinal derived from the names would have nothing to resume
-    /// from, and a name is not a number to count.
+    /// **Both fields, and both spellings**, because the three identity fields share one
+    /// deserializer and the only thing that differs between them is the name it puts in the
+    /// message. `serde`'s own wording — `invalid type: string "#1", expected a nonzero u32` — names
+    /// neither, so a reader handed it has nothing to work back from; and a wrapper that named
+    /// `id` for all three would send a reader after the wrong field on the other two.
+    ///
+    /// **The spelling is quoted and not summarized**, so a file that wrote `"arrow"` says so rather
+    /// than being told it wrote something else. The `next_id` half is
+    /// `a_next_id_of_zero_is_refused_and_names_the_field_it_was_refused_on` beside this one.
     #[test]
-    fn free_text_reads_and_draws_what_the_ordinal_named_description_draws() {
-        let named = |ids: (&str, &str, &str)| {
-            format!(
-                r#"{{
-            "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
-            "next_id": 4,
-            "shapes": [
-                {{ "kind": "box", "id": "{}", "at": {{ "x": 0, "y": 0 }},
-                  "size": {{ "width": 4, "height": 3 }}, "stroke": "light" }},
-                {{ "kind": "box", "id": "{}", "at": {{ "x": 0, "y": 0 }},
-                  "size": {{ "width": 4, "height": 3 }}, "stroke": "light" }},
-                {{ "kind": "connector", "id": "{}",
-                  "from": {{ "at": {{ "kind": "reference", "shape": "{}",
-                                      "anchor": "right" }},
-                             "leaving": "right",
-                             "terminal": {{ "kind": "glyph", "glyph": ">" }} }},
-                  "to": {{ "at": {{ "kind": "point", "x": 8, "y": 1 }}, "leaving": "left",
-                           "terminal": {{ "kind": "glyph", "glyph": ">" }} }},
-                  "stroke": "light" }}
-            ]
-        }}"#,
-                ids.0, ids.1, ids.2, ids.0
-            )
-        };
-        let parse = |json: String| serde_json::from_str::<Description>(&json).expect("well-formed");
+    fn an_identity_written_as_free_text_is_refused_and_names_the_field() {
+        let a_string_id = r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": "arrow", "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#;
+        let a_string_shape = &description_of(&ARROW_WITH_AN_AT.replace(
+            "AT",
+            r##"{ "kind": "reference", "shape": "#1", "anchor": "right" }"##,
+        ));
 
-        let ordinal_named = render_once(parse(named(("#1", "#2", "#3"))));
-        let free_text = render_once(parse(named(("left", "right", "arrow"))));
-        assert_eq!(
-            ordinal_named, free_text,
-            "free text must draw exactly what the ordinal-named description draws"
-        );
-        // The reference follows the name it was given, not the one in the other file.
+        for (json, named, said) in [
+            (a_string_id, "id", "\"arrow\""),
+            (a_string_shape, "shape", "\"#1\""),
+        ] {
+            let error = serde_json::from_str::<Description>(json)
+                .expect_err("a name is not an ordinal and must fail")
+                .to_string();
+            assert!(
+                error.starts_with(&format!("`{named}` is an ordinal: ")),
+                "expected `{named}` to be named first, got: {error}"
+            );
+            assert!(
+                error.contains(said),
+                "expected the message to quote what the file said, `{said}`, got: {error}"
+            );
+        }
+    }
+
+    /// A `next_id` of zero is refused and named, because zero is not an identity.
+    ///
+    /// **`0` is the one value the whole format cannot express**, so a counter that took it would be
+    /// a counter seeded with nothing the diagram could carry — and the old reader held it and issued
+    /// `"#0"` from it. The refusal names `next_id` for the same reason the other two name theirs.
+    #[test]
+    fn a_next_id_of_zero_is_refused_and_names_the_field_it_was_refused_on() {
+        let json = r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 0,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#;
+
+        let error = serde_json::from_str::<Description>(json)
+            .expect_err("zero is not an identity and must fail")
+            .to_string();
+
         assert!(
-            free_text.contains('>'),
-            "the connector must draw, so the reference resolved through the name"
+            error.starts_with("`next_id` is an ordinal: "),
+            "expected `next_id` to be named first, got: {error}"
+        );
+        assert!(
+            error.contains('0'),
+            "expected the message to quote the zero it was handed, got: {error}"
+        );
+    }
+
+    /// An ordinal is read everywhere the format names a shape, and the file still draws.
+    ///
+    /// **The positive case beside the two refusals**, because a reader that refused everything
+    /// would pass both of those. The same three fields are here written as `1` and `2`, and the
+    /// connector's reference resolves through the ordinal the box carries: **a connector answers no
+    /// anchor**, so this draws the connector rather than the window an unresolvable reference leaves,
+    /// which is what makes the refusal above and this the same field read two ways.
+    #[test]
+    fn an_ordinal_is_read_where_the_format_names_a_shape() {
+        let json = r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 } },
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" },
+                            "leaving": "right", "terminal": { "kind": "glyph", "glyph": ">" } },
+                  "to": { "at": { "kind": "point", "x": 7, "y": 1 }, "leaving": "left",
+                          "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let picture = render_once(
+            serde_json::from_str::<Description>(json).expect("an ordinal is an ordinal"),
+        );
+
+        assert!(
+            picture.contains('>'),
+            "the connector must draw, so the reference resolved through the ordinal: {picture:?}"
         );
     }
 }

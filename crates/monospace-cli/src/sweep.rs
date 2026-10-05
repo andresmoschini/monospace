@@ -146,22 +146,22 @@ fn every_shape_in_every_stroke_it_can_be_drawn_in() {
             // draws: a box and a connector have a size, a line a length.
             let shapes = match kind {
                 "box" => format!(
-                    r##"{{ "kind": "box", "id": "#1", "at": {{ "x": 3, "y": 2 }},
-                          "size": {{ "width": 5, "height": 3 }}, "stroke": "{stroke}" }}"##
+                    r#"{{ "kind": "box", "id": 1, "at": {{ "x": 3, "y": 2 }},
+                          "size": {{ "width": 5, "height": 3 }}, "stroke": "{stroke}" }}"#
                 ),
                 "line" => format!(
-                    r##"{{ "kind": "line", "id": "#1", "at": {{ "x": 1, "y": 3 }}, "len": 9,
-                          "orientation": "horizontal", "stroke": "{stroke}" }}"##
+                    r#"{{ "kind": "line", "id": 1, "at": {{ "x": 1, "y": 3 }}, "len": 9,
+                          "orientation": "horizontal", "stroke": "{stroke}" }}"#
                 ),
                 _ => format!(
-                    r##"{{ "kind": "connector", "id": "#1",
+                    r#"{{ "kind": "connector", "id": 1,
                           "from": {{ "at": {{ "kind": "point", "x": 1, "y": 3 }},
                                     "leaving": "right",
                                     "terminal": {{ "kind": "arm" }} }},
                           "to": {{ "at": {{ "kind": "point", "x": 10, "y": 3 }},
                                   "leaving": "left",
                                   "terminal": {{ "kind": "arm" }} }},
-                          "stroke": "{stroke}" }}"##
+                          "stroke": "{stroke}" }}"#
                 ),
             };
             cases.push(case(&format!("{kind} in {stroke}"), &shapes));
@@ -202,10 +202,10 @@ fn two_shapes_crossing_in_every_ordered_pair_of_strokes() {
                 // A vertical line crossing a horizontal one, so the shared cell is a four-way
                 // junction in both orders rather than a T.
                 let shapes = format!(
-                    r##"{{ "kind": "box", "id": "#1", "at": {{ "x": 4, "y": 1 }},
+                    r#"{{ "kind": "box", "id": 1, "at": {{ "x": 4, "y": 1 }},
                           "size": {{ "width": 5, "height": 5 }}, "stroke": "{front_stroke}" }},
-                       {{ "kind": "line", "id": "#2", "at": {{ "x": 2, "y": 3 }}, "len": 9,
-                          "orientation": "horizontal", "stroke": "{behind_stroke}" }}"##
+                       {{ "kind": "line", "id": 2, "at": {{ "x": 2, "y": 3 }}, "len": 9,
+                          "orientation": "horizontal", "stroke": "{behind_stroke}" }}"#
                 );
                 cases.push(case(&name, &shapes));
             }

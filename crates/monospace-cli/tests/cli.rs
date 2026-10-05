@@ -48,28 +48,121 @@ fn first_demonstrated_picture(output: &str) -> String {
     format!("{picture}\n")
 }
 
+/// An identity written as a string prints nothing to stdout, names the field on stderr, and fails.
+///
+/// **The refusal the whole wire change turns on**, and the wording is asserted rather than
+/// described: `serde` alone reports `invalid type: string "#1", expected a nonzero u32`, which names
+/// neither `id` nor what the file did wrong beyond its own words, so the reader puts the field in
+/// front of it. `"#1"` is the spelling every description in this repository used until the change,
+/// so it is the one a caller upgrading this format will have in hand.
+///
+/// **A `"shape"` and a `0` beside it**, in the same test rather than a second one: the three fields
+/// share a deserializer and differ only in the name they print, so a reader that printed `id` for
+/// all of them would pass a test on `id` alone. `two_entries_carrying_one_identity_are_both_read_and_both_drawn`
+/// is the accepted cost beside this one: two entries may still carry one ordinal, and both are read.
+#[test]
+fn an_identity_written_as_a_string_is_refused_by_name_on_stderr_and_fails() {
+    let a_string_id = write_description(
+        "string-id",
+        r##"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"##,
+    );
+    let a_string_shape = write_description(
+        "string-shape",
+        r##"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 9, "height": 3 } },
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right" },
+                            "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
+                          "terminal": { "kind": "arm" } },
+                  "stroke": "light" } ]
+        }"##,
+    );
+
+    for (path, named) in [(a_string_id, "id"), (a_string_shape, "shape")] {
+        let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+
+        assert!(
+            !output.status.success(),
+            "a name is not an ordinal and must fail"
+        );
+        assert!(output.stdout.is_empty(), "printed to stdout");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains(&format!("`{named}` is an ordinal")),
+            "expected `{named}` to be named on stderr, got: {stderr}"
+        );
+        assert!(
+            stderr.contains("\"#1\""),
+            "expected the message to quote what the file said, got: {stderr}"
+        );
+    }
+}
+
+/// A `next_id` of zero prints nothing to stdout, names the field on stderr, and fails.
+///
+/// **Zero is the one value the format cannot express**, so the reader turns it away where the file
+/// is rather than letting the counter stand at an identity no shape can carry. It is the same
+/// refusal as the one beside it, in the one field that could otherwise have issued `"#0"` — which
+/// the old reader held and handed out.
+#[test]
+fn a_next_id_of_zero_is_refused_by_name_on_stderr_and_fails() {
+    let path = write_description(
+        "zero-next-id",
+        r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 0,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#,
+    );
+
+    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+
+    assert!(
+        !output.status.success(),
+        "zero is not an identity and must fail"
+    );
+    assert!(output.stdout.is_empty(), "printed to stdout");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("`next_id` is an ordinal"),
+        "expected `next_id` to be named on stderr, got: {stderr}"
+    );
+}
+
 /// Two entries carrying the same `id` are **both** read. Both shapes are drawn, the run exits
 /// successfully, and nothing is written to stderr.
 ///
 /// **Pinned as an accepted cost rather than as a bug**, so a later slice that decides to report a
 /// repeated identity has to say so rather than discover it. The diagram-level half — both held,
-/// `get` returning the first — is `add_under_does_not_move_the_counter_and_does_not_check_the_name`
+/// `get` returning the first — is `a_diagram_issues_the_counter_and_a_shape_added_under_a_callers_identity_does_not_move_it`
 /// in `monospace-diagram`; this is the same cost arriving through a wire, where a reader might
-/// plausibly have checked it and did not.
+/// plausibly have checked it and did not. An identity being a number did not change any of that:
+/// `1` is no more unique than `"#1"` was, and nothing in the format checks it.
 #[test]
 fn two_entries_carrying_one_identity_are_both_read_and_both_drawn() {
     let path = write_description(
         "repeated-id",
-        r##"{
+        r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 2,
             "shapes": [
-                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light" },
-                { "kind": "box", "id": "#1", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light" }
             ]
-        }"##,
+        }"#,
     );
 
     let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
@@ -138,14 +231,14 @@ fn the_demo_path_passed_explicitly_prints_the_demonstrations_first_picture() {
 fn an_explicit_path_prints_the_hand_written_box() {
     let path = write_description(
         "one-box",
-        r##"{
+        r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
-                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" }
             ]
-        }"##,
+        }"#,
     );
 
     let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
@@ -163,22 +256,22 @@ fn an_explicit_path_prints_the_hand_written_box() {
 fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
     let path = write_description(
         "three-shapes",
-        r##"{
+        r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 10, "height": 5 } },
             "next_id": 4,
             "shapes": [
-                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" },
-                { "kind": "line", "id": "#2", "at": { "x": 0, "y": 4 }, "len": 4, "orientation": "horizontal",
+                { "kind": "line", "id": 2, "at": { "x": 0, "y": 4 }, "len": 4, "orientation": "horizontal",
                   "stroke": "light" },
-                { "kind": "connector", "id": "#3",
+                { "kind": "connector", "id": 3,
                   "from": { "at": { "kind": "point", "x": 5, "y": 0 }, "leaving": "right",
                             "terminal": { "kind": "glyph", "glyph": ">" } },
                   "to": { "at": { "kind": "point", "x": 9, "y": 2 }, "leaving": "down",
                           "terminal": { "kind": "glyph", "glyph": "v" } },
                   "stroke": "light" }
             ]
-        }"##,
+        }"#,
     );
 
     let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
@@ -197,8 +290,8 @@ fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
 
 /// A box at the origin, four by three, so its right side centre is `{3, 1}`. The figure the three
 /// wire cases below hang an endpoint from.
-const A_BOX: &str = r##"{ "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
-        "stroke": "light" }"##;
+const A_BOX: &str = r#"{ "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+        "stroke": "light" }"#;
 
 /// Runs a one-connector description over `at` and returns the whole of stdout, which for a path is
 /// one picture and nothing else — nothing else because a picture bound for a Markdown fence cannot
@@ -210,19 +303,19 @@ fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
     let path = write_description(
         label,
         &format!(
-            r##"{{
+            r#"{{
             "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
             "next_id": 3,
             "shapes": [
                 {A_BOX},
-                {{ "kind": "connector", "id": "#2",
+                {{ "kind": "connector", "id": 2,
                   "from": {{ "at": {at}, "leaving": "right",
                              "terminal": {{ "kind": "glyph", "glyph": ">" }} }},
                   "to": {{ "at": {{ "kind": "point", "x": 8, "y": 1 }}, "leaving": "left",
                            "terminal": {{ "kind": "arm" }} }},
                   "stroke": "light" }}
             ]
-        }}"##
+        }}"#
         ),
     );
 
@@ -238,7 +331,7 @@ fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
 fn a_file_naming_a_reference_draws_what_the_point_it_resolves_to_draws() {
     let named = picture_of_a_connector_hanging_from(
         "with-offset",
-        r##"{ "kind": "reference", "shape": "#1", "anchor": "right", "offset": { "dx": 2, "dy": 0 } }"##,
+        r#"{ "kind": "reference", "shape": 1, "anchor": "right", "offset": { "dx": 2, "dy": 0 } }"#,
     );
     let spelled = picture_of_a_connector_hanging_from(
         "with-offset-point",
@@ -255,14 +348,14 @@ fn a_file_naming_a_reference_draws_what_the_point_it_resolves_to_draws() {
 /// A reference carrying **no** `offset` at all draws exactly what a description naming the point
 /// it resolves to draws, byte for byte.
 ///
-/// The case `{"kind": "reference", "shape": "#1", "anchor": "right"}` exists for: `offset` is
+/// The case `{"kind": "reference", "shape": 1, "anchor": "right"}` exists for: `offset` is
 /// optional and absent is zero, so a reference on the side itself is three fields rather than five,
 /// and it has to draw the same thing a file spelling `{3, 1}` outright does.
 #[test]
 fn a_file_naming_a_reference_with_no_offset_draws_the_point_it_stands_on() {
     let named = picture_of_a_connector_hanging_from(
         "no-offset",
-        r##"{ "kind": "reference", "shape": "#1", "anchor": "right" }"##,
+        r#"{ "kind": "reference", "shape": 1, "anchor": "right" }"#,
     );
     let spelled = picture_of_a_connector_hanging_from(
         "no-offset-point",
@@ -284,11 +377,11 @@ fn a_file_naming_a_reference_with_no_offset_draws_the_point_it_stands_on() {
 fn a_file_naming_an_out_draws_the_point_the_offset_it_stands_for_draws() {
     let named = picture_of_a_connector_hanging_from(
         "with-out",
-        r##"{ "kind": "reference", "shape": "#1", "anchor": "right", "out": 1 }"##,
+        r#"{ "kind": "reference", "shape": 1, "anchor": "right", "out": 1 }"#,
     );
     let as_an_offset = picture_of_a_connector_hanging_from(
         "with-the-offset-an-out-stands-for",
-        r##"{ "kind": "reference", "shape": "#1", "anchor": "right", "offset": { "dx": 1, "dy": 0 } }"##,
+        r#"{ "kind": "reference", "shape": 1, "anchor": "right", "offset": { "dx": 1, "dy": 0 } }"#,
     );
     let outright = picture_of_a_connector_hanging_from(
         "with-the-point-an-out-reaches",
@@ -296,7 +389,7 @@ fn a_file_naming_an_out_draws_the_point_the_offset_it_stands_for_draws() {
     );
     let on_the_border = picture_of_a_connector_hanging_from(
         "with-no-gap",
-        r##"{ "kind": "reference", "shape": "#1", "anchor": "right" }"##,
+        r#"{ "kind": "reference", "shape": 1, "anchor": "right" }"#,
     );
 
     assert_eq!(
@@ -322,7 +415,7 @@ fn a_file_naming_an_out_draws_the_point_the_offset_it_stands_for_draws() {
 fn a_file_naming_a_shape_it_does_not_hold_draws_the_box_and_no_connector_and_succeeds() {
     let drawn = picture_of_a_connector_hanging_from(
         "foreign-shape",
-        r##"{ "kind": "reference", "shape": "#7", "anchor": "right", "offset": { "dx": 2, "dy": 0 } }"##,
+        r#"{ "kind": "reference", "shape": 7, "anchor": "right", "offset": { "dx": 2, "dy": 0 } }"#,
     );
     let box_alone = {
         let path = write_description(
@@ -403,29 +496,29 @@ fn render_back_to_front_with_above(
 fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     let first = write_description(
         "overlap-a-then-b",
-        r##"{
+        r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 3,
             "shapes": [
-                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" },
-                { "kind": "box", "id": "#2", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 2, "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "▓" }
             ]
-        }"##,
+        }"#,
     );
     let second = write_description(
         "overlap-b-then-a",
-        r##"{
+        r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 3,
             "shapes": [
-                { "kind": "box", "id": "#1", "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "▓" },
-                { "kind": "box", "id": "#2", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 2, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" }
             ]
-        }"##,
+        }"#,
     );
 
     let first_output = run(&[first.to_str().expect("temp path should be valid UTF-8")]);
@@ -448,14 +541,14 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
 fn running_the_same_file_twice_produces_identical_output() {
     let path = write_description(
         "determinism",
-        r##"{
+        r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
-                { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
                   "stroke": "light", "fill": "░" }
             ]
-        }"##,
+        }"#,
     );
 
     let first = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
