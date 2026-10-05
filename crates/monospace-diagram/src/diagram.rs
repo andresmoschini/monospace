@@ -190,8 +190,8 @@ impl Diagram {
     }
 
     /// Draws every shape into `buffer`, front to back, stamping every cell with
-    /// [`StampMode::Below`]. Drawing changes nothing about this diagram, so two drawings into
-    /// equal windows produce equal buffers.
+    /// [`StampMode::Below`] and **binding the shape's own identity** to each layer. Drawing changes
+    /// nothing about this diagram, so two drawings into equal windows produce equal buffers.
     ///
     /// The diagram is what a connector's endpoints resolve through, which is why it is the one that
     /// hands itself to each figure. A connector with an endpoint that does not resolve — an identity
@@ -199,9 +199,16 @@ impl Diagram {
     /// and every other shape draws exactly what it drew. There is no error, no report and no way
     /// to ask which figures were dropped; see
     /// [#88](https://github.com/andresmoschini/monospace/issues/88).
+    ///
+    /// **The signature does not change, and the identity is not a parameter of it.** Whoever draws a
+    /// diagram already holds every shape's identity and knows which is which, so asking for it again
+    /// would be asking a question this method is the only one able to answer — and a caller that
+    /// passed one in could pass one that disagrees with the diagram. The record is a property of the
+    /// drawing rather than of the diagram, which is why changing the diagram changes nothing about a
+    /// buffer already drawn.
     pub fn draw(&self, buffer: &mut Buffer) {
-        let mut layer = Layer::new(buffer, StampMode::Below);
         for placed in self.shapes.iter().rev() {
+            let mut layer = Layer::stamped_by(buffer, StampMode::Below, &placed.id);
             placed.shape.draw(&mut layer, self);
         }
     }
@@ -210,7 +217,7 @@ impl Diagram {
 #[cfg(test)]
 mod tests {
     use monospace_core::{
-        BoxShape, Buffer, Cell, Connector, Direction, Glyph, GlyphCatalog, Layer, Line,
+        BoxShape, Buffer, Cell, Connector, Direction, Glyph, GlyphCatalog, Layer, Line, Offset,
         Orientation, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, render,
     };
 
@@ -268,6 +275,236 @@ mod tests {
         diagram.draw(&mut second);
 
         assert_eq!(cells(&first, origin, size), cells(&second, origin, size));
+    }
+
+    /// Every offset of a window `size` with the identity the record names there, so two records can
+    /// be compared by value even though `ShapeId` is borrowed from the buffer rather than owned.
+    fn owners(buffer: &Buffer, size: Size) -> Vec<Option<ShapeId>> {
+        (0..size.height)
+            .flat_map(|dy| (0..size.width).map(move |dx| (dx, dy)))
+            .map(|(dx, dy)| buffer.owner(Offset { x: dx, y: dy }).cloned())
+            .collect()
+    }
+
+    /// Two filled boxes overlapping over two columns and two rows, the second written last and
+    /// therefore in front of the first.
+    ///
+    /// **The arrangement the record is easiest to read against**, and the one whose geometry is
+    /// worth spelling out rather than leaving to be discovered: the back box fills `(1, 1)` and
+    /// `(2, 1)`, the front box fills `(3, 2)` and `(4, 2)`, and the front box's **left border** runs
+    /// down `(2, 1)`, `(2, 2)` and `(2, 3)` — so `(2, 1)` is a cell the shape behind filled and the
+    /// shape in front decided, which is the one cell where a record can be wrong in a way the
+    /// picture does not show.
+    fn two_overlapping_boxes() -> (Diagram, ShapeId, ShapeId) {
+        let mut diagram = Diagram::new();
+        let back = diagram.add(Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("░").expect("one glyph")),
+        });
+        let front = diagram.add(Shape::Box {
+            at: Pos { x: 2, y: 1 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("▓").expect("one glyph")),
+        });
+        (diagram, back, front)
+    }
+
+    /// A shape is drawn under whatever identity it was added under, so every cell it decided is
+    /// owned by it and no cell another shape decided is.
+    ///
+    /// **The four kinds of cell the arrangement holds**, rather than one of them: a fill only the
+    /// back-most shape wrote, a fill only the one in front wrote, a cell the one in front decided over
+    /// a fill of the one behind, and a cell neither wrote. The third is the one worth a reader's
+    /// attention — at `(2, 1)` the back-most box filled the cell and the one in front put its border
+    /// on top of it, and the record names the front one because that is what is on the screen. A
+    /// record that named the shape behind would be indistinguishable from this one by looking.
+    #[test]
+    fn a_shape_is_drawn_under_the_identity_it_was_added_under() {
+        let (diagram, back, front) = two_overlapping_boxes();
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+
+        let mut buffer = Buffer::new(origin, size);
+        diagram.draw(&mut buffer);
+
+        for (offset, expected, what) in [
+            (
+                Offset { x: 1, y: 1 },
+                &back,
+                "a fill only the back-most shape wrote",
+            ),
+            (
+                Offset { x: 3, y: 2 },
+                &front,
+                "a fill only the shape in front wrote",
+            ),
+            (
+                Offset { x: 2, y: 1 },
+                &front,
+                "a cell the shape in front decided over the one behind's fill",
+            ),
+            (
+                Offset { x: 0, y: 0 },
+                &back,
+                "the back-most shape's own corner",
+            ),
+            (
+                Offset { x: 5, y: 3 },
+                &front,
+                "the front-most shape's own corner",
+            ),
+        ] {
+            let at = Pos {
+                x: i32::try_from(offset.x).expect("six columns"),
+                y: i32::try_from(offset.y).expect("four rows"),
+            };
+            assert!(buffer.cell(at).is_some(), "{at:?} holds a cell: {what}");
+            assert_eq!(
+                buffer.owner(offset),
+                Some(expected),
+                "{what} belongs to {}",
+                if *expected == back { "#1" } else { "#2" }
+            );
+        }
+
+        // The two cells the arrangement leaves between and below the boxes, which is what makes the
+        // four above a claim about ownership rather than about a buffer that records everything.
+        for offset in [Offset { x: 5, y: 0 }, Offset { x: 0, y: 3 }] {
+            assert_eq!(buffer.owner(offset), None);
+        }
+    }
+
+    /// The record belongs to the drawing that produced it: changing the diagram changes nothing
+    /// about a buffer already drawn, and drawing again into it records nothing.
+    ///
+    /// **The diagram really does change, or none of this says anything** — so the last assertion
+    /// draws the changed diagram into a *fresh* window and finds a different picture there. Without
+    /// it, "the record did not move" would be equally true of a diagram that had not changed at all.
+    ///
+    /// **Drawing again into the same buffer records nothing anywhere**, and that is the half that
+    /// could plausibly be otherwise: every position already decided keeps the identity that decided
+    /// it, because under `Below` nothing takes a position somebody holds. So the cells stay as they
+    /// were too, and both the picture and the record describe the drawing before the change.
+    #[test]
+    fn a_diagram_changed_and_not_drawn_again_leaves_the_record_exactly_as_it_was() {
+        let (mut diagram, _back, front) = two_overlapping_boxes();
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+
+        let mut buffer = Buffer::new(origin, size);
+        diagram.draw(&mut buffer);
+        let cells_before = cells(&buffer, origin, size);
+        let owners_before = owners(&buffer, size);
+        assert!(
+            owners_before.contains(&Some(front.clone())),
+            "the first drawing recorded something, so there is a record to leave alone"
+        );
+
+        diagram.remove(&front);
+        assert_eq!(
+            cells(&buffer, origin, size),
+            cells_before,
+            "taking a shape out of the diagram changes nothing about what was drawn"
+        );
+        assert_eq!(
+            owners(&buffer, size),
+            owners_before,
+            "and nothing about who owns it"
+        );
+
+        diagram.draw(&mut buffer);
+        assert_eq!(
+            owners(&buffer, size),
+            owners_before,
+            "drawing again into a buffer that already holds cells records nothing"
+        );
+
+        // And the change is real: the same diagram drawn into a window of its own is a different
+        // picture, with the removed shape's fill gone from it.
+        let mut fresh = Buffer::new(origin, size);
+        diagram.draw(&mut fresh);
+        assert_ne!(
+            cells(&fresh, origin, size),
+            cells_before,
+            "the diagram changed, so a window of its own draws something else"
+        );
+    }
+
+    /// Two shapes carrying one identity both record it, exactly as `get` cannot tell them apart.
+    ///
+    /// **Two boxes far enough apart to share no cell**, so every owner in the window is one figure's
+    /// and the two records are each wholly one identity. An identity issued by `add` is checked for
+    /// uniqueness and one supplied through `add_under` is not, so the record has no way to hold the
+    /// two apart either — and refusing the second stamp instead would leave a cell the diagram
+    /// plainly drew unowned, which is a worse answer than an ambiguous one.
+    #[test]
+    fn two_shapes_carrying_one_identity_both_record_it_as_get_cannot_tell_them_apart() {
+        let shared = ShapeId::new("#1");
+        let mut diagram = Diagram::new();
+        for x in [0, 4] {
+            diagram.add_under(
+                shared.clone(),
+                Shape::Box {
+                    at: Pos { x, y: 0 },
+                    size: Size {
+                        width: 2,
+                        height: 2,
+                    },
+                    stroke: light(),
+                    fill: None,
+                },
+            );
+        }
+
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 2,
+        };
+        let mut buffer = Buffer::new(origin, size);
+        diagram.draw(&mut buffer);
+
+        // `get` answers with the first of the two and there is no listing that would name the
+        // second, which is the whole of what "cannot tell them apart" means here.
+        assert!(
+            matches!(diagram.get(&shared), Some(Shape::Box { at, .. }) if *at == Pos { x: 0, y: 0 }),
+            "get answers with the first of the two shapes sharing the identity"
+        );
+
+        for offset in [
+            Offset { x: 0, y: 0 },
+            Offset { x: 1, y: 1 },
+            Offset { x: 4, y: 0 },
+            Offset { x: 5, y: 1 },
+        ] {
+            assert_eq!(
+                buffer.owner(offset),
+                Some(&shared),
+                "both shapes recorded the one identity they carry, at ({}, {})",
+                offset.x,
+                offset.y
+            );
+        }
+        assert_eq!(
+            buffer.owner(Offset { x: 2, y: 0 }),
+            None,
+            "and a position neither shape wrote is owned by nobody"
+        );
     }
 
     /// Scenario 3: an empty diagram leaves its buffer exactly as it was.
