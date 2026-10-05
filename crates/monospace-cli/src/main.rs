@@ -7,11 +7,11 @@
 //!
 //! **A file is rendered once; only the bare run demonstrates.** Given a path this prints one
 //! picture and nothing else — no caption, and no shape moved forward. Given no argument it prints
-//! the shipped demonstration: **seven** captioned pictures — as written, with the back-most shape
+//! the shipped demonstration: **eight** captioned pictures — as written, with the back-most shape
 //! moved one place toward the front, with that same shape displaced, with that same shape taken
 //! out, with the arrow rehung from the box it already pointed at and that box displaced, with the
-//! arrow itself displaced as well, and with the box the arrow hangs from taken out — which
-//! leaves the arrow exactly where it stood.
+//! arrow itself displaced as well, with the box the arrow hangs from taken out, and with whichever
+//! shape the first picture records as deciding the position `(20, 2)` taken out instead.
 //!
 //! That split exists because the changes the bare run shows say something only about the
 //! shipped demonstration, whose first two entries are two partially overlapping opaque boxes.
@@ -24,12 +24,33 @@ mod description;
 use std::process::ExitCode;
 
 use description::Description;
-use monospace_core::{Buffer, Direction, GlyphCatalog, Pos, Size, Terminal};
+use monospace_core::{Buffer, Direction, GlyphCatalog, Offset, Pos, Size, Terminal};
 use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
 /// from any working directory and from a binary copied outside a checkout.
 const DEMO: &str = include_str!("../assets/demo.json");
+
+/// The four offsets [`demonstrate`] asks the first drawing about.
+///
+/// **Named here rather than written into `demonstrate` so that a test can ask the same question about
+/// the same numbers.** The offset is the thing such a test is checking, so it belongs beside the code
+/// that uses it and not restated in a test where it would drift; the *answers* are the part a test
+/// quotes and can fail on — see `the_four_offsets_answer_the_shapes_the_demonstration_acts_on`.
+///
+/// **The first three name a cell only that one shape wrote**, which is what makes the answer that
+/// shape rather than a fact about the order: a cell two of them wrote resolves to whichever is in
+/// front, so asking there would be asking about a crossing instead. Measured against the shipped
+/// description — `(0, 0)` is `#1`'s own top-left corner, `(9, 4)` is `#3`'s bottom-left corner, and
+/// `(14, 3)` is the middle of the arrow's own horizontal run.
+///
+/// **The fourth is deliberately the opposite case**: a cell two shapes *did* write, where the
+/// character on screen cannot say which. `#6`'s bottom border runs through it and `#5`'s left border
+/// runs down it, so it renders `┼`.
+const THE_BACK_MOST_AT: Offset = Offset { x: 0, y: 0 };
+const THE_HUNG_FROM_AT: Offset = Offset { x: 9, y: 4 };
+const THE_ARROW_AT: Offset = Offset { x: 14, y: 3 };
+const THE_CROSSING_AT: Offset = Offset { x: 20, y: 2 };
 
 #[cfg(test)]
 mod sweep;
@@ -80,20 +101,33 @@ fn render_once(description: Description) -> String {
     picture(&diagram, &glyph_catalog(), origin, size)
 }
 
-/// Draws `diagram` into a fresh window of `size` and renders it. Drawing changes nothing about the
-/// diagram, which is what lets the demonstration draw one diagram four times and change it between
-/// two of them.
-fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> String {
+/// Draws `diagram` into a fresh window of `size` and hands back the buffer beside its rendering.
+/// Drawing changes nothing about the diagram, which is what lets the demonstration draw one diagram
+/// eight times and change it between two of them.
+///
+/// **The buffer is handed back rather than dropped** because the demonstration asks the first
+/// drawing a question: which shape decided the position it later takes out. Rendering alone cannot
+/// answer that, and drawing the diagram a second time to ask would be a second drawing rather than
+/// the first one.
+fn drawn(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> (Buffer, String) {
     let mut buffer = Buffer::new(origin, size);
     diagram.draw(&mut buffer);
-    monospace_core::render(&buffer, catalog, origin, size)
+    let text = monospace_core::render(&buffer, catalog, origin, size);
+    (buffer, text)
+}
+
+/// The rendering of `diagram` drawn into a fresh window, for the seven steps that only need the
+/// picture.
+fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> String {
+    drawn(diagram, catalog, origin, size).1
 }
 
 /// Renders `description` as written, then again with its first entry moved one place toward the
 /// front, then again with that same entry displaced, then again with it taken out, then once with the
 /// arrow rehung from the box it already pointed at and that box displaced, then once more with the
-/// arrow itself displaced, and once more again with the box the arrow hangs from taken out. Each
-/// picture is under a caption.
+/// arrow itself displaced, then once more again with the box the arrow hangs from taken out, and
+/// once more again with whichever shape the first picture records as deciding `(20, 2)` taken out.
+/// Each picture is under a caption.
 ///
 /// This is the shipped demonstration's output, and every one of its pictures carries a caption.
 /// The changes it shows are meaningful only for that description, which is why a file the binary is
@@ -102,15 +136,46 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 /// The first four pictures are about one figure, the entry the description lists first. The fifth
 /// and sixth are appended after them rather than interleaved, and are about two others; the seventh
 /// is appended after those and is about one of them again, which is what makes it the sixth with the
-/// box gone rather than a picture of its own arrangement. The identities are written out at each call
-/// rather than read back: a description names its shapes by the identity it wrote, so the
-/// demonstration already knows which entry it means, and `get` offers no listing to read the names
-/// from.
+/// box gone rather than a picture of its own arrangement. The eighth is the only step that **reads
+/// the drawing rather than applying a change to the diagram**: it asks the first picture which shape
+/// decided one position and takes that shape out, so a reader sees the record decide something
+/// rather than being told that it does.
+///
+/// **The three identities the first seven steps need are read out of the first drawing rather than
+/// written by hand.** A description names its shapes by the identity it wrote, so the demonstration
+/// could always say which entry it meant — but "which entry" and "which shape owns that cell" are
+/// different questions, and only the second one is what the rest of this function acts on. Asking
+/// replaces a written assumption about this description with the record, which is what an interactive
+/// front end would have to do and what the first seven steps have no way to check. A figure added
+/// before any of the three would move the answer, and the pictures below it are what catch that.
 fn demonstrate(description: Description) -> String {
     let (origin, size) = description.window();
     let mut diagram = description.into_diagram();
     let catalog = glyph_catalog();
-    let the_back_most = ShapeId::new("#1");
+
+    // The first drawing, kept rather than thrown away: the three identities are read out of it, and
+    // so is the shape the eighth picture takes out. **None of them is written out here**, and that is
+    // what makes the offsets above checkable — a name in this function would answer every offset,
+    // including a wrong one, and there would be nothing left to fail.
+    let (as_written, first_picture) = drawn(&diagram, &catalog, origin, size);
+    let the_back_most = found_in(&as_written, THE_BACK_MOST_AT);
+    let the_hung_from = found_in(&as_written, THE_HUNG_FROM_AT);
+    let the_arrow = found_in(&as_written, THE_ARROW_AT);
+
+    // The caption names the offsets and not the answers, because the answers are whatever the record
+    // holds and a line of text cannot know.
+    let first_caption = format!(
+        "As written, asking which shape decided ({}, {}), ({}, {}) and ({}, {}):\n",
+        THE_BACK_MOST_AT.x,
+        THE_BACK_MOST_AT.y,
+        THE_HUNG_FROM_AT.x,
+        THE_HUNG_FROM_AT.y,
+        THE_ARROW_AT.x,
+        THE_ARROW_AT.y
+    );
+
+    let mut out = first_caption;
+    out.push_str(&first_picture);
 
     // How far the third picture's figure moves. A fixed value this function carries rather than a
     // field in the description format or an argument on the binary, so a file's picture is exactly
@@ -120,14 +185,6 @@ fn demonstrate(description: Description) -> String {
     // already draws, which is what lets the third picture tell a displacement from the reorder the
     // second one shows.
     let by = Delta { dx: 0, dy: 3 };
-
-    // The box the arrow already hangs from, and the arrow itself, both named by hand for the reason
-    // `#1` above is: a description names its shapes by the identity it wrote, so the demonstration
-    // already knows which entry it means, and `get` offers no listing to read the names from. A
-    // figure added before either would make the written value name the wrong shape, and the fifth
-    // picture is what catches that.
-    let the_hung_from = ShapeId::new("#3");
-    let the_arrow = ShapeId::new("#10");
 
     // How far the fifth picture's box moves, beside the delta above. The destination was measured
     // against the shipped description's own rows rather than chosen by eye: the box lands at
@@ -143,26 +200,33 @@ fn demonstrate(description: Description) -> String {
     // draws. Two rows lands it clear of both boxes, which is what the picture is for.
     let two_down = Delta { dx: 0, dy: 2 };
 
-    let mut out = String::from("As written:\n");
-    out.push_str(&picture(&diagram, &catalog, origin, size));
-
-    // `forward` is a safe no-op when there is no such shape — e.g. an empty description.
-    diagram.forward(&the_back_most);
+    // The reorder, the displacement and the removal all follow the shape the record named, and all
+    // three are skipped when it named none — which is what a description with nothing at `(0, 0)`
+    // does, and what an empty description does at all three offsets. The picture is printed either
+    // way, so a description the demonstration can say nothing about still prints eight of them.
+    //
+    // `forward` and `remove` are separately no-ops on an identity the diagram does not hold, so
+    // these guards are narrower than the steps' own: they skip a shape the record never named, which
+    // is a different case from one this diagram does not hold.
+    if let Some(the_back_most) = the_back_most.as_ref() {
+        diagram.forward(the_back_most);
+    }
     out.push_str("\nWith the back-most shape moved one place forward:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
-    // `get` and `replace` are no-ops on an identity this diagram does not hold, so an empty
-    // description demonstrates through both of them unchanged.
-    if let Some(moved) = diagram
-        .get(&the_back_most)
-        .map(|shape| shape.displaced_by(by))
+    if let Some(the_back_most) = the_back_most.as_ref()
+        && let Some(moved) = diagram
+            .get(the_back_most)
+            .map(|shape| shape.displaced_by(by))
     {
-        diagram.replace(&the_back_most, moved);
+        diagram.replace(the_back_most, moved);
     }
     out.push_str("\nWith that same shape displaced:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
-    diagram.remove(&the_back_most);
+    if let Some(the_back_most) = the_back_most.as_ref() {
+        diagram.remove(the_back_most);
+    }
     out.push_str("\nWith that same shape taken out:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
@@ -176,11 +240,14 @@ fn demonstrate(description: Description) -> String {
     // The direction and the terminal are written out beside the anchor and are not derived from it:
     // §6 says both are the caller's, and deriving the direction from the side is
     // [#89](https://github.com/andresmoschini/monospace/issues/89)'s.
-    // A description whose tenth entry is not a connector, or one with no tenth entry at all, has
-    // nothing to rehang: the `if let` falls through and the picture is the fourth's.
-    if let Some(Shape::Connector { to, stroke, .. }) = diagram.get(&the_arrow).cloned() {
+    // A description whose tenth entry is not a connector, one with no tenth entry at all, and one
+    // whose record names nothing at `(14, 3)`, all have nothing to rehang: the guard falls through
+    // and the picture is the fourth's.
+    if let (Some(the_arrow), Some(the_hung_from)) = (the_arrow.as_ref(), the_hung_from.as_ref())
+        && let Some(Shape::Connector { to, stroke, .. }) = diagram.get(the_arrow).cloned()
+    {
         diagram.replace(
-            &the_arrow,
+            the_arrow,
             Shape::Connector {
                 from: Endpoint {
                     at: Position::Reference(Reference {
@@ -200,11 +267,12 @@ fn demonstrate(description: Description) -> String {
     // And now the figure it hangs from moves, which is what the reference is for: the arrow lands
     // on the box's new side and re-routes to the end that did not move, because that endpoint is
     // still a point and a displacement reaches points.
-    if let Some(moved) = diagram
-        .get(&the_hung_from)
-        .map(|shape| shape.displaced_by(four_right))
+    if let Some(the_hung_from) = the_hung_from.as_ref()
+        && let Some(moved) = diagram
+            .get(the_hung_from)
+            .map(|shape| shape.displaced_by(four_right))
     {
-        diagram.replace(&the_hung_from, moved);
+        diagram.replace(the_hung_from, moved);
     }
     out.push_str("\nWith the arrow now hanging from that box, and the box displaced:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
@@ -217,14 +285,16 @@ fn demonstrate(description: Description) -> String {
     // therefore the fifth with the arrow two rows lower and **both boxes standing exactly where
     // they stood**, which is the claim a reader checks with their eyes.
     //
-    // The `if let` is not optional and is the same one the third and fifth steps carry: `get` and
-    // `replace` are no-ops on an identity this diagram does not hold, which is what keeps a
-    // one-shape description — and an empty one — demonstrating at all.
-    if let Some(moved) = diagram
-        .get(&the_arrow)
-        .map(|shape| shape.displaced_by(two_down))
+    // The `if let` is not optional and is the same one the third and fifth steps carry: the record
+    // may name nothing at `(14, 3)`, and `get` and `replace` are separately no-ops on an identity
+    // this diagram does not hold, which is what keeps a one-shape description — and an empty one —
+    // demonstrating at all.
+    if let Some(the_arrow) = the_arrow.as_ref()
+        && let Some(moved) = diagram
+            .get(the_arrow)
+            .map(|shape| shape.displaced_by(two_down))
     {
-        diagram.replace(&the_arrow, moved);
+        diagram.replace(the_arrow, moved);
     }
     out.push_str("\nWith the arrow displaced as well:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
@@ -238,16 +308,73 @@ fn demonstrate(description: Description) -> String {
     // itself, and the sixth removes a figure that holds no reference — so nothing the shipped binary
     // printed before this step showed the rule at all. The seventh is where a reader sees it.
     //
-    // **No `if let` and no `get`**, which is what makes this step read differently from the five
-    // beside it and is D4's answer rather than an omission: `remove` hands back nothing, so there
-    // is nothing here to ask and a caller cannot get the old behavior back by wrapping the call in a
-    // conditional. `#3` is the box the demonstration hangs the arrow from — the same identity the
-    // fifth picture displaced — so this step takes out exactly what the arrow hangs from.
-    diagram.remove(&the_hung_from);
+    // **No `if let` around the call itself and no `get`**, which is what makes this step read
+    // differently from the six beside it: `remove` hands back nothing, so there is nothing about the
+    // removal to ask. There is an `if let` around **which** shape, and there has to be, because the
+    // record may name none — see [`found_in`]. `#3` is the box the demonstration hangs the arrow
+    // from — the same identity the fifth picture displaced — so this step takes out exactly what the
+    // arrow hangs from.
+    if let Some(the_hung_from) = the_hung_from.as_ref() {
+        diagram.remove(the_hung_from);
+    }
     out.push_str("\nWith the box the arrow hangs from taken out:\n");
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
+    // And the eighth asks the picture which shape decided one position, and takes that shape out.
+    //
+    // **This is the only step here that reads a drawing**, and it is the evidence for the record: the
+    // seven above all ask at an offset chosen in advance and act on whatever came back, so nothing
+    // the binary printed before this showed what the record is for. Here nothing is chosen — `(20, 2)`
+    // is asked for and the record answers, and the eighth is the seventh with whatever it named gone.
+    //
+    // **The offset is measured, not chosen by eye** — see [`THE_CROSSING_AT`]. `#5` is listed after
+    // `#6` and so is in front, and the record names `#6` — the shape behind — because `#6` reached the
+    // cell first. Taking `#6` out leaves `#5`'s arm standing alone, and `┼` becomes `│`, which is the
+    // one reader can check with their eyes. Asking anywhere else would give a cell one shape wrote,
+    // where the picture already says which shape it was.
+    //
+    // **Asked of the first drawing and not of the seventh**, which is the point: the record belongs to
+    // the drawing that produced it, so a buffer the demonstration has since redrawn would still be
+    // holding it and a drawing taken now would answer about something else. `#6` is not one of the
+    // three shapes the earlier steps touch, so what is removed here is the record's answer and not a
+    // side effect of them.
+    if let Some(named) = found_in(&as_written, THE_CROSSING_AT) {
+        diagram.remove(&named);
+    }
+    let crossing_caption = format!(
+        "\nWith the shape the picture names at ({}, {}) taken out:\n",
+        THE_CROSSING_AT.x, THE_CROSSING_AT.y
+    );
+    out.push_str(&crossing_caption);
+    out.push_str(&picture(&diagram, &catalog, origin, size));
+
     out
+}
+
+/// The identity `picture` records at `at`, or `None` when it records nothing there.
+///
+/// **No name is written in beside it, and that is the whole of what makes the offsets above
+/// checkable.** A fallback would take a `written` name and answer every offset with it: a wrong
+/// offset would find nothing, the written name would be used, and the eight pictures below would
+/// come out exactly as they would have had this demonstration never asked anything. The fallback
+/// would also make a right offset unfalsifiable, because there would be no difference between the
+/// two cases to test for. So a coordinate here is checked by one thing only —
+/// `the_four_offsets_answer_the_shapes_the_demonstration_acts_on`, which says what all four offsets
+/// answer — and a wrong one has nothing behind it to fall back onto. **Measured:** with
+/// `THE_BACK_MOST_AT` moved to a cell no shape wrote, the demonstration still printed eight pictures
+/// that read like a demonstration, and five tests failed; with it moved onto a cell a different shape
+/// wrote, four of them did.
+///
+/// **`None` is the answer for a description this demonstration makes no claim about**, and every
+/// step below treats it as one. An empty description records nothing anywhere; a one-box one records
+/// nothing at `(9, 4)` or `(14, 3)`, whose offsets its four-by-three window does not reach; and a
+/// description whose window does not hold `(0, 0)` records nothing there. Each of those skips the
+/// steps whose shape went unnamed and prints the same picture it would have printed before, which is
+/// what keeps them demonstrating rather than failing. **The shipped description is not one of them**:
+/// its four offsets are pinned by that test, so a change to any of them fails rather than silently
+/// changing which shape the demonstration acts on.
+fn found_in(picture: &Buffer, at: Offset) -> Option<ShapeId> {
+    picture.owner(at).cloned()
 }
 
 /// The glyph catalog the CLI renders with: the union of every glyph set the core does not ship
@@ -271,10 +398,12 @@ mod tests {
     use std::ops::Range;
 
     use monospace_core::{
-        BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Stroke, render,
+        BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Offset, Pos, Shape, Size, StampMode, Stroke,
+        render,
     };
+    use monospace_diagram::ShapeId;
 
-    use super::{Description, demonstrate, render_once};
+    use super::{Description, demonstrate, drawn, found_in, glyph_catalog, render_once};
 
     fn one_box_json() -> &'static str {
         r##"{
@@ -328,28 +457,37 @@ mod tests {
         serde_json::from_str(json).expect("well-formed description")
     }
 
-    /// The demonstration's **seven** pictures, found by the blank line between them and returned
+    /// The demonstration's **eight** pictures, found by the blank line between them and returned
     /// without their captions, so nothing here pins a caption's wording.
     ///
     /// Each carries exactly the trailing newline `render` gives it. The last block already holds
     /// one, since nothing follows it, so it is stripped and put back rather than doubled, and the
-    /// seven are then comparable with each other and with a picture drawn on its own.
+    /// eight are then comparable with each other and with a picture drawn on its own.
     ///
-    /// **The closure needed no change when the seventh arrived**, and that is worth knowing rather
+    /// **The closure needed no change when the eighth arrived**, and that is worth knowing rather
     /// than assuming: it splits on the blank line, strips the trailing newline and puts one back, and
-    /// the seventh block is the last of the output so the normalization the first six already get
-    /// applies to it identically. It is also why the sixth compared **equal to the fifth** before the
-    /// rule landed rather than one character apart — measured, and the reason no test pins the raw
-    /// text.
+    /// the last block gets the normalization the others always got. It is also why the sixth compared
+    /// **equal to the fifth** before the rule landed rather than one character apart — measured, and
+    /// the reason no test pins the raw text.
+    #[allow(clippy::type_complexity)]
     fn demonstrated_pictures(
         json: &str,
-    ) -> (String, String, String, String, String, String, String) {
+    ) -> (
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+    ) {
         let output = demonstrate(parse(json));
         let mut blocks = output.split("\n\n");
         let mut next_picture = || {
             let block = blocks
                 .next()
-                .expect("seven captioned pictures, each after a blank line");
+                .expect("eight captioned pictures, each after a blank line");
             let (_caption, picture) = block
                 .split_once('\n')
                 .expect("a caption line precedes each picture");
@@ -357,6 +495,7 @@ mod tests {
         };
 
         (
+            next_picture(),
             next_picture(),
             next_picture(),
             next_picture(),
@@ -482,9 +621,9 @@ mod tests {
         tenth["to"]["at"] = serde_json::json!({ "kind": "point", "x": 22, "y": 4 });
         let with_the_point = value.to_string();
 
-        let (first, second, third, fourth, fifth, sixth, seventh) =
+        let (first, second, third, fourth, fifth, sixth, seventh, eighth) =
             demonstrated_pictures(super::DEMO);
-        let (first2, second2, third2, fourth2, fifth2, sixth2, seventh2) =
+        let (first2, second2, third2, fourth2, fifth2, sixth2, seventh2, eighth2) =
             demonstrated_pictures(&with_the_point);
         assert_eq!(
             (&first, &second, &third, &fourth, &fifth),
@@ -507,6 +646,15 @@ mod tests {
             seventh, seventh2,
             "the seventh picture differs between a spelled endpoint and a named one"
         );
+        // **And the eighth joins them for a different stated reason: it asks the picture.** The record
+        // is drawn from the diagram as it stands, so a diagram whose tenth entry resolves its far end
+        // by a different route records the same owners at `(20, 2)` — `#6` in both runs — and removes
+        // the same shape. The arrow's route to that cell does not reach it, so the spelling of the
+        // tenth entry is not what decides which shape the eighth removes.
+        assert_eq!(
+            eighth, eighth2,
+            "the eighth picture differs between a spelled endpoint and a named one"
+        );
 
         // The first picture is the shipped file's own, byte for byte, and a path prints that and
         // nothing else.
@@ -521,22 +669,23 @@ mod tests {
         );
     }
 
-    /// A bare run prints **seven** captioned pictures and the first is the description as written.
+    /// A bare run prints **eight** captioned pictures and the first is the description as written.
     ///
     /// The count comes from the blank lines the output holds, and no caption's wording is pinned —
-    /// what is claimed is that there are seven of them and that the first is the one a file's run
-    /// prints on its own. The sixth and the seventh are captions like the other five, so the count
-    /// is all this test says about them; which picture the sixth holds is
-    /// `the_sixth_picture_moves_only_the_arrow`'s claim and which the seventh holds is
-    /// `the_seventh_picture_takes_the_box_away_and_leaves_the_arrow`'s.
+    /// what is claimed is that there are eight of them and that the first is the one a file's run
+    /// prints on its own. The sixth, the seventh and the eighth are captions like the other five, so
+    /// the count is all this test says about them; which picture the sixth holds is
+    /// `the_sixth_picture_moves_only_the_arrow`'s claim, which the seventh holds is
+    /// `the_seventh_picture_takes_the_box_away_and_leaves_the_arrow`'s, and which the eighth holds is
+    /// `the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names`'s.
     #[test]
-    fn a_bare_run_prints_seven_captioned_pictures_the_first_being_the_description_as_written() {
+    fn a_bare_run_prints_eight_captioned_pictures_the_first_being_the_description_as_written() {
         let output = demonstrate(parse(super::DEMO));
 
         assert_eq!(
             output.split("\n\n").count(),
-            7,
-            "seven captioned pictures, each after a blank line: {output:?}"
+            8,
+            "eight captioned pictures, each after a blank line: {output:?}"
         );
 
         let (first, ..) = demonstrated_pictures(super::DEMO);
@@ -734,7 +883,7 @@ mod tests {
         value.to_string()
     }
 
-    /// An empty description demonstrates as **seven** identical pictures and fails nothing.
+    /// An empty description demonstrates as **eight** identical pictures and fails nothing.
     ///
     /// There is no back-most shape to move, no figure to displace, no shape to take out, no tenth
     /// entry to rehang and no third entry to displace, so every call in every picture is a no-op on
@@ -747,8 +896,16 @@ mod tests {
     /// and is the only reason a removal can be called unconditionally at all. The seventh picture is
     /// therefore the sixth, and a seventh `assert_eq!` is what makes the count seven mean something
     /// rather than being a count of pictures the helper happened to return.
+    ///
+    /// **The eighth is the case that keeps every offset honest.** An empty description records nothing
+    /// at any offset, so all four `found_in` calls answer `None` and every step skips itself — which
+    /// is the whole of `None`'s job, and the reason an empty description demonstrates rather than
+    /// panicking on it. **It is also the case a fallback would have hidden**: a description this thin
+    /// is exactly the one where a written-out name would have gone on answering every question, and
+    /// the shipped description is the one whose four offsets
+    /// `the_four_offsets_answer_the_shapes_the_demonstration_acts_on` pins.
     #[test]
-    fn an_empty_description_demonstrates_as_seven_identical_pictures() {
+    fn an_empty_description_demonstrates_as_eight_identical_pictures() {
         let pictures = demonstrated_pictures(
             r#"{
             "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
@@ -763,20 +920,21 @@ mod tests {
         assert_eq!(pictures.0, pictures.4);
         assert_eq!(pictures.0, pictures.5);
         assert_eq!(pictures.0, pictures.6);
+        assert_eq!(pictures.0, pictures.7);
     }
 
-    /// A description holding exactly one shape demonstrates **seven** pictures and fails nothing.
+    /// A description holding exactly one shape demonstrates **eight** pictures and fails nothing.
     ///
     /// The reorder changes nothing, because that shape is both front-most and back-most. The
     /// displacement does not: the demonstration's fixed delta carries the only figure out of this
     /// three-row window, which the figure filled, so the third picture is that window with nothing
     /// in it. The fourth is the same, because the figure is taken out.
     ///
-    /// **These seven are therefore not identical**, and no value of the delta would make them so: a
+    /// **These eight are therefore not identical**, and no value of the delta would make them so: a
     /// figure that fills its own window is moved partly or wholly out of it by any delta other than
-    /// none. What the rule asks of this case is that the run succeeds, which it does — and the fifth,
-    /// sixth and seventh add three more no-ops on identities a one-shape description does not hold,
-    /// since it has no `#3` and no `#10`. See the specification's Clarifications for the 2026-09-28
+    /// none. What the rule asks of this case is that the run succeeds, which it does — and the fifth
+    /// through eighth add four more no-ops on identities a one-shape description does not hold, since
+    /// it has no `#3` and no `#10`. See the specification's Clarifications for the 2026-09-28
     /// session, which corrected this scenario on the evidence of this test.
     #[test]
     fn one_shape_demonstrates_as_two_copies_of_itself_and_then_an_empty_window() {
@@ -796,6 +954,12 @@ mod tests {
         // and still true — this is two copies of itself and then an empty window, whatever comes
         // after — and the count beside it is what changed.
         assert_eq!(pictures.5, pictures.6);
+        // **And the eighth equals the seventh for a third reason of its own**, and this one is the
+        // one the record introduces: the window is four by three, so `(20, 2)` is outside it, the
+        // record holds no owner there, and the eighth step asks a question about a cell this
+        // description never had. This is the shape a caller would hit by asking about a position its
+        // window does not hold, and the answer is a picture rather than a panic.
+        assert_eq!(pictures.6, pictures.7);
     }
 
     /// The two boxes' footprints at the fifth picture, and the one cell of the first that the arrow
@@ -855,7 +1019,7 @@ mod tests {
     /// what rules that out.
     #[test]
     fn the_seventh_picture_takes_the_box_away_and_leaves_the_arrow() {
-        let (_first, _second, _third, _fourth, _fifth, sixth, seventh) =
+        let (_first, _second, _third, _fourth, _fifth, sixth, seventh, _eighth) =
             demonstrated_pictures(super::DEMO);
 
         let [arrow, the_box] = the_arrow_and_its_removed_box();
@@ -917,7 +1081,7 @@ mod tests {
     /// footprint that are not the attachment, and the assertion below is what rules it out.
     #[test]
     fn the_sixth_picture_moves_only_the_arrow() {
-        let (_first, _second, _third, _fourth, fifth, sixth, _seventh) =
+        let (_first, _second, _third, _fourth, fifth, sixth, _seventh, _eighth) =
             demonstrated_pictures(super::DEMO);
 
         let changed = differing(&fifth, &sixth);
@@ -955,6 +1119,199 @@ mod tests {
             changed.contains(&(22, 6)),
             "the arrow's far end did not travel the two rows the demonstration's delta names: \
              {changed:?}"
+        );
+    }
+
+    /// The three cells of the first picture the demonstration's own examples rest on, and the
+    /// identity each resolves to.
+    ///
+    /// **Quoted positions rather than read from the code that produces them**, because a test that
+    /// asks the demonstration the same questions it answers itself checks nothing. These are the
+    /// shipped description's first and fourth entries — two filled boxes at `(0, 0)` and `(7, 1)`,
+    /// the second listed later and so in front — and the three cells below are where their fills and
+    /// a corner meet.
+    const THE_CROSSING_CELLS: [(usize, usize, char, &str); 3] =
+        [(9, 2, '░', "#4"), (10, 3, '┘', "#4"), (11, 3, '░', "#3")];
+
+    /// The shape a position resolves to is the front-most of the two that wrote it, and the character
+    /// there cannot say which that is.
+    ///
+    /// **The first and third cells of [`THE_CROSSING_CELLS`] print the same character and belong to
+    /// different shapes**: `(9, 2)` is inside `#4`'s fill alone and `(11, 3)` is inside `#3`'s fill
+    /// alone, because `#3` spans `x 9..12` and `#4` spans `x 7..10`, so their interiors do not
+    /// overlap. Both renders as `░`, and only the record tells them apart — which is the whole
+    /// reason the record is kept beside the cell rather than derived from it.
+    ///
+    /// This is the assertion the demonstration's first caption rests on, and it is asked of the
+    /// **drawn buffer** rather than of the demonstration's own lookup: the point is what the record
+    /// says at a position, not what `demonstrate` decided to write in a caption.
+    #[test]
+    fn the_shape_a_position_resolves_to_is_the_front_most_of_the_two_that_wrote_it() {
+        let (origin, size) = parse(super::DEMO).window();
+        let diagram = parse(super::DEMO).into_diagram();
+        let catalog = glyph_catalog();
+        let (buffer, picture) = drawn(&diagram, &catalog, origin, size);
+
+        for (x, y, glyph, expected) in THE_CROSSING_CELLS {
+            let at = Pos {
+                x: i32::try_from(x).expect("a fifty-column window"),
+                y: i32::try_from(y).expect("a thirteen-row window"),
+            };
+            assert_eq!(the_glyph_at(&picture, (x, y)), glyph, "the cell at {at:?}");
+            assert_eq!(
+                buffer.owner(Offset {
+                    x: u32::try_from(x).expect("a fifty-column window"),
+                    y: u32::try_from(y).expect("a thirteen-row window"),
+                }),
+                Some(&ShapeId::new(expected)),
+                "{at:?} is written by two shapes and resolves to the one in front"
+            );
+        }
+
+        // And the first two cells resolve to `#4` while the third does not, which is what makes the
+        // first two a crossing and the third the shape behind: `#4` is listed after `#3` and is
+        // therefore in front of it.
+        assert_eq!(
+            buffer.owner(Offset { x: 9, y: 2 }),
+            Some(&ShapeId::new("#4"))
+        );
+        assert_eq!(
+            buffer.owner(Offset { x: 11, y: 3 }),
+            Some(&ShapeId::new("#3")),
+            "a cell only #3 wrote is #3's, whichever way the order runs"
+        );
+    }
+
+    /// The shape the demonstration finds is the one the crossing cell names, and taking it out is
+    /// what the eighth picture shows.
+    ///
+    /// **Measured on the demonstration's own output rather than on a drawing built beside it**, so
+    /// the claim is about what a reader sees: at `(20, 2)` the seventh picture renders `┼` and the
+    /// eighth renders `│`. Two shapes wrote that cell — `#6`'s bottom border runs through it and
+    /// `#5`'s left border runs down it — and the record names `#6`, the one **behind**, because `#6`
+    /// is listed later and so is in front. Taking `#6` out leaves `#5`'s arm standing alone.
+    ///
+    /// **The eighth is not the seventh with something blanked**: it differs at exactly the cells the
+    /// record named, and every one of them is either now blank or now shows what was behind it.
+    #[test]
+    fn the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names() {
+        let (_first, .., seventh, eighth) = demonstrated_pictures(super::DEMO);
+
+        assert_eq!(
+            the_glyph_at(&seventh, (20, 2)),
+            '┼',
+            "the crossing cell renders as a full junction, which is what two shapes wrote there"
+        );
+        assert_eq!(
+            the_glyph_at(&eighth, (20, 2)),
+            '│',
+            "and with the shape the record named taken out, only the other shape's arm stands"
+        );
+        assert_ne!(seventh, eighth, "so the eighth picture is not the seventh");
+    }
+
+    /// Each of the demonstration's four offsets answers the shape it means on the shipped
+    /// description.
+    ///
+    /// **This is the only thing that makes the offsets checkable**, and it exists because
+    /// [`found_in`] has no fallback to hide behind: a coordinate moved onto a cell another shape wrote,
+    /// or onto one nothing wrote, would find nothing there and the demonstration would quietly act on
+    /// a different shape or on none — eight pictures that still read like a demonstration. So the
+    /// **offsets are read from the constants the demonstration uses and the answers are quoted here**,
+    /// which is the one direction of that split that is not circular: what is being checked is the
+    /// coordinate, so it belongs beside the code, and what is being asserted is the identity at it, so
+    /// it is written out.
+    ///
+    /// **The fourth is the case the first three avoid**, and it is here because the demonstration's
+    /// eighth step is built on it: `(20, 2)` is a cell two shapes wrote, and the answer is the one
+    /// **behind**. `#5` is listed after `#6` and so is in front, which is why the record names `#6`.
+    #[test]
+    fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
+        let (origin, size) = parse(super::DEMO).window();
+        let diagram = parse(super::DEMO).into_diagram();
+        let (buffer, _) = drawn(&diagram, &glyph_catalog(), origin, size);
+
+        for (at, expected, what) in [
+            (
+                super::THE_BACK_MOST_AT,
+                "#1",
+                "the back-most shape's own top-left corner",
+            ),
+            (
+                super::THE_HUNG_FROM_AT,
+                "#3",
+                "the box the arrow hangs from, at its bottom-left corner",
+            ),
+            (
+                super::THE_ARROW_AT,
+                "#10",
+                "the middle of the arrow's own horizontal run",
+            ),
+            (
+                super::THE_CROSSING_AT,
+                "#6",
+                "a crossing two shapes wrote, and the record names the one behind",
+            ),
+        ] {
+            assert_eq!(
+                found_in(&buffer, at).as_ref(),
+                Some(&ShapeId::new(expected)),
+                "the offset ({}, {}) is {what}, and the record names {expected}",
+                at.x,
+                at.y
+            );
+        }
+    }
+
+    /// The demonstration asks the picture for its three identities rather than writing them out, so
+    /// it follows whatever the record names rather than whatever the file happens to call them.
+    ///
+    /// **A description where the three answers differ from the three names**, which is the only way
+    /// to tell asking from writing: an extra box is added at the origin on top of `#1`, so the cell
+    /// at `(0, 0)` is decided by the newcomer rather than by the entry the demonstration used to
+    /// name. The demonstration's first four pictures are then **about the newcomer** — it is the
+    /// shape the picture names at `(0, 0)`, so it is what gets moved and what gets taken out.
+    ///
+    /// Pinned as a **difference from the shipped run rather than as a picture of its own**: what is
+    /// claimed is that adding a shape changes which shape the demonstration acts on, and comparing
+    /// the two runs says that in one comparison. Under the identities written out by hand the first
+    /// four pictures would come out byte for byte what they are in the shipped run, because `#1`
+    /// would still be the shape found there.
+    #[test]
+    fn the_demonstration_asks_the_picture_which_shapes_to_act_on() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(super::DEMO).expect("the embedded description is well-formed");
+        value["shapes"]
+            .as_array_mut()
+            .expect("the description lists its shapes")
+            .push(serde_json::json!({
+                "kind": "box", "id": "#27", "at": { "x": 0, "y": 0 },
+                "size": { "width": 4, "height": 3 }, "stroke": "light", "fill": "▓"
+            }));
+
+        let (first, second, third, fourth, ..) = demonstrated_pictures(&value.to_string());
+        let (shipped_first, shipped_second, shipped_third, shipped_fourth, ..) =
+            demonstrated_pictures(super::DEMO);
+
+        // The newcomer stands in front of the entry the demonstration used to name, so the picture
+        // has changed and none of the four pictures is the shipped one.
+        assert_ne!(first, shipped_first, "the extra box is not on the screen");
+        assert_ne!(second, shipped_second);
+        assert_ne!(third, shipped_third);
+        assert_ne!(fourth, shipped_fourth);
+
+        // **And the fourth is the first with the newcomer gone**, which is the claim: it was the
+        // shape at `(0, 0)`, so it is the one taken out. Under identities written out by hand the
+        // newcomer would still be standing there and `#1` would be the one gone.
+        assert_eq!(
+            the_glyph_at(&fourth, (1, 1)),
+            '░',
+            "the fill of the entry the demonstration no longer names is back where it was"
+        );
+        assert_ne!(
+            the_glyph_at(&first, (1, 1)),
+            the_glyph_at(&fourth, (1, 1)),
+            "and the newcomer that stood over it is gone"
         );
     }
 }
