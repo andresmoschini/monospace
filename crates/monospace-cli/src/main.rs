@@ -18,6 +18,23 @@
 //! Applied to a file someone hands the binary they are a demonstration's assumptions imposed on
 //! their description. It is also what lets `cargo xtask render` embed this output in a document: a
 //! picture that goes into a Markdown fence cannot arrive wrapped in prose.
+//!
+//! **The demonstration reads its shapes out of the drawing rather than naming them, and there is
+//! nothing written in beside the lookup to catch a wrong answer.** Every shape it acts on comes from
+//! `Buffer::owner` at one of [`THE_BACK_MOST_AT`], [`THE_HUNG_FROM_AT`], [`THE_ARROW_AT`] and
+//! [`THE_CROSSING_AT`], and where the record names none the step skips itself. An earlier version took
+//! a written name and used it wherever the record came back empty, and **that makes a wrong offset
+//! indistinguishable from a right one**: measured with `THE_BACK_MOST_AT` moved onto a cell no shape
+//! wrote, the demonstration still printed eight pictures that read like a demonstration and **no test
+//! failed**, because the written name went on answering every question the offset was supposed to. It
+//! is gone, and the four offsets are now constants
+//! `the_four_offsets_answer_the_shapes_the_demonstration_acts_on` quotes the answers of — the
+//! coordinate is read from the code beside it and the identity at it is written out, which is the one
+//! direction of that split that is not circular.
+//!
+//! **A step skipped is a step that still prints its picture**, which is what keeps a description the
+//! demonstration can say nothing about working at all: an empty one, and a one-box one whose
+//! four-by-three window does not reach three of the four offsets.
 
 mod description;
 
@@ -25,7 +42,7 @@ use std::process::ExitCode;
 
 use description::Description;
 use monospace_core::{Buffer, Direction, GlyphCatalog, Offset, Pos, Size, Terminal};
-use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
+use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape};
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
 /// from any working directory and from a binary copied outside a checkout.
@@ -157,10 +174,13 @@ fn demonstrate(description: Description) -> String {
     // so is the shape the eighth picture takes out. **None of them is written out here**, and that is
     // what makes the offsets above checkable — a name in this function would answer every offset,
     // including a wrong one, and there would be nothing left to fail.
+    //
+    // The `.cloned()` is because each answer outlives the borrow `owner` hands back: `the_back_most`
+    // is read four times across the steps below, after the buffer has been drawn into again.
     let (as_written, first_picture) = drawn(&diagram, &catalog, origin, size);
-    let the_back_most = found_in(&as_written, THE_BACK_MOST_AT);
-    let the_hung_from = found_in(&as_written, THE_HUNG_FROM_AT);
-    let the_arrow = found_in(&as_written, THE_ARROW_AT);
+    let the_back_most = as_written.owner(THE_BACK_MOST_AT).cloned();
+    let the_hung_from = as_written.owner(THE_HUNG_FROM_AT).cloned();
+    let the_arrow = as_written.owner(THE_ARROW_AT).cloned();
 
     // The caption names the offsets and not the answers, because the answers are whatever the record
     // holds and a line of text cannot know.
@@ -311,7 +331,7 @@ fn demonstrate(description: Description) -> String {
     // **No `if let` around the call itself and no `get`**, which is what makes this step read
     // differently from the six beside it: `remove` hands back nothing, so there is nothing about the
     // removal to ask. There is an `if let` around **which** shape, and there has to be, because the
-    // record may name none — see [`found_in`]. `#3` is the box the demonstration hangs the arrow
+    // record may name none. `#3` is the box the demonstration hangs the arrow
     // from — the same identity the fifth picture displaced — so this step takes out exactly what the
     // arrow hangs from.
     if let Some(the_hung_from) = the_hung_from.as_ref() {
@@ -338,7 +358,7 @@ fn demonstrate(description: Description) -> String {
     // holding it and a drawing taken now would answer about something else. `#6` is not one of the
     // three shapes the earlier steps touch, so what is removed here is the record's answer and not a
     // side effect of them.
-    if let Some(named) = found_in(&as_written, THE_CROSSING_AT) {
+    if let Some(named) = as_written.owner(THE_CROSSING_AT).cloned() {
         diagram.remove(&named);
     }
     let crossing_caption = format!(
@@ -349,32 +369,6 @@ fn demonstrate(description: Description) -> String {
     out.push_str(&picture(&diagram, &catalog, origin, size));
 
     out
-}
-
-/// The identity `picture` records at `at`, or `None` when it records nothing there.
-///
-/// **No name is written in beside it, and that is the whole of what makes the offsets above
-/// checkable.** A fallback would take a `written` name and answer every offset with it: a wrong
-/// offset would find nothing, the written name would be used, and the eight pictures below would
-/// come out exactly as they would have had this demonstration never asked anything. The fallback
-/// would also make a right offset unfalsifiable, because there would be no difference between the
-/// two cases to test for. So a coordinate here is checked by one thing only —
-/// `the_four_offsets_answer_the_shapes_the_demonstration_acts_on`, which says what all four offsets
-/// answer — and a wrong one has nothing behind it to fall back onto. **Measured:** with
-/// `THE_BACK_MOST_AT` moved to a cell no shape wrote, the demonstration still printed eight pictures
-/// that read like a demonstration, and five tests failed; with it moved onto a cell a different shape
-/// wrote, four of them did.
-///
-/// **`None` is the answer for a description this demonstration makes no claim about**, and every
-/// step below treats it as one. An empty description records nothing anywhere; a one-box one records
-/// nothing at `(9, 4)` or `(14, 3)`, whose offsets its four-by-three window does not reach; and a
-/// description whose window does not hold `(0, 0)` records nothing there. Each of those skips the
-/// steps whose shape went unnamed and prints the same picture it would have printed before, which is
-/// what keeps them demonstrating rather than failing. **The shipped description is not one of them**:
-/// its four offsets are pinned by that test, so a change to any of them fails rather than silently
-/// changing which shape the demonstration acts on.
-fn found_in(picture: &Buffer, at: Offset) -> Option<ShapeId> {
-    picture.owner(at).cloned()
 }
 
 /// The glyph catalog the CLI renders with: the union of every glyph set the core does not ship
@@ -403,7 +397,7 @@ mod tests {
     };
     use monospace_diagram::ShapeId;
 
-    use super::{Description, demonstrate, drawn, found_in, glyph_catalog, render_once};
+    use super::{Description, demonstrate, drawn, glyph_catalog, render_once};
 
     fn one_box_json() -> &'static str {
         r##"{
@@ -898,7 +892,7 @@ mod tests {
     /// rather than being a count of pictures the helper happened to return.
     ///
     /// **The eighth is the case that keeps every offset honest.** An empty description records nothing
-    /// at any offset, so all four `found_in` calls answer `None` and every step skips itself — which
+    /// at any offset, so all four `owner` lookups answer `None` and every step skips itself — which
     /// is the whole of `None`'s job, and the reason an empty description demonstrates rather than
     /// panicking on it. **It is also the case a fallback would have hidden**: a description this thin
     /// is exactly the one where a written-out name would have gone on answering every question, and
@@ -1214,9 +1208,10 @@ mod tests {
     /// description.
     ///
     /// **This is the only thing that makes the offsets checkable**, and it exists because
-    /// [`found_in`] has no fallback to hide behind: a coordinate moved onto a cell another shape wrote,
-    /// or onto one nothing wrote, would find nothing there and the demonstration would quietly act on
-    /// a different shape or on none — eight pictures that still read like a demonstration. So the
+    /// the demonstration has no written-out fallback to hide behind: a coordinate moved onto a cell
+    /// another shape wrote, or onto one nothing wrote, would find nothing there and the demonstration
+    /// would quietly act on a different shape or on none — eight pictures that still read like a
+    /// demonstration. So the
     /// **offsets are read from the constants the demonstration uses and the answers are quoted here**,
     /// which is the one direction of that split that is not circular: what is being checked is the
     /// coordinate, so it belongs beside the code, and what is being asserted is the identity at it, so
@@ -1254,7 +1249,7 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                found_in(&buffer, at).as_ref(),
+                buffer.owner(at),
                 Some(&ShapeId::new(expected)),
                 "the offset ({}, {}) is {what}, and the record names {expected}",
                 at.x,
