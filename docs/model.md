@@ -53,6 +53,7 @@ character matches.
 | `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided   |
 | `Surface`       | One write operation and no reader; what a shape draws into                     |
 | `Shape`         | A value describing a figure, which draws itself into a surface                 |
+| `ShapeId`       | The name a figure is drawn under, and what a stamp records beside the cell     |
 | `Piece`         | A shape placed by another shape, given the positions it is to write            |
 | `Direction`     | Up, right, down or left: a way to move in the plane                            |
 | `Endpoint`      | Where a connector ends: a position, the direction it leaves in, and a terminal |

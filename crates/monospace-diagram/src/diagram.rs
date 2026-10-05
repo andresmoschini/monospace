@@ -14,32 +14,9 @@
 //! direction is available and produces the same buffer; what it carries is not appearance but
 //! ownership, because which figure reaches a position first is what decides the cell it decides.
 
-use std::fmt;
-
-use monospace_core::{Buffer, Layer, StampMode};
+use monospace_core::{Buffer, Layer, ShapeId, StampMode};
 
 use crate::Shape;
-
-/// A shape's identity. The identities **the diagram issues** through [`Diagram::add`] are unique
-/// within it, and one supplied through [`Diagram::add_under`] is **not checked**:
-/// two shapes may carry the same identity, and the second is then a shape no identity names.
-/// [`ShapeId::new`] builds one directly from its text.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ShapeId(String);
-
-impl ShapeId {
-    /// Builds an identity directly from its text — `"#1"`, `"#2"`, and so on.
-    pub fn new(text: impl Into<String>) -> Self {
-        Self(text.into())
-    }
-}
-
-impl fmt::Display for ShapeId {
-    /// Writes the identity as `#1`, `#2`, and so on.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
 
 /// One entry of a diagram's order: a shape and the identity the diagram gave it.
 struct Placed {
@@ -89,7 +66,7 @@ impl Diagram {
     /// Puts `shape` at the front of the order, in front of everything already there, and returns
     /// the identity the diagram gave it.
     pub fn add(&mut self, shape: Shape) -> ShapeId {
-        let id = ShapeId(format!("#{}", self.next));
+        let id = ShapeId::new(format!("#{}", self.next));
         self.next += 1;
         self.shapes.push(Placed {
             id: id.clone(),

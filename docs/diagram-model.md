@@ -101,7 +101,9 @@ and, where the identity is the caller's rather than the diagram's, it survives t
 
 Editing an identity after the fact is an open question below. Spelling one and handing it to the
 diagram is a different matter and is settled: `ShapeId::new` builds an identity directly, and a
-change that puts a shape under one puts it there under that name.
+change that puts a shape under one puts it there under that name. **The type itself is the core's**
+— it is what a stamp records, and the core cannot hold what only this layer names — while the rules
+above stay here, because which identities a diagram issues is not a question the core has.
 
 ## 4. Positions
 
