@@ -1,5 +1,6 @@
 ---
-status: draft
+status: agreed
+decided: "#191"
 date: 2026-10-06
 ---
 
