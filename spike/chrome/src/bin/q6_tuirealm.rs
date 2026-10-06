@@ -48,7 +48,15 @@ impl Component for Txt {
                 );
             }
             Kind::Drop => {
-                if !self.menu_open() { return; }
+                // **Painting the area whether or not the menu is open is the fix for the screen
+                // that would not clear.** ratatui's `Terminal::draw` diffs the frame against the
+                // previous one, so a component that returns early leaves whatever it drew last time
+                // still on screen. This is D6's old objection to a widget framework, and it is
+                // true: a widget is not a canvas and it does not clear what it is not using.
+                if !self.menu_open() {
+                    f.render_widget(Clear, a);
+                    return;
+                }
                 f.render_widget(
                     Paragraph::new(" Open\n Save\n Exit")
                         .block(Block::default().borders(Borders::ALL)),
@@ -56,7 +64,10 @@ impl Component for Txt {
                 );
             }
             Kind::Popup => {
-                if !self.popup_open() { return; }
+                if !self.popup_open() {
+                    f.render_widget(Clear, a);
+                    return;
+                }
                 f.render_widget(Clear, a);
                 f.render_widget(
                     Paragraph::new(" Discard changes?\n\n   Close   ")

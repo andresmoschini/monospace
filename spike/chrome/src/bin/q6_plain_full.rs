@@ -3,13 +3,13 @@
 //! This is the fair comparison: nothing is left out of the ratatui side.
 use std::io::IsTerminal;
 
-use ratatui::crossterm::event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseButton, MouseEventKind};
+use ratatui::crossterm::event::{EnableMouseCapture, Event, KeyCode, MouseButton, MouseEventKind};
 use ratatui::crossterm::execute;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
-use ratatui::{DefaultTerminal, Frame};
+use ratatui::Frame;
 
 #[derive(PartialEq, Debug, Clone)]
 enum Msg {
@@ -40,7 +40,7 @@ fn update(s: &mut S, m: Msg) {
     }
 }
 
-fn handle_key(s: &mut S, code: KeyCode) -> Option<Msg> {
+fn handle_key(code: KeyCode) -> Option<Msg> {
     Some(match code {
         KeyCode::F(1) => Msg::OpenMenu,
         KeyCode::F(2) => Msg::OpenPopup,
@@ -83,7 +83,12 @@ fn draw(f: &mut Frame, s: &S) {
             Rect::new(bar.x, mid.y, 8, 4).intersection(mid),
         );
     }
-    f.render_widget(Paragraph::new(" ASCII canvas ┌─┐ here"), mid);
+    // The counter is in the status bar, not nowhere. `s.n` was bumped by `q` and never drawn, which
+    // made `q` look dead: the state changed and the screen did not say so.
+    f.render_widget(
+        Paragraph::new(format!(" ASCII canvas ┌─┐ here    n = {}", s.n)),
+        mid,
+    );
 
     if s.popup {
         let d = Rect::new(f.area().x + 4, f.area().y + 1, 24, 6);
@@ -107,7 +112,7 @@ fn main() {
             t.draw(|f| draw(f, &s)).unwrap();
             match ratatui::crossterm::event::read() {
                 Ok(Event::Key(k)) => {
-                    if let Some(m) = handle_key(&mut s, k.code) {
+                    if let Some(m) = handle_key(k.code) {
                         update(&mut s, m);
                     }
                 }
