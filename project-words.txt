@@ -6,6 +6,8 @@
 # unless it is a large dictionary pulled in for a single word.
 Andrés
 autoresize
+barchart
+Codeberg
 crossterm
 doctests
 frontmatter
@@ -21,10 +23,13 @@ PATHEXT
 ratatui
 RUSTFLAGS
 safecrlf
+sparkline
 speckit
+stdlib
 termion
 thiserror
 TKTK
+tuirealm
 underspecification
 unrequested
 valueonly
