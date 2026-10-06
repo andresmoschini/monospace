@@ -1,0 +1,62 @@
+# Its own workspace, so that a spike is never a member of the repository's: it pins its own
+# dependencies, it is built by `cargo run` from here rather than by `cargo xtask check`, and nothing
+# it does can move a version the application will one day depend on. The empty `[workspace]` table is
+# what stops Cargo from looking upward and finding this repository's.
+[workspace]
+
+[package]
+name = "chrome-spike"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "chrome_spike"
+path = "src/lib.rs"
+
+[dependencies]
+ratatui = "=0.30.2"
+tuirealm = "=4.1.0"
+crossterm = "=0.29.0"
+
+[[bin]]
+name = "q1-state"
+path = "src/bin/q1_state.rs"
+
+[[bin]]
+name = "q3-popup"
+path = "src/bin/q3_popup.rs"
+
+[[bin]]
+name = "q4-snapshot"
+path = "src/bin/q4_snapshot.rs"
+
+[[bin]]
+name = "q4-plain"
+path = "src/bin/q4_plain.rs"
+
+[[bin]]
+name = "q5-tree"
+path = "src/bin/q5_tree.rs"
+
+[[bin]]
+name = "q6-boilerplate"
+path = "src/bin/q6_boilerplate.rs"
+
+[[bin]]
+name = "q7-mouse"
+path = "src/bin/q7_mouse.rs"
+[[bin]]
+name = "q1-negative"
+path = "src/bin/q1_negative.rs"
+
+[[bin]]
+name = "q6-tuirealm"
+path = "src/bin/q6_tuirealm.rs"
+
+[[bin]]
+name = "q6-plain"
+path = "src/bin/q6_plain.rs"
+
+[[bin]]
+name = "q6-plain-full"
+path = "src/bin/q6_plain_full.rs"

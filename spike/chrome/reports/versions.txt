@@ -1,0 +1,26 @@
+=== cargo tree -p crossterm (top level) ===
+crossterm v0.29.0
+├── bitflags v2.13.2
+├── crossterm_winapi v0.9.1
+├── derive_more v2.1.1
+├── document-features v0.2.12 (proc-macro)
+├── parking_lot v0.12.5
+└── winapi v0.3.9
+
+=== cargo tree -p ratatui (depth 1) ===
+ratatui v0.30.2
+├── instability v0.3.14 (proc-macro)
+├── ratatui-core v0.1.2
+├── ratatui-crossterm v0.1.2
+├── ratatui-macros v0.7.2
+└── ratatui-widgets v0.3.2
+
+=== cargo tree -p tuirealm (depth 1) ===
+tuirealm v4.1.0
+├── bitflags v2.13.2
+├── crossterm v0.29.0
+├── dyn-clone v1.0.20
+├── lazy-regex v3.6.2
+├── ratatui v0.30.2
+├── thiserror v2.0.21
+└── tuirealm_derive v4.1.0 (proc-macro)

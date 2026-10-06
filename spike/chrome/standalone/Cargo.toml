@@ -1,0 +1,14 @@
+[package]
+name = "state-standalone"
+version = "0.1.0"
+edition = "2024"
+# NOTE: zero dependencies. Not even ratatui.
+[dependencies]
+
+# Its own workspace for the same reason its parent has one: a crate with no dependencies is the
+# evidence, and it must not pick up one by sitting inside something that has them.
+[workspace]
+
+[[bin]]
+name = "check"
+path = "src/bin/check.rs"

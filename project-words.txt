@@ -6,6 +6,7 @@
 # unless it is a large dictionary pulled in for a single word.
 Andrés
 autoresize
+bitflags
 crossterm
 doctests
 frontmatter
@@ -19,14 +20,19 @@ opencode
 pathspec
 PATHEXT
 ratatui
+Rects
+rlib
+rmeta
 RUSTFLAGS
 safecrlf
 speckit
 termion
 thiserror
 TKTK
+tuirealm
 underspecification
 unrequested
 valueonly
+winapi
 worktree
 xtask
