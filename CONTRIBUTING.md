@@ -77,7 +77,7 @@ you fix problems one at a time.
 | `cspell`       | Spelling, in code and prose alike                                                 |
 | `clippy`       | Lints, including `pedantic`, with warnings denied                                 |
 | `build`        | The workspace compiles, tests and all                                             |
-| `wasm`         | Every crate but `monospace-cli` still compiles for `wasm32-unknown-unknown`       |
+| `wasm`         | Every crate the step names still compiles for `wasm32-unknown-unknown`            |
 | `test`         | Unit tests, integration tests and doctests                                        |
 | `doc`          | `cargo doc` builds, with broken intra-doc links denied                            |
 | `render`       | Every generated picture still matches the description beside it                   |
@@ -340,11 +340,12 @@ and orchestrating subprocesses and propagating exit codes is `std`'s job.
 
 ### What is in scope
 
-Four crates, and the boundary is that `monospace-core` holds all the domain logic while the other
-three hold none of it, and the core's public API may not assume a CLI, a TUI or a terminal:
+Five crates, and the boundary is that `monospace-core` holds all the domain logic while the other
+four hold none of it, and the core's public API may not assume a CLI, a TUI or a terminal:
 `monospace-core`, the library; `monospace-cli`, a minimal non-interactive consumer producing
 diagrams from the terminal; `monospace-glyph-sets`, the glyph sets the core does not ship as
-built-in data; and `monospace-diagram`, the model holding a diagram after it is drawn.
+built-in data; `monospace-diagram`, the model holding a diagram after it is drawn; and `monospace`,
+the interactive application, which holds no logic of its own.
 
 **A plan proposing any of these is stopped and renegotiated rather than quietly widened:**
 WebAssembly bindings, a web front-end, non-terminal GUIs, persistence, collaboration, and export

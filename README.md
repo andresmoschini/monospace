@@ -91,13 +91,13 @@ it, so the same box draws in ASCII, Double, Heavy and their combinations without
 
 Behind that, and all of it enforced rather than merely intended:
 
-- **114** tests in `monospace-core`, **339** across the workspace.
+- **126** tests in `monospace-core`, **395** across the workspace.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
 - A **thirteen**-step quality gate the pre-commit hook and CI run identically, including the check
-  that keeps every crate but the CLI compiling for WebAssembly, so stage 4 stays reachable instead
-  of becoming a rewrite.
+  that keeps every crate the `wasm` step names compiling for WebAssembly, so stage 4 stays reachable
+  instead of becoming a rewrite.
 
 Still missing, and named here rather than implied: an editing surface, the TUI, and persistence.
 
@@ -124,9 +124,11 @@ turns a description into a `Diagram` and draws it.
 | `crates/monospace-diagram`    | The model: a diagram as an ordered set of shapes, drawable.  |
 | `crates/monospace-glyph-sets` | The glyph tables the core does not ship as built-in data.    |
 | `crates/monospace-cli`        | The command-line application. Holds no logic of its own.     |
+| `crates/monospace`            | The interactive application. Holds no logic of its own.      |
 | `xtask/`                      | Repository automation. `cargo xtask check` is the gate.      |
 | `docs/model.md`               | The domain's design, its provenance, and its open questions. |
 | `docs/diagram-model.md`       | The diagram model's rules: shapes, order, positions.         |
+| `docs/application-model.md`   | The application's rules: state, actions, the terminal.       |
 | `docs/workflow.md`            | Why the process works the way it does, written at length.    |
 | `specs/`                      | One spec per change that had a decision to agree first.      |
 

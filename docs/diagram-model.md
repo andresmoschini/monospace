@@ -24,7 +24,8 @@ exposed by the core at all.
 
 What this document does not describe: how a diagram is read from a file or written to one, how
 positions are computed for a caller who does not want to give them, and anything about an
-interactive application. Those are layers above this one.
+interactive application, which [the application model](application-model.md) owns. Those are layers
+above this one.
 
 ## 1. Vocabulary
 

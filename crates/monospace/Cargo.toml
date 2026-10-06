@@ -1,0 +1,17 @@
+[package]
+name = "monospace"
+description = "The interactive full-screen application, whose menu holds nothing but the way out"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# The whole dependency: `crossterm` alone and no widget framework, per D6 of the specification.
+# Pinned with `=` like every other version here, and published 2025-04-05, which is what the
+# seven-day rule asks for. Its default features are what it needs — `events` for the reads and
+# `windows` for the terminal this repository is worked on under.
+crossterm = "=0.29.0"
+
+[lints]
+workspace = true

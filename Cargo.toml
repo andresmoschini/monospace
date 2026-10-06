@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/monospace",
     "crates/monospace-cli",
     "crates/monospace-core",
     "crates/monospace-diagram",
