@@ -15,16 +15,17 @@ use tuirealm::ratatui::style::{Color, Style};
 use tuirealm::ratatui::text::Line;
 use tuirealm::ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use tuirealm::state::State;
-use tuirealm::terminal::{TerminalAdapter, TestTerminalAdapter};
+use tuirealm::application::PollStrategy;
+use tuirealm::terminal::{CrosstermTerminalAdapter, TerminalAdapter, TestTerminalAdapter};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Id { Bar, Drop, Popup, Status }
 
 #[derive(PartialEq, Debug, Clone)]
-enum Msg { OpenMenu, CloseMenu, OpenPopup, CloseClicked, Bump }
+enum Msg { OpenMenu, CloseMenu, OpenPopup, CloseClicked, Bump, Quit }
 
 #[derive(Default)]
-struct S { menu: bool, popup: bool, n: i64 }
+struct S { menu: bool, popup: bool, n: i64, quit: bool }
 
 /// A generic text widget: this is the *minimum* a tuirealm component is.
 struct Txt { p: Props, kind: Kind }
@@ -78,15 +79,22 @@ impl Component for Txt {
     fn perform(&mut self, _: Cmd) -> CmdResult { CmdResult::Invalid(Cmd::None) }
 }
 impl Txt {
-    // the shared state lives in a prop, read by view()
-    fn flag(&self, key: &str) -> bool {
+    /// The shared state travels as a prop, read in `view`. **A string of two booleans is what a
+    /// real component would replace with typed props**, and it is here because a minimal tuirealm
+    /// component has nowhere else to put it.
+    fn flags(&self) -> (bool, bool) {
         self.p.get(Attribute::Text).and_then(|v| match v {
-            AttrValue::String(s) => Some(s.split(',').any(|t| t == key)),
+            AttrValue::String(s) => {
+                let mut it = s.split(',');
+                let menu = it.next() == Some("true");
+                let popup = it.next() == Some("true");
+                Some((menu, popup))
+            }
             _ => None,
-        }).unwrap_or(false)
+        }).unwrap_or((false, false))
     }
-    fn menu_open(&self) -> bool { self.flag("menu") }
-    fn popup_open(&self) -> bool { self.flag("popup") }
+    fn menu_open(&self) -> bool { self.flags().0 }
+    fn popup_open(&self) -> bool { self.flags().1 }
 }
 
 impl AppComponent<Msg, NoUserEvent> for Txt {
@@ -94,7 +102,11 @@ impl AppComponent<Msg, NoUserEvent> for Txt {
         if let Some(MouseEvent { kind, column, row, .. }) = e.as_mouse()
             && matches!(kind, MouseEventKind::Down(MouseButton::Left))
         {
-            // manual hit-test: the Close button's absolute rect, hardcoded
+            // Manual hit-test against the Close button. **These constants are the cost**: the
+            // component was drawn into whatever `draw` computed from the real screen size and was
+            // never told what that was. Resize the terminal and the button moves while these
+            // numbers do not, and nothing reports that they stopped matching. `q7-mouse` goes
+            // through all four ways of getting this right.
             let (bx, by) = (10u16, 5u16);
             if *row >= by && *row < by + 3 && *column >= bx && *column < bx + 10 {
                 return Some(Msg::CloseClicked);
@@ -108,9 +120,50 @@ impl AppComponent<Msg, NoUserEvent> for Txt {
             Key::Function(2) => Some(Msg::OpenPopup),
             Key::Esc => Some(Msg::CloseMenu),
             Key::Char('q') => Some(Msg::Bump),
+            Key::Char('Q') => Some(Msg::Quit),
             _ => None,
         }
     }
+}
+
+/// The three regions, and the pop-up's own rectangle. One `draw` used by both the live terminal and
+/// the headless print, so the two cannot drift.
+fn draw(f: &mut Frame, app: &mut Application<Id, Msg, NoUserEvent>) {
+    let [bar, mid, st] = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)])
+        .areas(f.area());
+    app.view(&Id::Bar, f, bar);
+    app.view(&Id::Drop, f, Rect::new(bar.x, mid.y, 8, 4).intersection(mid));
+    app.view(&Id::Popup, f, popup_rect(f.area()));
+    app.view(&Id::Status, f, st);
+}
+
+/// The pop-up's rectangle, computed from the whole screen. **This is the thing a tuirealm
+/// component is never told**: it is computed out here and the hit-test in `on()` re-derives the same
+/// numbers from a constant, because nothing hands the component where it was drawn.
+fn popup_rect(whole: Rect) -> Rect {
+    Rect::new(whole.x + 4, whole.y + 1, 24, 6)
+}
+
+/// Applies a message to the state and pushes the flags the components read back out of their props.
+///
+/// **A function rather than the closure this started as**, because a closure capturing `&mut app`
+/// cannot coexist with the loop that also borrows it — and that is the first of several small frictions
+/// the Elm shape costs a program that wants an ordinary `&mut`.
+fn apply(s: &Rc<RefCell<S>>, app: &mut Application<Id, Msg, NoUserEvent>, m: Msg) {
+    let mut s = s.borrow_mut();
+    match m {
+        Msg::OpenMenu => s.menu = true,
+        Msg::CloseMenu => s.menu = false,
+        Msg::OpenPopup => s.popup = true,
+        Msg::CloseClicked => s.popup = false,
+        Msg::Bump => s.n += 1,
+        Msg::Quit => s.quit = true,
+    }
+    let t = format!("{},{}", s.menu, s.popup);
+    let _ = app.attr(&Id::Drop, Attribute::Text, AttrValue::String(t.clone()));
+    let _ = app.attr(&Id::Popup, Attribute::Text, AttrValue::String(t));
 }
 
 fn main() {
@@ -120,33 +173,32 @@ fn main() {
         app.mount(id, Box::new(Txt::new(kind)), vec![]).unwrap();
     }
     app.active(&Id::Bar).unwrap();
-    let mut apply = |s: &Rc<RefCell<S>>, m: Msg| {
-        let mut s = s.borrow_mut();
-        match m {
-            Msg::OpenMenu => s.menu = true,
-            Msg::CloseMenu => s.menu = false,
-            Msg::OpenPopup => s.popup = true,
-            Msg::CloseClicked => s.popup = false,
-            Msg::Bump => s.n += 1,
+    // Open both, so the first frame is the interesting one rather than an empty screen.
+    apply(&s, &mut app, Msg::OpenMenu);
+    apply(&s, &mut app, Msg::OpenPopup);
+
+    if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+        // The live application, the same one `q6-plain-full` runs: F1 menu, F2 dialog, Esc closes
+        // the menu, q bumps, Q quits, and Close answers the mouse. The mouse is captured, so the
+        // terminal's own selection is gone for as long as this runs.
+        let mut term = CrosstermTerminalAdapter::new().unwrap();
+        term.enable_mouse_capture().unwrap();
+        while !s.borrow().quit {
+            term.draw(|f| draw(f, &mut app)).unwrap();
+            match app.tick(PollStrategy::BlockCollectUpTo(1)) {
+                Ok(msgs) => {
+                    for m in msgs {
+                        apply(&s, &mut app, m);
+                    }
+                }
+                Err(_) => break,
+            }
         }
-        let t = format!("menu,popup");
-        let _ = app.attr(&Id::Drop, Attribute::Text, AttrValue::String(t.clone()));
-        let _ = app.attr(&Id::Popup, Attribute::Text, AttrValue::String(t));
-    };
-    // show the popup
-    apply(&s, Msg::OpenMenu);
-    apply(&s, Msg::OpenPopup);
+        term.disable_mouse_capture().unwrap();
+        return;
+    }
+
     let mut term = TestTerminalAdapter::new(Size::new(40, 10)).unwrap();
-    let fr = term.draw(|f| {
-        let [bar, mid, st] = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)])
-            .areas(f.area());
-        app.view(&Id::Bar, f, bar);
-        app.view(&Id::Drop, f, Rect::new(bar.x, mid.y, 8, 4).intersection(mid));
-        app.view(&Id::Popup, f, Rect::new(f.area().x + 4, f.area().y + 1, 24, 6));
-        app.view(&Id::Status, f, st);
-    }).unwrap();
+    let fr = term.draw(|f| draw(f, &mut app)).unwrap();
     print!("{}", tuirealm::testing::buffer_to_string(&fr.buffer));
-    let _ = s;
 }

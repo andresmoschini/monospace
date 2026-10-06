@@ -31,10 +31,6 @@ name = "q4-snapshot"
 path = "src/bin/q4_snapshot.rs"
 
 [[bin]]
-name = "q4-plain"
-path = "src/bin/q4_plain.rs"
-
-[[bin]]
 name = "q5-tree"
 path = "src/bin/q5_tree.rs"
 

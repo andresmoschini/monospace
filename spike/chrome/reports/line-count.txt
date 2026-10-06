@@ -1,0 +1,49 @@
+Measured 2026-10-06 on the branch, by `grep -vcE '^\s*(//|$|use )'` — code lines
+only, no comments, no blanks, no `use` lines, since both sides need about the
+same imports.
+
+WHAT THIS COUNTS
+  q6_tuirealm.rs     the tuirealm version, minimal: a Component impl + an
+                     AppComponent impl for one generic text widget, Props-based,
+                     state moving as a prop string, a hardcoded hit-test,
+                     and now a live event loop with mouse capture.
+  q6_plain_full.rs   plain ratatui at the SAME functionality: menu bar, drop-down,
+                     popup with a clickable Close, status bar, a Msg enum, an
+                     update function, and a live loop with mouse capture.
+  q6_plain.rs        plain ratatui, draw only — no event loop, no Msg, no hit-test.
+                     Kept because the first count taken against this file was
+                     misleading; see below.
+  chrome.rs          the real thing: a menu bar, a drop-down, a popup with a
+                     Close button, per-component hit-testing, focus. The honest
+                     cost of the screen.
+
+THE COUNTS
+  q6_tuirealm.rs                151
+  q6_plain_full.rs              103
+  q6_plain.rs                    44
+  chrome.rs                     360
+
+THE DELTA THAT MATTERS
+  tuirealm - plain(draw only)    +107
+  tuirealm - plain(FULL)          +48
+
+READ THIS BEFORE TRUSTING THE FIRST NUMBER
+
+The comparison that produced "-80, tuirealm saves lines" was against
+q6_plain.rs, which draws the same picture and does nothing else. It was wrong,
+and wrong in the direction that flattered the framework: the ratatui side was
+missing the event loop, the Msg enum, the update function and the mouse
+hit-test that the tuirealm side had. Counting both at the same functionality
+turns +107 into +48.
+
+The live loop added 27 lines to the tuirealm side, which is why the earlier
+figure was 124 and this one is 151. The earlier 124 was a headless print-only
+version — see the commit on this branch.
+
+WHAT NONE OF THIS COUNTS
+
+Lines are not the argument for tuirealm either way. chrome.rs is 360 because it
+has per-component types and real hit-testing, and the same file written against
+plain ratatui would be a different 360 rather than a smaller one. The argument
+for the framework is the routing model; the argument against it is in
+reports/geometry.md.

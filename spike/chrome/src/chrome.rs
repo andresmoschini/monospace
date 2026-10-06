@@ -14,7 +14,7 @@ use tuirealm::event::{
 use tuirealm::props::{AttrValue, Attribute, Props, QueryResult};
 use tuirealm::ratatui::Frame;
 use tuirealm::ratatui::layout::Rect;
-use tuirealm::ratatui::style::{Color, Style, Styled};
+use tuirealm::ratatui::style::{Color, Style};
 use tuirealm::ratatui::text::Line;
 use tuirealm::ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use tuirealm::state::State;
