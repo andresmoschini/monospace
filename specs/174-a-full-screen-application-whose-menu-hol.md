@@ -49,6 +49,9 @@ what this spec takes from it is measured, not summarized.
   proved by a specification.
 - **The top bar's states**: at rest, under the mouse, focused by the keyboard, and pressed, with the
   way out reachable by a key, by a click on the button, and by the focused control.
+- **Focus, both how it is shown and how a key finds its way to whatever holds it**, following the
+  convention `lazygit`, `tmux` and `gocui` share and `cursive`'s documented event order, rather than
+  a mode in the application's state.
 - The application state as a struct, with an action enum over it. Every way of reaching the way out
   becomes one action rather than three code paths.
 - `docs/application-model.md`, created, owning what the application is and what a key does to it,
@@ -237,20 +240,56 @@ without a terminal, and the run is the resize.
 
 **Answered by** the maintainer, in the session that wrote this.
 
-**D8 — the chrome's states are shown by color, and the mouse state is the only one color carries.**
+**D8 — focus is shown the way the established terminal applications show it, and a key goes to
+whatever holds focus rather than to a mode.**
 
-**Answer:** four states per control — at rest, under the mouse, focused by the keyboard, pressed —
-and color distinguishes them, with the mouse state shown by a background and the focused state by
-reversed text. **Why not** reverse video alone for all four: reverse video is one bit per cell and
-four states need two, so at least one state is a different mechanism anyway. **Why not** the shape
-of the border: a border change is visible at rest and under the mouse and barely visible under a
-pressed finger. **What it costs, and this is a real borrowing:** `docs/model.md` holds color open
-under _Deliberately unresolved_ — _"it would be a good way to test whether that rule generalizes"_ —
-and this decision spends that for the chrome. **Why that is acceptable here and is not a claim about
-the model:** what a cell means belongs to the domain and what it looks like belongs to the front
-end, which is the constraint already written down. A chrome control is not a diagram cell, so no
-cell in `monospace-core` gains a color and the degradation rule is untouched. **What reopens it:**
-the first selected shape, which is #177's and needs the model's answer, not this one's.
+**Answer:** two halves, both taken from what is already in wide use rather than invented here. **How
+focus is shown:** the region holding the keyboard is drawn with a different border, which is the
+convention `lazygit` and `tmux` both use and which `gocui` implements as a per-view
+`SelBgColor`/`SelFgColor`/`SelFrameColor` triple applied to the focused view's frame; a focused
+control inside that region is drawn in reverse video, and a control under the mouse is drawn with a
+background. **How keys are routed:** the loop offers the event to whatever holds focus, and only
+what nothing took falls through to the application's own keys — which is `cursive`'s documented
+order (_"If the menubar is active, it will be handled the event. The view tree will be handled the
+event. If ignored, `global_callbacks` will be checked for this event"_) and `gocui`'s, which
+iterates its bindings, runs the first whose view matches the current view, and falls back to the
+view-less one.
+
+**Why not** a `Mode` enum such as `Mode::Normal | Mode::Insert` deciding who gets the keyboard: it
+is the other pattern, and `ratatui`'s own `popup` example uses a bare boolean of exactly that shape
+— but read as a whole that example **does not gate key handling on it**, so it shows the rendering
+and not the capture. A mode answers _"which place does this key go to?"_ and a focus answers the
+same question without a second thing to keep in step with the first. A mode earns its place only
+when keys mean _different verbs_ rather than _going to different places_ — vim's normal and insert —
+and this application has no such pair yet. **What it costs:** the loop grows an owner and a fallback
+where a boolean would have been one field, and the rule _"an open pop-up holds the keyboard"_ now
+lives in one place instead of in every key handler. **Why the application supplies none of this
+itself:** `ratatui 0.30.2` has no `Focusable`, no `FocusState` and no focus of any kind — its state
+types are `ListState`, `TableState`, `ScrollbarState` and `Viewport`, and focus is not among them.
+The ecosystem answers this with crates of a few thousand downloads each or with convention, and the
+convention is the cheaper half.
+
+**Why reverse video for the keyboard and a border for the region, which are two different
+mechanisms.** The two states are different in kind — one is _where the keyboard is_, the other is
+_what the mouse is over_ — and one mechanism per kind is what makes them tellable apart. **And
+reverse video rather than a second color for the focused control**, which is the part worth
+recording: WCAG 2.2 SC 1.4.1 names inverting foreground and background as a way of distinguishing an
+element that passes without relying on hue, and the same criterion names as one of its benefits that
+_"people using limited color or monochrome displays"_ are not locked out. A terminal can be
+monochrome. A cyan border against a grey one collapses to nearly nothing there; reverse video does
+not. **What it costs, and this is a real borrowing:** `docs/model.md` holds color open under
+_Deliberately unresolved_ — _"it would be a good way to test whether that rule generalizes"_ — and
+this decision spends that for the chrome. **Why that is acceptable here and is not a claim about the
+model:** what a cell means belongs to the domain and what it looks like belongs to the front end,
+which is the constraint already written down. A chrome control is not a diagram cell, so no cell in
+`monospace-core` gains a color and the degradation rule is untouched. **What reopens it:** the first
+selected shape, which is #177's and needs the model's answer, not this one's.
+
+**What this decision leaves open, named so it is not mistaken for settled:** what the composed
+states look like. A control that is both focused and under the mouse carries two cues at once, and a
+background tint under reverse video can read as one state rather than as two. Which takes precedence
+is a rendering rule rather than a decision about what the states are, and it settles when the first
+screen shows a control in both states at once.
 
 **Answered by** the maintainer, in the session that wrote this.
 
@@ -300,12 +339,18 @@ in the building pull request:
 8. Mouse events are captured while the application runs and released when it ends.
 9. A click is tested against the rectangle the control was drawn into. A click outside every
    control's rectangle names no action.
-10. The region the diagram goes into is drawn, and holds nothing else: no diagram, and no file is
+10. The region holding the keyboard is drawn with a different border from the others, and a focused
+    control inside it is drawn in reverse video while a control under the mouse is drawn with a
+    background. An indicator that is shown persists while the state it shows lasts.
+11. An event is offered to whatever holds focus first, and only what nothing took falls through to
+    the application's own keys. An open pop-up holds the keyboard while it is open, so the keys that
+    would move the diagram do nothing while it is.
+12. The region the diagram goes into is drawn, and holds nothing else: no diagram, and no file is
     read.
-11. A drop-down opens over the region and closes again, and the region is byte-identical afterwards.
-12. The crate holds no domain logic and reaches no other crate in the workspace, which is what
+13. A drop-down opens over the region and closes again, and the region is byte-identical afterwards.
+14. The crate holds no domain logic and reaches no other crate in the workspace, which is what
     `README.md` promises of the TUI when it explains why the CLI comes first.
-13. The terminal is given back by a guard rather than by a line, so that a panic unwinding through
+15. The terminal is given back by a guard rather than by a line, so that a panic unwinding through
     the loop restores it. This is unchanged by D6 and does not become a framework's panic hook: the
     guard is reachable from a test and the hook is not.
 
@@ -348,33 +393,41 @@ that second run, and says nothing when it stops working.
 
 None of these tests exists yet. The names are what the building stage is held to.
 
-| Rule | Test                                                                         |
-| ---- | ---------------------------------------------------------------------------- |
-| 1    | `the_application_gives_the_whole_screen_back_when_it_ends`                   |
-| 2    | `a_panic_ends_the_application_with_the_terminal_as_it_was_found`             |
-| 2    | `the_input_mode_the_application_found_is_the_one_it_leaves_behind`           |
-| 3    | `the_bar_is_at_the_top_and_the_status_bar_is_at_the_bottom`                  |
-| 3    | `the_region_between_them_takes_the_rest_of_the_screen`                       |
-| 4    | `the_control_has_four_states_and_shows_which_one_it_is_in`                   |
-| 5    | `a_key_reaches_the_state_only_as_an_action`                                  |
-| 6    | `the_way_out_is_one_action_reached_by_a_key_a_click_and_the_focused_control` |
-| 6    | `a_click_on_the_control_and_its_key_apply_the_same_action`                   |
-| 7    | `a_key_that_names_no_action_changes_nothing_and_reports_nothing`             |
-| 7    | `a_click_that_names_no_action_changes_nothing_and_reports_nothing`           |
-| 8    | `the_terminal_gives_up_mouse_capture_when_the_application_ends`              |
-| 9    | `a_click_inside_a_controls_rectangle_names_its_action`                       |
-| 9    | `a_click_outside_every_rectangle_names_no_action`                            |
-| 9    | `a_control_hit_tested_against_its_rectangle_answers_after_a_resize`          |
-| 10   | `the_region_holds_the_drawing_and_nothing_else`                              |
-| 11   | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`                |
-| 13   | `a_panic_through_the_loop_gives_the_terminal_back_without_a_line`            |
-| 12   | nothing holds this, and it is named here rather than claimed done            |
+| Rule | Test                                                                              |
+| ---- | --------------------------------------------------------------------------------- |
+| 1    | `the_application_gives_the_whole_screen_back_when_it_ends`                        |
+| 2    | `a_panic_ends_the_application_with_the_terminal_as_it_was_found`                  |
+| 2    | `the_input_mode_the_application_found_is_the_one_it_leaves_behind`                |
+| 3    | `the_bar_is_at_the_top_and_the_status_bar_is_at_the_bottom`                       |
+| 3    | `the_region_between_them_takes_the_rest_of_the_screen`                            |
+| 4    | `the_control_has_four_states_and_shows_which_one_it_is_in`                        |
+| 5    | `a_key_reaches_the_state_only_as_an_action`                                       |
+| 6    | `the_way_out_is_one_action_reached_by_a_key_a_click_and_the_focused_control`      |
+| 6    | `a_click_on_the_control_and_its_key_apply_the_same_action`                        |
+| 7    | `a_key_that_names_no_action_changes_nothing_and_reports_nothing`                  |
+| 7    | `a_click_that_names_no_action_changes_nothing_and_reports_nothing`                |
+| 8    | `the_terminal_gives_up_mouse_capture_when_the_application_ends`                   |
+| 9    | `a_click_inside_a_controls_rectangle_names_its_action`                            |
+| 9    | `a_click_outside_every_rectangle_names_no_action`                                 |
+| 9    | `a_control_hit_tested_against_its_rectangle_answers_after_a_resize`               |
+| 10   | `the_region_holding_the_keyboard_is_drawn_with_a_different_border`                |
+| 10   | `a_focused_control_is_drawn_in_reverse_video_and_a_hovered_one_in_the_background` |
+| 10   | `a_focus_indicator_is_shown_for_as_long_as_the_focus_lasts`                       |
+| 11   | `a_key_goes_to_whatever_holds_focus_before_the_applications_own_keys`             |
+| 11   | `the_diagrams_keys_do_nothing_while_a_pop_up_is_open`                             |
+| 12   | `the_region_holds_the_drawing_and_nothing_else`                                   |
+| 13   | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`                     |
+| 15   | `a_panic_through_the_loop_gives_the_terminal_back_without_a_line`                 |
+| 14   | nothing holds this, and it is named here rather than claimed done                 |
 
-Rules 9 and 11 are what this slice is for, and rule 9's third test is the one the spike demonstrated
-by failing. Rule 12 is not a rule a test can read: it is a statement about what the crate depends
-on, and nothing in the gate reaches it — the `wasm` step does not name this crate precisely because
-it is not portable. It is written down because `README.md` promises it, and it is reviewed by
-reading the manifest.
+Rules 9, 10 and 11 are what this slice is for, and rule 9's third test is the one the spike
+demonstrated by failing. Rules 10 and 11 are each a pure function of what was drawn and of which
+region holds focus, so they are snapshot tests rather than assertions about a live terminal; rule 11
+is the one to read first if the tests are slow, because it is the rule whose absence is invisible —
+nothing fails when a pop-up takes keys that were never meant to go to it. Rule 14 is not a rule a
+test can read: it is a statement about what the crate depends on, and nothing in the gate reaches it
+— the `wasm` step does not name this crate precisely because it is not portable. It is written down
+because `README.md` promises it, and it is reviewed by reading the manifest.
 
 **Every picture of the screen is a snapshot.** `ratatui`'s `TestBackend` renders the whole screen to
 a buffer with no terminal involved, and the building stage holds the three regions, the four states
@@ -403,22 +456,43 @@ Four things are measured rather than tested:
 
 ## Open questions
 
-Two, and neither is answered here.
+One, and it is recorded here in full because D8 moved the ground under it rather than because the
+question is hard.
 
-**What shows that a region holds focus?** D8 gives the four states of a control, and the focused
-state is one of them, but the region the diagram is drawn into has its own question: with a top bar
-that can take the keyboard and a pop-up that can take it, what says which one has it, and what
-happens to the diagram's keys while a pop-up is up. `tuirealm` would have answered this — its `View`
-manages focus and event forwarding — and this decision declines it, so the answer is ours to write.
-**What would settle it:** the first pop-up that has a text field, because that is where the
-ambiguity stops being hypothetical.
+**Where does the keybinding table live, and what is a binding made of?** This is now the largest
+thing the application owns that no dependency holds for it, and it is worth being precise about why.
 
-**Where does the keybinding table live?** `cursive` was declined partly for having none, `tuirealm`
-for not offering one, and `ratatui` for not being in the business — which leaves it to the
-application. Whether that table is a `match` in the loop, a table of `(KeyEvent, Action)` pairs, or
-something configurable is not decided, and #181's undo is the first thing that will feel the
-difference. **What would settle it:** the first command that has both a key and a menu item, because
-that is where one binding has to answer to two places.
+Each of the three candidates was declined for a different reason, and none of those reasons is about
+this question — which is exactly why it is open rather than answered:
+
+- `cursive` was declined in D6 partly because it has no declarative keybinding layer: `cursive.toml`
+  configures colors only, the theme loader has no `[keys]` section, and the request to remap a key
+  to an in-app action has been open since 2023-03-16
+  ([#720](https://github.com/gyscos/cursive/issues/720)). That is a fact about `cursive`, not a
+  decision about this application.
+- `tuirealm` was declined in D6 for geometry and for lines. Its subscriptions are a keybinding
+  mechanism and were noted as the one thing it offered, so this question is the last remaining
+  shadow of that decision.
+- `ratatui` is not in the business at all. Its full trait list carries no focus, and no binding, and
+  its state types are `ListState`, `TableState`, `ScrollbarState` and `Viewport`.
+
+So the table is ours, and the shapes it could take are three. **A `match` in the loop** is the
+smallest and is what this slice writes, because there is one action and one key and a `match` says
+exactly that. **A table of `(KeyEvent, Action)` pairs** is the same shape with the data lifted out
+of the code, which is what a help screen reads and what makes a binding listable rather than
+scattered. **A configurable table** — one a file could rewrite — is a different thing again, and it
+is the one that was implicitly promised when `cursive` was rejected for not having it.
+
+**What would settle it:** the first command that is reachable both by a key and by a menu item,
+because that is where one binding has to answer to two places and the duplication becomes visible.
+Before then the `match` is honest, and a table lifted out early would be a shape justified by
+nothing in the application. #181's undo is the first action with several routes to it, so it is
+likely to be the thing that forces the answer rather than the menu.
+
+**One part of it is decided anyway, by D8's routing rule:** a binding is not _"what does this key
+do"_ but _"what does this key do here"_ — offered to whatever holds focus first, falling through
+only if nothing took it. A table therefore has two dimensions from the start, not one, which is the
+main thing the table's eventual shape has to accommodate.
 
 Everything else that surfaced while writing this became another issue rather than a section here:
 the gap in the `specs` step that let a merged deciding pull request leave a spec reading `draft`,
