@@ -3,3 +3,7 @@ node_modules/
 .cspellcache
 .claude/settings.local.json
 .sdd-v2/
+
+# A spike is not a workspace member and may be more than one crate deep, so nothing in the gate builds
+# it and nothing cleans it. `/target` above cannot reach it: that rule is anchored at the root.
+/spike/**/target/
