@@ -190,6 +190,8 @@ const GATE: &[Step] = &[
                 "-p",
                 "monospace-core",
                 "-p",
+                "monospace-description",
+                "-p",
                 "monospace-diagram",
                 "-p",
                 "monospace-glyph-sets",

@@ -104,9 +104,13 @@ the first thing to bend it. Orchestrating subprocesses and propagating exit code
 
 ## Facts that are in the code and in no document
 
-- **The `wasm` step compiles three crates, not one**: `monospace-core`, `monospace-diagram` and
-  `monospace-glyph-sets`. A `std::io` or `std::process` reach in the core fails there even where it
-  works locally.
+- **The `wasm` step names the crates it checks, and that list is the whole of the guarantee.** It
+  compiles `monospace-core`, `monospace-diagram`, `monospace-glyph-sets` and `monospace-description`
+  for `wasm32-unknown-unknown`. **What it catches is narrow, and measured:** `std::os::unix` and
+  anything else the wasm target has no module for fails to compile, but `std::fs`, `std::process`,
+  `std::io`, `std::net`, `std::thread` and `std::time` all **compile** — they exist in the wasm std
+  and fail at runtime instead. So the step keeps a crate free of OS-specific APIs and of
+  dependencies that will not build for wasm; it does not keep one from reaching for the filesystem.
 - **`monospace-cli` has two modes, and `render` depends on the split.** Bare, it prints the
   demonstration; given a path, it prints one picture and nothing else, because a rendering that goes
   into a Markdown fence cannot arrive wrapped in prose. Do not add output to the path form.

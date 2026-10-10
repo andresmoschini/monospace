@@ -8,14 +8,16 @@ license.workspace = true
 
 [dependencies]
 monospace-core.workspace = true
+monospace-description.workspace = true
 monospace-diagram.workspace = true
 monospace-glyph-sets.workspace = true
-serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.151"
 
 [dev-dependencies]
 # The characterization in `src/sweep.rs`, at the same version the other two crates pin for theirs.
 insta = "1.48.0"
+# Only the tests build and rewrite JSON by hand (`serde_json::json!`), to vary one field of the
+# shipped description. Production code reaches JSON through `monospace-description` alone.
+serde_json = "=1.0.151"
 
 [lints]
 workspace = true

@@ -1,7 +1,7 @@
 //! Minimal non-interactive command-line front end for Monospace.
 //!
-//! It holds no domain logic of its own: it converts the description format its `description`
-//! module documents in prose into a `monospace_diagram::Diagram` and draws it.
+//! It holds no domain logic of its own: it reads a description with `monospace-description`, which
+//! turns the format's JSON into a `monospace_diagram::Diagram`, and draws it.
 //!
 //! # Design notes
 //!
@@ -36,12 +36,10 @@
 //! demonstration can say nothing about working at all: an empty one, and a one-box one whose
 //! four-by-three window does not reach three of the four offsets.
 
-mod description;
-
 use std::process::ExitCode;
 
-use description::Description;
 use monospace_core::{Buffer, Direction, GlyphCatalog, Offset, Pos, Size, Terminal};
+use monospace_description::{Window, parse};
 use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape};
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
@@ -91,8 +89,8 @@ fn main() -> ExitCode {
         }
     };
 
-    let description = match serde_json::from_str::<Description>(&text) {
-        Ok(description) => description,
+    let (diagram, window) = match parse(&text) {
+        Ok(parsed) => parsed,
         Err(error) => {
             eprintln!("{error}");
             return ExitCode::FAILURE;
@@ -102,20 +100,17 @@ fn main() -> ExitCode {
     print!(
         "{}",
         if demonstrating {
-            demonstrate(description)
+            demonstrate(diagram, window)
         } else {
-            render_once(description)
+            render_once(&diagram, window)
         }
     );
     ExitCode::SUCCESS
 }
 
-/// Renders `description` into its own window, as one picture and nothing else.
-fn render_once(description: Description) -> String {
-    let (origin, size) = description.window();
-    let diagram = description.into_diagram();
-
-    picture(&diagram, &glyph_catalog(), origin, size)
+/// Renders `diagram` into `window`, as one picture and nothing else.
+fn render_once(diagram: &Diagram, window: Window) -> String {
+    picture(diagram, &glyph_catalog(), window.origin, window.size)
 }
 
 /// Draws `diagram` into a fresh window of `size` and hands back the buffer beside its rendering.
@@ -165,9 +160,9 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 /// replaces a written assumption about this description with the record, which is what an interactive
 /// front end would have to do and what the first seven steps have no way to check. A figure added
 /// before any of the three would move the answer, and the pictures below it are what catch that.
-fn demonstrate(description: Description) -> String {
-    let (origin, size) = description.window();
-    let mut diagram = description.into_diagram();
+fn demonstrate(mut diagram: Diagram, window: Window) -> String {
+    let origin = window.origin;
+    let size = window.size;
     let catalog = glyph_catalog();
 
     // The first drawing, kept rather than thrown away: the three identities are read out of it, and
@@ -399,7 +394,23 @@ mod tests {
     };
     use monospace_diagram::ShapeId;
 
-    use super::{Description, demonstrate, drawn, glyph_catalog, render_once};
+    use super::{demonstrate, drawn, glyph_catalog, render_once};
+    use crate::parse;
+
+    /// The picture `json` renders to, parsed first.
+    ///
+    /// Two helpers rather than one that takes the pair, because every caller here has text and
+    /// wants a `String` and none of them is about the window on its own.
+    fn render_json(json: &str) -> String {
+        let (diagram, window) = parse(json).expect("well-formed description");
+        render_once(&diagram, window)
+    }
+
+    /// The demonstration over `json`, parsed first.
+    fn demonstrate_json(json: &str) -> String {
+        let (diagram, window) = parse(json).expect("well-formed description");
+        demonstrate(diagram, window)
+    }
 
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
     fn identity(ordinal: u32) -> ShapeId {
@@ -417,12 +428,11 @@ mod tests {
         }"#
     }
 
-    /// A one-box `Description` renders the same text as a `BoxShape` drawn directly with the same
+    /// A one-box description renders the same text as a `BoxShape` drawn directly with the same
     /// parameters.
     #[test]
     fn a_one_box_description_renders_the_same_as_a_box_shape_drawn_directly() {
-        let description: Description =
-            serde_json::from_str(one_box_json()).expect("well-formed description");
+        let (diagram, window) = parse(one_box_json()).expect("well-formed description");
 
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
@@ -439,7 +449,7 @@ mod tests {
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
         let expected = render(&buffer, &GlyphCatalog::light(), origin, size);
 
-        assert_eq!(render_once(description), expected);
+        assert_eq!(render_once(&diagram, window), expected);
     }
 
     /// A file's picture is the demonstration's first picture with nothing around it: no caption
@@ -450,12 +460,8 @@ mod tests {
     fn rendering_once_is_the_demonstrations_first_picture_and_nothing_else() {
         let (first, ..) = demonstrated_pictures(one_box_json());
 
-        assert_eq!(render_once(parse(one_box_json())), first);
-    }
-
-    /// Parses `json` as a description, which every test here writes by hand.
-    fn parse(json: &str) -> Description {
-        serde_json::from_str(json).expect("well-formed description")
+        let (diagram, window) = parse(one_box_json()).expect("well-formed description");
+        assert_eq!(render_once(&diagram, window), first);
     }
 
     /// The demonstration's **eight** pictures, found by the blank line between them and returned
@@ -483,7 +489,7 @@ mod tests {
         String,
         String,
     ) {
-        let output = demonstrate(parse(json));
+        let output = demonstrate_json(json);
         let mut blocks = output.split("\n\n");
         let mut next_picture = || {
             let block = blocks
@@ -659,8 +665,8 @@ mod tests {
 
         // The first picture is the shipped file's own, byte for byte, and a path prints that and
         // nothing else.
-        assert_eq!(first, render_once(parse(super::DEMO)));
-        assert_eq!(first2, render_once(parse(&with_the_point)));
+        assert_eq!(first, render_json(super::DEMO));
+        assert_eq!(first2, render_json(&with_the_point));
 
         // The fifth picture still shows the box the arrow hangs from displaced four cells right,
         // because that is the demonstration's own change to the picture and not the file's.
@@ -681,7 +687,7 @@ mod tests {
     /// `the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names`'s.
     #[test]
     fn a_bare_run_prints_eight_captioned_pictures_the_first_being_the_description_as_written() {
-        let output = demonstrate(parse(super::DEMO));
+        let output = demonstrate_json(super::DEMO);
 
         assert_eq!(
             output.split("\n\n").count(),
@@ -690,7 +696,7 @@ mod tests {
         );
 
         let (first, ..) = demonstrated_pictures(super::DEMO);
-        assert_eq!(first, render_once(parse(super::DEMO)));
+        assert_eq!(first, render_json(super::DEMO));
     }
 
     /// `render_once` over a path prints one picture and nothing else, which is what `cargo xtask
@@ -702,7 +708,7 @@ mod tests {
     #[test]
     fn a_path_prints_one_picture_and_nothing_else() {
         let (first, ..) = demonstrated_pictures(super::DEMO);
-        let once = render_once(parse(super::DEMO));
+        let once = render_json(super::DEMO);
 
         assert_eq!(
             once, first,
@@ -781,7 +787,7 @@ mod tests {
             "the displacement reached outside the figure's own cells: {moved:?}"
         );
 
-        assert_eq!(fourth, render_once(parse(&demo_without_its_first_entry())));
+        assert_eq!(fourth, render_json(&demo_without_its_first_entry()));
     }
 
     /// The columns and rows the fifth picture's box holds before and after, and the column the
@@ -1148,10 +1154,9 @@ mod tests {
     /// says at a position, not what `demonstrate` decided to write in a caption.
     #[test]
     fn the_shape_a_position_resolves_to_is_the_front_most_of_the_two_that_wrote_it() {
-        let (origin, size) = parse(super::DEMO).window();
-        let diagram = parse(super::DEMO).into_diagram();
+        let (diagram, window) = parse(super::DEMO).expect("the shipped description reads");
         let catalog = glyph_catalog();
-        let (buffer, picture) = drawn(&diagram, &catalog, origin, size);
+        let (buffer, picture) = drawn(&diagram, &catalog, window.origin, window.size);
 
         for (x, y, glyph, expected) in THE_CROSSING_CELLS {
             let at = Pos {
@@ -1226,9 +1231,8 @@ mod tests {
     /// **behind**. `5` is listed after `6` and so is in front, which is why the record names `6`.
     #[test]
     fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
-        let (origin, size) = parse(super::DEMO).window();
-        let diagram = parse(super::DEMO).into_diagram();
-        let (buffer, _) = drawn(&diagram, &glyph_catalog(), origin, size);
+        let (diagram, window) = parse(super::DEMO).expect("the shipped description reads");
+        let (buffer, _) = drawn(&diagram, &glyph_catalog(), window.origin, window.size);
 
         for (at, expected, what) in [
             (

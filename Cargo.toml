@@ -2,6 +2,7 @@
 members = [
     "crates/monospace-cli",
     "crates/monospace-core",
+    "crates/monospace-description",
     "crates/monospace-diagram",
     "crates/monospace-glyph-sets",
     "xtask",
@@ -16,6 +17,7 @@ license = "MIT"
 
 [workspace.dependencies]
 monospace-core = { path = "crates/monospace-core" }
+monospace-description = { path = "crates/monospace-description" }
 monospace-diagram = { path = "crates/monospace-diagram" }
 monospace-glyph-sets = { path = "crates/monospace-glyph-sets" }
 
