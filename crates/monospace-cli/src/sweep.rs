@@ -58,7 +58,7 @@ use std::fmt::Write as _;
 
 use monospace_core::{Buffer, Size};
 
-use crate::description::Description;
+use monospace_description::Description;
 
 /// The five tables a shape can be drawn in on its own. The four mixing tables are deliberately
 /// absent: they hold only the mixtures between two of these, and a shape carries one stroke.

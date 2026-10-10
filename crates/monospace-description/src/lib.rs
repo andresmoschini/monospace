@@ -1,10 +1,10 @@
 //! The diagram description format: JSON types deserialized from a file and converted into a
 //! `monospace_diagram::Diagram` and the `monospace_core::Buffer` its canvas describes.
 //!
-//! Every type here is private to `monospace-cli` and exists only for this conversion. The
-//! format is **provisional**: a demo convenience never designed to be the core's own description,
-//! kept in this binary so that what the core accepts stays a question waiting for a slice that
-//! needs it, which is the evidence that question asks for.
+//! Every type here exists only for this conversion. The format is **provisional**: a demo
+//! convenience never designed to be the core's own description, kept in this crate so that what the
+//! core accepts stays a question waiting for a slice that needs it, which is the evidence that
+//! question asks for.
 //!
 //! # The envelope
 //!
@@ -25,8 +25,7 @@
 //!   is a **nonzero** ordinal, because zero is not an identity; `"next_id": 0` is refused here
 //!   rather than seeded with something no shape can carry.
 //! - **`shapes`** is the figures in drawing order, empty or not, the last front-most and deciding a
-//!   shared cell first. Each entry names a `kind` and carries the `id` its shape is held under —
-//!   [`ShapeDescription`] is the three kinds and [`Description`] the whole of the file.
+//!   shared cell first. Each entry names a `kind` and carries the `id` its shape is held under.
 
 use std::num::NonZeroU32;
 
@@ -468,7 +467,8 @@ pub struct Description {
 
 impl Description {
     /// The canvas's origin and size, converted to `monospace_core` types.
-    pub(crate) fn window(&self) -> (monospace_core::Pos, monospace_core::Size) {
+    #[must_use]
+    pub fn window(&self) -> (monospace_core::Pos, monospace_core::Size) {
         (self.canvas.origin.into(), self.canvas.size.into())
     }
 
@@ -482,7 +482,8 @@ impl Description {
     /// A shape a connector names before the entry carrying it is written still resolves, because
     /// resolution happens at draw time and the whole diagram exists by then. That edge case needs
     /// no code here; it is what a completed vector of placements means.
-    pub(crate) fn into_diagram(self) -> Diagram {
+    #[must_use]
+    pub fn into_diagram(self) -> Diagram {
         let mut diagram = Diagram::numbered_from(self.next_id);
         for shape in self.shapes {
             diagram.add_under(shape.id(), shape.into());
@@ -493,8 +494,23 @@ impl Description {
 
 #[cfg(test)]
 mod tests {
+    use monospace_core::{Buffer, GlyphCatalog};
+
     use super::Description;
-    use crate::render_once;
+
+    /// The rendering of a parsed description, drawn into the window it names.
+    ///
+    /// **The core's own Light table, and no glyph set beside it.** Every shape these tests draw is
+    /// in `light`, which is what Light covers, and the two that need a picture are about what a
+    /// reference resolves to rather than about how a stroke draws.
+    fn render_once(description: Description) -> String {
+        let (origin, size) = description.window();
+        let diagram = description.into_diagram();
+
+        let mut buffer = Buffer::new(origin, size);
+        diagram.draw(&mut buffer);
+        monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
+    }
 
     /// An unrecognized `kind` fails to deserialize and names the unrecognized value.
     #[test]

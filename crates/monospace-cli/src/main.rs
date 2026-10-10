@@ -36,12 +36,10 @@
 //! demonstration can say nothing about working at all: an empty one, and a one-box one whose
 //! four-by-three window does not reach three of the four offsets.
 
-mod description;
-
 use std::process::ExitCode;
 
-use description::Description;
 use monospace_core::{Buffer, Direction, GlyphCatalog, Offset, Pos, Size, Terminal};
+use monospace_description::Description;
 use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape};
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
