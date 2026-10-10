@@ -24,7 +24,9 @@ exposed by the core at all.
 
 What this document does not describe: how a diagram is read from a file or written to one, how
 positions are computed for a caller who does not want to give them, and anything about an
-interactive application. Those are layers above this one.
+interactive application. Those are layers above this one. The first of them now has a document of
+its own: [`session-model.md`](session-model.md) owns what holds a diagram while it is being changed
+and what gives a change back, and this one stays the diagram itself.
 
 ## 1. Vocabulary
 
