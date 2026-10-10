@@ -24,9 +24,11 @@ exposed by the core at all.
 
 What this document does not describe: how a diagram is read from a file or written to one, how
 positions are computed for a caller who does not want to give them, and anything about an
-interactive application. Those are layers above this one. The first of them now has a document of
-its own: [`editing-model.md`](editing-model.md) owns what it means to change a diagram, and this one
-stays the diagram itself.
+interactive application. Those are layers above this one, and two of them now have documents of
+their own: [`editing-model.md`](editing-model.md) owns what it means to change a diagram, and
+[`monospace-description`](../crates/monospace-description) owns the file format — the latter with no
+document beside it, because nothing about it is decided here that is not decided by the JSON. This
+one stays the diagram itself.
 
 ## 1. Vocabulary
 
@@ -430,10 +432,11 @@ that needs one of them answered amends this document first and then implements t
 - **What does a group of shapes do to this model?** Issue #58 asks for one, and groups are
   deliberately out of scope here. A group contains shapes, which is the first thing in this document
   that would want to speak about shapes generically rather than by kind.
-- **Is a diagram serializable, and in what?** The command-line application's file format is kept out
-  of the model, and nothing here reverses that: it is a demo convenience, every type in it is
-  private to that binary, and it is **provisional** — kept there precisely so that what the core
-  accepts stays a question waiting for the slice that needs it, which is the evidence
-  [`model.md`](model.md) asks for. See
-  [`description.rs`](../crates/monospace-cli/src/description.rs). What would settle it: the first
-  consumer that has to save a diagram rather than build one.
+- **Is a diagram serializable, and in what?** Settled: in JSON, by
+  [`monospace-description`](../crates/monospace-description), which is a layer above this one and
+  holds no domain logic — it reads a file into a `Diagram` and knows nothing of this crate's
+  operations. The format is **no longer provisional**, which is what the application saving a
+  diagram settles: a format nobody has to write has no obligations, and one somebody's files depend
+  on does. What the format still does not have is a **writer**, and what that would owe a reader —
+  what changes, what breaks, whether a version is named — is unsettled and is the next question
+  here. See [the crate](../crates/monospace-description/src/lib.rs).

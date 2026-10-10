@@ -16,7 +16,10 @@ drawn and dropped. This layer is a live thing that contains one.
 
 What this document does not describe: what is selected, what is on the screen, how a diagram is read
 from a file or written to one, and anything about a terminal. Those are layers above or beside this
-one, and none of them is known here.
+one, and none of them is known here. The file format is the first of them:
+[`monospace-description`](../crates/monospace-description) reads a diagram in and knows nothing of
+what a session is, and this layer knows nothing of it — the two hang off
+[`monospace-diagram`](diagram-model.md) and neither depends on the other.
 
 ## 1. Vocabulary
 
