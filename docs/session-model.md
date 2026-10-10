@@ -82,10 +82,11 @@ states. Anything that later wants to tell those apart — merging a run of small
 step, which is what a drag needs — has nothing to read in a pair of diagrams. So the change is
 recorded beside the snapshot it belongs to.
 
-**One change is one step.** This is the rule as it stands and it is deliberately the plain one: a
-caller asks, and what it asked for is one thing the caller may give back. It is wrong for a drag,
-which arrives as many small movements and is one gesture to the person making it, and _Deliberately
-unresolved_ says what would settle it.
+**One change is one step, and the session merges nothing.** A caller asks, and what it asked for is
+one thing the caller may give back. The session records and does not interpret: it holds what it was
+told and what the diagram looked like before, and it draws no conclusion from the pair. That is
+wrong for a drag, which arrives as many small movements and is one gesture to the person making it,
+and _Deliberately unresolved_ says what would change it and what the change is already waiting for.
 
 **A change that names nothing is a step like any other.** The diagram's five changes cannot fail, so
 a request naming a shape the diagram does not hold changes nothing — and the session records it all
@@ -132,9 +133,13 @@ ambiguity is worth one sentence rather than two names, because both are diagrams
 
 - **When several changes are one step.** One change is one step is wrong for a drag and for a
   reorder held down through several presses, both of which arrive as many small changes and are one
-  gesture to the person making them. What is not open is where the answer lives: the change is
-  recorded beside the snapshot precisely so that a rule can read it, so this is a rule to write and
-  not a place to move. It would come back when a caller produces a gesture that undo makes useless.
+  gesture to the person making them. What is not open is where the answer lives, and it is the
+  answer's **input** that is settled: the change is recorded beside the snapshot precisely so that a
+  rule can read it, so this is a rule to write and not a place to move. What the rule would have to
+  read is the harder half, and it is the harder half because `replace` is four operations wearing
+  one name — a displacement, a resize, a change of stroke and a change of kind are all one `replace`
+  — so consecutive replacements cannot be told apart without a rule that can tell a displacement
+  from the rest. It would come back when a caller produces a gesture that undo makes useless.
 - **How many steps a session keeps.** Nothing here bounds the history, and a diagram is a value
   rather than a handful of bytes, so an unbounded history is an unbounded amount of memory. What
   would settle it: the first diagram big enough for the copies to be felt rather than measured. A
