@@ -66,21 +66,21 @@ passing in CI have to mean the same thing.
 Every step runs even after one fails, so a single run reports everything wrong rather than making
 you fix problems one at a time.
 
-| Step           | What it checks                                                                    |
-| -------------- | --------------------------------------------------------------------------------- |
-| `fmt`          | Rust formatting, `cargo fmt --check`                                              |
-| `prettier`     | Formatting of Markdown, JSON and JSONC, including prose width                     |
-| `markdownlint` | Markdown structure: heading levels, duplicate headings, bare URLs, code fences    |
-| `editorconfig` | Line endings, final newlines and trailing whitespace on every tracked file        |
-| `numbering`    | No two entries under `specs/` claim the same number                               |
-| `specs`        | Every spec carries its nine sections, and its frontmatter answers to its `status` |
-| `cspell`       | Spelling, in code and prose alike                                                 |
-| `clippy`       | Lints, including `pedantic`, with warnings denied                                 |
-| `build`        | The workspace compiles, tests and all                                             |
-| `wasm`         | Every crate but `monospace-cli` still compiles for `wasm32-unknown-unknown`       |
-| `test`         | Unit tests, integration tests and doctests                                        |
-| `doc`          | `cargo doc` builds, with broken intra-doc links denied                            |
-| `render`       | Every generated picture still matches the description beside it                   |
+| Step           | What it checks                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| `fmt`          | Rust formatting, `cargo fmt --check`                                                        |
+| `prettier`     | Formatting of Markdown, JSON and JSONC, including prose width                               |
+| `markdownlint` | Markdown structure: heading levels, duplicate headings, bare URLs, code fences              |
+| `editorconfig` | Line endings, final newlines and trailing whitespace on every tracked file                  |
+| `numbering`    | No two entries under `specs/` claim the same number                                         |
+| `specs`        | Every spec carries its nine sections, and its frontmatter answers to its `status`           |
+| `cspell`       | Spelling, in code and prose alike                                                           |
+| `clippy`       | Lints, including `pedantic`, with warnings denied                                           |
+| `build`        | The workspace compiles, tests and all                                                       |
+| `wasm`         | The crates the step in `xtask/src/main.rs` names still compile for `wasm32-unknown-unknown` |
+| `test`         | Unit tests, integration tests and doctests                                                  |
+| `doc`          | `cargo doc` builds, with broken intra-doc links denied                                      |
+| `render`       | Every generated picture still matches the description beside it                             |
 
 **A step passes or fails on its exit code alone.** That is a deliberate limit with known holes:
 `rustfmt` reports that `group_imports` needs nightly and exits 0, and Cargo reports a missing
@@ -345,6 +345,10 @@ three hold none of it, and the core's public API may not assume a CLI, a TUI or 
 `monospace-core`, the library; `monospace-cli`, a minimal non-interactive consumer producing
 diagrams from the terminal; `monospace-glyph-sets`, the glyph sets the core does not ship as
 built-in data; and `monospace-diagram`, the model holding a diagram after it is drawn.
+
+**A crate is portable because the gate's `wasm` step names it, not because nothing excludes it.**
+That list is the whole of it, so a crate added later that it does not name is outside on the same
+terms as `xtask` and `monospace-cli` already are.
 
 **A plan proposing any of these is stopped and renegotiated rather than quietly widened:**
 WebAssembly bindings, a web front-end, non-terminal GUIs, persistence, collaboration, and export
