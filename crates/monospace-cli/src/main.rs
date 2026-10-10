@@ -6,18 +6,30 @@
 //! # Design notes
 //!
 //! **A file is rendered once; only the bare run demonstrates.** Given a path this prints one
-//! picture and nothing else — no caption, and no shape moved forward. Given no argument it prints
-//! the shipped demonstration: **eight** captioned pictures — as written, with the back-most shape
-//! moved one place toward the front, with that same shape displaced, with that same shape taken
-//! out, with the arrow rehung from the box it already pointed at and that box displaced, with the
-//! arrow itself displaced as well, with the box the arrow hangs from taken out, and with whichever
-//! shape the first picture records as deciding the position `(20, 2)` taken out instead.
+//! picture and nothing else — no caption, no shape moved forward, and nothing walked back. Given
+//! no argument it prints the shipped demonstration: **eight** captioned pictures — as written,
+//! with the back-most shape moved one place toward the front, with that same shape displaced,
+//! with that same shape taken out, with the arrow rehung from the box it already pointed at and
+//! that box displaced, with the arrow itself displaced as well, with the box the arrow hangs from
+//! taken out, and with whichever shape the first picture records as deciding the position
+//! `(20, 2)` taken out instead — and then **one picture per step, walked back**, until the session
+//! holds the picture it began with.
 //!
 //! That split exists because the changes the bare run shows say something only about the
 //! shipped demonstration, whose first two entries are two partially overlapping opaque boxes.
 //! Applied to a file someone hands the binary they are a demonstration's assumptions imposed on
 //! their description. It is also what lets `cargo xtask render` embed this output in a document: a
 //! picture that goes into a Markdown fence cannot arrive wrapped in prose.
+//!
+//! **The whole demonstration runs on a `Session`, and this is the one caller in the repository
+//! that fits without anything invented.** Every change below is a `Command` performed against it
+//! rather than an operation on a diagram it holds, which is what turns the editing layer's
+//! ownership rule from a sentence into something exercised. The seven pictures before the walk
+//! back are the diagram model's own and this crate contributes only the lines under them.
+//!
+//! **The walk back is one picture per step, and a step exists only where the record named a
+//! shape.** So the shipped description walks eight and an empty one walks none, and what a reader
+//! counts is what the session holds rather than what this function chose to draw.
 //!
 //! **The demonstration reads its shapes out of the drawing rather than naming them, and there is
 //! nothing written in beside the lookup to catch a wrong answer.** Every shape it acts on comes from
@@ -38,9 +50,10 @@
 
 use std::process::ExitCode;
 
-use monospace_core::{Buffer, Direction, GlyphCatalog, Offset, Pos, Size, Terminal};
+use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, Size};
 use monospace_description::{Window, parse};
-use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape};
+use monospace_diagram::{Anchor, Delta, Diagram};
+use monospace_editing::{Command, Session};
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
 /// from any working directory and from a binary copied outside a checkout.
@@ -115,7 +128,7 @@ fn render_once(diagram: &Diagram, window: Window) -> String {
 
 /// Draws `diagram` into a fresh window of `size` and hands back the buffer beside its rendering.
 /// Drawing changes nothing about the diagram, which is what lets the demonstration draw one diagram
-/// eight times and change it between two of them.
+/// many times and change it between two of them.
 ///
 /// **The buffer is handed back rather than dropped** because the demonstration asks the first
 /// drawing a question: which shape decided the position it later takes out. Rendering alone cannot
@@ -128,22 +141,31 @@ fn drawn(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> 
     (buffer, text)
 }
 
-/// The rendering of `diagram` drawn into a fresh window, for the seven steps that only need the
-/// picture.
+/// The rendering of `diagram` drawn into a fresh window, for the steps that only need the picture.
+///
+/// A `&Diagram` rather than a `&Session`, because the session hands its diagram out borrowed and
+/// nothing here needs the session itself: this is the whole of what the demonstration asks of the
+/// editing layer, and it is the question a caller repainting on every event actually has.
 fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> String {
     drawn(diagram, catalog, origin, size).1
 }
 
-/// Renders `description` as written, then again with its first entry moved one place toward the
+/// Renders `diagram` as written, then again with its first entry moved one place toward the
 /// front, then again with that same entry displaced, then again with it taken out, then once with the
 /// arrow rehung from the box it already pointed at and that box displaced, then once more with the
 /// arrow itself displaced, then once more again with the box the arrow hangs from taken out, and
 /// once more again with whichever shape the first picture records as deciding `(20, 2)` taken out.
-/// Each picture is under a caption.
+/// Each picture is under a caption, and then the whole run is walked back one picture per step.
 ///
 /// This is the shipped demonstration's output, and every one of its pictures carries a caption.
 /// The changes it shows are meaningful only for that description, which is why a file the binary is
 /// handed goes through [`render_once`] instead.
+///
+/// **Every change below is a `Command` performed against one `Session`**, and none of them is an
+/// operation on a diagram this function holds — the diagram arrives here, goes into the session and
+/// is only ever read back through [`Session::diagram`]. The eight pictures before the walk back are
+/// the diagram model's own; what this function contributes is the line under each one and the
+/// commands above it.
 ///
 /// The first four pictures are about one figure, the entry the description lists first. The fifth
 /// and sixth are appended after them rather than interleaved, and are about two others; the seventh
@@ -160,10 +182,11 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 /// replaces a written assumption about this description with the record, which is what an interactive
 /// front end would have to do and what the first seven steps have no way to check. A figure added
 /// before any of the three would move the answer, and the pictures below it are what catch that.
-fn demonstrate(mut diagram: Diagram, window: Window) -> String {
+fn demonstrate(diagram: Diagram, window: Window) -> String {
     let origin = window.origin;
     let size = window.size;
     let catalog = glyph_catalog();
+    let mut session = Session::new(diagram);
 
     // The first drawing, kept rather than thrown away: the three identities are read out of it, and
     // so is the shape the eighth picture takes out. **None of them is written out here**, and that is
@@ -173,7 +196,10 @@ fn demonstrate(mut diagram: Diagram, window: Window) -> String {
     // Each answer is a four-byte ordinal rather than a borrow of one, so nothing has to outlive the
     // borrow `owner` hands back and the `.cloned()` this used to need is gone: `the_back_most` is
     // read four times across the steps below, after the buffer has been drawn into again.
-    let (as_written, first_picture) = drawn(&diagram, &catalog, origin, size);
+    //
+    // The diagram is read through the session from here on, and it is a borrow that outlives nothing:
+    // every step below is a command, and a command is handed the session rather than the diagram.
+    let (as_written, first_picture) = drawn(session.diagram(), &catalog, origin, size);
     let the_back_most = as_written.owner(THE_BACK_MOST_AT);
     let the_hung_from = as_written.owner(THE_HUNG_FROM_AT);
     let the_arrow = as_written.owner(THE_ARROW_AT);
@@ -221,77 +247,73 @@ fn demonstrate(mut diagram: Diagram, window: Window) -> String {
     // does, and what an empty description does at all three offsets. The picture is printed either
     // way, so a description the demonstration can say nothing about still prints eight of them.
     //
-    // `forward` and `remove` are separately no-ops on an identity the diagram does not hold, so
-    // these guards are narrower than the steps' own: they skip a shape the record never named, which
-    // is a different case from one this diagram does not hold.
+    // **The guards are the demonstration's own and not a command's silence.** A command naming
+    // nothing is a step like any other, so `Command::Remove { id }` on an identity the session's
+    // diagram does not hold would still be recorded and still be walked back over; what these
+    // guards skip is a step the record never named at all, which is a different case and is a
+    // decision about this description rather than about editing. It is also why the walk back
+    // below is shorter for a description with less in it.
     if let Some(the_back_most) = the_back_most {
-        diagram.forward(the_back_most);
+        Command::Forward { id: the_back_most }.perform(&mut session);
     }
     out.push_str("\nWith the back-most shape moved one place forward:\n");
-    out.push_str(&picture(&diagram, &catalog, origin, size));
-
-    if let Some(the_back_most) = the_back_most
-        && let Some(moved) = diagram
-            .get(the_back_most)
-            .map(|shape| shape.displaced_by(by))
-    {
-        diagram.replace(the_back_most, moved);
-    }
-    out.push_str("\nWith that same shape displaced:\n");
-    out.push_str(&picture(&diagram, &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, origin, size));
 
     if let Some(the_back_most) = the_back_most {
-        diagram.remove(the_back_most);
+        Command::Move {
+            id: the_back_most,
+            by,
+        }
+        .perform(&mut session);
+    }
+    out.push_str("\nWith that same shape displaced:\n");
+    out.push_str(&picture(session.diagram(), &catalog, origin, size));
+
+    if let Some(the_back_most) = the_back_most {
+        Command::Remove { id: the_back_most }.perform(&mut session);
     }
     out.push_str("\nWith that same shape taken out:\n");
-    out.push_str(&picture(&diagram, &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, origin, size));
 
     // The arrow's `from` is rehung from the box's right side — the point the description already
     // spells for it, so the fifth picture opens on the same picture the fourth does and the only
     // thing that changes about the arrow is where it starts. It is **read back** rather than
-    // restated: `to`, its direction, its terminal and the stroke are then the description's by
-    // construction, and a restated connector would be four values the demonstration agreed with
-    // the description about, where a disagreement would change the picture instead of failing.
+    // restated, and `Command::Hang` is what reads it back: the command rebuilds the one end that
+    // changes and keeps `to`, the direction, the terminal and the stroke, which are then the
+    // description's by construction. A caller writing the connector out by hand instead would be
+    // agreeing with the description about four values, where a disagreement would change the
+    // picture rather than fail.
     //
-    // The direction and the terminal are written out beside the anchor and are not derived from it:
-    // §6 says both are the caller's, and deriving the direction from the side is
-    // [#89](https://github.com/andresmoschini/monospace/issues/89)'s.
+    // **The direction and the terminal are the ones the end already had and are not derived from
+    // the anchor**: §6 of the diagram model says both are the caller's, and deriving the direction
+    // from the side is [#89](https://github.com/andresmoschini/monospace/issues/89)'s. A `Hang`
+    // carries no field for either, so the command has nowhere to put a different one.
+    //
     // A description whose tenth entry is not a connector, one with no tenth entry at all, and one
-    // whose record names nothing at `(14, 3)`, all have nothing to rehang: the guard falls through
-    // and the picture is the fourth's.
-    if let (Some(the_arrow), Some(the_hung_from)) = (the_arrow, the_hung_from)
-        && let Some(Shape::Connector { to, stroke, .. }) = diagram.get(the_arrow).cloned()
-    {
-        diagram.replace(
-            the_arrow,
-            Shape::Connector {
-                from: Endpoint {
-                    at: Position::Reference(Reference {
-                        id: the_hung_from,
-                        anchor: Anchor::Right,
-                        offset: Delta { dx: 0, dy: 0 },
-                    }),
-                    leaving: Direction::Right,
-                    terminal: Terminal::Arm,
-                },
-                to,
-                stroke,
-            },
-        );
+    // whose record names nothing at `(14, 3)`, all have nothing to rehang. Two of those the guard
+    // below catches by asking whether the record named anything at all; the third is a command
+    // naming an identity the diagram does not hold, which changes nothing and is still a step.
+    if let (Some(the_arrow), Some(the_hung_from)) = (the_arrow, the_hung_from) {
+        Command::Hang {
+            id: the_arrow,
+            from: the_hung_from,
+            anchor: Anchor::Right,
+        }
+        .perform(&mut session);
     }
 
     // And now the figure it hangs from moves, which is what the reference is for: the arrow lands
     // on the box's new side and re-routes to the end that did not move, because that endpoint is
     // still a point and a displacement reaches points.
-    if let Some(the_hung_from) = the_hung_from
-        && let Some(moved) = diagram
-            .get(the_hung_from)
-            .map(|shape| shape.displaced_by(four_right))
-    {
-        diagram.replace(the_hung_from, moved);
+    if let Some(the_hung_from) = the_hung_from {
+        Command::Move {
+            id: the_hung_from,
+            by: four_right,
+        }
+        .perform(&mut session);
     }
     out.push_str("\nWith the arrow now hanging from that box, and the box displaced:\n");
-    out.push_str(&picture(&diagram, &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, origin, size));
 
     // And now the arrow itself moves, which is the sixth picture and the reason the fifth exists:
     // at this point **both** of the arrow's endpoints are references — its `from` rehung above and
@@ -300,23 +322,18 @@ fn demonstrate(mut diagram: Diagram, window: Window) -> String {
     // identical to the fifth, and that is the defect this step exists to show is gone. The sixth is
     // therefore the fifth with the arrow two rows lower and **both boxes standing exactly where
     // they stood**, which is the claim a reader checks with their eyes.
-    //
-    // The `if let` is not optional and is the same one the third and fifth steps carry: the record
-    // may name nothing at `(14, 3)`, and `get` and `replace` are separately no-ops on an identity
-    // this diagram does not hold, which is what keeps a one-shape description — and an empty one —
-    // demonstrating at all.
-    if let Some(the_arrow) = the_arrow
-        && let Some(moved) = diagram
-            .get(the_arrow)
-            .map(|shape| shape.displaced_by(two_down))
-    {
-        diagram.replace(the_arrow, moved);
+    if let Some(the_arrow) = the_arrow {
+        Command::Move {
+            id: the_arrow,
+            by: two_down,
+        }
+        .perform(&mut session);
     }
     out.push_str("\nWith the arrow displaced as well:\n");
-    out.push_str(&picture(&diagram, &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, origin, size));
 
     // And the seventh takes the figure the arrow hangs from **away**, which is the sixth picture with
-    // the box gone and **the arrow exactly where it stood**. `remove` freezes the end that named the
+    // the box gone and **the arrow exactly where it stood**. `Remove` freezes the end that named the
     // box at the point it was resolving to, so the box leaves the picture and the connector does
     // not: the seventh is the sixth with twelve cells blanked and nothing else touched.
     //
@@ -324,17 +341,14 @@ fn demonstrate(mut diagram: Diagram, window: Window) -> String {
     // itself, and the sixth removes a figure that holds no reference — so nothing the shipped binary
     // printed before this step showed the rule at all. The seventh is where a reader sees it.
     //
-    // **No `if let` around the call itself and no `get`**, which is what makes this step read
-    // differently from the six beside it: `remove` hands back nothing, so there is nothing about the
-    // removal to ask. There is an `if let` around **which** shape, and there has to be, because the
-    // record may name none. `3` is the box the demonstration hangs the arrow
-    // from — the same identity the fifth picture displaced — so this step takes out exactly what the
-    // arrow hangs from.
+    // The `if let` is around **which** shape, and there has to be one, because the record may name
+    // none. `3` is the box the demonstration hangs the arrow from — the same identity the fifth
+    // picture displaced — so this step takes out exactly what the arrow hangs from.
     if let Some(the_hung_from) = the_hung_from {
-        diagram.remove(the_hung_from);
+        Command::Remove { id: the_hung_from }.perform(&mut session);
     }
     out.push_str("\nWith the box the arrow hangs from taken out:\n");
-    out.push_str(&picture(&diagram, &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, origin, size));
 
     // And the eighth asks the picture which shape decided one position, and takes that shape out.
     //
@@ -355,14 +369,39 @@ fn demonstrate(mut diagram: Diagram, window: Window) -> String {
     // three shapes the earlier steps touch, so what is removed here is the record's answer and not a
     // side effect of them.
     if let Some(named) = as_written.owner(THE_CROSSING_AT) {
-        diagram.remove(named);
+        Command::Remove { id: named }.perform(&mut session);
     }
     let crossing_caption = format!(
         "\nWith the shape the picture names at ({}, {}) taken out:\n",
         THE_CROSSING_AT.x, THE_CROSSING_AT.y
     );
     out.push_str(&crossing_caption);
-    out.push_str(&picture(&diagram, &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, origin, size));
+
+    // And then the whole run is walked back, one picture per step, until there is nothing behind
+    // the position left to give.
+    //
+    // **The loop asks `can_undo` rather than counting, so the number of pictures is what the session
+    // holds and not what this function chose to draw.** Eight commands reach it for the shipped
+    // description — including the two the fifth picture shares, which is what makes the count eight
+    // where the forward count is seven — and none for an empty one, which then prints the same eight
+    // pictures it always did and walks nowhere.
+    //
+    // **The last caption says what is true rather than what is counted**: after the final `undo`
+    // there is nothing behind the position, so what the picture shows is the diagram the session
+    // was created over, which is the first picture of this run. It is the same equality in the
+    // output and in the test that checks it, and the walk back is where a reader sees undo work
+    // rather than being told that it does.
+    while session.can_undo() {
+        session.undo();
+        let caption = if session.can_undo() {
+            "\nGiven back one step:\n"
+        } else {
+            "\nGiven back every step, which is the picture this run began with:\n"
+        };
+        out.push_str(caption);
+        out.push_str(&picture(session.diagram(), &catalog, origin, size));
+    }
 
     out
 }
@@ -464,18 +503,39 @@ mod tests {
         assert_eq!(render_once(&diagram, window), first);
     }
 
-    /// The demonstration's **eight** pictures, found by the blank line between them and returned
-    /// without their captions, so nothing here pins a caption's wording.
+    /// Every captioned block of a demonstration's output, as a picture without its caption.
     ///
-    /// Each carries exactly the trailing newline `render` gives it. The last block already holds
-    /// one, since nothing follows it, so it is stripped and put back rather than doubled, and the
+    /// **The whole run rather than its first eight**, because the walk back is eight of the blocks
+    /// now and a helper that stopped at eight would have made it invisible to every test here. Each
+    /// carries exactly the trailing newline `render` gives it: the last block already holds one,
+    /// since nothing follows it, so it is stripped and put back rather than doubled.
+    fn demonstrated_blocks(json: &str) -> Vec<String> {
+        let output = demonstrate_json(json);
+        output
+            .trim_end_matches('\n')
+            .split("\n\n")
+            .map(|block| {
+                let (_caption, picture) = block
+                    .split_once('\n')
+                    .expect("a caption line precedes each picture");
+                format!("{}\n", picture.strip_suffix('\n').unwrap_or(picture))
+            })
+            .collect()
+    }
+
+    /// The demonstration's first **eight** pictures — the ones taken as it changes the diagram —
+    /// found by the blank line between them and returned without their captions, so nothing here
+    /// pins a caption's wording.
+    ///
+    /// **The first eight of however many there are**, which is what keeps every claim this file
+    /// made about them a claim about the same pictures it made before the walk back arrived. The
     /// eight are then comparable with each other and with a picture drawn on its own.
     ///
-    /// **The closure needed no change when the eighth arrived**, and that is worth knowing rather
-    /// than assuming: it splits on the blank line, strips the trailing newline and puts one back, and
-    /// the last block gets the normalization the others always got. It is also why the sixth compared
-    /// **equal to the fifth** before the rule landed rather than one character apart — measured, and
-    /// the reason no test pins the raw text.
+    /// **The closure needed no change when the eighth arrived, and that is worth knowing rather than
+    /// assuming**: it splits on the blank line, strips the trailing newline and puts one back, and
+    /// the last block gets the normalization the others always got. It is also why the sixth
+    /// compared **equal to the fifth** before the rule landed rather than one character apart —
+    /// measured, and the reason no test pins the raw text.
     #[allow(clippy::type_complexity)]
     fn demonstrated_pictures(
         json: &str,
@@ -489,16 +549,15 @@ mod tests {
         String,
         String,
     ) {
-        let output = demonstrate_json(json);
-        let mut blocks = output.split("\n\n");
+        let blocks = demonstrated_blocks(json);
+        let mut taken = 0;
         let mut next_picture = || {
             let block = blocks
-                .next()
-                .expect("eight captioned pictures, each after a blank line");
-            let (_caption, picture) = block
-                .split_once('\n')
-                .expect("a caption line precedes each picture");
-            format!("{}\n", picture.strip_suffix('\n').unwrap_or(picture))
+                .get(taken)
+                .expect("eight captioned pictures, each after a blank line")
+                .clone();
+            taken += 1;
+            block
         };
 
         (
@@ -676,27 +735,131 @@ mod tests {
         );
     }
 
-    /// A bare run prints **eight** captioned pictures and the first is the description as written.
+    /// A bare run prints **sixteen** captioned pictures: eight as it changes the diagram and one per
+    /// step as it walks back.
     ///
     /// The count comes from the blank lines the output holds, and no caption's wording is pinned —
-    /// what is claimed is that there are eight of them and that the first is the one a file's run
-    /// prints on its own. The sixth, the seventh and the eighth are captions like the other five, so
-    /// the count is all this test says about them; which picture the sixth holds is
-    /// `the_sixth_picture_moves_only_the_arrow`'s claim, which the seventh holds is
+    /// what is claimed is that there are sixteen of them and that the first is the one a file's run
+    /// prints on its own. Which picture the sixth holds is `the_sixth_picture_moves_only_the_arrow`'s
+    /// claim, which the seventh holds is
     /// `the_seventh_picture_takes_the_box_away_and_leaves_the_arrow`'s, and which the eighth holds is
-    /// `the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names`'s.
+    /// `the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names`'s. The eight after them
+    /// are `the_demonstration_runs_every_step_through_a_session`'s.
     #[test]
     fn a_bare_run_prints_eight_captioned_pictures_the_first_being_the_description_as_written() {
         let output = demonstrate_json(super::DEMO);
 
         assert_eq!(
             output.split("\n\n").count(),
-            8,
-            "eight captioned pictures, each after a blank line: {output:?}"
+            16,
+            "eight pictures as the diagram changes and eight walked back: {output:?}"
         );
 
         let (first, ..) = demonstrated_pictures(super::DEMO);
         assert_eq!(first, render_json(super::DEMO));
+    }
+
+    /// Rule 14 — the demonstration wraps its diagram in a session once and performs every step
+    /// through it.
+    ///
+    /// **Eight pictures after the eighth, one for each step, which is the whole of what "through a
+    /// session" is observable as.** The eight commands are not the seven pictures that follow the
+    /// first: the fifth picture is printed after both the rehang and the displacement of the box it
+    /// was rehung from, and the session records each of them, so the count of steps and the count of
+    /// pictures part company here for the first time.
+    ///
+    /// **A description with less in it walks a shorter way, and that is the claim that says the
+    /// count comes from the session rather than from a loop.** An empty description records no step
+    /// at all, so it prints its eight pictures and walks nowhere; a description whose window reaches
+    /// one of the offsets records three. Neither is pinned by a literal count below — this test is
+    /// about the shipped description — but the empty one is what makes the rule readable.
+    #[test]
+    fn the_demonstration_runs_every_step_through_a_session() {
+        let blocks = demonstrated_blocks(super::DEMO);
+
+        assert_eq!(
+            blocks.len(),
+            16,
+            "eight pictures as the diagram changes and one per step walked back"
+        );
+
+        let empty = demonstrated_blocks(
+            r#"{
+                "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+                "next_id": 1,
+                "shapes": []
+            }"#,
+        );
+        assert_eq!(
+            empty.len(),
+            8,
+            "a description no offset reaches records no step, so there is nothing to walk back over \
+             and the eight pictures are all it prints"
+        );
+    }
+
+    /// Rule 15 — the demonstration walks back one picture per step after its last, and its final
+    /// picture is the one it began with.
+    ///
+    /// **The final picture is the first one, byte for byte.** That is the whole of the walk: eight
+    /// commands in and the description as written out again, with no figure rebuilt and no reference
+    /// re-resolved on the way — which is what a diagram alone could not have done, because
+    /// `Diagram::remove` freezes what hung from the figure it takes and nothing re-hangs it.
+    ///
+    /// **One of the eight is a picture the run never printed going forward.** The rehang hangs the
+    /// arrow's `from` end from the box it already hangs from, so it changes nothing a picture can
+    /// show — and it is a step all the same, which is why two of the eight walked-back pictures are
+    /// the same picture and why the walk is eight pictures long where the forward run is seven.
+    #[test]
+    fn the_demonstration_walks_back_to_the_picture_it_began_with() {
+        let blocks = demonstrated_blocks(super::DEMO);
+
+        assert_eq!(
+            *blocks.last().expect("the run printed pictures"),
+            blocks[0],
+            "the last picture walked back is the one the run began with"
+        );
+
+        // The pictures as the diagram changed, and the ones walked back, as the states they hold. The
+        // forward run prints the states 0, 1, 2, 3, 5, 6, 7 and 8; the walk prints 7, 6, 5, 4, 3, 2,
+        // 1 and 0 — eight pictures for eight commands, where the forward run has seven pictures for
+        // the same eight because the fifth is printed after two of them. **The block number is
+        // written out rather than counted**, because the two lists are of different lengths and a
+        // counter would silently walk the second one along.
+        let printed_going_forward = [0_usize, 1, 2, 3, 5, 6, 7, 8];
+        for (walked, state) in [
+            (8_usize, 7_usize),
+            (9, 6),
+            (10, 5),
+            (12, 3),
+            (13, 2),
+            (14, 1),
+            (15, 0),
+        ] {
+            let printed_at = printed_going_forward
+                .iter()
+                .position(|held| *held == state)
+                .expect("every state named here was printed going forward");
+            assert_eq!(
+                blocks[walked], blocks[printed_at],
+                "the picture walked back to state {state} is the one printed for it"
+            );
+        }
+
+        // Block 11 holds state 4, which has no forward picture of its own, and the reason is the rule
+        // rather than an accident: the rehang hangs the arrow's `from` end from the box it already
+        // hangs from, so it changes nothing a picture can show — and it is a step all the same. Two
+        // of the eight walked-back pictures are therefore the same picture, which is what "one
+        // command is one step" looks like in the demonstration's own output.
+        assert_eq!(
+            blocks[11], blocks[12],
+            "the rehang changed no cell and is a step all the same, so two walked-back pictures are \
+             the same picture"
+        );
+        assert_eq!(
+            blocks[11], blocks[3],
+            "and it is the picture the run printed after the shape before it was taken out"
+        );
     }
 
     /// `render_once` over a path prints one picture and nothing else, which is what `cargo xtask
@@ -706,7 +869,7 @@ mod tests {
     /// first picture's own first row. The caption is absent, because a file's run is a picture with
     /// nothing around it and the demonstration's is a picture under a caption.
     #[test]
-    fn a_path_prints_one_picture_and_nothing_else() {
+    fn a_path_draws_one_picture_and_walks_nowhere() {
         let (first, ..) = demonstrated_pictures(super::DEMO);
         let once = render_json(super::DEMO);
 

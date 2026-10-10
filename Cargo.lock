@@ -102,6 +102,7 @@ dependencies = [
  "monospace-core",
  "monospace-description",
  "monospace-diagram",
+ "monospace-editing",
  "monospace-glyph-sets",
  "serde_json",
 ]
