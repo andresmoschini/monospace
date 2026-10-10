@@ -96,8 +96,8 @@ Behind that, and all of it enforced rather than merely intended:
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
 - A **thirteen**-step quality gate the pre-commit hook and CI run identically, including the check
-  that keeps every crate but the CLI compiling for WebAssembly, so stage 4 stays reachable instead
-  of becoming a rewrite.
+  that keeps the portable crates compiling for WebAssembly, so stage 4 stays reachable instead of
+  becoming a rewrite.
 
 Still missing, and named here rather than implied: an editing surface, the TUI, and persistence.
 
