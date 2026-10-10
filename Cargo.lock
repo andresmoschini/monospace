@@ -133,6 +133,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "monospace-editing"
+version = "0.1.0"
+dependencies = [
+ "monospace-core",
+ "monospace-diagram",
+]
+
+[[package]]
 name = "monospace-glyph-sets"
 version = "0.1.0"
 dependencies = [
