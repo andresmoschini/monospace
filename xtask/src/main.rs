@@ -194,6 +194,8 @@ const GATE: &[Step] = &[
                 "-p",
                 "monospace-diagram",
                 "-p",
+                "monospace-editing",
+                "-p",
                 "monospace-glyph-sets",
                 "--target",
                 "wasm32-unknown-unknown",
