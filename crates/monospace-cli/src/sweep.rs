@@ -57,8 +57,7 @@
 use std::fmt::Write as _;
 
 use monospace_core::{Buffer, Size};
-
-use monospace_description::Description;
+use monospace_description::parse;
 
 /// The five tables a shape can be drawn in on its own. The four mixing tables are deliberately
 /// absent: they hold only the mixtures between two of these, and a shape carries one stroke.
@@ -96,14 +95,13 @@ fn description_of(shapes: &str) -> String {
 /// on, so an untrimmed sweep would be a diff of nothing but the padding.
 fn case(name: &str, shapes: &str) -> String {
     let description = description_of(shapes);
-    let parsed: Description = serde_json::from_str(&description)
-        .unwrap_or_else(|error| panic!("{name} is not a readable description: {error}"));
-    let (origin, size) = parsed.window();
-    let diagram = parsed.into_diagram();
+    let (diagram, window) =
+        parse(&description).unwrap_or_else(|error| panic!("{name} is not readable: {error}"));
 
-    let mut buffer = Buffer::new(origin, size);
+    let mut buffer = Buffer::new(window.origin, window.size);
     diagram.draw(&mut buffer);
-    let rendered = monospace_core::render(&buffer, &crate::glyph_catalog(), origin, size);
+    let rendered =
+        monospace_core::render(&buffer, &crate::glyph_catalog(), window.origin, window.size);
 
     let mut out = String::new();
     let _ = writeln!(out, "{name}");

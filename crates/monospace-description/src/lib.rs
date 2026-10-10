@@ -1,10 +1,15 @@
-//! The diagram description format: JSON types deserialized from a file and converted into a
-//! `monospace_diagram::Diagram` and the `monospace_core::Buffer` its canvas describes.
+//! The diagram description format: JSON deserialized into a `monospace_diagram::Diagram` and the
+//! window it is drawn in.
 //!
-//! Every type here exists only for this conversion. The format is **provisional**: a demo
-//! convenience never designed to be the core's own description, kept in this crate so that what the
-//! core accepts stays a question waiting for a slice that needs it, which is the evidence that
-//! question asks for.
+//! One call does the whole of it — [`parse`] takes the text and hands back both — and every type
+//! behind that call is private to this crate. The public surface is three things: [`parse`],
+//! [`Window`] and [`ParseError`]. Nothing here reaches a file, a terminal or a screen: a caller
+//! that wants to read from disk reads the disk itself and hands the text over.
+//!
+//! **This crate is a layer above the diagram, and it knows nothing of the editing layer.** Both
+//! hang off `monospace-diagram` and neither depends on the other; what would join them is a
+//! convenience that opens a file into a session, and that belongs to whoever needs it rather than
+//! to either layer. See [`docs/diagram-model.md`](../../../docs/diagram-model.md).
 //!
 //! # The envelope
 //!
@@ -19,13 +24,21 @@
 //! ```
 //!
 //! - **`canvas`** is the window drawn into and rendered from: an `origin` of `x` and `y` beside a
-//!   `size` of `width` and `height`.
+//!   `size` of `width` and `height`. It becomes a [`Window`], which is **temporary** — see that
+//!   type.
 //! - **`next_id`** is the ordinal the next shape added takes, which is where numbering **resumes**
 //!   rather than a count of what was read: `1`, `7` and `9` under `next_id: 10` hands back `10`. It
 //!   is a **nonzero** ordinal, because zero is not an identity; `"next_id": 0` is refused here
 //!   rather than seeded with something no shape can carry.
 //! - **`shapes`** is the figures in drawing order, empty or not, the last front-most and deciding a
 //!   shared cell first. Each entry names a `kind` and carries the `id` its shape is held under.
+//!
+//! # What is not here
+//!
+//! **No writer.** The format is read and not written, and [`ParseError`] says nothing about what a
+//! writer would owe a reader. **No file.** [`parse`] takes text rather than a path, so nothing in
+//! this crate reaches a filesystem — which is also what keeps it portable by naming rather than by
+//! anything it avoids.
 
 use std::num::NonZeroU32;
 
@@ -35,6 +48,92 @@ use monospace_diagram::{
     Shape as DiagramShape, ShapeId,
 };
 use serde::{Deserialize, Deserializer};
+
+/// Where a description says a diagram is drawn, as an origin and a size.
+///
+/// **This type is temporary and it is expected to leave the description.** A window is not part of
+/// what a diagram *is* — see [`docs/diagram-model.md`](../../../docs/diagram-model.md), which holds
+/// that the window belongs to the caller and that which part of a diagram to draw is the caller's
+/// question in any case. An interactive application draws what fits the screen at the scroll
+/// position it is at, and reads no window out of a file to do it.
+///
+/// It is here because the file still carries a `canvas` and the command-line application still
+/// renders into one. It is named rather than returned as a bare `(Pos, Size)` so that the day it
+/// goes, the thing that goes is one type with one name.
+///
+/// Two fields rather than a pair of its own: `monospace_core::Pos` and `monospace_core::Size`
+/// already are that pair, and a second pair of coordinates would be a second thing to convert.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Window {
+    /// The window's top-left corner, which may be negative.
+    pub origin: monospace_core::Pos,
+    /// The window's extent in cells.
+    pub size: monospace_core::Size,
+}
+
+/// A description that could not be read.
+///
+/// **The message is the one `serde_json` produced, unchanged.** A newtype rather than a
+/// re-wrap: the value of this type is that `serde` does not appear in this crate's public API, not
+/// that it says anything the underlying error did not. A caller prints it and the words are the
+/// ones the format has always reported — a missing field named, a `kind` this build does not know
+/// named beside the two it does, an identity written as free text and quoted back — which is what
+/// the contract tests here and in `monospace-cli` assert on.
+///
+/// What would earn it more is a writer: a file whose `kind` this build does not know is a
+/// different kind of problem from one that is spelled wrong, and only then is there something to add
+/// that `serde` cannot say.
+#[derive(Debug)]
+pub struct ParseError(serde_json::Error);
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+impl std::error::Error for ParseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+/// Reads a description and hands back the diagram it holds and the window it names.
+///
+/// The whole of this crate's public surface for reading, in one call: there is no value to build,
+/// hold or convert afterwards, so no method can be called in the wrong order and none leaves a
+/// diagram half-converted.
+///
+/// # Errors
+///
+/// [`ParseError`] when the text is not a description this crate reads — a field left out, a `kind`
+/// it does not name, an identity written as free text, a `next_id` of zero. The message names the
+/// field it was refused on and is the one `serde_json` produced.
+///
+/// # Examples
+///
+/// ```
+/// # use monospace_description::parse;
+/// let (diagram, window) = parse(
+///     r#"{
+///         "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+///         "next_id": 2,
+///         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+///                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+///     }"#,
+/// )
+/// .expect("a well-formed description");
+///
+/// assert_eq!(window.size.width, 4);
+/// ```
+pub fn parse(json: &str) -> Result<(Diagram, Window), ParseError> {
+    let description: Description = serde_json::from_str(json).map_err(ParseError)?;
+    let window = Window {
+        origin: description.canvas.origin.into(),
+        size: description.canvas.size.into(),
+    };
+    Ok((description.into_diagram(), window))
+}
 
 /// A position, mirroring `monospace_core::Pos` for deserialization.
 #[derive(Deserialize, Debug, Clone, Copy)]
@@ -445,8 +544,12 @@ impl From<ShapeDescription> for DiagramShape {
 
 /// The whole of one description file: a canvas, the ordinal the next shape takes, and an ordered
 /// list of shapes.
+///
+/// Private because nothing outside this crate needs it: [`parse`] reads one and hands back what it
+/// holds, and a caller that could hold a `Description` would be able to look at a format this
+/// crate does not promise to keep.
 #[derive(Deserialize, Debug)]
-pub struct Description {
+struct Description {
     canvas: Canvas,
     /// The ordinal the next `add` takes: a number rather than a container holding one, because it
     /// is one number. Required, so a file leaving it out is refused by name, the way `canvas`
@@ -466,12 +569,6 @@ pub struct Description {
 }
 
 impl Description {
-    /// The canvas's origin and size, converted to `monospace_core` types.
-    #[must_use]
-    pub fn window(&self) -> (monospace_core::Pos, monospace_core::Size) {
-        (self.canvas.origin.into(), self.canvas.size.into())
-    }
-
     /// Builds a diagram from `shapes`, in order, under the identities the file wrote and with its
     /// numbering resuming where it says.
     ///
@@ -482,8 +579,7 @@ impl Description {
     /// A shape a connector names before the entry carrying it is written still resolves, because
     /// resolution happens at draw time and the whole diagram exists by then. That edge case needs
     /// no code here; it is what a completed vector of placements means.
-    #[must_use]
-    pub fn into_diagram(self) -> Diagram {
+    fn into_diagram(self) -> Diagram {
         let mut diagram = Diagram::numbered_from(self.next_id);
         for shape in self.shapes {
             diagram.add_under(shape.id(), shape.into());
@@ -496,20 +592,36 @@ impl Description {
 mod tests {
     use monospace_core::{Buffer, GlyphCatalog};
 
-    use super::Description;
+    use super::{Description, ParseError, Window, parse};
+
+    /// The error a description that must not read hands back.
+    ///
+    /// **A helper rather than `expect_err`**, which would need `Debug` on the pair `parse` returns:
+    /// `Diagram` derives none, and deriving it here would mean the diagram crate grew a `Debug`
+    /// every consumer inherits for the sake of one test module. `Result::err` does not.
+    fn refusal(json: &str) -> ParseError {
+        parse(json)
+            .err()
+            .expect("a description this format refuses must fail")
+    }
 
     /// The rendering of a parsed description, drawn into the window it names.
     ///
-    /// **The core's own Light table, and no glyph set beside it.** Every shape these tests draw is
-    /// in `light`, which is what Light covers, and the two that need a picture are about what a
-    /// reference resolves to rather than about how a stroke draws.
+    /// **The core's own Light table, and no glyph set beside it.** Every shape here is drawn in
+    /// `light`, which is what Light covers, and the two tests that need a picture are about what a
+    /// reference resolves to rather than about how a stroke draws — so a second catalog would add a
+    /// dependency to answer nothing they ask. Measured rather than argued: the same three shapes
+    /// drawn in `double` come out of this catalog as an empty buffer.
     fn render_once(description: Description) -> String {
-        let (origin, size) = description.window();
+        let window = Window {
+            origin: description.canvas.origin.into(),
+            size: description.canvas.size.into(),
+        };
         let diagram = description.into_diagram();
 
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(window.origin, window.size);
         diagram.draw(&mut buffer);
-        monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
+        monospace_core::render(&buffer, &GlyphCatalog::light(), window.origin, window.size)
     }
 
     /// An unrecognized `kind` fails to deserialize and names the unrecognized value.
@@ -521,8 +633,7 @@ mod tests {
             "shapes": [ { "kind": "triangle" } ]
         }"#;
 
-        let error =
-            serde_json::from_str::<Description>(json).expect_err("unrecognized kind must fail");
+        let error = refusal(json);
 
         assert!(error.to_string().contains("triangle"), "{error}");
     }
@@ -539,7 +650,7 @@ mod tests {
             ]
         }"#;
 
-        assert!(serde_json::from_str::<Description>(json).is_err());
+        assert!(parse(json).is_err());
     }
 
     /// A `terminal`'s glyph of more than one grapheme cluster fails to deserialize. The grapheme
@@ -560,7 +671,7 @@ mod tests {
             ]
         }"#;
 
-        assert!(serde_json::from_str::<Description>(json).is_err());
+        assert!(parse(json).is_err());
     }
 
     /// One connector, with `TERMINAL` standing where the `from` endpoint's terminal goes. The three
@@ -595,9 +706,7 @@ mod tests {
     /// message this crate produced and not the whole of what `serde_json` renders.
     fn error_for(terminal: &str) -> String {
         let json = description_of(&ARROW.replace("TERMINAL", terminal));
-        serde_json::from_str::<Description>(&json)
-            .expect_err("a terminal this format does not accept must fail")
-            .to_string()
+        refusal(&json).to_string()
     }
 
     /// A `kind` the model has not named is refused by name, and the message names the two that are
@@ -631,9 +740,7 @@ mod tests {
     fn an_omitted_terminal_field_is_refused_by_name() {
         let json = description_of(ARROW_WITHOUT_A_TERMINAL);
 
-        let error = serde_json::from_str::<Description>(&json)
-            .expect_err("a connector with no terminal at all must fail")
-            .to_string();
+        let error = refusal(&json).to_string();
 
         assert!(error.starts_with("missing field `terminal`"), "{error}");
     }
@@ -663,9 +770,7 @@ mod tests {
     /// reads it: the message, not the `serde_json` position that follows it.
     fn error_for_an_at(at: &str) -> String {
         let json = description_of(&ARROW_WITH_AN_AT.replace("AT", at));
-        serde_json::from_str::<Description>(&json)
-            .expect_err("an `at` this format does not accept must fail")
-            .to_string()
+        refusal(&json).to_string()
     }
 
     /// A point written without a tag is **refused**, not read as one of the two.
@@ -711,7 +816,7 @@ mod tests {
         );
 
         assert!(
-            serde_json::from_str::<Description>(&json).is_ok(),
+            parse(&json).is_ok(),
             "a stray field beside a tagged `at` must not refuse the file"
         );
     }
@@ -730,7 +835,7 @@ mod tests {
         ));
 
         assert!(
-            serde_json::from_str::<Description>(&json).is_ok(),
+            parse(&json).is_ok(),
             "a reference without an `offset` must read"
         );
     }
@@ -752,7 +857,7 @@ mod tests {
         ));
 
         assert!(
-            serde_json::from_str::<Description>(&json).is_ok(),
+            parse(&json).is_ok(),
             "an unknown key beside a reference's own fields must not refuse the file"
         );
     }
@@ -816,12 +921,14 @@ mod tests {
         }}"#
                 )
             };
-        let parse = |json: String| serde_json::from_str::<Description>(&json).expect("well-formed");
+        // `serde_json` and not [`parse`]: `render_once` takes the `Description` so that it can read
+        // the window off it, and `parse` hands back the diagram and window already built.
+        let read = |json: String| serde_json::from_str::<Description>(&json).expect("well-formed");
 
         // Naming the **box**: the box at `{11, 3}` is `2` in both files and is listed first in one
         // and second in the other, so both draw the same picture.
-        let right_listed_first = render_once(parse(description_with(1, 2, true, 2)));
-        let right_listed_second = render_once(parse(description_with(1, 2, false, 2)));
+        let right_listed_first = render_once(read(description_with(1, 2, true, 2)));
+        let right_listed_second = render_once(read(description_with(1, 2, false, 2)));
         assert_eq!(
             right_listed_first, right_listed_second,
             "a reference naming a shape must not move when the entries are listed in another order"
@@ -832,8 +939,8 @@ mod tests {
         // That is what those files mean today, and the half that says the identity won in one
         // direction and not in the other — a reader that made it win in both would have failed the
         // first half.
-        let place_right_first = render_once(parse(description_with(2, 1, true, 2)));
-        let place_right_second = render_once(parse(description_with(1, 2, false, 2)));
+        let place_right_first = render_once(read(description_with(2, 1, true, 2)));
+        let place_right_second = render_once(read(description_with(1, 2, false, 2)));
         assert_ne!(
             place_right_first, place_right_second,
             "a reference naming a place must still follow the place it is written at"
@@ -862,8 +969,7 @@ mod tests {
         }"#;
 
         for (json, named) in [(without_next_id, "next_id"), (without_an_id, "id")] {
-            let error = serde_json::from_str::<Description>(json)
-                .expect_err("a missing identity must fail");
+            let error = refusal(json);
             assert!(
                 error
                     .to_string()
@@ -901,9 +1007,7 @@ mod tests {
             (a_string_id, "id", "\"arrow\""),
             (a_string_shape, "shape", "\"#1\""),
         ] {
-            let error = serde_json::from_str::<Description>(json)
-                .expect_err("a name is not an ordinal and must fail")
-                .to_string();
+            let error = refusal(json).to_string();
             assert!(
                 error.starts_with(&format!("`{named}` is an ordinal: ")),
                 "expected `{named}` to be named first, got: {error}"
@@ -929,9 +1033,7 @@ mod tests {
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
         }"#;
 
-        let error = serde_json::from_str::<Description>(json)
-            .expect_err("zero is not an identity and must fail")
-            .to_string();
+        let error = refusal(json).to_string();
 
         assert!(
             error.starts_with("`next_id` is an ordinal: "),
