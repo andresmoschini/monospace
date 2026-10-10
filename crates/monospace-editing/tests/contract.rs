@@ -639,7 +639,10 @@ fn whether_undo_is_available_is_answerable_without_carrying_it_out() {
 ///
 /// **A buffer drawn from `session.diagram()` and one drawn from the diagram the session was
 /// created over, without anything copied in between.** The borrow is the claim: no `Diagram` is
-/// taken, none is cloned, and the picture is the one the diagram model already draws.
+/// taken, none is cloned, and the picture is the one the diagram model already draws. **The second
+/// half is that a copy taken anyway is unconnected**: §7 of the model says a session hands out a
+/// reference for drawing and a copy for keeping, and a copy a caller keeps does not follow the
+/// session.
 #[test]
 fn drawing_what_a_session_holds_needs_no_copy() {
     let diagram = one_box(ORIGIN);
@@ -661,4 +664,20 @@ fn drawing_what_a_session_holds_needs_no_copy() {
         AS_WRITTEN,
         "and it is the picture that diagram draws"
     );
+
+    // And a copy is a diagram like any other: free of the session and unconnected to it, which is
+    // what §7 is about. Nothing here is handed out but a borrow, so the copy is the caller's own.
+    let theirs = session.diagram().clone();
+    let mut session = session;
+    Command::Move {
+        id: id(1),
+        by: Delta { dx: 4, dy: 0 },
+    }
+    .perform(&mut session);
+    assert_eq!(
+        picture_in(&theirs, EXAMPLE),
+        AS_WRITTEN,
+        "the copy did not move with the session's diagram"
+    );
+    assert_eq!(picture(&session), FOUR_RIGHT, "which did");
 }
