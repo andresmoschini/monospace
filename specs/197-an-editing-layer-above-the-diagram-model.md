@@ -152,8 +152,12 @@ the session that wrote this.
 two sentences that say every crate but the CLI with what the step checks. **Why not** naming the
 exclusions in the step: a list of what is excluded is a second list to keep in step with the first,
 and the omission is what keeps a crate added later out. **Why not** deferring the prose to the
-building stage: the claim is already false today, because `xtask` is a crate the step does not name.
-**Answered by** the maintainer, in the session that wrote this.
+building stage: _every crate but the CLI_ is a rule about which crates are portable, and adding a
+crate to the workspace is what puts that rule to the test. This change is that test, and the rule
+does not survive it — nor did it survive `xtask`, which the step has never named either. **Why not**
+fixing the sentence in whichever change first notices it: it is the sentence that decides where the
+next crate goes, so a change that adds one is the change that has to be able to read it. **Answered
+by** the maintainer, in the session that wrote this.
 
 ## Model slice
 
