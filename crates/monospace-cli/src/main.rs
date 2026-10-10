@@ -47,11 +47,19 @@
 //! **A step skipped is a step that still prints its picture**, which is what keeps a description the
 //! demonstration can say nothing about working at all: an empty one, and a one-box one whose
 //! four-by-three window does not reach three of the four offsets.
+//!
+//! **The window is named on the command line, and `--size` and `--origin` are how.** Which part of
+//! a diagram to draw is the caller's question — see [`docs/diagram-model.md`](../../../docs/diagram-model.md),
+//! which holds that the diagram sizes nothing and measures nothing — so two flags answer it and
+//! neither is required. **A path given neither is still drawn into the window its own description
+//! names**, which is the last place the format has a say in it: the increment after the render
+//! markers carry their own window takes that field out of the format and leaves the two flags as
+//! the only source of one.
 
 use std::process::ExitCode;
 
 use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, Size};
-use monospace_description::{Window, parse};
+use monospace_description::parse;
 use monospace_diagram::{Anchor, Delta, Diagram};
 use monospace_editing::{Command, Session};
 
@@ -83,26 +91,40 @@ const THE_CROSSING_AT: Offset = Offset { x: 20, y: 2 };
 #[cfg(test)]
 mod sweep;
 
+/// The usage line, printed for anything [`parse_args`] refuses.
+const USAGE: &str = "usage: monospace-cli [--size <width>x<height>] [--origin <x>,<y>] [path]";
+
+/// The window a picture is drawn into, as the pair the two flags name.
+///
+/// **A name for the pair rather than the pair in a signature**, because the pair is what `render`
+/// takes and what the flags build, and `parse_args` has to say both. It is private to this binary
+/// and it is not the format crate's `Window` — that one is the type leaving the description, and
+/// this is the caller's own.
+type Window = (Pos, Size);
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    let demonstrating = args.is_empty();
-    let text = match args.as_slice() {
-        [] => DEMO.to_owned(),
-        [path] => match std::fs::read_to_string(path) {
+    let (path, asked) = match parse_args(&args) {
+        Ok(parsed) => parsed,
+        Err(message) => {
+            eprintln!("{message}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let text = match &path {
+        None => DEMO.to_owned(),
+        Some(path) => match std::fs::read_to_string(path) {
             Ok(text) => text,
             Err(error) => {
                 eprintln!("{path}: {error}");
                 return ExitCode::FAILURE;
             }
         },
-        _ => {
-            eprintln!("usage: monospace-cli [path]");
-            return ExitCode::FAILURE;
-        }
     };
 
-    let (diagram, window) = match parse(&text) {
+    let (diagram, in_the_file) = match parse(&text) {
         Ok(parsed) => parsed,
         Err(error) => {
             eprintln!("{error}");
@@ -110,20 +132,112 @@ fn main() -> ExitCode {
         }
     };
 
+    // **The command line is asked first and the file's own window is what is left.** A caller that
+    // says where to draw says it once, and the description it drew from has nothing to say about
+    // it. A caller that says nothing still gets the window its file names, which is what every
+    // generated picture in this repository is drawn at until the markers carry their own.
+    let (origin, size) = asked.unwrap_or((in_the_file.origin, in_the_file.size));
+
     print!(
         "{}",
-        if demonstrating {
-            demonstrate(diagram, window)
+        if path.is_none() {
+            demonstrate(diagram, origin, size)
         } else {
-            render_once(&diagram, window)
+            render_once(&diagram, origin, size)
         }
     );
     ExitCode::SUCCESS
 }
 
-/// Renders `diagram` into `window`, as one picture and nothing else.
-fn render_once(diagram: &Diagram, window: Window) -> String {
-    picture(diagram, &glyph_catalog(), window.origin, window.size)
+/// Reads the arguments into the path to draw and the window to draw it into, in either order.
+///
+/// **Two flags and a path, parsed by hand.** `xtask` takes no dependencies because it guards the
+/// dependency policy, and this binary is what `cargo xtask render` runs once per generated picture
+/// — twenty-two of them on a full pass. A crate to read `20x7` is a crate to build and read before
+/// every one of those.
+///
+/// **Each flag names one half of the window and neither half is required.** `--size` alone is a
+/// window at `(0, 0)`, `--origin` alone is a window of the default size somewhere else, and both
+/// together are what `cargo xtask render` passes for every marker it rewrites. A flag given twice is
+/// refused rather than read as the last word: a caller that says `--size 4x3 --size 6x4` has said
+/// two windows and deserves to be asked which.
+///
+/// **A value that is not the shape the flag takes is refused and quoted.** `--size 20-7` names
+/// nothing this binary can draw into, and answering it with half the window would be a picture
+/// rather than an error.
+fn parse_args(args: &[String]) -> Result<(Option<String>, Option<Window>), String> {
+    let mut path: Option<String> = None;
+    let mut origin: Option<Pos> = None;
+    let mut size: Option<Size> = None;
+    let mut rest = args.iter();
+
+    while let Some(argument) = rest.next() {
+        match argument.as_str() {
+            "--size" => {
+                let Some(value) = rest.next() else {
+                    return Err(format!("`--size` was given no size\n{USAGE}"));
+                };
+                if size.is_some() {
+                    return Err(format!("`--size` was given twice\n{USAGE}"));
+                }
+                size = Some(parse_size(value)?);
+            }
+            "--origin" => {
+                let Some(value) = rest.next() else {
+                    return Err(format!("`--origin` was given no origin\n{USAGE}"));
+                };
+                if origin.is_some() {
+                    return Err(format!("`--origin` was given twice\n{USAGE}"));
+                }
+                origin = Some(parse_origin(value)?);
+            }
+            _ if argument.starts_with('-') => {
+                return Err(format!("`{argument}` is not an option\n{USAGE}"));
+            }
+            _ if path.is_some() => {
+                return Err(format!("`{argument}` is a second path\n{USAGE}"));
+            }
+            _ => path = Some(argument.clone()),
+        }
+    }
+
+    let window = size.map(|size| (origin.unwrap_or(Pos { x: 0, y: 0 }), size));
+    Ok((path, window))
+}
+
+/// The `20x7` of `--size`, as the pair of numbers a window is drawn into.
+///
+/// **Both halves are numbers or neither is.** `20-7`, `20` and `x7` are refused by name rather than
+/// read as a width beside a height nobody gave, because half a window is a picture that looks like
+/// an answer.
+fn parse_size(text: &str) -> Result<Size, String> {
+    let said = || format!("`--size` takes `<width>x<height>` and not `{text}`\n{USAGE}");
+    let (width, height) = text.split_once('x').ok_or_else(said)?;
+
+    Ok(Size {
+        width: width.parse().map_err(|_| said())?,
+        height: height.parse().map_err(|_| said())?,
+    })
+}
+
+/// The `-3,-2` of `--origin`, as the corner the window is drawn from.
+///
+/// **The two halves may be negative**, because a window is not required to start at the top left of
+/// the diagram: `specs/086` draws one at `(-3, -2)` so that a box at `(0, 0)` is two rows and three
+/// columns inside it.
+fn parse_origin(text: &str) -> Result<Pos, String> {
+    let said = || format!("`--origin` takes `<x>,<y>` and not `{text}`\n{USAGE}");
+    let (x, y) = text.split_once(',').ok_or_else(said)?;
+
+    Ok(Pos {
+        x: x.parse().map_err(|_| said())?,
+        y: y.parse().map_err(|_| said())?,
+    })
+}
+
+/// Renders `diagram` into `size` at `origin`, as one picture and nothing else.
+fn render_once(diagram: &Diagram, origin: Pos, size: Size) -> String {
+    picture(diagram, &glyph_catalog(), origin, size)
 }
 
 /// Draws `diagram` into a fresh window of `size` and hands back the buffer beside its rendering.
@@ -182,9 +296,7 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 /// replaces a written assumption about this description with the record, which is what an interactive
 /// front end would have to do and what the first seven steps have no way to check. A figure added
 /// before any of the three would move the answer, and the pictures below it are what catch that.
-fn demonstrate(diagram: Diagram, window: Window) -> String {
-    let origin = window.origin;
-    let size = window.size;
+fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     let catalog = glyph_catalog();
     let mut session = Session::new(diagram);
 
@@ -433,22 +545,33 @@ mod tests {
     };
     use monospace_diagram::ShapeId;
 
-    use super::{demonstrate, drawn, glyph_catalog, render_once};
+    use super::{demonstrate, drawn, glyph_catalog, parse_args, render_once};
     use crate::parse;
 
-    /// The picture `json` renders to, parsed first.
+    /// The window the shipped demonstration is drawn at, as the pair the flags name.
+    fn in_the_demo_window() -> (Pos, Size) {
+        (
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 50,
+                height: 13,
+            },
+        )
+    }
+
+    /// The picture `json` renders to, parsed first, drawn into the window its own file names.
     ///
     /// Two helpers rather than one that takes the pair, because every caller here has text and
     /// wants a `String` and none of them is about the window on its own.
     fn render_json(json: &str) -> String {
         let (diagram, window) = parse(json).expect("well-formed description");
-        render_once(&diagram, window)
+        render_once(&diagram, window.origin, window.size)
     }
 
-    /// The demonstration over `json`, parsed first.
+    /// The demonstration over `json`, parsed first, drawn into the window its own file names.
     fn demonstrate_json(json: &str) -> String {
         let (diagram, window) = parse(json).expect("well-formed description");
-        demonstrate(diagram, window)
+        demonstrate(diagram, window.origin, window.size)
     }
 
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
@@ -471,7 +594,7 @@ mod tests {
     /// parameters.
     #[test]
     fn a_one_box_description_renders_the_same_as_a_box_shape_drawn_directly() {
-        let (diagram, window) = parse(one_box_json()).expect("well-formed description");
+        let (diagram, _) = parse(one_box_json()).expect("well-formed description");
 
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
@@ -488,7 +611,7 @@ mod tests {
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
         let expected = render(&buffer, &GlyphCatalog::light(), origin, size);
 
-        assert_eq!(render_once(&diagram, window), expected);
+        assert_eq!(render_once(&diagram, origin, size), expected);
     }
 
     /// A file's picture is the demonstration's first picture with nothing around it: no caption
@@ -500,7 +623,7 @@ mod tests {
         let (first, ..) = demonstrated_pictures(one_box_json());
 
         let (diagram, window) = parse(one_box_json()).expect("well-formed description");
-        assert_eq!(render_once(&diagram, window), first);
+        assert_eq!(render_once(&diagram, window.origin, window.size), first);
     }
 
     /// Every captioned block of a demonstration's output, as a picture without its caption.
@@ -1317,9 +1440,10 @@ mod tests {
     /// says at a position, not what `demonstrate` decided to write in a caption.
     #[test]
     fn the_shape_a_position_resolves_to_is_the_front_most_of_the_two_that_wrote_it() {
-        let (diagram, window) = parse(super::DEMO).expect("the shipped description reads");
+        let (diagram, _) = parse(super::DEMO).expect("the shipped description reads");
         let catalog = glyph_catalog();
-        let (buffer, picture) = drawn(&diagram, &catalog, window.origin, window.size);
+        let (origin, size) = in_the_demo_window();
+        let (buffer, picture) = drawn(&diagram, &catalog, origin, size);
 
         for (x, y, glyph, expected) in THE_CROSSING_CELLS {
             let at = Pos {
@@ -1394,8 +1518,9 @@ mod tests {
     /// **behind**. `5` is listed after `6` and so is in front, which is why the record names `6`.
     #[test]
     fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
-        let (diagram, window) = parse(super::DEMO).expect("the shipped description reads");
-        let (buffer, _) = drawn(&diagram, &glyph_catalog(), window.origin, window.size);
+        let (diagram, _) = parse(super::DEMO).expect("the shipped description reads");
+        let (origin, size) = in_the_demo_window();
+        let (buffer, _) = drawn(&diagram, &glyph_catalog(), origin, size);
 
         for (at, expected, what) in [
             (
@@ -1479,5 +1604,117 @@ mod tests {
             the_glyph_at(&fourth, (1, 1)),
             "and the newcomer that stood over it is gone"
         );
+    }
+
+    /// The three arguments this binary reads, as one call each, and what each of them becomes.
+    ///
+    /// **The window is a pair and the pair is `None` or it is not.** `None` is the whole of what a
+    /// caller that named no window says, and it is what leaves the description's own `canvas` in
+    /// charge while the format still carries one; the pair is what a caller that named one gets.
+    #[test]
+    fn the_arguments_are_a_path_and_a_window_and_neither_is_required() {
+        let args = |words: &[&str]| {
+            words
+                .iter()
+                .map(|word| (*word).to_owned())
+                .collect::<Vec<String>>()
+        };
+
+        assert_eq!(
+            parse_args(&args(&[])).expect("a bare run is a run"),
+            (None, None),
+            "no argument at all is the demonstration"
+        );
+        assert_eq!(
+            parse_args(&args(&["x.json"])).expect("a path is a path"),
+            (Some("x.json".to_owned()), None),
+            "a path alone names no window"
+        );
+        assert_eq!(
+            parse_args(&args(&["--size", "20x7", "x.json"])).expect("a size is a window"),
+            (
+                Some("x.json".to_owned()),
+                Some((
+                    Pos { x: 0, y: 0 },
+                    Size {
+                        width: 20,
+                        height: 7
+                    }
+                ))
+            ),
+            "a size alone is a window at the origin every marker but four uses"
+        );
+        assert_eq!(
+            parse_args(&args(&["--size", "7x5", "--origin", "-3,-2", "x.json"]))
+                .expect("both halves are a window"),
+            (
+                Some("x.json".to_owned()),
+                Some((
+                    Pos { x: -3, y: -2 },
+                    Size {
+                        width: 7,
+                        height: 5
+                    }
+                ))
+            ),
+            "an origin may be negative, which is what `specs/086` draws at"
+        );
+        assert_eq!(
+            parse_args(&args(&["--origin", "-3,-2", "--size", "7x5", "x.json"]))
+                .expect("the order on the command line is the caller's"),
+            parse_args(&args(&["--size", "7x5", "--origin", "-3,-2", "x.json"]))
+                .expect("the same window either way"),
+            "a flag after the path is a flag, not a second path"
+        );
+    }
+
+    /// Anything the parser cannot read into a window or a path is refused with the usage beside it,
+    /// and the refusal quotes what was written rather than saying what was expected.
+    ///
+    /// **The first two are the shapes a mistyped flag takes** and the third is the shape this
+    /// binary's own markers never take, which is why a marker writes `at -3,-2` and not
+    /// `--origin -3 -2`. The rest are refusals no caller in this repository makes, and they are
+    /// here because a parser that reads them as something is a parser with no boundary.
+    #[test]
+    fn arguments_this_binary_cannot_read_are_refused_with_what_was_written() {
+        let args = |words: &[&str]| {
+            words
+                .iter()
+                .map(|word| (*word).to_owned())
+                .collect::<Vec<String>>()
+        };
+
+        for (words, said) in [
+            (
+                &["--size", "20-7"][..],
+                "`--size` takes `<width>x<height>` and not `20-7`",
+            ),
+            (
+                &["--origin", "-3-2"][..],
+                "`--origin` takes `<x>,<y>` and not `-3-2`",
+            ),
+            (&["--width", "20"][..], "`--width` is not an option"),
+            (&["--size"][..], "`--size` was given no size"),
+            (&["--origin"][..], "`--origin` was given no origin"),
+            (
+                &["--size", "4x3", "--size", "6x4"][..],
+                "`--size` was given twice",
+            ),
+            (
+                &["--origin", "0,0", "--origin", "1,1"][..],
+                "`--origin` was given twice",
+            ),
+            (&["a.json", "b.json"][..], "`b.json` is a second path"),
+        ] {
+            let error = parse_args(&args(words))
+                .err()
+                .unwrap_or_else(|| panic!("{words:?} should have been refused"));
+
+            assert!(error.starts_with(said), "expected `{said}`, got: {error}");
+            assert!(
+                error.ends_with(super::USAGE),
+                "every refusal carries the usage beside it: {error}"
+            );
+        }
     }
 }

@@ -251,6 +251,71 @@ fn an_explicit_path_prints_the_hand_written_box() {
     assert!(output.stderr.is_empty(), "wrote to stderr");
 }
 
+/// A size and an origin on the command line decide the window a path is drawn into, and the
+/// window the file itself names is not what the picture is drawn at.
+///
+/// **The file says `6x4` and the command line says `4x3`, and the picture is four by three.** That
+/// is the whole of the claim: a caller that names a window names it, and the description it drew
+/// from has nothing to say about it.
+///
+/// The second half is the origin, and it is the window's corner rather than a move of the figure:
+/// the same box at `(0, 0)` drawn into a window starting at `(1, 1)` is **outside** it, and what
+/// survives is the part of the box the window holds. Measured rather than argued — the first draft
+/// of this test expected the box to have traveled one cell right and down, and the binary drew
+/// the corner of a box that had not moved at all.
+///
+/// The file's own window is still read and still used when no flag is given — which is what every
+/// generated picture in this repository is drawn at until the markers carry their own — so the
+/// assertion that matters is the one where the two disagree.
+#[test]
+fn a_size_and_an_origin_on_the_command_line_decide_the_window_a_path_is_drawn_into() {
+    let path = write_description(
+        "with-flags",
+        r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+            "next_id": 2,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light", "fill": "░" }
+            ]
+        }"#,
+    );
+    let path = path.to_str().expect("temp path should be valid UTF-8");
+
+    let asked = run(&["--size", "4x3", path]);
+    assert!(asked.status.success(), "exited with {}", asked.status);
+    assert_eq!(
+        String::from_utf8_lossy(&asked.stdout),
+        "┌──┐\n│░░│\n└──┘\n",
+        "the command line's size is the window, not the file's own"
+    );
+
+    let moved = run(&["--size", "4x3", "--origin", "1,1", path]);
+    assert!(moved.status.success(), "exited with {}", moved.status);
+    assert_eq!(
+        String::from_utf8_lossy(&moved.stdout),
+        "░░│ \n──┘ \n    \n",
+        "the origin is the window's corner, so the box at (0, 0) is outside it and only the part \
+         the window holds is drawn"
+    );
+}
+
+/// A flag this binary does not read prints nothing to stdout, names itself on stderr, and fails.
+///
+/// **The refusal is the boundary, and it is the same shape the parser's own unit tests pin.** A
+/// binary that read `--width 20` as a path would draw a picture of a file that does not exist and
+/// report the missing file, which is a refusal about the wrong thing.
+#[test]
+fn a_flag_this_binary_does_not_read_names_it_on_stderr_and_fails() {
+    let output = run(&["--width", "20", "x.json"]);
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty(), "printed to stdout");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("`--width` is not an option"), "{stderr}");
+    assert!(stderr.contains("usage:"), "{stderr}");
+}
+
 /// A box, a line and a connector at stated positions print all three composed.
 #[test]
 fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
