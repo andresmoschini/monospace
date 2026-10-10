@@ -10,6 +10,10 @@ license.workspace = true
 monospace-core.workspace = true
 monospace-description.workspace = true
 monospace-diagram.workspace = true
+# The demonstration runs on a session rather than on the diagram it was handed, which is what makes
+# the editing layer's ownership rule exercised rather than asserted. The binary still holds a diagram
+# of its own: `render_once` draws one for a file it is given, and that path walks nowhere.
+monospace-editing.workspace = true
 monospace-glyph-sets.workspace = true
 
 [dev-dependencies]

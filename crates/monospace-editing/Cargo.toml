@@ -1,0 +1,24 @@
+[package]
+name = "monospace-editing"
+description = "The layer that holds a diagram while it is being changed: a session, the commands performed against it, and what it gives back"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+# One dependency, and the reading of it is the reading of the model's "nothing of a session reaches a
+# file, a screen, or what is selected": there is no crate here for a file, for a terminal or for a
+# selection, so none of the three is reachable from a session. `monospace-diagram` is the whole of
+# what the library needs, and nothing else — the commands are written against the diagram's own
+# five operations and reach nothing past them.
+[dependencies]
+monospace-diagram.workspace = true
+
+# The contract tests draw a session to see what it holds, and a diagram is drawn into a buffer the
+# core owns, so this is a dev-dependency and the library never sees it — the same reach `insta` has
+# in the other crates and none of this crate's public API is named in terms of it.
+[dev-dependencies]
+monospace-core.workspace = true
+
+[lints]
+workspace = true

@@ -340,12 +340,13 @@ and orchestrating subprocesses and propagating exit codes is `std`'s job.
 
 ### What is in scope
 
-Five crates, and the boundary is that `monospace-core` holds all the domain logic while the other
-four hold none of it, and the core's public API may not assume a CLI, a TUI or a terminal:
+Six crates, and the boundary is that `monospace-core` holds all the domain logic while the other
+five hold none of it, and the core's public API may not assume a CLI, a TUI or a terminal:
 `monospace-core`, the library; `monospace-cli`, a minimal non-interactive consumer producing
 diagrams from the terminal; `monospace-glyph-sets`, the glyph sets the core does not ship as
-built-in data; `monospace-diagram`, the model holding a diagram after it is drawn; and
-`monospace-description`, which reads a diagram's JSON file format into one.
+built-in data; `monospace-diagram`, the model holding a diagram after it is drawn;
+`monospace-editing`, the layer that holds a diagram while it is being changed and gives its steps
+back; and `monospace-description`, which reads a diagram's JSON file format into one.
 
 **A crate is portable because the gate's `wasm` step names it, not because nothing excludes it.**
 That list is the whole of it, so a crate added later that it does not name is outside on the same

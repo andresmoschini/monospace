@@ -102,6 +102,7 @@ dependencies = [
  "monospace-core",
  "monospace-description",
  "monospace-diagram",
+ "monospace-editing",
  "monospace-glyph-sets",
  "serde_json",
 ]
@@ -130,6 +131,14 @@ version = "0.1.0"
 dependencies = [
  "insta",
  "monospace-core",
+]
+
+[[package]]
+name = "monospace-editing"
+version = "0.1.0"
+dependencies = [
+ "monospace-core",
+ "monospace-diagram",
 ]
 
 [[package]]

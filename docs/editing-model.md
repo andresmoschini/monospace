@@ -1,9 +1,11 @@
 # The editing model
 
-**Status:** Design intent, not observed behavior. Nothing described here is implemented. It is
-written down first so that each feature spec can implement a slice of it and say which slice, rather
-than restating the whole model or inventing its own vocabulary. Amend it when reality contradicts
-it, and say so in the commit.
+**Status:** Design intent, with one slice implemented. What §1 through §7 describe is
+[`monospace-editing`](../crates/monospace-editing), and
+[`specs/197-an-editing-layer-above-the-diagram-model.md`](../specs/197-an-editing-layer-above-the-diagram-model.md)
+is the specification that slice was built against. §8 _Deliberately unresolved_ and §10 _Open
+questions_ are what a later change answers. Amend this document when reality contradicts it, and say
+so in the commit.
 
 **Created:** 2026-10-10
 
@@ -188,8 +190,10 @@ ambiguity is worth one sentence rather than two names, because both are diagrams
 - Redoing them reaches the diagram the session held before any of it was given back.
 - A command naming a figure the diagram does not hold leaves the diagram equal and is still a step.
 - A command carried out after a step was given back leaves nothing ahead of the position to give.
-- Each of the diagram's five operations is what at least one command becomes, and no command reaches
-  the diagram by any other way.
+- Each command is what one of the diagram's five operations becomes, and no command reaches the
+  diagram by any other way. **Not the other way round**: `add` and `backward` are two of the five
+  and the initial set of commands reaches neither, because adding a figure is not one thing a caller
+  means to do to one and moving one toward the back of the order is not another.
 - Drawing what a session holds and drawing the diagram it was created over produce equal buffers
   when no command has been carried out.
 - A copy a session handed out does not change when the session's diagram does.

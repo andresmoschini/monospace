@@ -21,6 +21,10 @@ use monospace_core::{Buffer, Layer, ShapeId, StampMode};
 use crate::Shape;
 
 /// One entry of a diagram's order: a shape and the identity the diagram gave it.
+///
+/// `Clone` is derived and never read here; it exists because the diagram beside it can be copied and
+/// a hand-written copy of one entry would say nothing the derive does not.
+#[derive(Clone)]
 struct Placed {
     id: ShapeId,
     shape: Shape,
@@ -28,6 +32,22 @@ struct Placed {
 
 /// A diagram: an ordered set of shapes, and nothing else — no buffer, no glyph catalog, no
 /// rendered picture.
+///
+/// **It is `Clone`, because a diagram is a value and copying one is not sharing anything.** Every
+/// field is copied — the order, each figure with the identity the diagram gave it, and the ordinal
+/// the next `add` will take — so a copy is held, drawn, changed and dropped without the first
+/// knowing it exists: there is no identity counter behind it and nothing inside it refers to
+/// anything outside it. Nothing was reachable by reference before this, so nothing is by alias
+/// after it.
+///
+/// The copy answers `add` with the ordinal the original would have answered, which is what keeps
+/// two copies from handing out one identity. They are then two diagrams that both hold shapes
+/// under names that may coincide, and `add_under` already says that two entries under one identity
+/// are held and are not an error.
+///
+/// It is `Clone` and not `Copy`: a diagram is as likely to be as long as it is wide, and a copy of
+/// every figure is not a copy of nothing.
+#[derive(Clone)]
 pub struct Diagram {
     /// The order the shapes draw in. The **last** element is the front of the order: it is drawn
     /// first and decides a shared cell before anything behind it.

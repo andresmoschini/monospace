@@ -91,7 +91,7 @@ it, so the same box draws in ASCII, Double, Heavy and their combinations without
 
 Behind that, and all of it enforced rather than merely intended:
 
-- **114** tests in `monospace-core`, **339** across the workspace.
+- **126** tests in `monospace-core`, **399** across the workspace.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
@@ -99,7 +99,9 @@ Behind that, and all of it enforced rather than merely intended:
   that keeps the portable crates compiling for WebAssembly, so stage 4 stays reachable instead of
   becoming a rewrite.
 
-Still missing, and named here rather than implied: an editing surface, the TUI, and persistence.
+Still missing, and named here rather than implied: the editing **surface** — `monospace-editing` is
+the layer under one, and holds a diagram while it is changed and gives its steps back — the TUI, and
+persistence.
 
 ## Getting started
 
@@ -107,7 +109,7 @@ Still missing, and named here rather than implied: an editing surface, the TUI, 
 rustup toolchain install   # reads rust-toolchain.toml
 cargo xtask setup          # installs the Node tooling the gate needs
 
-cargo run -p monospace-cli                      # a demonstration: two pictures, one shape moved
+cargo run -p monospace-cli                      # a demonstration: eight pictures, then the walk back
 cargo run -p monospace-cli -- path/to.json      # one picture, for the description you give it
 cargo xtask check                               # the whole quality gate
 ```
