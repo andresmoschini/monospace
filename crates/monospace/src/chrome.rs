@@ -153,14 +153,64 @@ pub(crate) enum Focus {
     PopUp,
 }
 
-/// Everything an event can ask the application to do.
+/// Everything an event can ask the application to do, and nothing else.
 ///
 /// **An action is the only thing that changes the state**, so this enum and the `match` in
 /// [`Chrome::apply`] are together the whole of what the application can do. A key does not reach
 /// the state and a click does not either: both become one of these first.
-/// **It is written in [`crate::event`] and re-exported here**, because it is what an event becomes
-/// and this is where an action lands, and the two halves are one thing said from either side.
-pub(crate) use crate::event::Action;
+///
+/// **It is written here and not in [`crate::event`]**, because its only consumer is on this side:
+/// `Chrome::apply` is what carries one out, and a vocabulary declared next to its reader and
+/// imported back into it is a cycle between two modules wearing a `use`. [`crate::event`] turns
+/// `crossterm`'s `Event` into one of these and imports it from here, which is the one direction
+/// that crosses the boundary.
+///
+/// **An enum rather than a callback**, because the whole of this design is that the set of things
+/// the application can do is written down in one place and nowhere else, and a closure per
+/// handler would be that set scattered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Action {
+    /// The way out, and the only action that ends the loop.
+    ///
+    /// **One action reached four ways**, and the four are a key (`Ctrl+Q`), the same key the
+    /// terminal would otherwise turn into a signal (`Ctrl+C`), a click on the control that carries
+    /// it, and that control's own key (`Enter`). Each of them arrives here and becomes this, rather
+    /// than each having a path of its own to the end of the loop.
+    Quit,
+    /// The drop-down opens and the keyboard goes into it.
+    OpenDropDown,
+    /// The drop-down closes and the keyboard goes back to the control that opened it.
+    CloseDropDown,
+    /// The selection in the drop-down moves by one, stopping at either end rather than wrapping.
+    MoveInDropDown(Move),
+    /// The keyboard moves to the next control in the bar, or the one before it.
+    FocusAlongBar(Move),
+    /// The keyboard leaves the bar and goes back to the region.
+    ///
+    /// **This is `Esc` popping one level off the focus stack**, which is a stack of three: the
+    /// region, a control in the bar, and an overlay over the region. `Esc` in an overlay closes it
+    /// and leaves the keyboard on the control that opened it; `Esc` in the bar goes back to the
+    /// region, which is where it was before anything was opened. There is nowhere below the
+    /// region, so `Esc` there names no action at all.
+    FocusTheRegion,
+    /// The control the keyboard is on does what it is for.
+    Activate,
+    /// The pop-up opens and the keyboard goes into it.
+    ShowAbout,
+    /// The pop-up closes and the keyboard goes back to the control that opened it.
+    HideAbout,
+    /// A pointer went down on a control.
+    ///
+    /// **This sets a state and performs nothing**, which is why it is an action at all: rule 8 says
+    /// only an action changes the state, and the pressed state is state.
+    Press(ControlId),
+    /// A pointer came up, on a control or on nothing.
+    ///
+    /// **Carrying whether it came up on a control is what makes a click one gesture**: the control
+    /// that was pressed is the only one this turns into an action, so a pointer that goes down on
+    /// one control and comes up on another activates neither.
+    Release(Option<ControlId>),
+}
 
 /// The bar's controls, in the order they are laid out across the top of the screen.
 ///

@@ -27,56 +27,7 @@ use crossterm::event::{
 };
 use ratatui::layout::Position;
 
-use crate::chrome::{Chrome, ControlId, Focus, Move};
-
-/// Everything an event can ask the application to do, and nothing else.
-///
-/// **An enum rather than a callback**, because the whole of this design is that the set of things
-/// the application can do is written down in one place and nowhere else, and a closure per
-/// handler would be that set scattered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Action {
-    /// The way out, and the only action that ends the loop.
-    ///
-    /// **One action reached four ways**, and the four are a key (`Ctrl+Q`), the same key the
-    /// terminal would otherwise turn into a signal (`Ctrl+C`), a click on the control that carries
-    /// it, and that control's own key (`Enter`). Each of them arrives here and becomes this, rather
-    /// than each having a path of its own to the end of the loop.
-    Quit,
-    /// The drop-down opens and the keyboard goes into it.
-    OpenDropDown,
-    /// The drop-down closes and the keyboard goes back to the control that opened it.
-    CloseDropDown,
-    /// The selection in the drop-down moves by one, stopping at either end rather than wrapping.
-    MoveInDropDown(Move),
-    /// The keyboard moves to the next control in the bar, or the one before it.
-    FocusAlongBar(Move),
-    /// The keyboard leaves the bar and goes back to the region.
-    ///
-    /// **This is `Esc` popping one level off the focus stack**, which is a stack of three: the
-    /// region, a control in the bar, and an overlay over the region. `Esc` in an overlay closes it
-    /// and leaves the keyboard on the control that opened it; `Esc` in the bar goes back to the
-    /// region, which is where it was before anything was opened. There is nowhere below the
-    /// region, so `Esc` there names no action at all.
-    FocusTheRegion,
-    /// The control the keyboard is on does what it is for.
-    Activate,
-    /// The pop-up opens and the keyboard goes into it.
-    ShowAbout,
-    /// The pop-up closes and the keyboard goes back to the control that opened it.
-    HideAbout,
-    /// A pointer went down on a control.
-    ///
-    /// **This sets a state and performs nothing**, which is why it is an action at all: rule 8 says
-    /// only an action changes the state, and the pressed state is state.
-    Press(ControlId),
-    /// A pointer came up, on a control or on nothing.
-    ///
-    /// **Carrying whether it came up on a control is what makes a click one gesture**: the control
-    /// that was pressed is the only one this turns into an action, so a pointer that goes down on
-    /// one control and comes up on another activates neither.
-    Release(Option<ControlId>),
-}
+use crate::chrome::{Action, Chrome, Focus, Move};
 
 /// Where the loop asks for the next event.
 ///
@@ -230,8 +181,8 @@ mod tests {
     };
     use ratatui::layout::Position;
 
-    use super::{Action, action_of, own_key_action};
-    use crate::chrome::{Chrome, ControlId, Move};
+    use super::{action_of, own_key_action};
+    use crate::chrome::{Action, Chrome, ControlId, Move};
 
     /// A key pressed, which is the only kind of key an event loop acts on.
     fn key(code: KeyCode) -> Event {
