@@ -35,7 +35,7 @@ the gate that checks portability deliberately does not name this crate because i
 | `Chrome`       | Everything on the screen that is not the diagram: the bar, the region, the status bar, the overlays |
 | `Control`      | One thing on screen a key or a click can reach: a bar entry, a drop-down item, a pop-up's button    |
 | `ControlState` | What a control is drawn in: at rest, focused, or pressed                                            |
-| `Focus`        | Where the keyboard is: a control in the bar, the drop-down, or the pop-up                           |
+| `Focus`        | Where the keyboard is: the region, a control in the bar, the drop-down, or the pop-up               |
 | `Action`       | Everything an event can ask the application to do; the only thing that changes the state            |
 | `Frame`        | One whole picture of the screen, drawn after the state changed and before the next event is read    |
 | `EventSource`  | Where the loop asks for the next event                                                              |
@@ -155,7 +155,27 @@ scrollbar thumb is the obvious candidate.
 
 ## 5. Where the keyboard is, and how a key finds its way to it
 
-The keyboard is in one of three places: a control in the bar, the drop-down, or the pop-up.
+The keyboard is in one of four places, and **they are a stack**: the region, a control in the bar,
+the drop-down, and the pop-up. `Esc` pops one level — in an overlay it closes it and leaves the
+keyboard on the control that opened it, and in the bar it goes back to the region.
+
+**The region is where it rests.** An application that opens with a menu title highlighted says _
+"the keyboard is on the menu"_ before anybody has pressed anything, and that is a claim the screen
+cannot cash: the menu is not open, and the region is where a diagram goes and where the keyboard
+belongs between one gesture and the next. **A resting screen therefore has nothing in any state**,
+which is the only state in this application where that is true.
+
+**The region takes no keys, so every key falls through to the application's own.** The way out and
+the menu both work from the resting state, which is where the application is most of the time. The
+table that says so is empty, and it is empty on purpose: the first key the region answers is
+[#175](https://github.com/andresmoschini/monospace/issues/175)'s to write, and it is a row rather
+than a change of shape.
+
+**Reaching the bar from the resting state goes through an overlay.** `F9` opens the drop-down and
+`Esc` closes it and leaves the keyboard on `File`, and one `Tab` further along is `About`. That is
+two presses to reach a control `Tab` alone would have reached, and it is the price of the region
+resting. `Down` from the bar into the region is the other half of that round trip and is
+[#175](https://github.com/andresmoschini/monospace/issues/175)'s.
 
 **A focus and not a mode.** A mode answers _which place does this key go to?_, and a focus answers
 the same question without a second thing to keep in step with the first. A mode earns its place only
@@ -255,9 +275,12 @@ into by [#175](https://github.com/andresmoschini/monospace/issues/175), and no f
 
 ## 8. Deliberately unresolved
 
-- **How the keyboard moves between the bar and the region.** `Tab` and the arrow keys walk the bar
-  and nothing else, because the region holds no control yet. What would settle it: the first control
-  inside the region, which is [#177](https://github.com/andresmoschini/monospace/issues/177)'s.
+- **Whether a key should enter the bar from the region without opening something first.** §5 settles
+  that it does not: the region rests, and reaching a control in the bar goes through an overlay. It
+  costs two presses and it leaves the resting screen saying nothing. **What would reopen it:** the
+  first control inside the region, which is
+  [#177](https://github.com/andresmoschini/monospace/issues/177)'s — with a key that acts on it, the
+  region is somewhere the keyboard can be on purpose rather than merely where it waits.
 - **What a cell of the region means to a click.** The chrome's own answer is that a click is tested
   against the rectangle a control was drawn into, and a diagram cell is not a control. A cell of a
   drawing is a different question — `Buffer::owner` is how the core already says a click on one is

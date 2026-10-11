@@ -51,6 +51,14 @@ pub(crate) enum Action {
     MoveInDropDown(Move),
     /// The keyboard moves to the next control in the bar, or the one before it.
     FocusAlongBar(Move),
+    /// The keyboard leaves the bar and goes back to the region.
+    ///
+    /// **This is `Esc` popping one level off the focus stack**, which is a stack of three: the
+    /// region, a control in the bar, and an overlay over the region. `Esc` in an overlay closes it
+    /// and leaves the keyboard on the control that opened it; `Esc` in the bar goes back to the
+    /// region, which is where it was before anything was opened. There is nowhere below the
+    /// region, so `Esc` there names no action at all.
+    FocusTheRegion,
     /// The control the keyboard is on does what it is for.
     Activate,
     /// The pop-up opens and the keyboard goes into it.
@@ -110,6 +118,7 @@ pub(crate) fn action_of(chrome: &Chrome, event: &Event) -> Option<Action> {
 /// What the control holding the keyboard takes from `event`.
 fn focused_action(chrome: &Chrome, event: &Event) -> Option<Action> {
     match (chrome.focus(), event) {
+        (Focus::Region, Event::Key(key)) => key_action(key, REGION_KEYS),
         (Focus::Bar(_), Event::Key(key)) => key_action(key, BAR_KEYS),
         (Focus::DropDown, Event::Key(key)) => key_action(key, DROP_DOWN_KEYS),
         (Focus::PopUp, Event::Key(key)) => key_action(key, POPUP_KEYS),
@@ -117,6 +126,18 @@ fn focused_action(chrome: &Chrome, event: &Event) -> Option<Action> {
         _ => None,
     }
 }
+
+/// The keys the region takes while the keyboard is in it.
+///
+/// **Empty, and that is the whole of what the region can be asked to do.** A key that names no
+/// action falls through to the application's own, so nothing here means the way out and the menu
+/// still work from the resting state, which is where the application is most of the time.
+///
+/// **The first key the region answers is
+/// [#175](https://github.com/andresmoschini/monospace/issues/175)'s to write**, by giving the
+/// region something to do with a key. The table exists rather than the match arm being a bare
+/// `None` so that adding that one is a row here and nothing else.
+const REGION_KEYS: &[(KeyCode, Action)] = &[];
 
 /// The keys the application answers wherever the keyboard is.
 ///
@@ -151,6 +172,7 @@ const BAR_KEYS: &[(KeyCode, Action)] = &[
     (KeyCode::Tab, Action::FocusAlongBar(Move::Down)),
     (KeyCode::Left, Action::FocusAlongBar(Move::Up)),
     (KeyCode::BackTab, Action::FocusAlongBar(Move::Up)),
+    (KeyCode::Esc, Action::FocusTheRegion),
 ];
 
 /// The keys the drop-down takes while it holds the keyboard.
@@ -277,16 +299,13 @@ mod tests {
     fn a_key_goes_to_whatever_holds_focus_before_the_applications_own_keys() {
         let mut chrome = Chrome::default();
 
-        // With the keyboard on the bar, `Esc` is nobody's and `F9` reaches past it.
+        // The region is where the keyboard rests, and it takes nothing, so everything falls
+        // through — including `Enter`, which would activate a control if there were one under it.
+        assert_eq!(action_of(&chrome, &key(KeyCode::Enter)), None);
         assert_eq!(action_of(&chrome, &key(KeyCode::Esc)), None);
         assert_eq!(
             action_of(&chrome, &key(KeyCode::F(9))),
             Some(Action::OpenDropDown)
-        );
-        assert_eq!(
-            action_of(&chrome, &key(KeyCode::Enter)),
-            Some(Action::Activate),
-            "the key the focus holder takes did not reach it"
         );
 
         // With the drop-down open, `Esc` is the drop-down's and nothing else gets it.
@@ -298,6 +317,19 @@ mod tests {
         assert_eq!(
             action_of(&chrome, &key(KeyCode::Down)),
             Some(Action::MoveInDropDown(Move::Down))
+        );
+
+        // With the keyboard on the bar, `Enter` reaches the control and `Esc` goes back down the
+        // stack to the region.
+        chrome.apply(Action::CloseDropDown);
+        assert_eq!(
+            action_of(&chrome, &key(KeyCode::Enter)),
+            Some(Action::Activate),
+            "the key the focus holder takes did not reach it"
+        );
+        assert_eq!(
+            action_of(&chrome, &key(KeyCode::Esc)),
+            Some(Action::FocusTheRegion)
         );
     }
 
@@ -312,18 +344,17 @@ mod tests {
     fn the_diagrams_keys_do_nothing_while_a_pop_up_is_open() {
         let mut chrome = Chrome::default();
 
-        // With the keyboard on the bar, `Enter` activates the control it is on and `Esc` is nobody's.
-        assert_eq!(
-            action_of(&chrome, &key(KeyCode::Enter)),
-            Some(Action::Activate)
-        );
+        // The keyboard rests in the region, which is where a diagram goes and takes no keys yet.
+        // **This is the state rule 14 is about**: the pop-up has to take the keyboard from here.
+        assert_eq!(chrome.focus(), crate::chrome::Focus::Region);
+        assert_eq!(action_of(&chrome, &key(KeyCode::Enter)), None);
         assert_eq!(action_of(&chrome, &key(KeyCode::Esc)), None);
 
         chrome.apply(Action::ShowAbout);
         assert_eq!(chrome.focus(), crate::chrome::Focus::PopUp);
         assert!(
             action_of(&chrome, &key(KeyCode::Enter)).is_some_and(|a| a == Action::Activate),
-            "the key the bar took no longer reaches the bar"
+            "the pop-up took the keyboard and the key that acts on it did not reach it"
         );
         assert_eq!(
             action_of(&chrome, &key(KeyCode::Esc)),
@@ -338,7 +369,7 @@ mod tests {
         assert_eq!(action_of(&chrome, &key(KeyCode::Char('z'))), None);
         assert!(chrome.running());
         assert!(!chrome.drop_down_is_open());
-        assert_eq!(chrome.focus(), crate::chrome::Focus::Bar(ControlId::File));
+        assert_eq!(chrome.focus(), crate::chrome::Focus::Region);
     }
 
     #[test]

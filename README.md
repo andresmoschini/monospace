@@ -154,14 +154,18 @@ application can do is [decided in `docs/application-model.md`](docs/application-
 
 **Enough to get around it**, and deliberately not a table of every binding:
 
-| Key                  | What it does                            |
-| -------------------- | --------------------------------------- |
-| `Ctrl+Q` or `Ctrl+C` | the way out, from anywhere              |
-| `F9`                 | open the drop-down under `File`         |
-| `Enter`              | do what the focused control is for      |
-| `Esc`                | cancel whatever is open                 |
-| `Tab`, `Right` / `←` | move the keyboard along the bar         |
-| `↑` `↓`              | move the selection in an open drop-down |
+| Key                  | What it does                                  |
+| -------------------- | --------------------------------------------- |
+| `Ctrl+Q` or `Ctrl+C` | the way out, from anywhere                    |
+| `F9`                 | open the drop-down under `File`               |
+| `Esc`                | back out one level: the overlay, then the bar |
+| `Enter`              | do what the focused control is for            |
+| `Tab`, `Right` / `←` | move the keyboard along the bar               |
+| `↑` `↓`              | move the selection in an open drop-down       |
+
+**The keyboard rests in the region, which holds nothing yet**, so a fresh screen has nothing
+highlighted at all. `F9` puts the keyboard in the drop-down and `Esc` twice brings it back to the
+region.
 
 `File` and `About` are clickable too, and so is everything in them. **A control under the pointer is
 not a state**, so nothing on screen changes when the mouse moves over one — that is a decision with

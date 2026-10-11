@@ -127,17 +127,24 @@ fn the_screen_at_rest() {
 /// pointer is, and the two cues draw the same way so they never compete.
 #[test]
 fn the_control_has_three_states_and_shows_which_one_it_is_in() {
-    // At rest: the keyboard is on the other control, so `About` is neither of the other two.
+    // At rest the keyboard is in the region, which has no control under it: **nothing on screen is
+    // in any state**, and this is the case that shows it.
     let mut at_rest = Chrome::default();
 
+    // The keyboard reaches the bar through the focus stack rather than through a key — `F9` and
+    // then `Esc` leave it on `File`, and one `Tab` further along is `About`.
     let mut focused = Chrome::default();
+    focused.apply(Action::OpenDropDown);
+    focused.apply(Action::CloseDropDown);
     focused.apply(Action::FocusAlongBar(Move::Down));
 
     let mut pressed = Chrome::default();
+    pressed.apply(Action::OpenDropDown);
+    pressed.apply(Action::CloseDropDown);
     pressed.apply(Action::Press(ControlId::About));
 
     let cases = [
-        case("at rest", &mut at_rest),
+        case("at rest, with the keyboard in the region", &mut at_rest),
         case("focused by the keyboard", &mut focused),
         case(
             "pressed, with the keyboard on the other control",

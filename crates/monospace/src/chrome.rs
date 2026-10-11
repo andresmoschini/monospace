@@ -124,12 +124,27 @@ pub(crate) fn menu() -> impl Iterator<Item = (usize, &'static str)> {
 
 /// Where the keyboard is.
 ///
+/// Where the keyboard is.
+///
 /// **A place and not a mode.** A mode answers "which of these handlers runs", and a focus answers
 /// the same question without a second thing to keep in step; a mode earns its place only when keys
 /// mean different *verbs* rather than going to different places, and this application has no such
 /// pair. See D4 in the specification.
+///
+/// **The three are a stack, and `Esc` pops one level.** The region is the bottom, a control in the
+/// bar is above it, and an overlay over the region is above that. Which is why the resting state is
+/// the region: a screen whose only highlighted control is a menu title says "the keyboard is on the
+/// menu" before anybody has opened it, and that is a claim the screen cannot cash.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Focus {
+    /// In the region, where nothing on screen can be activated and nothing is drawn in reverse.
+    ///
+    /// **The default, and the reason the screen opens with nothing highlighted.** The region is
+    /// where a diagram goes and where the keyboard belongs between one gesture and the next; a
+    /// control highlighted at rest would be saying the keyboard is somewhere the user has not
+    /// asked to put it. It is also what makes rule 14 mean something: a pop-up that holds the
+    /// keyboard has to take it from somewhere, and this is where it was.
+    Region,
     /// On a control in the bar.
     Bar(ControlId),
     /// In the drop-down, which is drawn over the region and holds the keyboard while it is open.
@@ -234,14 +249,17 @@ pub(crate) struct Chrome {
 }
 
 impl Default for Chrome {
-    /// **The keyboard starts on the bar's first control.** Rule 12 is about the region holding the
-    /// keyboard, and an application whose only visible thing at rest is a bar is one whose region
-    /// holds nothing yet — so the first thing a person can do is press `Enter`, and the second is
-    /// `Right`.
+    /// **The keyboard starts in the region**, which holds nothing and therefore highlights nothing.
+    ///
+    /// The alternative was the bar's first control, and the reason it lost is that it made a
+    /// resting screen claim something: `File` drawn in reverse video before anybody pressed
+    /// anything says the keyboard is on the menu. With the region as the resting state nothing on
+    /// screen is in any state, and the first thing a person does — `F9` — is something they can
+    /// see the effect of.
     fn default() -> Self {
         Self {
             geometry: Geometry::default(),
-            focus: Focus::Bar(ControlId::File),
+            focus: Focus::Region,
             pressed: None,
             drop_down: false,
             selected: 0,
@@ -303,23 +321,23 @@ impl Chrome {
     pub(crate) fn state_of(&self, control: ControlId) -> ControlState {
         if self.pressed == Some(control) {
             ControlState::Pressed
-        } else if self.focused() == control {
+        } else if self.focused() == Some(control) {
             ControlState::Focused
         } else {
             ControlState::AtRest
         }
     }
 
-    /// The control the keyboard is on.
+    /// The control the keyboard is on, or `None` where it is on something with no control.
     ///
-    /// **Never nothing**, which is what lets `Activate` be one action rather than one per place:
-    /// every place the keyboard can be in has a control under it, and the tables that name what
-    /// each control does are the only place a control's meaning is written down.
-    pub(crate) fn focused(&self) -> ControlId {
+    /// **`None` only in the region**, and that is what makes the resting screen draw nothing in
+    /// reverse video: with no control under the keyboard there is nothing to draw it on.
+    pub(crate) fn focused(&self) -> Option<ControlId> {
         match self.focus {
-            Focus::Bar(control) => control,
-            Focus::DropDown => ControlId::Menu(self.selected),
-            Focus::PopUp => ControlId::Close,
+            Focus::Region => None,
+            Focus::Bar(control) => Some(control),
+            Focus::DropDown => Some(ControlId::Menu(self.selected)),
+            Focus::PopUp => Some(ControlId::Close),
         }
     }
 
@@ -350,6 +368,8 @@ impl Chrome {
                 None
             }
             Action::CloseDropDown => {
+                // Back out one level, not all the way: the keyboard lands on the control that
+                // opened the drop-down, so `Esc` twice is what puts it back in the region.
                 self.drop_down = false;
                 self.focus = Focus::Bar(ControlId::File);
                 None
@@ -361,16 +381,20 @@ impl Chrome {
             Action::FocusAlongBar(direction) => {
                 let index = BAR
                     .iter()
-                    .position(|(control, _)| *control == self.focused())
+                    .position(|(control, _)| Some(*control) == self.focused())
                     .unwrap_or_default();
                 let next = moved(index, direction, BAR.len());
                 self.focus = Focus::Bar(BAR[next].0);
                 None
             }
+            Action::FocusTheRegion => {
+                self.focus = Focus::Region;
+                None
+            }
             Action::Activate => {
                 let focused = self.focused();
                 self.pressed = None;
-                action_of(focused)
+                focused.and_then(action_of)
             }
             Action::ShowAbout => {
                 self.pop_up = true;
@@ -379,6 +403,7 @@ impl Chrome {
                 None
             }
             Action::HideAbout => {
+                // As with the drop-down: one level up, onto the control that opened it.
                 self.pop_up = false;
                 self.focus = Focus::Bar(ControlId::About);
                 None
@@ -412,7 +437,8 @@ mod tests {
     use ratatui::layout::{Position, Rect};
 
     use super::{
-        Action, BAR, Chrome, ControlId, ControlState, Focus, MENU, Move, action_of, label_of, moved,
+        Action, BAR, Chrome, ControlId, ControlState, Focus, Geometry, MENU, Move, action_of,
+        label_of, moved,
     };
 
     /// A chrome whose geometry says where every control is, for the tests about clicking.
@@ -493,25 +519,58 @@ mod tests {
         assert!(chrome.control_at(Position { x: 22, y: 0 }).is_some());
     }
 
-    /// **The keyboard is in exactly one place at a time, and it is always a control.** That is what
-    /// makes reverse video mean one thing on the whole screen, and it is checked here rather than
-    /// in the draw pass because the two are the same claim: a control's state is read from the
-    /// focus, so a second thing claiming the focus could not be drawn without disagreeing with it.
+    /// **The keyboard is in one place at a time, and it is either a control or nothing.** That is
+    /// what makes reverse video mean one thing on the whole screen, and it is checked here rather
+    /// than in the draw pass because the two are the same claim: a control's state is read from
+    /// the focus, so a second thing claiming the focus could not be drawn without disagreeing
+    /// with it.
+    ///
+    /// **The resting state is on no control at all**, which is what makes the screen open with
+    /// nothing highlighted rather than with a menu title lit.
     #[test]
-    fn the_keyboard_is_on_one_control_and_no_frame() {
+    fn the_keyboard_is_on_one_control_or_on_none() {
         let mut chrome = Chrome::default();
-        assert_eq!(chrome.focused(), ControlId::File);
-        assert_eq!(chrome.state_of(ControlId::File), ControlState::Focused);
-        assert_eq!(chrome.state_of(ControlId::About), ControlState::AtRest);
+        assert_eq!(chrome.focused(), None);
+        for control in Geometry::controls() {
+            assert_eq!(
+                chrome.state_of(control),
+                ControlState::AtRest,
+                "{control:?} is drawn in a state with the keyboard on nothing"
+            );
+        }
 
         chrome.apply(Action::OpenDropDown);
-        assert_eq!(chrome.focused(), ControlId::Menu(0));
+        assert_eq!(chrome.focused(), Some(ControlId::Menu(0)));
         assert_eq!(chrome.state_of(ControlId::Menu(0)), ControlState::Focused);
         assert_eq!(chrome.state_of(ControlId::File), ControlState::AtRest);
 
         chrome.apply(Action::ShowAbout);
-        assert_eq!(chrome.focused(), ControlId::Close);
+        assert_eq!(chrome.focused(), Some(ControlId::Close));
         assert_eq!(chrome.state_of(ControlId::Close), ControlState::Focused);
+    }
+
+    /// **`Esc` pops one level off the focus stack, and the stack is three deep.**
+    ///
+    /// The whole of it: `Esc` in an overlay closes it and leaves the keyboard on the control that
+    /// opened it, and `Esc` in the bar puts it back in the region. Two presses from either overlay
+    /// to the resting state, and none to go below it.
+    #[test]
+    fn escape_pops_one_level_off_the_focus_stack() {
+        let mut chrome = Chrome::default();
+        chrome.apply(Action::OpenDropDown);
+        assert_eq!(chrome.focus(), Focus::DropDown);
+
+        chrome.apply(Action::CloseDropDown);
+        assert!(!chrome.drop_down_is_open());
+        assert_eq!(
+            chrome.focus(),
+            Focus::Bar(ControlId::File),
+            "the drop-down closed and the keyboard did not land on the control that opened it"
+        );
+
+        chrome.apply(Action::FocusTheRegion);
+        assert_eq!(chrome.focus(), Focus::Region);
+        assert_eq!(chrome.focused(), None);
     }
 
     #[test]
@@ -573,6 +632,8 @@ mod tests {
     #[test]
     fn a_pressed_control_is_released_when_the_pointer_comes_up_anywhere() {
         let mut chrome = Chrome::default();
+        chrome.apply(Action::OpenDropDown);
+        chrome.apply(Action::CloseDropDown);
         chrome.apply(Action::Press(ControlId::File));
         assert_eq!(chrome.state_of(ControlId::File), ControlState::Pressed);
 

@@ -254,7 +254,7 @@ mod tests {
         let mut app = App::default();
         offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Char('q')));
         assert!(app.running(), "a bare q ended the loop");
-        assert_eq!(app.chrome().focus(), Focus::Bar(ControlId::File));
+        assert_eq!(app.chrome().focus(), Focus::Region);
         assert!(!app.chrome().drop_down_is_open());
     }
 
@@ -265,7 +265,17 @@ mod tests {
             offer(&mut by_click, &event);
         }
 
+        // The keyboard reaches the same control by the stack rather than by a key: `F9` opens the
+        // drop-down and `Esc` closes it and leaves the keyboard on `File`. That is the path the
+        // resting focus stack allows, and rule 9 says the two must apply the same action.
         let mut by_key = App::default();
+        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::F(9)));
+        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::Esc));
+        assert_eq!(
+            by_key.chrome().focus(),
+            Focus::Bar(ControlId::File),
+            "`Esc` did not leave the keyboard on the control that opened the drop-down"
+        );
         offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::Enter));
 
         assert_eq!(
@@ -283,7 +293,7 @@ mod tests {
             offer(&mut app, &event);
         }
         assert!(app.running());
-        assert_eq!(app.chrome().focus(), Focus::Bar(ControlId::File));
+        assert_eq!(app.chrome().focus(), Focus::Region);
         assert!(!app.chrome().drop_down_is_open());
     }
 
@@ -355,7 +365,7 @@ mod tests {
             offer(&mut app, &event);
         }
         assert!(app.running());
-        assert_eq!(app.chrome().focus(), Focus::Bar(ControlId::File));
+        assert_eq!(app.chrome().focus(), Focus::Region);
     }
 
     /// **Every control the chrome can draw has a rectangle a click can find.** A control with no
