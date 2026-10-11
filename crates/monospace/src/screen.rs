@@ -310,10 +310,7 @@ mod tests {
     };
 
     use super::{APPLICATION, Regions, draw, regions};
-    use crate::{
-        app::App,
-        chrome::{Action, Chrome, ControlId, ControlState, Move},
-    };
+    use crate::chrome::{Action, Chrome, ControlId, ControlState, Move};
 
     /// The screen every picture in this file is taken at.
     ///
@@ -654,19 +651,25 @@ mod tests {
         );
     }
 
+    /// **What this checks is the picture and not the state**, which is why it says so in its name and
+    /// why `App` was never needed here: [`draw`] takes a `&mut Chrome` and fills its geometry in, so
+    /// every other test in this module holds one directly. `app.rs` asks whether the drop-down is open;
+    /// this asks whether anybody can see that it is.
     #[test]
-    fn f9_opens_the_drop_down_and_escape_closes_it() {
-        let mut app = App::default();
-        assert!(!app.chrome().drop_down_is_open());
+    fn the_drop_down_is_in_the_picture_only_while_it_is_open() {
+        let mut chrome = Chrome::default();
+        let closed_before = as_text(&picture(&mut chrome.clone()));
+        assert!(
+            !closed_before.contains("Quit"),
+            "the drop-down was drawn with nothing open: {closed_before}"
+        );
 
-        app.apply(Action::OpenDropDown);
-        assert!(app.chrome().drop_down_is_open());
-        let open = as_text(&picture(app.chrome_mut()));
+        chrome.apply(Action::OpenDropDown);
+        let open = as_text(&picture(&mut chrome));
         assert!(open.contains("Quit"), "the drop-down was not drawn: {open}");
 
-        app.apply(Action::CloseDropDown);
-        assert!(!app.chrome().drop_down_is_open());
-        let closed = as_text(&picture(app.chrome_mut()));
+        chrome.apply(Action::CloseDropDown);
+        let closed = as_text(&picture(&mut chrome));
         assert!(
             !closed.contains("Quit"),
             "the drop-down is still drawn: {closed}"
