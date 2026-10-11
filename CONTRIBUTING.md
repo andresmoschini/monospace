@@ -277,8 +277,14 @@ A generated one is written as a marker carrying its own description:
 <!-- /render -->
 ````
 
-Leave the fence empty and run `cargo xtask render`; it fills it. Three things to know:
+Leave the fence empty and run `cargo xtask render`; it fills it. Five things to know:
 
+- **The opening line names the window the picture is drawn into**, as a size and optionally an
+  origin: `<!-- render: 20x7` and `<!-- render: 7x5 at -3,-2`. **The size is required and the origin
+  is not**, defaulting to `(0, 0)`. A marker that could leave the size out would draw at whatever
+  `monospace-cli` defaults to, and that constant is in the binary rather than in the file — so
+  changing it would move generated pictures that never mention it, and the gate would report the
+  difference rather than the cause.
 - **All four lines are required**, including the closing marker. Without it a picture would end at
   its fence, and the next ordinary fence in the file would be swallowed. A marker missing any of
   them is reported by file and line rather than skipped.
@@ -290,7 +296,8 @@ Leave the fence empty and run `cargo xtask render`; it fills it. Three things to
   nobody wrote. Refer to it without spelling it out.
 
 The description is the JSON format `monospace-cli` reads, documented in the module doc of
-`crates/monospace-cli/src/description.rs`, which owns it.
+`crates/monospace-description`, which owns it. **It carries no window**: which part of a diagram to
+draw is the caller's question, and the marker line above is where a caller answers it.
 
 ## Build
 

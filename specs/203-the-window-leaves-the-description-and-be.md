@@ -192,13 +192,11 @@ is what lets a caller render a rectangle smaller than the buffer it drew into.
 
 ## Examples
 
-**A marker with a size, and one with an origin.** Hypothetical in their new spelling — no code
-produces them yet — but not in their pictures or their JSON: both markers are the ones the
-repository already holds, `docs/diagram-demo.md:39` and `specs/086:259`, with the `canvas` line
+**A marker with a size, and one with an origin.** Both **generated**, and both the ones the
+repository already holds: `docs/diagram-demo.md:39` and `specs/086:259`, with the `canvas` line
 moved onto the opening line. **Both pictures below were observed**, by running `monospace-cli` on
-each description as it stands today.
+each description as it stood before this change, and `cargo xtask render --check` re-draws them.
 
-````markdown
 <!-- render: 17x3
 { "next_id": 4,
   "shapes": [
@@ -221,9 +219,7 @@ each description as it stands today.
 ```
 
 <!-- /render -->
-````
 
-````markdown
 <!-- render: 7x5 at -3,-2
 { "next_id": 4,
   "shapes": [
@@ -244,22 +240,21 @@ each description as it stands today.
 ```
 
 <!-- /render -->
-````
 
-The first is what a marker says when the origin is the one twenty of them use, and its JSON is the
+The first is what a marker says when the origin is the one eighteen of them use, and its JSON is the
 description with the `canvas` line gone. The second is `specs/086`'s marker with its origin written
 out, and the only difference between the two is the `at` — which is rule 5 against rule 6, and the
 whole of what D2 costs. The trailing blanks the CLI pads each row to the window's width with are
 trimmed here exactly as `xtask`'s `trim_trailing_blanks` trims them, which is why the two fences
 look narrower than the windows they are drawn at.
 
-**Those two pictures are the acceptance list for this change.** They are what the building stage
-must produce, and they are here rather than described because a spec whose examples have not been
-run is making a claim nobody checked.
+**Those two pictures were the acceptance list for this change**, and they are here rather than
+described because a spec whose examples have not been run is making a claim nobody checked. They are
+now two of the pictures the gate re-draws on every push.
 
-**What the three flags do to one drawing.** Also hypothetical, and for the same reason: no code
-parses them yet. It is written as the outcome rather than as the invocations, because what the flags
-decide is the window and nothing else — the JSON is the same file in all three.
+**What the three flags do to one drawing.** A table rather than a picture, because what the flags
+decide is a window and nothing else — the JSON is the same file in all three, so a picture would be
+the same drawing three times over.
 
 ```text
   monospace-cli file.json                          50x13 at (0,0)    rule 8
@@ -270,9 +265,9 @@ decide is the window and nothing else — the JSON is the same file in all three
 The first line is the demonstration's window, which is what makes the second line mean something:
 the default is a value someone chose, and passing one is how a caller chooses a different one.
 
-**The description that still carries a canvas.** Also hypothetical, and the only one here whose
-output is a claim about behavior rather than about a window: with D5 this is read and the canvas
-ignored, so the drawing is the second line above and the `13x9` in the file has no say in it.
+**The description that still carries a canvas.** The last one here, and the only one that is a claim
+about behavior rather than about a window: with D5 this is read and the canvas ignored, so the
+drawing is the second line above and the `13x9` in the file has no say in it.
 
 ```text
   { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 13, "height": 9 } },
@@ -288,8 +283,8 @@ accepts it because there is no writer, and names the writer as what reopens it.
 
 ## What proves it
 
-None of these tests exists yet; the deciding stage adds no code. The names are what the building
-stage is held to.
+Every one of these tests exists, under the name the deciding stage gave it, and rule 12 is the
+gate's own `render` step rather than a test.
 
 | Rule | Test                                                               |
 | ---- | ------------------------------------------------------------------ |
@@ -310,14 +305,20 @@ Rule 4 is a pair of facts about two different callers, and it is the one a later
 likely to break by making the marker's size optional for symmetry with the flag's.
 
 Rule 12 is the gate's own `render` step rather than a test, and it is the only line here that covers
-all twenty-three markers at once.
+all the markers at once.
 
-**Measured rather than tested, and reported in the building pull request.** That the twenty-three
-pictures are unchanged: every marker rewritten, `cargo xtask render` run, and the number of pictures
-that moved reported — which is the honest answer to whether removing `canvas` from the format
-changed anything a reader sees, and it should be `0`. That `specs/086`'s two offset tables still
-resolve as written, which is the one place where the origin is load-bearing and a mistake in D1's
-parsing would show up as a table that no longer matches its picture.
+**Measured rather than tested, and reported in the building pull request.** That the pictures are
+unchanged: every marker rewritten, `cargo xtask render` run, and the number of pictures that moved
+reported — which is the honest answer to whether removing `canvas` from the format changed anything
+a reader sees, and it should be `0`. That `specs/086`'s two offset tables still resolve as written,
+which is the one place where the origin is load-bearing and a mistake in D1's parsing would show up
+as a table that no longer matches its picture.
+
+**Two counts in this spec are wrong, and the building stage measured them.** It says twenty-three
+markers and twenty of them at `(0, 0)`. Measured, twenty-two are rendered — the twenty-third is
+`CONTRIBUTING.md`'s illustration, which sits inside a longer fence and is an illustration rather
+than an instance — and eighteen of them are at `(0, 0)`. The four that are not are `docs/model.md`,
+`specs/173` and the two in `specs/086`.
 
 ## Open questions
 
