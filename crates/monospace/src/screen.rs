@@ -111,7 +111,7 @@ pub(crate) fn draw(frame: &mut Frame, chrome: &mut Chrome) {
     let regions = regions(frame.area());
 
     draw_bar(frame, regions.bar, chrome);
-    draw_region(frame, regions.region, chrome);
+    draw_region(frame, regions.region);
     draw_status_bar(frame, regions.status);
 
     // After the region, in this order. The pop-up is last because it is the one that goes over the
@@ -186,19 +186,23 @@ fn draw_drop_down(frame: &mut Frame, region: Rect, chrome: &mut Chrome) {
 
 /// Draws the region a diagram goes into, which this slice draws nothing into.
 ///
-/// **The border is the cue for the region holding the keyboard, and it is reverse video.** The
-/// established tools draw a focused panel's border differently — Midnight Commander in a heavier
-/// line, `tmux` with `status-style reverse` — and of those, reverse video is the one that works
-/// without a second character set and without a hue, which is all D5 permits the chrome to spend.
-/// `Block::bordered()` is `symbols::border::PLAIN` on both sides of that decision: the characters
-/// do not move, only the attribute on them does.
-fn draw_region(frame: &mut Frame, area: Rect, chrome: &Chrome) {
-    let border = if chrome.region_holds_the_keyboard() {
-        Style::new().add_modifier(Modifier::REVERSED)
-    } else {
-        Style::new()
-    };
-    frame.render_widget(Block::bordered().border_style(border), area);
+/// **Its border is never drawn in reverse video, and that is a decision rather than an omission.**
+/// Rule 12 asks for the region holding the keyboard to be drawn with a different border from the
+/// others, and the established tools do it — Midnight Commander in a heavier line, `tmux` with
+/// `status-style reverse` — but a frame is already carrying one meaning and adding a second to it
+/// costs more than it gives. **A frame that says where the keyboard is is redundant with the
+/// control that says where the keyboard is**, and it is redundant in the worse direction: a border
+/// is a hundred and fifty cells of reverse video saying something the seven cells of the focused
+/// control say exactly. When the pop-up takes the keyboard away from the region, the button inside
+/// it lights up and the region does not change at all, which is a smaller and more precise answer
+/// than a whole panel inverting.
+///
+/// **What this gives up** is the cue above the item level, and it was wanted for a reason: a person
+/// who cannot tell which control has the keyboard has nothing else to go on. What it buys is that
+/// reverse video means one thing — this control is about to answer — everywhere on the screen. See
+/// §4 and §5 of [the application model](../../../docs/application-model.md).
+fn draw_region(frame: &mut Frame, area: Rect) {
+    frame.render_widget(Block::bordered(), area);
 }
 
 /// Draws the status bar along the bottom.
@@ -510,24 +514,39 @@ mod tests {
         );
     }
 
+    /// **Rule 12's frame half is deliberately not implemented, and this is the test that says so.**
+    /// The region holding the keyboard is *not* drawn with a different border, because a frame
+    /// carrying reverse video would be a second thing saying where the keyboard is, at a hundred
+    /// times the size and with less precision than the focused control already has. What is held
+    /// instead is the narrower claim the decision makes: reverse video is spent on controls and on
+    /// nothing else, so wherever it appears on screen it means *this is the control about to
+    /// answer*.
     #[test]
-    fn the_region_holding_the_keyboard_is_drawn_with_a_different_border() {
+    fn a_frame_is_never_drawn_in_reverse_video() {
         let mut chrome = Chrome::default();
-        let at_rest = picture(&mut chrome);
-        let unfocused = modifier_at(&at_rest, Position { x: 0, y: 1 });
-
-        chrome.apply(Action::ShowAbout);
-        let holding = picture(&mut chrome);
-        let focused = modifier_at(&holding, Position { x: 0, y: 1 });
-
-        assert!(
-            unfocused.is_empty(),
-            "the region's border is drawn with an attribute while the region holds nothing"
-        );
-        assert!(
-            focused.contains(Modifier::REVERSED),
-            "the region is holding the keyboard and its border looks the same: {focused:?}"
-        );
+        for open in [
+            Vec::new(),
+            vec![Action::OpenDropDown],
+            vec![Action::ShowAbout],
+        ] {
+            for action in open {
+                chrome.apply(action);
+            }
+            let buffer = picture(&mut chrome);
+            for (index, cell) in buffer.content().iter().enumerate() {
+                if !cell.modifier.contains(Modifier::REVERSED) {
+                    continue;
+                }
+                let column = u16::try_from(index).unwrap_or(u16::MAX) % WIDTH;
+                let row = u16::try_from(index).unwrap_or(u16::MAX) / WIDTH;
+                assert!(
+                    row == 0 || column != 0 && column != WIDTH - 1,
+                    "a cell of the region's frame is drawn in reverse video at column {column} \
+                     of row {row}: {}",
+                    as_text(&buffer)
+                );
+            }
+        }
     }
 
     #[test]

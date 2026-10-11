@@ -114,6 +114,7 @@ cargo xtask setup          # installs the Node tooling the gate needs
 
 cargo run -p monospace-cli                      # a demonstration: eight pictures, then the walk back
 cargo run -p monospace-cli -- path/to.json      # one picture, for the description you give it
+cargo run -p monospace                          # the interactive application, in this terminal
 cargo xtask check                               # the whole quality gate
 ```
 
@@ -125,6 +126,46 @@ description and draws the `Diagram` it gets back.
 and, beside it, `--origin <x>,<y>`. A path given neither is drawn into `50x13` at `(0, 0)`, which is
 the demonstration's own window — a convenience for a person running the binary by hand rather than a
 rule any file depends on.
+
+### The interactive application
+
+`monospace` takes the whole screen, the keyboard and the mouse, and gives the terminal back when it
+ends — including when it falls over. **It wants a terminal of its own.** Redirected, there is no
+screen to take: it writes its escape sequences into the pipe and then waits for a key that will
+never come, so a `monospace | tee log` or a CI run hangs rather than failing. That is a known rough
+edge and the next thing worth fixing, not a design.
+
+```text
+ File  About
+┌──────────────────────────────────────┐
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+└──────────────────────────────────────┘
+ monospace
+```
+
+That is the whole of it so far: the bar, the region a diagram will be drawn into, and the status
+bar. The region is empty on purpose — reading a description into it is the next slice, and what the
+application can do is [decided in `docs/application-model.md`](docs/application-model.md).
+
+**Enough to get around it**, and deliberately not a table of every binding:
+
+| Key                  | What it does                            |
+| -------------------- | --------------------------------------- |
+| `Ctrl+Q` or `Ctrl+C` | the way out, from anywhere              |
+| `F9`                 | open the drop-down under `File`         |
+| `Enter`              | do what the focused control is for      |
+| `Esc`                | cancel whatever is open                 |
+| `Tab`, `Right` / `←` | move the keyboard along the bar         |
+| `↑` `↓`              | move the selection in an open drop-down |
+
+`File` and `About` are clickable too, and so is everything in them. **A control under the pointer is
+not a state**, so nothing on screen changes when the mouse moves over one — that is a decision with
+a cost, and `docs/application-model.md` §4 writes both down.
 
 ### Layout
 

@@ -299,15 +299,6 @@ impl Chrome {
         self.focus
     }
 
-    /// Whether the region rather than the bar holds the keyboard.
-    ///
-    /// **This is what rule 12 reads**: the region holding the keyboard is drawn with a different
-    /// border from the others, and while the drop-down or the pop-up is open the region is what
-    /// holds it, because both are drawn inside the region.
-    pub(crate) fn region_holds_the_keyboard(&self) -> bool {
-        !matches!(self.focus, Focus::Bar(_))
-    }
-
     /// The state `control` is drawn in.
     pub(crate) fn state_of(&self, control: ControlId) -> ControlState {
         if self.pressed == Some(control) {
@@ -502,17 +493,25 @@ mod tests {
         assert!(chrome.control_at(Position { x: 22, y: 0 }).is_some());
     }
 
+    /// **The keyboard is in exactly one place at a time, and it is always a control.** That is what
+    /// makes reverse video mean one thing on the whole screen, and it is checked here rather than
+    /// in the draw pass because the two are the same claim: a control's state is read from the
+    /// focus, so a second thing claiming the focus could not be drawn without disagreeing with it.
     #[test]
-    fn the_bars_row_holds_the_keyboard_until_something_inside_the_region_does() {
+    fn the_keyboard_is_on_one_control_and_no_frame() {
         let mut chrome = Chrome::default();
-        assert!(!chrome.region_holds_the_keyboard());
+        assert_eq!(chrome.focused(), ControlId::File);
         assert_eq!(chrome.state_of(ControlId::File), ControlState::Focused);
         assert_eq!(chrome.state_of(ControlId::About), ControlState::AtRest);
 
         chrome.apply(Action::OpenDropDown);
-        assert!(chrome.region_holds_the_keyboard());
+        assert_eq!(chrome.focused(), ControlId::Menu(0));
         assert_eq!(chrome.state_of(ControlId::Menu(0)), ControlState::Focused);
         assert_eq!(chrome.state_of(ControlId::File), ControlState::AtRest);
+
+        chrome.apply(Action::ShowAbout);
+        assert_eq!(chrome.focused(), ControlId::Close);
+        assert_eq!(chrome.state_of(ControlId::Close), ControlState::Focused);
     }
 
     #[test]

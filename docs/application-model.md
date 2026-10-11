@@ -181,10 +181,19 @@ leaves no room for interpretation, and the one that matters is the answer: the s
 analogy borrowed from another field, and reverse video rather than bold — bold fails on many
 terminals and already means emphasis elsewhere.
 
-**Above the item level the cue is the frame.** The region holding the keyboard is drawn with a
-different border from the others, which is what Midnight Commander, vim's splits and `tmux` all do.
-Under a chrome that spends no hue, that difference is reverse video on the border: the characters do
-not move and only the attribute on them does.
+**Above the item level there is no cue, and the frame is never drawn in reverse video.** The
+specification asked for the region holding the keyboard to be drawn with a different border from the
+others, and the established tools do it — Midnight Commander in a heavier line, `tmux` with
+`status-style reverse` — but a frame carrying reverse video would be a **second** thing saying where
+the keyboard is, at a hundred times the size and with less precision than the control that already
+says it. A border is a hundred and fifty cells saying _somewhere in here_, where seven cells say
+_here_. So the frame is left plain, and reverse video is spent on controls and nothing else:
+**wherever it appears on screen it means this is the control about to answer.**
+
+**What this gives up** is the cue above the item level, and it was wanted for a reason — a person
+who cannot tell which control has the keyboard has nothing else to go on. What it buys is that one
+signal carries one meaning everywhere, which is the same argument §4 makes about there being no cue
+for a control under the pointer: two signals that can flicker are worse than one that cannot.
 
 **What the chrome spends, and what it does not.** A control in no state is drawn with the terminal's
 own foreground and background, not with a color this application chose — the same binary has to look
