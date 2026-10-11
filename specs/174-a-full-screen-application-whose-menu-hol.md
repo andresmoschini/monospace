@@ -186,8 +186,8 @@ default is **`A_REVERSE`**. That is the reference library's own default, not an 
 from another field, and **reverse video rather than bold** — bold fails on many terminals and
 already means emphasis elsewhere. Above the item level the cue is the **frame**: Midnight Commander,
 vim's splits and `tmux` all draw the focused panel's border differently from the unfocused one.
-Inside the region, a focused control is drawn in reverse video and a control under the mouse with a
-background.
+Inside the region, a focused control is drawn in reverse video. There is no cue for a control under
+the mouse, and D6 is why.
 
 **How keys are routed.** The loop offers the event to whatever holds focus, and only what nothing
 took falls through to the application's own keys — which is `cursive`'s documented order (_"If the
@@ -226,6 +226,26 @@ does not answer it**, because it is a different question: that one is whether a 
 not a diagram cell, so no cell in the core gains a color and the degradation rule is untouched — and
 since the only owner of a color here is the terminal, this is evidence for leaving the model's
 question open rather than for closing it.
+
+**D6 — a control under the mouse is not a state, and reverse video is the only focus cue.**
+
+**Answer:** the control has three states — at rest, focused by the keyboard, and pressed — and
+reverse video is the only one of them that is drawn. A pressed control that does not hold focus is
+drawn in reverse video too, so focus and press never compete: one mechanism, two ways in. **Why
+not** a cue for the control under the pointer: it would be the one signal on screen that the
+keyboard cannot move, so a user whose hands are on the keyboard gets a second thing changing that
+they did not cause and cannot turn off. Reverse video is the cue that says _this is where you are_;
+a background that follows the pointer says something else, and having both means the one that
+matters is the one that can flicker.
+
+**What it costs, and the cost is not the one it looks like.** Not the redraw: the click handler
+already hit-tests every mouse event, so which control the pointer is over is known whether or not it
+is drawn, and `ratatui` writes only the cells that changed. **What it costs is that the chrome
+cannot say "put the pointer here and I will act on it"** — a hover affordance is how an application
+invites a mouse user to try something, and without it a mouse user has to be told what the regions
+are. **What reopens it:** the first control whose whole purpose is to be clicked rather than
+focused, where pointing at it is the only sensible gesture — a scrollbar thumb is the obvious
+candidate, and it is #176's.
 
 ## Model slice
 
@@ -282,8 +302,9 @@ re-deciding:
 6. **Every region is painted on every frame, or `Clear` is painted over the ones the frame is not
    using.** `Terminal::draw` diffs against the previous frame rather than clearing, so a region that
    stops being drawn keeps what was last in it.
-7. The bar holds a control that is the way out. The control has four states — at rest, under the
-   mouse, focused by the keyboard, and pressed — and shows which one it is in.
+7. The bar holds a control that is the way out. The control has three states — at rest, focused by
+   the keyboard, and pressed — and shows which one it is in. **A control under the mouse is not a
+   state**, and nothing on screen changes when the pointer moves over a control.
 8. An event becomes an action, and the action is the only thing that changes the state. The state is
    a `Session` and the chrome's own; an action that means something to a diagram becomes a
    `Command`, and nothing else reaches the diagram.
@@ -294,9 +315,10 @@ re-deciding:
 10. A key or a click that names no action changes nothing and reports nothing.
 11. A click is tested against the rectangle the control was drawn into. A click outside every
     control's rectangle names no action.
-12. The region holding the keyboard is drawn with a different border from the others, a focused
-    control inside it is drawn in reverse video, and a control under the mouse is drawn with a
-    background. An indicator that is shown persists while the state it shows lasts.
+12. The region holding the keyboard is drawn with a different border from the others, and a focused
+    control inside it is drawn in reverse video. **A control that is pressed and does not hold focus
+    is drawn in reverse video too**, so the two never compete. An indicator that is shown persists
+    while the state it shows lasts.
 13. A control that is in no state is drawn with the terminal's default foreground and background,
     and `NO_COLOR` turns the chrome's color off.
 14. An event is offered to whatever holds focus first, and only what nothing took falls through to
@@ -356,41 +378,42 @@ that second run, and says nothing when it stops working.
 
 None of these tests exists yet. The names are what the building stage is held to.
 
-| Rule | Test                                                                              |
-| ---- | --------------------------------------------------------------------------------- |
-| 1    | `the_application_gives_the_whole_screen_back_when_it_ends`                        |
-| 2    | `a_panic_ends_the_application_with_the_terminal_as_it_was_found`                  |
-| 2    | `the_input_mode_the_application_found_is_the_one_it_leaves_behind`                |
-| 3    | `a_panic_through_the_loop_gives_the_terminal_back_without_a_line`                 |
-| 4    | `the_terminal_gives_up_mouse_capture_when_the_application_ends`                   |
-| 5    | `the_bar_is_at_the_top_and_the_status_bar_is_at_the_bottom`                       |
-| 5    | `the_region_between_them_takes_the_rest_of_the_screen`                            |
-| 5    | `the_bars_row_is_drawn_on_every_frame`                                            |
-| 6    | `a_region_that_stops_being_drawn_does_not_keep_what_was_last_in_it`               |
-| 7    | `the_control_has_four_states_and_shows_which_one_it_is_in`                        |
-| 8    | `a_key_reaches_the_state_only_as_an_action`                                       |
-| 8    | `the_diagram_is_changed_only_by_a_command_performed_on_the_session`               |
-| 9    | `the_way_out_is_one_action_reached_by_a_key_a_click_and_the_focused_control`      |
-| 9    | `a_click_on_the_control_and_its_key_apply_the_same_action`                        |
-| 9    | `control_c_reaches_the_state_as_a_key_and_not_as_a_signal`                        |
-| 9    | `a_bare_q_names_no_action`                                                        |
-| 10   | `a_key_that_names_no_action_changes_nothing_and_reports_nothing`                  |
-| 10   | `a_click_that_names_no_action_changes_nothing_and_reports_nothing`                |
-| 11   | `a_click_inside_a_controls_rectangle_names_its_action`                            |
-| 11   | `a_click_outside_every_rectangle_names_no_action`                                 |
-| 11   | `a_control_hit_tested_against_its_rectangle_answers_after_a_resize`               |
-| 12   | `the_region_holding_the_keyboard_is_drawn_with_a_different_border`                |
-| 12   | `a_focused_control_is_drawn_in_reverse_video_and_a_hovered_one_in_the_background` |
-| 12   | `a_focus_indicator_is_shown_for_as_long_as_the_focus_lasts`                       |
-| 13   | `a_control_in_no_state_is_drawn_with_the_terminals_own_colors`                    |
-| 13   | `no_color_switches_the_chromes_color_off`                                         |
-| 14   | `a_key_goes_to_whatever_holds_focus_before_the_applications_own_keys`             |
-| 14   | `the_diagrams_keys_do_nothing_while_a_pop_up_is_open`                             |
-| 15   | `the_region_holds_the_drawing_and_nothing_else`                                   |
-| 16   | `f9_opens_the_drop_down_and_escape_closes_it`                                     |
-| 16   | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`                     |
-| 16   | `a_drop_down_is_not_erased_by_the_region_being_painted_after_it`                  |
-| 17   | nothing holds this, and it is named here rather than claimed done                 |
+| Rule | Test                                                                          |
+| ---- | ----------------------------------------------------------------------------- |
+| 1    | `the_application_gives_the_whole_screen_back_when_it_ends`                    |
+| 2    | `a_panic_ends_the_application_with_the_terminal_as_it_was_found`              |
+| 2    | `the_input_mode_the_application_found_is_the_one_it_leaves_behind`            |
+| 3    | `a_panic_through_the_loop_gives_the_terminal_back_without_a_line`             |
+| 4    | `the_terminal_gives_up_mouse_capture_when_the_application_ends`               |
+| 5    | `the_bar_is_at_the_top_and_the_status_bar_is_at_the_bottom`                   |
+| 5    | `the_region_between_them_takes_the_rest_of_the_screen`                        |
+| 5    | `the_bars_row_is_drawn_on_every_frame`                                        |
+| 6    | `a_region_that_stops_being_drawn_does_not_keep_what_was_last_in_it`           |
+| 7    | `the_control_has_three_states_and_shows_which_one_it_is_in`                   |
+| 7    | `moving_the_pointer_over_a_control_changes_nothing_on_screen`                 |
+| 8    | `a_key_reaches_the_state_only_as_an_action`                                   |
+| 8    | `the_diagram_is_changed_only_by_a_command_performed_on_the_session`           |
+| 9    | `the_way_out_is_one_action_reached_by_a_key_a_click_and_the_focused_control`  |
+| 9    | `a_click_on_the_control_and_its_key_apply_the_same_action`                    |
+| 9    | `control_c_reaches_the_state_as_a_key_and_not_as_a_signal`                    |
+| 9    | `a_bare_q_names_no_action`                                                    |
+| 10   | `a_key_that_names_no_action_changes_nothing_and_reports_nothing`              |
+| 10   | `a_click_that_names_no_action_changes_nothing_and_reports_nothing`            |
+| 11   | `a_click_inside_a_controls_rectangle_names_its_action`                        |
+| 11   | `a_click_outside_every_rectangle_names_no_action`                             |
+| 11   | `a_control_hit_tested_against_its_rectangle_answers_after_a_resize`           |
+| 12   | `the_region_holding_the_keyboard_is_drawn_with_a_different_border`            |
+| 12   | `a_focused_control_is_drawn_in_reverse_video_and_a_pressed_unfocused_one_too` |
+| 12   | `a_focus_indicator_is_shown_for_as_long_as_the_focus_lasts`                   |
+| 13   | `a_control_in_no_state_is_drawn_with_the_terminals_own_colors`                |
+| 13   | `no_color_switches_the_chromes_color_off`                                     |
+| 14   | `a_key_goes_to_whatever_holds_focus_before_the_applications_own_keys`         |
+| 14   | `the_diagrams_keys_do_nothing_while_a_pop_up_is_open`                         |
+| 15   | `the_region_holds_the_drawing_and_nothing_else`                               |
+| 16   | `f9_opens_the_drop_down_and_escape_closes_it`                                 |
+| 16   | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`                 |
+| 16   | `a_drop_down_is_not_erased_by_the_region_being_painted_after_it`              |
+| 17   | nothing holds this, and it is named here rather than claimed done             |
 
 Rules 11, 12 and 14 are what this slice is for, and rule 11's third test is the one the spike
 demonstrated by failing. Rules 12 and 14 are each a pure function of what was drawn and of which
@@ -403,7 +426,7 @@ test can read: it is a statement about what the crate depends on, and nothing in
 because `README.md` promises it, and it is reviewed by reading the manifest.
 
 **Every picture of the screen is a snapshot.** `ratatui`'s `TestBackend` renders the whole screen to
-a buffer with no terminal involved, and the building stage holds the three regions, the four states
+a buffer with no terminal involved, and the building stage holds the three regions, the three states
 and the pop-up over the region as `insta` snapshots. This is the thing `crossterm` alone could not
 do, and it is why the framework was not decided against a box with one word in it: there was nothing
 to snapshot.
@@ -447,12 +470,6 @@ anything to say about this one. `cursive` is the only candidate that ships a men
 declined above for reasons that have nothing to do with it. **What would settle it:** a command that
 is genuinely contextual, because the one thing a menubar does that a list and a shortcut do not is
 give a contextual action a name on screen.
-
-**What the composed states look like.** A control that is both focused and under the mouse carries
-two cues at once, and a background tint under reverse video can read as one state rather than as
-two. Which takes precedence is a rendering rule and not a decision about what the states are. **What
-would settle it:** the first screen showing a control in both states at once — which rule 7 already
-provides for, since the four states it names can be two at a time.
 
 **One cell is one cell, and the chrome will use glyphs that are not.** `monospace-core` assumes a
 glyph occupies one cell and computes no width, which holds for its own catalogs and stops holding
