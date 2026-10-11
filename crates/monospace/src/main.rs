@@ -38,11 +38,12 @@ use std::{
     process::ExitCode,
 };
 
+use crossterm::event::Event;
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 use crate::{
     app::App,
-    event::{CrosstermEvents, EventSource},
+    event::{CrosstermEvents, EventSource, action_of},
     terminal::{Crossterm, TerminalGuard},
 };
 
@@ -120,10 +121,31 @@ where
             .draw(|frame| screen::draw(frame, app.chrome_mut()))
             .map_err(B::Error::into_terminal_error)?;
         let event = events.next()?;
-        app.offer(&event);
+        offer(app, &event);
         if !app.running() {
             return Ok(());
         }
+    }
+}
+
+/// One event's whole trip: it becomes an action, and the action is the only thing that reaches the
+/// state.
+///
+/// **It is here and not on `App`**, which is the whole of what this module is for. An `App` that
+/// took an `Event` would name `crossterm`'s type in its own API, and the application's state would
+/// depend on the terminal library — the one thing `App` is not. The two ends are already
+/// separated: `action_of` turns a foreign event into one of the chrome's actions, and `apply`
+/// carries an action out, and this is the two calls in the order they have to happen in.
+///
+/// **The loop and the tests call this one function and not two copies of it.** A step added to the
+/// trip later, whatever it was, would otherwise be one the tests do not exercise.
+///
+/// **An event naming no action is the ordinary case and not a failure.** `action_of` answers
+/// `None`, nothing is applied, and the frame that comes out is the one that was already on the
+/// screen.
+pub(crate) fn offer(app: &mut App, event: &Event) {
+    if let Some(action) = action_of(app.chrome(), event) {
+        app.apply(action);
     }
 }
 

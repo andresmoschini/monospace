@@ -25,13 +25,9 @@
 //! crate the specification names. The first slice that performs a command will also be the first
 //! that has to say so.
 
-use crossterm::event::Event;
 use monospace_editing::Session;
 
-use crate::{
-    chrome::{Action, Chrome},
-    event::action_of,
-};
+use crate::chrome::{Action, Chrome};
 
 /// The application: what is being edited, and what is drawn around it.
 pub(crate) struct App {
@@ -111,24 +107,6 @@ impl App {
             self.apply(carried);
         }
     }
-
-    /// One event's whole trip: it becomes an action, and the action is the only thing that reaches
-    /// the state.
-    ///
-    /// **The loop and the tests call this one method and not two copies of it.** The loop writes
-    /// these two lines out where it runs them, because they are two lines, and a test that reaches
-    /// the state the same way a person does reaches them through its own copy of them — which is a
-    /// copy that can drift from the loop's without anything failing. A step added to the loop
-    /// later, whatever it was, would be one the tests do not exercise.
-    ///
-    /// **An event naming no action is the ordinary case and not a failure.** `action_of` answers
-    /// `None`, nothing is applied, and the frame that comes out is the one that was already on the
-    /// screen.
-    pub(crate) fn offer(&mut self, event: &Event) {
-        if let Some(action) = action_of(self.chrome(), event) {
-            self.apply(action);
-        }
-    }
 }
 
 #[cfg(test)]
@@ -139,6 +117,7 @@ mod tests {
     use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
     use super::App;
+    use crate::offer;
     use crate::{
         chrome::{Action, ControlId, Focus},
         screen,
@@ -184,7 +163,7 @@ mod tests {
         let event = chord(KeyModifiers::CONTROL, KeyCode::Char('q'));
         assert!(app.running());
 
-        app.offer(&event);
+        offer(&mut app, &event);
         assert!(
             !app.running(),
             "the key did not reach the state even as an action"
@@ -205,7 +184,7 @@ mod tests {
             chord(KeyModifiers::NONE, KeyCode::Down),
             chord(KeyModifiers::NONE, KeyCode::Tab),
         ] {
-            app.offer(&event);
+            offer(&mut app, &event);
         }
         app.apply(Action::ShowAbout);
         app.apply(Action::HideAbout);
@@ -223,12 +202,12 @@ mod tests {
         // `Ctrl+Q` and `Ctrl+C` are keys of the application, wherever the keyboard is.
         let by_key = {
             let mut app = App::default();
-            app.offer(&chord(KeyModifiers::CONTROL, KeyCode::Char('q')));
+            offer(&mut app, &chord(KeyModifiers::CONTROL, KeyCode::Char('q')));
             app.running()
         };
         let by_control_c = {
             let mut app = App::default();
-            app.offer(&chord(KeyModifiers::CONTROL, KeyCode::Char('c')));
+            offer(&mut app, &chord(KeyModifiers::CONTROL, KeyCode::Char('c')));
             app.running()
         };
         // A click names a control by the rectangle the draw pass stored, so the rectangle is what
@@ -236,17 +215,17 @@ mod tests {
         let by_click = {
             let mut app = app_with(ControlId::File, Rect::new(2, 1, 6, 1));
             for event in clicked_at(3, 1) {
-                app.offer(&event);
+                offer(&mut app, &event);
             }
-            app.offer(&chord(KeyModifiers::NONE, KeyCode::Enter));
+            offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Enter));
             app.running()
         };
         // The way-out control is inside the drop-down, and its own key is `Enter` while it is
         // selected.
         let by_its_own_key = {
             let mut app = app_with(ControlId::Menu(0), Rect::new(1, 2, 6, 1));
-            app.offer(&chord(KeyModifiers::NONE, KeyCode::F(9)));
-            app.offer(&chord(KeyModifiers::NONE, KeyCode::Enter));
+            offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::F(9)));
+            offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Enter));
             app.running()
         };
 
@@ -265,7 +244,7 @@ mod tests {
     #[test]
     fn a_bare_q_names_no_action() {
         let mut app = App::default();
-        app.offer(&chord(KeyModifiers::NONE, KeyCode::Char('q')));
+        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Char('q')));
         assert!(app.running(), "a bare q ended the loop");
         assert_eq!(app.chrome().focus(), Focus::Region);
         assert!(!app.chrome().drop_down_is_open());
@@ -275,21 +254,21 @@ mod tests {
     fn a_click_on_the_control_and_its_key_apply_the_same_action() {
         let mut by_click = app_with(ControlId::File, Rect::new(2, 1, 6, 1));
         for event in clicked_at(3, 1) {
-            by_click.offer(&event);
+            offer(&mut by_click, &event);
         }
 
         // The keyboard reaches the same control by the stack rather than by a key: `F9` opens the
         // drop-down and `Esc` closes it and leaves the keyboard on `File`. That is the path the
         // resting focus stack allows, and rule 9 says the two must apply the same action.
         let mut by_key = App::default();
-        by_key.offer(&chord(KeyModifiers::NONE, KeyCode::F(9)));
-        by_key.offer(&chord(KeyModifiers::NONE, KeyCode::Esc));
+        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::F(9)));
+        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::Esc));
         assert_eq!(
             by_key.chrome().focus(),
             Focus::Bar(ControlId::File),
             "`Esc` did not leave the keyboard on the control that opened the drop-down"
         );
-        by_key.offer(&chord(KeyModifiers::NONE, KeyCode::Enter));
+        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::Enter));
 
         assert_eq!(
             by_click.chrome().drop_down_is_open(),
@@ -303,7 +282,7 @@ mod tests {
     fn a_click_outside_every_rectangle_names_no_action() {
         let mut app = app_with(ControlId::File, Rect::new(2, 1, 6, 1));
         for event in clicked_at(30, 8) {
-            app.offer(&event);
+            offer(&mut app, &event);
         }
         assert!(app.running());
         assert_eq!(app.chrome().focus(), Focus::Region);
@@ -315,10 +294,10 @@ mod tests {
         let mut app = App::default();
         assert!(!app.chrome().drop_down_is_open());
 
-        app.offer(&chord(KeyModifiers::NONE, KeyCode::F(9)));
+        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::F(9)));
         assert!(app.chrome().drop_down_is_open());
 
-        app.offer(&chord(KeyModifiers::NONE, KeyCode::Esc));
+        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Esc));
         assert!(
             !app.chrome().drop_down_is_open(),
             "Esc did not close the drop-down that F9 opened"
@@ -338,7 +317,7 @@ mod tests {
 
         // `Esc` belonged to nobody before the pop-up opened and belongs to it now.
         assert!(app.chrome().pop_up_is_open());
-        app.offer(&chord(KeyModifiers::NONE, KeyCode::Esc));
+        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Esc));
         assert!(
             !app.chrome().pop_up_is_open(),
             "the key that cancels the pop-up reached the application instead"
@@ -348,7 +327,7 @@ mod tests {
         // the pop-up's button and not on the bar's.
         app.apply(Action::ShowAbout);
         assert_eq!(app.chrome().focus(), Focus::PopUp);
-        app.offer(&chord(KeyModifiers::NONE, KeyCode::Enter));
+        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Enter));
         assert!(
             !app.chrome().drop_down_is_open(),
             "`Enter` reached the bar's control while the pop-up held the keyboard"
@@ -360,9 +339,9 @@ mod tests {
         let mut app = App::default();
         let before = app.chrome().focus();
 
-        app.offer(&chord(KeyModifiers::NONE, KeyCode::Char('z')));
-        app.offer(&chord(KeyModifiers::NONE, KeyCode::Home));
-        app.offer(&chord(KeyModifiers::SHIFT, KeyCode::Char('A')));
+        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Char('z')));
+        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Home));
+        offer(&mut app, &chord(KeyModifiers::SHIFT, KeyCode::Char('A')));
 
         assert!(app.running());
         assert_eq!(app.chrome().focus(), before);
@@ -375,7 +354,7 @@ mod tests {
         let mut app = app_with(ControlId::File, Rect::new(2, 1, 6, 1));
 
         for event in clicked_at(30, 8) {
-            app.offer(&event);
+            offer(&mut app, &event);
         }
         assert!(app.running());
         assert_eq!(app.chrome().focus(), Focus::Region);
