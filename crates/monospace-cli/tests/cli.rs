@@ -227,6 +227,10 @@ fn the_demo_path_passed_explicitly_prints_the_demonstrations_first_picture() {
 }
 
 /// An explicit path to a hand-written single-box file prints exactly that box.
+///
+/// **The size is passed on the command line**, because a path given no `--size` is drawn into this
+/// binary's own window rather than the one its file names — which is the whole of what the default
+/// is for, and why a test that wants a four-by-three picture has to say four by three.
 #[test]
 fn an_explicit_path_prints_the_hand_written_box() {
     let path = write_description(
@@ -241,7 +245,11 @@ fn an_explicit_path_prints_the_hand_written_box() {
         }"#,
     );
 
-    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+    let output = run(&[
+        "--size",
+        "4x3",
+        path.to_str().expect("temp path should be valid UTF-8"),
+    ]);
 
     assert!(output.status.success(), "exited with {}", output.status);
     assert_eq!(
@@ -249,6 +257,75 @@ fn an_explicit_path_prints_the_hand_written_box() {
         "┌──┐\n│░░│\n└──┘\n"
     );
     assert!(output.stderr.is_empty(), "wrote to stderr");
+}
+
+/// Rule 8 — a path and no `--size` draws into the demonstration's window.
+///
+/// **The file says `4x3` and the picture is fifty by thirteen.** That is the whole of the claim:
+/// the default is a value this binary chose, and the description it was handed has nothing to say
+/// about it. The picture is the box in the top-left corner of a window that reaches well past it,
+/// which is what makes the default visible rather than asserted.
+#[test]
+fn a_path_and_no_size_draws_into_the_demonstrations_window() {
+    let path = write_description(
+        "default-window",
+        r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light", "fill": "░" }
+            ]
+        }"#,
+    );
+
+    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+
+    assert!(output.status.success(), "exited with {}", output.status);
+    let picture = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(
+        picture.lines().count(),
+        13,
+        "the demonstration's window is thirteen rows tall: {picture}"
+    );
+    assert_eq!(
+        picture.lines().next().expect("a first row").chars().count(),
+        50,
+        "and fifty columns wide: {picture}"
+    );
+    assert!(
+        picture.starts_with("┌──┐"),
+        "the box stands in the window's own top-left corner: {picture}"
+    );
+}
+
+/// Rule 9 — the bare run draws into the demonstration's window, and nothing on the command line
+/// changes that.
+///
+/// **The flags are read and the demonstration is drawn at its own size anyway**, because the two
+/// callers are not the same caller: `cargo xtask render` always passes a size, so the default is
+/// never what a generated picture uses, and the only person a bare run serves is one watching it.
+/// A flag given to a run with no path is therefore not a window — it is a person typing.
+#[test]
+fn the_bare_run_draws_into_the_demonstrations_window() {
+    let bare = run(&[]);
+    let asked = run(&["--size", "6x4", "--origin", "1,1"]);
+
+    for output in [&bare, &asked] {
+        assert!(output.status.success(), "exited with {}", output.status);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let first = first_demonstrated_picture(&stdout);
+        assert_eq!(
+            first.lines().count(),
+            13,
+            "the demonstration is thirteen rows tall whatever the command line says"
+        );
+        assert_eq!(
+            first.lines().next().expect("a first row").chars().count(),
+            50,
+            "and fifty columns wide"
+        );
+    }
 }
 
 /// A size and an origin on the command line decide the window a path is drawn into, and the
@@ -339,7 +416,11 @@ fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
         }"#,
     );
 
-    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+    let output = run(&[
+        "--size",
+        "10x5",
+        path.to_str().expect("temp path should be valid UTF-8"),
+    ]);
 
     assert!(output.status.success(), "exited with {}", output.status);
     // Corrected on feature 099: this connector's route was a genuine tie under _The route of a
@@ -384,7 +465,11 @@ fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
         ),
     );
 
-    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+    let output = run(&[
+        "--size",
+        "9x3",
+        path.to_str().expect("temp path should be valid UTF-8"),
+    ]);
     assert!(output.status.success(), "exited with {}", output.status);
     assert!(output.stderr.is_empty(), "wrote to stderr");
     String::from_utf8_lossy(&output.stdout).into_owned()
@@ -493,7 +578,11 @@ fn a_file_naming_a_shape_it_does_not_hold_draws_the_box_and_no_connector_and_suc
             }}"#
             ),
         );
-        let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+        let output = run(&[
+            "--size",
+            "9x3",
+            path.to_str().expect("temp path should be valid UTF-8"),
+        ]);
         assert!(output.status.success(), "exited with {}", output.status);
         assert!(output.stderr.is_empty(), "wrote to stderr");
         String::from_utf8_lossy(&output.stdout).into_owned()
@@ -586,8 +675,16 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
         }"#,
     );
 
-    let first_output = run(&[first.to_str().expect("temp path should be valid UTF-8")]);
-    let second_output = run(&[second.to_str().expect("temp path should be valid UTF-8")]);
+    let first_output = run(&[
+        "--size",
+        "6x4",
+        first.to_str().expect("temp path should be valid UTF-8"),
+    ]);
+    let second_output = run(&[
+        "--size",
+        "6x4",
+        second.to_str().expect("temp path should be valid UTF-8"),
+    ]);
 
     let (a, b) = overlap_boxes();
     assert_eq!(

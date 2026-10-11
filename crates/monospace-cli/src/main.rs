@@ -51,10 +51,10 @@
 //! **The window is named on the command line, and `--size` and `--origin` are how.** Which part of
 //! a diagram to draw is the caller's question — see [`docs/diagram-model.md`](../../../docs/diagram-model.md),
 //! which holds that the diagram sizes nothing and measures nothing — so two flags answer it and
-//! neither is required. **A path given neither is still drawn into the window its own description
-//! names**, which is the last place the format has a say in it: the increment after the render
-//! markers carry their own window takes that field out of the format and leaves the two flags as
-//! the only source of one.
+//! neither is required. **A path given neither is drawn into this binary's own window**, the
+//! demonstration's, which is a constant here rather than a rule any file states: every marker
+//! states the size it is drawn at, so the default is a convenience for a person running the binary
+//! and nothing a generated picture depends on.
 
 use std::process::ExitCode;
 
@@ -102,6 +102,23 @@ const USAGE: &str = "usage: monospace-cli [--size <width>x<height>] [--origin <x
 /// this is the caller's own.
 type Window = (Pos, Size);
 
+/// The window the demonstration draws into, and the one a path is drawn into when the command line
+/// names none.
+///
+/// **A constant in this binary rather than a rule any file states**, which is why it is a default
+/// and not a requirement. `cargo xtask render` always passes a size, because every marker states
+/// one, so the only person this window serves is one running the binary by hand — and a default
+/// only a human reaches for can be wrong without consequence. **It is not the terminal's own size
+/// either**: a picture whose width depends on the machine that rendered it is a picture
+/// `cargo xtask render --check` fails on for every reader but the one who wrote it.
+const DEMO_WINDOW: Window = (
+    Pos { x: 0, y: 0 },
+    Size {
+        width: 50,
+        height: 13,
+    },
+);
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
@@ -124,19 +141,22 @@ fn main() -> ExitCode {
         },
     };
 
-    let (diagram, in_the_file) = match parse(&text) {
-        Ok(parsed) => parsed,
+    let diagram = match parse(&text) {
+        Ok((diagram, _)) => diagram,
         Err(error) => {
             eprintln!("{error}");
             return ExitCode::FAILURE;
         }
     };
 
-    // **The command line is asked first and the file's own window is what is left.** A caller that
-    // says where to draw says it once, and the description it drew from has nothing to say about
-    // it. A caller that says nothing still gets the window its file names, which is what every
-    // generated picture in this repository is drawn at until the markers carry their own.
-    let (origin, size) = asked.unwrap_or((in_the_file.origin, in_the_file.size));
+    // **The flags name the window a path is drawn into, and a demonstration has its own.** The two
+    // callers are not the same caller. `cargo xtask render` always passes a size, because every
+    // marker states one, so the default is never what a generated picture uses; and a bare run
+    // serves a person watching it, who gets the demonstration's own window whatever they typed.
+    let (origin, size) = match asked {
+        Some(asked) if path.is_some() => asked,
+        _ => DEMO_WINDOW,
+    };
 
     print!(
         "{}",
@@ -1716,5 +1736,98 @@ mod tests {
                 "every refusal carries the usage beside it: {error}"
             );
         }
+    }
+
+    /// Rule 10 — the demonstration's eight pictures before the walk back are unchanged by this
+    /// change.
+    ///
+    /// **Pinned as a snapshot rather than as eight literals**, because the eight are fifty columns
+    /// and thirteen rows each and nobody reads them as text. What a snapshot buys is that a move is
+    /// reported rather than argued, and the report is the whole of what "unchanged" means here: the
+    /// eight are the demonstration's own, and this change contributes nothing to them but the
+    /// window they are drawn at.
+    ///
+    /// It is a contract test and sits in the directory of its own, beside the characterization: the
+    /// eight pictures are a decision about what the demonstration shows, not a record of a range.
+    #[test]
+    fn the_demonstrations_eight_pictures_are_unchanged() {
+        let (first, second, third, fourth, fifth, sixth, seventh, eighth) =
+            demonstrated_pictures(super::DEMO);
+        let eight = [first, second, third, fourth, fifth, sixth, seventh, eighth].join("\n\n");
+
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/snapshots/contract"
+        ));
+        settings.bind(|| {
+            insta::assert_snapshot!("the_demonstrations_eight_pictures_are_unchanged", eight);
+        });
+    }
+
+    /// Rule 11 — the offsets `specs/086` cites resolve to the same cells they do today.
+    ///
+    /// **The one place in the repository where the origin is load-bearing.** That spec's first
+    /// picture is drawn at `(-3, -2)`, and its table counts each row from that corner: `(-2, -1)` is
+    /// the offset `(1, 1)`, and the box at `(0, 0)` is two rows and three columns inside the window.
+    /// A window that defaulted to `(0, 0)` everywhere would mean translating the figures and
+    /// rewriting the prose around them, so this pins the whole table rather than one row of it.
+    ///
+    /// **The last row is the one that says the window is a window.** `(4, -2)` is outside it, so
+    /// the offset `(7, 0)` reaches a cell nothing holds and the record answers `None` — which is
+    /// rules 7 and 8 of that spec, and the reason the table has a row with no cell in it.
+    #[test]
+    fn specs_offsets_resolve_to_the_cells_they_do_today() {
+        let json = r#"{
+            "canvas": { "origin": { "x": -3, "y": -2 }, "size": { "width": 7, "height": 5 } },
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": -2, "y": -1 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "double", "fill": "░" },
+                { "kind": "box", "id": 3, "at": { "x": 6, "y": 3 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "heavy" } ]
+        }"#;
+        let (diagram, _) = parse(json).expect("the description reads");
+        let origin = Pos { x: -3, y: -2 };
+        let size = Size {
+            width: 7,
+            height: 5,
+        };
+        let (buffer, picture) = drawn(&diagram, &glyph_catalog(), origin, size);
+
+        for (asked, offset, cell, owner) in [
+            ((-3, -2), (0, 0), ' ', None),
+            ((-3, 0), (0, 2), ' ', None),
+            ((-2, -1), (1, 1), '╔', Some(2)),
+            ((0, 0), (3, 2), '░', Some(2)),
+            ((1, 0), (4, 2), '╟', Some(2)),
+            ((2, 2), (5, 4), '─', Some(1)),
+            ((3, 1), (6, 3), '│', Some(1)),
+        ] {
+            let at = Offset {
+                x: offset.0,
+                y: offset.1,
+            };
+            assert_eq!(
+                buffer.owner(at),
+                owner.map(identity),
+                "the offset {at:?}, asked for ({}, {}), is {owner:?}",
+                asked.0,
+                asked.1
+            );
+            assert_eq!(
+                the_glyph_at(&picture, (offset.0 as usize, offset.1 as usize)),
+                cell,
+                "the cell at {at:?} renders {cell:?}"
+            );
+        }
+
+        assert_eq!(
+            buffer.owner(Offset { x: 7, y: 0 }),
+            None,
+            "the offset past the window's right edge reaches a cell nothing holds"
+        );
     }
 }
