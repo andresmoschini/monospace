@@ -91,7 +91,10 @@ it, so the same box draws in ASCII, Double, Heavy and their combinations without
 
 Behind that, and all of it enforced rather than merely intended:
 
-- **126** tests in `monospace-core`, **399** across the workspace.
+- **126** tests in `monospace-core`, **475** across the workspace.
+- **5** pictures of the screen, pinned whole with the attributes each cell is drawn in — a
+  full-screen application whose drawing is the only thing this repository has, so a frame is a
+  snapshot rather than something a reader runs.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
@@ -99,9 +102,9 @@ Behind that, and all of it enforced rather than merely intended:
   that keeps the portable crates compiling for WebAssembly, so stage 4 stays reachable instead of
   becoming a rewrite.
 
-Still missing, and named here rather than implied: the editing **surface** — `monospace-editing` is
-the layer under one, and holds a diagram while it is changed and gives its steps back — the TUI, and
-persistence.
+Still missing, and named here rather than implied: reading a description into the interactive
+application and drawing it — `monospace-editing` is the layer under one and holds a diagram while it
+is changed, and `monospace` is the screen above it — and persistence.
 
 ## Getting started
 
@@ -111,6 +114,7 @@ cargo xtask setup          # installs the Node tooling the gate needs
 
 cargo run -p monospace-cli                      # a demonstration: eight pictures, then the walk back
 cargo run -p monospace-cli -- path/to.json      # one picture, for the description you give it
+cargo run -p monospace                          # the interactive application, in this terminal
 cargo xtask check                               # the whole quality gate
 ```
 
@@ -123,6 +127,50 @@ and, beside it, `--origin <x>,<y>`. A path given neither is drawn into `50x13` a
 the demonstration's own window — a convenience for a person running the binary by hand rather than a
 rule any file depends on.
 
+### The interactive application
+
+`monospace` takes the whole screen, the keyboard and the mouse, and gives the terminal back when it
+ends — including when it falls over. **It wants a terminal of its own.** Redirected, there is no
+screen to take: it writes its escape sequences into the pipe and then waits for a key that will
+never come, so a `monospace | tee log` or a CI run hangs rather than failing. That is a known rough
+edge and the next thing worth fixing, not a design.
+
+```text
+ File  About
+┌──────────────────────────────────────┐
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+└──────────────────────────────────────┘
+ monospace
+```
+
+That is the whole of it so far: the bar, the region a diagram will be drawn into, and the status
+bar. The region is empty on purpose — reading a description into it is the next slice, and what the
+application can do is [decided in `docs/application-model.md`](docs/application-model.md).
+
+**Enough to get around it**, and deliberately not a table of every binding:
+
+| Key                  | What it does                                  |
+| -------------------- | --------------------------------------------- |
+| `Ctrl+Q` or `Ctrl+C` | the way out, from anywhere                    |
+| `F9`                 | open the drop-down under `File`               |
+| `Esc`                | back out one level: the overlay, then the bar |
+| `Enter`              | do what the focused control is for            |
+| `Tab`, `Right` / `←` | move the keyboard along the bar               |
+| `↑` `↓`              | move the selection in an open drop-down       |
+
+**The keyboard rests in the region, which holds nothing yet**, so a fresh screen has nothing
+highlighted at all. `F9` puts the keyboard in the drop-down and `Esc` twice brings it back to the
+region.
+
+`File` and `About` are clickable too, and so is everything in them. **A control under the pointer is
+not a state**, so nothing on screen changes when the mouse moves over one — that is a decision with
+a cost, and `docs/application-model.md` §4 writes both down.
+
 ### Layout
 
 | Path                           | What it is                                                    |
@@ -133,10 +181,12 @@ rule any file depends on.
 | `crates/monospace-glyph-sets`  | The glyph tables the core does not ship as built-in data.     |
 | `crates/monospace-description` | The JSON file format, read into a `Diagram`.                  |
 | `crates/monospace-cli`         | The command-line application. Holds no logic of its own.      |
+| `crates/monospace`             | The interactive application: the chrome around a session.     |
 | `xtask/`                       | Repository automation. `cargo xtask check` is the gate.       |
 | `docs/model.md`                | The domain's design, its provenance, and its open questions.  |
 | `docs/diagram-model.md`        | The diagram model's rules: shapes, order, positions.          |
 | `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.     |
+| `docs/application-model.md`    | The screen above that: regions, controls, focus, actions.     |
 | `docs/glyph-sets.md`           | The glyph tables and how they degrade.                        |
 | `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.  |
 | `docs/workflow.md`             | Why the process works the way it does, written at length.     |

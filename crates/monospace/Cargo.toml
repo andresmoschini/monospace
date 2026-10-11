@@ -1,0 +1,26 @@
+[package]
+name = "monospace"
+description = "The interactive full-screen terminal application: the chrome around a diagram being edited"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+# Three dependencies and no others, which is what `README.md` promises of this stage: a session to
+# hold, a framework to draw with, and the terminal underneath it. The first is the layer this one
+# sits on and the other two are the two D2 names, each pinned with `=` so that one `crossterm` is in
+# the tree — two majors cannot exchange types and a second one would mean a second event queue.
+[dependencies]
+monospace-editing.workspace = true
+# Pinned to the version `ratatui` resolves, because the two cannot exchange types across majors.
+crossterm = "=0.29.0"
+ratatui = "=0.30.2"
+
+[dev-dependencies]
+# The screen is pinned as a picture: `ratatui`'s `TestBackend` renders the whole buffer with no
+# terminal involved, which is the one thing `crossterm` alone could not do and half of what proves
+# the slice.
+insta = "1.48.0"
+
+[lints]
+workspace = true
