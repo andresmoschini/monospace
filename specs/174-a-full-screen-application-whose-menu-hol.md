@@ -76,6 +76,13 @@ ten rows, which is the thing prose cannot establish and a mock-up pretends to.
   `docs/model.md` holds open and this slice does not close.
 - **A library API.** The crate is a binary, as `monospace-cli` is, and its state is tested from
   inside it rather than published for a consumer that does not exist.
+- **The width of a glyph, and the font.** `monospace-core` assumes a glyph occupies one cell and
+  computes no width, and the chrome's frames are `ratatui`'s `symbols::border::PLAIN`, which is ten
+  single-width box-drawing characters. This slice draws no shadow and no scrollbar, so the set
+  cannot grow, and **nothing here detects what the terminal's font carries or falls back when it
+  does not** — it draws what the terminal can show. What would change that: the first glyph outside
+  that block that the chrome needs, which is
+  [#176](https://github.com/andresmoschini/monospace/issues/176)'s if it is a scrollbar thumb.
 - Persistence, collaboration, WebAssembly bindings, a web front end and non-terminal GUIs, which
   `CONTRIBUTING.md` names as renegotiated rather than quietly widened.
 
@@ -98,7 +105,7 @@ three slices read these rules and none of them changes the crate's API.
 is the risk `editing-model.md` names for itself in its own `**Status:**`.
 
 **D2 — the crate depends on `ratatui` for the screen and `crossterm` for the terminal, and on
-nothing else.**
+nothing else, and `ratatui` draws the frames.**
 
 **Answer:** `ratatui =0.30.2` with its default features and `crossterm =0.29.0`, each pinned with
 `=`, with `crossterm` read directly rather than through `ratatui`'s re-export. **Why `crossterm`
@@ -107,6 +114,16 @@ keep separate event queues (which can lead to race conditions and lost events), 
 separately (so raw mode may not be restored correctly on exit), cannot exchange types even when
 names match."_ Naming it in this manifest with `=` is the mitigation, and it puts the version where
 this repository's pinning rule expects to find it.
+
+**The frames are `ratatui`'s too.** The bar, the region, the drop-down and the pop-up get
+`Block::bordered()`, and the characters are `symbols::border::PLAIN`. **Why not** the core's glyph
+catalog handed over through `Block::border_set`, which would give the characters of a line one
+owner: the chrome is front end and `monospace-core` is the domain, and coupling the binary to the
+domain crate so a cosmetic agrees is the kind of thing that later reads as an architecture. **What
+it costs:** the two do not agree about a line. `ratatui` names that ten characters
+`symbols::line::NORMAL` and the core names them the `light` stroke, and they are the same ten by
+coincidence rather than by rule. **What reopens it:** the first control that needs a stroke the core
+owns and `symbols` does not carry.
 
 **Why not `crossterm` alone, measured.** The building pull request that tried it was never merged,
 and reading it is what answered this decision. It drew a box and one word in **569 lines** of
@@ -485,17 +502,6 @@ item — #180 — is what makes a table worth having rather than what makes it n
 already settled survives the wait: a binding is not _"what does this key do"_ but _"what does this
 key do here"_ — offered to whatever holds focus first, falling through only if nothing took it — so
 whatever shape it takes has two dimensions from the start and not one.
-
-**One cell is one cell, and the chrome will use glyphs that are not.** `monospace-core` assumes a
-glyph occupies one cell and computes no width, which holds for its own catalogs and stops holding
-for a double-width character. [`docs/glyph-sets.md`](../docs/glyph-sets.md) already holds both of
-those risks, and [`docs/tui-conventions.md`](../docs/tui-conventions.md) §9.3 adds the third: the
-animated and block glyphs need a font that carries those ranges, and the ASCII fallback is the path
-that makes the application work on the maintainer's machine without detecting anything. Box-drawing,
-the shade blocks a drop-down shadow would use, and the block range the scrollbar will need are all
-single-width, but nothing in the model enforces it. **What would settle it:** the first glyph the
-chrome needs that the model's assumption rejects — which is not one this slice needs, and is
-recorded because the next one will.
 
 Everything else that surfaced while writing this became another issue rather than a section here:
 the gap in the `specs` step that let a merged deciding pull request leave a spec reading `draft`,

@@ -832,9 +832,13 @@ Every one has an ASCII fallback, and every animated one needs **frames of consta
 - **Cell width.** `monospace-core` assumes a glyph occupies one cell and computes no width. That
   holds for the palette above and stops holding for any double-width glyph.
 
-What this survey adds: **the animated and block glyphs need a font with those ranges**, and the
-ASCII fallback is not a nicety — it is the path that makes the application work on the maintainer's
-machine without detecting anything.
+What this survey adds: **the animated and block glyphs need a font that carries those ranges**, and
+every tool surveyed has an ASCII fallback where this repository does not. That is a difference, not
+a gap: the fallbacks above are what `mc`, `dialog` and `fzf` do, and this repository draws what the
+terminal can show and does not detect what it cannot. The two lines above are what it is aware of,
+and neither is answered by a fallback chain — `glyph-sets.md` §_ASCII_ holds the ASCII set as a
+stroke a caller can ask for, and `model.md` §10 declined the per-stroke fallback chains that would
+substitute it automatically.
 
 ## 10. The keyboard: the vocabulary
 
