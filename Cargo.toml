@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/monospace",
     "crates/monospace-cli",
     "crates/monospace-core",
     "crates/monospace-description",
@@ -17,6 +18,7 @@ authors = ["Andrés Moschini <andresmoschini@gmail.com>"]
 license = "MIT"
 
 [workspace.dependencies]
+monospace = { path = "crates/monospace" }
 monospace-core = { path = "crates/monospace-core" }
 monospace-description = { path = "crates/monospace-description" }
 monospace-diagram = { path = "crates/monospace-diagram" }

@@ -1,0 +1,33 @@
+---
+source: crates/monospace/src/pictures.rs
+description: "A picture of the screen, one case per block. A change here is a change to what a person looking at the terminal sees, and it is reviewed as such."
+expression: body
+---
+40 columns
+ File  About
+┌───────┌ About ───────────────┐───────┐
+│       │                      │       │
+│       │     monospace        │       │
+│       │                      │       │
+│       │       Close          │       │
+│       │                      │       │
+│       └──────────────────────┘       │
+└──────────────────────────────────────┘
+ monospace
+  File  columns 0 to 6, row 0
+  About  columns 6 to 13, row 0
+  Close  columns 15 to 22, row 5
+72 columns
+ File  About
+┌───────────────────────┌ About ───────────────┐───────────────────────┐
+│                       │                      │                       │
+│                       │     monospace        │                       │
+│                       │                      │                       │
+│                       │       Close          │                       │
+│                       │                      │                       │
+│                       └──────────────────────┘                       │
+└──────────────────────────────────────────────────────────────────────┘
+ monospace
+  File  columns 0 to 6, row 0
+  About  columns 6 to 13, row 0
+  Close  columns 31 to 38, row 5

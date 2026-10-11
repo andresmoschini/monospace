@@ -1,0 +1,17 @@
+---
+source: crates/monospace/src/pictures.rs
+description: "A picture of the screen, one case per block. A change here is a change to what a person looking at the terminal sees, and it is reviewed as such."
+expression: body
+---
+the screen at rest
+ File  About
+┌──────────────────────────────────────┐
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+└──────────────────────────────────────┘
+ monospace
+  reverse  row 0, columns 0, 1, 2, 3, 4, 5
