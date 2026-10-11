@@ -131,19 +131,17 @@ where
 /// One event's whole trip: it becomes an action, and the action is the only thing that reaches the
 /// state.
 ///
-/// **It is here and not on `App`**, which is the whole of what this module is for. An `App` that
-/// took an `Event` would name `crossterm`'s type in its own API, and the application's state would
-/// depend on the terminal library — the one thing `App` is not. The two ends are already
-/// separated: `action_of` turns a foreign event into one of the chrome's actions, and `apply`
-/// carries an action out, and this is the two calls in the order they have to happen in.
+/// **It is here and not on `App`, and private, and both matter.** An `App` that took an `Event`
+/// would name `crossterm`'s type in its own API, and the application's state would depend on the
+/// terminal library — the one thing `App` is not. And the two ends are already separated:
+/// `action_of` turns a foreign event into one of the chrome's actions, and `apply` carries an
+/// action out, each with its own tests in its own module. **What is left here is the join**, and
+/// the join is the one thing neither of them can prove alone, which is why this is where a click
+/// and its key are shown arriving at the same state.
 ///
-/// **The loop and the tests call this one function and not two copies of it.** A step added to the
-/// trip later, whatever it was, would otherwise be one the tests do not exercise.
-///
-/// **An event naming no action is the ordinary case and not a failure.** `action_of` answers
-/// `None`, nothing is applied, and the frame that comes out is the one that was already on the
-/// screen.
-pub(crate) fn offer(app: &mut App, event: &Event) {
+/// **Private because it has exactly one caller.** `run` is the loop and this is its second line of
+/// work; anything else reaching for it would be a caller the trip was not written for.
+fn offer(app: &mut App, event: &Event) {
     if let Some(action) = action_of(app.chrome(), event) {
         app.apply(action);
     }
@@ -151,12 +149,15 @@ pub(crate) fn offer(app: &mut App, event: &Event) {
 
 #[cfg(test)]
 mod tests {
-    use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+    use crossterm::event::{
+        Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use ratatui::{Terminal, backend::TestBackend};
 
-    use super::run;
+    use super::{offer, run, screen};
     use crate::{
         app::App,
+        chrome::{ControlId, Focus},
         event::EventSource,
         terminal::{TerminalGuard, TerminalIo},
     };
@@ -194,6 +195,146 @@ mod tests {
             panic!("the event source fell over")
         }
     }
+
+    /// Draws one frame, which is what stores the geometry a click is tested against.
+    ///
+    /// **A control the frame has not drawn has no rectangle and answers no click.** That is D3
+    /// holding rather than D3 failing, and it is why a test that clicks something an overlay just
+    /// revealed has to draw again first: the loop does that on its own, between one event and the
+    /// next, and a test calling `offer` has to do it by hand.
+    fn draw(app: &mut App) {
+        let mut terminal = Terminal::new(TestBackend::new(40, 10)).expect("a test backend");
+        terminal
+            .draw(|frame| screen::draw(frame, app.chrome_mut()))
+            .expect("the frame is drawn");
+    }
+
+    /// An application with one frame drawn, which is what gives the controls a rectangle.
+    fn drawn() -> App {
+        let mut app = App::default();
+        draw(&mut app);
+        app
+    }
+
+    /// **Rule 9's join, which is the whole of what this module's `offer` exists to be proved by.**
+    ///
+    /// The four ways in are named by the specification and they are four different events — two
+    /// keys, a click and the focused control's own key — and the claim is that all four leave the
+    /// same state. Neither `event.rs` nor `app.rs` can show that: the first knows what an event
+    /// becomes and the second what an action does, and "the same action, from four different
+    /// events" is a claim about the pair.
+    #[test]
+    fn the_way_out_is_one_action_reached_by_a_key_a_click_and_the_focused_control() {
+        let by_key = {
+            let mut app = drawn();
+            offer(&mut app, &chord(KeyModifiers::CONTROL, KeyCode::Char('q')));
+            app.running()
+        };
+        let by_control_c = {
+            let mut app = drawn();
+            offer(&mut app, &chord(KeyModifiers::CONTROL, KeyCode::Char('c')));
+            app.running()
+        };
+        // A click on the way-out control, which is the drop-down's only entry and is at the
+        // coordinates the last frame drew it at.
+        let by_click = {
+            let mut app = drawn();
+            offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::F(9)));
+            draw(&mut app);
+            offer(
+                &mut app,
+                &mouse_at(MouseEventKind::Down(MouseButton::Left), QUIT.0, QUIT.1),
+            );
+            offer(
+                &mut app,
+                &mouse_at(MouseEventKind::Up(MouseButton::Left), QUIT.0, QUIT.1),
+            );
+            app.running()
+        };
+        // And the same control's own key, while the drop-down has it selected.
+        let by_its_own_key = {
+            let mut app = drawn();
+            offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::F(9)));
+            offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Enter));
+            app.running()
+        };
+
+        assert!(!by_key, "Ctrl+Q did not reach the way out");
+        assert!(!by_control_c, "Ctrl+C did not reach the way out");
+        assert!(
+            !by_click,
+            "a click on the control did not reach the way out"
+        );
+        assert!(
+            !by_its_own_key,
+            "the focused way-out control's own key did not reach the way out"
+        );
+    }
+
+    /// **The same claim for the control that is not the way out**, and it is the one that can fail
+    /// quietly: a click and a key that each applied an action of their own would leave two
+    /// different states that both look right.
+    #[test]
+    fn a_click_on_the_control_and_its_key_apply_the_same_action() {
+        let mut by_click = drawn();
+        for kind in [
+            MouseEventKind::Down(MouseButton::Left),
+            MouseEventKind::Up(MouseButton::Left),
+        ] {
+            offer(&mut by_click, &mouse_at(kind, FILE.0, FILE.1));
+        }
+
+        // The keyboard reaches the same control by the focus stack rather than by a key: `F9` and
+        // then `Esc` leave it on `File`, and `Enter` is what a focused control answers.
+        let mut by_key = drawn();
+        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::F(9)));
+        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::Esc));
+        assert_eq!(
+            by_key.chrome().focus(),
+            Focus::Bar(ControlId::File),
+            "`Esc` did not leave the keyboard on the control that opened the drop-down"
+        );
+        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::Enter));
+
+        assert_eq!(
+            by_click.chrome().drop_down_is_open(),
+            by_key.chrome().drop_down_is_open(),
+            "the click and the key reached the same control by different paths"
+        );
+        assert_eq!(by_click.chrome().focus(), by_key.chrome().focus());
+    }
+
+    /// **Rule 16 through the join**, which is where `F9` and `Esc` live once the application does
+    /// not know what a key is.
+    #[test]
+    fn f9_opens_the_drop_down_and_escape_closes_it() {
+        let mut app = drawn();
+        assert!(!app.chrome().drop_down_is_open());
+
+        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::F(9)));
+        assert!(app.chrome().drop_down_is_open());
+
+        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Esc));
+        assert!(
+            !app.chrome().drop_down_is_open(),
+            "Esc did not close the drop-down that F9 opened"
+        );
+    }
+
+    /// A mouse button at a point on the screen.
+    fn mouse_at(kind: MouseEventKind, x: u16, y: u16) -> Event {
+        Event::Mouse(MouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::NONE,
+        })
+    }
+
+    /// Where the draw pass puts the bar's controls, for a test that means to click one.
+    const FILE: (u16, u16) = (1, 0);
+    /// Where it puts the drop-down's only entry, once the drop-down is open.
+    const QUIT: (u16, u16) = (3, 2);
 
     /// A terminal that only records whether it was given back, because the loop cannot be walked
     /// into a panic without one that is safe to do that to.

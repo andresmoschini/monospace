@@ -182,7 +182,7 @@ mod tests {
     use ratatui::layout::Position;
 
     use super::{action_of, own_key_action};
-    use crate::chrome::{Action, Chrome, ControlId, Move};
+    use crate::chrome::{Action, Chrome, ControlId, Focus, Move};
 
     /// A key pressed, which is the only kind of key an event loop acts on.
     fn key(code: KeyCode) -> Event {
@@ -219,9 +219,27 @@ mod tests {
         chrome
     }
 
+    /// **Both halves of rule 10, and the second one used to live somewhere it could not be.** A key
+    /// that names no action is half the claim; the other half is that nothing about it changes,
+    /// which is a claim about the chrome rather than about the lookup. **They are checked together
+    /// because they are one rule and a reader should not have to find two tests to see it.**
     #[test]
     fn a_bare_q_names_no_action() {
+        let chrome = Chrome::default();
+
         assert_eq!(own_key_action(&key(KeyCode::Char('q'))), None);
+        assert_eq!(
+            action_of(&chrome, &key(KeyCode::Char('q'))),
+            None,
+            "the application's own keys answered a bare q"
+        );
+
+        // The second half: the chrome is exactly as it was, with nothing open and the keyboard
+        // where it rests.
+        assert!(chrome.running());
+        assert_eq!(chrome.focus(), Focus::Region);
+        assert!(!chrome.drop_down_is_open());
+        assert!(!chrome.pop_up_is_open());
     }
 
     #[test]

@@ -111,62 +111,42 @@ impl App {
 
 #[cfg(test)]
 mod tests {
-    use crossterm::event::{
-        Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
-    };
-    use ratatui::{Terminal, backend::TestBackend, layout::Rect};
+    use ratatui::{Terminal, backend::TestBackend};
 
     use super::App;
-    use crate::offer;
     use crate::{
-        chrome::{Action, ControlId, Focus},
+        chrome::{Action, ControlId, Move},
         screen,
     };
 
-    fn chord(modifiers: KeyModifiers, code: KeyCode) -> Event {
-        Event::Key(KeyEvent::new(code, modifiers))
-    }
-
-    /// The two halves of a left click at `(x, y)`.
-    fn clicked_at(x: u16, y: u16) -> [Event; 2] {
-        let at = |kind| {
-            Event::Mouse(MouseEvent {
-                kind,
-                column: x,
-                row: y,
-                modifiers: KeyModifiers::NONE,
-            })
-        };
-        [
-            at(MouseEventKind::Down(MouseButton::Left)),
-            at(MouseEventKind::Up(MouseButton::Left)),
-        ]
-    }
-
-    /// An application with one control drawn at `area`, which is what a click needs to land on.
-    fn app_with(control: ControlId, area: Rect) -> App {
+    /// An application with one frame drawn, which is what gives the controls a rectangle.
+    fn drawn() -> App {
         let mut app = App::default();
         let mut terminal = Terminal::new(TestBackend::new(40, 10)).expect("a test backend");
         terminal
             .draw(|frame| screen::draw(frame, app.chrome_mut()))
             .expect("the frame is drawn");
-        app.chrome_mut().geometry_mut_for_test().set(control, area);
         app
     }
 
+    /// **The claim, and the reason it is asked here and not one module over.**
+    ///
+    /// The state only ever hears about actions. An event is turned into one by `action_of` — which
+    /// is `event.rs`'s claim, with its own tests — and carried out by `apply`, and nothing in
+    /// between. So the way out is reached by applying `Action::Quit`, and a control that carries
+    /// that action reaches it by whatever became that action: `crate::offer` in `main.rs` is where
+    /// the two ends are joined, and its tests are the ones that name four different events arriving
+    /// at the same state.
     #[test]
     fn a_key_reaches_the_state_only_as_an_action() {
         let mut app = App::default();
+        assert!(app.running(), "a fresh application is not running");
 
-        // The event on its own is worth nothing: `action_of` is the only thing that reads one, and
-        // what it answers with is the only thing the state ever sees.
-        let event = chord(KeyModifiers::CONTROL, KeyCode::Char('q'));
-        assert!(app.running());
-
-        offer(&mut app, &event);
+        app.apply(Action::Quit);
         assert!(
             !app.running(),
-            "the key did not reach the state even as an action"
+            "the way out applied and the state did not change: the action is the only thing that \
+             reaches it, and nothing else is"
         );
     }
 
@@ -174,22 +154,30 @@ mod tests {
     /// so the strongest assertion available from a crate that deliberately names no diagram type is
     /// that the session's history never moves: a command performed on a session is always a step,
     /// and a step is always something to give back.
+    ///
+    /// **Every action the chrome can produce is carried out**, so the claim is over the whole set
+    /// rather than over a convenient few.
     #[test]
     fn the_diagram_is_changed_only_by_a_command_performed_on_the_session() {
         let mut app = App::default();
-        for event in [
-            chord(KeyModifiers::NONE, KeyCode::F(9)),
-            chord(KeyModifiers::NONE, KeyCode::Enter),
-            chord(KeyModifiers::NONE, KeyCode::Esc),
-            chord(KeyModifiers::NONE, KeyCode::Down),
-            chord(KeyModifiers::NONE, KeyCode::Tab),
+        for action in [
+            Action::Quit,
+            Action::OpenDropDown,
+            Action::CloseDropDown,
+            Action::MoveInDropDown(Move::Up),
+            Action::MoveInDropDown(Move::Down),
+            Action::FocusAlongBar(Move::Up),
+            Action::FocusAlongBar(Move::Down),
+            Action::FocusTheRegion,
+            Action::Activate,
+            Action::ShowAbout,
+            Action::HideAbout,
+            Action::Press(ControlId::File),
+            Action::Release(Some(ControlId::File)),
+            Action::Release(None),
         ] {
-            offer(&mut app, &event);
+            app.apply(action);
         }
-        app.apply(Action::ShowAbout);
-        app.apply(Action::HideAbout);
-        app.apply(Action::Press(ControlId::File));
-        app.apply(Action::Release(Some(ControlId::File)));
 
         assert!(
             !app.session().can_undo() && !app.session().can_redo(),
@@ -197,176 +185,14 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_way_out_is_one_action_reached_by_a_key_a_click_and_the_focused_control() {
-        // `Ctrl+Q` and `Ctrl+C` are keys of the application, wherever the keyboard is.
-        let by_key = {
-            let mut app = App::default();
-            offer(&mut app, &chord(KeyModifiers::CONTROL, KeyCode::Char('q')));
-            app.running()
-        };
-        let by_control_c = {
-            let mut app = App::default();
-            offer(&mut app, &chord(KeyModifiers::CONTROL, KeyCode::Char('c')));
-            app.running()
-        };
-        // A click names a control by the rectangle the draw pass stored, so the rectangle is what
-        // the draw pass would have written.
-        let by_click = {
-            let mut app = app_with(ControlId::File, Rect::new(2, 1, 6, 1));
-            for event in clicked_at(3, 1) {
-                offer(&mut app, &event);
-            }
-            offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Enter));
-            app.running()
-        };
-        // The way-out control is inside the drop-down, and its own key is `Enter` while it is
-        // selected.
-        let by_its_own_key = {
-            let mut app = app_with(ControlId::Menu(0), Rect::new(1, 2, 6, 1));
-            offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::F(9)));
-            offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Enter));
-            app.running()
-        };
-
-        assert!(!by_key, "Ctrl+Q did not reach the way out");
-        assert!(!by_control_c, "Ctrl+C did not reach the way out");
-        assert!(
-            !by_click,
-            "a click on the control did not reach the way out"
-        );
-        assert!(
-            !by_its_own_key,
-            "the focused way-out control's own key did not reach the way out"
-        );
-    }
-
-    #[test]
-    fn a_bare_q_names_no_action() {
-        let mut app = App::default();
-        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Char('q')));
-        assert!(app.running(), "a bare q ended the loop");
-        assert_eq!(app.chrome().focus(), Focus::Region);
-        assert!(!app.chrome().drop_down_is_open());
-    }
-
-    #[test]
-    fn a_click_on_the_control_and_its_key_apply_the_same_action() {
-        let mut by_click = app_with(ControlId::File, Rect::new(2, 1, 6, 1));
-        for event in clicked_at(3, 1) {
-            offer(&mut by_click, &event);
-        }
-
-        // The keyboard reaches the same control by the stack rather than by a key: `F9` opens the
-        // drop-down and `Esc` closes it and leaves the keyboard on `File`. That is the path the
-        // resting focus stack allows, and rule 9 says the two must apply the same action.
-        let mut by_key = App::default();
-        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::F(9)));
-        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::Esc));
-        assert_eq!(
-            by_key.chrome().focus(),
-            Focus::Bar(ControlId::File),
-            "`Esc` did not leave the keyboard on the control that opened the drop-down"
-        );
-        offer(&mut by_key, &chord(KeyModifiers::NONE, KeyCode::Enter));
-
-        assert_eq!(
-            by_click.chrome().drop_down_is_open(),
-            by_key.chrome().drop_down_is_open(),
-            "the click and the key reached the same control by different paths"
-        );
-        assert_eq!(by_click.chrome().focus(), by_key.chrome().focus());
-    }
-
-    #[test]
-    fn a_click_outside_every_rectangle_names_no_action() {
-        let mut app = app_with(ControlId::File, Rect::new(2, 1, 6, 1));
-        for event in clicked_at(30, 8) {
-            offer(&mut app, &event);
-        }
-        assert!(app.running());
-        assert_eq!(app.chrome().focus(), Focus::Region);
-        assert!(!app.chrome().drop_down_is_open());
-    }
-
-    #[test]
-    fn f9_opens_the_drop_down_and_escape_closes_it() {
-        let mut app = App::default();
-        assert!(!app.chrome().drop_down_is_open());
-
-        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::F(9)));
-        assert!(app.chrome().drop_down_is_open());
-
-        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Esc));
-        assert!(
-            !app.chrome().drop_down_is_open(),
-            "Esc did not close the drop-down that F9 opened"
-        );
-    }
-
-    /// **`F9` is the application's own key, and this is the order rule 14 states.** The pop-up is
-    /// offered every event first, so the keys it takes are its own and nothing reaches past it to
-    /// the diagram — and `F9` is not one of the pop-up's, so it falls through and opens the
-    /// drop-down. A reading in which the pop-up went deaf to the application's own keys would be a
-    /// different rule, and the test is written against the one the specification states.
-    #[test]
-    fn the_diagrams_keys_do_nothing_while_a_pop_up_is_open() {
-        let mut app = App::default();
-        app.apply(Action::ShowAbout);
-        assert_eq!(app.chrome().focus(), Focus::PopUp);
-
-        // `Esc` belonged to nobody before the pop-up opened and belongs to it now.
-        assert!(app.chrome().pop_up_is_open());
-        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Esc));
-        assert!(
-            !app.chrome().pop_up_is_open(),
-            "the key that cancels the pop-up reached the application instead"
-        );
-
-        // And the pop-up takes the control the keyboard was on before it opened, so `Enter` acts on
-        // the pop-up's button and not on the bar's.
-        app.apply(Action::ShowAbout);
-        assert_eq!(app.chrome().focus(), Focus::PopUp);
-        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Enter));
-        assert!(
-            !app.chrome().drop_down_is_open(),
-            "`Enter` reached the bar's control while the pop-up held the keyboard"
-        );
-    }
-
-    #[test]
-    fn a_key_that_names_no_action_changes_nothing_and_reports_nothing() {
-        let mut app = App::default();
-        let before = app.chrome().focus();
-
-        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Char('z')));
-        offer(&mut app, &chord(KeyModifiers::NONE, KeyCode::Home));
-        offer(&mut app, &chord(KeyModifiers::SHIFT, KeyCode::Char('A')));
-
-        assert!(app.running());
-        assert_eq!(app.chrome().focus(), before);
-        assert!(!app.chrome().drop_down_is_open());
-        assert!(!app.chrome().pop_up_is_open());
-    }
-
-    #[test]
-    fn a_click_that_names_no_action_changes_nothing_and_reports_nothing() {
-        let mut app = app_with(ControlId::File, Rect::new(2, 1, 6, 1));
-
-        for event in clicked_at(30, 8) {
-            offer(&mut app, &event);
-        }
-        assert!(app.running());
-        assert_eq!(app.chrome().focus(), Focus::Region);
-    }
-
-    /// **Every control the chrome can draw has a rectangle a click can find.** A control with no
-    /// geometry would be one a person can see and cannot press, which is the failure `#189` is
-    /// about and the reason rule 11 exists.
+    /// **Every control the chrome can draw has a rectangle a click could find.** A control with no
+    /// geometry is one a person can see and cannot press, which is the failure `#189` is about and
+    /// the reason rule 11 exists. **Each overlay is opened on its own**, because the chrome never
+    /// shows two at once and a frame with both open would leave the one that is not there holding
+    /// no rectangle for the wrong reason.
     #[test]
     fn every_control_the_draw_pass_draws_is_reachable_by_a_click() {
-        let mut app = App::default();
-        draw(&mut app);
+        let mut app = drawn();
         for control in [ControlId::File, ControlId::About] {
             assert!(
                 !app.chrome().geometry().area_of(control).is_empty(),
@@ -375,7 +201,10 @@ mod tests {
         }
 
         app.apply(Action::OpenDropDown);
-        draw(&mut app);
+        let mut terminal = Terminal::new(TestBackend::new(40, 10)).expect("a test backend");
+        terminal
+            .draw(|frame| screen::draw(frame, app.chrome_mut()))
+            .expect("the frame is drawn");
         assert!(
             !app.chrome()
                 .geometry()
@@ -385,18 +214,12 @@ mod tests {
         );
 
         app.apply(Action::ShowAbout);
-        draw(&mut app);
+        terminal
+            .draw(|frame| screen::draw(frame, app.chrome_mut()))
+            .expect("the frame is drawn");
         assert!(
             !app.chrome().geometry().area_of(ControlId::Close).is_empty(),
             "the pop-up's button is drawn with no rectangle a click could find"
         );
-    }
-
-    /// One frame drawn, which is what fills the geometry in.
-    fn draw(app: &mut App) {
-        let mut terminal = Terminal::new(TestBackend::new(40, 10)).expect("a test backend");
-        terminal
-            .draw(|frame| screen::draw(frame, app.chrome_mut()))
-            .expect("the frame is drawn");
     }
 }
