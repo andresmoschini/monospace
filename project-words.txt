@@ -5,10 +5,10 @@
 # questioning forever. Prefer adding a dictionary to cspell.jsonc when one exists for the domain,
 # unless it is a large dictionary pulled in for a single word.
 Andrés
+COLORTERM
 crossterm
 doctests
 frontmatter
-gocui
 insta
 Moschini
 msvc
@@ -24,10 +24,11 @@ safecrlf
 speckit
 stdlib
 TKTK
+truecolor
 tuirealm
+tview
 underspecification
 unrequested
 valueonly
-WCAG
 worktree
 xtask
