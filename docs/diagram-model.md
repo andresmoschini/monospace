@@ -67,7 +67,7 @@ Two boxes written in this order, where the second is the front and decides the t
 anything because the second never left those sides open:
 
 <!-- render: 6x4
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+{
   "next_id": 3,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -229,7 +229,7 @@ border and the connector's arm terminal composed into one, which is the whole po
 an anchor rather than a corner:
 
 <!-- render: 8x3
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 } },
+{
   "next_id": 3,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -277,7 +277,7 @@ front-most one is the horizontal, and the cell where they cross is `┼` rather 
 in it:
 
 <!-- render: 7x5
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 7, "height": 5 } },
+{
   "next_id": 3,
   "shapes": [
     { "kind": "line", "id": 1, "at": { "x": 3, "y": 0 }, "len": 5, "orientation": "vertical",

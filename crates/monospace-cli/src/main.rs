@@ -142,7 +142,7 @@ fn main() -> ExitCode {
     };
 
     let diagram = match parse(&text) {
-        Ok((diagram, _)) => diagram,
+        Ok(diagram) => diagram,
         Err(error) => {
             eprintln!("{error}");
             return ExitCode::FAILURE;
@@ -565,35 +565,52 @@ mod tests {
     };
     use monospace_diagram::ShapeId;
 
-    use super::{demonstrate, drawn, glyph_catalog, parse_args, render_once};
+    use super::{Window, demonstrate, drawn, glyph_catalog, parse_args, render_once};
     use crate::parse;
 
     /// The window the shipped demonstration is drawn at, as the pair the flags name.
     fn in_the_demo_window() -> (Pos, Size) {
+        super::DEMO_WINDOW
+    }
+
+    /// The window a one-box description is drawn at in the tests that are about a small window
+    /// rather than about the demonstration.
+    fn a_four_by_three_window() -> Window {
         (
             Pos { x: 0, y: 0 },
             Size {
-                width: 50,
-                height: 13,
+                width: 4,
+                height: 3,
             },
         )
     }
 
-    /// The picture `json` renders to, parsed first, drawn into the window its own file names.
+    /// The window the two overlapping boxes below are drawn at, which is the smallest one that
+    /// holds both.
+    fn a_six_by_four_window() -> Window {
+        (
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 6,
+                height: 4,
+            },
+        )
+    }
+
+    /// The picture `json` renders to, parsed first, drawn into `window`.
     ///
     /// Two helpers rather than one that takes the pair, because every caller here has text and
     /// wants a `String` and none of them is about the window on its own.
-    fn render_json(json: &str) -> String {
-        let (diagram, window) = parse(json).expect("well-formed description");
-        render_once(&diagram, window.origin, window.size)
+    fn render_json(json: &str, window: Window) -> String {
+        let diagram = parse(json).expect("well-formed description");
+        render_once(&diagram, window.0, window.1)
     }
 
-    /// The demonstration over `json`, parsed first, drawn into the window its own file names.
-    fn demonstrate_json(json: &str) -> String {
-        let (diagram, window) = parse(json).expect("well-formed description");
-        demonstrate(diagram, window.origin, window.size)
+    /// The demonstration over `json`, parsed first, drawn into `window`.
+    fn demonstrate_json(json: &str, window: Window) -> String {
+        let diagram = parse(json).expect("well-formed description");
+        demonstrate(diagram, window.0, window.1)
     }
-
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
     fn identity(ordinal: u32) -> ShapeId {
         ShapeId::new(NonZeroU32::new(ordinal).expect("no test names zero"))
@@ -601,7 +618,6 @@ mod tests {
 
     fn one_box_json() -> &'static str {
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -614,7 +630,7 @@ mod tests {
     /// parameters.
     #[test]
     fn a_one_box_description_renders_the_same_as_a_box_shape_drawn_directly() {
-        let (diagram, _) = parse(one_box_json()).expect("well-formed description");
+        let diagram = parse(one_box_json()).expect("well-formed description");
 
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
@@ -640,10 +656,11 @@ mod tests {
     /// This is what lets `cargo xtask render` paste the output straight into a Markdown fence.
     #[test]
     fn rendering_once_is_the_demonstrations_first_picture_and_nothing_else() {
-        let (first, ..) = demonstrated_pictures(one_box_json());
+        let (first, ..) = demonstrated_pictures(one_box_json(), a_four_by_three_window());
 
-        let (diagram, window) = parse(one_box_json()).expect("well-formed description");
-        assert_eq!(render_once(&diagram, window.origin, window.size), first);
+        let diagram = parse(one_box_json()).expect("well-formed description");
+        let (origin, size) = a_four_by_three_window();
+        assert_eq!(render_once(&diagram, origin, size), first);
     }
 
     /// Every captioned block of a demonstration's output, as a picture without its caption.
@@ -652,8 +669,8 @@ mod tests {
     /// now and a helper that stopped at eight would have made it invisible to every test here. Each
     /// carries exactly the trailing newline `render` gives it: the last block already holds one,
     /// since nothing follows it, so it is stripped and put back rather than doubled.
-    fn demonstrated_blocks(json: &str) -> Vec<String> {
-        let output = demonstrate_json(json);
+    fn demonstrated_blocks(json: &str, window: Window) -> Vec<String> {
+        let output = demonstrate_json(json, window);
         output
             .trim_end_matches('\n')
             .split("\n\n")
@@ -682,6 +699,7 @@ mod tests {
     #[allow(clippy::type_complexity)]
     fn demonstrated_pictures(
         json: &str,
+        window: Window,
     ) -> (
         String,
         String,
@@ -692,7 +710,7 @@ mod tests {
         String,
         String,
     ) {
-        let blocks = demonstrated_blocks(json);
+        let blocks = demonstrated_blocks(json, window);
         let mut taken = 0;
         let mut next_picture = || {
             let block = blocks
@@ -724,7 +742,6 @@ mod tests {
     fn two_overlapping_boxes_demonstrate_in_opposite_orders() {
         let (first, second, ..) = demonstrated_pictures(
             r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 3,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -733,6 +750,7 @@ mod tests {
                   "stroke": "light", "fill": "▓" }
             ]
         }"#,
+            a_six_by_four_window(),
         );
 
         let size = Size {
@@ -831,9 +849,9 @@ mod tests {
         let with_the_point = value.to_string();
 
         let (first, second, third, fourth, fifth, sixth, seventh, eighth) =
-            demonstrated_pictures(super::DEMO);
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
         let (first2, second2, third2, fourth2, fifth2, sixth2, seventh2, eighth2) =
-            demonstrated_pictures(&with_the_point);
+            demonstrated_pictures(&with_the_point, super::DEMO_WINDOW);
         assert_eq!(
             (&first, &second, &third, &fourth, &fifth),
             (&first2, &second2, &third2, &fourth2, &fifth2),
@@ -867,8 +885,8 @@ mod tests {
 
         // The first picture is the shipped file's own, byte for byte, and a path prints that and
         // nothing else.
-        assert_eq!(first, render_json(super::DEMO));
-        assert_eq!(first2, render_json(&with_the_point));
+        assert_eq!(first, render_json(super::DEMO, super::DEMO_WINDOW));
+        assert_eq!(first2, render_json(&with_the_point, super::DEMO_WINDOW));
 
         // The fifth picture still shows the box the arrow hangs from displaced four cells right,
         // because that is the demonstration's own change to the picture and not the file's.
@@ -890,7 +908,7 @@ mod tests {
     /// are `the_demonstration_runs_every_step_through_a_session`'s.
     #[test]
     fn a_bare_run_prints_eight_captioned_pictures_the_first_being_the_description_as_written() {
-        let output = demonstrate_json(super::DEMO);
+        let output = demonstrate_json(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             output.split("\n\n").count(),
@@ -898,8 +916,8 @@ mod tests {
             "eight pictures as the diagram changes and eight walked back: {output:?}"
         );
 
-        let (first, ..) = demonstrated_pictures(super::DEMO);
-        assert_eq!(first, render_json(super::DEMO));
+        let (first, ..) = demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
+        assert_eq!(first, render_json(super::DEMO, super::DEMO_WINDOW));
     }
 
     /// Rule 14 — the demonstration wraps its diagram in a session once and performs every step
@@ -918,7 +936,7 @@ mod tests {
     /// about the shipped description — but the empty one is what makes the rule readable.
     #[test]
     fn the_demonstration_runs_every_step_through_a_session() {
-        let blocks = demonstrated_blocks(super::DEMO);
+        let blocks = demonstrated_blocks(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             blocks.len(),
@@ -928,10 +946,10 @@ mod tests {
 
         let empty = demonstrated_blocks(
             r#"{
-                "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
                 "next_id": 1,
                 "shapes": []
             }"#,
+            a_four_by_three_window(),
         );
         assert_eq!(
             empty.len(),
@@ -955,7 +973,7 @@ mod tests {
     /// the same picture and why the walk is eight pictures long where the forward run is seven.
     #[test]
     fn the_demonstration_walks_back_to_the_picture_it_began_with() {
-        let blocks = demonstrated_blocks(super::DEMO);
+        let blocks = demonstrated_blocks(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             *blocks.last().expect("the run printed pictures"),
@@ -1013,8 +1031,8 @@ mod tests {
     /// nothing around it and the demonstration's is a picture under a caption.
     #[test]
     fn a_path_draws_one_picture_and_walks_nowhere() {
-        let (first, ..) = demonstrated_pictures(super::DEMO);
-        let once = render_json(super::DEMO);
+        let (first, ..) = demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
+        let once = render_json(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             once, first,
@@ -1081,7 +1099,8 @@ mod tests {
     /// differ.
     #[test]
     fn the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out() {
-        let (_first, second, third, fourth, ..) = demonstrated_pictures(super::DEMO);
+        let (_first, second, third, fourth, ..) =
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         let (columns, rows) = the_first_figures_footprint();
         let moved = differing(&second, &third);
@@ -1093,7 +1112,10 @@ mod tests {
             "the displacement reached outside the figure's own cells: {moved:?}"
         );
 
-        assert_eq!(fourth, render_json(&demo_without_its_first_entry()));
+        assert_eq!(
+            fourth,
+            render_json(&demo_without_its_first_entry(), super::DEMO_WINDOW)
+        );
     }
 
     /// The columns and rows the fifth picture's box holds before and after, and the column the
@@ -1125,7 +1147,8 @@ mod tests {
     /// which is the endpoint the displacement does not reach.
     #[test]
     fn the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it() {
-        let (_first, _second, _third, fourth, fifth, ..) = demonstrated_pictures(super::DEMO);
+        let (_first, _second, _third, fourth, fifth, ..) =
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         let (old_columns, old_rows, new_columns, new_rows, the_far_end_column) =
             the_hung_figures_footprint();
@@ -1221,10 +1244,10 @@ mod tests {
     fn an_empty_description_demonstrates_as_eight_identical_pictures() {
         let pictures = demonstrated_pictures(
             r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": []
         }"#,
+            a_four_by_three_window(),
         );
 
         assert_eq!(pictures.0, pictures.1);
@@ -1251,7 +1274,7 @@ mod tests {
     /// session, which corrected this scenario on the evidence of this test.
     #[test]
     fn one_shape_demonstrates_as_two_copies_of_itself_and_then_an_empty_window() {
-        let pictures = demonstrated_pictures(one_box_json());
+        let pictures = demonstrated_pictures(one_box_json(), a_four_by_three_window());
 
         assert_eq!(pictures.0, pictures.1);
         assert_eq!(pictures.2, pictures.3);
@@ -1333,7 +1356,7 @@ mod tests {
     #[test]
     fn the_seventh_picture_takes_the_box_away_and_leaves_the_arrow() {
         let (_first, _second, _third, _fourth, _fifth, sixth, seventh, _eighth) =
-            demonstrated_pictures(super::DEMO);
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         let [arrow, the_box] = the_arrow_and_its_removed_box();
         let (arrow_columns, arrow_rows) = (arrow.0, arrow.1);
@@ -1395,7 +1418,7 @@ mod tests {
     #[test]
     fn the_sixth_picture_moves_only_the_arrow() {
         let (_first, _second, _third, _fourth, fifth, sixth, _seventh, _eighth) =
-            demonstrated_pictures(super::DEMO);
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         let changed = differing(&fifth, &sixth);
         assert!(
@@ -1460,7 +1483,7 @@ mod tests {
     /// says at a position, not what `demonstrate` decided to write in a caption.
     #[test]
     fn the_shape_a_position_resolves_to_is_the_front_most_of_the_two_that_wrote_it() {
-        let (diagram, _) = parse(super::DEMO).expect("the shipped description reads");
+        let diagram = parse(super::DEMO).expect("the shipped description reads");
         let catalog = glyph_catalog();
         let (origin, size) = in_the_demo_window();
         let (buffer, picture) = drawn(&diagram, &catalog, origin, size);
@@ -1505,7 +1528,7 @@ mod tests {
     /// record named, and every one of them is either now blank or now shows what was behind it.
     #[test]
     fn the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names() {
-        let (_first, .., seventh, eighth) = demonstrated_pictures(super::DEMO);
+        let (_first, .., seventh, eighth) = demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             the_glyph_at(&seventh, (20, 2)),
@@ -1538,7 +1561,7 @@ mod tests {
     /// **behind**. `5` is listed after `6` and so is in front, which is why the record names `6`.
     #[test]
     fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
-        let (diagram, _) = parse(super::DEMO).expect("the shipped description reads");
+        let diagram = parse(super::DEMO).expect("the shipped description reads");
         let (origin, size) = in_the_demo_window();
         let (buffer, _) = drawn(&diagram, &glyph_catalog(), origin, size);
 
@@ -1600,9 +1623,10 @@ mod tests {
                 "size": { "width": 4, "height": 3 }, "stroke": "light", "fill": "▓"
             }));
 
-        let (first, second, third, fourth, ..) = demonstrated_pictures(&value.to_string());
+        let (first, second, third, fourth, ..) =
+            demonstrated_pictures(&value.to_string(), super::DEMO_WINDOW);
         let (shipped_first, shipped_second, shipped_third, shipped_fourth, ..) =
-            demonstrated_pictures(super::DEMO);
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         // The newcomer stands in front of the entry the demonstration used to name, so the picture
         // has changed and none of the four pictures is the shipped one.
@@ -1629,8 +1653,8 @@ mod tests {
     /// The three arguments this binary reads, as one call each, and what each of them becomes.
     ///
     /// **The window is a pair and the pair is `None` or it is not.** `None` is the whole of what a
-    /// caller that named no window says, and it is what leaves the description's own `canvas` in
-    /// charge while the format still carries one; the pair is what a caller that named one gets.
+    /// caller that named no window says, and it is what leaves this binary's own default in charge;
+    /// the pair is what a caller that named one gets.
     #[test]
     fn the_arguments_are_a_path_and_a_window_and_neither_is_required() {
         let args = |words: &[&str]| {
@@ -1752,7 +1776,7 @@ mod tests {
     #[test]
     fn the_demonstrations_eight_pictures_are_unchanged() {
         let (first, second, third, fourth, fifth, sixth, seventh, eighth) =
-            demonstrated_pictures(super::DEMO);
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
         let eight = [first, second, third, fourth, fifth, sixth, seventh, eighth].join("\n\n");
 
         let mut settings = insta::Settings::clone_current();
@@ -1779,7 +1803,6 @@ mod tests {
     #[test]
     fn specs_offsets_resolve_to_the_cells_they_do_today() {
         let json = r#"{
-            "canvas": { "origin": { "x": -3, "y": -2 }, "size": { "width": 7, "height": 5 } },
             "next_id": 4,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -1789,7 +1812,7 @@ mod tests {
                 { "kind": "box", "id": 3, "at": { "x": 6, "y": 3 }, "size": { "width": 4, "height": 3 },
                   "stroke": "heavy" } ]
         }"#;
-        let (diagram, _) = parse(json).expect("the description reads");
+        let diagram = parse(json).expect("the description reads");
         let origin = Pos { x: -3, y: -2 };
         let size = Size {
             width: 7,

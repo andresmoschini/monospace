@@ -260,7 +260,7 @@ A generated one is written as a marker carrying its own description:
 
 ````markdown
 <!-- render: 2x6 at 0,-1
-{ "canvas": { "origin": { "x": 0, "y": -1 }, "size": { "width": 2, "height": 6 } },
+{
   "next_id": 2,
   "shapes": [ { "kind": "connector", "id": 1,
     "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "up",

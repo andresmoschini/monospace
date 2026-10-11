@@ -65,7 +65,6 @@ fn an_identity_written_as_a_string_is_refused_by_name_on_stderr_and_fails() {
     let a_string_id = write_description(
         "string-id",
         r##"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [ { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 },
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
@@ -74,7 +73,6 @@ fn an_identity_written_as_a_string_is_refused_by_name_on_stderr_and_fails() {
     let a_string_shape = write_description(
         "string-shape",
         r##"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 9, "height": 3 } },
             "next_id": 3,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -119,7 +117,6 @@ fn a_next_id_of_zero_is_refused_by_name_on_stderr_and_fails() {
     let path = write_description(
         "zero-next-id",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 0,
             "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
@@ -154,7 +151,6 @@ fn two_entries_carrying_one_identity_are_both_read_and_both_drawn() {
     let path = write_description(
         "repeated-id",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -236,7 +232,6 @@ fn an_explicit_path_prints_the_hand_written_box() {
     let path = write_description(
         "one-box",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -270,7 +265,6 @@ fn a_path_and_no_size_draws_into_the_demonstrations_window() {
     let path = write_description(
         "default-window",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -349,7 +343,6 @@ fn a_size_and_an_origin_on_the_command_line_decide_the_window_a_path_is_drawn_in
     let path = write_description(
         "with-flags",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -377,6 +370,49 @@ fn a_size_and_an_origin_on_the_command_line_decide_the_window_a_path_is_drawn_in
     );
 }
 
+/// Rule 3 — the window comes from the flags and nowhere else.
+///
+/// **The file says `13x9` and the command line says `6x4`, and the picture is six by four.** That
+/// is the whole of the claim, and it is the one a later change is most likely to break by making the
+/// marker's size optional for symmetry with the flag's: a window that could be inherited from a
+/// file is a window with two sources, and the rule for which wins is the decision this change
+/// removes.
+///
+/// The file's own window is still read and still there — the format carries it until the increment
+/// that takes it out — so the assertion that matters is the one where the two disagree.
+#[test]
+fn the_window_comes_from_the_flags_and_nowhere_else() {
+    let path = write_description(
+        "two-windows",
+        r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 13, "height": 9 } },
+            "next_id": 2,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light", "fill": "░" }
+            ]
+        }"#,
+    );
+    let path = path.to_str().expect("temp path should be valid UTF-8");
+
+    let asked = run(&["--size", "6x4", path]);
+    assert!(asked.status.success(), "exited with {}", asked.status);
+    assert_eq!(
+        String::from_utf8_lossy(&asked.stdout),
+        "┌──┐  \n│░░│  \n└──┘  \n      \n",
+        "the command line's window is the one the picture is drawn at"
+    );
+
+    let moved = run(&["--size", "6x4", "--origin", "1,1", path]);
+    assert!(moved.status.success(), "exited with {}", moved.status);
+    assert_eq!(
+        String::from_utf8_lossy(&moved.stdout),
+        "░░│   \n──┘   \n      \n      \n",
+        "the origin is the window's corner, so the box at (0, 0) is outside it and only the part \
+         the window holds is drawn"
+    );
+}
+
 /// A flag this binary does not read prints nothing to stdout, names itself on stderr, and fails.
 ///
 /// **The refusal is the boundary, and it is the same shape the parser's own unit tests pin.** A
@@ -399,7 +435,6 @@ fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
     let path = write_description(
         "three-shapes",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 10, "height": 5 } },
             "next_id": 4,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -450,7 +485,6 @@ fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
         label,
         &format!(
             r#"{{
-            "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
             "next_id": 3,
             "shapes": [
                 {A_BOX},
@@ -572,7 +606,6 @@ fn a_file_naming_a_shape_it_does_not_hold_draws_the_box_and_no_connector_and_suc
             "just-the-box",
             &format!(
                 r#"{{
-                "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
                 "next_id": 2,
                 "shapes": [ {A_BOX} ]
             }}"#
@@ -651,7 +684,6 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     let first = write_description(
         "overlap-a-then-b",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 3,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -664,7 +696,6 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     let second = write_description(
         "overlap-b-then-a",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 3,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
@@ -704,7 +735,6 @@ fn running_the_same_file_twice_produces_identical_output() {
     let path = write_description(
         "determinism",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -757,7 +787,6 @@ fn an_unrecognized_kind_names_it_on_stderr_and_fails() {
     let path = write_description(
         "bad-kind",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 1,
             "shapes": [ { "kind": "triangle" } ]
         }"#,
@@ -783,8 +812,8 @@ fn more_than_one_argument_prints_usage_and_fails() {
 }
 
 /// Returns the character at `(x, y)` in the first picture of `output`, treating each line as a
-/// row and each `char` as a column, the same coordinates the demo's `canvas` uses. `+ 1` skips
-/// the caption line the demonstration puts above that picture.
+/// row and each `char` as a column, the same coordinates the demonstration's own window is drawn
+/// at. `+ 1` skips the caption line the demonstration puts above that picture.
 fn char_at(output: &str, x: usize, y: usize) -> char {
     output
         .lines()

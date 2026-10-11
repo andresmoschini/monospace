@@ -52,7 +52,7 @@ cell rather than one overwriting the other, so a crossing becomes a junction and
 corner — and the front-most shape's fill is what covers what is behind it:
 
 <!-- render: 20x7
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 20, "height": 7 } },
+{
   "next_id": 7,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },

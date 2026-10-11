@@ -415,7 +415,7 @@ Nothing bounds where a path may go. Two endpoints facing away from each other al
 joined by a route that travels around the outside, however far apart they are:
 
 <!-- render: 2x6 at 0,-1
-{ "canvas": { "origin": { "x": 0, "y": -1 }, "size": { "width": 2, "height": 6 } },
+{
   "next_id": 2,
   "shapes": [ { "kind": "connector", "id": 1,
     "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "up",

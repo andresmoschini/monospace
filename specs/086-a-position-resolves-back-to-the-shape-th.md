@@ -257,7 +257,7 @@ outside the window. The window is seven by five and starts at `(-3, -2)`, so it 
 `y -2..2`:
 
 <!-- render: 7x5 at -3,-2
-{ "canvas": { "origin": { "x": -3, "y": -2 }, "size": { "width": 7, "height": 5 } },
+{
   "next_id": 4,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -303,7 +303,7 @@ origin is `(1, 1)`, so only its right side and bottom-right corner are inside. T
 matter here sit at the **front** of their rows, which is what keeps them in the picture:
 
 <!-- render: 3x3 at 1,1
-{ "canvas": { "origin": { "x": 1, "y": 1 }, "size": { "width": 3, "height": 3 } },
+{
   "next_id": 2,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
