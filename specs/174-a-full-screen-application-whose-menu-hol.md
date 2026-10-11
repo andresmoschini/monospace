@@ -229,6 +229,11 @@ question open rather than for closing it.
 
 ## Model slice
 
+- `docs/tui-conventions.md`, created. It is a survey of what the established terminal applications
+  do and which source fixed each thing, **and it decides nothing**: where this repository follows a
+  convention the specification says so, and where it departs from one the specification says so and
+  says why. It is a `## Model slice` entry because four of this specification's decisions cite it,
+  and a decision that cites a source it does not carry is one nobody can check.
 - `docs/application-model.md`, created. It owns the screen above a session, and D1 is why it is a
   document rather than a module.
 - `docs/editing-model.md`, one sentence: the line saying the layers above it are _"none of them is
@@ -284,8 +289,8 @@ re-deciding:
    `Command`, and nothing else reaches the diagram.
 9. The way out is one action, reached by a key — `Ctrl+Q` or `Ctrl+C` —, by a click on the control,
    and by the focused control's own key, which is `Enter`; every one of them applies that same
-   action rather than a code path each. A bare `q` names no action, which is a deliberate departure:
-   a bare letter is what every surveyed tool uses for the way out, and this one does not.
+   action rather than a code path each. A bare `q` names no action, which is a departure from what
+   the surveyed applications do and not an attempt to match them.
 10. A key or a click that names no action changes nothing and reports nothing.
 11. A click is tested against the rectangle the control was drawn into. A click outside every
     control's rectangle names no action.
@@ -431,28 +436,34 @@ already settled survives the wait: a binding is not _"what does this key do"_ bu
 key do here"_ — offered to whatever holds focus first, falling through only if nothing took it — so
 whatever shape it takes has two dimensions from the start and not one.
 
-**The menu bar this slice builds is against the grain, and it is here anyway.** The established
-tools that have one are `mc` and Emacs, and both are old. Since 2020 the menubar was replaced by
-lists and shortcuts: Bubble Tea is a runtime whose components live in a separate module, Textual has
-a `Header` and a `Footer`, `tview` uses a `List` inside a page, and `ratatui` has no menu at all —
-its own answer is `Block::bordered()` plus `Clear` over a centred `Rect`, drawn last, and the draw
-order is the z-order. `cursive` is the only candidate that ships one, and it is declined above for
-reasons that have nothing to do with this. **What would settle it:** a command that is genuinely
-contextual, because the one thing the abandoned menubar still does that a list and a shortcut do not
-is give a contextual action a name on screen.
+**The menu bar this slice builds is against what the surveyed applications do, and it is here
+anyway.** [`docs/tui-conventions.md`](../docs/tui-conventions.md) §3.6 records what the modern
+frameworks do instead, from their widget registries: Bubble Tea is a runtime whose components live
+in a separate module, Textual has a `Header` and a `Footer`, `tview` uses a `List` inside a page,
+and `ratatui` has no menu at all — its own answer is `Block::bordered()` plus `Clear` over a centred
+`Rect`, drawn last, and the draw order is the z-order. That document is a survey and decides
+nothing; it is cited here because the question is what those tools do, not because they have
+anything to say about this one. `cursive` is the only candidate that ships a menu bar, and it is
+declined above for reasons that have nothing to do with it. **What would settle it:** a command that
+is genuinely contextual, because the one thing a menubar does that a list and a shortcut do not is
+give a contextual action a name on screen.
 
 **What the composed states look like.** A control that is both focused and under the mouse carries
 two cues at once, and a background tint under reverse video can read as one state rather than as
 two. Which takes precedence is a rendering rule and not a decision about what the states are. **What
-would settle it:** the first screen showing a control in both states at once.
+would settle it:** the first screen showing a control in both states at once — which rule 7 already
+provides for, since the four states it names can be two at a time.
 
 **One cell is one cell, and the chrome will use glyphs that are not.** `monospace-core` assumes a
 glyph occupies one cell and computes no width, which holds for its own catalogs and stops holding
-for a double-width character. Box-drawing, the shade blocks a drop-down shadow would use, and the
-block range the scrollbar will need are all single-width, but nothing in the model enforces it, and
-one of the terminals this runs on has a default font that does not carry them. **What would settle
-it:** the first glyph the chrome needs that the model's assumption rejects — which is not one this
-slice needs, and is recorded because the next one will.
+for a double-width character. [`docs/glyph-sets.md`](../docs/glyph-sets.md) already holds both of
+those risks, and [`docs/tui-conventions.md`](../docs/tui-conventions.md) §9.3 adds the third: the
+animated and block glyphs need a font that carries those ranges, and the ASCII fallback is the path
+that makes the application work on the maintainer's machine without detecting anything. Box-drawing,
+the shade blocks a drop-down shadow would use, and the block range the scrollbar will need are all
+single-width, but nothing in the model enforces it. **What would settle it:** the first glyph the
+chrome needs that the model's assumption rejects — which is not one this slice needs, and is
+recorded because the next one will.
 
 Everything else that surfaced while writing this became another issue rather than a section here:
 the gap in the `specs` step that let a merged deciding pull request leave a spec reading `draft`,
