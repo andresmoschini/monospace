@@ -66,9 +66,12 @@ ten rows, which is the thing prose cannot establish and a mock-up pretends to.
 - **Editing a diagram, and with it undo.** `monospace-editing` holds the history and this slice
   performs no command on it, so [#181](https://github.com/andresmoschini/monospace/issues/181) is
   unchanged by this slice.
-- **A menu bar with three labels and nothing under them.** The one drop-down this slice builds is
-  there to be the case that forces the geometry rule and the draw-order rule to exist. _Open
-  questions_ records what the research says about the genre this control comes from.
+- **A menu bar with three labels and nothing under them.** The bar is drawn on every frame and the
+  one drop-down it holds is there to be the case that forces the geometry rule and the draw-order
+  rule to exist. _Open questions_ records what the research says about the genre this control comes
+  from.
+- **The keybinding table.** How the keys are written in the loop is an implementation detail, and no
+  table a file could rewrite is promised by anything in this specification.
 - **The selection highlight for a shape, the scrollbar, and the keybindings hint**, which are #176,
   #177 and later. What a selected shape looks like needs a rule about a mark and about color that
   `docs/model.md` holds open and this slice does not close.
@@ -258,41 +261,49 @@ re-deciding:
 
 1. The application takes the whole screen when it starts and gives it back when it ends.
 2. The terminal is restored to what it was found in — the screen it was given, the cursor, and the
-   input mode — on every way out, including the way out a panic takes.
+   input mode — on every way out: returning from the loop, taking the way out action, and the way
+   out a panic takes. **A signal delivered to the process from outside it is not one of them.** Raw
+   mode disables `ISIG`, so `Ctrl+C` arrives as a key and reaches the loop rather than raising a
+   signal, and anything else that terminates the process where it stands leaves the terminal in raw
+   mode, which `reset` in another terminal recovers from and nothing in this slice prevents.
 3. The terminal is given back by a guard rather than by a line, so that a panic unwinding through
    the loop restores it. It does not become a framework's panic hook: the guard is reachable from a
    test and the hook is not.
 4. Mouse events are captured while the application runs and released when it ends.
 5. The screen is in three regions: the bar across the top, the region the diagram is drawn into, and
-   the status bar along the bottom. The bar's height and the status bar's height are fixed by the
-   solver, and the region between them takes the rest of the screen whatever its size.
-6. **The bar's row is reserved whether or not the bar is drawn**, so that nothing else takes it.
-7. **Every region is painted on every frame, or `Clear` is painted over the ones the frame is not
+   the status bar along the bottom. **The bar's row is drawn on every frame**, so nothing else takes
+   it. The bar's height and the status bar's height are fixed by the solver, and the region between
+   them takes the rest of the screen whatever its size.
+6. **Every region is painted on every frame, or `Clear` is painted over the ones the frame is not
    using.** `Terminal::draw` diffs against the previous frame rather than clearing, so a region that
    stops being drawn keeps what was last in it.
-8. The bar holds a control that is the way out. The control has four states — at rest, under the
+7. The bar holds a control that is the way out. The control has four states — at rest, under the
    mouse, focused by the keyboard, and pressed — and shows which one it is in.
-9. An event becomes an action, and the action is the only thing that changes the state. The state is
+8. An event becomes an action, and the action is the only thing that changes the state. The state is
    a `Session` and the chrome's own; an action that means something to a diagram becomes a
    `Command`, and nothing else reaches the diagram.
-10. The way out is one action, reached three ways — a key, a click on the control, and the focused
-    control's own key — and all three apply that same action rather than three code paths.
-11. A key or a click that names no action changes nothing and reports nothing.
-12. A click is tested against the rectangle the control was drawn into. A click outside every
+9. The way out is one action, reached by a key — `Ctrl+Q` or `Ctrl+C` —, by a click on the control,
+   and by the focused control's own key, which is `Enter`; every one of them applies that same
+   action rather than a code path each. A bare `q` names no action, which is a deliberate departure:
+   a bare letter is what every surveyed tool uses for the way out, and this one does not.
+10. A key or a click that names no action changes nothing and reports nothing.
+11. A click is tested against the rectangle the control was drawn into. A click outside every
     control's rectangle names no action.
-13. The region holding the keyboard is drawn with a different border from the others, a focused
+12. The region holding the keyboard is drawn with a different border from the others, a focused
     control inside it is drawn in reverse video, and a control under the mouse is drawn with a
     background. An indicator that is shown persists while the state it shows lasts.
-14. A control that is in no state is drawn with the terminal's default foreground and background,
+13. A control that is in no state is drawn with the terminal's default foreground and background,
     and `NO_COLOR` turns the chrome's color off.
-15. An event is offered to whatever holds focus first, and only what nothing took falls through to
+14. An event is offered to whatever holds focus first, and only what nothing took falls through to
     the application's own keys. An open pop-up holds the keyboard while it is open, so the keys that
     would move the diagram do nothing while it is.
-16. The region the diagram goes into is drawn, and holds nothing else: no diagram, and no file is
+15. The region the diagram goes into is drawn, and holds nothing else: no diagram, and no file is
     read.
-17. A drop-down opens over the region and closes again, and the region is byte-identical afterwards.
-    It is drawn **after** the region it covers, so a repaint of the region does not erase it.
-18. The crate holds no domain logic. It depends on `monospace-editing` and the two terminal crates,
+16. The drop-down opens with `F9`, moves with the arrow keys, activates with `Enter` and cancels
+    with `Esc`. It opens over the region and closes again, and the region is byte-identical
+    afterwards. It is drawn **after** the region it covers, so a repaint of the region does not
+    erase it.
+17. The crate holds no domain logic. It depends on `monospace-editing` and the two terminal crates,
     and on no other crate in the workspace, which is what `README.md` promises of the TUI when it
     explains why the CLI comes first.
 
@@ -349,36 +360,39 @@ None of these tests exists yet. The names are what the building stage is held to
 | 4    | `the_terminal_gives_up_mouse_capture_when_the_application_ends`                   |
 | 5    | `the_bar_is_at_the_top_and_the_status_bar_is_at_the_bottom`                       |
 | 5    | `the_region_between_them_takes_the_rest_of_the_screen`                            |
-| 6    | `the_bars_row_is_reserved_whether_or_not_the_bar_is_drawn`                        |
-| 7    | `a_region_that_stops_being_drawn_does_not_keep_what_was_last_in_it`               |
-| 8    | `the_control_has_four_states_and_shows_which_one_it_is_in`                        |
-| 9    | `a_key_reaches_the_state_only_as_an_action`                                       |
-| 9    | `the_diagram_is_changed_only_by_a_command_performed_on_the_session`               |
-| 10   | `the_way_out_is_one_action_reached_by_a_key_a_click_and_the_focused_control`      |
-| 10   | `a_click_on_the_control_and_its_key_apply_the_same_action`                        |
-| 11   | `a_key_that_names_no_action_changes_nothing_and_reports_nothing`                  |
-| 11   | `a_click_that_names_no_action_changes_nothing_and_reports_nothing`                |
-| 12   | `a_click_inside_a_controls_rectangle_names_its_action`                            |
-| 12   | `a_click_outside_every_rectangle_names_no_action`                                 |
-| 12   | `a_control_hit_tested_against_its_rectangle_answers_after_a_resize`               |
-| 13   | `the_region_holding_the_keyboard_is_drawn_with_a_different_border`                |
-| 13   | `a_focused_control_is_drawn_in_reverse_video_and_a_hovered_one_in_the_background` |
-| 13   | `a_focus_indicator_is_shown_for_as_long_as_the_focus_lasts`                       |
-| 14   | `a_control_in_no_state_is_drawn_with_the_terminals_own_colors`                    |
-| 14   | `no_color_switches_the_chromes_color_off`                                         |
-| 15   | `a_key_goes_to_whatever_holds_focus_before_the_applications_own_keys`             |
-| 15   | `the_diagrams_keys_do_nothing_while_a_pop_up_is_open`                             |
-| 16   | `the_region_holds_the_drawing_and_nothing_else`                                   |
-| 17   | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`                     |
-| 17   | `a_drop_down_is_not_erased_by_the_region_being_painted_after_it`                  |
-| 18   | nothing holds this, and it is named here rather than claimed done                 |
+| 5    | `the_bars_row_is_drawn_on_every_frame`                                            |
+| 6    | `a_region_that_stops_being_drawn_does_not_keep_what_was_last_in_it`               |
+| 7    | `the_control_has_four_states_and_shows_which_one_it_is_in`                        |
+| 8    | `a_key_reaches_the_state_only_as_an_action`                                       |
+| 8    | `the_diagram_is_changed_only_by_a_command_performed_on_the_session`               |
+| 9    | `the_way_out_is_one_action_reached_by_a_key_a_click_and_the_focused_control`      |
+| 9    | `a_click_on_the_control_and_its_key_apply_the_same_action`                        |
+| 9    | `control_c_reaches_the_state_as_a_key_and_not_as_a_signal`                        |
+| 9    | `a_bare_q_names_no_action`                                                        |
+| 10   | `a_key_that_names_no_action_changes_nothing_and_reports_nothing`                  |
+| 10   | `a_click_that_names_no_action_changes_nothing_and_reports_nothing`                |
+| 11   | `a_click_inside_a_controls_rectangle_names_its_action`                            |
+| 11   | `a_click_outside_every_rectangle_names_no_action`                                 |
+| 11   | `a_control_hit_tested_against_its_rectangle_answers_after_a_resize`               |
+| 12   | `the_region_holding_the_keyboard_is_drawn_with_a_different_border`                |
+| 12   | `a_focused_control_is_drawn_in_reverse_video_and_a_hovered_one_in_the_background` |
+| 12   | `a_focus_indicator_is_shown_for_as_long_as_the_focus_lasts`                       |
+| 13   | `a_control_in_no_state_is_drawn_with_the_terminals_own_colors`                    |
+| 13   | `no_color_switches_the_chromes_color_off`                                         |
+| 14   | `a_key_goes_to_whatever_holds_focus_before_the_applications_own_keys`             |
+| 14   | `the_diagrams_keys_do_nothing_while_a_pop_up_is_open`                             |
+| 15   | `the_region_holds_the_drawing_and_nothing_else`                                   |
+| 16   | `f9_opens_the_drop_down_and_escape_closes_it`                                     |
+| 16   | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`                     |
+| 16   | `a_drop_down_is_not_erased_by_the_region_being_painted_after_it`                  |
+| 17   | nothing holds this, and it is named here rather than claimed done                 |
 
-Rules 12, 13 and 15 are what this slice is for, and rule 12's third test is the one the spike
-demonstrated by failing. Rules 13 and 15 are each a pure function of what was drawn and of which
+Rules 11, 12 and 14 are what this slice is for, and rule 11's third test is the one the spike
+demonstrated by failing. Rules 12 and 14 are each a pure function of what was drawn and of which
 region holds focus, so they are snapshot tests rather than assertions about a live terminal. **Rules
-7 and 15 are the two to read first if the tests are slow, because each is a rule whose absence is
+6 and 14 are the two to read first if the tests are slow, because each is a rule whose absence is
 invisible:** nothing fails when a pop-up takes keys that were never meant to go to it, and a region
-that keeps a stale frame reads as a drawing bug rather than a layout one. Rule 18 is not a rule a
+that keeps a stale frame reads as a drawing bug rather than a layout one. Rule 17 is not a rule a
 test can read: it is a statement about what the crate depends on, and nothing in the gate reaches it
 — the `wasm` step does not name this crate precisely because it is not portable. It is written down
 because `README.md` promises it, and it is reviewed by reading the manifest.
@@ -410,28 +424,12 @@ and a document that both exist.
 
 ## Open questions
 
-**Where does the keybinding table live, and what is a binding made of?** This is the largest thing
-the application owns that no dependency holds for it, and it is open rather than answered because
-none of the reasons the frameworks were declined is about this question: `cursive` has no
-declarative keybinding layer, `tuirealm` was declined for geometry, and `ratatui` is not in the
-business at all — its full trait list carries no focus and no binding. The table is ours.
-
-The shapes it could take are three. **A `match` in the loop** is the smallest and is what this slice
-writes, because there is one action and one key. **A table of `(KeyEvent, Action)` pairs** is the
-same shape with the data lifted out of the code, which is what a help screen reads and what makes a
-binding listable rather than scattered. **A configurable table** — one a file could rewrite — is a
-different thing again, and it is the one that was implicitly promised when `cursive` was rejected
-for not having it. **What would settle it:** the first command reachable both by a key and by a menu
-item, because that is where one binding has to answer to two places and the duplication becomes
-visible.
-
-**The vocabulary is not open even though the table is.** The established tools agree on what the
-keys mean: `Enter` accepts, `Esc` goes back one level, `q` quits, `Ctrl+C` always quits and has to
-catch `SIGINT`, `F1`–`F10` are named actions, and every function key has a fallback without function
-keys. A table starts from those and adds the place, which **D4 has already settled**: a binding is
-not _"what does this key do"_ but _"what does this key do here"_ — offered to whatever holds focus
-first, falling through only if nothing took it. **A table therefore has two dimensions from the
-start, not one.**
+**The keybinding table is not a question this specification holds open.** How the keys are written
+in the loop is an implementation detail, and the first command reachable both by a key and by a menu
+item — #180 — is what makes a table worth having rather than what makes it necessary. What D4 has
+already settled survives the wait: a binding is not _"what does this key do"_ but _"what does this
+key do here"_ — offered to whatever holds focus first, falling through only if nothing took it — so
+whatever shape it takes has two dimensions from the start and not one.
 
 **The menu bar this slice builds is against the grain, and it is here anyway.** The established
 tools that have one are `mc` and Emacs, and both are old. Since 2020 the menubar was replaced by
