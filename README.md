@@ -51,8 +51,8 @@ endpoints, however far apart those are. Where two shapes meet, their strokes com
 cell rather than one overwriting the other, so a crossing becomes a junction and two boxes share a
 corner — and the front-most shape's fill is what covers what is behind it:
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 20, "height": 7 } },
+<!-- render: 20x7
+{
   "next_id": 7,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -114,9 +114,14 @@ cargo run -p monospace-cli -- path/to.json      # one picture, for the descripti
 cargo xtask check                               # the whole quality gate
 ```
 
-A description is JSON: a canvas and a list of shapes, documented by the crate that owns it,
+A description is JSON: an ordinal and a list of shapes, documented by the crate that owns it,
 `crates/monospace-description`. `monospace-cli` holds no domain logic of its own — it reads a
 description and draws the `Diagram` it gets back.
+
+**The window is the caller's**, and this binary names it with two flags: `--size <width>x<height>`
+and, beside it, `--origin <x>,<y>`. A path given neither is drawn into `50x13` at `(0, 0)`, which is
+the demonstration's own window — a convenience for a person running the binary by hand rather than a
+rule any file depends on.
 
 ### Layout
 

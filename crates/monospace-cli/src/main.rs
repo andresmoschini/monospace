@@ -47,11 +47,19 @@
 //! **A step skipped is a step that still prints its picture**, which is what keeps a description the
 //! demonstration can say nothing about working at all: an empty one, and a one-box one whose
 //! four-by-three window does not reach three of the four offsets.
+//!
+//! **The window is named on the command line, and `--size` and `--origin` are how.** Which part of
+//! a diagram to draw is the caller's question — see [`docs/diagram-model.md`](../../../docs/diagram-model.md),
+//! which holds that the diagram sizes nothing and measures nothing — so two flags answer it and
+//! neither is required. **A path given neither is drawn into this binary's own window**, the
+//! demonstration's, which is a constant here rather than a rule any file states: every marker
+//! states the size it is drawn at, so the default is a convenience for a person running the binary
+//! and nothing a generated picture depends on.
 
 use std::process::ExitCode;
 
 use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, Size};
-use monospace_description::{Window, parse};
+use monospace_description::parse;
 use monospace_diagram::{Anchor, Delta, Diagram};
 use monospace_editing::{Command, Session};
 
@@ -83,47 +91,173 @@ const THE_CROSSING_AT: Offset = Offset { x: 20, y: 2 };
 #[cfg(test)]
 mod sweep;
 
+/// The usage line, printed for anything [`parse_args`] refuses.
+const USAGE: &str = "usage: monospace-cli [--size <width>x<height>] [--origin <x>,<y>] [path]";
+
+/// The window a picture is drawn into, as the pair the two flags name.
+///
+/// **A name for the pair rather than the pair in a signature**, because the pair is what `render`
+/// takes and what the flags build, and `parse_args` has to say both. It is private to this binary
+/// and it is not the format crate's `Window` — that one is the type leaving the description, and
+/// this is the caller's own.
+type Window = (Pos, Size);
+
+/// The window the demonstration draws into, and the one a path is drawn into when the command line
+/// names none.
+///
+/// **A constant in this binary rather than a rule any file states**, which is why it is a default
+/// and not a requirement. `cargo xtask render` always passes a size, because every marker states
+/// one, so the only person this window serves is one running the binary by hand — and a default
+/// only a human reaches for can be wrong without consequence. **It is not the terminal's own size
+/// either**: a picture whose width depends on the machine that rendered it is a picture
+/// `cargo xtask render --check` fails on for every reader but the one who wrote it.
+const DEMO_WINDOW: Window = (
+    Pos { x: 0, y: 0 },
+    Size {
+        width: 50,
+        height: 13,
+    },
+);
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    let demonstrating = args.is_empty();
-    let text = match args.as_slice() {
-        [] => DEMO.to_owned(),
-        [path] => match std::fs::read_to_string(path) {
+    let (path, asked) = match parse_args(&args) {
+        Ok(parsed) => parsed,
+        Err(message) => {
+            eprintln!("{message}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let text = match &path {
+        None => DEMO.to_owned(),
+        Some(path) => match std::fs::read_to_string(path) {
             Ok(text) => text,
             Err(error) => {
                 eprintln!("{path}: {error}");
                 return ExitCode::FAILURE;
             }
         },
-        _ => {
-            eprintln!("usage: monospace-cli [path]");
-            return ExitCode::FAILURE;
-        }
     };
 
-    let (diagram, window) = match parse(&text) {
-        Ok(parsed) => parsed,
+    let diagram = match parse(&text) {
+        Ok(diagram) => diagram,
         Err(error) => {
             eprintln!("{error}");
             return ExitCode::FAILURE;
         }
     };
 
+    // **The flags name the window a path is drawn into, and a demonstration has its own.** The two
+    // callers are not the same caller. `cargo xtask render` always passes a size, because every
+    // marker states one, so the default is never what a generated picture uses; and a bare run
+    // serves a person watching it, who gets the demonstration's own window whatever they typed.
+    let (origin, size) = match asked {
+        Some(asked) if path.is_some() => asked,
+        _ => DEMO_WINDOW,
+    };
+
     print!(
         "{}",
-        if demonstrating {
-            demonstrate(diagram, window)
+        if path.is_none() {
+            demonstrate(diagram, origin, size)
         } else {
-            render_once(&diagram, window)
+            render_once(&diagram, origin, size)
         }
     );
     ExitCode::SUCCESS
 }
 
-/// Renders `diagram` into `window`, as one picture and nothing else.
-fn render_once(diagram: &Diagram, window: Window) -> String {
-    picture(diagram, &glyph_catalog(), window.origin, window.size)
+/// Reads the arguments into the path to draw and the window to draw it into, in either order.
+///
+/// **Two flags and a path, parsed by hand.** `xtask` takes no dependencies because it guards the
+/// dependency policy, and this binary is what `cargo xtask render` runs once per generated picture
+/// — twenty-two of them on a full pass. A crate to read `20x7` is a crate to build and read before
+/// every one of those.
+///
+/// **Each flag names one half of the window and neither half is required.** `--size` alone is a
+/// window at `(0, 0)`, `--origin` alone is a window of the default size somewhere else, and both
+/// together are what `cargo xtask render` passes for every marker it rewrites. A flag given twice is
+/// refused rather than read as the last word: a caller that says `--size 4x3 --size 6x4` has said
+/// two windows and deserves to be asked which.
+///
+/// **A value that is not the shape the flag takes is refused and quoted.** `--size 20-7` names
+/// nothing this binary can draw into, and answering it with half the window would be a picture
+/// rather than an error.
+fn parse_args(args: &[String]) -> Result<(Option<String>, Option<Window>), String> {
+    let mut path: Option<String> = None;
+    let mut origin: Option<Pos> = None;
+    let mut size: Option<Size> = None;
+    let mut rest = args.iter();
+
+    while let Some(argument) = rest.next() {
+        match argument.as_str() {
+            "--size" => {
+                let Some(value) = rest.next() else {
+                    return Err(format!("`--size` was given no size\n{USAGE}"));
+                };
+                if size.is_some() {
+                    return Err(format!("`--size` was given twice\n{USAGE}"));
+                }
+                size = Some(parse_size(value)?);
+            }
+            "--origin" => {
+                let Some(value) = rest.next() else {
+                    return Err(format!("`--origin` was given no origin\n{USAGE}"));
+                };
+                if origin.is_some() {
+                    return Err(format!("`--origin` was given twice\n{USAGE}"));
+                }
+                origin = Some(parse_origin(value)?);
+            }
+            _ if argument.starts_with('-') => {
+                return Err(format!("`{argument}` is not an option\n{USAGE}"));
+            }
+            _ if path.is_some() => {
+                return Err(format!("`{argument}` is a second path\n{USAGE}"));
+            }
+            _ => path = Some(argument.clone()),
+        }
+    }
+
+    let window = size.map(|size| (origin.unwrap_or(Pos { x: 0, y: 0 }), size));
+    Ok((path, window))
+}
+
+/// The `20x7` of `--size`, as the pair of numbers a window is drawn into.
+///
+/// **Both halves are numbers or neither is.** `20-7`, `20` and `x7` are refused by name rather than
+/// read as a width beside a height nobody gave, because half a window is a picture that looks like
+/// an answer.
+fn parse_size(text: &str) -> Result<Size, String> {
+    let said = || format!("`--size` takes `<width>x<height>` and not `{text}`\n{USAGE}");
+    let (width, height) = text.split_once('x').ok_or_else(said)?;
+
+    Ok(Size {
+        width: width.parse().map_err(|_| said())?,
+        height: height.parse().map_err(|_| said())?,
+    })
+}
+
+/// The `-3,-2` of `--origin`, as the corner the window is drawn from.
+///
+/// **The two halves may be negative**, because a window is not required to start at the top left of
+/// the diagram: `specs/086` draws one at `(-3, -2)` so that a box at `(0, 0)` is two rows and three
+/// columns inside it.
+fn parse_origin(text: &str) -> Result<Pos, String> {
+    let said = || format!("`--origin` takes `<x>,<y>` and not `{text}`\n{USAGE}");
+    let (x, y) = text.split_once(',').ok_or_else(said)?;
+
+    Ok(Pos {
+        x: x.parse().map_err(|_| said())?,
+        y: y.parse().map_err(|_| said())?,
+    })
+}
+
+/// Renders `diagram` into `size` at `origin`, as one picture and nothing else.
+fn render_once(diagram: &Diagram, origin: Pos, size: Size) -> String {
+    picture(diagram, &glyph_catalog(), origin, size)
 }
 
 /// Draws `diagram` into a fresh window of `size` and hands back the buffer beside its rendering.
@@ -182,9 +316,7 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 /// replaces a written assumption about this description with the record, which is what an interactive
 /// front end would have to do and what the first seven steps have no way to check. A figure added
 /// before any of the three would move the answer, and the pictures below it are what catch that.
-fn demonstrate(diagram: Diagram, window: Window) -> String {
-    let origin = window.origin;
-    let size = window.size;
+fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     let catalog = glyph_catalog();
     let mut session = Session::new(diagram);
 
@@ -433,24 +565,52 @@ mod tests {
     };
     use monospace_diagram::ShapeId;
 
-    use super::{demonstrate, drawn, glyph_catalog, render_once};
+    use super::{Window, demonstrate, drawn, glyph_catalog, parse_args, render_once};
     use crate::parse;
 
-    /// The picture `json` renders to, parsed first.
+    /// The window the shipped demonstration is drawn at, as the pair the flags name.
+    fn in_the_demo_window() -> (Pos, Size) {
+        super::DEMO_WINDOW
+    }
+
+    /// The window a one-box description is drawn at in the tests that are about a small window
+    /// rather than about the demonstration.
+    fn a_four_by_three_window() -> Window {
+        (
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 4,
+                height: 3,
+            },
+        )
+    }
+
+    /// The window the two overlapping boxes below are drawn at, which is the smallest one that
+    /// holds both.
+    fn a_six_by_four_window() -> Window {
+        (
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 6,
+                height: 4,
+            },
+        )
+    }
+
+    /// The picture `json` renders to, parsed first, drawn into `window`.
     ///
     /// Two helpers rather than one that takes the pair, because every caller here has text and
     /// wants a `String` and none of them is about the window on its own.
-    fn render_json(json: &str) -> String {
-        let (diagram, window) = parse(json).expect("well-formed description");
-        render_once(&diagram, window)
+    fn render_json(json: &str, window: Window) -> String {
+        let diagram = parse(json).expect("well-formed description");
+        render_once(&diagram, window.0, window.1)
     }
 
-    /// The demonstration over `json`, parsed first.
-    fn demonstrate_json(json: &str) -> String {
-        let (diagram, window) = parse(json).expect("well-formed description");
-        demonstrate(diagram, window)
+    /// The demonstration over `json`, parsed first, drawn into `window`.
+    fn demonstrate_json(json: &str, window: Window) -> String {
+        let diagram = parse(json).expect("well-formed description");
+        demonstrate(diagram, window.0, window.1)
     }
-
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
     fn identity(ordinal: u32) -> ShapeId {
         ShapeId::new(NonZeroU32::new(ordinal).expect("no test names zero"))
@@ -458,7 +618,6 @@ mod tests {
 
     fn one_box_json() -> &'static str {
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -471,7 +630,7 @@ mod tests {
     /// parameters.
     #[test]
     fn a_one_box_description_renders_the_same_as_a_box_shape_drawn_directly() {
-        let (diagram, window) = parse(one_box_json()).expect("well-formed description");
+        let diagram = parse(one_box_json()).expect("well-formed description");
 
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
@@ -488,7 +647,7 @@ mod tests {
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
         let expected = render(&buffer, &GlyphCatalog::light(), origin, size);
 
-        assert_eq!(render_once(&diagram, window), expected);
+        assert_eq!(render_once(&diagram, origin, size), expected);
     }
 
     /// A file's picture is the demonstration's first picture with nothing around it: no caption
@@ -497,10 +656,11 @@ mod tests {
     /// This is what lets `cargo xtask render` paste the output straight into a Markdown fence.
     #[test]
     fn rendering_once_is_the_demonstrations_first_picture_and_nothing_else() {
-        let (first, ..) = demonstrated_pictures(one_box_json());
+        let (first, ..) = demonstrated_pictures(one_box_json(), a_four_by_three_window());
 
-        let (diagram, window) = parse(one_box_json()).expect("well-formed description");
-        assert_eq!(render_once(&diagram, window), first);
+        let diagram = parse(one_box_json()).expect("well-formed description");
+        let (origin, size) = a_four_by_three_window();
+        assert_eq!(render_once(&diagram, origin, size), first);
     }
 
     /// Every captioned block of a demonstration's output, as a picture without its caption.
@@ -509,8 +669,8 @@ mod tests {
     /// now and a helper that stopped at eight would have made it invisible to every test here. Each
     /// carries exactly the trailing newline `render` gives it: the last block already holds one,
     /// since nothing follows it, so it is stripped and put back rather than doubled.
-    fn demonstrated_blocks(json: &str) -> Vec<String> {
-        let output = demonstrate_json(json);
+    fn demonstrated_blocks(json: &str, window: Window) -> Vec<String> {
+        let output = demonstrate_json(json, window);
         output
             .trim_end_matches('\n')
             .split("\n\n")
@@ -539,6 +699,7 @@ mod tests {
     #[allow(clippy::type_complexity)]
     fn demonstrated_pictures(
         json: &str,
+        window: Window,
     ) -> (
         String,
         String,
@@ -549,7 +710,7 @@ mod tests {
         String,
         String,
     ) {
-        let blocks = demonstrated_blocks(json);
+        let blocks = demonstrated_blocks(json, window);
         let mut taken = 0;
         let mut next_picture = || {
             let block = blocks
@@ -581,7 +742,6 @@ mod tests {
     fn two_overlapping_boxes_demonstrate_in_opposite_orders() {
         let (first, second, ..) = demonstrated_pictures(
             r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 3,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -590,6 +750,7 @@ mod tests {
                   "stroke": "light", "fill": "▓" }
             ]
         }"#,
+            a_six_by_four_window(),
         );
 
         let size = Size {
@@ -688,9 +849,9 @@ mod tests {
         let with_the_point = value.to_string();
 
         let (first, second, third, fourth, fifth, sixth, seventh, eighth) =
-            demonstrated_pictures(super::DEMO);
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
         let (first2, second2, third2, fourth2, fifth2, sixth2, seventh2, eighth2) =
-            demonstrated_pictures(&with_the_point);
+            demonstrated_pictures(&with_the_point, super::DEMO_WINDOW);
         assert_eq!(
             (&first, &second, &third, &fourth, &fifth),
             (&first2, &second2, &third2, &fourth2, &fifth2),
@@ -724,8 +885,8 @@ mod tests {
 
         // The first picture is the shipped file's own, byte for byte, and a path prints that and
         // nothing else.
-        assert_eq!(first, render_json(super::DEMO));
-        assert_eq!(first2, render_json(&with_the_point));
+        assert_eq!(first, render_json(super::DEMO, super::DEMO_WINDOW));
+        assert_eq!(first2, render_json(&with_the_point, super::DEMO_WINDOW));
 
         // The fifth picture still shows the box the arrow hangs from displaced four cells right,
         // because that is the demonstration's own change to the picture and not the file's.
@@ -747,7 +908,7 @@ mod tests {
     /// are `the_demonstration_runs_every_step_through_a_session`'s.
     #[test]
     fn a_bare_run_prints_eight_captioned_pictures_the_first_being_the_description_as_written() {
-        let output = demonstrate_json(super::DEMO);
+        let output = demonstrate_json(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             output.split("\n\n").count(),
@@ -755,8 +916,8 @@ mod tests {
             "eight pictures as the diagram changes and eight walked back: {output:?}"
         );
 
-        let (first, ..) = demonstrated_pictures(super::DEMO);
-        assert_eq!(first, render_json(super::DEMO));
+        let (first, ..) = demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
+        assert_eq!(first, render_json(super::DEMO, super::DEMO_WINDOW));
     }
 
     /// Rule 14 — the demonstration wraps its diagram in a session once and performs every step
@@ -775,7 +936,7 @@ mod tests {
     /// about the shipped description — but the empty one is what makes the rule readable.
     #[test]
     fn the_demonstration_runs_every_step_through_a_session() {
-        let blocks = demonstrated_blocks(super::DEMO);
+        let blocks = demonstrated_blocks(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             blocks.len(),
@@ -785,10 +946,10 @@ mod tests {
 
         let empty = demonstrated_blocks(
             r#"{
-                "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
                 "next_id": 1,
                 "shapes": []
             }"#,
+            a_four_by_three_window(),
         );
         assert_eq!(
             empty.len(),
@@ -812,7 +973,7 @@ mod tests {
     /// the same picture and why the walk is eight pictures long where the forward run is seven.
     #[test]
     fn the_demonstration_walks_back_to_the_picture_it_began_with() {
-        let blocks = demonstrated_blocks(super::DEMO);
+        let blocks = demonstrated_blocks(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             *blocks.last().expect("the run printed pictures"),
@@ -870,8 +1031,8 @@ mod tests {
     /// nothing around it and the demonstration's is a picture under a caption.
     #[test]
     fn a_path_draws_one_picture_and_walks_nowhere() {
-        let (first, ..) = demonstrated_pictures(super::DEMO);
-        let once = render_json(super::DEMO);
+        let (first, ..) = demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
+        let once = render_json(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             once, first,
@@ -938,7 +1099,8 @@ mod tests {
     /// differ.
     #[test]
     fn the_third_picture_moves_one_figure_and_the_fourth_takes_that_figure_out() {
-        let (_first, second, third, fourth, ..) = demonstrated_pictures(super::DEMO);
+        let (_first, second, third, fourth, ..) =
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         let (columns, rows) = the_first_figures_footprint();
         let moved = differing(&second, &third);
@@ -950,7 +1112,10 @@ mod tests {
             "the displacement reached outside the figure's own cells: {moved:?}"
         );
 
-        assert_eq!(fourth, render_json(&demo_without_its_first_entry()));
+        assert_eq!(
+            fourth,
+            render_json(&demo_without_its_first_entry(), super::DEMO_WINDOW)
+        );
     }
 
     /// The columns and rows the fifth picture's box holds before and after, and the column the
@@ -982,7 +1147,8 @@ mod tests {
     /// which is the endpoint the displacement does not reach.
     #[test]
     fn the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it() {
-        let (_first, _second, _third, fourth, fifth, ..) = demonstrated_pictures(super::DEMO);
+        let (_first, _second, _third, fourth, fifth, ..) =
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         let (old_columns, old_rows, new_columns, new_rows, the_far_end_column) =
             the_hung_figures_footprint();
@@ -1078,10 +1244,10 @@ mod tests {
     fn an_empty_description_demonstrates_as_eight_identical_pictures() {
         let pictures = demonstrated_pictures(
             r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": []
         }"#,
+            a_four_by_three_window(),
         );
 
         assert_eq!(pictures.0, pictures.1);
@@ -1108,7 +1274,7 @@ mod tests {
     /// session, which corrected this scenario on the evidence of this test.
     #[test]
     fn one_shape_demonstrates_as_two_copies_of_itself_and_then_an_empty_window() {
-        let pictures = demonstrated_pictures(one_box_json());
+        let pictures = demonstrated_pictures(one_box_json(), a_four_by_three_window());
 
         assert_eq!(pictures.0, pictures.1);
         assert_eq!(pictures.2, pictures.3);
@@ -1190,7 +1356,7 @@ mod tests {
     #[test]
     fn the_seventh_picture_takes_the_box_away_and_leaves_the_arrow() {
         let (_first, _second, _third, _fourth, _fifth, sixth, seventh, _eighth) =
-            demonstrated_pictures(super::DEMO);
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         let [arrow, the_box] = the_arrow_and_its_removed_box();
         let (arrow_columns, arrow_rows) = (arrow.0, arrow.1);
@@ -1252,7 +1418,7 @@ mod tests {
     #[test]
     fn the_sixth_picture_moves_only_the_arrow() {
         let (_first, _second, _third, _fourth, fifth, sixth, _seventh, _eighth) =
-            demonstrated_pictures(super::DEMO);
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         let changed = differing(&fifth, &sixth);
         assert!(
@@ -1317,9 +1483,10 @@ mod tests {
     /// says at a position, not what `demonstrate` decided to write in a caption.
     #[test]
     fn the_shape_a_position_resolves_to_is_the_front_most_of_the_two_that_wrote_it() {
-        let (diagram, window) = parse(super::DEMO).expect("the shipped description reads");
+        let diagram = parse(super::DEMO).expect("the shipped description reads");
         let catalog = glyph_catalog();
-        let (buffer, picture) = drawn(&diagram, &catalog, window.origin, window.size);
+        let (origin, size) = in_the_demo_window();
+        let (buffer, picture) = drawn(&diagram, &catalog, origin, size);
 
         for (x, y, glyph, expected) in THE_CROSSING_CELLS {
             let at = Pos {
@@ -1361,7 +1528,7 @@ mod tests {
     /// record named, and every one of them is either now blank or now shows what was behind it.
     #[test]
     fn the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names() {
-        let (_first, .., seventh, eighth) = demonstrated_pictures(super::DEMO);
+        let (_first, .., seventh, eighth) = demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         assert_eq!(
             the_glyph_at(&seventh, (20, 2)),
@@ -1394,8 +1561,9 @@ mod tests {
     /// **behind**. `5` is listed after `6` and so is in front, which is why the record names `6`.
     #[test]
     fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
-        let (diagram, window) = parse(super::DEMO).expect("the shipped description reads");
-        let (buffer, _) = drawn(&diagram, &glyph_catalog(), window.origin, window.size);
+        let diagram = parse(super::DEMO).expect("the shipped description reads");
+        let (origin, size) = in_the_demo_window();
+        let (buffer, _) = drawn(&diagram, &glyph_catalog(), origin, size);
 
         for (at, expected, what) in [
             (
@@ -1455,9 +1623,10 @@ mod tests {
                 "size": { "width": 4, "height": 3 }, "stroke": "light", "fill": "▓"
             }));
 
-        let (first, second, third, fourth, ..) = demonstrated_pictures(&value.to_string());
+        let (first, second, third, fourth, ..) =
+            demonstrated_pictures(&value.to_string(), super::DEMO_WINDOW);
         let (shipped_first, shipped_second, shipped_third, shipped_fourth, ..) =
-            demonstrated_pictures(super::DEMO);
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
 
         // The newcomer stands in front of the entry the demonstration used to name, so the picture
         // has changed and none of the four pictures is the shipped one.
@@ -1478,6 +1647,210 @@ mod tests {
             the_glyph_at(&first, (1, 1)),
             the_glyph_at(&fourth, (1, 1)),
             "and the newcomer that stood over it is gone"
+        );
+    }
+
+    /// The three arguments this binary reads, as one call each, and what each of them becomes.
+    ///
+    /// **The window is a pair and the pair is `None` or it is not.** `None` is the whole of what a
+    /// caller that named no window says, and it is what leaves this binary's own default in charge;
+    /// the pair is what a caller that named one gets.
+    #[test]
+    fn the_arguments_are_a_path_and_a_window_and_neither_is_required() {
+        let args = |words: &[&str]| {
+            words
+                .iter()
+                .map(|word| (*word).to_owned())
+                .collect::<Vec<String>>()
+        };
+
+        assert_eq!(
+            parse_args(&args(&[])).expect("a bare run is a run"),
+            (None, None),
+            "no argument at all is the demonstration"
+        );
+        assert_eq!(
+            parse_args(&args(&["x.json"])).expect("a path is a path"),
+            (Some("x.json".to_owned()), None),
+            "a path alone names no window"
+        );
+        assert_eq!(
+            parse_args(&args(&["--size", "20x7", "x.json"])).expect("a size is a window"),
+            (
+                Some("x.json".to_owned()),
+                Some((
+                    Pos { x: 0, y: 0 },
+                    Size {
+                        width: 20,
+                        height: 7
+                    }
+                ))
+            ),
+            "a size alone is a window at the origin every marker but four uses"
+        );
+        assert_eq!(
+            parse_args(&args(&["--size", "7x5", "--origin", "-3,-2", "x.json"]))
+                .expect("both halves are a window"),
+            (
+                Some("x.json".to_owned()),
+                Some((
+                    Pos { x: -3, y: -2 },
+                    Size {
+                        width: 7,
+                        height: 5
+                    }
+                ))
+            ),
+            "an origin may be negative, which is what `specs/086` draws at"
+        );
+        assert_eq!(
+            parse_args(&args(&["--origin", "-3,-2", "--size", "7x5", "x.json"]))
+                .expect("the order on the command line is the caller's"),
+            parse_args(&args(&["--size", "7x5", "--origin", "-3,-2", "x.json"]))
+                .expect("the same window either way"),
+            "a flag after the path is a flag, not a second path"
+        );
+    }
+
+    /// Anything the parser cannot read into a window or a path is refused with the usage beside it,
+    /// and the refusal quotes what was written rather than saying what was expected.
+    ///
+    /// **The first two are the shapes a mistyped flag takes** and the third is the shape this
+    /// binary's own markers never take, which is why a marker writes `at -3,-2` and not
+    /// `--origin -3 -2`. The rest are refusals no caller in this repository makes, and they are
+    /// here because a parser that reads them as something is a parser with no boundary.
+    #[test]
+    fn arguments_this_binary_cannot_read_are_refused_with_what_was_written() {
+        let args = |words: &[&str]| {
+            words
+                .iter()
+                .map(|word| (*word).to_owned())
+                .collect::<Vec<String>>()
+        };
+
+        for (words, said) in [
+            (
+                &["--size", "20-7"][..],
+                "`--size` takes `<width>x<height>` and not `20-7`",
+            ),
+            (
+                &["--origin", "-3-2"][..],
+                "`--origin` takes `<x>,<y>` and not `-3-2`",
+            ),
+            (&["--width", "20"][..], "`--width` is not an option"),
+            (&["--size"][..], "`--size` was given no size"),
+            (&["--origin"][..], "`--origin` was given no origin"),
+            (
+                &["--size", "4x3", "--size", "6x4"][..],
+                "`--size` was given twice",
+            ),
+            (
+                &["--origin", "0,0", "--origin", "1,1"][..],
+                "`--origin` was given twice",
+            ),
+            (&["a.json", "b.json"][..], "`b.json` is a second path"),
+        ] {
+            let error = parse_args(&args(words))
+                .err()
+                .unwrap_or_else(|| panic!("{words:?} should have been refused"));
+
+            assert!(error.starts_with(said), "expected `{said}`, got: {error}");
+            assert!(
+                error.ends_with(super::USAGE),
+                "every refusal carries the usage beside it: {error}"
+            );
+        }
+    }
+
+    /// Rule 10 — the demonstration's eight pictures before the walk back are unchanged by this
+    /// change.
+    ///
+    /// **Pinned as a snapshot rather than as eight literals**, because the eight are fifty columns
+    /// and thirteen rows each and nobody reads them as text. What a snapshot buys is that a move is
+    /// reported rather than argued, and the report is the whole of what "unchanged" means here: the
+    /// eight are the demonstration's own, and this change contributes nothing to them but the
+    /// window they are drawn at.
+    ///
+    /// It is a contract test and sits in the directory of its own, beside the characterization: the
+    /// eight pictures are a decision about what the demonstration shows, not a record of a range.
+    #[test]
+    fn the_demonstrations_eight_pictures_are_unchanged() {
+        let (first, second, third, fourth, fifth, sixth, seventh, eighth) =
+            demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
+        let eight = [first, second, third, fourth, fifth, sixth, seventh, eighth].join("\n\n");
+
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/src/snapshots/contract"
+        ));
+        settings.bind(|| {
+            insta::assert_snapshot!("the_demonstrations_eight_pictures_are_unchanged", eight);
+        });
+    }
+
+    /// Rule 11 — the offsets `specs/086` cites resolve to the same cells they do today.
+    ///
+    /// **The one place in the repository where the origin is load-bearing.** That spec's first
+    /// picture is drawn at `(-3, -2)`, and its table counts each row from that corner: `(-2, -1)` is
+    /// the offset `(1, 1)`, and the box at `(0, 0)` is two rows and three columns inside the window.
+    /// A window that defaulted to `(0, 0)` everywhere would mean translating the figures and
+    /// rewriting the prose around them, so this pins the whole table rather than one row of it.
+    ///
+    /// **The last row is the one that says the window is a window.** `(4, -2)` is outside it, so
+    /// the offset `(7, 0)` reaches a cell nothing holds and the record answers `None` — which is
+    /// rules 7 and 8 of that spec, and the reason the table has a row with no cell in it.
+    #[test]
+    fn specs_offsets_resolve_to_the_cells_they_do_today() {
+        let json = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": -2, "y": -1 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "double", "fill": "░" },
+                { "kind": "box", "id": 3, "at": { "x": 6, "y": 3 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "heavy" } ]
+        }"#;
+        let diagram = parse(json).expect("the description reads");
+        let origin = Pos { x: -3, y: -2 };
+        let size = Size {
+            width: 7,
+            height: 5,
+        };
+        let (buffer, picture) = drawn(&diagram, &glyph_catalog(), origin, size);
+
+        for (asked, offset, cell, owner) in [
+            ((-3, -2), (0, 0), ' ', None),
+            ((-3, 0), (0, 2), ' ', None),
+            ((-2, -1), (1, 1), '╔', Some(2)),
+            ((0, 0), (3, 2), '░', Some(2)),
+            ((1, 0), (4, 2), '╟', Some(2)),
+            ((2, 2), (5, 4), '─', Some(1)),
+            ((3, 1), (6, 3), '│', Some(1)),
+        ] {
+            let at = Offset {
+                x: offset.0,
+                y: offset.1,
+            };
+            assert_eq!(
+                buffer.owner(at),
+                owner.map(identity),
+                "the offset {at:?}, asked for ({}, {}), is {owner:?}",
+                asked.0,
+                asked.1
+            );
+            assert_eq!(
+                the_glyph_at(&picture, (offset.0 as usize, offset.1 as usize)),
+                cell,
+                "the cell at {at:?} renders {cell:?}"
+            );
+        }
+
+        assert_eq!(
+            buffer.owner(Offset { x: 7, y: 0 }),
+            None,
+            "the offset past the window's right edge reaches a cell nothing holds"
         );
     }
 }

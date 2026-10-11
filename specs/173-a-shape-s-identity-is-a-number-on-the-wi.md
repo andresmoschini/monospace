@@ -255,8 +255,8 @@ that reaches the buffer.
 **The wire format, before and after.** The same two shapes, in the same window, with the identity
 spelled as it is today:
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": -1 }, "size": { "width": 2, "height": 6 } },
+<!-- render: 2x6 at 0,-1
+{
   "next_id": 2,
   "shapes": [ { "kind": "connector", "id": 1,
     "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "up",

@@ -56,7 +56,7 @@
 
 use std::fmt::Write as _;
 
-use monospace_core::{Buffer, Size};
+use monospace_core::{Buffer, Pos, Size};
 use monospace_description::parse;
 
 /// The five tables a shape can be drawn in on its own. The four mixing tables are deliberately
@@ -79,29 +79,26 @@ const SIZE: Size = Size {
 fn description_of(shapes: &str) -> String {
     format!(
         r#"{{
-        "canvas": {{ "origin": {{ "x": 0, "y": 0 }},
-                    "size": {{ "width": {}, "height": {} }} }},
         "next_id": 3,
         "shapes": [ {shapes} ]
-    }}"#,
-        SIZE.width, SIZE.height,
+    }}"#
     )
 }
 
 /// One case, as its rendering with its own name above it and nothing below.
 ///
-/// The trailing blanks are trimmed on every line before they are written: `render` pads each line
-/// to the window's width and the gate's `editorconfig-checker` runs with `trim_trailing_whitespace`
-/// on, so an untrimmed sweep would be a diff of nothing but the padding.
+/// **The window is [`SIZE`] and nothing else**, which is the whole of what a sweep needs: the range
+/// it covers is the product of two finite fields, and the window they are drawn in is a constant
+/// beside the code that uses it rather than a field in the description.
 fn case(name: &str, shapes: &str) -> String {
     let description = description_of(shapes);
-    let (diagram, window) =
+    let diagram =
         parse(&description).unwrap_or_else(|error| panic!("{name} is not readable: {error}"));
 
-    let mut buffer = Buffer::new(window.origin, window.size);
+    let mut buffer = Buffer::new(Pos { x: 0, y: 0 }, SIZE);
     diagram.draw(&mut buffer);
     let rendered =
-        monospace_core::render(&buffer, &crate::glyph_catalog(), window.origin, window.size);
+        monospace_core::render(&buffer, &crate::glyph_catalog(), Pos { x: 0, y: 0 }, SIZE);
 
     let mut out = String::new();
     let _ = writeln!(out, "{name}");

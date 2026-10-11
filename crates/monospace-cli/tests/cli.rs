@@ -65,7 +65,6 @@ fn an_identity_written_as_a_string_is_refused_by_name_on_stderr_and_fails() {
     let a_string_id = write_description(
         "string-id",
         r##"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [ { "kind": "box", "id": "#1", "at": { "x": 0, "y": 0 },
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
@@ -74,7 +73,6 @@ fn an_identity_written_as_a_string_is_refused_by_name_on_stderr_and_fails() {
     let a_string_shape = write_description(
         "string-shape",
         r##"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 9, "height": 3 } },
             "next_id": 3,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -119,7 +117,6 @@ fn a_next_id_of_zero_is_refused_by_name_on_stderr_and_fails() {
     let path = write_description(
         "zero-next-id",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 0,
             "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
@@ -154,7 +151,6 @@ fn two_entries_carrying_one_identity_are_both_read_and_both_drawn() {
     let path = write_description(
         "repeated-id",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -227,12 +223,48 @@ fn the_demo_path_passed_explicitly_prints_the_demonstrations_first_picture() {
 }
 
 /// An explicit path to a hand-written single-box file prints exactly that box.
+///
+/// **The size is passed on the command line**, because a path given no `--size` is drawn into this
+/// binary's own window rather than the one its file names — which is the whole of what the default
+/// is for, and why a test that wants a four-by-three picture has to say four by three.
 #[test]
 fn an_explicit_path_prints_the_hand_written_box() {
     let path = write_description(
         "one-box",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
+            "next_id": 2,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light", "fill": "░" }
+            ]
+        }"#,
+    );
+
+    let output = run(&[
+        "--size",
+        "4x3",
+        path.to_str().expect("temp path should be valid UTF-8"),
+    ]);
+
+    assert!(output.status.success(), "exited with {}", output.status);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "┌──┐\n│░░│\n└──┘\n"
+    );
+    assert!(output.stderr.is_empty(), "wrote to stderr");
+}
+
+/// Rule 8 — a path and no `--size` draws into the demonstration's window.
+///
+/// **The file says `4x3` and the picture is fifty by thirteen.** That is the whole of the claim:
+/// the default is a value this binary chose, and the description it was handed has nothing to say
+/// about it. The picture is the box in the top-left corner of a window that reaches well past it,
+/// which is what makes the default visible rather than asserted.
+#[test]
+fn a_path_and_no_size_draws_into_the_demonstrations_window() {
+    let path = write_description(
+        "default-window",
+        r#"{
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -244,11 +276,157 @@ fn an_explicit_path_prints_the_hand_written_box() {
     let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
 
     assert!(output.status.success(), "exited with {}", output.status);
+    let picture = String::from_utf8_lossy(&output.stdout);
     assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "┌──┐\n│░░│\n└──┘\n"
+        picture.lines().count(),
+        13,
+        "the demonstration's window is thirteen rows tall: {picture}"
     );
-    assert!(output.stderr.is_empty(), "wrote to stderr");
+    assert_eq!(
+        picture.lines().next().expect("a first row").chars().count(),
+        50,
+        "and fifty columns wide: {picture}"
+    );
+    assert!(
+        picture.starts_with("┌──┐"),
+        "the box stands in the window's own top-left corner: {picture}"
+    );
+}
+
+/// Rule 9 — the bare run draws into the demonstration's window, and nothing on the command line
+/// changes that.
+///
+/// **The flags are read and the demonstration is drawn at its own size anyway**, because the two
+/// callers are not the same caller: `cargo xtask render` always passes a size, so the default is
+/// never what a generated picture uses, and the only person a bare run serves is one watching it.
+/// A flag given to a run with no path is therefore not a window — it is a person typing.
+#[test]
+fn the_bare_run_draws_into_the_demonstrations_window() {
+    let bare = run(&[]);
+    let asked = run(&["--size", "6x4", "--origin", "1,1"]);
+
+    for output in [&bare, &asked] {
+        assert!(output.status.success(), "exited with {}", output.status);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let first = first_demonstrated_picture(&stdout);
+        assert_eq!(
+            first.lines().count(),
+            13,
+            "the demonstration is thirteen rows tall whatever the command line says"
+        );
+        assert_eq!(
+            first.lines().next().expect("a first row").chars().count(),
+            50,
+            "and fifty columns wide"
+        );
+    }
+}
+
+/// A size and an origin on the command line decide the window a path is drawn into, and the
+/// window the file itself names is not what the picture is drawn at.
+///
+/// **The file says `6x4` and the command line says `4x3`, and the picture is four by three.** That
+/// is the whole of the claim: a caller that names a window names it, and the description it drew
+/// from has nothing to say about it.
+///
+/// The second half is the origin, and it is the window's corner rather than a move of the figure:
+/// the same box at `(0, 0)` drawn into a window starting at `(1, 1)` is **outside** it, and what
+/// survives is the part of the box the window holds. Measured rather than argued — the first draft
+/// of this test expected the box to have traveled one cell right and down, and the binary drew
+/// the corner of a box that had not moved at all.
+///
+/// The file's own window is still read and still used when no flag is given — which is what every
+/// generated picture in this repository is drawn at until the markers carry their own — so the
+/// assertion that matters is the one where the two disagree.
+#[test]
+fn a_size_and_an_origin_on_the_command_line_decide_the_window_a_path_is_drawn_into() {
+    let path = write_description(
+        "with-flags",
+        r#"{
+            "next_id": 2,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light", "fill": "░" }
+            ]
+        }"#,
+    );
+    let path = path.to_str().expect("temp path should be valid UTF-8");
+
+    let asked = run(&["--size", "4x3", path]);
+    assert!(asked.status.success(), "exited with {}", asked.status);
+    assert_eq!(
+        String::from_utf8_lossy(&asked.stdout),
+        "┌──┐\n│░░│\n└──┘\n",
+        "the command line's size is the window, not the file's own"
+    );
+
+    let moved = run(&["--size", "4x3", "--origin", "1,1", path]);
+    assert!(moved.status.success(), "exited with {}", moved.status);
+    assert_eq!(
+        String::from_utf8_lossy(&moved.stdout),
+        "░░│ \n──┘ \n    \n",
+        "the origin is the window's corner, so the box at (0, 0) is outside it and only the part \
+         the window holds is drawn"
+    );
+}
+
+/// Rule 3 — the window comes from the flags and nowhere else.
+///
+/// **The file says `13x9` and the command line says `6x4`, and the picture is six by four.** That
+/// is the whole of the claim, and it is the one a later change is most likely to break by making the
+/// marker's size optional for symmetry with the flag's: a window that could be inherited from a
+/// file is a window with two sources, and the rule for which wins is the decision this change
+/// removes.
+///
+/// The file's own window is still read and still there — the format carries it until the increment
+/// that takes it out — so the assertion that matters is the one where the two disagree.
+#[test]
+fn the_window_comes_from_the_flags_and_nowhere_else() {
+    let path = write_description(
+        "two-windows",
+        r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 13, "height": 9 } },
+            "next_id": 2,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
+                  "stroke": "light", "fill": "░" }
+            ]
+        }"#,
+    );
+    let path = path.to_str().expect("temp path should be valid UTF-8");
+
+    let asked = run(&["--size", "6x4", path]);
+    assert!(asked.status.success(), "exited with {}", asked.status);
+    assert_eq!(
+        String::from_utf8_lossy(&asked.stdout),
+        "┌──┐  \n│░░│  \n└──┘  \n      \n",
+        "the command line's window is the one the picture is drawn at"
+    );
+
+    let moved = run(&["--size", "6x4", "--origin", "1,1", path]);
+    assert!(moved.status.success(), "exited with {}", moved.status);
+    assert_eq!(
+        String::from_utf8_lossy(&moved.stdout),
+        "░░│   \n──┘   \n      \n      \n",
+        "the origin is the window's corner, so the box at (0, 0) is outside it and only the part \
+         the window holds is drawn"
+    );
+}
+
+/// A flag this binary does not read prints nothing to stdout, names itself on stderr, and fails.
+///
+/// **The refusal is the boundary, and it is the same shape the parser's own unit tests pin.** A
+/// binary that read `--width 20` as a path would draw a picture of a file that does not exist and
+/// report the missing file, which is a refusal about the wrong thing.
+#[test]
+fn a_flag_this_binary_does_not_read_names_it_on_stderr_and_fails() {
+    let output = run(&["--width", "20", "x.json"]);
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty(), "printed to stdout");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("`--width` is not an option"), "{stderr}");
+    assert!(stderr.contains("usage:"), "{stderr}");
 }
 
 /// A box, a line and a connector at stated positions print all three composed.
@@ -257,7 +435,6 @@ fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
     let path = write_description(
         "three-shapes",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 10, "height": 5 } },
             "next_id": 4,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -274,7 +451,11 @@ fn a_file_with_a_box_a_line_and_a_connector_prints_all_three_composed() {
         }"#,
     );
 
-    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+    let output = run(&[
+        "--size",
+        "10x5",
+        path.to_str().expect("temp path should be valid UTF-8"),
+    ]);
 
     assert!(output.status.success(), "exited with {}", output.status);
     // Corrected on feature 099: this connector's route was a genuine tie under _The route of a
@@ -304,7 +485,6 @@ fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
         label,
         &format!(
             r#"{{
-            "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
             "next_id": 3,
             "shapes": [
                 {A_BOX},
@@ -319,7 +499,11 @@ fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
         ),
     );
 
-    let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+    let output = run(&[
+        "--size",
+        "9x3",
+        path.to_str().expect("temp path should be valid UTF-8"),
+    ]);
     assert!(output.status.success(), "exited with {}", output.status);
     assert!(output.stderr.is_empty(), "wrote to stderr");
     String::from_utf8_lossy(&output.stdout).into_owned()
@@ -422,13 +606,16 @@ fn a_file_naming_a_shape_it_does_not_hold_draws_the_box_and_no_connector_and_suc
             "just-the-box",
             &format!(
                 r#"{{
-                "canvas": {{ "origin": {{ "x": 0, "y": 0 }}, "size": {{ "width": 9, "height": 3 }} }},
                 "next_id": 2,
                 "shapes": [ {A_BOX} ]
             }}"#
             ),
         );
-        let output = run(&[path.to_str().expect("temp path should be valid UTF-8")]);
+        let output = run(&[
+            "--size",
+            "9x3",
+            path.to_str().expect("temp path should be valid UTF-8"),
+        ]);
         assert!(output.status.success(), "exited with {}", output.status);
         assert!(output.stderr.is_empty(), "wrote to stderr");
         String::from_utf8_lossy(&output.stdout).into_owned()
@@ -497,7 +684,6 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     let first = write_description(
         "overlap-a-then-b",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 3,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -510,7 +696,6 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
     let second = write_description(
         "overlap-b-then-a",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
             "next_id": 3,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
@@ -521,8 +706,16 @@ fn reordering_shapes_changes_which_one_is_drawn_on_top() {
         }"#,
     );
 
-    let first_output = run(&[first.to_str().expect("temp path should be valid UTF-8")]);
-    let second_output = run(&[second.to_str().expect("temp path should be valid UTF-8")]);
+    let first_output = run(&[
+        "--size",
+        "6x4",
+        first.to_str().expect("temp path should be valid UTF-8"),
+    ]);
+    let second_output = run(&[
+        "--size",
+        "6x4",
+        second.to_str().expect("temp path should be valid UTF-8"),
+    ]);
 
     let (a, b) = overlap_boxes();
     assert_eq!(
@@ -542,7 +735,6 @@ fn running_the_same_file_twice_produces_identical_output() {
     let path = write_description(
         "determinism",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 2,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -595,7 +787,6 @@ fn an_unrecognized_kind_names_it_on_stderr_and_fails() {
     let path = write_description(
         "bad-kind",
         r#"{
-            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
             "next_id": 1,
             "shapes": [ { "kind": "triangle" } ]
         }"#,
@@ -621,8 +812,8 @@ fn more_than_one_argument_prints_usage_and_fails() {
 }
 
 /// Returns the character at `(x, y)` in the first picture of `output`, treating each line as a
-/// row and each `char` as a column, the same coordinates the demo's `canvas` uses. `+ 1` skips
-/// the caption line the demonstration puts above that picture.
+/// row and each `char` as a column, the same coordinates the demonstration's own window is drawn
+/// at. `+ 1` skips the caption line the demonstration puts above that picture.
 fn char_at(output: &str, x: usize, y: usize) -> char {
     output
         .lines()
