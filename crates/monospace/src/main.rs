@@ -244,7 +244,49 @@ mod tests {
         );
     }
 
-    /// The loop ends when the way out is taken and not before.
+    /// **The two halves of the claim, which is what this test exists to hold together.**
+    ///
+    /// `Ctrl+C` is the same key the shell would turn into a signal, and the reason it reaches the
+    /// loop as a key is that **raw mode turns `ISIG` off**. The first half is therefore that raw mode
+    /// is on while the loop runs; the second is that a `Ctrl+C` key event ends the loop rather than
+    /// reaching nothing. Neither alone is the claim, and the two are checked against one terminal in
+    /// one test because the link between them is the terminal's input mode rather than anything this
+    /// crate decides.
+    ///
+    /// What this cannot show is that no signal was raised: a signal is delivered to the process and not
+    /// to a buffer, and a test that watched for one would be testing `crossterm` and the platform
+    /// rather than this loop. What it shows is that both ends hold at once — raw mode on, and the key
+    /// arriving as a key.
+    #[test]
+    fn control_c_reaches_the_state_as_a_key_and_not_as_a_signal() {
+        let terminal = Rc::new(RefCell::new(State::default()));
+        let guard =
+            TerminalGuard::take(Box::new(Harmless(terminal.clone()))).expect("the terminal");
+
+        assert!(
+            terminal.borrow().raw,
+            "raw mode is off, so ISIG is on and Ctrl+C would be a signal that ends this process \
+         before the loop saw a key"
+        );
+
+        let mut screen = Terminal::new(TestBackend::new(40, 10)).expect("a test backend");
+        let mut app = App::default();
+        let mut events = Scripted::of(vec![chord(KeyModifiers::CONTROL, KeyCode::Char('c'))]);
+        let outcome = run(&mut screen, &mut app, &mut events);
+
+        assert!(
+            outcome.is_ok(),
+            "the loop did not end on Ctrl+C: {outcome:?}"
+        );
+        assert!(
+            !app.running(),
+            "Ctrl+C arrived as a key and reached nothing: the way out is the same action a click and \
+         `Enter` reach"
+        );
+
+        drop(guard);
+    }
+
     #[test]
     fn the_loop_ends_on_the_way_out_and_on_nothing_else() {
         let mut terminal = Terminal::new(TestBackend::new(40, 10)).expect("a test backend");
