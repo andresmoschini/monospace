@@ -42,7 +42,7 @@ use ratatui::{Terminal, backend::CrosstermBackend};
 
 use crate::{
     app::App,
-    event::{CrosstermEvents, EventSource, action_of},
+    event::{CrosstermEvents, EventSource},
     terminal::{Crossterm, TerminalGuard},
 };
 
@@ -120,9 +120,7 @@ where
             .draw(|frame| screen::draw(frame, app.chrome_mut()))
             .map_err(B::Error::into_terminal_error)?;
         let event = events.next()?;
-        if let Some(action) = action_of(app.chrome(), &event) {
-            app.apply(action);
-        }
+        app.offer(&event);
         if !app.running() {
             return Ok(());
         }
