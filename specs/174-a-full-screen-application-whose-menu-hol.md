@@ -68,8 +68,7 @@ ten rows, which is the thing prose cannot establish and a mock-up pretends to.
   unchanged by this slice.
 - **A menu bar with three labels and nothing under them.** The bar is drawn on every frame and the
   one drop-down it holds is there to be the case that forces the geometry rule and the draw-order
-  rule to exist. _Open questions_ records what the research says about the genre this control comes
-  from.
+  rule to exist. D7 says why the bar is kept and what would take it away.
 - **The keybinding table.** How the keys are written in the loop is an implementation detail, and no
   table a file could rewrite is promised by anything in this specification.
 - **The selection highlight for a shape, the scrollbar, and the keybindings hint**, which are #176,
@@ -246,6 +245,34 @@ invites a mouse user to try something, and without it a mouse user has to be tol
 are. **What reopens it:** the first control whose whole purpose is to be clicked rather than
 focused, where pointing at it is the only sensible gesture — a scrollbar thumb is the obvious
 candidate, and it is #176's.
+
+**D7 — the menu bar stays, because it is where a command has a name, and it goes only when somewhere
+else names every command.**
+
+**Answer:** the bar is drawn on every frame, and every command the application gains from here on
+goes into it as well as onto a key. **Why not** drop it now and leave only shortcuts: a key has no
+name. `Ctrl+Q` is undiscoverable by construction, because nobody guesses it, and naming a command in
+one place and not another is how a feature ends up existing and unknown. **What this slice does not
+get from it yet:** the bar holds one item and the way out is already reachable four ways, so there
+is nothing to discover. The reason starts paying at #180, which is the first slice with more than
+one command that needs naming.
+
+**What the surveyed applications do, and why it is recorded rather than followed.**
+[`docs/tui-conventions.md`](../docs/tui-conventions.md) §3.6 has it: Bubble Tea is a runtime whose
+components live in a separate module, Textual has a `Header` and a `Footer`, `tview` uses a `List`
+inside a page, and `ratatui` has no menu at all — its own answer is `Block::bordered()` plus `Clear`
+over a centred `Rect`, drawn last, with the draw order as the z-order. §4.4 adds that every surveyed
+tool shows the key on the control, which is where discovery usually lands. That document is a survey
+and decides nothing; it is here because the question is what those tools do, not because they have
+anything to say about this one.
+
+**What it costs:** a row of every screen, and a bar with one item in it teaches nothing.
+
+**What would take it away**, which is not _"when the application is mature"_ because that is not a
+trigger: the bar goes when there is somewhere else that names every command — the help overlay the
+survey names as what replaced the menubar, or a bar of keys. **Neither exists yet.** Until one does,
+every new command has to go into the menu as well as onto a key, and that is the whole of what
+keeping it costs.
 
 ## Model slice
 
@@ -458,18 +485,6 @@ item — #180 — is what makes a table worth having rather than what makes it n
 already settled survives the wait: a binding is not _"what does this key do"_ but _"what does this
 key do here"_ — offered to whatever holds focus first, falling through only if nothing took it — so
 whatever shape it takes has two dimensions from the start and not one.
-
-**The menu bar this slice builds is against what the surveyed applications do, and it is here
-anyway.** [`docs/tui-conventions.md`](../docs/tui-conventions.md) §3.6 records what the modern
-frameworks do instead, from their widget registries: Bubble Tea is a runtime whose components live
-in a separate module, Textual has a `Header` and a `Footer`, `tview` uses a `List` inside a page,
-and `ratatui` has no menu at all — its own answer is `Block::bordered()` plus `Clear` over a centred
-`Rect`, drawn last, and the draw order is the z-order. That document is a survey and decides
-nothing; it is cited here because the question is what those tools do, not because they have
-anything to say about this one. `cursive` is the only candidate that ships a menu bar, and it is
-declined above for reasons that have nothing to do with it. **What would settle it:** a command that
-is genuinely contextual, because the one thing a menubar does that a list and a shortcut do not is
-give a contextual action a name on screen.
 
 **One cell is one cell, and the chrome will use glyphs that are not.** `monospace-core` assumes a
 glyph occupies one cell and computes no width, which holds for its own catalogs and stops holding
