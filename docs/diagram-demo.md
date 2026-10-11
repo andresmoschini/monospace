@@ -36,8 +36,8 @@ A `box` takes a position, a size, a stroke and an optional fill. A `line` takes 
 and an orientation. A `connector` takes two endpoints, and each endpoint is a position, a way of
 leaving and a terminal.
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 17, "height": 3 } },
+<!-- render: 17x3
+{
   "next_id": 4,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -65,8 +65,8 @@ leaving and a terminal.
 A `stroke` names a glyph table rather than a set of characters, so the same box is drawn in several
 different ways. **Five of the nine tables draw a figure on their own:**
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 24, "height": 3 } },
+<!-- render: 24x3
+{
   "next_id": 6,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x":  0, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "ascii" },
@@ -93,8 +93,8 @@ which is a fact about the model rather than about the format.
 They are reached where **two** figures of different strokes share a cell, because a crossing leaves
 arms in both. The same crossing twice, the second time with both figures in one stroke:
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 5 } },
+<!-- render: 8x5
+{
   "next_id": 3,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 5 },
@@ -113,8 +113,8 @@ arms in both. The same crossing twice, the second time with both figures in one 
 
 <!-- /render -->
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 5 } },
+<!-- render: 8x5
+{
   "next_id": 3,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 5 },
@@ -141,8 +141,8 @@ shown one before now: reaching it takes two figures, one stroke each, and one sh
 Any single grapheme cluster, written once per interior cell, or omitted for no fill. `░` and `▓` are
 conventions the shipped demonstration uses rather than anything the format requires.
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 9, "height": 3 } },
+<!-- render: 9x3
+{
   "next_id": 3,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -168,8 +168,8 @@ because asking a figure where its side is and asking it to draw are two differen
 The picture below is two references with the same offset, one hanging from a box one cell wide and
 one from an ordinary box. The left arrow is on a border that is not there.
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 16, "height": 3 } },
+<!-- render: 16x3
+{
   "next_id": 5,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 1, "height": 3 },
@@ -217,8 +217,8 @@ neither touches it. The **top** and **right** ones spell an `out` of **zero**, w
 reference a file writes when it spells no gap at all, and they stand on the border itself, where an
 arriving head replaces the border's own glyph and a leaving arm composes with it into a junction.
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 22, "height": 9 } },
+<!-- render: 22x9
+{
   "next_id": 6,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 9, "y": 3 }, "size": { "width": 4, "height": 3 },
@@ -290,8 +290,8 @@ telling apart.
 The two axes are independent and neither is checked against the side it is measured from, so a
 negative amount is simply a point on the far side of the anchor.
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 14, "height": 9 } },
+<!-- render: 14x9
+{
   "next_id": 6,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 9 },
@@ -353,8 +353,8 @@ own and not the anchor's, so an `arm` arriving from the right writes its arm on 
 leaving and leaves the other three unset — which is why the first row ends in a bare `─` and the
 third in one too, while the second row's `▶` is a literal and closes both ends.
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 16, "height": 12 } },
+<!-- render: 16x12
+{
   "next_id": 5,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -401,8 +401,8 @@ third in one too, while the second row's `▶` is a literal and closes both ends
 The last shape in the array is the front-most and decides a shared cell first. The same two boxes
 are drawn twice, in opposite order, and the crossing is a different character each time.
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+<!-- render: 6x4
+{
   "next_id": 3,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
@@ -420,8 +420,8 @@ are drawn twice, in opposite order, and the crossing is a different character ea
 
 <!-- /render -->
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
+<!-- render: 6x4
+{
   "next_id": 3,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
@@ -446,8 +446,8 @@ looks like nothing happened: the connector is simply not drawn, every other shap
 the run succeeds. `7` names nothing in a two-shape file. Asking which shapes could not be drawn is
 [#88](https://github.com/andresmoschini/monospace/issues/88)'s, and nothing here reports it.
 
-<!-- render:
-{ "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 11, "height": 3 } },
+<!-- render: 11x3
+{
   "next_id": 3,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },

@@ -1,10 +1,10 @@
-//! The diagram description format: JSON deserialized into a `monospace_diagram::Diagram` and the
-//! window it is drawn in.
+//! The diagram description format: JSON deserialized into a `monospace_diagram::Diagram`.
 //!
-//! One call does the whole of it — [`parse`] takes the text and hands back both — and every type
-//! behind that call is private to this crate. The public surface is three things: [`parse`],
-//! [`Window`] and [`ParseError`]. Nothing here reaches a file, a terminal or a screen: a caller
-//! that wants to read from disk reads the disk itself and hands the text over.
+//! One call does the whole of it — [`parse`] takes the text and hands back the diagram — and every
+//! type behind that call is private to this crate. The public surface is two things: [`parse`] and
+//! [`ParseError`]. Nothing here reaches a file, a terminal or a screen: a caller that wants to read
+//! from disk reads the disk itself and hands the text over. **Nothing here names a window either**,
+//! because which part of a diagram to draw is the caller's question and the window is the caller's.
 //!
 //! **This crate is a layer above the diagram, and it knows nothing of the editing layer.** Both
 //! hang off `monospace-diagram` and neither depends on the other; what would join them is a
@@ -13,25 +13,28 @@
 //!
 //! # The envelope
 //!
-//! One file is one JSON object of three fields, and all three are required:
+//! One file is one JSON object of two fields, and both are required:
 //!
 //! ```json
 //! {
-//!   "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 20, "height": 10 } },
 //!   "next_id": 3,
 //!   "shapes": []
 //! }
 //! ```
 //!
-//! - **`canvas`** is the window drawn into and rendered from: an `origin` of `x` and `y` beside a
-//!   `size` of `width` and `height`. It becomes a [`Window`], which is **temporary** — see that
-//!   type.
 //! - **`next_id`** is the ordinal the next shape added takes, which is where numbering **resumes**
 //!   rather than a count of what was read: `1`, `7` and `9` under `next_id: 10` hands back `10`. It
 //!   is a **nonzero** ordinal, because zero is not an identity; `"next_id": 0` is refused here
 //!   rather than seeded with something no shape can carry.
 //! - **`shapes`** is the figures in drawing order, empty or not, the last front-most and deciding a
 //!   shared cell first. Each entry names a `kind` and carries the `id` its shape is held under.
+//!
+//! **There is no `canvas`.** A description that still carries one is read, and the canvas ignored:
+//! there is no writer, so nothing outside this repository has ever produced a file, and a stricter
+//! error would be a change to wording that fifteen tests assert verbatim for no gain. **The window a
+//! picture is drawn into is the caller's**, named on the command line or on the line that opens a
+//! render marker — see [`docs/diagram-model.md`](../../../docs/diagram-model.md), which holds that
+//! the diagram measures nothing and sizes nothing.
 //!
 //! # What is not here
 //!
@@ -48,28 +51,6 @@ use monospace_diagram::{
     Shape as DiagramShape, ShapeId,
 };
 use serde::{Deserialize, Deserializer};
-
-/// Where a description says a diagram is drawn, as an origin and a size.
-///
-/// **This type is temporary and it is expected to leave the description.** A window is not part of
-/// what a diagram *is* — see [`docs/diagram-model.md`](../../../docs/diagram-model.md), which holds
-/// that the window belongs to the caller and that which part of a diagram to draw is the caller's
-/// question in any case. An interactive application draws what fits the screen at the scroll
-/// position it is at, and reads no window out of a file to do it.
-///
-/// It is here because the file still carries a `canvas` and the command-line application still
-/// renders into one. It is named rather than returned as a bare `(Pos, Size)` so that the day it
-/// goes, the thing that goes is one type with one name.
-///
-/// Two fields rather than a pair of its own: `monospace_core::Pos` and `monospace_core::Size`
-/// already are that pair, and a second pair of coordinates would be a second thing to convert.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Window {
-    /// The window's top-left corner, which may be negative.
-    pub origin: monospace_core::Pos,
-    /// The window's extent in cells.
-    pub size: monospace_core::Size,
-}
 
 /// A description that could not be read.
 ///
@@ -98,11 +79,13 @@ impl std::error::Error for ParseError {
     }
 }
 
-/// Reads a description and hands back the diagram it holds and the window it names.
+/// Reads a description and hands back the diagram it holds, and nothing else.
 ///
 /// The whole of this crate's public surface for reading, in one call: there is no value to build,
 /// hold or convert afterwards, so no method can be called in the wrong order and none leaves a
-/// diagram half-converted.
+/// diagram half-converted. **The window is not here** — which part of a diagram to draw is the
+/// caller's question, and a caller that wants one names it on the command line or on the line that
+/// opens a render marker.
 ///
 /// # Errors
 ///
@@ -114,9 +97,8 @@ impl std::error::Error for ParseError {
 ///
 /// ```
 /// # use monospace_description::parse;
-/// let (diagram, window) = parse(
+/// let diagram = parse(
 ///     r#"{
-///         "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 } },
 ///         "next_id": 2,
 ///         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
 ///                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
@@ -124,15 +106,13 @@ impl std::error::Error for ParseError {
 /// )
 /// .expect("a well-formed description");
 ///
-/// assert_eq!(window.size.width, 4);
+/// assert!(diagram
+///     .get(monospace_diagram::ShapeId::new(std::num::NonZeroU32::new(1).expect("one is nonzero")))
+///     .is_some());
 /// ```
-pub fn parse(json: &str) -> Result<(Diagram, Window), ParseError> {
+pub fn parse(json: &str) -> Result<Diagram, ParseError> {
     let description: Description = serde_json::from_str(json).map_err(ParseError)?;
-    let window = Window {
-        origin: description.canvas.origin.into(),
-        size: description.canvas.size.into(),
-    };
-    Ok((description.into_diagram(), window))
+    Ok(description.into_diagram())
 }
 
 /// A position, mirroring `monospace_core::Pos` for deserialization.
@@ -270,14 +250,6 @@ where
     D: Deserializer<'de>,
 {
     ordinal("shape", deserializer)
-}
-
-/// The window a diagram is drawn on and rendered from: the `origin` is its top left corner and the
-/// `size` its width and height. Both are required, so a file leaving either out is refused by name.
-#[derive(Deserialize, Debug)]
-struct Canvas {
-    origin: Pos,
-    size: Size,
 }
 
 /// What an endpoint's `terminal` is on the wire, tagged by `kind`: one chosen glyph or one arm.
@@ -542,18 +514,17 @@ impl From<ShapeDescription> for DiagramShape {
     }
 }
 
-/// The whole of one description file: a canvas, the ordinal the next shape takes, and an ordered
-/// list of shapes.
+/// The whole of one description file: the ordinal the next shape takes, and an ordered list of
+/// shapes.
 ///
 /// Private because nothing outside this crate needs it: [`parse`] reads one and hands back what it
 /// holds, and a caller that could hold a `Description` would be able to look at a format this
 /// crate does not promise to keep.
 #[derive(Deserialize, Debug)]
 struct Description {
-    canvas: Canvas,
     /// The ordinal the next `add` takes: a number rather than a container holding one, because it
-    /// is one number. Required, so a file leaving it out is refused by name, the way `canvas`
-    /// and `shapes` already are.
+    /// is one number. Required, so a file leaving it out is refused by name, the way `shapes`
+    /// already is.
     ///
     /// **It is trusted, not checked, beyond being nonzero.** A stale value — an entry removed, a
     /// `2` deleted — hands back an identity already in use, and the shape that arrives is one
@@ -590,9 +561,9 @@ impl Description {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{Buffer, GlyphCatalog};
+    use monospace_core::{Buffer, GlyphCatalog, Pos, Size};
 
-    use super::{Description, ParseError, Window, parse};
+    use super::{Description, Diagram, ParseError, parse};
 
     /// The error a description that must not read hands back.
     ///
@@ -605,23 +576,100 @@ mod tests {
             .expect("a description this format refuses must fail")
     }
 
-    /// The rendering of a parsed description, drawn into the window it names.
+    /// Rule 1 — `parse` reads a description and hands back the diagram it holds, and nothing else.
+    ///
+    /// **The test is the type.** A function that returns a `Diagram` cannot be handed a window, so
+    /// the claim is made where it can fail: in a caller that binds one value and draws it into a
+    /// window of its own choosing. A test asserting `parse(..).is_ok()` would pass against a
+    /// signature returning a pair, and would prove nothing the compiler does not already.
+    #[test]
+    fn parse_hands_back_the_diagram_and_nothing_else() {
+        let diagram: Diagram = parse(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#,
+        )
+        .expect("a well-formed description");
+
+        // And the window is the caller's: the same diagram drawn into two different ones.
+        let drawn = |origin: Pos, size: Size| {
+            let mut buffer = Buffer::new(origin, size);
+            diagram.draw(&mut buffer);
+            monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
+        };
+        let small = drawn(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 4,
+                height: 3,
+            },
+        );
+        let large = drawn(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 8,
+                height: 3,
+            },
+        );
+
+        assert_eq!(small, "┌──┐\n│  │\n└──┘\n");
+        assert_ne!(
+            small, large,
+            "the window is the caller's, not the description's"
+        );
+    }
+
+    /// Rule 2 — a description carrying a `canvas` is read, and the canvas ignored.
+    ///
+    /// **The file says `13x9` and the picture is drawn at `6x4`.** That is the whole of the claim,
+    /// and it is the block a reader should be least comfortable with: a file that says it is one
+    /// size and is drawn at another is a wrong answer given without an error. It is accepted because
+    /// there is no writer, so nothing outside this repository has ever produced a file, and every
+    /// marker is rewritten in the same increment.
+    #[test]
+    fn a_description_carrying_a_canvas_is_read_and_the_canvas_ignored() {
+        let json = r#"{
+            "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 13, "height": 9 } },
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#;
+
+        let diagram: Diagram = parse(json).expect("a description carrying a canvas still reads");
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let mut buffer = Buffer::new(origin, size);
+        diagram.draw(&mut buffer);
+
+        assert_eq!(
+            monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size),
+            "┌──┐  \n│  │  \n└──┘  \n      \n",
+            "the `13x9` in the file has no say in it: the picture is the window the caller chose"
+        );
+    }
+
+    /// The rendering of a parsed description, drawn into `size` at `origin`.
+    ///
+    /// **The window is a parameter rather than something the description carries**, which is the
+    /// whole of what this crate's public surface is now: a caller that wants a picture names the
+    /// window, and the description it drew from has nothing to say about it.
     ///
     /// **The core's own Light table, and no glyph set beside it.** Every shape here is drawn in
     /// `light`, which is what Light covers, and the two tests that need a picture are about what a
     /// reference resolves to rather than about how a stroke draws — so a second catalog would add a
     /// dependency to answer nothing they ask. Measured rather than argued: the same three shapes
     /// drawn in `double` come out of this catalog as an empty buffer.
-    fn render_once(description: Description) -> String {
-        let window = Window {
-            origin: description.canvas.origin.into(),
-            size: description.canvas.size.into(),
-        };
+    fn render_once(description: Description, origin: Pos, size: Size) -> String {
         let diagram = description.into_diagram();
 
-        let mut buffer = Buffer::new(window.origin, window.size);
+        let mut buffer = Buffer::new(origin, size);
         diagram.draw(&mut buffer);
-        monospace_core::render(&buffer, &GlyphCatalog::light(), window.origin, window.size)
+        monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
     }
 
     /// An unrecognized `kind` fails to deserialize and names the unrecognized value.
@@ -921,14 +969,23 @@ mod tests {
         }}"#
                 )
             };
-        // `serde_json` and not [`parse`]: `render_once` takes the `Description` so that it can read
-        // the window off it, and `parse` hands back the diagram and window already built.
+        // `serde_json` and not [`parse`]: `render_once` takes the `Description` because the window
+        // is a parameter now, and `parse` hands back the diagram and nothing else.
         let read = |json: String| serde_json::from_str::<Description>(&json).expect("well-formed");
+        let window = (
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 16,
+                height: 6,
+            },
+        );
 
         // Naming the **box**: the box at `{11, 3}` is `2` in both files and is listed first in one
         // and second in the other, so both draw the same picture.
-        let right_listed_first = render_once(read(description_with(1, 2, true, 2)));
-        let right_listed_second = render_once(read(description_with(1, 2, false, 2)));
+        let right_listed_first =
+            render_once(read(description_with(1, 2, true, 2)), window.0, window.1);
+        let right_listed_second =
+            render_once(read(description_with(1, 2, false, 2)), window.0, window.1);
         assert_eq!(
             right_listed_first, right_listed_second,
             "a reference naming a shape must not move when the entries are listed in another order"
@@ -939,8 +996,10 @@ mod tests {
         // That is what those files mean today, and the half that says the identity won in one
         // direction and not in the other — a reader that made it win in both would have failed the
         // first half.
-        let place_right_first = render_once(read(description_with(2, 1, true, 2)));
-        let place_right_second = render_once(read(description_with(1, 2, false, 2)));
+        let place_right_first =
+            render_once(read(description_with(2, 1, true, 2)), window.0, window.1);
+        let place_right_second =
+            render_once(read(description_with(1, 2, false, 2)), window.0, window.1);
         assert_ne!(
             place_right_first, place_right_second,
             "a reference naming a place must still follow the place it is written at"
@@ -1071,6 +1130,11 @@ mod tests {
 
         let picture = render_once(
             serde_json::from_str::<Description>(json).expect("an ordinal is an ordinal"),
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 8,
+                height: 3,
+            },
         );
 
         assert!(
