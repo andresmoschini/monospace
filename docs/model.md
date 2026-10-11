@@ -510,7 +510,10 @@ not.
   this list until _Shapes_ was written and are not on it any more.
 - **A coordinate-and-glyph output**, as an alternative to the string.
 - **Color.** It fits the degradation rule — one owner imposes, the rest yield — and would be a good
-  way to test whether that rule generalizes.
+  way to test whether that rule generalizes. **The chrome's colors are the terminal's**, which is a
+  different question from whether a cell carries one: [the application model](application-model.md)
+  spends no hue and one attribute, and a chrome control is not a diagram cell, so nothing here is
+  answered by that and nothing there is answered by this.
 
 ## 11. Open questions
 

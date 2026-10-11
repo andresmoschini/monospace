@@ -91,7 +91,10 @@ it, so the same box draws in ASCII, Double, Heavy and their combinations without
 
 Behind that, and all of it enforced rather than merely intended:
 
-- **126** tests in `monospace-core`, **399** across the workspace.
+- **126** tests in `monospace-core`, **475** across the workspace.
+- **5** pictures of the screen, pinned whole with the attributes each cell is drawn in — a
+  full-screen application whose drawing is the only thing this repository has, so a frame is a
+  snapshot rather than something a reader runs.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
@@ -99,9 +102,9 @@ Behind that, and all of it enforced rather than merely intended:
   that keeps the portable crates compiling for WebAssembly, so stage 4 stays reachable instead of
   becoming a rewrite.
 
-Still missing, and named here rather than implied: the editing **surface** — `monospace-editing` is
-the layer under one, and holds a diagram while it is changed and gives its steps back — the TUI, and
-persistence.
+Still missing, and named here rather than implied: reading a description into the interactive
+application and drawing it — `monospace-editing` is the layer under one and holds a diagram while it
+is changed, and `monospace` is the screen above it — and persistence.
 
 ## Getting started
 
@@ -133,10 +136,12 @@ rule any file depends on.
 | `crates/monospace-glyph-sets`  | The glyph tables the core does not ship as built-in data.     |
 | `crates/monospace-description` | The JSON file format, read into a `Diagram`.                  |
 | `crates/monospace-cli`         | The command-line application. Holds no logic of its own.      |
+| `crates/monospace`             | The interactive application: the chrome around a session.     |
 | `xtask/`                       | Repository automation. `cargo xtask check` is the gate.       |
 | `docs/model.md`                | The domain's design, its provenance, and its open questions.  |
 | `docs/diagram-model.md`        | The diagram model's rules: shapes, order, positions.          |
 | `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.     |
+| `docs/application-model.md`    | The screen above that: regions, controls, focus, actions.     |
 | `docs/glyph-sets.md`           | The glyph tables and how they degrade.                        |
 | `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.  |
 | `docs/workflow.md`             | Why the process works the way it does, written at length.     |
