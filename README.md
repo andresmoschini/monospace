@@ -125,18 +125,22 @@ rule any file depends on.
 
 ### Layout
 
-| Path                           | What it is                                                   |
-| ------------------------------ | ------------------------------------------------------------ |
-| `crates/monospace-core`        | The library. All domain logic lives here, and nothing else.  |
-| `crates/monospace-diagram`     | The model: a diagram as an ordered set of shapes, drawable.  |
-| `crates/monospace-glyph-sets`  | The glyph tables the core does not ship as built-in data.    |
-| `crates/monospace-description` | The JSON file format, read into a `Diagram`.                 |
-| `crates/monospace-cli`         | The command-line application. Holds no logic of its own.     |
-| `xtask/`                       | Repository automation. `cargo xtask check` is the gate.      |
-| `docs/model.md`                | The domain's design, its provenance, and its open questions. |
-| `docs/diagram-model.md`        | The diagram model's rules: shapes, order, positions.         |
-| `docs/workflow.md`             | Why the process works the way it does, written at length.    |
-| `specs/`                       | One spec per change that had a decision to agree first.      |
+| Path                           | What it is                                                    |
+| ------------------------------ | ------------------------------------------------------------- |
+| `crates/monospace-core`        | The library. All domain logic lives here, and nothing else.   |
+| `crates/monospace-diagram`     | The model: a diagram as an ordered set of shapes, drawable.   |
+| `crates/monospace-editing`     | A diagram being edited, and the steps behind and ahead of it. |
+| `crates/monospace-glyph-sets`  | The glyph tables the core does not ship as built-in data.     |
+| `crates/monospace-description` | The JSON file format, read into a `Diagram`.                  |
+| `crates/monospace-cli`         | The command-line application. Holds no logic of its own.      |
+| `xtask/`                       | Repository automation. `cargo xtask check` is the gate.       |
+| `docs/model.md`                | The domain's design, its provenance, and its open questions.  |
+| `docs/diagram-model.md`        | The diagram model's rules: shapes, order, positions.          |
+| `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.     |
+| `docs/glyph-sets.md`           | The glyph tables and how they degrade.                        |
+| `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.  |
+| `docs/workflow.md`             | Why the process works the way it does, written at length.     |
+| `specs/`                       | One spec per change that had a decision to agree first.       |
 
 ## Guiding principles
 
