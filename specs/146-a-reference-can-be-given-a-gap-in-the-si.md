@@ -185,7 +185,7 @@ of `1`:
 a cell clear of it. A `glyph` terminal is a literal, so the first one is written over the border's
 own `─` at (2, 2), which is what a caller reaching for a gap is reaching past:
 
-<!-- render:
+<!-- render: 8x5
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 5 } },
   "next_id": 3,
   "shapes": [
@@ -213,7 +213,7 @@ own `─` at (2, 2), which is what a caller reaching for a gap is reaching past:
 
 And with the gap one cell out of the same side, at (2, 3), where the border is a border again:
 
-<!-- render:
+<!-- render: 8x5
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 5 } },
   "next_id": 3,
   "shapes": [

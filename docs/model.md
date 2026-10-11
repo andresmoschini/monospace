@@ -414,7 +414,7 @@ writes no endpoint cell of its own, whatever a terminal puts there.
 Nothing bounds where a path may go. Two endpoints facing away from each other along one line are
 joined by a route that travels around the outside, however far apart they are:
 
-<!-- render:
+<!-- render: 2x6 at 0,-1
 { "canvas": { "origin": { "x": 0, "y": -1 }, "size": { "width": 2, "height": 6 } },
   "next_id": 2,
   "shapes": [ { "kind": "connector", "id": 1,

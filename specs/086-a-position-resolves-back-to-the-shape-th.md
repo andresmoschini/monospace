@@ -256,7 +256,7 @@ cell the tables cite is one a reader can see.
 outside the window. The window is seven by five and starts at `(-3, -2)`, so it holds `x -3..3` and
 `y -2..2`:
 
-<!-- render:
+<!-- render: 7x5 at -3,-2
 { "canvas": { "origin": { "x": -3, "y": -2 }, "size": { "width": 7, "height": 5 } },
   "next_id": 4,
   "shapes": [
@@ -302,7 +302,7 @@ stamped nothing, and no click reaches it either.
 origin is `(1, 1)`, so only its right side and bottom-right corner are inside. The blank cells that
 matter here sit at the **front** of their rows, which is what keeps them in the picture:
 
-<!-- render:
+<!-- render: 3x3 at 1,1
 { "canvas": { "origin": { "x": 1, "y": 1 }, "size": { "width": 3, "height": 3 } },
   "next_id": 2,
   "shapes": [

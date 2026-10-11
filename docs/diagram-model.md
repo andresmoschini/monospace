@@ -66,7 +66,7 @@ Two boxes written in this order, where the second is the front and decides the t
 — its own border survives where the first box's does not, and the first box's does not compose with
 anything because the second never left those sides open:
 
-<!-- render:
+<!-- render: 6x4
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 4 } },
   "next_id": 3,
   "shapes": [
@@ -228,7 +228,7 @@ the open. The cell at `(3, 1)` reads `├`, and neither figure wrote a junction 
 border and the connector's arm terminal composed into one, which is the whole point of a side being
 an anchor rather than a corner:
 
-<!-- render:
+<!-- render: 8x3
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 } },
   "next_id": 3,
   "shapes": [
@@ -276,7 +276,7 @@ Neither line knows the other is there, and neither one is in front in any way th
 front-most one is the horizontal, and the cell where they cross is `┼` rather than a `│` with a gap
 in it:
 
-<!-- render:
+<!-- render: 7x5
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 7, "height": 5 } },
   "next_id": 3,
   "shapes": [

@@ -11,7 +11,9 @@
 //! **The description lives in the file, not beside it.** A marker carries its own JSON rather than
 //! a path to it, so a reader sees what produced the picture without opening anything, and
 //! principle VIII's exemption — a picture "and the description it comes from" costs an artifact
-//! nothing — has something to exempt.
+//! nothing — has something to exempt. **The window lives on the line that opens the marker**, for
+//! the same reason: which part of a diagram to draw is the caller's question, and a marker is the
+//! caller.
 //!
 //! **A picture is written with its trailing blanks trimmed.** A rendering is padded to the
 //! window's width, and the gate runs `editorconfig-checker` with `trim_trailing_whitespace` over
@@ -19,14 +21,17 @@
 //!
 //! **The grammar is strict and says so when it is broken.** A half-written marker is reported by
 //! file and line instead of being skipped, because a marker silently ignored is a picture nothing
-//! checks — which is the state this exists to end.
+//! checks — which is the state this exists to end. The size is required on the opening line and the
+//! origin is not, so a marker that could leave the size out would draw at whatever the command line
+//! defaults to, and a change to that constant would move pictures that never mention it.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use crate::process::{capture, capture_untrimmed};
 
-/// The line that opens a marker. The description follows it, one or more lines of JSON.
+/// The line that opens a marker, up to and including the colon. The window follows it, on the same
+/// line, and the description is the JSON that comes after.
 const OPEN: &str = "<!-- render:";
 /// The line that closes the description.
 const DESCRIPTION_END: &str = "-->";
@@ -35,13 +40,31 @@ const FENCE: &str = "```text";
 /// The line that closes a marker, after the fence.
 const CLOSE: &str = "<!-- /render -->";
 
-/// One marker: the description it carries, and where its picture sits in the file.
+/// The window a marker's picture is drawn into, as an origin and a size.
+///
+/// **A private mirror of the pair `monospace_core::Pos` and `monospace_core::Size` are.** `xtask`
+/// takes no dependencies, deliberately — it guards the dependency policy and must not be the first
+/// thing to bend it — so the four numbers the command line parses are written out here rather than
+/// imported from the crate that owns them. It is not the format crate's `Window` either: that one
+/// is the type leaving the description, and this is the caller's own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Window {
+    /// The window's top-left corner, which may be negative.
+    origin: (i32, i32),
+    /// The window's extent in cells.
+    size: (u32, u32),
+}
+
+/// One marker: the description it carries, the window it is drawn into, and where its picture sits
+/// in the file.
 #[derive(Debug)]
 struct Marker {
     /// One-based line of the `<!-- render:` that opened it, for reporting.
     line: usize,
     /// The description, as the JSON text between the marker and its `-->`.
     description: String,
+    /// The window the picture is drawn into, as the pair the command line takes.
+    window: Window,
     /// Index of the fence's opening line. The picture is everything after it up to `fence_close`.
     fence_open: usize,
     /// Index of the fence's closing line.
@@ -105,7 +128,7 @@ fn walk(root: &Path, checking: bool) -> Result<(), String> {
 
         let mut wanted: Vec<(usize, String)> = Vec::new();
         for marker in &found {
-            let picture = render_one(root, &binary, &marker.description, &relative, marker.line)?;
+            let picture = render_one(root, &binary, marker, &relative)?;
             let current = lines[marker.fence_open + 1..marker.fence_close].join("\n");
             if current != picture {
                 if checking {
@@ -217,7 +240,7 @@ fn parse(lines: &[&str], relative: &str) -> Result<Vec<Marker>, String> {
             continue;
         }
 
-        if lines[index].trim() != OPEN {
+        if !lines[index].trim().starts_with(OPEN) {
             index += 1;
             continue;
         }
@@ -225,6 +248,8 @@ fn parse(lines: &[&str], relative: &str) -> Result<Vec<Marker>, String> {
         let line = index + 1;
         let opened = index;
         index += 1;
+
+        let window = parse_window(lines[opened].trim(), relative, line)?;
 
         let description_start = index;
         while index < lines.len() && lines[index].trim() != DESCRIPTION_END {
@@ -270,12 +295,72 @@ fn parse(lines: &[&str], relative: &str) -> Result<Vec<Marker>, String> {
         markers.push(Marker {
             line,
             description,
+            window,
             fence_open,
             fence_close,
         });
     }
 
     Ok(markers)
+}
+
+/// The window a marker's opening line names, as the pair the command line takes.
+///
+/// **The size is required and the origin is not.** `<!-- render: 20x7` draws at `(0, 0)`, which is
+/// what eighteen of the twenty-two markers in this repository use, and `<!-- render: 7x5 at -3,-2`
+/// names the corner too. A marker that could leave the size out would draw at whatever the command
+/// line defaults to, and a change to that constant would then move generated pictures in files that
+/// never mention it — the gate would report the difference rather than the cause. **Every marker
+/// states the size it is drawn at**, which is the whole of what the format losing its `canvas`
+/// costs.
+///
+/// **The attributes are parsed by hand rather than pulled in as a dependency.** `xtask` takes no
+/// dependencies, deliberately, and the grammar is one line of it: a size, the word `at`, and an
+/// origin. A crate to read `20x7` is a crate to build and read before every one of the twenty-two
+/// markers this module rewrites.
+///
+/// **A marker that is not written the way the grammar asks for is reported by file and line**,
+/// rather than skipped: a marker silently ignored is a picture nothing checks, which is the state
+/// this module exists to end.
+fn parse_window(opened: &str, relative: &str, line: usize) -> Result<Window, String> {
+    let said = |what: &str| {
+        format!(
+            "xtask: {relative}:{line}: the marker opened here needs a size, as `{OPEN} 20x7` \
+             or `{OPEN} 7x5 at -3,-2`.\n\n    {what}\n\n    {}",
+            grammar()
+        )
+    };
+
+    let attributes = opened
+        .strip_prefix(OPEN)
+        .expect("the caller checked the prefix");
+    let (size, origin) = match attributes.split_once(" at ") {
+        Some((size, origin)) => (size.trim(), Some(origin.trim())),
+        None => (attributes.trim(), None),
+    };
+    let not_a_size = || format!("A size is `<width>x<height>`, and not `{size}`.");
+    let (width, height) = size.split_once('x').ok_or_else(|| said(&not_a_size()))?;
+    let window = Window {
+        origin: match origin {
+            Some(origin) => {
+                let not_an_origin = || format!("An origin is `<x>,<y>`, and not `{origin}`.");
+                let (x, y) = origin
+                    .split_once(',')
+                    .ok_or_else(|| said(&not_an_origin()))?;
+                (
+                    x.parse().map_err(|_| said(&not_an_origin()))?,
+                    y.parse().map_err(|_| said(&not_an_origin()))?,
+                )
+            }
+            None => (0, 0),
+        },
+        size: (
+            width.parse().map_err(|_| said(&not_a_size()))?,
+            height.parse().map_err(|_| said(&not_a_size()))?,
+        ),
+    };
+
+    Ok(window)
 }
 
 /// How many backticks open or close a fence on this line, if it is a fence line at all.
@@ -287,34 +372,60 @@ fn fence_width(line: &str) -> Option<usize> {
     (backticks >= 3).then_some(backticks)
 }
 
-/// The message a malformed marker produces.
-fn expected(relative: &str, line: usize, what: &str) -> String {
+/// The shape a marker is written in, for the message a malformed one produces.
+///
+/// **The opening line carries the window**, which is what this change is about: the size is on the
+/// line that opens the marker and the description is the JSON that follows it.
+fn grammar() -> String {
     format!(
-        "xtask: {relative}:{line}: the marker opened here needs {what}.\n\n    A generated picture \
-         is written as `{OPEN}`, the description, `{DESCRIPTION_END}`, the fence holding the \
-         picture, then `{CLOSE}`."
+        "A generated picture is written as `{OPEN} 20x7`, the description, `{DESCRIPTION_END}`, \
+         the fence holding the picture, then `{CLOSE}`."
     )
 }
 
-/// Renders one description by running the command-line application on it.
+/// The message a malformed marker produces.
+fn expected(relative: &str, line: usize, what: &str) -> String {
+    format!(
+        "xtask: {relative}:{line}: the marker opened here needs {what}.\n\n    {}",
+        grammar()
+    )
+}
+
+/// Renders one marker by running the command-line application on its description.
+///
+/// **The window is passed as the two flags rather than read out of the file.** A marker states the
+/// size it is drawn at, and this module is what makes that true: the command line's default is a
+/// convenience for a person running the binary by hand, and a generated picture that depended on it
+/// would move when a constant in the binary changed, in a file that never mentions it.
 fn render_one(
     root: &Path,
     binary: &Path,
-    description: &str,
+    marker: &Marker,
     relative: &str,
-    line: usize,
 ) -> Result<String, String> {
     let scratch = std::env::temp_dir().join(format!(
-        "monospace-render-{}-{line}.json",
-        std::process::id()
+        "monospace-render-{}-{}.json",
+        std::process::id(),
+        marker.line
     ));
-    std::fs::write(&scratch, description)
+    std::fs::write(&scratch, &marker.description)
         .map_err(|error| format!("xtask: could not write {}: {error}", scratch.display()))?;
 
     let binary = binary.to_string_lossy().into_owned();
     let scratch_arg = scratch.to_string_lossy().into_owned();
-    let rendered = capture_untrimmed(root, &binary, &[&scratch_arg]).map_err(|error| {
-        format!("xtask: {relative}:{line}: the description did not render.\n\n    {error}")
+    let args = [
+        "--size".to_owned(),
+        format!("{}x{}", marker.window.size.0, marker.window.size.1),
+        "--origin".to_owned(),
+        format!("{},{}", marker.window.origin.0, marker.window.origin.1),
+        scratch_arg,
+    ];
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let rendered = capture_untrimmed(root, &binary, &args).map_err(|error| {
+        format!(
+            "xtask: {relative}:{}: the description did not render.\n\n    {error}",
+            marker.line
+        )
     });
     let _ = std::fs::remove_file(&scratch);
 
@@ -406,12 +517,12 @@ mod tests {
         );
     }
 
-    /// A well-formed marker yields its description and the bounds of its fence.
+    /// A well-formed marker yields its description, its window and the bounds of its fence.
     #[test]
     fn a_well_formed_marker_carries_its_description_and_its_fence() {
         let lines = vec![
             "prose",
-            "<!-- render:",
+            "<!-- render: 20x7",
             "{ \"canvas\": 1,",
             "  \"shapes\": [] }",
             "-->",
@@ -434,16 +545,179 @@ mod tests {
             "{ \"canvas\": 1,\n  \"shapes\": [] }"
         );
         assert_eq!(
+            markers[0].window,
+            Window {
+                origin: (0, 0),
+                size: (20, 7)
+            },
+            "a marker with no `at` draws from the origin"
+        );
+        assert_eq!(
             lines[markers[0].fence_open + 1..markers[0].fence_close].join("\n"),
             "┌┐\n└┘"
         );
+    }
+
+    /// Rule 4 — a marker states its size, and the command line may default.
+    ///
+    /// **Both halves of one rule, from this module's side of it.** A marker that left the size out
+    /// would draw at whatever `monospace-cli` defaults to, and that constant is in the binary rather
+    /// than in the file: changing it would move generated pictures in files that never mention it,
+    /// and the gate would report the difference rather than the cause. So the size is required here,
+    /// and what this module hands the command line is always both flags — which is the half of the
+    /// rule that says the default is never what a generated picture uses.
+    #[test]
+    fn a_marker_states_its_size_and_the_command_line_may_default() {
+        let without_one = vec!["<!-- render:", "{}", "-->"];
+        let error = parse(&without_one, "x.md").expect_err("a marker with no size is an error");
+
+        assert!(
+            error.starts_with("xtask: x.md:1: the marker opened here needs a size"),
+            "{error}"
+        );
+        assert!(
+            error.contains("`<!-- render: 20x7`"),
+            "the message shows the shape a marker is written in: {error}"
+        );
+
+        // And the other half: a marker that does state one is rendered with both flags, so the
+        // command line's default is never what a generated picture is drawn at.
+        let lines = vec![
+            "<!-- render: 7x5 at -3,-2",
+            "{}",
+            "-->",
+            "",
+            "```text",
+            "a",
+            "```",
+            "",
+            "<!-- /render -->",
+        ];
+        let marker = &parse(&lines, "x.md").expect("well formed")[0];
+        let flags = |marker: &Marker| {
+            vec![
+                "--size".to_owned(),
+                format!("{}x{}", marker.window.size.0, marker.window.size.1),
+                "--origin".to_owned(),
+                format!("{},{}", marker.window.origin.0, marker.window.origin.1),
+            ]
+        };
+
+        assert_eq!(
+            flags(marker),
+            vec![
+                "--size".to_owned(),
+                "7x5".to_owned(),
+                "--origin".to_owned(),
+                "-3,-2".to_owned(),
+            ],
+            "a generated picture is drawn at the window its marker names and at no other"
+        );
+    }
+
+    /// Rule 5 — a marker without an `at` draws from the origin.
+    ///
+    /// **The default is `(0, 0)` and it is written out rather than left implicit**, because a reader
+    /// who does not know the default cannot tell a marker that means the origin from one that means
+    /// something else. Eighteen of the twenty-two markers in this repository use it.
+    #[test]
+    fn a_marker_without_an_at_draws_from_the_origin() {
+        let lines = vec![
+            "<!-- render: 20x7",
+            "{}",
+            "-->",
+            "",
+            "```text",
+            "a",
+            "```",
+            "",
+            "<!-- /render -->",
+        ];
+
+        assert_eq!(
+            parse(&lines, "x.md").expect("well formed")[0].window,
+            Window {
+                origin: (0, 0),
+                size: (20, 7)
+            }
+        );
+    }
+
+    /// Rule 6 — a marker with an `at` draws from the origin it names.
+    ///
+    /// **The origin may be negative**, which is what `specs/086` draws at: a window starting at
+    /// `(-3, -2)` is how a box at `(0, 0)` ends up two rows and three columns inside it, and the
+    /// offset table beside that picture is counted from that corner.
+    #[test]
+    fn a_marker_with_an_at_draws_from_the_origin_it_names() {
+        let lines = vec![
+            "<!-- render: 7x5 at -3,-2",
+            "{}",
+            "-->",
+            "",
+            "```text",
+            "a",
+            "```",
+            "",
+            "<!-- /render -->",
+        ];
+
+        assert_eq!(
+            parse(&lines, "x.md").expect("well formed")[0].window,
+            Window {
+                origin: (-3, -2),
+                size: (7, 5)
+            }
+        );
+    }
+
+    /// Rule 7 — a marker whose size is not a number is reported by file and line, and no picture is
+    /// written.
+    ///
+    /// **The refusal is the grammar being strict**, which is the whole of what a marker silently
+    /// ignored would not be. `20x` and `x7` name no window, and answering them with half one would
+    /// be a picture rather than an error.
+    #[test]
+    fn a_marker_whose_size_is_not_a_number_is_reported_by_file_and_line() {
+        for (opened, said) in [
+            (
+                "<!-- render: 20x",
+                "A size is `<width>x<height>`, and not `20x`",
+            ),
+            (
+                "<!-- render: x7",
+                "A size is `<width>x<height>`, and not `x7`",
+            ),
+            (
+                "<!-- render: 20x7 at -3-2",
+                "An origin is `<x>,<y>`, and not `-3-2`",
+            ),
+            (
+                "<!-- render: 20x7 at -3 -2",
+                "An origin is `<x>,<y>`, and not `-3 -2`",
+            ),
+        ] {
+            let lines = vec![opened, "{}", "-->"];
+            let error = parse(&lines, "docs/model.md")
+                .err()
+                .unwrap_or_else(|| panic!("`{opened}` should have been refused"));
+
+            assert!(
+                error.starts_with("xtask: docs/model.md:1: the marker opened here needs a size"),
+                "expected the marker's line to be named, got: {error}"
+            );
+            assert!(
+                error.contains(said),
+                "expected `{said}` in the message, got: {error}"
+            );
+        }
     }
 
     /// Two markers in one file are both found.
     #[test]
     fn two_markers_in_one_file_are_both_found() {
         let one = vec![
-            "<!-- render:",
+            "<!-- render: 20x7",
             "{}",
             "-->",
             "",
@@ -465,7 +739,7 @@ mod tests {
     /// line the marker opened on.
     #[test]
     fn a_marker_with_no_fence_is_reported_by_line() {
-        let lines = vec!["<!-- render:", "{}", "-->", "", "not a fence"];
+        let lines = vec!["<!-- render: 20x7", "{}", "-->", "", "not a fence"];
 
         let error = parse(&lines, "docs/model.md").expect_err("a marker with no fence is an error");
 
@@ -476,7 +750,7 @@ mod tests {
     /// A marker whose description is never closed is reported.
     #[test]
     fn a_marker_with_no_description_end_is_reported() {
-        let lines = vec!["<!-- render:", "{}"];
+        let lines = vec!["<!-- render: 20x7", "{}"];
 
         let error = parse(&lines, "x.md").expect_err("an unclosed description is an error");
 
@@ -487,7 +761,16 @@ mod tests {
     /// the fence, and an ordinary fence below would be swallowed.
     #[test]
     fn a_marker_with_no_closing_comment_is_reported() {
-        let lines = vec!["<!-- render:", "{}", "-->", "", "```text", "a", "```", ""];
+        let lines = vec![
+            "<!-- render: 20x7",
+            "{}",
+            "-->",
+            "",
+            "```text",
+            "a",
+            "```",
+            "",
+        ];
 
         let error = parse(&lines, "x.md").expect_err("a marker with no close is an error");
 
@@ -500,7 +783,7 @@ mod tests {
     fn a_marker_inside_a_longer_fence_is_not_a_marker() {
         let lines = vec![
             "````markdown",
-            "<!-- render:",
+            "<!-- render: 20x7",
             "{ \"shapes\": [ … ] }",
             "-->",
             "",
@@ -526,7 +809,7 @@ mod tests {
             "```text",
             "hand drawn",
             "```",
-            "<!-- render:",
+            "<!-- render: 20x7",
             "{}",
             "-->",
             "",

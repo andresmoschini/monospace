@@ -51,7 +51,7 @@ endpoints, however far apart those are. Where two shapes meet, their strokes com
 cell rather than one overwriting the other, so a crossing becomes a junction and two boxes share a
 corner — and the front-most shape's fill is what covers what is behind it:
 
-<!-- render:
+<!-- render: 20x7
 { "canvas": { "origin": { "x": 0, "y": 0 }, "size": { "width": 20, "height": 7 } },
   "next_id": 7,
   "shapes": [
