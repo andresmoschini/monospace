@@ -1,5 +1,7 @@
 //! The interactive application: the loop, and the terminal it runs on.
 
+mod terminal;
+
 use std::io;
 use std::{io::stdout, process::ExitCode};
 
@@ -7,6 +9,8 @@ use crossterm::event::{self, Event};
 use ratatui::Frame;
 use ratatui::widgets::Block;
 use ratatui::{Terminal, backend::CrosstermBackend};
+
+use crate::terminal::{Crossterm, TerminalGuard};
 
 fn main() -> ExitCode {
     let mut terminal = match Terminal::new(CrosstermBackend::new(stdout())) {
@@ -17,7 +21,19 @@ fn main() -> ExitCode {
         }
     };
 
+    // Bound here and dropped on every way out of `main`, including one that arrives as a panic
+    // unwinding through `run` below.
+    let guard = match TerminalGuard::take(Box::new(Crossterm)) {
+        Ok(guard) => guard,
+        Err(error) => {
+            eprintln!("monospace: the terminal could not be taken: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let outcome = run(&mut terminal);
+
+    drop(guard);
 
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
