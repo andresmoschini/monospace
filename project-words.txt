@@ -9,6 +9,7 @@ COLORTERM
 crossterm
 doctests
 frontmatter
+HAMT
 insta
 ISIG
 Moschini
@@ -20,6 +21,7 @@ opencode
 pathspec
 PATHEXT
 ratatui
+rpds
 RUSTFLAGS
 safecrlf
 speckit
