@@ -8,6 +8,7 @@ license.workspace = true
 
 [dependencies]
 monospace-core.workspace = true
+imbl = "7.0.2"
 
 [dev-dependencies]
 insta = "1.48.0"

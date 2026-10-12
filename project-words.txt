@@ -9,6 +9,7 @@ COLORTERM
 crossterm
 doctests
 frontmatter
+imbl
 insta
 ISIG
 Moschini
@@ -17,8 +18,8 @@ newtype
 nvmrc
 Nygard
 opencode
-pathspec
 PATHEXT
+pathspec
 ratatui
 RUSTFLAGS
 safecrlf

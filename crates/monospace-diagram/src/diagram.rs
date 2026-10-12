@@ -14,9 +14,9 @@
 //! direction is available and produces the same buffer; what it carries is not appearance but
 //! ownership, because which figure reaches a position first is what decides the cell it decides.
 
-use std::collections::HashMap;
 use std::num::NonZeroU32;
 
+use imbl::{HashMap, Vector};
 use monospace_core::{Buffer, Layer, ShapeId, StampMode};
 
 use crate::Shape;
@@ -54,7 +54,7 @@ pub struct Diagram {
     /// the front of the order: it is drawn first and decides a shared cell before anything behind
     /// it. Nothing here says which figure a name belongs to — that is the map's, and every read of
     /// this goes through it.
-    order: Vec<ShapeId>,
+    order: Vector<ShapeId>,
     /// The ordinal the next `add` takes. It is the ordinal itself rather than the last one issued,
     /// so seeding it is a plain assignment and no public method carries a subtraction. It is a
     /// [`NonZeroU32`] rather than a `u32` because zero is not an identity, so a counter that could
@@ -69,7 +69,7 @@ impl Default for Diagram {
     fn default() -> Self {
         Self {
             shapes: HashMap::new(),
-            order: Vec::new(),
+            order: Vector::new(),
             next: NonZeroU32::MIN,
         }
     }
@@ -92,7 +92,7 @@ impl Diagram {
     pub fn numbered_from(next: NonZeroU32) -> Self {
         Self {
             shapes: HashMap::new(),
-            order: Vec::new(),
+            order: Vector::new(),
             next,
         }
     }
@@ -117,7 +117,7 @@ impl Diagram {
             panic!("a diagram has issued every ordinal a u32 can hold, and {id} was the last one")
         });
         self.shapes.insert(id, shape);
-        self.order.push(id);
+        self.order.push_back(id);
         id
     }
 
@@ -136,7 +136,7 @@ impl Diagram {
     /// way any more.
     pub fn add_under(&mut self, id: ShapeId, shape: Shape) {
         self.shapes.insert(id, shape);
-        self.order.push(id);
+        self.order.push_back(id);
     }
 
     /// The place in the order the shape named by `id` stands, or `None` when this diagram holds
