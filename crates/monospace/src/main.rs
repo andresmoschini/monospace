@@ -4,10 +4,12 @@ use std::io;
 use std::{io::stdout, process::ExitCode};
 
 use crossterm::event::{self, Event};
+use ratatui::Frame;
+use ratatui::widgets::Block;
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 fn main() -> ExitCode {
-    match Terminal::new(CrosstermBackend::new(stdout())) {
+    let mut terminal = match Terminal::new(CrosstermBackend::new(stdout())) {
         Ok(terminal) => terminal,
         Err(error) => {
             eprintln!("monospace: the terminal could not be opened: {error}");
@@ -15,7 +17,7 @@ fn main() -> ExitCode {
         }
     };
 
-    let outcome = run();
+    let outcome = run(&mut terminal);
 
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
@@ -26,8 +28,13 @@ fn main() -> ExitCode {
     }
 }
 
-fn run() -> io::Result<()> {
+fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> io::Result<()>
+where
+    B::Error: IntoTerminalError,
+{
     loop {
+        terminal.draw(draw).map_err(B::Error::into_terminal_error)?;
+
         let event = next()?;
 
         if let Event::Key(key) = event
@@ -44,4 +51,24 @@ fn run() -> io::Result<()> {
 
 fn next() -> io::Result<Event> {
     event::read()
+}
+
+fn draw(frame: &mut Frame) {
+    frame.render_widget(Block::bordered(), frame.area());
+}
+
+trait IntoTerminalError {
+    fn into_terminal_error(self) -> io::Error;
+}
+
+impl IntoTerminalError for io::Error {
+    fn into_terminal_error(self) -> io::Error {
+        self
+    }
+}
+
+impl IntoTerminalError for std::convert::Infallible {
+    fn into_terminal_error(self) -> io::Error {
+        match self {}
+    }
 }
