@@ -59,7 +59,7 @@ pub struct Diagram {
     /// so seeding it is a plain assignment and no public method carries a subtraction. It is a
     /// [`NonZeroU32`] rather than a `u32` because zero is not an identity, so a counter that could
     /// stand at one would be a counter that could hand back nothing to name.
-    next: NonZeroU32,
+    next_id: NonZeroU32,
 }
 
 impl Default for Diagram {
@@ -70,7 +70,7 @@ impl Default for Diagram {
         Self {
             shapes: HashMap::new(),
             order: Vector::new(),
-            next: NonZeroU32::MIN,
+            next_id: NonZeroU32::MIN,
         }
     }
 }
@@ -89,11 +89,11 @@ impl Diagram {
     /// identity nothing can carry, and there is no path through this crate that produces the `0` a
     /// plain `u32` would have allowed.
     #[must_use]
-    pub fn numbered_from(next: NonZeroU32) -> Self {
+    pub fn numbered_from(next_id: NonZeroU32) -> Self {
         Self {
             shapes: HashMap::new(),
             order: Vector::new(),
-            next,
+            next_id,
         }
     }
 
@@ -112,8 +112,8 @@ impl Diagram {
     /// When the counter stands at [`u32::MAX`] and another shape is added: that ordinal is issued,
     /// and the addition after it has no ordinal to name.
     pub fn add(&mut self, shape: Shape) -> ShapeId {
-        let id = ShapeId::new(self.next);
-        self.next = self.next.checked_add(1).unwrap_or_else(|| {
+        let id = ShapeId::new(self.next_id);
+        self.next_id = self.next_id.checked_add(1).unwrap_or_else(|| {
             panic!("a diagram has issued every ordinal a u32 can hold, and {id} was the last one")
         });
         self.shapes.insert(id, shape);
