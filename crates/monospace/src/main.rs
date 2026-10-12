@@ -55,12 +55,10 @@ where
 
         if let Event::Key(key) = event
             && key.kind == event::KeyEventKind::Press
+            && key.code == event::KeyCode::Char('q')
+            && key.modifiers.contains(event::KeyModifiers::CONTROL)
         {
-            match key.code {
-                event::KeyCode::Char('o') => return Ok(()),
-                event::KeyCode::Char('e') => return Err(io::Error::other("e pressed")),
-                _ => {}
-            }
+            return Ok(());
         }
     }
 }
