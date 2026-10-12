@@ -11,26 +11,22 @@ use crate::{Command, Step};
 /// **The diagram is a field of its own and nothing hands it out mutably.** No method here returns
 /// `&mut Diagram` and none returns a `Diagram` either, so a caller has no way to change what a
 /// session owns except by performing a command against it, and no second way to say what
-/// [`diagram`](Session::diagram) already says. The claim is about the public surface, and the
-/// field below is `pub(crate)` for one reason and one: it is the way in from
-/// [`Command::perform`](crate::Command::perform), which is where a command changes a diagram on
-/// purpose.
+/// [`diagram`](Session::diagram) already says. The claim is about the public surface, and the field
+/// below is private and written once: a command changes the diagram by way of the steps, never by
+/// way of the field.
 ///
-/// **The field holds the newest diagram there is, and the position says which diagram is in
-/// hand.** A step is pushed *before* a command is carried out, so what the steps hold is every
-/// state that is not the newest one, and the newest one has nowhere else to be: it is what
-/// [`diagram`](Session::diagram) answers with at the end of the history, and it is the only state
-/// no step holds. The two are the same number of diagrams either way — the model's "memory
-/// proportional to the diagram times the number of steps" — and holding the newest separately is
-/// what lets the state a command produced be carried out again after being given back. It is not
-/// recomputed and it is not derived: a step written before the command it belongs to cannot say
-/// what the command produced, so the diagram the command produced is the one place that knows.
+/// **The field holds the diagram the session was created over, and the steps hold every state after
+/// it.** A step is the diagram a command *left*, so the state before the first command is the one
+/// state no step holds, and it is the field — which is why nothing writes the field again, and why
+/// the diagram in hand is either that field or a step and never anything else. One diagram per step
+/// and one to start with, which is the model's "memory proportional to the diagram times the number
+/// of steps", and each of them held once.
 ///
 /// **Giving a step back moves the position and changes nothing else.** [`undo`](Session::undo) and
 /// [`redo`](Session::redo) are one line each for that reason, and neither removes a step or
-/// rebuilds a diagram: the state that comes back is the state that was there, held since before
-/// the command that displaced it. Nothing is inverted, and the newest diagram stays where it is
-/// while the history walks over it, which is what makes the walk go both ways.
+/// rebuilds a diagram: the state that comes back is the state that was there, kept since the command
+/// that made it. Nothing is inverted, and every step stays where it is while the history walks over
+/// them, which is what makes the walk go both ways.
 ///
 /// **The history is a line, and `position` is where in it the session stands.** It is how many
 /// steps are behind rather than an index into a pair of stacks, so it cannot disagree with either
@@ -56,21 +52,21 @@ use crate::{Command, Step};
 /// session.diagram_mut();
 /// ```
 pub struct Session {
-    /// The newest diagram there is: what the session was created over until a command changes it,
-    /// and what it holds again at the end of the history.
+    /// The diagram this session was created over, and the one it hands out until a command has been
+    /// carried out.
     ///
-    /// `pub(crate)` rather than private because [`Command::perform`](crate::Command::perform) is
-    /// in another module and is the only thing allowed to change it. That is the entire
-    /// enforcement, and it is worth being exact about how thin it is: one field and one absence.
-    /// A public method returning `&mut Diagram` would void it, and nothing would fail — the
-    /// session would keep recording faithfully while a caller changed its diagram behind it,
-    /// which is the one failure this layer exists to make impossible.
-    pub(crate) diagram: Diagram,
+    /// **Written once, in [`new`](Session::new), and never again** — a stronger statement than the
+    /// field being private, and it is what lets what the session hands out be read off the position
+    /// alone: this field is the whole of the answer at the oldest position, and one step is the
+    /// whole of it everywhere else. Private rather than `pub(crate)` because there is no longer
+    /// anything another module needs to do to it.
+    initial_diagram: Diagram,
 
     /// The steps behind `position` and the steps ahead of it, in the order they were made. **Step
-    /// `j` is the diagram as it was when command `j + 1` was carried out**, so the step at
-    /// `position` is the state the session hands out and the step behind it is the state a
-    /// command found. The newest state is not here, and `position == steps.len()` is what says so.
+    /// `j` is the diagram as it was left by command `j + 1`**, so the step behind the position is
+    /// the state the session hands out and the step ahead of it is what a command starting from
+    /// here would put behind. The state before the first command is not here, and `position == 0`
+    /// is what says so.
     steps: Vec<Step>,
 
     /// How many of `steps` are behind the state the session hands out.
@@ -85,9 +81,9 @@ impl Session {
     /// from is not asked and not refused**: a diagram is a value and any of them can be opened,
     /// which §8 of the model lists as deliberately unresolved rather than as missing.
     #[must_use]
-    pub fn new(diagram: Diagram) -> Session {
+    pub fn new(initial_diagram: Diagram) -> Session {
         Self {
-            diagram,
+            initial_diagram,
             steps: Vec::new(),
             position: 0,
         }
@@ -95,17 +91,15 @@ impl Session {
 
     /// The diagram this session holds, borrowed.
     ///
-    /// **The newest one at the end of the history, and otherwise the one the step at the position
-    /// holds** — the same state the step is the record of, read rather than rebuilt. Nothing is
-    /// copied and nothing can be changed through it, which is what makes it the answer for a
-    /// caller that repaints on every event. A caller that wants to keep one copies it — `Diagram`
-    /// is `Clone` — and the copy is a diagram like any other: changeable, free of the session and
-    /// unconnected to it.
+    /// **The step behind the position, and the diagram this session was created over when nothing is
+    /// behind it** — read rather than rebuilt, and whole. Nothing is copied and nothing can be
+    /// changed through it, which is what makes it the answer for a caller that repaints on every
+    /// event. A caller that wants to keep one copies it — `Diagram` is `Clone` — and the copy is a
+    /// diagram like any other: changeable, free of the session and unconnected to it.
     #[must_use]
     pub fn diagram(&self) -> &Diagram {
-        self.steps
-            .get(self.position)
-            .map_or(&self.diagram, |step| &step.diagram)
+        let behind = self.steps.get(..self.position).and_then(<[Step]>::last);
+        behind.map_or(&self.initial_diagram, |step| &step.diagram)
     }
 
     /// Whether there is a step behind the position, and so whether [`undo`](Session::undo) would
@@ -150,30 +144,46 @@ impl Session {
         }
     }
 
-    /// Takes `command` as the one about to be carried out: records the diagram it finds as a step,
-    /// discards whatever was ahead of the position, and adopts the state at the position as the
-    /// diagram being edited.
+    /// Carries out `command` against the diagram this session holds: records what the command
+    /// leaves behind as a step, and makes that what this session holds.
     ///
-    /// **The step is pushed before the command runs**, which is what makes it the diagram as it
-    /// was rather than a result of being told what became of it — the model's reason for not
-    /// inverting a command at all, since `Diagram::remove` freezes what hung from the figure it
-    /// takes and nothing re-hangs it afterwards.
+    /// **The step is taken after the command runs, and that order is what fixes what the field
+    /// holds.** A step is the diagram a command *left*, so the state the first command found is the
+    /// one state no step holds, and it is the field — which is why nothing writes the field again,
+    /// and why the diagram in hand is either the field or a step and never a third thing. **The
+    /// other order would work too**, and it would make the field hold the newest state rather than
+    /// the first: a field whose contents change with every command, and a newest state kept outside
+    /// the history, which is what makes the answer at the end of the history a case of its own
+    /// instead of a step like any other.
     ///
-    /// **The truncation is what makes the history a line rather than a tree.** Branching earns
-    /// its keep when a state somebody discarded is worth returning to, and nothing here says one
-    /// is: a caller that moves on from a state it gave back has said the state was not worth
-    /// keeping. What would reopen it is the first caller that wants one back, and §6 of the model
-    /// says so.
+    /// **What the command becomes is carried out here and nowhere else.** The mapping from a
+    /// meaning to one of the diagram's five operations is the one in [`Command`], and the session is
+    /// what carries it out because only what was asked knows whether what it was asked to do was one
+    /// gesture or several: a figure dragged across a screen is one thing to the person dragging it
+    /// and many displacements to the diagram. Nothing reads that answer yet — §8 of the model says
+    /// what is left to write — and the field it will be read from is the step's command, which is
+    /// recorded beside the diagram from this first version.
     ///
-    /// **It is recorded whether or not the command changes anything**, including a command naming
-    /// a figure this diagram does not hold. The session does not know whether the caller meant to
-    /// do something, and a history that skipped a step the caller took is worse than one longer
+    /// **Nothing is inverted, and the steps are what make that unnecessary.** `Diagram::remove`
+    /// freezes every reference naming the figure it takes and states that nothing re-hangs them, so
+    /// an inverse of that command cannot be derived — it could only be reconstructed from what the
+    /// caller happened to capture beforehand. Every state the history passes through is kept instead,
+    /// and giving a change back is one of them becoming the diagram again.
+    ///
+    /// **What was ahead of the position is discarded**, which is what makes the history a line
+    /// rather than a tree. Branching earns its keep when a state somebody discarded is worth
+    /// returning to, and nothing here says one is: a caller that moves on from a state it gave back
+    /// has said the state was not worth keeping. What would reopen it is the first caller that
+    /// wants one back, and §6 of the model says so.
+    ///
+    /// **The step is recorded whatever the command did**, including when it named a figure this
+    /// diagram does not hold and changed nothing. The session does not know whether the caller meant
+    /// to do something, and a history that skipped a step the caller took is worse than one longer
     /// than it needed to be.
-    pub(crate) fn record(&mut self, command: Command) {
-        let found = self.diagram().clone();
+    pub fn perform(&mut self, command: Command) {
+        let made = command.apply_to(self.diagram());
         self.steps.truncate(self.position);
-        self.steps.push(Step::new(command, found.clone()));
-        self.diagram = found;
+        self.steps.push(Step::new(command, made));
         self.position += 1;
     }
 }

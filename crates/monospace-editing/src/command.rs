@@ -4,8 +4,6 @@
 
 use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
-use crate::Session;
-
 /// One thing a caller means to do to a diagram.
 ///
 /// **It carries the meaning and not the finished figure, and each one says which of the diagram's
@@ -54,27 +52,6 @@ pub enum Command {
 }
 
 impl Command {
-    /// Carries this command out against `session`: records the diagram as it is as a step, and
-    /// changes it by the operation this command is.
-    ///
-    /// **The command is given the session and not the diagram**, and the signature is where that
-    /// is visible rather than in a paragraph. A session method taking a command would be the same
-    /// design said from the other side, and it would put the decision back where it cannot be
-    /// made: only what is asked knows whether what it was asked to do was one gesture or several,
-    /// and a figure dragged across a screen is one thing to the person dragging it and many
-    /// displacements to the diagram. Nothing reads that answer yet — §8 of the model says what is
-    /// left to write — and the field it will be read from is the step's command, which is recorded
-    /// beside the diagram from this first version.
-    ///
-    /// **The step is recorded whatever the command did**, including when it named a figure this
-    /// diagram does not hold and changed nothing. The session does not know whether the caller
-    /// meant to do something, and a history that skipped a step the caller took is worse than one
-    /// longer than it needed to be.
-    pub fn perform(&self, session: &mut Session) {
-        session.record(self.clone());
-        session.diagram = self.apply_to(&session.diagram);
-    }
-
     /// The one of the diagram's five operations this command is, carried out on `diagram`.
     ///
     /// **The whole of this method is the layer's mapping**, and it is why a caller does not have to
@@ -82,7 +59,13 @@ impl Command {
     /// else is logic that is subtly wrong in four different ways when each caller writes it. Every
     /// operation is the diagram's and unchanged, and a command that changed the diagram by any
     /// other way is not a command.
-    fn apply_to(&self, diagram: &Diagram) -> Diagram {
+    ///
+    /// `pub(crate)` rather than private because [`Session::perform`](crate::Session::perform) is in
+    /// another module and is the only thing allowed to call it: what a command does to a diagram is
+    /// decided where the diagram being changed is held, and a caller with a diagram of its own
+    /// edits that diagram with the diagram's own five operations.
+    #[must_use]
+    pub(crate) fn apply_to(&self, diagram: &Diagram) -> Diagram {
         match *self {
             Self::Move { id, by } => {
                 // Read, then write, so the figure's own displacement decides what goes back: a

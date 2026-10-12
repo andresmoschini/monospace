@@ -386,23 +386,22 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     // decision about this description rather than about editing. It is also why the walk back
     // below is shorter for a description with less in it.
     if let Some(the_back_most) = the_back_most {
-        Command::Forward { id: the_back_most }.perform(&mut session);
+        session.perform(Command::Forward { id: the_back_most });
     }
     out.push_str("\nWith the back-most shape moved one place forward:\n");
     out.push_str(&picture(session.diagram(), &catalog, origin, size));
 
     if let Some(the_back_most) = the_back_most {
-        Command::Move {
+        session.perform(Command::Move {
             id: the_back_most,
             by,
-        }
-        .perform(&mut session);
+        });
     }
     out.push_str("\nWith that same shape displaced:\n");
     out.push_str(&picture(session.diagram(), &catalog, origin, size));
 
     if let Some(the_back_most) = the_back_most {
-        Command::Remove { id: the_back_most }.perform(&mut session);
+        session.perform(Command::Remove { id: the_back_most });
     }
     out.push_str("\nWith that same shape taken out:\n");
     out.push_str(&picture(session.diagram(), &catalog, origin, size));
@@ -426,23 +425,21 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     // below catches by asking whether the record named anything at all; the third is a command
     // naming an identity the diagram does not hold, which changes nothing and is still a step.
     if let (Some(the_arrow), Some(the_hung_from)) = (the_arrow, the_hung_from) {
-        Command::Hang {
+        session.perform(Command::Hang {
             id: the_arrow,
             from: the_hung_from,
             anchor: Anchor::Right,
-        }
-        .perform(&mut session);
+        });
     }
 
     // And now the figure it hangs from moves, which is what the reference is for: the arrow lands
     // on the box's new side and re-routes to the end that did not move, because that endpoint is
     // still a point and a displacement reaches points.
     if let Some(the_hung_from) = the_hung_from {
-        Command::Move {
+        session.perform(Command::Move {
             id: the_hung_from,
             by: four_right,
-        }
-        .perform(&mut session);
+        });
     }
     out.push_str("\nWith the arrow now hanging from that box, and the box displaced:\n");
     out.push_str(&picture(session.diagram(), &catalog, origin, size));
@@ -455,11 +452,10 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     // therefore the fifth with the arrow two rows lower and **both boxes standing exactly where
     // they stood**, which is the claim a reader checks with their eyes.
     if let Some(the_arrow) = the_arrow {
-        Command::Move {
+        session.perform(Command::Move {
             id: the_arrow,
             by: two_down,
-        }
-        .perform(&mut session);
+        });
     }
     out.push_str("\nWith the arrow displaced as well:\n");
     out.push_str(&picture(session.diagram(), &catalog, origin, size));
@@ -477,7 +473,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     // none. `3` is the box the demonstration hangs the arrow from — the same identity the fifth
     // picture displaced — so this step takes out exactly what the arrow hangs from.
     if let Some(the_hung_from) = the_hung_from {
-        Command::Remove { id: the_hung_from }.perform(&mut session);
+        session.perform(Command::Remove { id: the_hung_from });
     }
     out.push_str("\nWith the box the arrow hangs from taken out:\n");
     out.push_str(&picture(session.diagram(), &catalog, origin, size));
@@ -501,7 +497,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     // three shapes the earlier steps touch, so what is removed here is the record's answer and not a
     // side effect of them.
     if let Some(named) = as_written.owner(THE_CROSSING_AT) {
-        Command::Remove { id: named }.perform(&mut session);
+        session.perform(Command::Remove { id: named });
     }
     let crossing_caption = format!(
         "\nWith the shape the picture names at ({}, {}) taken out:\n",
