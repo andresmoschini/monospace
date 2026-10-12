@@ -247,14 +247,20 @@ becomes one allocation per referencing shape — so **the operation that is curr
 memory becomes the most expensive one to represent.** It does not become expensive in absolute
 terms; it becomes the worst case in a model whose whole argument is that changes are cheap.
 
-**`find` returning `None` for an identity from another diagram survives; `add_under` needed
-measuring and is milder than it looks.** `add_under` permits two entries under one identity, and a
-map keyed by identity cannot hold both. **Measured: it does not have to, because `find` is
-`iter().position(..)`, which stops at the first match — so `get` on a doubled identity already
-returns the first and has always ignored the second.** A map keeping the first reproduces today's
-behavior without being told to. What remains is not a conflict with the rule but a question the rule
-never answered: whether a second figure under a live identity should be reachable at all, and §7
-takes that up as a separate change.
+**`find` returning `None` for an identity from another diagram survives; `add_under` is a conflict
+and not a cost, and §6 corrects this item's own first draft.** `add_under` permits two entries under
+one identity, and a map keyed by identity cannot hold both. This item first measured the conflict
+away, on the grounds that `find` is `iter().position(..)`, which stops at the first match — so `get`
+on a doubled identity already returns the first and has always ignored the second — and that a map
+keeping the first therefore reproduces today's behavior without being told to.
+
+**Measured: that is half right, and the half that is wrong costs a figure.** A map does not keep the
+first unless it is written to, and nothing in the crate says which way to write it —
+`HashTrieMap::insert` replaces. More to the point, today _neither_ figure is dropped: both are held
+and both are drawn, and a single-valued map drops one whichever way it is spelled. **A map does not
+reproduce today's behavior; it turns a question the rule never answered into a silent choice.** What
+the rule never answered is whether one identity may name two figures at all, and §7 takes that up as
+a separate change.
 
 **The counter that hands out identities stops being trivially copyable.** `Diagram::next` is a
 `NonZeroU32` and the rustdoc is explicit that two copies answer `add` with the same ordinal, which
@@ -264,10 +270,11 @@ is what keeps two copies from handing out one identity. Under persistence that s
 **Testing gets harder to read.** The current model's tests assert on `&Diagram` and compare with
 `==`, because a diagram is a value and equality is structural. Under persistence a test that checks
 two diagrams agree has to compare either structurally (still possible) or by pointer identity (fast,
-and true more often than it looks, which makes it a poor assertion). **The existing suite in
-`crates/monospace-diagram/src/diagram.rs` is ~4500 lines and asserts through the public API
-throughout, so this is mostly a matter of assertions staying as they are rather than a rewrite** —
-but "mostly" is doing real work in that sentence and the change should expect to touch tests.
+and true more often than it looks, which makes it a poor assertion). **The existing test module in
+`crates/monospace-diagram/src/diagram.rs` runs from its line 258 to the end of a file 4 130 lines
+long — about 3 900 of them — and asserts through the public API throughout, so this is mostly a
+matter of assertions staying as they are rather than a rewrite** — but "mostly" is doing real work
+in that sentence and the change should expect to touch tests.
 
 **Reference cycles become representable, and a leak becomes possible.** Today a shape refers to
 another by `ShapeId`, a number, so the structure cannot contain a cycle and dropping a diagram frees
@@ -280,14 +287,14 @@ introduces quietly and that shows up much later as memory that is never released
 
 Three of the costs above are cheap, one is real, and one is a genuine conflict:
 
-| Cost                               | Verdict                                                                       |
-| ---------------------------------- | ----------------------------------------------------------------------------- |
-| `!Send` on a diagram               | Free today, constrains a caller that does not exist yet                       |
-| `Clone` becomes O(1)               | Two documents change; the guarantee they state still holds                    |
-| Tests comparing diagrams           | Mostly unchanged; expect to touch assertions                                  |
-| Cycles become representable        | Not possible today, since references are numbers                              |
-| `Remove` becomes the worst case    | Real: the cheapest operation becomes the most expensive                       |
-| Two figures may share one identity | **Amended by §6: a map keeps the first, which is what `get` already returns** |
+| Cost                               | Verdict                                                                                                                                  |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `!Send` on a diagram               | Free today, constrains a caller that does not exist yet                                                                                  |
+| `Clone` becomes O(1)               | Two documents change; the guarantee they state still holds                                                                               |
+| Tests comparing diagrams           | Mostly unchanged; expect to touch assertions                                                                                             |
+| Cycles become representable        | Not possible today, since references are numbers                                                                                         |
+| `Remove` becomes the worst case    | Real: the cheapest operation becomes the most expensive                                                                                  |
+| Two figures may share one identity | **Real, and unchanged: a map holds one figure per identity, and which of the two survives is decided by the spelling, not by the model** |
 
 And the alternative is not "do nothing": `docs/editing-model.md` §8 holds open _How many steps a
 session keeps_, and **bounding the history is a one-line change that caps the linear term at
@@ -353,14 +360,24 @@ deliberately** — both are arguments for `rpds`, and neither is a technical dis
 
 ### What a library does not decide
 
-**The `add_under` conflict is smaller than §5 said, and this corrects it.** §5 called it a conflict
-between the model and a map, on the grounds that a map cannot hold two figures under one identity.
-**Measured: `Diagram::get` on an identity carried twice returns the first of the two**, because
-`find` is `iter().position(..)` and `position` stops at the first match. A map built with
-`entry().or_insert()` reproduces that behavior exactly, and neither `HashMap` nor `HashTrieMap` has
-to be told anything the crate does not already do. **So the rule survives a map; what survives is
-its odd half — that the second figure is unreachable by identity, and already was.** §5's summary
-table is amended accordingly and §7 returns to where that half belongs.
+**The `add_under` conflict is not smaller than §5 said, and this corrects this section's own first
+draft.** §5 called it a conflict between the model and a map, on the grounds that a map cannot hold
+two figures under one identity. This section first answered that the conflict was smaller: §6
+measured that `Diagram::get` on an identity carried twice returns the first of the two, because
+`find` is `iter().position(..)` and `position` stops at the first match, so a map built with
+`entry().or_insert()` would reproduce today's behavior exactly.
+
+**Measured: both halves of that are wrong, and the second one costs a figure.** `get` answering with
+the first figure is not the same claim as a map keeping the first figure, and **nothing in the crate
+decides which spelling to write: `rpds::HashTrieMap::insert` replaces, so the obvious spelling keeps
+the last figure and drops the first.** Whichever of the two spellings is chosen, a single-valued map
+drops one of the two figures — and today neither is dropped, because both are held and both are
+drawn. **A map therefore does not reproduce today's behavior; it makes a choice explicit, and the
+choice is a rule about a diagram that nobody has taken.**
+
+What does survive is the narrower half §7 names, and it survives under every option measured: the
+second figure is unreachable by identity, and already was. §5's summary table is amended accordingly
+and §7 returns to where that half belongs.
 
 **A dependency is a permanent answer to a question that has not been asked yet.** `CONTRIBUTING.md`
 requires asking the maintainer, and this is the ask. A persistent diagram is a hypothetical — §5's
@@ -479,10 +496,15 @@ an argument for making the diagram persistent.
 
 `add_under` permits two figures under one identity, and §6 measured that `get` returns the first and
 ignores the second — **which means the second figure is currently unreachable by identity while
-still being drawn.** That is true today, with a `Vec`, and it is true of all four options above. It
-is not a consequence of any of them, so it should not wait for one: it is a question about
-`docs/diagram-model.md`'s ownership section, and it is the one item in this document that is a
-finding about the model rather than about its cost.
+still being drawn.** That is true today, with a `Vec`, and the unreachable half is true of all four
+options above. **Under any of them that holds a map, the second figure also stops being drawn,
+because a map drops one of the two** — and §6 corrects its own first draft on which one.
+
+**So the model has not answered two questions here, not one.** Whether one identity may name two
+figures at all, and if it may not, what a diagram says when a caller names one twice. Neither is a
+consequence of any of the four options, so neither should wait for one: both are questions about
+`docs/diagram-model.md`, and together they are the one item in this document that is a finding about
+the model rather than about its cost.
 
 ## 8. The decision, as the measurements leave it
 
@@ -515,8 +537,16 @@ more.
 ### What would change this recommendation
 
 The recommendation is a reading of measurements taken on one machine, one diagram shape and one
-session length. Four things would move it, and they are worth stating so that a later reader knows
+session length. Five things would move it, and they are worth stating so that a later reader knows
 what to re-measure:
+
+- **A reason to hold a diagram persistently that is not its memory.** This document ranks the four
+  options by what they cost to be wrong about, and the last row is marked _Yes_ because persistence
+  is the only one that asks the model a question. **A change may still take that row while reading
+  the memory figures as the least of its reasons** — an immutable diagram is a discipline a caller
+  can be held to, and a discipline is not measured in bytes. What that does not do is make the other
+  three rows wrong: bounding the history, indexing the order and interning the strings remain
+  independent, and interning remains the cheapest per unit of risk.
 
 - **A diagram of real size.** 300 shapes is a guess. §5 measured drawing at 1200 shapes and found
   11.6 ms, which is the number that would start to matter, and this document did not measure the
@@ -534,9 +564,10 @@ what to re-measure:
 
 **The `add_under` finding is independent of all four options and should not wait for one.** §6
 measured that a second figure under a live identity is unreachable by identity while still being
-drawn, and that is true today with a `Vec`. It is a question about `docs/diagram-model.md` §8
-_Ownership_, it is worth an issue on its own, and every one of the four options above would have to
-be written against whatever that issue decides.
+drawn, and that is true today with a `Vec`; under a map it is also no longer drawn, because a map
+drops one of the two. It is a question about `docs/diagram-model.md` §3 _Identity_, it is worth an
+issue on its own, and every one of the four options above would have to be written against whatever
+that issue decides.
 
 **Interning is the cheapest of the four per unit of risk, and it was measured least.** Its figure is
 a `size_of` calculation rather than an allocation count, and it introduces a catalog whose lifetime
@@ -585,15 +616,16 @@ less memory.
   what would change it, and that is a recommendation to weigh rather than a decision taken.**
 - **Whether persistence is compatible with the model.** §5 works through what it reaches, and one of
   the six items there is a conflict rather than a cost: `add_under` holds that two figures may share
-  one identity. **§6 measured that a map reproduces `get`'s existing behavior on a doubled identity,
-  so that conflict is smaller than §5 stated and the summary table above is amended.** What a
-  persistent diagram still reaches is §5's `Clone` paragraph, the meaning of a diagram as a value,
-  and `!Send` on a caller that does not exist yet. **This is a change with a decision to agree
-  before any code is written, and it wants a branch of its own.**
-- **Whether a second figure under a live identity should be reachable at all.** §7 measured that it
-  is not, today and under every option considered here, while still being drawn. That is a question
-  about `docs/diagram-model.md` §8 _Ownership_ rather than about any of these costs, and **it is the
-  one finding here that does not depend on a decision nobody has taken.**
+  one identity. **§6 first measured that conflict away and then took the measurement back: a map
+  holds one figure per identity, which of the two survives is decided by the spelling rather than by
+  the model, and today both figures are held and both are drawn.** The conflict is the size §5 said
+  it was. What a persistent diagram still reaches is §5's `Clone` paragraph, the meaning of a
+  diagram as a value, and `!Send` on a caller that does not exist yet. **This is a change with a
+  decision to agree before any code is written, and it wants a branch of its own.**
+- **Whether one identity may name two figures at all.** §7 measured that the second is unreachable
+  today and under every option considered here, while still being drawn. That is a question about
+  `docs/diagram-model.md` §3 _Identity_ rather than about any of these costs, and **it is the one
+  finding here that does not depend on a decision nobody has taken.**
 - **How much of the cost the renderer bears.** The diagram and the session are measured here, and §5
   measures drawing, but a `Buffer` and the glyph catalogue are not — and a diagram drawn at every
   event is a separate question from a diagram held.
