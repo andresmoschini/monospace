@@ -139,6 +139,7 @@ rule any file depends on.
 | `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.     |
 | `docs/glyph-sets.md`           | The glyph tables and how they degrade.                        |
 | `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.  |
+| `docs/memory-cost.md`          | What a diagram and a session cost, measured. Decides nothing. |
 | `docs/workflow.md`             | Why the process works the way it does, written at length.     |
 | `specs/`                       | One spec per change that had a decision to agree first.       |
 
