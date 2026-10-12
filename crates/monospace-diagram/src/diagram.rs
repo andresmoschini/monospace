@@ -16,19 +16,19 @@
 
 use std::num::NonZeroU32;
 
-use imbl::{HashMap, Vector};
 use monospace_core::{Buffer, Layer, ShapeId, StampMode};
+use rpds::{HashTrieMap, Vector};
 
 use crate::Shape;
 
 /// A diagram: an ordered set of shapes, and nothing else — no buffer, no glyph catalog, no
 /// rendered picture.
 ///
-/// **The figures are held apart from the order that draws them.** A [`HashMap`] from an identity to
-/// a figure says which figure answers to a name, and a [`Vec`] of identities says which of them
-/// draws first; neither says anything the other cannot, and a caller naming a shape almost always
-/// means the first while rendering means the second. Every method that names a shape by identity is
-/// a lookup rather than a scan, and the drawing walks the order alone.
+/// **The figures are held apart from the order that draws them.** A [`HashTrieMap`] from an identity
+/// to a figure says which figure answers to a name, and a [`Vector`] of identities says which of
+/// them draws first; neither says anything the other cannot, and a caller naming a shape almost
+/// always means the first while rendering means the second. Every method that names a shape by
+/// identity is a lookup rather than a scan, and the drawing walks the order alone.
 ///
 /// **It is `Clone`, because a diagram is a value and copying one is not sharing anything.** Every
 /// field is copied — the figures under the identities they were added with, the order, and the
@@ -49,7 +49,7 @@ pub struct Diagram {
     /// The figures this diagram holds, each under the identity it was added with. A figure is here
     /// exactly once whatever place the order gives it, so two `add_under` calls carrying one
     /// identity leave one figure and not two.
-    shapes: HashMap<ShapeId, Shape>,
+    shapes: HashTrieMap<ShapeId, Shape>,
     /// The order the shapes draw in, written as the identities themselves. The **last** element is
     /// the front of the order: it is drawn first and decides a shared cell before anything behind
     /// it. Nothing here says which figure a name belongs to — that is the map's, and every read of
@@ -68,7 +68,7 @@ impl Default for Diagram {
     /// the `0` a zeroed field gives, and this slice changed what that field means.
     fn default() -> Self {
         Self {
-            shapes: HashMap::new(),
+            shapes: HashTrieMap::new(),
             order: Vector::new(),
             next_id: NonZeroU32::MIN,
         }
@@ -91,7 +91,7 @@ impl Diagram {
     #[must_use]
     pub fn numbered_from(next_id: NonZeroU32) -> Self {
         Self {
-            shapes: HashMap::new(),
+            shapes: HashTrieMap::new(),
             order: Vector::new(),
             next_id,
         }
@@ -118,12 +118,9 @@ impl Diagram {
             panic!("a diagram has issued every ordinal a u32 can hold, and {id} was the last one")
         });
 
-        let mut order = self.order.clone();
-        order.push_back(id);
-
         let next = Self {
-            shapes: self.shapes.update(id, shape),
-            order,
+            shapes: self.shapes.insert(id, shape),
+            order: self.order.push_back(id),
             next_id,
         };
 
@@ -145,12 +142,9 @@ impl Diagram {
     /// way any more.
     #[must_use]
     pub fn add_under(&self, id: ShapeId, shape: Shape) -> Self {
-        let mut order = self.order.clone();
-        order.push_back(id);
-
         Self {
-            shapes: self.shapes.update(id, shape),
-            order,
+            shapes: self.shapes.insert(id, shape),
+            order: self.order.push_back(id),
             next_id: self.next_id,
         }
     }
@@ -168,30 +162,59 @@ impl Diagram {
         self.order.iter().position(|held| *held == id)
     }
 
+    /// The order with the places `a` and `b` exchanged, or the order unchanged when either place
+    /// does not stand.
+    ///
+    /// **The order is written twice rather than swapped once**, because `rpds`' `Vector` offers a
+    /// setter per place and no swap: two `set` calls, each sharing everything outside the place it
+    /// writes, against a `swap` on a copy nobody was holding. The order this diagram keeps is never
+    /// the one being written.
+    fn order_swapped(&self, a: usize, b: usize) -> Vector<ShapeId> {
+        let (Some(at_a), Some(at_b)) = (self.order.get(a).copied(), self.order.get(b).copied())
+        else {
+            return self.order.clone();
+        };
+
+        self.order
+            .set(a, at_b)
+            .and_then(|order| order.set(b, at_a))
+            .unwrap_or_else(|| self.order.clone())
+    }
+
     /// Moves the shape named by `id` one place toward the front of the order. Does nothing when
     /// `id` names no shape here, or when it is already the front-most.
     #[must_use]
     pub fn forward(&self, id: ShapeId) -> Self {
-        let mut next = self.clone();
-        if let Some(index) = self.find(id)
-            && index + 1 < next.order.len()
-        {
-            next.order.swap(index, index + 1);
+        let Some(index) = self.find(id) else {
+            return self.clone();
+        };
+        if index + 1 >= self.order.len() {
+            return self.clone();
         }
-        next
+
+        Self {
+            shapes: self.shapes.clone(),
+            order: self.order_swapped(index, index + 1),
+            next_id: self.next_id,
+        }
     }
 
     /// Moves the shape named by `id` one place toward the back of the order. Does nothing when
     /// `id` names no shape here, or when it is already the back-most.
     #[must_use]
     pub fn backward(&self, id: ShapeId) -> Self {
-        let mut next = self.clone();
-        if let Some(index) = next.find(id)
-            && index > 0
-        {
-            next.order.swap(index, index - 1);
+        let Some(index) = self.find(id) else {
+            return self.clone();
+        };
+        if index == 0 {
+            return self.clone();
         }
-        next
+
+        Self {
+            shapes: self.shapes.clone(),
+            order: self.order_swapped(index, index - 1),
+            next_id: self.next_id,
+        }
     }
 
     /// The figure named by `id`, or `None` when this diagram holds no such shape.
@@ -240,18 +263,27 @@ impl Diagram {
             return self.clone();
         }
 
-        let mut shapes = self.shapes.clone();
-        for (held, shape) in &self.shapes {
-            if let Some(frozen) = shape.with_frozen_references(id, self) {
-                shapes = shapes.update(*held, frozen);
-            }
-        }
+        // The freezing is a fold rather than a loop over a mutable copy: every write is an
+        // `insert` handing back a map, so nothing here is written into either.
+        let shapes = (&self.shapes).into_iter().fold(
+            self.shapes.clone(),
+            |shapes, (held, shape)| match shape.with_frozen_references(id, self) {
+                Some(frozen) => shapes.insert(*held, frozen),
+                None => shapes,
+            },
+        );
 
-        let mut order = self.order.clone();
-        order.retain(|held| *held != id);
+        // The order is built again rather than kept, because `rpds`' `Vector` keeps only the places
+        // it has and has no way of dropping the one it does not want.
+        let order = self
+            .order
+            .iter()
+            .copied()
+            .filter(|held| *held != id)
+            .collect();
 
         Self {
-            shapes: shapes.without(&id),
+            shapes: shapes.remove(&id),
             order,
             next_id: self.next_id,
         }
@@ -275,7 +307,7 @@ impl Diagram {
         }
 
         Self {
-            shapes: self.shapes.update(id, shape),
+            shapes: self.shapes.insert(id, shape),
             order: self.order.clone(),
             next_id: self.next_id,
         }
