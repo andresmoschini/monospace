@@ -3,6 +3,7 @@
 //! [`docs/editing-model.md`](../../../docs/editing-model.md).
 
 use monospace_diagram::Diagram;
+use rpds::Vector;
 
 use crate::{Command, Step};
 
@@ -67,7 +68,14 @@ pub struct Session {
     /// the state the session hands out and the step ahead of it is what a command starting from
     /// here would put behind. The state before the first command is not here, and `position == 0`
     /// is what says so.
-    steps: Vec<Step>,
+    ///
+    /// Held in the same persistent sequence the diagram holds its shapes in, and it is a
+    /// [`Vector`] rather than a `Vec` for the reason that costs something: a session holds one
+    /// history and hands it out step by step, so nothing is shared between two copies of it, and a
+    /// `Vec` would do the same work with a shorter reach. What it does buy is that dropping the
+    /// steps ahead of the position does not move the steps behind it — see
+    /// [`perform`](Session::perform), which is where that is paid for.
+    steps: Vector<Step>,
 
     /// How many of `steps` are behind the state the session hands out.
     position: usize,
@@ -84,7 +92,7 @@ impl Session {
     pub fn new(initial_diagram: Diagram) -> Session {
         Self {
             initial_diagram,
-            steps: Vec::new(),
+            steps: Vector::new(),
             position: 0,
         }
     }
@@ -98,7 +106,7 @@ impl Session {
     /// diagram like any other: changeable, free of the session and unconnected to it.
     #[must_use]
     pub fn diagram(&self) -> &Diagram {
-        let behind = self.steps.get(..self.position).and_then(<[Step]>::last);
+        let behind = self.position.checked_sub(1).and_then(|i| self.steps.get(i));
         behind.map_or(&self.initial_diagram, |step| &step.diagram)
     }
 
@@ -182,8 +190,15 @@ impl Session {
     /// than it needed to be.
     pub fn perform(&mut self, command: Command) {
         let made = command.apply_to(self.diagram());
-        self.steps.truncate(self.position);
-        self.steps.push(Step::new(command, made));
+        // **Dropping the steps ahead is a rewrite rather than one call**, because `rpds::Vector`
+        // offers `drop_last_mut` and no way to say "keep the first n". Each dropped step is one
+        // step nobody asked to keep, so the walk is over the same elements a truncation would have
+        // released, and it stops at the position — which is what makes the history a line rather
+        // than a tree.
+        while self.steps.len() > self.position {
+            self.steps.drop_last_mut();
+        }
+        self.steps.push_back_mut(Step::new(command, made));
         self.position += 1;
     }
 }
