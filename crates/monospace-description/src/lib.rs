@@ -553,7 +553,7 @@ impl Description {
     fn into_diagram(self) -> Diagram {
         let mut diagram = Diagram::numbered_from(self.next_id);
         for shape in self.shapes {
-            diagram.add_under(shape.id(), shape.into());
+            diagram = diagram.add_under(shape.id(), shape.into());
         }
         diagram
     }

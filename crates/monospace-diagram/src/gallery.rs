@@ -280,7 +280,7 @@ fn the_three_kinds() {
     for (kind, shape) in the_kinds() {
         let label = format!("Shape::{kind} {shape:?}");
         let mut diagram = Diagram::new();
-        diagram.add(shape);
+        diagram = diagram.add(shape).0;
         let _ = writeln!(out, "{label}");
         let (picture, surface) = draw(window(7, 3), &diagram);
         for line in picture.lines() {
@@ -301,12 +301,12 @@ fn the_order_decides_a_shared_cell() {
     // drawing the two boxes as written rather than one of them drawing a second pair.
     let labelled = "[small_box(0,0,fill=░), small_box(2,1,fill=▓)]";
     let mut diagram = Diagram::new();
-    diagram.add(small_box(at(0, 0), Some("░")));
-    diagram.add(small_box(at(2, 1), Some("▓")));
+    diagram = diagram.add(small_box(at(0, 0), Some("░"))).0;
+    diagram = diagram.add(small_box(at(2, 1), Some("▓"))).0;
     let first = block(labelled, "as written", window(6, 4), &diagram);
 
     // One place toward the front, which puts `░` over `▓` and changes three cells.
-    diagram.forward(id(1));
+    diagram = diagram.forward(id(1));
     let moved = block(
         labelled,
         "1 moved one place toward the front",
@@ -326,8 +326,8 @@ fn the_order_decides_a_shared_cell() {
 fn an_arm_terminal_composes_where_a_border_is() {
     let labelled = "[small_box(0,0,no fill), arm_connector(3,1 -> 7,1)]";
     let mut diagram = Diagram::new();
-    diagram.add(small_box(at(0, 0), None));
-    diagram.add(arm_connector(at(3, 1), at(7, 1)));
+    diagram = diagram.add(small_box(at(0, 0), None)).0;
+    diagram = diagram.add(arm_connector(at(3, 1), at(7, 1))).0;
     snap(
         "an_arm_terminal_composes_where_a_border_is",
         &block(labelled, "as written", window(8, 3), &diagram),
@@ -417,9 +417,9 @@ fn hanging_connector(box_id: ShapeId) -> Shape {
 fn an_endpoint_hangs_from_a_side_and_follows_it() {
     let labelled =
         "[small_box(0,0,no fill), arm_connector(from = Reference(1, Right, offset (0,0)) -> 7,1)]";
-    let mut diagram = Diagram::new();
-    let box_id = diagram.add(small_box(at(0, 0), None));
-    diagram.add(hanging_connector(box_id));
+    let diagram = Diagram::new();
+    let (mut diagram, box_id) = diagram.add(small_box(at(0, 0), None));
+    diagram = diagram.add(hanging_connector(box_id)).0;
     let first = block(labelled, "as written", window(8, 3), &diagram);
 
     // The box moves four cells right, so its right side center moves from `{3, 1}` to `{7, 1}`
@@ -428,7 +428,7 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
         .get(box_id)
         .expect("the box is in the diagram")
         .displaced_by(Delta { dx: 4, dy: 0 });
-    diagram.replace(box_id, moved);
+    diagram = diagram.replace(box_id, moved);
     let second = block(
         labelled,
         "the box displaced four cells right",
@@ -448,14 +448,14 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
     // nothing at all — degenerate in the same way the second block above is, one step further
     // along. Reaching the arrangement as written is also what keeps the third block comparable with
     // the first: the two differ by the one displacement between them and by nothing else.
-    let mut from_as_written = Diagram::new();
-    let second_box_id = from_as_written.add(small_box(at(0, 0), None));
-    let arrow_id = from_as_written.add(hanging_connector(second_box_id));
+    let from_as_written = Diagram::new();
+    let (from_as_written, second_box_id) = from_as_written.add(small_box(at(0, 0), None));
+    let (mut from_as_written, arrow_id) = from_as_written.add(hanging_connector(second_box_id));
     let moved_arrow = from_as_written
         .get(arrow_id)
         .expect("the connector is in the diagram")
         .displaced_by(Delta { dx: 0, dy: 2 });
-    from_as_written.replace(arrow_id, moved_arrow);
+    from_as_written = from_as_written.replace(arrow_id, moved_arrow);
 
     // **`window(8, 4)`, and the fourth row is the reason.** The displaced connector lands on the
     // fourth row, so a three-row window would clip it out entirely and the block would measure to
@@ -481,10 +481,11 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
     // because a displacement lands the connector lower; a removal lands nothing, so a window of
     // `window(8, 4)` comes back with a fourth row of **nothing** in it. A snapshot that grew a
     // fourth empty row is therefore the signature here of a window widened for no reason.
-    let mut with_the_box_taken_out = Diagram::new();
-    let the_removed = with_the_box_taken_out.add(small_box(at(0, 0), None));
-    with_the_box_taken_out.add(hanging_connector(the_removed));
-    with_the_box_taken_out.remove(the_removed);
+    let with_the_box_taken_out = Diagram::new();
+    let (mut with_the_box_taken_out, the_removed) =
+        with_the_box_taken_out.add(small_box(at(0, 0), None));
+    with_the_box_taken_out = with_the_box_taken_out.add(hanging_connector(the_removed)).0;
+    with_the_box_taken_out = with_the_box_taken_out.remove(the_removed);
     let fourth = block(
         labelled,
         "the box taken out",

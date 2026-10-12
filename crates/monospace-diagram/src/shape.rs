@@ -426,9 +426,9 @@ mod tests {
     /// theirs.
     #[test]
     fn a_figure_holding_no_reference_answers_nothing_and_one_holding_one_freezes() {
-        let mut beside = Diagram::new();
-        let named = beside.add(box_at(0));
-        let another = beside.add(box_at(8));
+        let beside = Diagram::new();
+        let (beside, named) = beside.add(box_at(0));
+        let (beside, another) = beside.add(box_at(8));
 
         // The two kinds that cannot hold a reference today, the connector holding none, and the
         // connector naming a figure that is not the one it is asked about.
@@ -486,7 +486,7 @@ mod tests {
     fn draw(shapes: Vec<Shape>) -> Buffer {
         let mut diagram = Diagram::new();
         for shape in shapes {
-            diagram.add(shape);
+            diagram = diagram.add(shape).0;
         }
         let mut buffer = Buffer::new(ORIGIN, WINDOW);
         diagram.draw(&mut buffer);

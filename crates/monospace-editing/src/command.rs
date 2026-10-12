@@ -72,7 +72,7 @@ impl Command {
     /// longer than it needed to be.
     pub fn perform(&self, session: &mut Session) {
         session.record(self.clone());
-        self.apply_to(&mut session.diagram);
+        session.diagram = self.apply_to(&session.diagram);
     }
 
     /// The one of the diagram's five operations this command is, carried out on `diagram`.
@@ -82,15 +82,16 @@ impl Command {
     /// else is logic that is subtly wrong in four different ways when each caller writes it. Every
     /// operation is the diagram's and unchanged, and a command that changed the diagram by any
     /// other way is not a command.
-    fn apply_to(&self, diagram: &mut Diagram) {
+    fn apply_to(&self, diagram: &Diagram) -> Diagram {
         match *self {
             Self::Move { id, by } => {
                 // Read, then write, so the figure's own displacement decides what goes back: a
                 // delta of nothing gives back the same figure, and `replace` on an identity this
                 // diagram does not hold changes nothing.
                 if let Some(moved) = diagram.get(id).map(|shape| shape.displaced_by(by)) {
-                    diagram.replace(id, moved);
+                    return diagram.replace(id, moved);
                 }
+                diagram.clone()
             }
             Self::Hang { id, from, anchor } => {
                 // **Only the end's position changes.** The way it leaves and the terminal it
@@ -121,7 +122,9 @@ impl Command {
                             to,
                             stroke,
                         },
-                    );
+                    )
+                } else {
+                    diagram.clone()
                 }
             }
             Self::Forward { id } => diagram.forward(id),
