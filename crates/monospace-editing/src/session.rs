@@ -5,16 +5,26 @@
 use monospace_diagram::Diagram;
 use rpds::Vector;
 
-use crate::{Command, Step};
+use crate::{Command, Step, utilities::kept_first};
 
 /// A diagram being edited, the steps behind and ahead of it, and a position among them.
 ///
-/// **The diagram is a field of its own and nothing hands it out mutably.** No method here returns
-/// `&mut Diagram` and none returns a `Diagram` either, so a caller has no way to change what a
-/// session owns except by performing a command against it, and no second way to say what
-/// [`diagram`](Session::diagram) already says. The claim is about the public surface, and the field
-/// below is private and written once: a command changes the diagram by way of the steps, never by
-/// way of the field.
+/// **Nothing here changes a session, and the type system says so rather than a rule this file
+/// keeps.** No method takes `&mut self`: every one of them is asked over `&self` and hands a new
+/// [`Session`] back, so a caller that forgets to keep what it was given changes nothing and a
+/// caller that keeps it still cannot have changed this one. **The guarantee §4 of the model makes —
+/// the diagram a session owns is changed through the session and nowhere else — is what the absence
+/// of a `&mut self` anywhere in this surface means**, and it is a stronger answer than the one a
+/// private field was: nothing in this crate can break it, because there is no borrow that would
+/// let it. The field below is private and written once on top of that: a command changes the
+/// diagram by way of the steps, never by way of the field.
+///
+/// **What a session is made of is shareable, and the sharing is what pays for the copies.** Two
+/// sessions standing at different positions in the same history hold the same `Vector<Step>` nodes
+/// and the same `Diagram`s inside them, and a new one costs a new position and at most a new
+/// leaf. Nothing in the layer needs two sessions at once today — the demonstration walks one — but
+/// this is the property a caller gets for free the first time one does, and it is why the steps
+/// are a persistent sequence and not a `Vec`.
 ///
 /// **The field holds the diagram the session was created over, and the steps hold every state after
 /// it.** A step is the diagram a command *left*, so the state before the first command is the one
@@ -24,7 +34,7 @@ use crate::{Command, Step};
 /// of steps", and each of them held once.
 ///
 /// **Giving a step back moves the position and changes nothing else.** [`undo`](Session::undo) and
-/// [`redo`](Session::redo) are one line each for that reason, and neither removes a step or
+/// [`redo`](Session::redo) are one expression each for that reason, and neither removes a step or
 /// rebuilds a diagram: the state that comes back is the state that was there, kept since the command
 /// that made it. Nothing is inverted, and every step stays where it is while the history walks over
 /// them, which is what makes the walk go both ways.
@@ -38,8 +48,8 @@ use crate::{Command, Step};
 ///
 /// # The absence, shown rather than described
 ///
-/// The rule that no method here hands out a mutable diagram is held by nothing in this file, so it
-/// is worth one documentation example that says it out loud: everything up to the last line compiles, and the
+/// The rule that nothing here changes a session is held by nothing in this file, so it is worth one
+/// documentation example that says it out loud: everything up to the last line compiles, and the
 /// last line is a method this crate does not have.
 ///
 /// ```compile_fail
@@ -47,11 +57,12 @@ use crate::{Command, Step};
 /// use monospace_diagram::Diagram;
 /// use monospace_editing::Session;
 ///
-/// let mut session = Session::new(Diagram::new());
+/// let session = Session::new(Diagram::new());
 /// session.diagram().draw(&mut Buffer::new(Pos { x: 0, y: 0 }, Size { width: 1, height: 1 }));
 ///
 /// session.diagram_mut();
 /// ```
+#[derive(Clone)]
 pub struct Session {
     /// The diagram this session was created over, and the one it hands out until a command has been
     /// carried out.
@@ -69,12 +80,9 @@ pub struct Session {
     /// here would put behind. The state before the first command is not here, and `position == 0`
     /// is what says so.
     ///
-    /// Held in the same persistent sequence the diagram holds its shapes in, and it is a
-    /// [`Vector`] rather than a `Vec` for the reason that costs something: a session holds one
-    /// history and hands it out step by step, so nothing is shared between two copies of it, and a
-    /// `Vec` would do the same work with a shorter reach. What it does buy is that dropping the
-    /// steps ahead of the position does not move the steps behind it — see
-    /// [`perform`](Session::perform), which is where that is paid for.
+    /// Held in the same persistent sequence the diagram holds its shapes in, so two sessions
+    /// standing at different positions in one history are sharing it rather than copying it — see
+    /// [`perform`](Session::perform), which is the one place it is written to.
     steps: Vector<Step>,
 
     /// How many of `steps` are behind the state the session hands out.
@@ -89,7 +97,7 @@ impl Session {
     /// from is not asked and not refused**: a diagram is a value and any of them can be opened,
     /// which §8 of the model lists as deliberately unresolved rather than as missing.
     #[must_use]
-    pub fn new(initial_diagram: Diagram) -> Session {
+    pub fn new(initial_diagram: Diagram) -> Self {
         Self {
             initial_diagram,
             steps: Vector::new(),
@@ -128,41 +136,63 @@ impl Session {
         self.position < self.steps.len()
     }
 
-    /// Gives the step behind the position back: the diagram it holds is what this session holds
-    /// again.
+    /// Gives the step behind the position back: the diagram it holds is what the session this
+    /// returns holds again.
     ///
-    /// **At the oldest position there is nothing behind, and nothing is given back.** No error, no
-    /// report and no panic, which is the answer the diagram gives a figure it does not hold and
-    /// the reason `can_undo` is asked rather than a result waited for.
-    pub fn undo(&mut self) {
-        if self.can_undo() {
-            self.position -= 1;
+    /// **Nothing here is changed, and the same is true of [`redo`](Session::redo) and
+    /// [`perform`](Session::perform).** What comes back is a session standing one place earlier over
+    /// the same steps, which is a new position rather than a new history: every step is the node
+    /// this one was holding, and no diagram is copied. **At the oldest position there is nothing
+    /// behind, and what comes back is this session unchanged** — no error, no report and no panic,
+    /// which is the answer the diagram gives a figure it does not hold and the reason `can_undo` is
+    /// asked rather than a result waited for.
+    #[must_use]
+    pub fn undo(&self) -> Self {
+        if !self.can_undo() {
+            return self.clone();
+        }
+
+        Self {
+            initial_diagram: self.initial_diagram.clone(),
+            steps: self.steps.clone(),
+            position: self.position - 1,
         }
     }
 
-    /// Carries the step ahead of the position out again: the diagram it holds is what this
-    /// session holds again.
+    /// Carries the step ahead of the position out again: the diagram it holds is what the session
+    /// this returns holds again.
     ///
-    /// **At the newest position there is nothing ahead, and nothing is carried out.** The same
-    /// silence as [`undo`](Session::undo) in the other direction, and asked about by
+    /// **This session is not changed**, for the reason [`undo`](Session::undo) gives. **At the
+    /// newest position there is nothing ahead, and what comes back is this session unchanged** — the
+    /// same silence in the other direction, and asked about by
     /// [`can_redo`](Session::can_redo) rather than waited for.
-    pub fn redo(&mut self) {
-        if self.can_redo() {
-            self.position += 1;
+    #[must_use]
+    pub fn redo(&self) -> Self {
+        if !self.can_redo() {
+            return self.clone();
+        }
+
+        Self {
+            initial_diagram: self.initial_diagram.clone(),
+            steps: self.steps.clone(),
+            position: self.position + 1,
         }
     }
 
     /// Carries out `command` against the diagram this session holds: records what the command
-    /// leaves behind as a step, and makes that what this session holds.
+    /// leaves behind as a step, and hands back a session standing over that.
     ///
-    /// **The step is taken after the command runs, and that order is what fixes what the field
-    /// holds.** A step is the diagram a command *left*, so the state the first command found is the
-    /// one state no step holds, and it is the field — which is why nothing writes the field again,
-    /// and why the diagram in hand is either the field or a step and never a third thing. **The
-    /// other order would work too**, and it would make the field hold the newest state rather than
-    /// the first: a field whose contents change with every command, and a newest state kept outside
-    /// the history, which is what makes the answer at the end of the history a case of its own
-    /// instead of a step like any other.
+    /// **This session is not changed, and discarding what comes back changes nothing.** That is
+    /// what keeping a session out of reach of a `&mut` buys, and it is why this is the one method
+    /// here whose result has to be kept rather than merely read.
+    ///
+    /// **The step is the diagram the command left, and that order is what fixes what the field
+    /// holds.** The state the first command found is the one state no step holds, and it is the
+    /// field — which is why nothing writes the field again, and why the diagram in hand is either
+    /// that field or a step and never a third thing. **The other order would work too**, and it
+    /// would make the field hold the newest state rather than the first: a field whose contents
+    /// change with every command, and a newest state kept outside the history, which is what makes
+    /// the answer at the end of the history a case of its own instead of a step like any other.
     ///
     /// **What the command becomes is carried out here and nowhere else.** The mapping from a
     /// meaning to one of the diagram's five operations is the one in [`Command`], and the session is
@@ -188,17 +218,16 @@ impl Session {
     /// diagram does not hold and changed nothing. The session does not know whether the caller meant
     /// to do something, and a history that skipped a step the caller took is worse than one longer
     /// than it needed to be.
-    pub fn perform(&mut self, command: Command) {
+    #[must_use]
+    pub fn perform(&self, command: Command) -> Self {
         let made = command.apply_to(self.diagram());
-        // **Dropping the steps ahead is a rewrite rather than one call**, because `rpds::Vector`
-        // offers `drop_last_mut` and no way to say "keep the first n". Each dropped step is one
-        // step nobody asked to keep, so the walk is over the same elements a truncation would have
-        // released, and it stops at the position — which is what makes the history a line rather
-        // than a tree.
-        while self.steps.len() > self.position {
-            self.steps.drop_last_mut();
+        let mut steps = kept_first(&self.steps, self.position);
+        steps.push_back_mut(Step::new(command, made));
+
+        Self {
+            initial_diagram: self.initial_diagram.clone(),
+            steps,
+            position: self.position + 1,
         }
-        self.steps.push_back_mut(Step::new(command, made));
-        self.position += 1;
     }
 }

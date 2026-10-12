@@ -18,12 +18,15 @@
 //! mapping a caller would otherwise write and get subtly wrong.
 //!
 //! **Nothing here reads a file, draws a screen or knows what is selected.** Those are layers beside
-//! this one, and the crate's `Cargo.toml` is where a reader looks to find that: it names one
-//! dependency, and that one is the diagram.
+//! this one, and the crate's `Cargo.toml` is where a reader looks to find that: it names two
+//! dependencies, and both are containers — the diagram the library is written against and the
+//! persistent sequence its steps are held in. Neither is a file, a terminal or a selection, so
+//! none of the three is reachable from a session.
 
 mod command;
 mod session;
 mod step;
+mod utilities;
 
 pub use command::Command;
 pub use session::Session;

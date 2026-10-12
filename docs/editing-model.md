@@ -101,10 +101,27 @@ this layer can group two commands into one step is not a license for it to chang
 
 A session's diagram is held in a field of its own or in a step of the history, and the only thing
 that changes it is a command the session was given. **No method of a session hands out a
-`&mut Diagram`.** That is the whole enforcement, and it is worth being exact about how thin it is:
-it is one field and one absence. A single method returning `&mut Diagram` would void it, and nothing
-would fail — the session would keep recording faithfully while a caller changed its diagram behind
-it, which is the one failure this layer exists to make impossible.
+`&mut Diagram`, and no method of a session takes a `&mut Session` at all.** Every method is asked
+over `&self` and hands a new session back, so there is no borrow a caller could be given that would
+let it change one in place.
+
+**That is the enforcement, and it is worth being exact about how it works now.** A `&mut Diagram`
+anywhere in the surface would be the old thin version of this rule — one field and one absence,
+voidable by a method returning a mutable reference, with nothing failing when it was. The absence of
+a `&mut self` is not that: a caller cannot reach a session's internals because the type hands out no
+route to them, and the one failure this layer exists to make impossible — a session recording
+faithfully while a caller changes its diagram behind it — has no spelling left in this crate. The
+price is that a caller has to keep what it is given: discarding the result of `perform` changes
+nothing at all, which is a warning rather than a failure, and a warning the surface cannot make for
+a caller who wrote `let _ =`.
+
+**A session is a value in the same way a diagram is, and it is asked the same way.** `Diagram` hands
+back a new diagram from every one of its operations rather than changing the one it was given, and a
+session over a diagram does the same. **What it buys is shareable history**: two sessions standing
+at different positions in one history hold the same steps and the same diagrams, and a new one costs
+a new position and at most a new leaf. What it costs is one node split per operation, which is why
+this is written down rather than assumed — the layer has no caller that keeps two sessions yet, and
+the first one that does is what settles whether the persistent sequence earns its keep.
 
 **This is a claim about one diagram, not about diagrams.** `monospace-diagram` keeps its whole
 public API, and every one of its five operations stays as usable as it is today by anything that
@@ -150,7 +167,9 @@ worse than one longer than it needed to be.
 **Giving a step back restores the diagram it holds, whole.** Nothing is computed and nothing is
 inverted: the step carries the state, and undo is that state becoming the diagram again. The diagram
 gives back its five operations for callers that hold one of their own; it is not what a session
-undoes, and asking it to would be asking the value to remember.
+undoes, and asking it to would be asking the value to remember. **What comes back is a session
+standing one place earlier over the same steps** — a new position rather than a new history, and no
+diagram copied to produce it.
 
 **The history is linear.** A session at a position has steps behind it and steps ahead of it, and
 giving a step back moves the position rather than removing anything. A command carried out while the
