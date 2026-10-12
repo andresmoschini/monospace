@@ -14,44 +14,47 @@
 //! direction is available and produces the same buffer; what it carries is not appearance but
 //! ownership, because which figure reaches a position first is what decides the cell it decides.
 
+use std::collections::HashMap;
 use std::num::NonZeroU32;
 
 use monospace_core::{Buffer, Layer, ShapeId, StampMode};
 
 use crate::Shape;
 
-/// One entry of a diagram's order: a shape and the identity the diagram gave it.
-///
-/// `Clone` is derived and never read here; it exists because the diagram beside it can be copied and
-/// a hand-written copy of one entry would say nothing the derive does not.
-#[derive(Clone)]
-struct Placed {
-    id: ShapeId,
-    shape: Shape,
-}
-
 /// A diagram: an ordered set of shapes, and nothing else — no buffer, no glyph catalog, no
 /// rendered picture.
 ///
+/// **The figures are held apart from the order that draws them.** A [`HashMap`] from an identity to
+/// a figure says which figure answers to a name, and a [`Vec`] of identities says which of them
+/// draws first; neither says anything the other cannot, and a caller naming a shape almost always
+/// means the first while rendering means the second. Every method that names a shape by identity is
+/// a lookup rather than a scan, and the drawing walks the order alone.
+///
 /// **It is `Clone`, because a diagram is a value and copying one is not sharing anything.** Every
-/// field is copied — the order, each figure with the identity the diagram gave it, and the ordinal
-/// the next `add` will take — so a copy is held, drawn, changed and dropped without the first
-/// knowing it exists: there is no identity counter behind it and nothing inside it refers to
+/// field is copied — the figures under the identities they were added with, the order, and the
+/// ordinal the next `add` will take — so a copy is held, drawn, changed and dropped without the
+/// first knowing it exists: there is no identity counter behind it and nothing inside it refers to
 /// anything outside it. Nothing was reachable by reference before this, so nothing is by alias
 /// after it.
 ///
 /// The copy answers `add` with the ordinal the original would have answered, which is what keeps
 /// two copies from handing out one identity. They are then two diagrams that both hold shapes
-/// under names that may coincide, and `add_under` already says that two entries under one identity
-/// are held and are not an error.
+/// under identities that may coincide, and `add_under` already says what one of them does to the
+/// figure already there.
 ///
 /// It is `Clone` and not `Copy`: a diagram is as likely to be as long as it is wide, and a copy of
 /// every figure is not a copy of nothing.
 #[derive(Clone)]
 pub struct Diagram {
-    /// The order the shapes draw in. The **last** element is the front of the order: it is drawn
-    /// first and decides a shared cell before anything behind it.
-    shapes: Vec<Placed>,
+    /// The figures this diagram holds, each under the identity it was added with. A figure is here
+    /// exactly once whatever place the order gives it, so two `add_under` calls carrying one
+    /// identity leave one figure and not two.
+    shapes: HashMap<ShapeId, Shape>,
+    /// The order the shapes draw in, written as the identities themselves. The **last** element is
+    /// the front of the order: it is drawn first and decides a shared cell before anything behind
+    /// it. Nothing here says which figure a name belongs to — that is the map's, and every read of
+    /// this goes through it.
+    order: Vec<ShapeId>,
     /// The ordinal the next `add` takes. It is the ordinal itself rather than the last one issued,
     /// so seeding it is a plain assignment and no public method carries a subtraction. It is a
     /// [`NonZeroU32`] rather than a `u32` because zero is not an identity, so a counter that could
@@ -65,7 +68,8 @@ impl Default for Diagram {
     /// the `0` a zeroed field gives, and this slice changed what that field means.
     fn default() -> Self {
         Self {
-            shapes: Vec::new(),
+            shapes: HashMap::new(),
+            order: Vec::new(),
             next: NonZeroU32::MIN,
         }
     }
@@ -87,7 +91,8 @@ impl Diagram {
     #[must_use]
     pub fn numbered_from(next: NonZeroU32) -> Self {
         Self {
-            shapes: Vec::new(),
+            shapes: HashMap::new(),
+            order: Vec::new(),
             next,
         }
     }
@@ -111,38 +116,49 @@ impl Diagram {
         self.next = self.next.checked_add(1).unwrap_or_else(|| {
             panic!("a diagram has issued every ordinal a u32 can hold, and {id} was the last one")
         });
-        self.shapes.push(Placed { id, shape });
+        self.shapes.insert(id, shape);
+        self.order.push(id);
         id
     }
 
     /// Puts `shape` at the front of the order, under the identity `id`.
     ///
-    /// `add` with the caller's identity in place of the diagram's, and it hands back nothing: two
-    /// shapes may carry one identity, both are held, and neither is an error. It does **not** touch
-    /// the counter, so on a diagram numbered from 3 the next `add` is still handed `4` whatever a
-    /// caller writes here.
+    /// `add` with the caller's identity in place of the diagram's, and it hands back nothing: it
+    /// does **not** touch the counter, so on a diagram numbered from 3 the next `add` is still
+    /// handed `4` whatever a caller writes here.
+    ///
+    /// **A figure already held under `id` is replaced by this one.** The map holds one figure per
+    /// identity, so the second shape takes the first's place and is what `get` answers with from
+    /// then on — but the **order keeps both places**, because the order is a sequence of identities
+    /// and this call only ever adds to it. A diagram asked to draw draws the second figure twice,
+    /// in the two places the identity stands in, and a diagram that names `id` names the second
+    /// figure. Two figures under one identity used to be held side by side; they are not held that
+    /// way any more.
     pub fn add_under(&mut self, id: ShapeId, shape: Shape) {
-        self.shapes.push(Placed { id, shape });
+        self.shapes.insert(id, shape);
+        self.order.push(id);
     }
 
     /// The place in the order the shape named by `id` stands, or `None` when this diagram holds
     /// no such shape.
     ///
-    /// The one search every method naming a shape by its identity goes through. `ShapeId`s are
-    /// compared by value, so an identity issued by another diagram is a well-formed value that
-    /// matches nothing here — the same answer the model's _Positions_ gives a reference to a shape
-    /// that is not there.
+    /// The one search every method naming a shape by its identity goes through, and it is a scan
+    /// of the **order** rather than of the figures: which place an identity stands in is a
+    /// question about the order, and the map answers no position at all. `ShapeId`s are compared
+    /// by value, so an identity issued by another diagram is a well-formed value that matches
+    /// nothing here — the same answer the model's _Positions_ gives a reference to a shape that is
+    /// not there.
     fn find(&self, id: ShapeId) -> Option<usize> {
-        self.shapes.iter().position(|placed| placed.id == id)
+        self.order.iter().position(|held| *held == id)
     }
 
     /// Moves the shape named by `id` one place toward the front of the order. Does nothing when
     /// `id` names no shape here, or when it is already the front-most.
     pub fn forward(&mut self, id: ShapeId) {
         if let Some(index) = self.find(id)
-            && index + 1 < self.shapes.len()
+            && index + 1 < self.order.len()
         {
-            self.shapes.swap(index, index + 1);
+            self.order.swap(index, index + 1);
         }
     }
 
@@ -152,7 +168,7 @@ impl Diagram {
         if let Some(index) = self.find(id)
             && index > 0
         {
-            self.shapes.swap(index, index - 1);
+            self.order.swap(index, index - 1);
         }
     }
 
@@ -167,7 +183,7 @@ impl Diagram {
     /// than inside the figure, so nothing about what is returned says where it sits.
     #[must_use]
     pub fn get(&self, id: ShapeId) -> Option<&Shape> {
-        self.find(id).map(|index| &self.shapes[index].shape)
+        self.shapes.get(&id)
     }
 
     /// Takes the shape named by `id` out of the diagram, and freezes what hung from it.
@@ -188,29 +204,40 @@ impl Diagram {
     /// panic, which is the same answer the model's _Positions_ gives a reference to a shape that is
     /// not there. The gap is closed, so what remains of the order keeps the order it had.
     ///
+    /// **The identity leaves the order everywhere it stood, not once.** The map held one figure for
+    /// it and that figure is gone, so every place the order names it is a place with nothing to
+    /// draw; leaving one behind would draw nothing at that place and still count it as part of the
+    /// order, which is a gap in the order rather than a closed one.
+    ///
     /// It hands back nothing. There is no history and nothing to undo, so putting a figure back
     /// means building it again. The counter is not touched either, so an identity is never handed
     /// out a second time and a put-back is `add_under` with the identity the caller kept.
     pub fn remove(&mut self, id: ShapeId) {
-        // Read before the loop and still valid after it: the loop changes no figure's identity and
-        // no figure's place in the order, only the positions inside one of them.
-        let Some(index) = self.find(id) else {
+        if !self.shapes.contains_key(&id) {
             return;
-        };
+        }
 
-        // **Indexed rather than iterated**, because a `&mut Shape` cannot be held across a call that
-        // wants the diagram: `for placed in &mut self.shapes` writing `placed.shape` inside is a
-        // borrow error. Ending the borrow on each statement is enough, so this is one pass and
-        // nothing is collected. Nothing excludes the figure being removed from the loop — it is
-        // rewritten and dropped a line later, and excluding it would cost a comparison to buy
-        // nothing.
-        for at in 0..self.shapes.len() {
-            if let Some(shape) = self.shapes[at].shape.with_frozen_references(id, self) {
-                self.shapes[at].shape = shape;
+        // **Keyed rather than iterated**, because a `&mut Shape` cannot be held across a call that
+        // wants the diagram: the freeze reads the figure to rewrite it and asks the diagram for the
+        // anchor of the shape being removed, and a borrow held across it would be the borrow of the
+        // thing the call wants. Collecting the identities first is what ends the borrow on each
+        // statement, so this is one pass and nothing is collected beyond the keys. Nothing excludes
+        // the figure being removed from the loop — it is rewritten and dropped a line later, and
+        // excluding it would cost a comparison to buy nothing.
+        //
+        // The walk is over the figures and not over the order, so the order is not disturbed by it,
+        // and the order it is left in is the one the caller can reason about. Which figure is frozen
+        // first does not matter: a freeze rewrites only the references naming the removed shape and
+        // resolves each one to a number before the next figure is asked, so no figure's answer
+        // depends on another's.
+        for held in self.shapes.keys().copied().collect::<Vec<_>>() {
+            if let Some(shape) = self.shapes[&held].with_frozen_references(id, self) {
+                self.shapes.insert(held, shape);
             }
         }
 
-        self.shapes.remove(index);
+        self.shapes.remove(&id);
+        self.order.retain(|held| *held != id);
     }
 
     /// Puts `shape` where the shape named by `id` stands, in the same place in the order.
@@ -221,11 +248,12 @@ impl Diagram {
     /// line, with nothing of the previous figure surviving it.
     ///
     /// An identity this diagram does not hold changes nothing, and the shape handed in is not
-    /// added either, so there is no way to name a shape into existence. It takes the shape by
-    /// value and hands back nothing, for the reason [`Diagram::remove`] does.
+    /// added either — the replacement is written into the map **only where an identity is already
+    /// there**, so there is still no way to name a shape into existence. It takes the shape by value
+    /// and hands back nothing, for the reason [`Diagram::remove`] does.
     pub fn replace(&mut self, id: ShapeId, shape: Shape) {
-        if let Some(index) = self.find(id) {
-            self.shapes[index].shape = shape;
+        if self.shapes.contains_key(&id) {
+            self.shapes.insert(id, shape);
         }
     }
 
@@ -247,9 +275,12 @@ impl Diagram {
     /// drawing rather than of the diagram, which is why changing the diagram changes nothing about a
     /// buffer already drawn.
     pub fn draw(&self, buffer: &mut Buffer) {
-        for placed in self.shapes.iter().rev() {
-            let mut layer = Layer::stamped_by(buffer, StampMode::Below, placed.id);
-            placed.shape.draw(&mut layer, self);
+        for id in self.order.iter().rev() {
+            let Some(shape) = self.shapes.get(id) else {
+                continue;
+            };
+            let mut layer = Layer::stamped_by(buffer, StampMode::Below, *id);
+            shape.draw(&mut layer, self);
         }
     }
 }
@@ -496,30 +527,36 @@ mod tests {
         );
     }
 
-    /// Two shapes carrying one identity both record it, exactly as `get` cannot tell them apart.
+    /// One identity holds **one** shape: a second `add_under` carrying an identity the diagram
+    /// already holds replaces the figure, and the order keeps **both** places that identity stood
+    /// in — so the replacement is drawn twice, and the figure it replaced is drawn nowhere.
     ///
     /// **Two boxes far enough apart to share no cell**, so every owner in the window is one figure's
-    /// and the two records are each wholly one identity. An identity issued by `add` is checked for
-    /// uniqueness and one supplied through `add_under` is not, so the record has no way to hold the
-    /// two apart either — and refusing the second stamp instead would leave a cell the diagram
-    /// plainly drew unowned, which is a worse answer than an ambiguous one.
+    /// and "which of the two is on the screen" is a claim about the picture rather than about an
+    /// overlap. An identity issued by `add` is checked for uniqueness and one supplied through
+    /// `add_under` is not, and now the two cannot collide at all rather than merely being
+    /// indistinguishable — the record holds one identity because there is one figure to record.
+    ///
+    /// TODO: this reverses a decision already taken — §3 _Identity_ says "two shapes may carry one,
+    /// both are held, and the second is a shape no identity names until the first is removed", and
+    /// two tests pinned it. Whether one identity may hold two figures is a rule about a diagram and
+    /// it is now settled by which structure the diagram happens to use. It has to be decided, and
+    /// the model amended in the same increment that decides it.
     #[test]
-    fn two_shapes_carrying_one_identity_both_record_it_as_get_cannot_tell_them_apart() {
+    fn a_second_shape_under_one_identity_replaces_the_first_and_keeps_both_its_places() {
         let shared = identity(1);
+        let a_box_at = |x: i32| Shape::Box {
+            at: Pos { x, y: 0 },
+            size: Size {
+                width: 2,
+                height: 2,
+            },
+            stroke: light(),
+            fill: None,
+        };
         let mut diagram = Diagram::new();
         for x in [0, 4] {
-            diagram.add_under(
-                shared,
-                Shape::Box {
-                    at: Pos { x, y: 0 },
-                    size: Size {
-                        width: 2,
-                        height: 2,
-                    },
-                    stroke: light(),
-                    fill: None,
-                },
-            );
+            diagram.add_under(shared, a_box_at(x));
         }
 
         let origin = Pos { x: 0, y: 0 };
@@ -530,32 +567,46 @@ mod tests {
         let mut buffer = Buffer::new(origin, size);
         diagram.draw(&mut buffer);
 
-        // `get` answers with the first of the two and there is no listing that would name the
-        // second, which is the whole of what "cannot tell them apart" means here.
+        // `get` answers with the second of the two, which is the one the diagram kept, and there is
+        // no listing that would name the other — which is now not a limitation but the whole of it.
         assert!(
-            matches!(diagram.get(shared), Some(Shape::Box { at, .. }) if *at == Pos { x: 0, y: 0 }),
-            "get answers with the first of the two shapes sharing the identity"
+            matches!(diagram.get(shared), Some(Shape::Box { at, .. }) if *at == Pos { x: 4, y: 0 }),
+            "get answers with the second of the two shapes added under the identity"
         );
 
-        for offset in [
-            Offset { x: 0, y: 0 },
-            Offset { x: 1, y: 1 },
-            Offset { x: 4, y: 0 },
-            Offset { x: 5, y: 1 },
-        ] {
+        // What is on the screen is the one figure, and where it stands: nothing of the figure the
+        // second replaced is left anywhere, so the picture is the one a diagram holding only that
+        // box draws.
+        assert_eq!(
+            cells(&buffer, origin, size),
+            cells(&drawn(vec![a_box_at(4)], origin, size), origin, size),
+            "the identity stands twice in the order and the figure is one, so the second box is \
+             drawn twice and the first is not drawn at all"
+        );
+
+        for offset in [Offset { x: 4, y: 0 }, Offset { x: 5, y: 1 }] {
             assert_eq!(
                 buffer.owner(offset),
                 Some(shared),
-                "both shapes recorded the one identity they carry, at ({}, {})",
+                "every cell the surviving figure wrote carries the one identity it is held under, at \
+                 ({}, {})",
                 offset.x,
                 offset.y
             );
         }
-        assert_eq!(
-            buffer.owner(Offset { x: 2, y: 0 }),
-            None,
-            "and a position neither shape wrote is owned by nobody"
-        );
+        for offset in [
+            Offset { x: 0, y: 0 },
+            Offset { x: 1, y: 1 },
+            Offset { x: 2, y: 0 },
+        ] {
+            assert_eq!(
+                buffer.owner(offset),
+                None,
+                "the figure that was replaced wrote nothing, at ({}, {})",
+                offset.x,
+                offset.y
+            );
+        }
     }
 
     /// Scenario 3: an empty diagram leaves its buffer exactly as it was.
@@ -934,12 +985,6 @@ mod tests {
     /// a counter that advanced by two would hand back `5`; neither is what `3` says happened. The
     /// second `add` then shows the advance itself: the counter's own ordinals are consecutive, which
     /// is the whole of what "the numbering resumes" means.
-    ///
-    /// **And the accepted cost, which is the other half of this rule's neighborhood**: two shapes
-    /// under one identity are both held and `get` returns the first, so the second is a shape no
-    /// ordinal names until the first is taken out. Pinned as a **behavior rather than a bug**, so a
-    /// later slice that decides to report it has to say so rather than discover it. An ordinal is no
-    /// more unique than the name it replaced, and nothing here checks it either way.
     #[test]
     fn a_diagram_issues_the_counter_and_a_shape_added_under_a_callers_identity_does_not_move_it() {
         let a_box = || Shape::Box {
@@ -963,17 +1008,50 @@ mod tests {
             "4",
             "the counter advanced by one, and the caller's 7 is not in the way"
         );
+    }
 
-        // Two shapes under one identity are both held, and `get` returns the first — the second is
-        // a shape nobody can name until the first is taken out.
+    /// A second shape under an identity the diagram already holds **replaces** the first, and taking
+    /// the identity out takes that one out: there is no shape underneath waiting to be named.
+    ///
+    /// **Both directions of the same rule, because only one of them would pass by accident.** The
+    /// first is the replacement and the second is what `remove` finds — a diagram that still held
+    /// both would answer the first assertion and fail the second, and one that held neither would
+    /// fail both.
+    ///
+    /// The boxes are told apart by their **fill**, so "the second replaced the first" is a claim
+    /// about which figure `get` names rather than about a value that cannot tell them apart.
+    ///
+    /// TODO: this reverses a decision already taken — §3 _Identity_ says "two shapes may carry one,
+    /// both are held, and the second is a shape no identity names until the first is removed", and
+    /// that sentence was pinned here as **an accepted cost rather than a bug**. It is now the other
+    /// way round: the second is the only one held, and the first is a shape no identity names and
+    /// no method can reach. Whether the rule is one figure per identity or several is a question
+    /// about a diagram, and the storage answered it by accident.
+    #[test]
+    fn a_repeated_identity_holds_the_shape_added_last_and_removing_it_leaves_nothing_behind() {
+        let a_box_filled_with = |fill: &'static str| Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new(fill).expect("one grapheme cluster")),
+        };
+
         let mut repeated = Diagram::new();
-        repeated.add_under(identity(1), a_box());
-        repeated.add_under(identity(1), a_box());
-        assert!(matches!(repeated.get(identity(1)), Some(Shape::Box { .. })));
+        repeated.add_under(identity(1), a_box_filled_with("░"));
+        repeated.add_under(identity(1), a_box_filled_with("▓"));
+        assert_eq!(
+            repeated.get(identity(1)),
+            Some(&a_box_filled_with("▓")),
+            "the second shape added under an identity is the one the diagram holds"
+        );
+
         repeated.remove(identity(1));
         assert!(
-            matches!(repeated.get(identity(1)), Some(Shape::Box { .. })),
-            "the second shape under a repeated identity is still there after the first is taken out"
+            repeated.get(identity(1)).is_none(),
+            "taking the identity out takes the one shape it held, and there is no second one under it"
         );
     }
 
@@ -3196,29 +3274,29 @@ mod tests {
         );
     }
 
-    /// The three routes that reached **one** picture byte for byte reach **three** now, and the
-    /// taken-out one is the odd one out — its arrow is still there.
+    /// The three routes reach **three** pictures, and the reason is **not** the freeze any more: the
+    /// counter issues the identity the caller had already chosen, so two of the three diagrams lost
+    /// the figure they were built around before anything was removed.
     ///
-    /// **One test rather than three, and the reason is the specification's:** the taken-out route is
-    /// compared against **both** of the others and against neither, and only one place can ask that.
-    /// Separately, each is a claim about a diagram, and the claim here is about the difference
-    /// between two of them.
+    /// **The issued identity is `1` in all three diagrams**, because `add` starts at `1` and the
+    /// caller's own `add_under(identity(1), …)` does not move the counter — so the box the last `add`
+    /// issued lands **on** the figure the hanging connector names, and that figure is not held
+    /// afterwards. It is the same collision as the repeated-identity case and the same one the model
+    /// does not mention: the counter issues an ordinal a caller is free to have chosen already.
     ///
-    /// The still-held route's picture is **equal to the never-added route's**, byte for byte, and
-    /// that pair is the control which says the third is what moved. It is reached by holding the two
-    /// routes' diagrams to the same shape — the figure that answers no side sits under `1` in one
-    /// and under `2` in the other, and the hanging connector names `1` in both — so the two differ
-    /// by **which identity** the figure stands under and by nothing else. A reference naming a
-    /// figure that answers no side resolves to nothing, which is exactly the answer it gives an
-    /// identity that was never there, and the freeze changed nothing about that: it rewrites a
-    /// reference whose subject has just been removed, and this one names an identity nothing ever
-    /// held, which no removal created and so no removal repairs.
+    /// **Each diagram is held against what it actually holds, and those three expectations are the
+    /// claim.** `held` draws the unrelated box and nothing else — the figure answering no side was
+    /// replaced before the drawing, so there is no connector on the screen to say anything about a
+    /// freeze. `never` differs from it by exactly the figure under `2`, which the issued `1` could
+    /// not reach. `out` is the only one carrying an arrow, and it carries it at the point the box's
+    /// side was, because it is the only route where the figure was there to be removed.
     ///
-    /// **Asserted as whole buffers rather than as a count of differing cells**, because the routes
-    /// differ everywhere the arrow stood and a count would not say where — which is the whole of
-    /// what §11's second question used to ask.
+    /// TODO: this test used to be the control for the freeze — the never-added and the still-held
+    /// routes were one picture, and the taken-out one was the odd one out — and it stopped being that
+    /// without the freeze changing at all. Both the collision (an issued identity replacing a
+    /// caller's figure) and the replacement rule it leans on are decisions nobody took.
     #[test]
-    fn the_three_routes_to_one_picture_are_not_one_picture_now() {
+    fn the_three_routes_are_three_pictures_because_an_issued_identity_replaces_a_caller_figure() {
         let (origin, size) = the_window();
         let nothing = Delta { dx: 0, dy: 0 };
         let the_far_end = Pos { x: 8, y: 1 };
@@ -3252,32 +3330,58 @@ mod tests {
         held_and_answering_none.add(hanging_from(identity(1), nothing, the_far_end));
         held_and_answering_none.add(the_unrelated_box());
 
+        // **The pin that says why.** The counter issued `1` to the box, so `1` names the box and the
+        // hanging connector under it is not a figure this diagram holds — read before the pictures,
+        // because a picture on its own cannot say which of the two is missing and why.
+        assert_eq!(
+            never_added.get(identity(1)),
+            Some(&the_unrelated_box()),
+            "the identity the caller chose is the one the counter issued, so the box is what the \
+             diagram holds under it"
+        );
+
         let never = draw_of(&never_added, origin, size);
         let out = draw_of(&taken_out, origin, size);
         let held = draw_of(&held_and_answering_none, origin, size);
 
+        // The still-held route holds the figure answering no side **under `1`**, and the issued box
+        // took that identity: what is left is the box and nothing else.
         assert_eq!(
-            cells(&never, origin, size),
             cells(&held, origin, size),
-            "the control moved: the never-added and the still-held routes were one picture before \
-             the freeze and are not one now"
-        );
-        assert_ne!(
-            cells(&never, origin, size),
-            cells(&out, origin, size),
-            "the taken-out route draws the same picture as a reference to an identity that was never \
-             there, so nothing was frozen"
-        );
-        assert_ne!(
-            cells(&held, origin, size),
-            cells(&out, origin, size),
-            "the freeze reached a figure that answers no side, which it must not"
+            cells(
+                &drawn(vec![the_unrelated_box()], origin, size),
+                origin,
+                size
+            ),
+            "the figure answering no side was replaced by the box the counter issued, so this route \
+             draws the box alone"
         );
 
-        // And the difference is the arrow, which is the claim this test exists for: the taken-out
-        // one is the only route whose picture carries one.
-        assert!(out.cell(THE_SIDE_CENTRE).is_some());
-        assert_eq!(never.cell(THE_SIDE_CENTRE), held.cell(THE_SIDE_CENTRE));
+        // And the never-added route differs from it by exactly that figure, which stands under an
+        // identity the counter never reached.
+        assert_ne!(
+            cells(&never, origin, size),
+            cells(&held, origin, size),
+            "the figure under 2 is one the issued identity could not replace, so this route is not \
+             the one that draws the box alone"
+        );
+
+        // The taken-out route is the odd one out, and the difference is still the arrow: it is the
+        // only one whose figure was there to be removed, so it is the only one carrying one.
+        assert!(
+            out.cell(THE_SIDE_CENTRE).is_some(),
+            "the taken-out route froze an arrow onto the side the box stood on"
+        );
+        assert!(
+            never.cell(THE_SIDE_CENTRE).is_none() && held.cell(THE_SIDE_CENTRE).is_none(),
+            "and neither of the other two has anything at that cell"
+        );
+        assert_ne!(
+            cells(&out, origin, size),
+            cells(&never, origin, size),
+            "a reference to an identity the diagram holds for a figure answering no side draws \
+             nothing, and a reference to one never held draws nothing"
+        );
     }
 
     /// The specification's _Edge cases_, and **P1 applied twice rather than a cascade**: two
