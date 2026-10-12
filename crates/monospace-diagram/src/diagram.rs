@@ -20,6 +20,7 @@ use monospace_core::{Buffer, Layer, ShapeId, StampMode};
 use rpds::{HashTrieMap, Vector};
 
 use crate::Shape;
+use crate::utilities::{swapped, without};
 
 /// A diagram: an ordered set of shapes, and nothing else — no buffer, no glyph catalog, no
 /// rendered picture.
@@ -162,25 +163,6 @@ impl Diagram {
         self.order.iter().position(|held| *held == id)
     }
 
-    /// The order with the places `a` and `b` exchanged, or the order unchanged when either place
-    /// does not stand.
-    ///
-    /// **The order is written twice rather than swapped once**, because `rpds`' `Vector` offers a
-    /// setter per place and no swap: two `set` calls, each sharing everything outside the place it
-    /// writes, against a `swap` on a copy nobody was holding. The order this diagram keeps is never
-    /// the one being written.
-    fn order_swapped(&self, a: usize, b: usize) -> Vector<ShapeId> {
-        let (Some(at_a), Some(at_b)) = (self.order.get(a).copied(), self.order.get(b).copied())
-        else {
-            return self.order.clone();
-        };
-
-        self.order
-            .set(a, at_b)
-            .and_then(|order| order.set(b, at_a))
-            .unwrap_or_else(|| self.order.clone())
-    }
-
     /// Moves the shape named by `id` one place toward the front of the order. Does nothing when
     /// `id` names no shape here, or when it is already the front-most.
     #[must_use]
@@ -194,7 +176,7 @@ impl Diagram {
 
         Self {
             shapes: self.shapes.clone(),
-            order: self.order_swapped(index, index + 1),
+            order: swapped(&self.order, index, index + 1),
             next_id: self.next_id,
         }
     }
@@ -212,7 +194,7 @@ impl Diagram {
 
         Self {
             shapes: self.shapes.clone(),
-            order: self.order_swapped(index, index - 1),
+            order: swapped(&self.order, index, index - 1),
             next_id: self.next_id,
         }
     }
@@ -273,18 +255,9 @@ impl Diagram {
             },
         );
 
-        // The order is built again rather than kept, because `rpds`' `Vector` keeps only the places
-        // it has and has no way of dropping the one it does not want.
-        let order = self
-            .order
-            .iter()
-            .copied()
-            .filter(|held| *held != id)
-            .collect();
-
         Self {
             shapes: shapes.remove(&id),
-            order,
+            order: without(&self.order, &id),
             next_id: self.next_id,
         }
     }
