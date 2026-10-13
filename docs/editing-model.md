@@ -25,13 +25,13 @@ what a session is, and this layer knows nothing of it — the two hang off
 
 ## 1. Vocabulary
 
-| Term       | Meaning                                                                                   |
-| ---------- | ----------------------------------------------------------------------------------------- |
-| `Diagram`  | Shapes in an order, drawable, changeable; the source of truth, and a value                |
-| `Command`  | One thing a caller means to do to a diagram                                               |
-| `Session`  | A diagram being edited, the steps behind and ahead of it, and a position among them       |
-| `Step`     | One entry in a session's history: the diagram as it was, and the command that replaced it |
-| `Position` | How far along its history a session is; how many steps a caller may still have given back |
+| Term       | Meaning                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `Diagram`  | Shapes in an order, drawable, changeable; the source of truth, and a value                 |
+| `Command`  | One thing a caller means to do to a diagram                                                |
+| `Session`  | A diagram being edited, the steps behind and ahead of it, and a position among them        |
+| `Step`     | One entry in a session's history: the diagram as it was left, and the command that left it |
+| `Position` | How far along its history a session is; how many steps a caller may still have given back  |
 
 **A command is not one of the diagram's five changes, and the two words are kept apart on purpose.**
 A change is an operation the diagram answers to; a command is a meaning a caller means. Several
@@ -99,11 +99,11 @@ this layer can group two commands into one step is not a license for it to chang
 
 ## 4. The session owns the diagram
 
-A session's diagram is held in a field of its own or in a step of the history, and the only thing
-that changes it is a command the session was given. **No method of a session hands out a
-`&mut Diagram`, and no method of a session takes a `&mut Session` at all.** Every method is asked
-over `&self` and hands a new session back, so there is no borrow a caller could be given that would
-let it change one in place.
+A session's diagram is held in a field of its own — the one it was created over, written once in
+`new` and never again — or in a step of the history, and the only thing that changes it is a command
+the session was given. **No method of a session hands out a `&mut Diagram`, and no method of a
+session takes a `&mut Session` at all.** Every method is asked over `&self` and hands a new session
+back, so there is no borrow a caller could be given that would let it change one in place.
 
 **That is the enforcement, and it is worth being exact about how it works now.** A `&mut Diagram`
 anywhere in the surface would be the old thin version of this rule — one field and one absence,
@@ -131,8 +131,9 @@ it, which is what happens today and is not deprecated by this layer.
 
 ## 5. Steps
 
-A step is a diagram as it was, together with the command that replaced it. The session pushes one
-before it carries out a command, and the diagram it holds afterwards is the newest state there is.
+A step is a diagram as it was left, together with the command that left it. The session pushes one
+after it carries out a command, and **the one state no step holds is the diagram the session was
+created over**, which is a field of its own and is written once.
 
 **Both halves are needed, and a diagram alone cannot stand in for the other.** A diagram records
 what is true, never what was done to it — a figure dragged one cell and the same figure teleported
@@ -140,10 +141,14 @@ across the diagram differ as gestures and are identical as states — so whateve
 those apart has nothing to read in a pair of diagrams. That is what the command beside it is for,
 and it is why the command is stored rather than derived.
 
+**The state a command found is the step before it.** A step therefore says what a command produced
+rather than what it started from, and what it started from is one place further back — which is what
+makes undo a walk over the sequence rather than a subtraction from it.
+
 **One command is one step, and the session merges nothing.** A caller asks, and what it asked for is
 one thing the caller may give back. The session records and does not interpret: it holds what it was
-told and what the diagram looked like before, and it draws no conclusion from the pair. §3 says why
-that conclusion is available and _Deliberately unresolved_ says what is left to write.
+told and what the diagram looked like afterwards, and it draws no conclusion from the pair. §3 says
+why that conclusion is available and _Deliberately unresolved_ says what is left to write.
 
 **A command that names nothing is a step like any other.** The diagram's operations cannot fail, so
 a command naming a figure the diagram does not hold changes nothing — and the session records it all
@@ -154,12 +159,15 @@ worse than one longer than it needed to be.
 
 ## 6. Giving a change back
 
-**Giving a step back restores the diagram it holds, whole.** Nothing is computed and nothing is
-inverted: the step carries the state, and undo is that state becoming the diagram again. The diagram
-gives back its five operations for callers that hold one of their own; it is not what a session
-undoes, and asking it to would be asking the value to remember. **What comes back is a session
-standing one place earlier over the same steps** — a new position rather than a new history, and no
-diagram copied to produce it.
+**Giving a step back restores the state one step further back, whole.** Nothing is computed and
+nothing is inverted: the step carries the state, and undo is that state becoming the diagram again.
+**At the oldest position what comes back is not a step at all** but the diagram the session was
+created over, which is the one state the history does not hold — so the walk has one end that is a
+field rather than an entry, and a caller cannot tell the two apart from what it is handed. The
+diagram gives back its five operations for callers that hold one of their own; it is not what a
+session undoes, and asking it to would be asking the value to remember. **What comes back is a
+session standing one place earlier over the same steps** — a new position rather than a new history,
+and no diagram copied to produce it.
 
 **The history is linear.** A session at a position has steps behind it and steps ahead of it, and
 giving a step back moves the position rather than removing anything. A command carried out while the

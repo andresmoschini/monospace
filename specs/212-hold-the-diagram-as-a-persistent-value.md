@@ -291,8 +291,9 @@ written against D5's shape rather than D2's.
 9. A diagram that has no ordinal left to issue says so, rather than handing back one it has already
    handed out — including when the last ordinal is the one a figure already sits under.
 10. `undo`, `redo` and `perform` take `&self` and hand back a session; the one given is unchanged.
-11. `perform` records the step before it carries the command out, discards what was ahead of the
-    position, and adopts the state at the position — as it does today.
+11. `perform` records the diagram the command leaves as a step, discards what was ahead of the
+    position, and leaves the field alone — which holds the diagram the session was created over and
+    is written once, so the state that command found is the step before the one being written.
 12. A copy of a diagram or of a session shares every figure and every step with the original, so a
     copy is not a second copy of either and dropping it frees nothing the original holds.
 13. `Session::steps` is a `VectorSync<Step>`, and a session copied or derived shares every step with
@@ -347,7 +348,7 @@ stage is held to.
 | 8    | `what_hung_from_a_removed_figure_is_frozen_and_not_looked_for_afterwards` |
 | 9    | `a_diagram_with_no_ordinal_left_says_so_rather_than_repeating_one`        |
 | 10   | `no_session_method_changes_the_session_it_was_given`                      |
-| 11   | `a_step_is_recorded_before_the_command_it_belongs_to_is_carried_out`      |
+| 11   | `a_step_holds_the_diagram_the_command_left`                               |
 | 12   | `a_copy_of_a_diagram_is_not_a_second_copy_of_its_shapes`                  |
 | 13   | `the_history_is_a_line_a_position_cannot_disagree_with`                   |
 | 14   | `kept_first_drops_the_places_behind_the_position_and_keeps_the_rest`      |

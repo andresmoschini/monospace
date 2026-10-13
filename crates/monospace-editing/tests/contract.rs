@@ -443,13 +443,15 @@ fn two_commands_are_two_steps_and_are_never_merged() {
     );
 }
 
-/// Rule 7 — undo restores the diagram the step behind holds, whole.
+/// Rule 7 — undo restores the diagram one step back, whole.
 ///
 /// **The specification's second and third blocks.** The picture an undo produces is the one the
 /// session held before any command, byte for byte — not a reconstruction of it, and not the box
-/// put back where it was, which is what an inverted command would have had to be.
+/// put back where it was, which is what an inverted command would have had to be. **One command is
+/// what makes this the end of the history rather than the middle of it**, so what an undo reaches
+/// here is the diagram the session was created over, which is the one state no step holds.
 #[test]
-fn undo_restores_the_diagram_the_step_behind_holds() {
+fn undo_restores_the_diagram_one_step_back() {
     let mut session = Session::new(one_box(ORIGIN));
 
     session = session.perform(Command::Move {
@@ -477,7 +479,7 @@ fn undo_restores_the_diagram_the_step_behind_holds() {
 /// Rule 8 — redo restores the diagram the step ahead holds, whole.
 ///
 /// **The specification's fourth block**, which is the same picture the second one was: the step
-/// ahead holds the state the diagram had before the command, and the diagram is that state again.
+/// ahead holds the state the command left, and the diagram is that state again.
 #[test]
 fn redo_restores_the_diagram_the_step_ahead_holds() {
     let mut session = Session::new(one_box(ORIGIN));
@@ -536,20 +538,21 @@ fn redo_with_nothing_ahead_changes_nothing() {
     assert!(!session.can_redo(), "and nothing is ahead of the position");
 }
 
-/// Rule 11 of `specs/212` — a step is recorded before the command it belongs to is carried out.
+/// Rule 11 of `specs/212` — a step holds the diagram the command left.
 ///
-/// **The step is the state the command found, and giving the change back is what shows it.** A
-/// session that recorded the state the command *left* would hand back the diagram it is already
-/// holding, so an undo would change nothing a caller could see; a session that recorded the state
-/// before hands back exactly what was there. **Both directions are asserted**, because a history
-/// that kept only one of the two states satisfies either assertion alone.
+/// **The step is the state a command produced, and giving the change back is what shows it.** A
+/// session that recorded nothing but the state it was already holding would satisfy every
+/// assertion here on its own, so the ones that matter are the ones where a state is reached *from
+/// both ends*: the state the session holds, the state one give back reaches, and the state two give
+/// back reaches. **All three directions are asserted**, because a history that kept only one of the
+/// two states satisfies either assertion alone.
 ///
 /// **A second command on top of the first**, so the state the first left is what the second found
 /// and the walk back reaches three states rather than the same one twice. The deltas are four and
 /// two columns, which is why `AS_WRITTEN`, `FOUR_RIGHT` and `SIX_RIGHT` are the three pictures
 /// rather than three literals written out again.
 #[test]
-fn a_step_is_recorded_before_the_command_it_belongs_to_is_carried_out() {
+fn a_step_holds_the_diagram_the_command_left() {
     let session = Session::new(one_box(ORIGIN));
     let after_one = session.perform(Command::Move {
         id: id(1),
@@ -573,7 +576,7 @@ fn a_step_is_recorded_before_the_command_it_belongs_to_is_carried_out() {
     assert_eq!(
         picture(&after_two.undo()),
         FOUR_RIGHT,
-        "the step behind the position is the state the first command found"
+        "one give back is the state the first command left, which is the step behind the position"
     );
     assert_eq!(
         picture(&after_two.redo()),
@@ -668,8 +671,9 @@ fn the_history_is_a_line_a_position_cannot_disagree_with() {
 /// **Move, move, give one back, and move again**, which is the only way a position can be behind
 /// the end. What is held is not that `redo` is unavailable afterwards — that alone would also be
 /// true of a history truncated rather than discarded — but that **the undo out of the new command
-/// reaches the state the given-back step held and not the state the discarded one held.** The two
-/// differ by one cell, and the walk back over the discarded step would land on the wrong one.
+/// reaches the state the first move left and not the state the second one left**, which is what the
+/// discard dropped. The two differ by one cell, and the walk back over the discarded step would
+/// land on the wrong one.
 #[test]
 fn a_command_with_steps_ahead_discards_them() {
     let mut session = Session::new(one_box(ORIGIN));
@@ -688,7 +692,7 @@ fn a_command_with_steps_ahead_discards_them() {
     assert_eq!(
         picture(&session),
         FOUR_RIGHT,
-        "the given-back step holds the state the second move found"
+        "one give back is the state the first move left"
     );
 
     session = session.perform(Command::Move {
@@ -710,12 +714,12 @@ fn a_command_with_steps_ahead_discards_them() {
     assert_eq!(
         picture(&session),
         FOUR_RIGHT,
-        "one back is the state the given-back step held"
+        "one back is the state the first move left"
     );
     assert_ne!(
         picture(&session),
         ONE_RIGHT,
-        "and not the state the discarded one held, which stood one cell nearer"
+        "and not the state the discarded step held, which stood one cell nearer"
     );
 
     session = session.undo();
