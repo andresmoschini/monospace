@@ -775,6 +775,69 @@ mod tests {
     /// stands at the same point a reference to the figure would have resolved to, so the box put
     /// back draws exactly what it drew before — which is why a drawing cannot tell the two apart
     /// and only the endpoint can.
+    #[test]
+    fn what_hung_from_a_removed_figure_is_frozen_and_not_looked_for_afterwards() {
+        let (origin, size) = the_window();
+        let nothing = Delta { dx: 0, dy: 0 };
+        let the_far_end = Pos { x: 8, y: 1 };
+
+        let (diagram, box_id) = Diagram::new().add(the_box());
+        let diagram = diagram
+            .add(hanging_from(box_id, nothing, the_far_end))
+            .0
+            .add(the_unrelated_box())
+            .0;
+        let connector = identity(2);
+
+        let it_resolved_to = the_hanging_end(&diagram, connector)
+            .expect("the reference resolves while the figure it names is held")
+            .at
+            .resolve(&diagram)
+            .expect("the box answers the side it names");
+
+        let removed = diagram.remove(box_id);
+
+        // Frozen: the end is the absolute point it was resolving to, and the picture is the one
+        // the same diagram draws with that point written out and the box never there.
+        assert_eq!(
+            the_hanging_end(&removed, connector)
+                .expect("the connector is still held")
+                .at,
+            Position::from(it_resolved_to),
+            "the end is the point it was resolving to rather than the reference to a figure that is gone"
+        );
+        let written_out = Diagram::new()
+            .add(the_unrelated_box())
+            .0
+            .add(arm_connector(it_resolved_to.into(), the_far_end.into()))
+            .0;
+        assert_eq!(
+            cells(&draw_of(&removed, origin, size), origin, size),
+            cells(&draw_of(&written_out, origin, size), origin, size),
+            "and the picture is what the same figure with that point spelled out draws"
+        );
+
+        // And nothing went looking for the reference: the box put back under the identity it had
+        // does not turn the absolute point back into one.
+        let put_back = removed.add_under(box_id, the_box());
+        assert_eq!(
+            the_hanging_end(&put_back, connector)
+                .expect("the connector is still held")
+                .at,
+            Position::from(it_resolved_to),
+            "with the figure standing again the end is still the frozen point"
+        );
+        assert_ne!(
+            the_hanging_end(&put_back, connector)
+                .expect("the connector is still held")
+                .at,
+            the_hanging_end(&diagram, connector)
+                .expect("the connector is held")
+                .at,
+            "and not the reference the connector was written with"
+        );
+    }
+
     /// A shape is drawn under whatever identity it was added under, so every cell it decided is
     /// owned by it and no cell another shape decided is.
     ///
