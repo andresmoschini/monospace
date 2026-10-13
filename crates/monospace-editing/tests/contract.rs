@@ -75,9 +75,7 @@ fn small_box(at: Pos) -> Shape {
 
 /// A diagram holding one of the boxes above and nothing else, so its `add` hands back `1`.
 fn one_box(at: Pos) -> Diagram {
-    let mut diagram = Diagram::new();
-    diagram.add(small_box(at));
-    diagram
+    Diagram::new().add(small_box(at)).0
 }
 
 /// The drawing of `diagram` into a fresh window of `size`.
@@ -112,10 +110,9 @@ fn after(command: &Command) -> String {
 /// **Taken as a function rather than written out four times**, so the two sides of the comparison
 /// are the command and the operation and not a restatement of the command written in the diagram's
 /// vocabulary, which would make the test agree with itself.
-fn after_operating(on_diagram: impl FnOnce(&mut Diagram)) -> String {
-    let mut diagram = the_fixture();
-    on_diagram(&mut diagram);
-    picture_in(&diagram, FIXTURE)
+fn after_operating(on_diagram: impl FnOnce(&Diagram) -> Diagram) -> String {
+    let diagram = the_fixture();
+    picture_in(&on_diagram(&diagram), FIXTURE)
 }
 
 /// A diagram with something for every command to act on: two overlapping boxes, where the order
@@ -123,31 +120,35 @@ fn after_operating(on_diagram: impl FnOnce(&mut Diagram)) -> String {
 /// from a side shows.
 fn the_fixture() -> Diagram {
     let mut diagram = Diagram::new();
-    diagram.add(small_box(ORIGIN));
-    diagram.add(Shape::Box {
-        at: Pos { x: 2, y: 0 },
-        size: Size {
-            width: 4,
-            height: 3,
-        },
-        stroke: Stroke::from("heavy"),
-        fill: None,
-    });
-    diagram.add(Shape::Connector {
-        from: Endpoint {
-            at: Position::from(Pos { x: 0, y: 4 }),
-            leaving: Direction::Right,
-            terminal: Terminal::Arm,
-        },
-        to: Endpoint {
-            at: Position::from(Pos { x: 8, y: 4 }),
-            leaving: Direction::Left,
-            terminal: Terminal::Glyph {
-                glyph: Glyph::new("▶").expect("\"▶\" is one glyph"),
+    diagram = diagram.add(small_box(ORIGIN)).0;
+    diagram = diagram
+        .add(Shape::Box {
+            at: Pos { x: 2, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
             },
-        },
-        stroke: Stroke::from("light"),
-    });
+            stroke: Stroke::from("heavy"),
+            fill: None,
+        })
+        .0;
+    diagram = diagram
+        .add(Shape::Connector {
+            from: Endpoint {
+                at: Position::from(Pos { x: 0, y: 4 }),
+                leaving: Direction::Right,
+                terminal: Terminal::Arm,
+            },
+            to: Endpoint {
+                at: Position::from(Pos { x: 8, y: 4 }),
+                leaving: Direction::Left,
+                terminal: Terminal::Glyph {
+                    glyph: Glyph::new("▶").expect("\"▶\" is one glyph"),
+                },
+            },
+            stroke: Stroke::from("light"),
+        })
+        .0;
     diagram
 }
 
@@ -181,9 +182,7 @@ fn a_session_owns_the_diagram_it_was_created_over() {
         "a session over a diagram draws that diagram"
     );
 
-    let mut theirs = the_callers_own.clone();
-    theirs.forward(id(1));
-    theirs.remove(id(1));
+    let theirs = the_callers_own.forward(id(1)).remove(id(1));
 
     assert_ne!(
         picture_in(&theirs, EXAMPLE),
@@ -262,7 +261,9 @@ fn each_command_becomes_one_of_the_diagrams_five_operations() {
         after_operating(|diagram| {
             let moved = diagram.get(id(1)).map(|shape| shape.displaced_by(two_down));
             if let Some(moved) = moved {
-                diagram.replace(id(1), moved);
+                diagram.replace(id(1), moved)
+            } else {
+                diagram.clone()
             }
         }),
         "`Move` is `replace` with the figure displaced"
@@ -292,7 +293,9 @@ fn each_command_becomes_one_of_the_diagrams_five_operations() {
                         to,
                         stroke,
                     },
-                );
+                )
+            } else {
+                diagram.clone()
             }
         }),
         "`Hang` is `replace` with one end of the connector rebuilt"
@@ -354,11 +357,21 @@ fn no_command_reaches_the_diagram_by_another_way() {
         "the connector is still there, whatever `Hang` did to one end of it"
     );
 
-    let mut copy = diagram.clone();
+    let (copy, issued) = diagram.clone().add(an_extra_box());
     assert_eq!(
-        copy.add(an_extra_box()),
+        issued,
         id(4),
         "no command reached `add`, so the next ordinal is the one the fixture issued"
+    );
+    // And the copy is where the addition landed: a copy advances its own counter and the diagram
+    // the session hands out is not the one that was added to.
+    assert!(
+        copy.get(issued).is_some(),
+        "the copy holds the figure that was added to it"
+    );
+    assert!(
+        diagram.get(issued).is_none(),
+        "and the diagram the session hands out does not"
     );
 }
 

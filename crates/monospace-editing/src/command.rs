@@ -72,7 +72,7 @@ impl Command {
     /// longer than it needed to be.
     pub fn perform(&self, session: &mut Session) {
         session.record(self.clone());
-        self.apply_to(&mut session.diagram);
+        session.diagram = self.apply_to(&session.diagram);
     }
 
     /// The one of the diagram's five operations this command is, carried out on `diagram`.
@@ -82,14 +82,22 @@ impl Command {
     /// else is logic that is subtly wrong in four different ways when each caller writes it. Every
     /// operation is the diagram's and unchanged, and a command that changed the diagram by any
     /// other way is not a command.
-    fn apply_to(&self, diagram: &mut Diagram) {
+    ///
+    /// **It takes the diagram and hands one back rather than writing into it**, which is what every
+    /// operation of the diagram now does. A command naming a figure the diagram does not hold hands
+    /// back the diagram it was given rather than a diagram something happened to: the two are the
+    /// same, and saying so here is how a caller reads a missing figure as silence rather than as a
+    /// change.
+    fn apply_to(&self, diagram: &Diagram) -> Diagram {
         match *self {
             Self::Move { id, by } => {
                 // Read, then write, so the figure's own displacement decides what goes back: a
                 // delta of nothing gives back the same figure, and `replace` on an identity this
                 // diagram does not hold changes nothing.
                 if let Some(moved) = diagram.get(id).map(|shape| shape.displaced_by(by)) {
-                    diagram.replace(id, moved);
+                    diagram.replace(id, moved)
+                } else {
+                    diagram.clone()
                 }
             }
             Self::Hang { id, from, anchor } => {
@@ -121,7 +129,9 @@ impl Command {
                             to,
                             stroke,
                         },
-                    );
+                    )
+                } else {
+                    diagram.clone()
                 }
             }
             Self::Forward { id } => diagram.forward(id),

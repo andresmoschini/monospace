@@ -552,11 +552,11 @@ impl Description {
     ///
     /// A shape a connector names before the entry carrying it is written still resolves, because
     /// resolution happens at draw time and the whole diagram exists by then. That edge case needs
-    /// no code here; it is what a completed vector of placements means.
+    /// no code here; it is what a whole diagram exists by then means.
     fn into_diagram(self) -> Diagram {
         let mut diagram = Diagram::numbered_from(self.next_id);
         for shape in self.shapes {
-            diagram.add_under(shape.id(), shape.into());
+            diagram = diagram.add_under(shape.id(), shape.into());
         }
         diagram
     }

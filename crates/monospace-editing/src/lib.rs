@@ -4,11 +4,11 @@
 //! and [`docs/diagram-model.md`](../../../docs/diagram-model.md) is the layer below it, which this
 //! one changes nothing about.
 //!
-//! **The diagram is a value and this is not.** A diagram is constructed, drawn, copied and
-//! dropped, and its removal "hands back nothing. There is no history and nothing to undo". A
-//! caller holding a `&mut Diagram` cannot give a change back, which is what [`Session`] is for: it
-//! holds one diagram, records what each change was before it was made, and gives those back on
-//! request.
+//! **The diagram is a value and this is not.** A diagram is constructed, drawn, copied and dropped,
+//! and every one of its operations hands back a new diagram rather than changing the one it was
+//! given — there is no history in it and nothing to give back. A caller that keeps a diagram of its
+//! own cannot undo anything with it, which is what [`Session`] is for: it holds one diagram, records
+//! what each change was before it was made, and gives those back on request.
 //!
 //! **A command is a meaning and not one of the diagram's five operations.** The diagram's
 //! operations are complete and coarse at once — `replace` serves a figure displaced, a figure
