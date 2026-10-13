@@ -6,13 +6,17 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
-# One dependency, and the reading of it is the reading of the model's "nothing of a session reaches a
-# file, a screen, or what is selected": there is no crate here for a file, for a terminal or for a
-# selection, so none of the three is reachable from a session. `monospace-diagram` is the whole of
-# what the library needs, and nothing else — the commands are written against the diagram's own
-# five operations and reach nothing past them.
+# Two dependencies, and the reading of them is the reading of the model's "nothing of a session
+# reaches a file, a screen, or what is selected": there is no crate here for a file, for a terminal
+# or for a selection, so none of the three is reachable from a session. `monospace-diagram` is the
+# whole of what the library is written against - the commands are written against the diagram's own
+# five operations and reach nothing past them - and `rpds` is what the steps are held in, which is
+# the crate the diagram holds its own shapes in rather than a second kind of container. Pinned with
+# `=` as every dependency here is; 1.2.1 is published 2026-05-15, MIT, on edition 2024 with an MSRV
+# of 1.85.0, which the pinned toolchain satisfies.
 [dependencies]
 monospace-diagram.workspace = true
+rpds = "=1.2.1"
 
 # The contract tests draw a session to see what it holds, and a diagram is drawn into a buffer the
 # core owns, so this is a dev-dependency and the library never sees it — the same reach `insta` has

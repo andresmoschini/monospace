@@ -3,7 +3,9 @@
 //! [`docs/editing-model.md`](../../../docs/editing-model.md).
 
 use monospace_diagram::Diagram;
+use rpds::VectorSync;
 
+use crate::utilities::kept_first;
 use crate::{Command, Step};
 
 /// A diagram being edited, the steps behind and ahead of it, and a position among them.
@@ -39,6 +41,15 @@ use crate::{Command, Step};
 /// was ahead, which is the only end a line can discard from without changing what giving a step
 /// back means.
 ///
+/// **The steps are held in the same persistent sequence the diagram holds its figures in**, so a
+/// session standing at one place in a history shares every step with one standing at another
+/// rather than copying them — and a step is a whole diagram beside a command, which is what makes
+/// the difference between sharing and copying the difference between 949 B and 40 122 B per step.
+/// That sequence has no truncation, so what was ahead is dropped by a walk of `drop_last_mut`
+/// rather than in one step: each of those is a trie descent where a `Vec` was one, and it is paid
+/// only on the branch that carries a command out from behind the end. See `kept_first`, which is
+/// where that walk is written and tested.
+///
 /// # The absence, shown rather than described
 ///
 /// The rule that no method here hands out a mutable diagram is held by nothing in this file, so it
@@ -71,7 +82,11 @@ pub struct Session {
     /// `j` is the diagram as it was when command `j + 1` was carried out**, so the step at
     /// `position` is the state the session hands out and the step behind it is the state a
     /// command found. The newest state is not here, and `position == steps.len()` is what says so.
-    steps: Vec<Step>,
+    ///
+    /// Held in the same persistent sequence the diagram holds its figures in, so two sessions over
+    /// one history are sharing it rather than copying it — see [`record`](Session::record), which
+    /// is the one place it is written to.
+    steps: VectorSync<Step>,
 
     /// How many of `steps` are behind the state the session hands out.
     position: usize,
@@ -88,7 +103,7 @@ impl Session {
     pub fn new(diagram: Diagram) -> Session {
         Self {
             diagram,
-            steps: Vec::new(),
+            steps: VectorSync::new_sync(),
             position: 0,
         }
     }
@@ -163,7 +178,9 @@ impl Session {
     /// its keep when a state somebody discarded is worth returning to, and nothing here says one
     /// is: a caller that moves on from a state it gave back has said the state was not worth
     /// keeping. What would reopen it is the first caller that wants one back, and §6 of the model
-    /// says so.
+    /// says so. **It is `kept_first` rather than a `Vec::truncate`**, because the sequence holding
+    /// the steps is not one that can be truncated in place; the walk is where the cost of that
+    /// choice is written down rather than paid silently in this method.
     ///
     /// **It is recorded whether or not the command changes anything**, including a command naming
     /// a figure this diagram does not hold. The session does not know whether the caller meant to
@@ -171,8 +188,9 @@ impl Session {
     /// than it needed to be.
     pub(crate) fn record(&mut self, command: Command) {
         let found = self.diagram().clone();
-        self.steps.truncate(self.position);
-        self.steps.push(Step::new(command, found.clone()));
+        let mut steps = kept_first(&self.steps, self.position);
+        steps.push_back_mut(Step::new(command, found.clone()));
+        self.steps = steps;
         self.diagram = found;
         self.position += 1;
     }

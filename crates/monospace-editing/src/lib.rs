@@ -24,6 +24,7 @@
 mod command;
 mod session;
 mod step;
+mod utilities;
 
 pub use command::Command;
 pub use session::Session;
