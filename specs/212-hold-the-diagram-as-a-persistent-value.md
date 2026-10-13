@@ -7,14 +7,16 @@ date: 2026-10-12
 
 ## Why now
 
-`docs/memory-cost.md` §8 measures four ways to answer what a session costs, ranks them by what they
-cost to be wrong about, and marks the persistent one _Yes_ — because it is the only one that asks
-the model a question. Its fifth bullet under _What would change this recommendation_ now names the
-case that changed it: **a reason to hold a diagram persistently that is not its memory.** An
-immutable diagram is a discipline a caller can be held to, and the application coming in
+**A diagram should be a value, and a session's memory should be proportional to what changed rather
+than to the diagram.** Those are one reason, not two, and they are why `docs/memory-cost.md` §8's
+ranking, which puts persistence last and marks it _Yes_ because it is the only option that asks the
+model a question, is not the ranking this change follows. **What the discipline buys is the shape of
+the API; what it costs is measured — 40 122 B per command today against 949 B.** Neither half stands
+without the other, which is the point: a caller held to an immutable diagram is held to one whose
+copy is cheap, and a cheap copy nobody can be held to is a session that grows by 570 times the
+diagram for every thousand commands. The application coming in
 [#174](https://github.com/andresmoschini/monospace/issues/174) through
-[#181](https://github.com/andresmoschini/monospace/issues/181) is a caller that would rather be held
-to it than hold it.
+[#181](https://github.com/andresmoschini/monospace/issues/181) is the caller both halves are for.
 
 **The prototype already exists and it is green.** `spike/rpds` holds the diagram in `rpds`'s
 `HashTrieMap<ShapeId, Shape>` and `Vector<ShapeId>`, changes every operation to take `&self` and
@@ -50,7 +52,8 @@ the one case where a picture does move and says plainly why the other two are no
   rewrites `rpds::Vector` does not have, and the module is where they are written once.
 - `crates/monospace-diagram/Cargo.toml`: `rpds`, pinned.
 - `crates/monospace-editing`: `Command::apply_to` returns a diagram rather than writing into one;
-  `Command::perform`, `Session::undo` and `Session::redo` take `&self` and hand back a new session.
+  `Command::perform`, `Session::undo` and `Session::redo` take `&self` and hand back a new session;
+  `steps` becomes a `VectorSync<Step>`; and `Cargo.toml` gains `rpds` as a direct dependency.
 - `crates/monospace-description`: `into_diagram` rebinds instead of writing into a diagram it holds.
 - Rustdoc that describes a diagram as a thing a caller edits: `monospace-editing/src/lib.rs`,
   `session.rs`, `gallery.rs`, and one paragraph of `monospace-description/src/lib.rs`.
@@ -118,20 +121,37 @@ reported rather than stepped over is asking for a report this crate has nowhere 
 could not draw. **What it settles elsewhere:** it is the repair
 `crates/monospace-description/src/lib.rs:531` already names and leaves to this crate.
 
-**D4 — `rpds`, pinned, in its non-sync flavour; `!Send` accepted and named.**
+**D4 — `rpds`, pinned, in its sync flavour; a diagram stays `Send`.**
 
-**Answer:** `rpds = "=1.2.1"` in `crates/monospace-diagram/Cargo.toml`. **Why not** the hand-rolled
-trie `docs/memory-cost.md` §4 measured: §7 measured it as less legible than the scan it replaces,
-and §6 measured `rpds` doing the same job for 24% less memory per step — 949 B against 1 248 B —
-which is the honest answer to _should we write our own_. **Why not** `im`: its last release predates
-edition 2024, and MPL-2.0+ is a license a maintainer has to accept deliberately rather than by
-default. **Why not** the sync flavour: `Arc` instead of `Rc` costs on every node and buys a caller
-this repository does not have — nothing in `crates/` uses a thread, and a terminal application is
-one event loop. **What it costs:** a diagram is `!Send` and `!Sync`, permanently unless a later
-change says otherwise, and `Clone` becomes O(1) rather than a deep copy — which two documents state
-today and both are amended. **Reported as the rule requires:** `rpds` 1.2.1, published 2026-05-15,
-MIT, edition 2024, MSRV 1.85.0, which the pinned toolchain satisfies; it builds for
-`wasm32-unknown-unknown` and the gate's `wasm` step covers it.
+**Answer:** `rpds = "=1.2.1"` in `crates/monospace-diagram/Cargo.toml`, with
+`HashTrieMapSync<ShapeId, Shape>` and `VectorSync<ShapeId>`. **Why not** the hand-rolled trie
+`docs/memory-cost.md` §4 measured: §7 measured it as less legible than the scan it replaces, and §6
+measured `rpds` doing the same job for 24% less memory per step — 949 B against 1 248 B — which is
+the honest answer to _should we write our own_. **Why not** `im`: its last release predates edition
+2024, and MPL-2.0+ is a license a maintainer has to accept deliberately rather than by default.
+**Why not** the default non-sync flavour, which is the cheaper of the two on paper: **measured, the
+two differ by about 1% of what a command costs today.** `rpds` ships a `Sync` twin of every one of
+its eight types, and the only difference in memory is none at all — `AtomicUsize` and `Cell<usize>`
+are the same width, so a node is the same size either way. The time difference is one atomic
+refcount per node touched: on the same 300-figure diagram and 1000 commands, 4 922 ns against 6 028
+ns per command, 1 776 ns against 3 066 ns per `forward`, and no measurable difference on a lookup.
+`docs/memory-cost.md` §3 puts today's command at 78.7–127.0 µs, so ~1.1 µs is ~1% of it. **Why
+`Sync` rather than `Rc`:** §8 of that document names the condition that turns `!Send` from a cost
+into a blocker — a decision to render on a background thread — and §5 measures a draw at 11.6 ms for
+1200 figures, which is a frame that would block input. **What it costs:** `Clone` becomes O(1)
+rather than a deep copy — which two documents state today and both are amended — and every node
+touched pays an atomic. **What reopens it:** the 73% a `forward` pays is the one figure worth
+watching, and it is named in the probe below rather than guessed at. **Reported as the rule
+requires:** `rpds` 1.2.1, published 2026-05-15, MIT, edition 2024, MSRV 1.85.0, which the pinned
+toolchain satisfies; it builds for `wasm32-unknown-unknown` and the gate's `wasm` step covers it.
+
+**The measurement is reproducible and lives outside the repository**, at
+`C:\Users\amoschini\AppData\Local\Temp\opencode\rpds-sync-probe`, beside the reading copy of #210.
+It is a throwaway crate path-depending on nothing but `rpds`, built on `docs/memory-cost.md`'s
+method and for the same reason: a counting global allocator over `std::alloc::System`, and a diagram
+stood up from fixed 120-byte figures. **Its absolute figures are not comparable to that document's**
+— the harness differs and it measures storage alone, not `Command::apply_to` or `Session::record` —
+so it answers the flavour question and nothing else.
 
 **D5 — the session is a value too: `undo`, `redo` and `perform` take `&self` and hand back a new
 one.**
@@ -142,17 +162,28 @@ central claim today is that nothing changes a session's diagram except a command
 `redo` are `&mut self` — so the session is currently the one mutable value in a crate built to have
 none, and D5 with `perform` left alone would teach exactly the wrong lesson to the caller it is for.
 **Why not** the whole crate: `Diagram` is already a value on this change, and a caller that can copy
-a session cheaply and then mutate it in place is the hole this closes. **What it costs:** the
-`compile_fail` example in `session.rs` stops being load-bearing, because there is nothing left to
-expose — it stays anyway, and says so.
+a session cheaply and then mutate it in place is the hole this closes. **Why not** leaving `undo`
+and `redo` as they are: they are `&mut self` today and change nothing but an integer, which is
+already the update TEA asks for in everything but signature. **What it costs:** the `compile_fail`
+example in `session.rs` stops being load-bearing, because there is nothing left to expose — it stays
+anyway, and says so. **What D6 is why:** the cost of this decision is exactly what D6 settles.
 
-**D6 — `Session::steps` stays a `Vec`.**
+**D6 — `Session::steps` is a `VectorSync`, because D5 would otherwise make `undo` linear.**
 
-**Answer:** unchanged. **Why not** a persistent vector: the history is a line with a `truncate` and
-a `push`, not a structure two snapshots share, and the expensive part of a step — the diagram — is
-already shared by D1 and D2. **Why not** two stacks of steps rather than one line: `position` is an
-offset into one line precisely so it cannot disagree with either end, and a pair of stacks is the
-tree this model declined.
+**Answer:** `steps: VectorSync<Step>`, and `Vec::truncate` becomes a `push_back` on the whole
+history when the position is at its end. **Why:** `undo` today is one line that decrements an
+integer. Under D5 it builds a new session, and a new session needs a new history — so with a `Vec`
+that is a copy of every step, O(history), for a change of one. `Step` is a `Command` at 16 bytes (§2
+of that document) beside a `Diagram`, so a thousand steps is roughly 70 KB copied per undo and a
+history ten times that is ten times more. **D1 and D2 remove the linear term from the diagram and D5
+puts it back in the history; this is what stops that.** **Why not** a `Stack`, which has O(1) `push`
+and `pop`: it has no access by index, and `Session::diagram()` reads the step at the position on
+every repaint. **Why not** `rpds`' two structures for the diagram in one: the history is a line and
+the position is an offset into that line precisely so it cannot disagree with either end, and a pair
+of stacks is the tree this model declined. **What it costs:** `rpds` becomes a direct dependency of
+`monospace-editing` as well, which adds nothing to the tree — it is already there through
+`monospace-diagram` — and `diagram()` goes from O(1) to O(log n) on the repaint path, which against
+a draw measured at 11.6 ms is nothing.
 
 ## Model slice
 
@@ -175,7 +206,8 @@ tree this model declined.
   vacuous, and gains the stronger one: nothing in the crate changes a session but its own methods.
   The paragraph survives in a shorter form because the `compile_fail` example beside it survives.
 - **§7 _What a session hands out_** keeps _a reference to the diagram_ and _a copy of the diagram_,
-  and the copy stops being a warning: it shares everything with the original.
+  and the copy stops being a warning: it shares everything with the original. A copy of the session
+  joins it, and that copy shares its steps as well as its figures.
 - **§8 _How many steps a session keeps_** keeps the question open and restates its reason. The
   sentence _a diagram is a value rather than a handful of bytes, so an unbounded history is an
   unbounded amount of memory_ is true and is why; the figure behind it is 1000 steps at 949 B rather
@@ -234,9 +266,10 @@ edit at all: it drives everything through `Command::perform` and reads through `
 10. `undo`, `redo` and `perform` take `&self` and hand back a session; the one given is unchanged.
 11. `perform` records the step before it carries the command out, discards what was ahead of the
     position, and adopts the state at the position — as it does today.
-12. A copy of a diagram or of a session shares every figure with the original, so a copy is not a
-    second copy of the shapes and dropping it frees nothing the original holds.
-13. `Session::steps` is a `Vec`, and nothing else about the session's storage changes.
+12. A copy of a diagram or of a session shares every figure and every step with the original, so a
+    copy is not a second copy of either and dropping it frees nothing the original holds.
+13. `Session::steps` is a `VectorSync<Step>`, and a session copied or derived shares every step with
+    the one it came from rather than copying them.
 14. The four pictures in `gallery.rs`, the eight of the demonstration and every `render` marker in
     the repository are unchanged, except the one §Examples draws.
 15. `Cargo.toml` gains one dependency, pinned, and `xtask` gains none.
