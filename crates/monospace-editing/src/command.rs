@@ -72,6 +72,12 @@ impl Command {
     /// "a command that changed the diagram by any other way is not a command" is about**: it is
     /// reachable from inside the crate and nowhere else, so the claim is a rule about the type
     /// rather than a request from outside it.
+    ///
+    /// **The result is what the session is built from**, so dropping it would build a session over
+    /// the diagram a command found rather than the one it left — a history that walks over states
+    /// the session never reached, and nothing would say so. `must_use_candidate` does not ask for
+    /// this on a `pub(crate)` method, which is why the attribute is here rather than inferred.
+    #[must_use]
     pub(crate) fn apply_to(&self, diagram: &Diagram) -> Diagram {
         match *self {
             Self::Move { id, by } => {
