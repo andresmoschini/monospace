@@ -18,16 +18,22 @@ diagram for every thousand commands. The application coming in
 [#174](https://github.com/andresmoschini/monospace/issues/174) through
 [#181](https://github.com/andresmoschini/monospace/issues/181) is the caller both halves are for.
 
-**The prototype already exists and it is green.** `spike/rpds` holds the diagram in `rpds`'s
-`HashTrieMap<ShapeId, Shape>` and `Vector<ShapeId>`, changes every operation to take `&self` and
-hand back a new `Diagram`, and passes 419 tests with not one snapshot moved. The cost of the rewrite
-is known and it is a day's mechanical work.
+**The prototype already exists and it is green.** It is two branches, and which one is read changes
+what this change is. **`spike/rpds`** holds the diagram in `rpds`'s `HashTrieMap<ShapeId, Shape>`
+and `Vector<ShapeId>`, changes every operation to take `&self` and hand back a new `Diagram`, and
+passes 419 tests with not one snapshot moved. **`spikes/rpds`** is that branch plus three commits
+that carry the same change through the editing layer — `eff7375`, `d461afd` holding the history in
+`rpds` rather than a `Vec`, and `ae0413f` making a session a value — and it is green too, at the
+same 24 contract tests rewritten rather than added. **D5 and D6 are already written there;
+`crates/monospace-diagram/` is byte-identical between the two, so D1 and D3 are the whole of what is
+missing.** The cost of the rewrite is known and it is a day's mechanical work.
 
-**And it reverses a rule the model has, without anyone having decided to.** `docs/diagram-model.md`
-§3 says an identity a caller supplies is not checked: two shapes may carry one, both are held, and
-the second is a shape no identity names until the first is removed. `HashTrieMap::insert` replaces,
-so under the prototype the second figure is not held at all. The prototype carries three `TODO:`
-markers on the three tests that found it, and **they are what this spec answers.**
+**And the part that exists reverses a rule the model has, without anyone having decided to.**
+`docs/diagram-model.md` §3 says an identity a caller supplies is not checked: two shapes may carry
+one, both are held, and the second is a shape no identity names until the first is removed.
+`HashTrieMap::insert` replaces, so under the prototype the second figure is not held at all. The
+prototype carries three `TODO:` markers on the three tests that found it, and **they are what this
+spec answers.**
 
 There is a second collision the same change makes worse, and no marker records it. `next_id` is
 trusted rather than checked — `crates/monospace-description/src/lib.rs:529` says so, and calls the
@@ -55,9 +61,15 @@ the one case where a picture does move and says plainly why the other two are no
   `Command::perform`, `Session::undo` and `Session::redo` take `&self` and hand back a new session;
   `steps` becomes a `VectorSync<Step>`; and `Cargo.toml` gains `rpds` as a direct dependency.
 - `crates/monospace-description`: `into_diagram` rebinds instead of writing into a diagram it holds.
+- `crates/monospace-cli`: `main.rs`'s `demonstrate`, which drives the walk through
+  `Command::X { .. }.perform(&mut session)` and becomes `session.perform(Command::X { .. })` at five
+  call sites. `AGENTS.md` reserves `monospace` for the interactive TUI and this is not it — this is
+  the path form of the demonstration, and it changes because D5 does.
 - Rustdoc that describes a diagram as a thing a caller edits: `monospace-editing/src/lib.rs`,
   `session.rs`, `gallery.rs`, and one paragraph of `monospace-description/src/lib.rs`.
-- `docs/diagram-model.md` §2, §3 and §9; `docs/editing-model.md` §4, §7 and §8.
+- `docs/diagram-model.md` §2, §3 and §9; `docs/editing-model.md` §4, §6, §7 and §8. **The prototype
+  has already amended §4 and §6**, so those two are checked against D5 rather than written; §7 and
+  §8 are not.
 
 ### Out
 
@@ -157,30 +169,40 @@ so it answers the flavour question and nothing else.
 one.**
 
 **Answer:** `Session::undo(&self) -> Session`, `Session::redo(&self) -> Session`, and
-`Command::perform(&self, session: &Session) -> Session`. **Why not** only `perform`: the session's
+`Session::perform(&self, command: Command) -> Session`. **Why not** only `perform`: the session's
 central claim today is that nothing changes a session's diagram except a command, and `undo` and
 `redo` are `&mut self` — so the session is currently the one mutable value in a crate built to have
 none, and D5 with `perform` left alone would teach exactly the wrong lesson to the caller it is for.
 **Why not** the whole crate: `Diagram` is already a value on this change, and a caller that can copy
 a session cheaply and then mutate it in place is the hole this closes. **Why not** leaving `undo`
 and `redo` as they are: they are `&mut self` today and change nothing but an integer, which is
-already the update TEA asks for in everything but signature. **What it costs:** the `compile_fail`
-example in `session.rs` stops being load-bearing, because there is nothing left to expose — it stays
-anyway, and says so. **What D6 is why:** the cost of this decision is exactly what D6 settles.
+already the update TEA asks for in everything but signature. **Why the receiver is the session and
+not the command:** `session.perform(command)` reads as _this session, given this command_, and it is
+the shape `spikes/rpds` already implements against 24 rewritten contract tests.
+`Command::perform(&self, &Session)` says the same thing with the subject in the other position, and
+a spec that disagreed with the only implementation in existence would have the building stage
+arguing with the code instead of with the rules. **What it costs:** the `compile_fail` example in
+`session.rs` stops being load-bearing, because there is nothing left to expose — it stays anyway,
+and says so. **What D6 is why:** the cost of this decision is exactly what D6 settles.
 
 **D6 — `Session::steps` is a `VectorSync`, because D5 would otherwise make `undo` linear.**
 
-**Answer:** `steps: VectorSync<Step>`, and `Vec::truncate` becomes a `push_back` on the whole
-history when the position is at its end. **Why:** `undo` today is one line that decrements an
-integer. Under D5 it builds a new session, and a new session needs a new history — so with a `Vec`
-that is a copy of every step, O(history), for a change of one. `Step` is a `Command` at 16 bytes (§2
-of that document) beside a `Diagram`, so a thousand steps is roughly 70 KB copied per undo and a
-history ten times that is ten times more. **D1 and D2 remove the linear term from the diagram and D5
-puts it back in the history; this is what stops that.** **Why not** a `Stack`, which has O(1) `push`
-and `pop`: it has no access by index, and `Session::diagram()` reads the step at the position on
-every repaint. **Why not** `rpds`' two structures for the diagram in one: the history is a line and
-the position is an offset into that line precisely so it cannot disagree with either end, and a pair
-of stacks is the tree this model declined. **What it costs:** `rpds` becomes a direct dependency of
+**Answer:** `steps: VectorSync<Step>`, and `Vec::truncate` becomes `kept_first`, a rewrite of the
+first `position` steps. **Why:** `undo` today is one line that decrements an integer. Under D5 it
+builds a new session, and a new session needs a new history — so with a `Vec` that is a copy of
+every step, O(history), for a change of one. `Step` is a `Command` at 16 bytes (§2 of that document)
+beside a `Diagram`, so a thousand steps is roughly 70 KB copied per undo and a history ten times
+that is ten times more. **D1 and D2 remove the linear term from the diagram and D5 puts it back in
+the history; this is what stops that.** **The shape `spikes/rpds` already has is the one to keep**,
+and it is better than the obvious one: clone the sequence, which is O(1), then `drop_last_mut` until
+the length is right, which costs in proportion to what is discarded and not to what is kept. It
+needs no bound on the element, because `rpds::Vector<T>` is `Clone` for every `T` and a rewrite that
+only drops places never reads one — which the two rewrites in `monospace-diagram` cannot say, since
+they exchange and filter elements. **Why not** a `Stack`, which has O(1) `push` and `pop`: it has no
+access by index, and `Session::diagram()` reads the step at the position on every repaint. **Why
+not** `rpds`' two structures for the diagram in one: the history is a line and the position is an
+offset into that line precisely so it cannot disagree with either end, and a pair of stacks is the
+tree this model declined. **What it costs:** `rpds` becomes a direct dependency of
 `monospace-editing` as well, which adds nothing to the tree — it is already there through
 `monospace-diagram` — and `diagram()` goes from O(1) to O(log n) on the repaint path, which against
 a draw measured at 11.6 ms is nothing.
@@ -205,6 +227,8 @@ a draw measured at 11.6 ms is nothing.
 - **`docs/editing-model.md` §4** loses the _one field and one absence_ argument, which D5 makes
   vacuous, and gains the stronger one: nothing in the crate changes a session but its own methods.
   The paragraph survives in a shorter form because the `compile_fail` example beside it survives.
+  **§4 and §6 are already amended on `spikes/rpds`**, so this is a check against D5 rather than a
+  first draft; §7 and §8 are not amended there at all.
 - **§7 _What a session hands out_** keeps _a reference to the diagram_ and _a copy of the diagram_,
   and the copy stops being a warning: it shares everything with the original. A copy of the session
   joins it, and that copy shares its steps as well as its figures.
@@ -230,19 +254,21 @@ pub fn replace(&self, id: ShapeId, shape: Shape) -> Self;   // was (&mut self, .
 
 // monospace-editing
 impl Session {
-    pub fn undo(&self) -> Session;    // was &mut self -> ()
-    pub fn redo(&self) -> Session;    // was &mut self -> ()
-}
-impl Command {
-    pub fn perform(&self, session: &Session) -> Session;  // was (&self, &mut Session) -> ()
+    pub fn undo(&self) -> Session;                    // was &mut self -> ()
+    pub fn redo(&self) -> Session;                    // was &mut self -> ()
+    pub fn perform(&self, command: Command) -> Session;  // was Command::perform(&self, &mut Session) -> ()
 }
 ```
 
-**`&mut` leaves the public API of two crates in one change, and that is the change's whole point.**
-`numbered_from`'s parameter is renamed `next_id` and its meaning narrows by D3; `new`, `get` and
-`draw` are untouched, as are `Session::new`, `diagram`, `can_undo` and `can_redo`. `Shape`,
-`Position`, `Reference`, `Anchor`, `Delta` and `Endpoint` are untouched. `monospace-cli` needs no
-edit at all: it drives everything through `Command::perform` and reads through `Session::diagram`.
+**`&mut` leaves the public API of three crates in one change, and that is the change's whole
+point.** `numbered_from`'s parameter is renamed `next_id` and its meaning narrows by D3; `new`,
+`get` and `draw` are untouched, as are `Session::new`, `diagram`, `can_undo` and `can_redo`.
+`Shape`, `Position`, `Reference`, `Anchor`, `Delta` and `Endpoint` are untouched. `Command::perform`
+leaves the public API altogether and `apply_to` stays `pub(crate)`, which is what keeps _a command
+that changed the diagram by any other way is not a command_ a rule about the type rather than a
+request. **`monospace-cli` does change**, at five call sites in `demonstrate`, and `AGENTS.md`
+reserves `monospace` for the interactive TUI and this is not it — it is the demonstration's walk,
+written against D5's shape rather than D2's.
 
 ## Behavior
 
@@ -270,9 +296,12 @@ edit at all: it drives everything through `Command::perform` and reads through `
     copy is not a second copy of either and dropping it frees nothing the original holds.
 13. `Session::steps` is a `VectorSync<Step>`, and a session copied or derived shares every step with
     the one it came from rather than copying them.
-14. The four pictures in `gallery.rs`, the eight of the demonstration and every `render` marker in
+14. Discarding what was ahead of the position drops the places behind it and keeps the rest, in
+    order, and asks for a position already at the end returns the sequence it was given rather than
+    a walk over nothing.
+15. The four pictures in `gallery.rs`, the eight of the demonstration and every `render` marker in
     the repository are unchanged, except the one §Examples draws.
-15. `Cargo.toml` gains one dependency, pinned, and `xtask` gains none.
+16. `Cargo.toml` gains one dependency, pinned, and `xtask` gains none.
 
 ## Examples
 
@@ -320,8 +349,25 @@ stage is held to.
 | 11   | `a_step_is_recorded_before_the_command_it_belongs_to_is_carried_out`      |
 | 12   | `a_copy_of_a_diagram_is_not_a_second_copy_of_its_shapes`                  |
 | 13   | `the_history_is_a_line_a_position_cannot_disagree_with`                   |
-| 14   | `the_demonstrations_eight_pictures_are_unchanged`                         |
-| 15   | `cargo xtask check`                                                       |
+| 14   | `kept_first_drops_the_places_behind_the_position_and_keeps_the_rest`      |
+| 15   | `the_demonstrations_eight_pictures_are_unchanged`                         |
+| 16   | `cargo xtask check`                                                       |
+
+**Rule 14 exists because the prototype has no such test.** `kept_first` is the one rewrite
+`monospace-editing` adds, it has one caller, and `monospace-editing/src/utilities.rs` carries no
+test at all — while its two counterparts in `monospace-diagram` carry six. A `while` that walks a
+persistent sequence backwards is exactly the kind of thing that goes wrong quietly when the sequence
+is empty or the position is already at its end, and both of those are edges the doc promises answers
+for.
+
+**Two decision names in the files this change edits are taken already, and both point at
+[`specs/197`](197-an-editing-layer-above-the-diagram-model.md).** `Step::command`'s rustdoc says
+_the whole of what the decision D3 asked for_, which is that spec's D3 — a step holds the diagram
+and the command beside it — and **not** this spec's D3, which is about an ordinal skipping a figure.
+The comment beside `next_id` in `crates/monospace-description/src/lib.rs:531` calls its accepted
+cost "D6's", which is that spec's D6 and not this one's. **Neither is renamed, because both are
+correct where they stand; the building stage amends the `next_id` sentence to point here, and must
+not repeat the ambiguity in a new comment.**
 
 Rule 3 is the one the prototype gets wrong in the worst way, and rule 4 is the one the model has to
 be amended for; between them they are D1 and D3. Rule 12 is measured rather than asserted — a copy
