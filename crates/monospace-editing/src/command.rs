@@ -4,8 +4,6 @@
 
 use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
-use crate::Session;
-
 /// One thing a caller means to do to a diagram.
 ///
 /// **It carries the meaning and not the finished figure, and each one says which of the diagram's
@@ -54,27 +52,6 @@ pub enum Command {
 }
 
 impl Command {
-    /// Carries this command out against `session`: records the diagram as it is as a step, and
-    /// changes it by the operation this command is.
-    ///
-    /// **The command is given the session and not the diagram**, and the signature is where that
-    /// is visible rather than in a paragraph. A session method taking a command would be the same
-    /// design said from the other side, and it would put the decision back where it cannot be
-    /// made: only what is asked knows whether what it was asked to do was one gesture or several,
-    /// and a figure dragged across a screen is one thing to the person dragging it and many
-    /// displacements to the diagram. Nothing reads that answer yet — §8 of the model says what is
-    /// left to write — and the field it will be read from is the step's command, which is recorded
-    /// beside the diagram from this first version.
-    ///
-    /// **The step is recorded whatever the command did**, including when it named a figure this
-    /// diagram does not hold and changed nothing. The session does not know whether the caller
-    /// meant to do something, and a history that skipped a step the caller took is worse than one
-    /// longer than it needed to be.
-    pub fn perform(&self, session: &mut Session) {
-        session.record(self.clone());
-        self.apply_to(&mut session.diagram);
-    }
-
     /// The one of the diagram's five operations this command is, carried out on `diagram`.
     ///
     /// **The whole of this method is the layer's mapping**, and it is why a caller does not have to
@@ -82,14 +59,35 @@ impl Command {
     /// else is logic that is subtly wrong in four different ways when each caller writes it. Every
     /// operation is the diagram's and unchanged, and a command that changed the diagram by any
     /// other way is not a command.
-    fn apply_to(&self, diagram: &mut Diagram) {
+    ///
+    /// **It takes the diagram and hands one back rather than writing into it**, which is what every
+    /// operation of the diagram now does. A command naming a figure the diagram does not hold hands
+    /// back the diagram it was given rather than a diagram something happened to: the two are the
+    /// same, and saying so here is how a caller reads a missing figure as silence rather than as a
+    /// change.
+    ///
+    /// **`pub(crate)` and no longer the public way in.** A caller performs a command by handing it
+    /// to a session — `Session::perform` is where it is recorded, discarded-with and carried out,
+    /// and only the session can do any of that. **What this method stays is what the model's
+    /// "a command that changed the diagram by any other way is not a command" is about**: it is
+    /// reachable from inside the crate and nowhere else, so the claim is a rule about the type
+    /// rather than a request from outside it.
+    ///
+    /// **The result is what the session is built from**, so dropping it would build a session over
+    /// the diagram a command found rather than the one it left — a history that walks over states
+    /// the session never reached, and nothing would say so. `must_use_candidate` does not ask for
+    /// this on a `pub(crate)` method, which is why the attribute is here rather than inferred.
+    #[must_use]
+    pub(crate) fn apply_to(&self, diagram: &Diagram) -> Diagram {
         match *self {
             Self::Move { id, by } => {
                 // Read, then write, so the figure's own displacement decides what goes back: a
                 // delta of nothing gives back the same figure, and `replace` on an identity this
                 // diagram does not hold changes nothing.
                 if let Some(moved) = diagram.get(id).map(|shape| shape.displaced_by(by)) {
-                    diagram.replace(id, moved);
+                    diagram.replace(id, moved)
+                } else {
+                    diagram.clone()
                 }
             }
             Self::Hang { id, from, anchor } => {
@@ -121,7 +119,9 @@ impl Command {
                             to,
                             stroke,
                         },
-                    );
+                    )
+                } else {
+                    diagram.clone()
                 }
             }
             Self::Forward { id } => diagram.forward(id),

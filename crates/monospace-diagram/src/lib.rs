@@ -7,6 +7,7 @@ mod delta;
 mod diagram;
 mod position;
 mod shape;
+mod utilities;
 
 #[cfg(test)]
 mod gallery;

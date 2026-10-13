@@ -75,9 +75,7 @@ fn small_box(at: Pos) -> Shape {
 
 /// A diagram holding one of the boxes above and nothing else, so its `add` hands back `1`.
 fn one_box(at: Pos) -> Diagram {
-    let mut diagram = Diagram::new();
-    diagram.add(small_box(at));
-    diagram
+    Diagram::new().add(small_box(at)).0
 }
 
 /// The drawing of `diagram` into a fresh window of `size`.
@@ -102,8 +100,7 @@ fn example_picture(diagram: &Diagram) -> String {
 
 /// What `command` leaves behind, in the window the fixture is drawn in.
 fn after(command: &Command) -> String {
-    let mut session = Session::new(the_fixture());
-    command.perform(&mut session);
+    let session = Session::new(the_fixture()).perform(command.clone());
     picture_in(session.diagram(), FIXTURE)
 }
 
@@ -112,10 +109,9 @@ fn after(command: &Command) -> String {
 /// **Taken as a function rather than written out four times**, so the two sides of the comparison
 /// are the command and the operation and not a restatement of the command written in the diagram's
 /// vocabulary, which would make the test agree with itself.
-fn after_operating(on_diagram: impl FnOnce(&mut Diagram)) -> String {
-    let mut diagram = the_fixture();
-    on_diagram(&mut diagram);
-    picture_in(&diagram, FIXTURE)
+fn after_operating(on_diagram: impl FnOnce(&Diagram) -> Diagram) -> String {
+    let diagram = the_fixture();
+    picture_in(&on_diagram(&diagram), FIXTURE)
 }
 
 /// A diagram with something for every command to act on: two overlapping boxes, where the order
@@ -123,31 +119,35 @@ fn after_operating(on_diagram: impl FnOnce(&mut Diagram)) -> String {
 /// from a side shows.
 fn the_fixture() -> Diagram {
     let mut diagram = Diagram::new();
-    diagram.add(small_box(ORIGIN));
-    diagram.add(Shape::Box {
-        at: Pos { x: 2, y: 0 },
-        size: Size {
-            width: 4,
-            height: 3,
-        },
-        stroke: Stroke::from("heavy"),
-        fill: None,
-    });
-    diagram.add(Shape::Connector {
-        from: Endpoint {
-            at: Position::from(Pos { x: 0, y: 4 }),
-            leaving: Direction::Right,
-            terminal: Terminal::Arm,
-        },
-        to: Endpoint {
-            at: Position::from(Pos { x: 8, y: 4 }),
-            leaving: Direction::Left,
-            terminal: Terminal::Glyph {
-                glyph: Glyph::new("▶").expect("\"▶\" is one glyph"),
+    diagram = diagram.add(small_box(ORIGIN)).0;
+    diagram = diagram
+        .add(Shape::Box {
+            at: Pos { x: 2, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
             },
-        },
-        stroke: Stroke::from("light"),
-    });
+            stroke: Stroke::from("heavy"),
+            fill: None,
+        })
+        .0;
+    diagram = diagram
+        .add(Shape::Connector {
+            from: Endpoint {
+                at: Position::from(Pos { x: 0, y: 4 }),
+                leaving: Direction::Right,
+                terminal: Terminal::Arm,
+            },
+            to: Endpoint {
+                at: Position::from(Pos { x: 8, y: 4 }),
+                leaving: Direction::Left,
+                terminal: Terminal::Glyph {
+                    glyph: Glyph::new("▶").expect("\"▶\" is one glyph"),
+                },
+            },
+            stroke: Stroke::from("light"),
+        })
+        .0;
     diagram
 }
 
@@ -181,9 +181,7 @@ fn a_session_owns_the_diagram_it_was_created_over() {
         "a session over a diagram draws that diagram"
     );
 
-    let mut theirs = the_callers_own.clone();
-    theirs.forward(id(1));
-    theirs.remove(id(1));
+    let theirs = the_callers_own.forward(id(1)).remove(id(1));
 
     assert_ne!(
         picture_in(&theirs, EXAMPLE),
@@ -205,14 +203,11 @@ fn a_session_owns_the_diagram_it_was_created_over() {
 /// would look like.
 #[test]
 fn the_diagram_changes_only_by_a_command_performed_on_it() {
-    let mut given = Session::new(one_box(ORIGIN));
     let given_nothing = Session::new(one_box(ORIGIN));
-
-    Command::Move {
+    let given = given_nothing.perform(Command::Move {
         id: id(1),
         by: Delta { dx: 4, dy: 0 },
-    }
-    .perform(&mut given);
+    });
 
     assert_eq!(
         picture(&given_nothing),
@@ -226,22 +221,26 @@ fn the_diagram_changes_only_by_a_command_performed_on_it() {
     );
 }
 
-/// Rule 3 — no method of a session hands out a mutable reference to the diagram it owns.
+/// Rule 10 — no method of a session changes the session it was given.
 ///
-/// **Every public method of `Session` and of `Command`, taken as a value of its exact signature.**
-/// What this pins is each signature, so a method that changed what it returns fails here. What it
-/// does not pin is the absence of a method added later, which no test written against a type can
-/// see; the `compile_fail` documentation example on [`Session`] carries that half, and neither of
-/// the two is a substitute for reading the surface.
+/// **Every public method of `Session`, taken as a value of its exact signature.** What this pins is
+/// each one, so a method that took `&mut self` or that returned nothing where it returns a session
+/// now fails here. **There is no `Command::perform` in the list because there is no such method:**
+/// a command is handed to a session and the way in is one method rather than two, which is the
+/// change this list exists to record.
+///
+/// What this does not pin is the absence of a method added later, which no test written against a
+/// type can see; the `compile_fail` documentation example on [`Session`] carries that half, and
+/// neither of the two is a substitute for reading the surface.
 #[test]
-fn no_method_of_a_session_hands_out_a_mutable_diagram() {
+fn no_session_method_changes_the_session_it_was_given() {
     let _: fn(Diagram) -> Session = Session::new;
     let _: for<'a> fn(&'a Session) -> &'a Diagram = Session::diagram;
     let _: fn(&Session) -> bool = Session::can_undo;
     let _: fn(&Session) -> bool = Session::can_redo;
-    let _: fn(&mut Session) = Session::undo;
-    let _: fn(&mut Session) = Session::redo;
-    let _: for<'a> fn(&'a Command, &mut Session) = Command::perform;
+    let _: fn(&Session) -> Session = Session::undo;
+    let _: fn(&Session) -> Session = Session::redo;
+    let _: fn(&Session, Command) -> Session = Session::perform;
 }
 
 /// Rule 4 — every command becomes one of the diagram's five operations.
@@ -262,7 +261,9 @@ fn each_command_becomes_one_of_the_diagrams_five_operations() {
         after_operating(|diagram| {
             let moved = diagram.get(id(1)).map(|shape| shape.displaced_by(two_down));
             if let Some(moved) = moved {
-                diagram.replace(id(1), moved);
+                diagram.replace(id(1), moved)
+            } else {
+                diagram.clone()
             }
         }),
         "`Move` is `replace` with the figure displaced"
@@ -292,7 +293,9 @@ fn each_command_becomes_one_of_the_diagrams_five_operations() {
                         to,
                         stroke,
                     },
-                );
+                )
+            } else {
+                diagram.clone()
             }
         }),
         "`Hang` is `replace` with one end of the connector rebuilt"
@@ -340,7 +343,7 @@ fn no_command_reaches_the_diagram_by_another_way() {
         Command::Remove { id: id(2) },
         Command::Remove { id: id(7) },
     ] {
-        command.perform(&mut session);
+        session = session.perform(command.clone());
     }
 
     let diagram = session.diagram();
@@ -354,11 +357,21 @@ fn no_command_reaches_the_diagram_by_another_way() {
         "the connector is still there, whatever `Hang` did to one end of it"
     );
 
-    let mut copy = diagram.clone();
+    let (copy, issued) = diagram.clone().add(an_extra_box());
     assert_eq!(
-        copy.add(an_extra_box()),
+        issued,
         id(4),
         "no command reached `add`, so the next ordinal is the one the fixture issued"
+    );
+    // And the copy is where the addition landed: a copy advances its own counter and the diagram
+    // the session hands out is not the one that was added to.
+    assert!(
+        copy.get(issued).is_some(),
+        "the copy holds the figure that was added to it"
+    );
+    assert!(
+        diagram.get(issued).is_none(),
+        "and the diagram the session hands out does not"
     );
 }
 
@@ -372,11 +385,10 @@ fn a_command_naming_nothing_is_still_a_step() {
     let mut session = Session::new(one_box(ORIGIN));
     let as_written = picture(&session);
 
-    Command::Move {
+    session = session.perform(Command::Move {
         id: id(7),
         by: Delta { dx: 1, dy: 0 },
-    }
-    .perform(&mut session);
+    });
 
     assert_eq!(
         picture(&session),
@@ -385,7 +397,7 @@ fn a_command_naming_nothing_is_still_a_step() {
     );
     assert!(session.can_undo(), "and left a step behind it all the same");
 
-    session.undo();
+    session = session.undo();
     assert_eq!(
         picture(&session),
         as_written,
@@ -409,17 +421,17 @@ fn two_commands_are_two_steps_and_are_never_merged() {
     let mut forwards = vec![picture(&session)];
 
     for _ in 0..3 {
-        Command::Move {
+        session = session.perform(Command::Move {
             id: id(1),
             by: Delta { dx: 2, dy: 0 },
-        }
-        .perform(&mut session);
+        });
+
         forwards.push(picture(&session));
     }
 
     let mut backwards = Vec::new();
     while session.can_undo() {
-        session.undo();
+        session = session.undo();
         backwards.push(picture(&session));
     }
 
@@ -431,20 +443,21 @@ fn two_commands_are_two_steps_and_are_never_merged() {
     );
 }
 
-/// Rule 7 — undo restores the diagram the step behind holds, whole.
+/// Rule 7 — undo restores the diagram one step back, whole.
 ///
 /// **The specification's second and third blocks.** The picture an undo produces is the one the
 /// session held before any command, byte for byte — not a reconstruction of it, and not the box
-/// put back where it was, which is what an inverted command would have had to be.
+/// put back where it was, which is what an inverted command would have had to be. **One command is
+/// what makes this the end of the history rather than the middle of it**, so what an undo reaches
+/// here is the diagram the session was created over, which is the one state no step holds.
 #[test]
-fn undo_restores_the_diagram_the_step_behind_holds() {
+fn undo_restores_the_diagram_one_step_back() {
     let mut session = Session::new(one_box(ORIGIN));
 
-    Command::Move {
+    session = session.perform(Command::Move {
         id: id(1),
         by: Delta { dx: 4, dy: 0 },
-    }
-    .perform(&mut session);
+    });
 
     assert_eq!(
         picture(&session),
@@ -453,7 +466,7 @@ fn undo_restores_the_diagram_the_step_behind_holds() {
     );
     assert!(session.can_undo(), "which left a step behind it");
 
-    session.undo();
+    session = session.undo();
 
     assert_eq!(
         picture(&session),
@@ -466,19 +479,18 @@ fn undo_restores_the_diagram_the_step_behind_holds() {
 /// Rule 8 — redo restores the diagram the step ahead holds, whole.
 ///
 /// **The specification's fourth block**, which is the same picture the second one was: the step
-/// ahead holds the state the diagram had before the command, and the diagram is that state again.
+/// ahead holds the state the command left, and the diagram is that state again.
 #[test]
 fn redo_restores_the_diagram_the_step_ahead_holds() {
     let mut session = Session::new(one_box(ORIGIN));
 
-    Command::Move {
+    session = session.perform(Command::Move {
         id: id(1),
         by: Delta { dx: 4, dy: 0 },
-    }
-    .perform(&mut session);
+    });
 
-    session.undo();
-    session.redo();
+    session = session.undo();
+    session = session.redo();
 
     assert_eq!(
         picture(&session),
@@ -502,7 +514,7 @@ fn undo_with_nothing_behind_changes_nothing() {
     let mut session = Session::new(one_box(ORIGIN));
     let as_written = picture(&session);
 
-    session.undo();
+    session = session.undo();
 
     assert_eq!(picture(&session), as_written, "nothing was given back");
     assert!(!session.can_undo(), "and nothing is behind the position");
@@ -513,17 +525,145 @@ fn undo_with_nothing_behind_changes_nothing() {
 fn redo_with_nothing_ahead_changes_nothing() {
     let mut session = Session::new(one_box(ORIGIN));
 
-    Command::Move {
+    session = session.perform(Command::Move {
         id: id(1),
         by: Delta { dx: 4, dy: 0 },
-    }
-    .perform(&mut session);
+    });
+
     let as_left = picture(&session);
 
-    session.redo();
+    session = session.redo();
 
     assert_eq!(picture(&session), as_left, "nothing was carried out again");
     assert!(!session.can_redo(), "and nothing is ahead of the position");
+}
+
+/// Rule 11 of `specs/212` — a step holds the diagram the command left.
+///
+/// **The step is the state a command produced, and giving the change back is what shows it.** A
+/// session that recorded nothing but the state it was already holding would satisfy every
+/// assertion here on its own, so the ones that matter are the ones where a state is reached *from
+/// both ends*: the state the session holds, the state one give back reaches, and the state two give
+/// back reaches. **All three directions are asserted**, because a history that kept only one of the
+/// two states satisfies either assertion alone.
+///
+/// **A second command on top of the first**, so the state the first left is what the second found
+/// and the walk back reaches three states rather than the same one twice. The deltas are four and
+/// two columns, which is why `AS_WRITTEN`, `FOUR_RIGHT` and `SIX_RIGHT` are the three pictures
+/// rather than three literals written out again.
+#[test]
+fn a_step_holds_the_diagram_the_command_left() {
+    let session = Session::new(one_box(ORIGIN));
+    let after_one = session.perform(Command::Move {
+        id: id(1),
+        by: Delta { dx: 4, dy: 0 },
+    });
+    let after_two = after_one.perform(Command::Move {
+        id: id(1),
+        by: Delta { dx: 2, dy: 0 },
+    });
+
+    assert_eq!(
+        picture(&session),
+        AS_WRITTEN,
+        "the session the commands were not given is the one it was created over"
+    );
+    assert_eq!(
+        picture(&after_two),
+        SIX_RIGHT,
+        "and both commands were carried out"
+    );
+    assert_eq!(
+        picture(&after_two.undo()),
+        FOUR_RIGHT,
+        "one give back is the state the first command left, which is the step behind the position"
+    );
+    assert_eq!(
+        picture(&after_two.redo()),
+        SIX_RIGHT,
+        "and the step ahead is the state the second left"
+    );
+    assert_eq!(
+        picture(&after_two.undo().undo()),
+        AS_WRITTEN,
+        "giving both back reaches the diagram as it was rather than the one in between twice"
+    );
+}
+
+/// Rule 13 of `specs/212` — the history is a line and a position cannot disagree with it.
+///
+/// **The whole walk both ways, asking at every place whether there is something behind and whether
+/// there is something ahead.** The two answers are the position read two ways, so a session that
+/// disagreed with itself about where it stood would be caught by one of them; and the two walks
+/// are asserted to be reverses of each other, which is what a line is and what a pair of stacks
+/// with a shared position could also be — so the pictures are what says it.
+///
+/// **A place in the middle has both answers true**, and that is asserted rather than left out: it
+/// is the only place where `can_undo` and `can_redo` can disagree with each other if one of them
+/// is derived from the wrong end.
+#[test]
+fn the_history_is_a_line_a_position_cannot_disagree_with() {
+    let start = Session::new(one_box(ORIGIN));
+    let after_one = start.perform(Command::Move {
+        id: id(1),
+        by: Delta { dx: 4, dy: 0 },
+    });
+    let after_two = after_one.perform(Command::Move {
+        id: id(1),
+        by: Delta { dx: 2, dy: 0 },
+    });
+
+    assert!(
+        after_two.can_undo() && !after_two.can_redo(),
+        "at the newest position there is something behind and nothing ahead"
+    );
+
+    let mut backwards = vec![picture(&after_two)];
+    let mut behind = after_two.clone();
+    while behind.can_undo() {
+        behind = behind.undo();
+        backwards.push(picture(&behind));
+    }
+    assert_eq!(
+        backwards,
+        vec![SIX_RIGHT, FOUR_RIGHT, AS_WRITTEN],
+        "walking back passes through every state in the order it was made, the other way round"
+    );
+
+    assert!(
+        !behind.can_undo(),
+        "and at the oldest there is nothing behind"
+    );
+    assert!(
+        behind.can_redo(),
+        "while everything that was walked over is ahead, which is the same position read twice"
+    );
+    assert_eq!(
+        picture(&behind.undo()),
+        AS_WRITTEN,
+        "and asking again at the oldest end answers with the session as it stands"
+    );
+
+    let mut forwards = vec![picture(&behind)];
+    let mut ahead = behind;
+    while ahead.can_redo() {
+        ahead = ahead.redo();
+        forwards.push(picture(&ahead));
+    }
+    assert_eq!(
+        forwards,
+        vec![AS_WRITTEN, FOUR_RIGHT, SIX_RIGHT],
+        "walking forward retraces the same pictures in the other order"
+    );
+    assert!(
+        !ahead.can_redo(),
+        "and at the newest end there is nothing ahead"
+    );
+    assert_eq!(
+        picture(&ahead.redo()),
+        SIX_RIGHT,
+        "and asking again at the newest end answers with the session as it stands"
+    );
 }
 
 /// Rule 10 — a command carried out with steps ahead of the position discards them.
@@ -531,35 +671,34 @@ fn redo_with_nothing_ahead_changes_nothing() {
 /// **Move, move, give one back, and move again**, which is the only way a position can be behind
 /// the end. What is held is not that `redo` is unavailable afterwards — that alone would also be
 /// true of a history truncated rather than discarded — but that **the undo out of the new command
-/// reaches the state the given-back step held and not the state the discarded one held.** The two
-/// differ by one cell, and the walk back over the discarded step would land on the wrong one.
+/// reaches the state the first move left and not the state the second one left**, which is what the
+/// discard dropped. The two differ by one cell, and the walk back over the discarded step would
+/// land on the wrong one.
 #[test]
 fn a_command_with_steps_ahead_discards_them() {
     let mut session = Session::new(one_box(ORIGIN));
 
-    Command::Move {
+    session = session.perform(Command::Move {
         id: id(1),
         by: Delta { dx: 4, dy: 0 },
-    }
-    .perform(&mut session);
-    Command::Move {
+    });
+
+    session = session.perform(Command::Move {
         id: id(1),
         by: Delta { dx: -1, dy: 0 },
-    }
-    .perform(&mut session);
+    });
 
-    session.undo();
+    session = session.undo();
     assert_eq!(
         picture(&session),
         FOUR_RIGHT,
-        "the given-back step holds the state the second move found"
+        "one give back is the state the first move left"
     );
 
-    Command::Move {
+    session = session.perform(Command::Move {
         id: id(1),
         by: Delta { dx: 2, dy: 0 },
-    }
-    .perform(&mut session);
+    });
 
     assert_eq!(
         picture(&session),
@@ -571,19 +710,19 @@ fn a_command_with_steps_ahead_discards_them() {
         "the step that was ahead of the position was discarded"
     );
 
-    session.undo();
+    session = session.undo();
     assert_eq!(
         picture(&session),
         FOUR_RIGHT,
-        "one back is the state the given-back step held"
+        "one back is the state the first move left"
     );
     assert_ne!(
         picture(&session),
         ONE_RIGHT,
-        "and not the state the discarded one held, which stood one cell nearer"
+        "and not the state the discarded step held, which stood one cell nearer"
     );
 
-    session.undo();
+    session = session.undo();
     assert_eq!(
         picture(&session),
         AS_WRITTEN,
@@ -606,11 +745,10 @@ fn whether_undo_is_available_is_answerable_without_carrying_it_out() {
         "a session with nothing behind it has nothing to give back and nothing to carry out"
     );
 
-    Command::Move {
+    session = session.perform(Command::Move {
         id: id(1),
         by: Delta { dx: 4, dy: 0 },
-    }
-    .perform(&mut session);
+    });
 
     assert!(
         (session.can_undo(), session.can_redo()) == (true, false),
@@ -621,7 +759,7 @@ fn whether_undo_is_available_is_answerable_without_carrying_it_out() {
         "asked again, and the picture is untouched by being asked"
     );
 
-    session.undo();
+    session = session.undo();
 
     assert!(
         (session.can_undo(), session.can_redo()) == (false, true),
@@ -669,11 +807,11 @@ fn drawing_what_a_session_holds_needs_no_copy() {
     // what §7 is about. Nothing here is handed out but a borrow, so the copy is the caller's own.
     let theirs = session.diagram().clone();
     let mut session = session;
-    Command::Move {
+    session = session.perform(Command::Move {
         id: id(1),
         by: Delta { dx: 4, dy: 0 },
-    }
-    .perform(&mut session);
+    });
+
     assert_eq!(
         picture_in(&theirs, EXAMPLE),
         AS_WRITTEN,

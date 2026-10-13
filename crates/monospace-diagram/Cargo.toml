@@ -9,6 +9,17 @@ license.workspace = true
 [dependencies]
 monospace-core.workspace = true
 
+# The figures and the order are held in `rpds`'s persistent structures rather than in a `Vec`, so
+# that changing a diagram produces another one and a copy of a diagram shares what it copied. The
+# version is pinned with `=` as every dependency here is; 1.2.1 is published 2026-05-15, MIT, on
+# edition 2024 with an MSRV of 1.85.0, which the pinned toolchain satisfies.
+#
+# **The `Sync` flavour, and not the default one that is the cheaper of the two on paper**: a node is
+# the same width either way, so the whole of the difference is one atomic refcount per node touched,
+# measured at about 1% of what a command costs this crate's caller. What it buys is that a diagram
+# stays `Send`. See `docs/memory-cost.md` §5 and §8, and `specs/212`.
+rpds = "=1.2.1"
+
 [dev-dependencies]
 insta = "1.48.0"
 

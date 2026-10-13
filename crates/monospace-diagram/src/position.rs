@@ -342,8 +342,8 @@ mod tests {
     /// chosen — `a_box_answers_its_four_side_centres` below already holds them.
     #[test]
     fn a_reference_resolves_to_its_anchors_point_moved_by_the_offset() {
-        let mut diagram = Diagram::new();
-        let id = diagram.add(the_box_at_the_origin());
+        let diagram = Diagram::new();
+        let (diagram, id) = diagram.add(the_box_at_the_origin());
 
         let right = Position::Reference(Reference {
             id,
@@ -370,9 +370,9 @@ mod tests {
     /// and a caller may rely on telling the two apart.
     #[test]
     fn a_reference_with_no_offset_stands_on_its_side_and_is_not_the_bare_point() {
-        let mut diagram = Diagram::new();
+        let diagram = Diagram::new();
         let the_box = the_box_at_the_origin();
-        let id = diagram.add(the_box.clone());
+        let (diagram, id) = diagram.add(the_box.clone());
 
         let on_the_side = Position::Reference(Reference {
             id,
@@ -595,21 +595,23 @@ mod tests {
     /// identity this diagram does not hold is reachable only by spelling one, which is what
     /// `an_out_on_a_reference_that_resolves_to_nothing_still_draws_nothing` does.
     fn diagram_hanging_from(hanging_from: impl FnOnce(ShapeId) -> Position) -> Diagram {
-        let mut diagram = Diagram::new();
-        let id = diagram.add(the_box_at_the_origin());
-        diagram.add(Shape::Connector {
-            from: Endpoint {
-                at: hanging_from(id),
-                leaving: Direction::Down,
-                terminal: Terminal::Arm,
-            },
-            to: Endpoint {
-                at: Pos { x: 1, y: 5 }.into(),
-                leaving: Direction::Up,
-                terminal: Terminal::Arm,
-            },
-            stroke: light(),
-        });
+        let diagram = Diagram::new();
+        let (mut diagram, id) = diagram.add(the_box_at_the_origin());
+        diagram = diagram
+            .add(Shape::Connector {
+                from: Endpoint {
+                    at: hanging_from(id),
+                    leaving: Direction::Down,
+                    terminal: Terminal::Arm,
+                },
+                to: Endpoint {
+                    at: Pos { x: 1, y: 5 }.into(),
+                    leaving: Direction::Up,
+                    terminal: Terminal::Arm,
+                },
+                stroke: light(),
+            })
+            .0;
         diagram
     }
 
@@ -623,8 +625,8 @@ mod tests {
     /// dropped.
     #[test]
     fn a_reference_with_an_out_resolves_to_its_side_moved_by_the_offset_and_by_the_out() {
-        let mut diagram = Diagram::new();
-        let id = diagram.add(the_box_at_the_origin());
+        let diagram = Diagram::new();
+        let (diagram, id) = diagram.add(the_box_at_the_origin());
 
         let reference = Reference::new(id, Anchor::Bottom, Delta { dx: 1, dy: 3 }, 1);
 
@@ -649,8 +651,8 @@ mod tests {
     /// arrangement — §4 says the offset's own amounts are unchecked against their side too.
     #[test]
     fn a_negative_out_is_a_point_into_the_shape_rather_than_an_error() {
-        let mut diagram = Diagram::new();
-        let id = diagram.add(the_box_at_the_origin());
+        let diagram = Diagram::new();
+        let (diagram, id) = diagram.add(the_box_at_the_origin());
         let nothing = Delta { dx: 0, dy: 0 };
 
         let into_the_box = Reference::new(id, Anchor::Bottom, nothing, -1);
@@ -671,8 +673,8 @@ mod tests {
     /// looked right to a reader.
     #[test]
     fn the_four_signs_are_the_outward_normal_of_the_side_they_are_named_from() {
-        let mut diagram = Diagram::new();
-        let id = diagram.add(Shape::Box {
+        let diagram = Diagram::new();
+        let (diagram, id) = diagram.add(Shape::Box {
             at: Pos { x: 0, y: 0 },
             size: Size {
                 width: 5,
@@ -819,8 +821,8 @@ mod tests {
     #[test]
     fn a_displacement_grows_the_offset_of_a_reference_written_with_an_out_as_it_grows_any_other() {
         let by = Delta { dx: 0, dy: 3 };
-        let mut diagram = Diagram::new();
-        let id = diagram.add(the_box_at_the_origin());
+        let diagram = Diagram::new();
+        let (diagram, id) = diagram.add(the_box_at_the_origin());
         let hanging = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: 0 }, 1);
         let connector = Shape::Connector {
             from: Endpoint {
@@ -869,8 +871,8 @@ mod tests {
     /// of them winning.
     #[test]
     fn an_out_and_an_offset_against_each_other_add_and_nothing_reports_the_cancellation() {
-        let mut diagram = Diagram::new();
-        let id = diagram.add(the_box_at_the_origin());
+        let diagram = Diagram::new();
+        let (diagram, id) = diagram.add(the_box_at_the_origin());
 
         let cancelling = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: -1 }, 1);
         let past_the_side = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: -3 }, 1);
@@ -917,20 +919,22 @@ mod tests {
         };
 
         let mut chain = Diagram::new();
-        chain.add(the_box_at_the_origin());
-        let the_first = chain.add(arm(
+        chain = chain.add(the_box_at_the_origin()).0;
+        let (mut chain, the_first) = chain.add(arm(
             Position::Reference(Reference::new(identity(99), Anchor::Bottom, nothing, 1)),
             Direction::Down,
             Pos { x: 1, y: 5 },
         ));
-        chain.add(arm(
-            Position::Reference(Reference::new(the_first, Anchor::Right, nothing, 1)),
-            Direction::Right,
-            Pos { x: 3, y: 5 },
-        ));
+        chain = chain
+            .add(arm(
+                Position::Reference(Reference::new(the_first, Anchor::Right, nothing, 1)),
+                Direction::Right,
+                Pos { x: 3, y: 5 },
+            ))
+            .0;
 
         let mut just_the_box = Diagram::new();
-        just_the_box.add(the_box_at_the_origin());
+        just_the_box = just_the_box.add(the_box_at_the_origin()).0;
 
         assert_eq!(
             picture_of(&chain, size),
@@ -951,14 +955,14 @@ mod tests {
     /// other alone would pass on two implementations that both moved up.
     #[test]
     fn an_out_from_the_top_or_the_bottom_of_a_horizontal_line_moves_the_same_one_cell() {
-        let mut diagram = Diagram::new();
+        let diagram = Diagram::new();
         let the_line = Shape::Line {
             at: Pos { x: 0, y: 0 },
             len: 5,
             orientation: Orientation::Horizontal,
             stroke: light(),
         };
-        let id = diagram.add(the_line.clone());
+        let (diagram, id) = diagram.add(the_line.clone());
         let on_the_line = the_line
             .anchor(Anchor::Top)
             .expect("a line answers all four of its sides");

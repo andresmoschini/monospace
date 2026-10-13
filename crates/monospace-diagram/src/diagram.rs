@@ -17,56 +17,69 @@
 use std::num::NonZeroU32;
 
 use monospace_core::{Buffer, Layer, ShapeId, StampMode};
+use rpds::{HashTrieMapSync, VectorSync};
 
 use crate::Shape;
-
-/// One entry of a diagram's order: a shape and the identity the diagram gave it.
-///
-/// `Clone` is derived and never read here; it exists because the diagram beside it can be copied and
-/// a hand-written copy of one entry would say nothing the derive does not.
-#[derive(Clone)]
-struct Placed {
-    id: ShapeId,
-    shape: Shape,
-}
+use crate::utilities::{swapped, without};
 
 /// A diagram: an ordered set of shapes, and nothing else — no buffer, no glyph catalog, no
 /// rendered picture.
 ///
-/// **It is `Clone`, because a diagram is a value and copying one is not sharing anything.** Every
-/// field is copied — the order, each figure with the identity the diagram gave it, and the ordinal
-/// the next `add` will take — so a copy is held, drawn, changed and dropped without the first
-/// knowing it exists: there is no identity counter behind it and nothing inside it refers to
-/// anything outside it. Nothing was reachable by reference before this, so nothing is by alias
-/// after it.
+/// **The figures are held apart from the order that draws them.** A [`HashTrieMapSync`] from an
+/// identity to a figure says which figure answers to a name, and a [`VectorSync`] of identities says
+/// which of them draws first; neither says anything the other cannot, and a caller naming a shape
+/// almost always means the first while rendering means the second. **The two are always written
+/// together and they always agree**: one identity stands once in the order and names one figure, so
+/// a lookup names a figure and the drawing walks the order alone.
+///
+/// **They are `Sync` and not the cheaper default, and the reason is a caller that does not exist
+/// yet.** `rpds` ships a twin of each of its structures, and the only difference in memory is none
+/// at all — a node is the same width either way — so the whole of what `Sync` costs is one atomic
+/// refcount per node touched, measured at about 1% of what a command costs this crate's caller
+/// pays. What it buys is that a diagram stays `Send`, and `docs/memory-cost.md` §8 names the
+/// decision that would turn `!Send` from a cost into a blocker: rendering on a background thread.
+///
+/// **It is `Clone`, because a diagram is a value and copying one is sharing, not duplicating.** A
+/// copy shares every figure and every place in the order with the original, so a copy is held,
+/// drawn, changed and dropped without the first knowing it exists, and dropping it frees nothing
+/// the original holds. **That is what a value buys and it is not a caveat to it:** nothing inside a
+/// diagram refers to anything outside it, and nothing that is reachable by reference before this is
+/// by alias after it.
 ///
 /// The copy answers `add` with the ordinal the original would have answered, which is what keeps
-/// two copies from handing out one identity. They are then two diagrams that both hold shapes
-/// under names that may coincide, and `add_under` already says that two entries under one identity
-/// are held and are not an error.
+/// two copies from handing out one identity. They are then two diagrams that both hold shapes under
+/// identities that may coincide, and `add_under` already says what one of them does to the figure
+/// already there.
 ///
-/// It is `Clone` and not `Copy`: a diagram is as likely to be as long as it is wide, and a copy of
-/// every figure is not a copy of nothing.
+/// It is `Clone` and not `Copy`: a diagram is as likely to be as long as it is wide, and sharing one
+/// is a decision rather than a default.
 #[derive(Clone)]
 pub struct Diagram {
-    /// The order the shapes draw in. The **last** element is the front of the order: it is drawn
-    /// first and decides a shared cell before anything behind it.
-    shapes: Vec<Placed>,
+    /// The figures this diagram holds, each under the identity it was added with. A figure is here
+    /// exactly once whatever place the order gives it, so two `add_under` calls carrying one
+    /// identity leave one figure and not two.
+    shapes: HashTrieMapSync<ShapeId, Shape>,
+    /// The order the shapes draw in, written as the identities themselves. The **last** element is
+    /// the front of the order: it is drawn first and decides a shared cell before anything behind
+    /// it. Nothing here says which figure a name belongs to — that is the map's, and every read of
+    /// this goes through it.
+    order: VectorSync<ShapeId>,
     /// The ordinal the next `add` takes. It is the ordinal itself rather than the last one issued,
     /// so seeding it is a plain assignment and no public method carries a subtraction. It is a
     /// [`NonZeroU32`] rather than a `u32` because zero is not an identity, so a counter that could
     /// stand at one would be a counter that could hand back nothing to name.
-    next: NonZeroU32,
+    next_id: NonZeroU32,
 }
 
 impl Default for Diagram {
     /// An empty diagram whose next `add` takes `1`, which is what `new` hands a caller with no
-    /// opinion. Written out rather than derived because a derived `Default` would leave `next` at
+    /// opinion. Written out rather than derived because a derived `Default` would leave `next_id` at
     /// the `0` a zeroed field gives, and this slice changed what that field means.
     fn default() -> Self {
         Self {
-            shapes: Vec::new(),
-            next: NonZeroU32::MIN,
+            shapes: HashTrieMapSync::new_sync(),
+            order: VectorSync::new_sync(),
+            next_id: NonZeroU32::MIN,
         }
     }
 }
@@ -78,81 +91,161 @@ impl Diagram {
         Self::numbered_from(NonZeroU32::MIN)
     }
 
-    /// An empty diagram whose next `add` takes the ordinal `next`.
+    /// An empty diagram whose next `add` takes the first ordinal at or after `next_id` that names no
+    /// figure.
     ///
     /// **The ordinal is a [`NonZeroU32`], so a zero is refused here rather than by `add`.** A
     /// description saying `"next_id": 0` is turned away by the reader rather than seeded with an
     /// identity nothing can carry, and there is no path through this crate that produces the `0` a
     /// plain `u32` would have allowed.
+    ///
+    /// **The ordinal it is given is not the ordinal the next addition gets**, and the difference is
+    /// the whole of what a stale value costs: a description whose second entry was deleted resumes
+    /// at `2` and steps over it to `3`.
     #[must_use]
-    pub fn numbered_from(next: NonZeroU32) -> Self {
+    pub fn numbered_from(next_id: NonZeroU32) -> Self {
         Self {
-            shapes: Vec::new(),
-            next,
+            shapes: HashTrieMapSync::new_sync(),
+            order: VectorSync::new_sync(),
+            next_id,
         }
     }
 
     /// Puts `shape` at the front of the order, in front of everything already there, and returns
     /// the identity the diagram gave it.
     ///
-    /// **The counter is advanced for the next addition, and by name when there is none.** A `u32`
-    /// has no ordinal after `u32::MAX`, and every identity it could hold next would be a `0` — the
-    /// one value this crate's own type cannot carry, and under the previous `+= 1` a release build
-    /// would have wrapped into it in silence. Saturating instead would hand the same identity out
-    /// twice, which §3 _Identity_ does not allow for a diagram-issued one, so the one answer left
-    /// is to say which of the two it was.
+    /// **The ordinal is one no figure is already under, and the counter steps over anything that is.**
+    /// The counter is trusted rather than checked, so a diagram numbered from 3 by a description
+    /// whose third entry was deleted issues `3` to whatever comes next and takes the caller's figure
+    /// with it: the issued figure would be unreachable by identity and the caller's would be drawn,
+    /// which is the outcome §3 _Identity_ says a diagram that hands out an ordinal a figure already
+    /// sits under has not kept. **Replacing it is not the other answer** — a figure that vanishes
+    /// with no error, no report and no way back is the one outcome nothing in this crate does — so
+    /// the counter steps over every ordinal already taken and issues the first free one after it.
+    ///
+    /// **This is the one operation that searches the figures**, and it searches them for an ordinal
+    /// rather than for a figure: what it asks is whether anything is held under the ordinal it is
+    /// about to issue, which the map answers without walking anything. A caller that never writes an
+    /// identity of its own never pays for it — the counter's own ordinals are consecutive, so the
+    /// first lookup misses and the addition is O(log n) rather than a scan.
+    ///
+    /// **The counter is advanced past the ordinal it issued, and stops there when there is nowhere
+    /// to go.** A `u32` has no ordinal after `u32::MAX`, so the counter stands where it is rather
+    /// than wrapping — under the previous `+= 1` a release build would have wrapped into the `0` a
+    /// plain `u32` allows in silence, and `0` is the one value this crate's own identity type
+    /// cannot carry. **The refusal belongs to the next `add` rather than to this one**: the ordinal
+    /// just issued is free and this figure is named under it, and the addition after it is the one
+    /// with nothing to hand out.
+    ///
+    /// **The pair is in that order because the identity is the reason for the call.** A caller that
+    /// had to look the identity up would be asking a question this diagram has just answered by
+    /// construction, and deriving it from the counter instead would publish a private field.
     ///
     /// # Panics
     ///
-    /// When the counter stands at [`u32::MAX`] and another shape is added: that ordinal is issued,
-    /// and the addition after it has no ordinal to name.
-    pub fn add(&mut self, shape: Shape) -> ShapeId {
-        let id = ShapeId::new(self.next);
-        self.next = self.next.checked_add(1).unwrap_or_else(|| {
-            panic!("a diagram has issued every ordinal a u32 can hold, and {id} was the last one")
-        });
-        self.shapes.push(Placed { id, shape });
-        id
+    /// When every ordinal at or after the counter is already taken, [`u32::MAX`] among them. A
+    /// `u32` ends there and nothing here reports what could not be drawn.
+    #[must_use]
+    pub fn add(&self, shape: Shape) -> (Self, ShapeId) {
+        let mut ordinal = self.next_id;
+        while self.shapes.contains_key(&ShapeId::new(ordinal)) {
+            ordinal = ordinal.checked_add(1).unwrap_or_else(|| {
+                let taken = ShapeId::new(ordinal);
+                panic!("a diagram has no ordinal left to issue: a u32 ends at {taken}")
+            });
+        }
+
+        let id = ShapeId::new(ordinal);
+        let next_id = ordinal.checked_add(1).unwrap_or(ordinal);
+
+        let next = Self {
+            shapes: self.shapes.insert(id, shape),
+            order: self.order.push_back(id),
+            next_id,
+        };
+
+        (next, id)
     }
 
     /// Puts `shape` at the front of the order, under the identity `id`.
     ///
-    /// `add` with the caller's identity in place of the diagram's, and it hands back nothing: two
-    /// shapes may carry one identity, both are held, and neither is an error. It does **not** touch
-    /// the counter, so on a diagram numbered from 3 the next `add` is still handed `4` whatever a
-    /// caller writes here.
-    pub fn add_under(&mut self, id: ShapeId, shape: Shape) {
-        self.shapes.push(Placed { id, shape });
+    /// `add` with the caller's identity in place of the diagram's, and it hands back nothing. It
+    /// does **not** touch the counter, so on a diagram numbered from 3 the next `add` is still handed
+    /// `4` whatever a caller writes here.
+    ///
+    /// **A figure already held under `id` is replaced by this one, in the place it already had.**
+    /// One identity names one figure and one place in the order, so putting a second shape under a
+    /// name this diagram already carries is a change to what that name is rather than a second
+    /// entry: the map holds one figure per identity and the order is left alone, so the diagram
+    /// draws the identity once rather than twice.
+    ///
+    /// **A refusal would be worse than the replacement.** This crate reports nothing anywhere, so
+    /// refusing in silence is a figure the caller asked for and did not get, with no way to tell it
+    /// from a figure that was never added.
+    #[must_use]
+    pub fn add_under(&self, id: ShapeId, shape: Shape) -> Self {
+        let already_held = self.order.iter().any(|held| *held == id);
+
+        Self {
+            shapes: self.shapes.insert(id, shape),
+            order: if already_held {
+                self.order.clone()
+            } else {
+                self.order.push_back(id)
+            },
+            next_id: self.next_id,
+        }
     }
 
     /// The place in the order the shape named by `id` stands, or `None` when this diagram holds
     /// no such shape.
     ///
-    /// The one search every method naming a shape by its identity goes through. `ShapeId`s are
-    /// compared by value, so an identity issued by another diagram is a well-formed value that
-    /// matches nothing here — the same answer the model's _Positions_ gives a reference to a shape
-    /// that is not there.
+    /// **The search `forward` and `backward` go through, and it is a scan of the order rather than
+    /// of the figures**: which place an identity stands in is a question about the order, and the
+    /// map answers no position at all. The two are the only operations that ask, and
+    /// `add_under`'s check below is one comparison rather than a search because it needs to know
+    /// *whether* the identity stands in the order and not *where*.
+    ///
+    /// `ShapeId`s are compared by value, so an identity issued by another diagram is a well-formed
+    /// value that matches nothing here — the same answer the model's _Positions_ gives a reference
+    /// to a shape that is not there.
     fn find(&self, id: ShapeId) -> Option<usize> {
-        self.shapes.iter().position(|placed| placed.id == id)
+        self.order.iter().position(|held| *held == id)
     }
 
     /// Moves the shape named by `id` one place toward the front of the order. Does nothing when
     /// `id` names no shape here, or when it is already the front-most.
-    pub fn forward(&mut self, id: ShapeId) {
-        if let Some(index) = self.find(id)
-            && index + 1 < self.shapes.len()
-        {
-            self.shapes.swap(index, index + 1);
+    #[must_use]
+    pub fn forward(&self, id: ShapeId) -> Self {
+        let Some(index) = self.find(id) else {
+            return self.clone();
+        };
+        if index + 1 >= self.order.len() {
+            return self.clone();
+        }
+
+        Self {
+            shapes: self.shapes.clone(),
+            order: swapped(&self.order, index, index + 1),
+            next_id: self.next_id,
         }
     }
 
     /// Moves the shape named by `id` one place toward the back of the order. Does nothing when
     /// `id` names no shape here, or when it is already the back-most.
-    pub fn backward(&mut self, id: ShapeId) {
-        if let Some(index) = self.find(id)
-            && index > 0
-        {
-            self.shapes.swap(index, index - 1);
+    #[must_use]
+    pub fn backward(&self, id: ShapeId) -> Self {
+        let Some(index) = self.find(id) else {
+            return self.clone();
+        };
+        if index == 0 {
+            return self.clone();
+        }
+
+        Self {
+            shapes: self.shapes.clone(),
+            order: swapped(&self.order, index, index - 1),
+            next_id: self.next_id,
         }
     }
 
@@ -167,7 +260,7 @@ impl Diagram {
     /// than inside the figure, so nothing about what is returned says where it sits.
     #[must_use]
     pub fn get(&self, id: ShapeId) -> Option<&Shape> {
-        self.find(id).map(|index| &self.shapes[index].shape)
+        self.shapes.get(&id)
     }
 
     /// Takes the shape named by `id` out of the diagram, and freezes what hung from it.
@@ -186,31 +279,38 @@ impl Diagram {
     ///
     /// An identity this diagram does not hold changes nothing, with no error, no report and no
     /// panic, which is the same answer the model's _Positions_ gives a reference to a shape that is
-    /// not there. The gap is closed, so what remains of the order keeps the order it had.
+    /// not there. **What it hands back is a diagram equal to the one it was given**, sharing every
+    /// figure with it: there is no history and nothing to undo, so putting a figure back means
+    /// building it again. The counter is not touched either, so an identity is never handed out a
+    /// second time and a put-back is `add_under` with the identity the caller kept.
     ///
-    /// It hands back nothing. There is no history and nothing to undo, so putting a figure back
-    /// means building it again. The counter is not touched either, so an identity is never handed
-    /// out a second time and a put-back is `add_under` with the identity the caller kept.
-    pub fn remove(&mut self, id: ShapeId) {
-        // Read before the loop and still valid after it: the loop changes no figure's identity and
-        // no figure's place in the order, only the positions inside one of them.
-        let Some(index) = self.find(id) else {
-            return;
-        };
-
-        // **Indexed rather than iterated**, because a `&mut Shape` cannot be held across a call that
-        // wants the diagram: `for placed in &mut self.shapes` writing `placed.shape` inside is a
-        // borrow error. Ending the borrow on each statement is enough, so this is one pass and
-        // nothing is collected. Nothing excludes the figure being removed from the loop — it is
-        // rewritten and dropped a line later, and excluding it would cost a comparison to buy
-        // nothing.
-        for at in 0..self.shapes.len() {
-            if let Some(shape) = self.shapes[at].shape.with_frozen_references(id, self) {
-                self.shapes[at].shape = shape;
-            }
+    /// **The identity leaves the order everywhere it stood, not once.** An identity stands in the
+    /// order exactly once, so this is one place here rather than a search for every place it might
+    /// stand; `without` is written the other way because the sequence a caller reads is not this
+    /// one.
+    #[must_use]
+    pub fn remove(&self, id: ShapeId) -> Self {
+        if !self.shapes.contains_key(&id) {
+            return self.clone();
         }
 
-        self.shapes.remove(index);
+        // The freezing is a fold rather than a loop over a mutable copy: every write is an
+        // `insert` handing back a map, so nothing here is written into either. The fold is over the
+        // **figures**, not over the order, because a figure is rewritten whatever place the order
+        // gives it and the order says nothing about what a figure refers to.
+        let shapes = (&self.shapes).into_iter().fold(
+            self.shapes.clone(),
+            |shapes, (held, shape)| match shape.with_frozen_references(id, self) {
+                Some(frozen) => shapes.insert(*held, frozen),
+                None => shapes,
+            },
+        );
+
+        Self {
+            shapes: shapes.remove(&id),
+            order: without(&self.order, &id),
+            next_id: self.next_id,
+        }
     }
 
     /// Puts `shape` where the shape named by `id` stands, in the same place in the order.
@@ -221,11 +321,20 @@ impl Diagram {
     /// line, with nothing of the previous figure surviving it.
     ///
     /// An identity this diagram does not hold changes nothing, and the shape handed in is not
-    /// added either, so there is no way to name a shape into existence. It takes the shape by
-    /// value and hands back nothing, for the reason [`Diagram::remove`] does.
-    pub fn replace(&mut self, id: ShapeId, shape: Shape) {
-        if let Some(index) = self.find(id) {
-            self.shapes[index].shape = shape;
+    /// added either — the replacement is written into the map **only where an identity is already
+    /// there**, so there is still no way to name a shape into existence. What it hands back is a
+    /// diagram equal to the one it was given, and it takes the shape by value for the reason
+    /// [`Diagram::remove`] does.
+    #[must_use]
+    pub fn replace(&self, id: ShapeId, shape: Shape) -> Self {
+        if !self.shapes.contains_key(&id) {
+            return self.clone();
+        }
+
+        Self {
+            shapes: self.shapes.insert(id, shape),
+            order: self.order.clone(),
+            next_id: self.next_id,
         }
     }
 
@@ -247,9 +356,16 @@ impl Diagram {
     /// drawing rather than of the diagram, which is why changing the diagram changes nothing about a
     /// buffer already drawn.
     pub fn draw(&self, buffer: &mut Buffer) {
-        for placed in self.shapes.iter().rev() {
-            let mut layer = Layer::stamped_by(buffer, StampMode::Below, placed.id);
-            placed.shape.draw(&mut layer, self);
+        for id in self.order.iter().rev() {
+            // **Every place in the order names a figure, and the guard is here rather than a panic
+            // because the two are written together and nothing reaches into either.** It would not
+            // fire: `add` and `add_under` write a figure and a place at once, and `remove` takes both
+            // out.
+            let Some(shape) = self.shapes.get(id) else {
+                continue;
+            };
+            let mut layer = Layer::stamped_by(buffer, StampMode::Below, *id);
+            shape.draw(&mut layer, self);
         }
     }
 }
@@ -305,21 +421,25 @@ mod tests {
             height: 5,
         };
         let mut diagram = Diagram::new();
-        diagram.add(Shape::Box {
-            at: Pos { x: 0, y: 0 },
-            size: Size {
-                width: 4,
-                height: 3,
-            },
-            stroke: light(),
-            fill: None,
-        });
-        diagram.add(Shape::Line {
-            at: Pos { x: 0, y: 4 },
-            len: 5,
-            orientation: Orientation::Horizontal,
-            stroke: light(),
-        });
+        diagram = diagram
+            .add(Shape::Box {
+                at: Pos { x: 0, y: 0 },
+                size: Size {
+                    width: 4,
+                    height: 3,
+                },
+                stroke: light(),
+                fill: None,
+            })
+            .0;
+        diagram = diagram
+            .add(Shape::Line {
+                at: Pos { x: 0, y: 4 },
+                len: 5,
+                orientation: Orientation::Horizontal,
+                stroke: light(),
+            })
+            .0;
 
         let mut first = Buffer::new(origin, size);
         diagram.draw(&mut first);
@@ -348,8 +468,8 @@ mod tests {
     /// shape in front decided, which is the one cell where a record can be wrong in a way the
     /// picture does not show.
     fn two_overlapping_boxes() -> (Diagram, ShapeId, ShapeId) {
-        let mut diagram = Diagram::new();
-        let back = diagram.add(Shape::Box {
+        let diagram = Diagram::new();
+        let (diagram, back) = diagram.add(Shape::Box {
             at: Pos { x: 0, y: 0 },
             size: Size {
                 width: 4,
@@ -358,7 +478,7 @@ mod tests {
             stroke: light(),
             fill: Some(Glyph::new("░").expect("one glyph")),
         });
-        let front = diagram.add(Shape::Box {
+        let (diagram, front) = diagram.add(Shape::Box {
             at: Pos { x: 2, y: 1 },
             size: Size {
                 width: 4,
@@ -368,6 +488,354 @@ mod tests {
             fill: Some(Glyph::new("▓").expect("one glyph")),
         });
         (diagram, back, front)
+    }
+
+    /// Not one of the six operations changes the diagram it was given, and the picture it draws
+    /// and the figures it holds are the two readings of that.
+    ///
+    /// **Every operation, over one arrangement, with the result dropped.** A diagram is a value
+    /// here, so a caller that forgets to keep what it was handed has changed nothing at all — which
+    /// is the whole of what the signatures buy and the one mistake a caller can make with them. The
+    /// results are dropped rather than bound so that the compiler's `#[must_use]` cannot stand in
+    /// for the assertion.
+    ///
+    /// **Three readings rather than one, because one would be satisfied by a diagram that changed
+    /// nothing visible.** The cells it draws say the order did not move and no figure was rewritten,
+    /// the record says no cell changed owner, and `get` says both figures are still bound to what
+    /// they were bound to.
+    #[test]
+    fn no_operation_changes_the_diagram_it_was_given() {
+        let (diagram, back, front) = two_overlapping_boxes();
+        let (origin, size) = the_window();
+        let before = draw_of(&diagram, origin, size);
+        let cells_before = cells(&before, origin, size);
+        let owners_before = owners(&before, size);
+        let figures_before = [diagram.get(back).cloned(), diagram.get(front).cloned()];
+
+        drop(diagram.add(Shape::Line {
+            at: Pos { x: 0, y: 3 },
+            len: 3,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        }));
+        drop(diagram.add_under(identity(9), the_box()));
+        drop(diagram.forward(back));
+        drop(diagram.backward(front));
+        drop(diagram.replace(back, the_box()));
+        drop(diagram.remove(back));
+
+        assert_eq!(
+            cells(&draw_of(&diagram, origin, size), origin, size),
+            cells_before,
+            "every operation was asked and the diagram draws what it drew"
+        );
+        assert_eq!(
+            owners(&draw_of(&diagram, origin, size), size),
+            owners_before,
+            "and no cell changed which figure owns it"
+        );
+        assert_eq!(
+            [diagram.get(back).cloned(), diagram.get(front).cloned()],
+            figures_before,
+            "and both figures are still bound to the identities they were added under"
+        );
+    }
+
+    /// `add` hands back **the diagram and then the identity**, in that order, and the identity is
+    /// bound to the figure that was added.
+    ///
+    /// **The signature is taken as a value of its exact type**, which is the only way a test can
+    /// pin a pair rather than a drawing of it: a `Diagram` derives no `Debug` and no `PartialEq`,
+    /// so nothing here compares diagrams — it asks what the function has to return.
+    ///
+    /// The second half is what the first is for: a caller that had to look the identity up would be
+    /// asking a question the diagram has just answered by construction, and the one thing a wrong
+    /// order would break is that the identity names the figure it was given.
+    #[test]
+    fn add_hands_back_the_diagram_and_the_identity_in_that_order() {
+        let add: for<'a> fn(&'a Diagram, Shape) -> (Diagram, ShapeId) = Diagram::add;
+
+        let (diagram, issued) = add(&Diagram::new(), the_box());
+
+        assert_eq!(
+            issued,
+            identity(1),
+            "the first addition is handed the ordinal the counter stands at"
+        );
+        assert_eq!(
+            diagram.get(issued),
+            Some(&the_box()),
+            "and the identity the caller was handed is what names the figure it was given"
+        );
+        assert!(
+            diagram.get(identity(2)).is_none(),
+            "so a caller that ignored the pair knows exactly what it cannot name"
+        );
+    }
+
+    /// An identity no figure is under names nothing, and every operation **looking for** it hands
+    /// back a diagram that changes no cell of the picture.
+    ///
+    /// **Four operations rather than six, and `add_under` is the one left out.** It does not look
+    /// for a figure under a name, it puts one there, so the premise does not survive it: an
+    /// identity no figure was under is what a caller hands it. `a_second_shape_under_one_identity_replaces_it_and_is_drawn_once`
+    /// is the case where there *is* a figure there already, and this is the other one.
+    ///
+    /// `get` is asked first, because a caller that is told nothing is told so here and nowhere
+    /// else, and **an identity from another diagram is the same case**: identities are compared by
+    /// value, so `a_foreign_identity` names a well-formed ordinal this diagram never issued. Both
+    /// are asked because the answer is what the model's _Positions_ gives a reference to a shape
+    /// that is not there.
+    #[test]
+    fn an_identity_naming_no_figure_changes_no_cell_of_the_picture() {
+        let (diagram, _back, _front) = two_overlapping_boxes();
+        let (origin, size) = the_window();
+        let absent = identity(9);
+        let before = cells(&draw_of(&diagram, origin, size), origin, size);
+
+        for named in [absent, a_foreign_identity()] {
+            assert!(
+                diagram.get(named).is_none(),
+                "an identity no figure is under answers nothing"
+            );
+
+            for (what, after) in [
+                ("`forward`", draw_of(&diagram.forward(named), origin, size)),
+                (
+                    "`backward`",
+                    draw_of(&diagram.backward(named), origin, size),
+                ),
+                (
+                    "`replace`",
+                    draw_of(&diagram.replace(named, the_box()), origin, size),
+                ),
+                ("`remove`", draw_of(&diagram.remove(named), origin, size)),
+            ] {
+                assert_eq!(
+                    cells(&after, origin, size),
+                    before,
+                    "{what} on {named:?}, which this diagram holds nothing under, changed the picture"
+                );
+            }
+        }
+    }
+
+    /// `forward` and `backward` are the only operations that search, and what that is visible as is
+    /// **that they are the only ones that change which figure decides a cell two figures hold.**
+    ///
+    /// A search is not observable and a timing is not a test, so this pins the consequence. A move
+    /// exchanges two places in the order, and the record follows: at the crossing cell the box
+    /// behind filled and the box in front decided, and whichever is in front owns it. Nothing else
+    /// in this crate's surface writes there, because nothing else reaches into the order.
+    ///
+    /// **The crossing cell is named rather than searched for**, and the four operations that are not
+    /// moves are asked about it as well — an `add`, an `add_under`, a `replace` and a `remove` that
+    /// each change the picture and none of which moves anything.
+    #[test]
+    fn forward_and_backward_are_the_only_operations_that_search() {
+        let (diagram, back, front) = two_overlapping_boxes();
+        let (origin, size) = the_window();
+        let crossing = Offset { x: 2, y: 1 };
+        assert_eq!(
+            draw_of(&diagram, origin, size).owner(crossing),
+            Some(front),
+            "the box in front of the two decides the cell they share"
+        );
+
+        for (what, moved) in [
+            ("`forward`", draw_of(&diagram.forward(back), origin, size)),
+            (
+                "`backward`",
+                draw_of(&diagram.backward(front), origin, size),
+            ),
+        ] {
+            assert_eq!(
+                moved.owner(crossing),
+                Some(back),
+                "{what} exchanged two places in the order and the record did not follow"
+            );
+        }
+
+        for (what, after) in [
+            (
+                "`add`",
+                draw_of(
+                    &diagram
+                        .add(Shape::Line {
+                            at: Pos { x: 0, y: 3 },
+                            len: 2,
+                            orientation: Orientation::Horizontal,
+                            stroke: light(),
+                        })
+                        .0,
+                    origin,
+                    size,
+                ),
+            ),
+            (
+                "`add_under`",
+                draw_of(&diagram.add_under(identity(9), the_box()), origin, size),
+            ),
+            (
+                "`replace`",
+                draw_of(
+                    &diagram.replace(
+                        back,
+                        Shape::Line {
+                            at: Pos { x: 0, y: 0 },
+                            len: 4,
+                            orientation: Orientation::Horizontal,
+                            stroke: light(),
+                        },
+                    ),
+                    origin,
+                    size,
+                ),
+            ),
+            ("`remove`", draw_of(&diagram.remove(back), origin, size)),
+        ] {
+            assert_eq!(
+                after.owner(crossing),
+                Some(front),
+                "{what} changed which figure decides the crossing cell, which only a search of the \
+                 order does"
+            );
+        }
+    }
+
+    /// `remove` leaves the order **closed rather than gapped**: what is left draws what it drew and
+    /// nothing is left standing where the figure stood.
+    ///
+    /// **The figure put back is the discriminator.** A place left behind would put it where it was,
+    /// behind the figure still there, and the crossing cell would still be the front box's; a closed
+    /// order puts it at the front of the order, which is the only place a fresh addition goes, and
+    /// the record follows. The drawing alone cannot tell the two apart for a figure that does not
+    /// overlap, which is why the assertion is about the record.
+    ///
+    /// **Removing the same identity twice changes nothing**, which is the other half of "closed": a
+    /// second `remove` has no place to close.
+    #[test]
+    fn remove_leaves_the_order_closed_rather_than_gapped() {
+        let (diagram, back, front) = two_overlapping_boxes();
+        let (origin, size) = the_window();
+        let crossing = Offset { x: 2, y: 1 };
+        let without = diagram.remove(back);
+
+        assert!(
+            without.get(back).is_none(),
+            "the identity that was taken out names nothing"
+        );
+        assert_eq!(
+            cells(&draw_of(&without.remove(back), origin, size), origin, size),
+            cells(&draw_of(&without, origin, size), origin, size),
+            "taking out an identity that is already out changed the picture"
+        );
+        assert_eq!(
+            cells(&draw_of(&without, origin, size), origin, size),
+            cells(
+                &draw_of(
+                    &Diagram::new().add_under(
+                        front,
+                        diagram.get(front).cloned().expect("a figure it holds")
+                    ),
+                    origin,
+                    size
+                ),
+                origin,
+                size
+            ),
+            "what is left draws what the same figure draws with the other never there"
+        );
+
+        // The place the figure stood in is gone rather than reserved: put back, it goes to the
+        // front of the order like any addition, and the crossing cell becomes its own.
+        assert_eq!(
+            draw_of(
+                &without.add_under(back, diagram.get(back).cloned().expect("a figure it holds")),
+                origin,
+                size
+            )
+            .owner(crossing),
+            Some(back),
+            "the figure put back under a removed identity is in front, so no place of its own was \
+             left behind"
+        );
+    }
+
+    /// What hung from a removed figure is frozen, and **nothing goes looking for the reference
+    /// afterwards**.
+    ///
+    /// **The arrangement is the one `a_removal_freezes_what_hung_from_the_removed_shape` builds**,
+    /// so the freeze itself is not re-decided here: what this adds is the second half, which that
+    /// test does not reach because the figure is not put back.
+    ///
+    /// **The point is resolved before the removal and held across it**, because "the point it was
+    /// resolving to" is a claim about a moment that is gone once the figure is out. And **the
+    /// second half is a claim about the endpoint rather than about the picture**: a frozen end
+    /// stands at the same point a reference to the figure would have resolved to, so the box put
+    /// back draws exactly what it drew before — which is why a drawing cannot tell the two apart
+    /// and only the endpoint can.
+    #[test]
+    fn what_hung_from_a_removed_figure_is_frozen_and_not_looked_for_afterwards() {
+        let (origin, size) = the_window();
+        let nothing = Delta { dx: 0, dy: 0 };
+        let the_far_end = Pos { x: 8, y: 1 };
+
+        let (diagram, box_id) = Diagram::new().add(the_box());
+        let diagram = diagram
+            .add(hanging_from(box_id, nothing, the_far_end))
+            .0
+            .add(the_unrelated_box())
+            .0;
+        let connector = identity(2);
+
+        let it_resolved_to = the_hanging_end(&diagram, connector)
+            .expect("the reference resolves while the figure it names is held")
+            .at
+            .resolve(&diagram)
+            .expect("the box answers the side it names");
+
+        let removed = diagram.remove(box_id);
+
+        // Frozen: the end is the absolute point it was resolving to, and the picture is the one
+        // the same diagram draws with that point written out and the box never there.
+        assert_eq!(
+            the_hanging_end(&removed, connector)
+                .expect("the connector is still held")
+                .at,
+            Position::from(it_resolved_to),
+            "the end is the point it was resolving to rather than the reference to a figure that is gone"
+        );
+        let written_out = Diagram::new()
+            .add(the_unrelated_box())
+            .0
+            .add(arm_connector(it_resolved_to.into(), the_far_end.into()))
+            .0;
+        assert_eq!(
+            cells(&draw_of(&removed, origin, size), origin, size),
+            cells(&draw_of(&written_out, origin, size), origin, size),
+            "and the picture is what the same figure with that point spelled out draws"
+        );
+
+        // And nothing went looking for the reference: the box put back under the identity it had
+        // does not turn the absolute point back into one.
+        let put_back = removed.add_under(box_id, the_box());
+        assert_eq!(
+            the_hanging_end(&put_back, connector)
+                .expect("the connector is still held")
+                .at,
+            Position::from(it_resolved_to),
+            "with the figure standing again the end is still the frozen point"
+        );
+        assert_ne!(
+            the_hanging_end(&put_back, connector)
+                .expect("the connector is still held")
+                .at,
+            the_hanging_end(&diagram, connector)
+                .expect("the connector is held")
+                .at,
+            "and not the reference the connector was written with"
+        );
     }
 
     /// A shape is drawn under whatever identity it was added under, so every cell it decided is
@@ -466,7 +934,7 @@ mod tests {
             "the first drawing recorded something, so there is a record to leave alone"
         );
 
-        diagram.remove(front);
+        diagram = diagram.remove(front);
         assert_eq!(
             cells(&buffer, origin, size),
             cells_before,
@@ -496,31 +964,39 @@ mod tests {
         );
     }
 
-    /// Two shapes carrying one identity both record it, exactly as `get` cannot tell them apart.
+    /// A second shape under one identity **replaces** the first, and the identity is drawn once, in
+    /// the place it already had.
     ///
     /// **Two boxes far enough apart to share no cell**, so every owner in the window is one figure's
-    /// and the two records are each wholly one identity. An identity issued by `add` is checked for
-    /// uniqueness and one supplied through `add_under` is not, so the record has no way to hold the
-    /// two apart either — and refusing the second stamp instead would leave a cell the diagram
-    /// plainly drew unowned, which is a worse answer than an ambiguous one.
+    /// and "drawn once" is a claim about cells rather than about which glyph is in front.
+    ///
+    /// **The picture is the one a diagram holding only the second box draws**, which is the whole of
+    /// what replacing means: nothing of the figure that was replaced is left anywhere, and comparing
+    /// against a diagram built from that one figure is what says so rather than listing the cells it
+    /// does not reach. **Two places in the order would draw the figure twice** and pass every
+    /// assertion about which figure the identity names, which is why the whole picture is compared
+    /// rather than one cell of it.
+    ///
+    /// This is what §3 _Identity_ now says, where it used to say that two shapes may carry one
+    /// identity, both are held, and the second is a shape no identity names until the first is
+    /// removed. Holding two figures under one name needs an identity for the _occurrence_, which the
+    /// model has no name for, and it turns the order into a sequence of occurrences rather than of
+    /// identities.
     #[test]
-    fn two_shapes_carrying_one_identity_both_record_it_as_get_cannot_tell_them_apart() {
+    fn a_second_shape_under_one_identity_replaces_it_and_is_drawn_once() {
         let shared = identity(1);
-        let mut diagram = Diagram::new();
-        for x in [0, 4] {
-            diagram.add_under(
-                shared,
-                Shape::Box {
-                    at: Pos { x, y: 0 },
-                    size: Size {
-                        width: 2,
-                        height: 2,
-                    },
-                    stroke: light(),
-                    fill: None,
-                },
-            );
-        }
+        let a_box_at = |x: i32| Shape::Box {
+            at: Pos { x, y: 0 },
+            size: Size {
+                width: 2,
+                height: 2,
+            },
+            stroke: light(),
+            fill: None,
+        };
+        let diagram = Diagram::new()
+            .add_under(shared, a_box_at(0))
+            .add_under(shared, a_box_at(4));
 
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
@@ -530,32 +1006,44 @@ mod tests {
         let mut buffer = Buffer::new(origin, size);
         diagram.draw(&mut buffer);
 
-        // `get` answers with the first of the two and there is no listing that would name the
-        // second, which is the whole of what "cannot tell them apart" means here.
+        // `get` answers with the second of the two, which is the one the diagram kept, and there is
+        // no listing that would name the other — which is not a limitation but the whole of it.
         assert!(
-            matches!(diagram.get(shared), Some(Shape::Box { at, .. }) if *at == Pos { x: 0, y: 0 }),
-            "get answers with the first of the two shapes sharing the identity"
+            matches!(diagram.get(shared), Some(Shape::Box { at, .. }) if *at == Pos { x: 4, y: 0 }),
+            "get answers with the second of the two shapes added under the identity"
         );
 
-        for offset in [
-            Offset { x: 0, y: 0 },
-            Offset { x: 1, y: 1 },
-            Offset { x: 4, y: 0 },
-            Offset { x: 5, y: 1 },
-        ] {
+        // What is on the screen is the one figure, where it stands, and nothing of the figure it
+        // replaced: the left box is gone rather than hidden behind the right one.
+        assert_eq!(
+            cells(&buffer, origin, size),
+            cells(&drawn(vec![a_box_at(4)], origin, size), origin, size),
+            "the identity is drawn once, as the figure that replaced the first"
+        );
+
+        for offset in [Offset { x: 4, y: 0 }, Offset { x: 5, y: 1 }] {
             assert_eq!(
                 buffer.owner(offset),
                 Some(shared),
-                "both shapes recorded the one identity they carry, at ({}, {})",
+                "every cell the surviving figure wrote carries the one identity it is held under, at \
+                 ({}, {})",
                 offset.x,
                 offset.y
             );
         }
-        assert_eq!(
-            buffer.owner(Offset { x: 2, y: 0 }),
-            None,
-            "and a position neither shape wrote is owned by nobody"
-        );
+        for offset in [
+            Offset { x: 0, y: 0 },
+            Offset { x: 1, y: 1 },
+            Offset { x: 2, y: 0 },
+        ] {
+            assert_eq!(
+                buffer.owner(offset),
+                None,
+                "the figure that was replaced wrote nothing, at ({}, {})",
+                offset.x,
+                offset.y
+            );
+        }
     }
 
     /// Scenario 3: an empty diagram leaves its buffer exactly as it was.
@@ -585,15 +1073,17 @@ mod tests {
             height: 3,
         };
         let mut diagram = Diagram::new();
-        diagram.add(Shape::Box {
-            at: Pos { x: 1, y: 1 },
-            size: Size {
-                width: 4,
-                height: 4,
-            },
-            stroke: light(),
-            fill: None,
-        });
+        diagram = diagram
+            .add(Shape::Box {
+                at: Pos { x: 1, y: 1 },
+                size: Size {
+                    width: 4,
+                    height: 4,
+                },
+                stroke: light(),
+                fill: None,
+            })
+            .0;
 
         let mut buffer = Buffer::new(origin, size);
         diagram.draw(&mut buffer);
@@ -612,12 +1102,14 @@ mod tests {
             height: 3,
         };
         let mut diagram = Diagram::new();
-        diagram.add(Shape::Box {
-            at: origin,
-            size,
-            stroke: light(),
-            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
-        });
+        diagram = diagram
+            .add(Shape::Box {
+                at: origin,
+                size,
+                stroke: light(),
+                fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+            })
+            .0;
         let mut actual = Buffer::new(origin, size);
         diagram.draw(&mut actual);
 
@@ -645,12 +1137,14 @@ mod tests {
             height: 1,
         };
         let mut diagram = Diagram::new();
-        diagram.add(Shape::Line {
-            at: origin,
-            len: 5,
-            orientation: Orientation::Horizontal,
-            stroke: light(),
-        });
+        diagram = diagram
+            .add(Shape::Line {
+                at: origin,
+                len: 5,
+                orientation: Orientation::Horizontal,
+                stroke: light(),
+            })
+            .0;
         let mut actual = Buffer::new(origin, size);
         diagram.draw(&mut actual);
 
@@ -694,11 +1188,13 @@ mod tests {
         };
 
         let mut diagram = Diagram::new();
-        diagram.add(Shape::Connector {
-            from: from(),
-            to: to(),
-            stroke: light(),
-        });
+        diagram = diagram
+            .add(Shape::Connector {
+                from: from(),
+                to: to(),
+                stroke: light(),
+            })
+            .0;
         let mut actual = Buffer::new(origin, size);
         diagram.draw(&mut actual);
 
@@ -745,9 +1241,9 @@ mod tests {
             stroke: light(),
         };
 
-        let mut diagram = Diagram::numbered_from(nz(3));
-        let first = diagram.add(a_line());
-        let second = diagram.add(a_line());
+        let diagram = Diagram::numbered_from(nz(3));
+        let (diagram, first) = diagram.add(a_line());
+        let (_, second) = diagram.add(a_line());
 
         assert_eq!(first.to_string(), "3");
         assert_eq!(second.to_string(), "4");
@@ -771,13 +1267,13 @@ mod tests {
             stroke: light(),
         };
 
-        let mut diagram = Diagram::numbered_from(nz(10));
-        let first = diagram.add(a_line());
-        diagram.add(a_line());
+        let diagram = Diagram::numbered_from(nz(10));
+        let (mut diagram, first) = diagram.add(a_line());
+        diagram = diagram.add(a_line()).0;
         assert_eq!(first.to_string(), "10");
 
-        diagram.remove(first);
-        let after_the_removal = diagram.add(a_line());
+        diagram = diagram.remove(first);
+        let (_, after_the_removal) = diagram.add(a_line());
 
         assert_eq!(after_the_removal.to_string(), "12");
     }
@@ -814,7 +1310,7 @@ mod tests {
         let mut diagram = Diagram::new();
         let chosen = identity(2);
         let other = identity(3);
-        diagram.add_under(chosen, a_box_at_zero());
+        diagram = diagram.add_under(chosen, a_box_at_zero());
 
         // `get` names the shape it was given.
         assert!(matches!(diagram.get(chosen), Some(Shape::Box { .. })));
@@ -823,15 +1319,15 @@ mod tests {
         // one it holds for no shape at all: naming it draws nothing and adds nothing.
         let absent = identity(9);
         let mut with_both = Diagram::new();
-        with_both.add_under(chosen, a_box_at_zero());
-        with_both.add_under(other, a_box_at_zero());
+        with_both = with_both.add_under(chosen, a_box_at_zero());
+        with_both = with_both.add_under(other, a_box_at_zero());
         assert!(matches!(with_both.get(other), Some(Shape::Box { .. })));
         assert!(with_both.get(absent).is_none());
         let before_naming = cells(&draw_of(&with_both, origin, size), origin, size);
-        with_both.forward(absent);
-        with_both.backward(absent);
-        with_both.remove(absent);
-        with_both.replace(absent, a_box_at_zero());
+        with_both = with_both.forward(absent);
+        with_both = with_both.backward(absent);
+        with_both = with_both.remove(absent);
+        with_both = with_both.replace(absent, a_box_at_zero());
         assert_eq!(
             cells(&draw_of(&with_both, origin, size), origin, size),
             before_naming,
@@ -841,9 +1337,9 @@ mod tests {
         // `remove` takes out the shape the identity named and nothing else. The shape added here is
         // the diagram's own first one, so it is `1` and the chosen `2` is not the same ordinal.
         let mut to_remove_from = Diagram::new();
-        to_remove_from.add_under(chosen, a_box_at_zero());
-        to_remove_from.add(a_box_at_zero());
-        to_remove_from.remove(chosen);
+        to_remove_from = to_remove_from.add_under(chosen, a_box_at_zero());
+        to_remove_from = to_remove_from.add(a_box_at_zero()).0;
+        to_remove_from = to_remove_from.remove(chosen);
         assert!(to_remove_from.get(chosen).is_none());
         assert!(matches!(
             to_remove_from.get(identity(1)),
@@ -853,16 +1349,16 @@ mod tests {
         // `replace` puts the shape back under the identity it was given, and the identity it did
         // not name is untouched.
         let mut to_replace_in = Diagram::new();
-        to_replace_in.add_under(chosen, a_box_at_zero());
-        let issued = to_replace_in.add(a_box_at_zero());
-        to_replace_in.replace(chosen, a_box_at_zero());
+        to_replace_in = to_replace_in.add_under(chosen, a_box_at_zero());
+        let (mut to_replace_in, issued) = to_replace_in.add(a_box_at_zero());
+        to_replace_in = to_replace_in.replace(chosen, a_box_at_zero());
         assert!(matches!(to_replace_in.get(chosen), Some(Shape::Box { .. })));
         assert!(matches!(to_replace_in.get(issued), Some(Shape::Box { .. })));
 
         // `forward` and `backward` move the shape the identity names, one place at a time, and
         // the picture says which one moved. Three **filled** boxes overlapping one another, so
         // which is in front decides the cells they share and the order is visible in the drawing
-        // rather than only in the vector: `forward` on `chosen` puts it in front of the next one
+        // rather than only in the order: `forward` on `chosen` puts it in front of the next one
         // along, and `backward` puts it back.
         //
         // The fill is what makes the order visible. Unfilled boxes that share only their borders
@@ -877,7 +1373,7 @@ mod tests {
             stroke: light(),
             fill: Some(Glyph::new(fill).expect("one grapheme cluster")),
         };
-        // `add_under` pushes onto the back of the vector and the back is the **front** of the
+        // `add_under` pushes onto the back of the order and the back is the **front** of the
         // order, so the last one added is the front-most and the first is the back-most. Added in
         // this order, `chosen` is the back-most and a `forward` has somewhere to go.
         //
@@ -887,11 +1383,11 @@ mod tests {
         // two places forward. With two there is only one place to move, and the two orders are two
         // different drawings.
         let mut to_move = Diagram::new();
-        to_move.add_under(chosen, a_filled_box(0, "█"));
-        to_move.add_under(other, a_filled_box(2, "░"));
+        to_move = to_move.add_under(chosen, a_filled_box(0, "█"));
+        to_move = to_move.add_under(other, a_filled_box(2, "░"));
         let at_the_back = cells(&draw_of(&to_move, origin, size), origin, size);
 
-        to_move.forward(chosen);
+        to_move = to_move.forward(chosen);
         let one_forward = cells(&draw_of(&to_move, origin, size), origin, size);
         assert_ne!(
             one_forward, at_the_back,
@@ -901,15 +1397,15 @@ mod tests {
         // The one place it moved is the one a diagram built with `chosen` in front draws — which
         // is the claim, stated as a drawing rather than as a count of places.
         let mut with_it_in_front = Diagram::new();
-        with_it_in_front.add_under(other, a_filled_box(2, "░"));
-        with_it_in_front.add_under(chosen, a_filled_box(0, "█"));
+        with_it_in_front = with_it_in_front.add_under(other, a_filled_box(2, "░"));
+        with_it_in_front = with_it_in_front.add_under(chosen, a_filled_box(0, "█"));
         assert_eq!(
             one_forward,
             cells(&draw_of(&with_it_in_front, origin, size), origin, size),
             "one forward on a chosen identity moves it exactly one place"
         );
 
-        to_move.backward(chosen);
+        to_move = to_move.backward(chosen);
         assert_eq!(
             cells(&draw_of(&to_move, origin, size), origin, size),
             at_the_back,
@@ -917,7 +1413,7 @@ mod tests {
         );
 
         // A `forward` on the front-most shape has nowhere to go, and changes no cell.
-        to_move.forward(other);
+        to_move = to_move.forward(other);
         assert_eq!(
             cells(&draw_of(&to_move, origin, size), origin, size),
             at_the_back,
@@ -934,12 +1430,6 @@ mod tests {
     /// a counter that advanced by two would hand back `5`; neither is what `3` says happened. The
     /// second `add` then shows the advance itself: the counter's own ordinals are consecutive, which
     /// is the whole of what "the numbering resumes" means.
-    ///
-    /// **And the accepted cost, which is the other half of this rule's neighborhood**: two shapes
-    /// under one identity are both held and `get` returns the first, so the second is a shape no
-    /// ordinal names until the first is taken out. Pinned as a **behavior rather than a bug**, so a
-    /// later slice that decides to report it has to say so rather than discover it. An ordinal is no
-    /// more unique than the name it replaced, and nothing here checks it either way.
     #[test]
     fn a_diagram_issues_the_counter_and_a_shape_added_under_a_callers_identity_does_not_move_it() {
         let a_box = || Shape::Box {
@@ -954,36 +1444,62 @@ mod tests {
 
         // Nothing a caller writes moves the numbering, and the counter advances by exactly one.
         let mut diagram = Diagram::numbered_from(nz(3));
-        diagram.add_under(identity(7), a_box());
-        let next = diagram.add(a_box());
-        let after_that = diagram.add(a_box());
+        diagram = diagram.add_under(identity(7), a_box());
+        let (diagram, next) = diagram.add(a_box());
+        let (_, after_that) = diagram.add(a_box());
         assert_eq!(next.to_string(), "3");
         assert_eq!(
             after_that.to_string(),
             "4",
             "the counter advanced by one, and the caller's 7 is not in the way"
         );
+    }
 
-        // Two shapes under one identity are both held, and `get` returns the first — the second is
-        // a shape nobody can name until the first is taken out.
-        let mut repeated = Diagram::new();
-        repeated.add_under(identity(1), a_box());
-        repeated.add_under(identity(1), a_box());
-        assert!(matches!(repeated.get(identity(1)), Some(Shape::Box { .. })));
-        repeated.remove(identity(1));
+    /// A second shape under an identity the diagram already holds **replaces** the first, and taking
+    /// the identity out takes that one out: there is no shape underneath waiting to be named.
+    ///
+    /// **Both directions of the same rule, because only one of them would pass by accident.** The
+    /// first is the replacement and the second is what `remove` finds — a diagram that still held
+    /// both would answer the first assertion and fail the second, and one that held neither would
+    /// fail both.
+    ///
+    /// The boxes are told apart by their **fill**, so "the second replaced the first" is a claim
+    /// about which figure `get` names rather than about a value that cannot tell them apart.
+    #[test]
+    fn a_repeated_identity_holds_the_shape_added_last_and_removing_it_leaves_nothing_behind() {
+        let a_box_filled_with = |fill: &'static str| Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new(fill).expect("one grapheme cluster")),
+        };
+
+        let repeated = Diagram::new()
+            .add_under(identity(1), a_box_filled_with("░"))
+            .add_under(identity(1), a_box_filled_with("▓"));
+        assert_eq!(
+            repeated.get(identity(1)),
+            Some(&a_box_filled_with("▓")),
+            "the second shape added under an identity is the one the diagram holds"
+        );
+
+        let taken_out = repeated.remove(identity(1));
         assert!(
-            matches!(repeated.get(identity(1)), Some(Shape::Box { .. })),
-            "the second shape under a repeated identity is still there after the first is taken out"
+            taken_out.get(identity(1)).is_none(),
+            "taking the identity out takes the one shape it held, and there is no second one under it"
         );
     }
 
     /// **The two `add` calls above stop at `u32::MAX`, and the one after them has nothing to hand
     /// back.** A `u32` has no ordinal after its largest one, and every value it could hold next is a
     /// `0` — the one thing this crate's identity type cannot carry, and what the old `+= 1` wrapped
-    /// into in a release build without saying so. Saturating would instead hand the same ordinal out
-    /// twice, so the exhaustion is named.
+    /// into in a release build without saying so. The last ordinal is issued because it is free, and
+    /// the addition after it is the one that says so rather than wrapping or handing it out twice.
     #[test]
-    #[should_panic(expected = "has issued every ordinal a u32 can hold")]
+    #[should_panic(expected = "a diagram has no ordinal left to issue")]
     fn a_diagram_that_has_run_out_of_ordinals_says_so_rather_than_issuing_zero() {
         let a_line = || Shape::Line {
             at: Pos { x: 0, y: 0 },
@@ -992,32 +1508,57 @@ mod tests {
             stroke: light(),
         };
 
-        let mut diagram = Diagram::numbered_from(NonZeroU32::new(u32::MAX).expect("the largest"));
+        let diagram = Diagram::numbered_from(NonZeroU32::new(u32::MAX).expect("the largest"));
         // The last ordinal there is: issued, and legal.
-        assert_eq!(diagram.add(a_line()).to_string(), u32::MAX.to_string());
+        let (diagram, last) = diagram.add(a_line());
+        assert_eq!(last.to_string(), u32::MAX.to_string());
         // And the one after it is not. Nothing wraps to zero and nothing hands back what it has
         // already handed out.
-        diagram.add(a_line());
+        let _ = diagram.add(a_line());
+    }
+
+    /// The last ordinal a `u32` can hold is **no different because a caller took it**: a diagram
+    /// numbered there with a figure already under that identity has nothing left to issue either,
+    /// and says so by name rather than replacing the caller's figure or naming it a second time.
+    ///
+    /// **The caller's figure is what makes this case and not the one above.** Without one the
+    /// counter simply runs out; with one it runs out a step early, and the step-over is what finds
+    /// nothing. A diagram that replaced the caller here would take a figure away with no report and
+    /// no way back, which is the outcome this rule refuses.
+    #[test]
+    #[should_panic(expected = "a diagram has no ordinal left to issue")]
+    fn a_diagram_with_no_ordinal_left_says_so_rather_than_repeating_one() {
+        let the_line = || Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 1,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+
+        let diagram = Diagram::numbered_from(NonZeroU32::new(u32::MAX).expect("the largest"))
+            .add_under(identity(u32::MAX), the_line());
+
+        let _ = diagram.add(the_line());
     }
 
     /// Adding three shapes to one diagram yields three identities that differ from one
     /// another and read as `1`, `2`, `3` in the order added.
     #[test]
     fn adding_three_shapes_yields_three_identities_in_order() {
-        let mut diagram = Diagram::new();
-        let first = diagram.add(Shape::Line {
+        let diagram = Diagram::new();
+        let (diagram, first) = diagram.add(Shape::Line {
             at: Pos { x: 0, y: 0 },
             len: 1,
             orientation: Orientation::Horizontal,
             stroke: light(),
         });
-        let second = diagram.add(Shape::Line {
+        let (diagram, second) = diagram.add(Shape::Line {
             at: Pos { x: 0, y: 0 },
             len: 1,
             orientation: Orientation::Horizontal,
             stroke: light(),
         });
-        let third = diagram.add(Shape::Line {
+        let (_, third) = diagram.add(Shape::Line {
             at: Pos { x: 0, y: 0 },
             len: 1,
             orientation: Orientation::Horizontal,
@@ -1041,9 +1582,9 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         };
-        let mut diagram = Diagram::new();
-        let first = diagram.add(shape());
-        let second = diagram.add(shape());
+        let diagram = Diagram::new();
+        let (diagram, first) = diagram.add(shape());
+        let (_, second) = diagram.add(shape());
 
         assert_ne!(first, second);
     }
@@ -1108,8 +1649,8 @@ mod tests {
         };
         let (a, b) = overlapping_boxes();
         let mut diagram = Diagram::new();
-        diagram.add(a);
-        diagram.add(b);
+        diagram = diagram.add(a).0;
+        diagram = diagram.add(b).0;
         let mut actual = Buffer::new(origin, size);
         diagram.draw(&mut actual);
 
@@ -1132,15 +1673,15 @@ mod tests {
         };
         let (a, b) = overlapping_boxes();
         let mut a_then_b = Diagram::new();
-        a_then_b.add(a);
-        a_then_b.add(b);
+        a_then_b = a_then_b.add(a).0;
+        a_then_b = a_then_b.add(b).0;
         let mut a_then_b_buffer = Buffer::new(origin, size);
         a_then_b.draw(&mut a_then_b_buffer);
 
         let (a, b) = overlapping_boxes();
         let mut b_then_a = Diagram::new();
-        b_then_a.add(b);
-        b_then_a.add(a);
+        b_then_a = b_then_a.add(b).0;
+        b_then_a = b_then_a.add(a).0;
         let mut b_then_a_buffer = Buffer::new(origin, size);
         b_then_a.draw(&mut b_then_a_buffer);
 
@@ -1163,18 +1704,22 @@ mod tests {
         };
 
         let mut crossing = Diagram::new();
-        crossing.add(Shape::Line {
-            at: Pos { x: 0, y: 2 },
-            len: 5,
-            orientation: Orientation::Horizontal,
-            stroke: light(),
-        });
-        crossing.add(Shape::Line {
-            at: Pos { x: 2, y: 0 },
-            len: 5,
-            orientation: Orientation::Vertical,
-            stroke: light(),
-        });
+        crossing = crossing
+            .add(Shape::Line {
+                at: Pos { x: 0, y: 2 },
+                len: 5,
+                orientation: Orientation::Horizontal,
+                stroke: light(),
+            })
+            .0;
+        crossing = crossing
+            .add(Shape::Line {
+                at: Pos { x: 2, y: 0 },
+                len: 5,
+                orientation: Orientation::Vertical,
+                stroke: light(),
+            })
+            .0;
         let mut crossing_buffer = Buffer::new(origin, size);
         crossing.draw(&mut crossing_buffer);
         assert_eq!(
@@ -1183,21 +1728,25 @@ mod tests {
         );
 
         let mut occluding = Diagram::new();
-        occluding.add(Shape::Line {
-            at: Pos { x: 2, y: 0 },
-            len: 5,
-            orientation: Orientation::Vertical,
-            stroke: light(),
-        });
-        occluding.add(Shape::Box {
-            at: Pos { x: 1, y: 1 },
-            size: Size {
-                width: 3,
-                height: 3,
-            },
-            stroke: light(),
-            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
-        });
+        occluding = occluding
+            .add(Shape::Line {
+                at: Pos { x: 2, y: 0 },
+                len: 5,
+                orientation: Orientation::Vertical,
+                stroke: light(),
+            })
+            .0;
+        occluding = occluding
+            .add(Shape::Box {
+                at: Pos { x: 1, y: 1 },
+                size: Size {
+                    width: 3,
+                    height: 3,
+                },
+                stroke: light(),
+                fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+            })
+            .0;
         let mut occluding_buffer = Buffer::new(origin, size);
         occluding.draw(&mut occluding_buffer);
         assert_eq!(
@@ -1217,13 +1766,13 @@ mod tests {
             height: 4,
         };
         let (a, b) = overlapping_boxes();
-        let mut diagram = Diagram::new();
-        let back = diagram.add(a);
-        diagram.add(b);
+        let diagram = Diagram::new();
+        let (mut diagram, back) = diagram.add(a);
+        diagram = diagram.add(b).0;
         let mut before = Buffer::new(origin, size);
         diagram.draw(&mut before);
 
-        diagram.forward(back);
+        diagram = diagram.forward(back);
         let mut after = Buffer::new(origin, size);
         diagram.draw(&mut after);
 
@@ -1231,8 +1780,8 @@ mod tests {
 
         let (a, b) = overlapping_boxes();
         let mut opposite = Diagram::new();
-        opposite.add(b);
-        opposite.add(a);
+        opposite = opposite.add(b).0;
+        opposite = opposite.add(a).0;
         let mut opposite_buffer = Buffer::new(origin, size);
         opposite.draw(&mut opposite_buffer);
 
@@ -1253,16 +1802,16 @@ mod tests {
         };
         let (a, b) = overlapping_boxes();
         let mut diagram = Diagram::new();
-        diagram.add(a);
-        let front = diagram.add(b);
-        diagram.backward(front);
+        diagram = diagram.add(a).0;
+        let (mut diagram, front) = diagram.add(b);
+        diagram = diagram.backward(front);
         let mut buffer = Buffer::new(origin, size);
         diagram.draw(&mut buffer);
 
         let (a, b) = overlapping_boxes();
         let mut opposite = Diagram::new();
-        opposite.add(b);
-        opposite.add(a);
+        opposite = opposite.add(b).0;
+        opposite = opposite.add(a).0;
         let mut opposite_buffer = Buffer::new(origin, size);
         opposite.draw(&mut opposite_buffer);
 
@@ -1282,13 +1831,13 @@ mod tests {
             height: 4,
         };
         let (a, b) = overlapping_boxes();
-        let mut diagram = Diagram::new();
-        let back = diagram.add(a);
-        let front = diagram.add(b);
+        let diagram = Diagram::new();
+        let (diagram, back) = diagram.add(a);
+        let (mut diagram, front) = diagram.add(b);
         let mut before = Buffer::new(origin, size);
         diagram.draw(&mut before);
 
-        diagram.forward(front);
+        diagram = diagram.forward(front);
         let mut after_forward = Buffer::new(origin, size);
         diagram.draw(&mut after_forward);
         assert_eq!(
@@ -1296,7 +1845,7 @@ mod tests {
             cells(&after_forward, origin, size)
         );
 
-        diagram.backward(back);
+        diagram = diagram.backward(back);
         let mut after_backward = Buffer::new(origin, size);
         diagram.draw(&mut after_backward);
         assert_eq!(
@@ -1314,8 +1863,8 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut diagram = Diagram::new();
-        let only = diagram.add(Shape::Box {
+        let diagram = Diagram::new();
+        let (mut diagram, only) = diagram.add(Shape::Box {
             at: Pos { x: 0, y: 0 },
             size: Size {
                 width: 4,
@@ -1327,8 +1876,8 @@ mod tests {
         let mut before = Buffer::new(origin, size);
         diagram.draw(&mut before);
 
-        diagram.forward(only);
-        diagram.backward(only);
+        diagram = diagram.forward(only);
+        diagram = diagram.backward(only);
         let mut after = Buffer::new(origin, size);
         diagram.draw(&mut after);
 
@@ -1346,21 +1895,21 @@ mod tests {
         };
         let (a, b) = overlapping_boxes();
         let mut diagram = Diagram::new();
-        diagram.add(a);
-        diagram.add(b);
+        diagram = diagram.add(a).0;
+        diagram = diagram.add(b).0;
         let mut before = Buffer::new(origin, size);
         diagram.draw(&mut before);
 
-        let mut other = Diagram::new();
-        let foreign = other.add(Shape::Line {
+        let other = Diagram::new();
+        let (_, foreign) = other.add(Shape::Line {
             at: Pos { x: 0, y: 0 },
             len: 1,
             orientation: Orientation::Horizontal,
             stroke: light(),
         });
 
-        diagram.forward(foreign);
-        diagram.backward(foreign);
+        diagram = diagram.forward(foreign);
+        diagram = diagram.backward(foreign);
         let mut after = Buffer::new(origin, size);
         diagram.draw(&mut after);
 
@@ -1370,8 +1919,8 @@ mod tests {
     /// An empty diagram is unchanged by either method, with no panic.
     #[test]
     fn an_empty_diagram_is_unchanged_by_either_move() {
-        let mut other = Diagram::new();
-        let foreign = other.add(Shape::Line {
+        let other = Diagram::new();
+        let (_, foreign) = other.add(Shape::Line {
             at: Pos { x: 0, y: 0 },
             len: 1,
             orientation: Orientation::Horizontal,
@@ -1379,8 +1928,8 @@ mod tests {
         });
 
         let mut diagram = Diagram::new();
-        diagram.forward(foreign);
-        diagram.backward(foreign);
+        diagram = diagram.forward(foreign);
+        diagram = diagram.backward(foreign);
 
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
@@ -1406,14 +1955,14 @@ mod tests {
             height: 4,
         };
         let (a, b) = overlapping_boxes();
-        let mut diagram = Diagram::new();
-        let back = diagram.add(a);
-        diagram.add(b);
+        let diagram = Diagram::new();
+        let (mut diagram, back) = diagram.add(a);
+        diagram = diagram.add(b).0;
         let mut before = Buffer::new(origin, size);
         diagram.draw(&mut before);
 
-        diagram.forward(back);
-        diagram.backward(back);
+        diagram = diagram.forward(back);
+        diagram = diagram.backward(back);
         let mut after = Buffer::new(origin, size);
         diagram.draw(&mut after);
 
@@ -1450,14 +1999,14 @@ mod tests {
         };
 
         let mut outer_then_inner = Diagram::new();
-        outer_then_inner.add(outer());
-        outer_then_inner.add(inner());
+        outer_then_inner = outer_then_inner.add(outer()).0;
+        outer_then_inner = outer_then_inner.add(inner()).0;
         let mut a = Buffer::new(origin, size);
         outer_then_inner.draw(&mut a);
 
         let mut inner_then_outer = Diagram::new();
-        inner_then_outer.add(inner());
-        inner_then_outer.add(outer());
+        inner_then_outer = inner_then_outer.add(inner()).0;
+        inner_then_outer = inner_then_outer.add(outer()).0;
         let mut b = Buffer::new(origin, size);
         inner_then_outer.draw(&mut b);
 
@@ -1472,7 +2021,7 @@ mod tests {
     fn drawn(shapes: Vec<Shape>, origin: Pos, size: Size) -> Buffer {
         let mut diagram = Diagram::new();
         for shape in shapes {
-            diagram.add(shape);
+            diagram = diagram.add(shape).0;
         }
         draw_of(&diagram, origin, size)
     }
@@ -1534,10 +2083,9 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         };
-        let mut other = Diagram::new();
-        other.add(a_line());
-        other.add(a_line());
-        other.add(a_line())
+        let (mut other, _) = Diagram::new().add(a_line());
+        other = other.add(a_line()).0;
+        other.add(a_line()).1
     }
 
     /// A box displaced two cells right draws exactly what the same box added at the displaced
@@ -1638,8 +2186,8 @@ mod tests {
         };
         let (a, b) = overlapping_boxes();
         let mut diagram = Diagram::new();
-        diagram.add(a.clone());
-        diagram.add(b);
+        diagram = diagram.add(a.clone()).0;
+        diagram = diagram.add(b).0;
         let mut before = Buffer::new(origin, size);
         diagram.draw(&mut before);
 
@@ -1662,8 +2210,8 @@ mod tests {
     #[test]
     fn get_returns_the_figure_the_addition_named() {
         let (a, _b) = overlapping_boxes();
-        let mut diagram = Diagram::new();
-        let id = diagram.add(a.clone());
+        let diagram = Diagram::new();
+        let (diagram, id) = diagram.add(a.clone());
 
         assert_eq!(diagram.get(id), Some(&a));
     }
@@ -1681,8 +2229,8 @@ mod tests {
         };
         let (a, b) = overlapping_boxes();
         let mut diagram = Diagram::new();
-        diagram.add(a);
-        diagram.add(b);
+        diagram = diagram.add(a).0;
+        diagram = diagram.add(b).0;
         let before = draw_of(&diagram, origin, size);
 
         assert_eq!(diagram.get(a_foreign_identity()), None);
@@ -1709,13 +2257,13 @@ mod tests {
         };
         let (first, second, third) = three_overlapping_boxes();
 
-        let mut diagram = Diagram::new();
-        let taken_out = diagram.add(first.clone());
-        diagram.add(second.clone());
-        diagram.add(third.clone());
+        let diagram = Diagram::new();
+        let (mut diagram, taken_out) = diagram.add(first.clone());
+        diagram = diagram.add(second.clone()).0;
+        diagram = diagram.add(third.clone()).0;
         let before = draw_of(&diagram, origin, size);
 
-        diagram.remove(taken_out);
+        diagram = diagram.remove(taken_out);
         let after = draw_of(&diagram, origin, size);
 
         assert_ne!(cells(&before, origin, size), cells(&after, origin, size));
@@ -1737,11 +2285,11 @@ mod tests {
         };
         let (a, b) = overlapping_boxes();
         let mut diagram = Diagram::new();
-        diagram.add(a);
-        diagram.add(b);
+        diagram = diagram.add(a).0;
+        diagram = diagram.add(b).0;
         let before = draw_of(&diagram, origin, size);
 
-        diagram.remove(a_foreign_identity());
+        diagram = diagram.remove(a_foreign_identity());
 
         assert_eq!(
             cells(&before, origin, size),
@@ -1762,13 +2310,13 @@ mod tests {
             stroke: light(),
         };
 
-        let mut diagram = Diagram::new();
-        let first = diagram.add(a_line());
-        diagram.add(a_line());
+        let diagram = Diagram::new();
+        let (mut diagram, first) = diagram.add(a_line());
+        diagram = diagram.add(a_line()).0;
         assert_eq!(first.to_string(), "1");
 
-        diagram.remove(first);
-        let after_the_removal = diagram.add(a_line());
+        diagram = diagram.remove(first);
+        let (_, after_the_removal) = diagram.add(a_line());
 
         assert_eq!(after_the_removal.to_string(), "3");
     }
@@ -1784,10 +2332,10 @@ mod tests {
             height: 4,
         };
         let (a, _b) = overlapping_boxes();
-        let mut diagram = Diagram::new();
-        let only = diagram.add(a);
+        let diagram = Diagram::new();
+        let (mut diagram, only) = diagram.add(a);
 
-        diagram.remove(only);
+        diagram = diagram.remove(only);
 
         assert_eq!(
             cells(&draw_of(&diagram, origin, size), origin, size),
@@ -1813,9 +2361,9 @@ mod tests {
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         };
 
-        let mut diagram = Diagram::new();
-        let id = diagram.add(box_of(4));
-        diagram.replace(id, box_of(7));
+        let diagram = Diagram::new();
+        let (mut diagram, id) = diagram.add(box_of(4));
+        diagram = diagram.replace(id, box_of(7));
 
         assert_eq!(
             cells(&draw_of(&diagram, origin, size), origin, size),
@@ -1852,9 +2400,9 @@ mod tests {
             stroke: light(),
         };
 
-        let mut diagram = Diagram::new();
-        let id = diagram.add(the_box());
-        diagram.replace(id, the_line());
+        let diagram = Diagram::new();
+        let (mut diagram, id) = diagram.add(the_box());
+        diagram = diagram.replace(id, the_line());
 
         assert_eq!(
             cells(&draw_of(&diagram, origin, size), origin, size),
@@ -1878,12 +2426,12 @@ mod tests {
         };
         let (a, b, c) = three_overlapping_boxes();
         let mut diagram = Diagram::new();
-        diagram.add(a.clone());
-        let middle = diagram.add(b.clone());
-        diagram.add(c.clone());
+        diagram = diagram.add(a.clone()).0;
+        let (mut diagram, middle) = diagram.add(b.clone());
+        diagram = diagram.add(c.clone()).0;
         let before = draw_of(&diagram, origin, size);
 
-        diagram.replace(middle, b.clone());
+        diagram = diagram.replace(middle, b.clone());
         let after = draw_of(&diagram, origin, size);
 
         assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
@@ -1909,11 +2457,11 @@ mod tests {
         };
         let (a, b) = overlapping_boxes();
         let mut diagram = Diagram::new();
-        diagram.add(a.clone());
-        diagram.add(b);
+        diagram = diagram.add(a.clone()).0;
+        diagram = diagram.add(b).0;
         let before = draw_of(&diagram, origin, size);
 
-        diagram.replace(
+        diagram = diagram.replace(
             a_foreign_identity(),
             Shape::Box {
                 at: Pos { x: 1, y: 1 },
@@ -1963,13 +2511,13 @@ mod tests {
         };
 
         let mut diagram = Diagram::new();
-        diagram.add(filled_box(0, "░"));
-        let middle = diagram.add(the_line(3));
-        diagram.add(filled_box(8, "▓"));
+        diagram = diagram.add(filled_box(0, "░")).0;
+        let (mut diagram, middle) = diagram.add(the_line(3));
+        diagram = diagram.add(filled_box(8, "▓")).0;
         let before = draw_of(&diagram, origin, size);
 
         let moved = the_line(3).displaced_by(Delta { dx: 2, dy: 0 });
-        diagram.replace(middle, moved.clone());
+        diagram = diagram.replace(middle, moved.clone());
         let after = draw_of(&diagram, origin, size);
 
         assert_eq!(
@@ -2113,8 +2661,8 @@ mod tests {
     fn a_hanging_endpoint_draws_what_the_point_it_resolves_to_draws() {
         let (origin, size) = the_window();
 
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
+        let diagram = Diagram::new();
+        let (mut diagram, box_id) = diagram.add(the_box());
         let hanging = arm_connector(
             Position::Reference(Reference {
                 id: box_id,
@@ -2123,7 +2671,7 @@ mod tests {
             }),
             Pos { x: 8, y: 1 }.into(),
         );
-        diagram.add(hanging.clone());
+        diagram = diagram.add(hanging.clone()).0;
 
         // Pinned by coordinates first: a reference that resolved anywhere else fails here.
         let Shape::Connector { from, .. } = &hanging else {
@@ -2132,11 +2680,13 @@ mod tests {
         assert_eq!(from.at.resolve(&diagram), Some(THE_SIDE_CENTRE));
 
         let mut absolute = Diagram::new();
-        absolute.add(the_box());
-        absolute.add(arm_connector(
-            THE_SIDE_CENTRE.into(),
-            Pos { x: 8, y: 1 }.into(),
-        ));
+        absolute = absolute.add(the_box()).0;
+        absolute = absolute
+            .add(arm_connector(
+                THE_SIDE_CENTRE.into(),
+                Pos { x: 8, y: 1 }.into(),
+            ))
+            .0;
 
         assert_eq!(
             cells(&draw_of(&diagram, origin, size), origin, size),
@@ -2160,8 +2710,8 @@ mod tests {
         let (origin, size) = the_window();
         let the_far_end = Pos { x: 8, y: 1 };
 
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
+        let diagram = Diagram::new();
+        let (mut diagram, box_id) = diagram.add(the_box());
         let offset = Delta { dx: 2, dy: 0 };
         let hanging = arm_connector(
             Position::Reference(Reference {
@@ -2171,7 +2721,7 @@ mod tests {
             }),
             the_far_end.into(),
         );
-        diagram.add(hanging.clone());
+        diagram = diagram.add(hanging.clone()).0;
 
         // Pinned by coordinates first: `{3, 1}` is the side centre and the offset is two cells right
         // of it, so a `resolve` that ignored the field fails here rather than in the picture below.
@@ -2183,8 +2733,10 @@ mod tests {
         assert_ne!(from.at, Pos { x: 5, y: 1 }.into());
 
         let mut absolute = Diagram::new();
-        absolute.add(the_box());
-        absolute.add(arm_connector(Pos { x: 5, y: 1 }.into(), the_far_end.into()));
+        absolute = absolute.add(the_box()).0;
+        absolute = absolute
+            .add(arm_connector(Pos { x: 5, y: 1 }.into(), the_far_end.into()))
+            .0;
 
         assert_eq!(
             cells(&draw_of(&diagram, origin, size), origin, size),
@@ -2211,8 +2763,8 @@ mod tests {
         let the_far_end = Pos { x: 11, y: 1 };
         let offset = Delta { dx: 2, dy: 0 };
 
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
+        let diagram = Diagram::new();
+        let (mut diagram, box_id) = diagram.add(the_box());
         let hanging = arm_connector(
             Position::Reference(Reference {
                 id: box_id,
@@ -2221,7 +2773,7 @@ mod tests {
             }),
             the_far_end.into(),
         );
-        diagram.add(hanging);
+        diagram = diagram.add(hanging).0;
 
         // Which endpoint the hanging connector resolves to, asked the way the drawing asks it.
         let the_hanging_end = |d: &Diagram| {
@@ -2238,14 +2790,18 @@ mod tests {
         let before = draw_of(&diagram, origin, size);
 
         let moved = the_box().displaced_by(Delta { dx: 4, dy: 0 });
-        diagram.replace(box_id, moved);
+        diagram = diagram.replace(box_id, moved);
         let after = draw_of(&diagram, origin, size);
 
         // The same two figures with the box where it landed and the endpoint at the point the
         // reference resolves to now: `{7, 1}` plus the unchanged two cells.
         let mut expected = Diagram::new();
-        expected.add(the_box().displaced_by(Delta { dx: 4, dy: 0 }));
-        expected.add(arm_connector(Pos { x: 9, y: 1 }.into(), the_far_end.into()));
+        expected = expected
+            .add(the_box().displaced_by(Delta { dx: 4, dy: 0 }))
+            .0;
+        expected = expected
+            .add(arm_connector(Pos { x: 9, y: 1 }.into(), the_far_end.into()))
+            .0;
 
         assert_eq!(
             cells(&after, origin, size),
@@ -2304,35 +2860,41 @@ mod tests {
         // The same line, three ways, and no two of them against each other: the reference a line
         // holds, the point that reference resolves to, and the diagram where a box was replaced.
         let with_the_reference = || {
-            let mut d = Diagram::new();
-            let id = d.add(the_line.clone());
-            d.add(arm_connector(
+            let d = Diagram::new();
+            let (mut d, id) = d.add(the_line.clone());
+            d = d
+                .add(arm_connector(
+                    Position::Reference(Reference {
+                        id,
+                        anchor: Anchor::Bottom,
+                        offset,
+                    }),
+                    the_far_end.into(),
+                ))
+                .0;
+            d
+        };
+        let mut with_the_point = Diagram::new();
+        with_the_point = with_the_point.add(the_line.clone()).0;
+        with_the_point = with_the_point
+            .add(arm_connector(the_line_endpoint.into(), the_far_end.into()))
+            .0;
+
+        let replaced = Diagram::new();
+        let (mut replaced, identity) = replaced.add(the_box());
+        replaced = replaced
+            .add(arm_connector(
                 Position::Reference(Reference {
-                    id,
+                    id: identity,
                     anchor: Anchor::Bottom,
                     offset,
                 }),
                 the_far_end.into(),
-            ));
-            d
-        };
-        let mut with_the_point = Diagram::new();
-        with_the_point.add(the_line.clone());
-        with_the_point.add(arm_connector(the_line_endpoint.into(), the_far_end.into()));
-
-        let mut replaced = Diagram::new();
-        let identity = replaced.add(the_box());
-        replaced.add(arm_connector(
-            Position::Reference(Reference {
-                id: identity,
-                anchor: Anchor::Bottom,
-                offset,
-            }),
-            the_far_end.into(),
-        ));
+            ))
+            .0;
         // `replace` swaps the kind under the identity the reference already names, so the offset is
         // held unchanged across a change of what stands there.
-        replaced.replace(identity, the_line.clone());
+        replaced = replaced.replace(identity, the_line.clone());
 
         assert_eq!(
             cells(&draw_of(&with_the_reference(), origin, size), origin, size),
@@ -2387,22 +2949,26 @@ mod tests {
 
         for (what, hanging) in cases {
             let mut with_it = Diagram::new();
-            with_it.add(the_box());
-            with_it.add(unrelated.clone());
+            with_it = with_it.add(the_box()).0;
+            with_it = with_it.add(unrelated.clone()).0;
             // A connector, so that a reference naming it asks a kind that answers no anchor.
-            with_it.add(arm_connector(
-                Pos { x: 0, y: 3 }.into(),
-                Pos { x: 12, y: 3 }.into(),
-            ));
-            with_it.add(arm_connector(hanging, the_other_end));
+            with_it = with_it
+                .add(arm_connector(
+                    Pos { x: 0, y: 3 }.into(),
+                    Pos { x: 12, y: 3 }.into(),
+                ))
+                .0;
+            with_it = with_it.add(arm_connector(hanging, the_other_end)).0;
 
             let mut without_it = Diagram::new();
-            without_it.add(the_box());
-            without_it.add(unrelated.clone());
-            without_it.add(arm_connector(
-                Pos { x: 0, y: 3 }.into(),
-                Pos { x: 12, y: 3 }.into(),
-            ));
+            without_it = without_it.add(the_box()).0;
+            without_it = without_it.add(unrelated.clone()).0;
+            without_it = without_it
+                .add(arm_connector(
+                    Pos { x: 0, y: 3 }.into(),
+                    Pos { x: 12, y: 3 }.into(),
+                ))
+                .0;
 
             assert_eq!(
                 cells(&draw_of(&with_it, origin, size), origin, size),
@@ -2416,20 +2982,24 @@ mod tests {
         let drawing = draw_of(
             &{
                 let mut d = Diagram::new();
-                d.add(the_box());
-                d.add(unrelated.clone());
-                d.add(arm_connector(
-                    Pos { x: 0, y: 3 }.into(),
-                    Pos { x: 12, y: 3 }.into(),
-                ));
-                d.add(arm_connector(
-                    Position::Reference(Reference {
-                        id: a_foreign_identity(),
-                        anchor: Anchor::Right,
-                        offset: large,
-                    }),
-                    the_other_end,
-                ));
+                d = d.add(the_box()).0;
+                d = d.add(unrelated.clone()).0;
+                d = d
+                    .add(arm_connector(
+                        Pos { x: 0, y: 3 }.into(),
+                        Pos { x: 12, y: 3 }.into(),
+                    ))
+                    .0;
+                d = d
+                    .add(arm_connector(
+                        Position::Reference(Reference {
+                            id: a_foreign_identity(),
+                            anchor: Anchor::Right,
+                            offset: large,
+                        }),
+                        the_other_end,
+                    ))
+                    .0;
                 d
             },
             origin,
@@ -2477,8 +3047,8 @@ mod tests {
         assert_eq!(offset.apply(Pos { x: 0, y: 1 }), Pos { x: 3, y: 2 });
 
         for (what, anchor) in [("left", Anchor::Left), ("right", Anchor::Right)] {
-            let mut diagram = Diagram::new();
-            let box_id = diagram.add(one_wide.clone());
+            let diagram = Diagram::new();
+            let (mut diagram, box_id) = diagram.add(one_wide.clone());
             let hanging = arm_connector(
                 Position::Reference(Reference {
                     id: box_id,
@@ -2487,7 +3057,7 @@ mod tests {
                 }),
                 the_far_end.into(),
             );
-            diagram.add(hanging.clone());
+            diagram = diagram.add(hanging.clone()).0;
 
             let Shape::Connector { from, .. } = &hanging else {
                 unreachable!("the figure above is a connector")
@@ -2499,8 +3069,10 @@ mod tests {
             );
 
             let mut absolute = Diagram::new();
-            absolute.add(one_wide.clone());
-            absolute.add(arm_connector(Pos { x: 3, y: 2 }.into(), the_far_end.into()));
+            absolute = absolute.add(one_wide.clone()).0;
+            absolute = absolute
+                .add(arm_connector(Pos { x: 3, y: 2 }.into(), the_far_end.into()))
+                .0;
 
             assert_eq!(
                 cells(&draw_of(&diagram, origin, size), origin, size),
@@ -2523,35 +3095,41 @@ mod tests {
         let (origin, size) = the_window();
         let the_far_end = Pos { x: 11, y: 1 };
 
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
-        diagram.add(arm_connector(
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
-            the_far_end.into(),
-        ));
+        let diagram = Diagram::new();
+        let (mut diagram, box_id) = diagram.add(the_box());
+        diagram = diagram
+            .add(arm_connector(
+                Position::Reference(Reference {
+                    id: box_id,
+                    anchor: Anchor::Right,
+                    offset: Delta { dx: 0, dy: 0 },
+                }),
+                the_far_end.into(),
+            ))
+            .0;
         let before = draw_of(&diagram, origin, size);
 
         let moved = the_box().displaced_by(Delta { dx: 4, dy: 0 });
-        diagram.replace(box_id, moved);
+        diagram = diagram.replace(box_id, moved);
         let after = draw_of(&diagram, origin, size);
 
         // The same two figures with the box where it landed and the endpoint at the point the
         // reference now resolves to: `{7, 1}`, four cells right of where it resolved before.
         let mut expected = Diagram::new();
-        expected.add(Shape::Box {
-            at: Pos { x: 4, y: 0 },
-            size: Size {
-                width: 4,
-                height: 3,
-            },
-            stroke: light(),
-            fill: None,
-        });
-        expected.add(arm_connector(Pos { x: 7, y: 1 }.into(), the_far_end.into()));
+        expected = expected
+            .add(Shape::Box {
+                at: Pos { x: 4, y: 0 },
+                size: Size {
+                    width: 4,
+                    height: 3,
+                },
+                stroke: light(),
+                fill: None,
+            })
+            .0;
+        expected = expected
+            .add(arm_connector(Pos { x: 7, y: 1 }.into(), the_far_end.into()))
+            .0;
 
         assert_eq!(
             cells(&after, origin, size),
@@ -2601,38 +3179,46 @@ mod tests {
         // arrives the other way round, so the two are different routes and saying so is the point.
         let expected = |origin: Pos, size: Size| {
             let mut diagram = Diagram::new();
-            diagram.add(the_held_box());
-            diagram.add(arm_connector(the_far_end.into(), the_hanging_end.into()));
+            diagram = diagram.add(the_held_box()).0;
+            diagram = diagram
+                .add(arm_connector(the_far_end.into(), the_hanging_end.into()))
+                .0;
             cells(&draw_of(&diagram, origin, size), origin, size)
         };
         let expected_reversed = |origin: Pos, size: Size| {
             let mut diagram = Diagram::new();
-            diagram.add(the_held_box());
-            diagram.add(arm_connector(the_hanging_end.into(), the_far_end.into()));
+            diagram = diagram.add(the_held_box()).0;
+            diagram = diagram
+                .add(arm_connector(the_hanging_end.into(), the_far_end.into()))
+                .0;
             cells(&draw_of(&diagram, origin, size), origin, size)
         };
 
-        let mut hanging_to = Diagram::new();
-        let box_id = hanging_to.add(the_held_box());
-        hanging_to.add(arm_connector(
-            the_far_end.into(),
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Bottom,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
-        ));
+        let hanging_to = Diagram::new();
+        let (mut hanging_to, box_id) = hanging_to.add(the_held_box());
+        hanging_to = hanging_to
+            .add(arm_connector(
+                the_far_end.into(),
+                Position::Reference(Reference {
+                    id: box_id,
+                    anchor: Anchor::Bottom,
+                    offset: Delta { dx: 0, dy: 0 },
+                }),
+            ))
+            .0;
 
-        let mut hanging_from = Diagram::new();
-        let box_id = hanging_from.add(the_held_box());
-        hanging_from.add(arm_connector(
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Bottom,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
-            the_far_end.into(),
-        ));
+        let hanging_from = Diagram::new();
+        let (mut hanging_from, box_id) = hanging_from.add(the_held_box());
+        hanging_from = hanging_from
+            .add(arm_connector(
+                Position::Reference(Reference {
+                    id: box_id,
+                    anchor: Anchor::Bottom,
+                    offset: Delta { dx: 0, dy: 0 },
+                }),
+                the_far_end.into(),
+            ))
+            .0;
 
         assert_eq!(
             cells(&draw_of(&hanging_to, origin, size), origin, size),
@@ -2658,15 +3244,17 @@ mod tests {
     /// third case's unresolvable reference names is a connector, which answers no anchor at all.
     fn a_diagram_of_three_figures_and_maybe_a_fourth(under_test: Option<Shape>) -> Diagram {
         let mut diagram = Diagram::new();
-        diagram.add(the_box());
-        diagram.add(the_unrelated_box());
+        diagram = diagram.add(the_box()).0;
+        diagram = diagram.add(the_unrelated_box()).0;
         // A connector, so that a reference naming it asks a kind that answers no anchor.
-        diagram.add(arm_connector(
-            Pos { x: 0, y: 3 }.into(),
-            Pos { x: 12, y: 3 }.into(),
-        ));
+        diagram = diagram
+            .add(arm_connector(
+                Pos { x: 0, y: 3 }.into(),
+                Pos { x: 12, y: 3 }.into(),
+            ))
+            .0;
         if let Some(shape) = under_test {
-            diagram.add(shape);
+            diagram = diagram.add(shape).0;
         }
         diagram
     }
@@ -2745,11 +3333,11 @@ mod tests {
 
         // Nothing holds `2` yet, so the hanging connector draws nothing at all.
         let mut nothing_under_it = Diagram::new();
-        nothing_under_it.add(hanging(Anchor::Right));
-        nothing_under_it.add(the_filler());
+        nothing_under_it = nothing_under_it.add(hanging(Anchor::Right)).0;
+        nothing_under_it = nothing_under_it.add(the_filler()).0;
 
         let mut just_the_filler = Diagram::new();
-        just_the_filler.add(the_filler());
+        just_the_filler = just_the_filler.add(the_filler()).0;
         assert_eq!(
             cells(&draw_of(&nothing_under_it, origin, size), origin, size),
             cells(&draw_of(&just_the_filler, origin, size), origin, size),
@@ -2758,14 +3346,16 @@ mod tests {
 
         // A box takes `2`, and the connector hangs from its right side.
         let mut with_a_box = Diagram::new();
-        with_a_box.add(hanging(Anchor::Right));
-        with_a_box.add(the_box());
-        with_a_box.add(the_filler());
+        with_a_box = with_a_box.add(hanging(Anchor::Right)).0;
+        with_a_box = with_a_box.add(the_box()).0;
+        with_a_box = with_a_box.add(the_filler()).0;
 
         let mut absolute_after_a_box = Diagram::new();
-        absolute_after_a_box.add(the_filler());
-        absolute_after_a_box.add(the_box());
-        absolute_after_a_box.add(arm_connector(THE_SIDE_CENTRE.into(), the_far_end));
+        absolute_after_a_box = absolute_after_a_box.add(the_filler()).0;
+        absolute_after_a_box = absolute_after_a_box.add(the_box()).0;
+        absolute_after_a_box = absolute_after_a_box
+            .add(arm_connector(THE_SIDE_CENTRE.into(), the_far_end))
+            .0;
         assert_eq!(
             cells(&draw_of(&with_a_box, origin, size), origin, size),
             cells(&draw_of(&absolute_after_a_box, origin, size), origin, size),
@@ -2781,14 +3371,16 @@ mod tests {
             stroke: light(),
         };
         let mut with_a_line = Diagram::new();
-        with_a_line.add(hanging(Anchor::Right));
-        with_a_line.add(the_line());
-        with_a_line.add(the_filler());
+        with_a_line = with_a_line.add(hanging(Anchor::Right)).0;
+        with_a_line = with_a_line.add(the_line()).0;
+        with_a_line = with_a_line.add(the_filler()).0;
 
         let mut absolute_after_a_line = Diagram::new();
-        absolute_after_a_line.add(the_filler());
-        absolute_after_a_line.add(the_line());
-        absolute_after_a_line.add(arm_connector(Pos { x: 4, y: 0 }.into(), the_far_end));
+        absolute_after_a_line = absolute_after_a_line.add(the_filler()).0;
+        absolute_after_a_line = absolute_after_a_line.add(the_line()).0;
+        absolute_after_a_line = absolute_after_a_line
+            .add(arm_connector(Pos { x: 4, y: 0 }.into(), the_far_end))
+            .0;
         assert_eq!(
             cells(&draw_of(&with_a_line, origin, size), origin, size),
             cells(&draw_of(&absolute_after_a_line, origin, size), origin, size),
@@ -2798,8 +3390,8 @@ mod tests {
         // A connector takes `2`, and the hanging connector stops drawing — the same answer as
         // before there was anything under the identity at all.
         let mut with_a_connector = Diagram::new();
-        with_a_connector.add(hanging(Anchor::Right));
-        with_a_connector.add(the_filler());
+        with_a_connector = with_a_connector.add(hanging(Anchor::Right)).0;
+        with_a_connector = with_a_connector.add(the_filler()).0;
 
         assert_eq!(
             cells(&draw_of(&with_a_connector, origin, size), origin, size),
@@ -2838,11 +3430,13 @@ mod tests {
             let to = endpoint(Pos { x: 7, y: 2 }, Direction::Up, to_terminal.clone());
 
             let mut diagram = Diagram::new();
-            diagram.add(Shape::Connector {
-                from: from.clone(),
-                to: to.clone(),
-                stroke: light(),
-            });
+            diagram = diagram
+                .add(Shape::Connector {
+                    from: from.clone(),
+                    to: to.clone(),
+                    stroke: light(),
+                })
+                .0;
             let mut actual = Buffer::new(origin, size);
             diagram.draw(&mut actual);
 
@@ -2901,14 +3495,16 @@ mod tests {
     {
         let (origin, size) = the_window();
 
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
-        diagram.add(hanging_from(
-            box_id,
-            Delta { dx: 0, dy: 0 },
-            Pos { x: 8, y: 1 },
-        ));
-        diagram.add(the_unrelated_box());
+        let diagram = Diagram::new();
+        let (mut diagram, box_id) = diagram.add(the_box());
+        diagram = diagram
+            .add(hanging_from(
+                box_id,
+                Delta { dx: 0, dy: 0 },
+                Pos { x: 8, y: 1 },
+            ))
+            .0;
+        diagram = diagram.add(the_unrelated_box()).0;
         let before = draw_of(&diagram, origin, size);
         assert_eq!(
             the_glyph_at(&before, THE_SIDE_CENTRE, size),
@@ -2916,7 +3512,7 @@ mod tests {
             "the box's border and the arrow's arm did not compose where they met"
         );
 
-        diagram.remove(box_id);
+        diagram = diagram.remove(box_id);
         let after = draw_of(&diagram, origin, size);
 
         // The route is byte for byte what it was, and the ten cells the box held are the whole
@@ -3009,10 +3605,12 @@ mod tests {
         let (origin, size) = the_window();
         let nothing = Delta { dx: 0, dy: 0 };
 
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
-        diagram.add(hanging_from(box_id, nothing, Pos { x: 8, y: 1 }));
-        diagram.add(the_unrelated_box());
+        let diagram = Diagram::new();
+        let (mut diagram, box_id) = diagram.add(the_box());
+        diagram = diagram
+            .add(hanging_from(box_id, nothing, Pos { x: 8, y: 1 }))
+            .0;
+        diagram = diagram.add(the_unrelated_box()).0;
         let before = draw_of(&diagram, origin, size);
 
         let it_resolved_to = the_hanging_end(&diagram, identity(2))
@@ -3022,7 +3620,7 @@ mod tests {
             .expect("the box answers the anchor the reference names");
         assert_eq!(it_resolved_to, THE_SIDE_CENTRE);
 
-        diagram.remove(box_id);
+        diagram = diagram.remove(box_id);
         let after = draw_of(&diagram, origin, size);
 
         // By value: the end stands at the point it was resolving to, and is no longer a reference.
@@ -3118,18 +3716,20 @@ mod tests {
         let (origin, size) = the_window();
         let the_far_end = Pos { x: 8, y: 1 };
 
-        let mut diagram = Diagram::new();
-        let the_removed = diagram.add(the_box());
-        diagram.add(hanging_from(
-            the_removed,
-            Delta { dx: 0, dy: 0 },
-            the_far_end,
-        ));
-        diagram.add(the_unrelated_box());
+        let diagram = Diagram::new();
+        let (mut diagram, the_removed) = diagram.add(the_box());
+        diagram = diagram
+            .add(hanging_from(
+                the_removed,
+                Delta { dx: 0, dy: 0 },
+                the_far_end,
+            ))
+            .0;
+        diagram = diagram.add(the_unrelated_box()).0;
         let before = draw_of(&diagram, origin, size);
 
-        diagram.remove(the_removed);
-        diagram.add_under(the_removed, the_box());
+        diagram = diagram.remove(the_removed);
+        diagram = diagram.add_under(the_removed, the_box());
         let put_back = draw_of(&diagram, origin, size);
 
         assert_eq!(
@@ -3155,7 +3755,7 @@ mod tests {
             "the arrow was re-hung from a figure put back under the same identity"
         );
 
-        diagram.replace(the_removed, the_box().displaced_by(Delta { dx: 0, dy: 2 }));
+        diagram = diagram.replace(the_removed, the_box().displaced_by(Delta { dx: 0, dy: 2 }));
         let displaced = draw_of(&diagram, origin, size);
         // Two rows **down** rather than four right, and the direction is the point rather than
         // taste: it puts the whole figure clear of the row the arrow runs along, so "the arrow did
@@ -3183,8 +3783,9 @@ mod tests {
 
         // And the identity is the diagram's to issue: `add_under` does not touch the counter, so a
         // put-back does not un-issue what was taken out.
+        let (diagram, issued) = diagram.add(the_unrelated_box());
         assert_eq!(
-            diagram.add(the_unrelated_box()),
+            issued,
             identity(4),
             "a put-back under the removed identity handed that identity out again"
         );
@@ -3196,88 +3797,95 @@ mod tests {
         );
     }
 
-    /// The three routes that reached **one** picture byte for byte reach **three** now, and the
-    /// taken-out one is the odd one out — its arrow is still there.
+    /// The three routes reach **three** pictures, and the reason is **not** the freeze any more: the
+    /// counter issues the identity the caller had already chosen, so two of the three diagrams lost
+    /// the figure they were built around before anything was removed.
     ///
-    /// **One test rather than three, and the reason is the specification's:** the taken-out route is
-    /// compared against **both** of the others and against neither, and only one place can ask that.
-    /// Separately, each is a claim about a diagram, and the claim here is about the difference
-    /// between two of them.
+    /// **The issued identity is `1` in all three diagrams**, because `add` starts at `1` and the
+    /// caller's own `add_under(identity(1), …)` does not move the counter — so the box the last `add`
+    /// issued lands **on** the figure the hanging connector names, and that figure is not held
+    /// afterwards. It is the same collision as the repeated-identity case and the same one the model
+    /// does not mention: the counter issues an ordinal a caller is free to have chosen already.
     ///
-    /// The still-held route's picture is **equal to the never-added route's**, byte for byte, and
-    /// that pair is the control which says the third is what moved. It is reached by holding the two
-    /// routes' diagrams to the same shape — the figure that answers no side sits under `1` in one
-    /// and under `2` in the other, and the hanging connector names `1` in both — so the two differ
-    /// by **which identity** the figure stands under and by nothing else. A reference naming a
-    /// figure that answers no side resolves to nothing, which is exactly the answer it gives an
-    /// identity that was never there, and the freeze changed nothing about that: it rewrites a
-    /// reference whose subject has just been removed, and this one names an identity nothing ever
-    /// held, which no removal created and so no removal repairs.
+    /// An ordinal `add` issues is **one no figure is already under**, so the counter steps over
+    /// everything taken rather than naming a figure twice.
     ///
-    /// **Asserted as whole buffers rather than as a count of differing cells**, because the routes
-    /// differ everywhere the arrow stood and a count would not say where — which is the whole of
-    /// what §11's second question used to ask.
+    /// **The caller's figure is still there afterwards, and it is still what its identity names.**
+    /// That is the whole of the difference from naming it anyway: replacing would leave the issued
+    /// figure unreachable by identity and the caller's figure gone, with no error, no report and no
+    /// way to ask for it back, which is the one outcome nothing in this crate does.
+    ///
+    /// **The counter steps over one and over two, rather than one.** A diagram with a single
+    /// ordinal taken would pass a loop that gave up after the first, and the picture below is the
+    /// same either way — so what is asserted is the identity handed back and what it is bound to.
+    /// **And the counter is left past the one it issued**, which is the last assertion and the one
+    /// that says the step is not repeated on every later addition.
+    ///
+    /// The case this replaces held that the three routes to one picture reach three now, because an
+    /// issued identity replaced a caller's figure — the behavior this rule refuses, and the map
+    /// makes the search behind it a lookup rather than a scan. The freeze it was the control for is
+    /// held by `a_removal_freezes_what_hung_from_the_removed_shape` and
+    /// `two_connectors_from_one_figure_both_freeze_at_their_own_points`.
     #[test]
-    fn the_three_routes_to_one_picture_are_not_one_picture_now() {
-        let (origin, size) = the_window();
-        let nothing = Delta { dx: 0, dy: 0 };
-        let the_far_end = Pos { x: 8, y: 1 };
+    fn add_steps_over_an_ordinal_a_figure_already_sits_under() {
+        let the_line = || Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 1,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
 
-        // The figure that answers no side: a connector, which the model gives four anchors to a box
-        // and a line and none at all to this.
-        let answers_no_side = connector_leaving(
-            Pos { x: 0, y: 0 }.into(),
-            Direction::Down,
-            Pos { x: 0, y: 2 }.into(),
-            Direction::Up,
-        );
-
-        // Never added: the hanging connector names `1` and nothing here holds it.
-        let mut never_added = Diagram::new();
-        never_added.add_under(identity(2), answers_no_side.clone());
-        never_added.add_under(identity(1), hanging_from(identity(1), nothing, the_far_end));
-        never_added.add(the_unrelated_box());
-
-        // Taken out: the same shape, held and then removed.
-        let mut taken_out = Diagram::new();
-        let box_id = taken_out.add(the_box());
-        taken_out.add(hanging_from(box_id, nothing, the_far_end));
-        taken_out.add(the_unrelated_box());
-        taken_out.remove(box_id);
-
-        // Still held, by a figure answering no side: the same diagram as the first, with the figure
-        // under the identity the connector names.
-        let mut held_and_answering_none = Diagram::new();
-        held_and_answering_none.add_under(identity(1), answers_no_side);
-        held_and_answering_none.add(hanging_from(identity(1), nothing, the_far_end));
-        held_and_answering_none.add(the_unrelated_box());
-
-        let never = draw_of(&never_added, origin, size);
-        let out = draw_of(&taken_out, origin, size);
-        let held = draw_of(&held_and_answering_none, origin, size);
-
+        // The specification's own case: seeded at 1, the caller has already written 1, and the
+        // addition is named 2 rather than nothing at all.
+        let (one_taken, issued) = Diagram::numbered_from(nz(1))
+            .add_under(identity(1), the_box())
+            .add(the_line());
         assert_eq!(
-            cells(&never, origin, size),
-            cells(&held, origin, size),
-            "the control moved: the never-added and the still-held routes were one picture before \
-             the freeze and are not one now"
+            issued.to_string(),
+            "2",
+            "the counter stepped over the ordinal a figure was already under"
         );
-        assert_ne!(
-            cells(&never, origin, size),
-            cells(&out, origin, size),
-            "the taken-out route draws the same picture as a reference to an identity that was never \
-             there, so nothing was frozen"
+        assert_eq!(
+            one_taken.get(identity(1)),
+            Some(&the_box()),
+            "the caller's figure is still what its identity names, and it was not replaced"
         );
-        assert_ne!(
-            cells(&held, origin, size),
-            cells(&out, origin, size),
-            "the freeze reached a figure that answers no side, which it must not"
+        assert_eq!(
+            one_taken.get(issued),
+            Some(&the_line()),
+            "and the issued figure is under the ordinal it was given rather than under nothing"
         );
 
-        // And the difference is the arrow, which is the claim this test exists for: the taken-out
-        // one is the only route whose picture carries one.
-        assert!(out.cell(THE_SIDE_CENTRE).is_some());
-        assert_eq!(never.cell(THE_SIDE_CENTRE), held.cell(THE_SIDE_CENTRE));
+        // The picture is the one a diagram holding both figures draws, which is the "rather than
+        // nothing at all" half of the rule said about cells rather than about identities.
+        let (origin, size) = the_window();
+        assert_eq!(
+            cells(&draw_of(&one_taken, origin, size), origin, size),
+            cells(
+                &drawn(vec![the_box(), the_line()], origin, size),
+                origin,
+                size
+            ),
+            "both figures are drawn, each under the identity it was added with"
+        );
+
+        // Two taken, one added, and then the counter is past the one it issued: 1 and 2 are the
+        // caller's, 3 is the first free ordinal, and 4 is what comes after it.
+        let (two_taken, third) = Diagram::numbered_from(nz(1))
+            .add_under(identity(1), the_box())
+            .add_under(identity(2), the_line())
+            .add(the_box());
+        let (_, fourth) = two_taken.add(the_line());
+        assert_eq!(
+            third.to_string(),
+            "3",
+            "two ordinals were taken and one was stepped over"
+        );
+        assert_eq!(
+            fourth.to_string(),
+            "4",
+            "the counter is past the ordinal it issued rather than stepping over it again"
+        );
     }
 
     /// The specification's _Edge cases_, and **P1 applied twice rather than a cascade**: two
@@ -3287,7 +3895,7 @@ mod tests {
     /// A body that resolved once and wrote twice would pass `a_removal_freezes_what_hung_from_the_removed_shape`
     /// and fail here, which is the reason the arrangement is not the one that test already builds.
     /// A **cascade** — walking from the box to the first connector and on — would fail it too, since
-    /// a connector answers no anchor and so there is nowhere to walk to; the loop visits each figure
+    /// a connector answers no anchor and so there is nowhere to walk to; the fold visits each figure
     /// once and that is the whole of it.
     #[test]
     fn two_connectors_from_one_figure_both_freeze_at_their_own_points() {
@@ -3316,11 +3924,11 @@ mod tests {
             )
         };
 
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
-        diagram.add(from_the_right(box_id));
-        diagram.add(from_the_bottom(box_id));
-        diagram.add(the_unrelated_box());
+        let diagram = Diagram::new();
+        let (mut diagram, box_id) = diagram.add(the_box());
+        diagram = diagram.add(from_the_right(box_id)).0;
+        diagram = diagram.add(from_the_bottom(box_id)).0;
+        diagram = diagram.add(the_unrelated_box()).0;
         let before = draw_of(&diagram, origin, size);
 
         // Each end's own point, resolved before the removal and held across it.
@@ -3338,7 +3946,7 @@ mod tests {
              apart"
         );
 
-        diagram.remove(box_id);
+        diagram = diagram.remove(box_id);
 
         assert_eq!(
             the_hanging_end(&diagram, identity(2))
@@ -3356,9 +3964,11 @@ mod tests {
         // And drawn: the picture holds two arrows where the removal took the figure they hung from.
         let after = draw_of(&diagram, origin, size);
         let mut expected = Diagram::new();
-        expected.add(arm_connector(top.into(), at_the_top.into()));
-        expected.add(arm_connector(bottom.into(), at_the_bottom.into()));
-        expected.add(the_unrelated_box());
+        expected = expected.add(arm_connector(top.into(), at_the_top.into())).0;
+        expected = expected
+            .add(arm_connector(bottom.into(), at_the_bottom.into()))
+            .0;
+        expected = expected.add(the_unrelated_box()).0;
         assert_eq!(
             cells(&after, origin, size),
             cells(&draw_of(&expected, origin, size), origin, size),
@@ -3376,10 +3986,11 @@ mod tests {
     ///
     /// **(1) A reference the removal did not create is not repaired**, in both of the forms it can
     /// take. The first is an identity **never added** at all: the removal names it, finds nothing,
-    /// and returns before its loop, so nothing is touched — which is a removal of an identity this
+    /// and returns before the freeze, so nothing is touched — which is a removal of an identity this
     /// diagram does not hold rather than a freeze, and is asserted because a body that reached the
-    /// loop anyway would be inventing a repair nobody asked for. The second is an identity **held by
-    /// a figure that answers no side**, so the reference **does not resolve** while the loop runs:
+    /// freeze anyway would be inventing a repair nobody asked for. The second is an identity **held
+    /// by a figure that answers no side**, so the reference **does not resolve** while the freeze
+    /// runs:
     /// this is the one the `Some(point)` guard in `Endpoint::frozen_position` exists for, because
     /// freezing it to nothing or dropping it would each be a second rule about removals. The second
     /// is the one that earns the guard; the first is the one a reader imagines.
@@ -3402,14 +4013,14 @@ mod tests {
 
         // (1a) An identity that was never there, and a removal naming exactly that identity.
         let mut never_there = Diagram::new();
-        never_there.add_under(
+        never_there = never_there.add_under(
             identity(2),
             arm_connector(
                 naming(identity(1), Anchor::Right, nothing),
                 the_far_end.into(),
             ),
         );
-        never_there.remove(identity(1));
+        never_there = never_there.remove(identity(1));
         let Shape::Connector { from, .. } = never_there
             .get(identity(2))
             .expect("the connector is under 2, which nothing removed")
@@ -3423,9 +4034,9 @@ mod tests {
         );
 
         // (1b) The same unresolved reference, over an identity a figure answering no side holds — so
-        // the loop runs, `resolve` answers nothing, and the `Some(point)` guard is what is left.
+        // the freeze runs, `resolve` answers nothing, and the `Some(point)` guard is what is left.
         let mut held_and_unresolvable = Diagram::new();
-        held_and_unresolvable.add_under(
+        held_and_unresolvable = held_and_unresolvable.add_under(
             identity(1),
             connector_leaving(
                 Pos { x: 0, y: 0 }.into(),
@@ -3434,14 +4045,14 @@ mod tests {
                 Direction::Up,
             ),
         );
-        held_and_unresolvable.add_under(
+        held_and_unresolvable = held_and_unresolvable.add_under(
             identity(2),
             arm_connector(
                 naming(identity(1), Anchor::Right, nothing),
                 the_far_end.into(),
             ),
         );
-        held_and_unresolvable.remove(identity(1));
+        held_and_unresolvable = held_and_unresolvable.remove(identity(1));
         let Shape::Connector { from, .. } = held_and_unresolvable
             .get(identity(2))
             .expect("the connector is under 2, which nothing removed")
@@ -3455,14 +4066,15 @@ mod tests {
         );
 
         // (2) One end naming a figure that stays, the other the one taken out.
-        let mut one_end = Diagram::new();
-        let stays = one_end.add(the_box());
-        let goes = one_end.add(the_unrelated_box());
-        one_end.add(arm_connector(
-            naming(stays, Anchor::Right, nothing),
-            naming(goes, Anchor::Bottom, Delta { dx: 1, dy: 0 }),
-        ));
-        one_end.remove(goes);
+        let (one_end, stays) = Diagram::new().add(the_box());
+        let (mut one_end, goes) = one_end.add(the_unrelated_box());
+        one_end = one_end
+            .add(arm_connector(
+                naming(stays, Anchor::Right, nothing),
+                naming(goes, Anchor::Bottom, Delta { dx: 1, dy: 0 }),
+            ))
+            .0;
+        one_end = one_end.remove(goes);
         let Shape::Connector { from, to, .. } = one_end
             .get(identity(3))
             .expect("the connector is still held")
@@ -3481,13 +4093,14 @@ mod tests {
         );
 
         // (3) Both ends on the same figure, at two different anchors.
-        let mut both_ends = Diagram::new();
-        let id = both_ends.add(the_box());
-        both_ends.add(arm_connector(
-            naming(id, Anchor::Right, nothing),
-            naming(id, Anchor::Bottom, Delta { dx: 1, dy: 0 }),
-        ));
-        both_ends.remove(identity(1));
+        let (mut both_ends, id) = Diagram::new().add(the_box());
+        both_ends = both_ends
+            .add(arm_connector(
+                naming(id, Anchor::Right, nothing),
+                naming(id, Anchor::Bottom, Delta { dx: 1, dy: 0 }),
+            ))
+            .0;
+        both_ends = both_ends.remove(identity(1));
         let Shape::Connector { from, to, .. } = both_ends
             .get(identity(2))
             .expect("the connector is still held")
@@ -3529,16 +4142,18 @@ mod tests {
         let (origin, size) = the_window();
         let the_far_end = Pos { x: 11, y: 1 };
 
-        let mut diagram = Diagram::new();
-        let identity = diagram.add(the_box());
-        diagram.add(arm_connector(
-            Position::Reference(Reference {
-                id: identity,
-                anchor: Anchor::Right,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
-            the_far_end.into(),
-        ));
+        let diagram = Diagram::new();
+        let (mut diagram, identity) = diagram.add(the_box());
+        diagram = diagram
+            .add(arm_connector(
+                Position::Reference(Reference {
+                    id: identity,
+                    anchor: Anchor::Right,
+                    offset: Delta { dx: 0, dy: 0 },
+                }),
+                the_far_end.into(),
+            ))
+            .0;
         let before = draw_of(&diagram, origin, size);
 
         let the_line = Shape::Line {
@@ -3547,12 +4162,14 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         };
-        diagram.replace(identity, the_line.clone());
+        diagram = diagram.replace(identity, the_line.clone());
         let after = draw_of(&diagram, origin, size);
 
         let mut expected = Diagram::new();
-        expected.add(the_line);
-        expected.add(arm_connector(Pos { x: 4, y: 0 }.into(), the_far_end.into()));
+        expected = expected.add(the_line).0;
+        expected = expected
+            .add(arm_connector(Pos { x: 4, y: 0 }.into(), the_far_end.into()))
+            .0;
 
         assert_eq!(
             cells(&after, origin, size),
@@ -3590,16 +4207,18 @@ mod tests {
     fn a_displaced_connector_moves_its_absolute_end_and_its_hanging_one_too() {
         let (origin, size) = the_window();
 
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
-        diagram.add(arm_connector(
-            Pos { x: 0, y: 1 }.into(),
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
-        ));
+        let diagram = Diagram::new();
+        let (mut diagram, box_id) = diagram.add(the_box());
+        diagram = diagram
+            .add(arm_connector(
+                Pos { x: 0, y: 1 }.into(),
+                Position::Reference(Reference {
+                    id: box_id,
+                    anchor: Anchor::Right,
+                    offset: Delta { dx: 0, dy: 0 },
+                }),
+            ))
+            .0;
 
         // Which endpoint the hanging one resolves to, asked the way the drawing asks it. Before the
         // displacement it stands on the border, and the side it is measured from is there too.
@@ -3624,7 +4243,7 @@ mod tests {
             moved,
             diagram.get(id).expect("the connector is held").clone()
         );
-        diagram.replace(id, moved);
+        diagram = diagram.replace(id, moved);
         let after = draw_of(&diagram, origin, size);
 
         // The same two figures with the connector standing where the rule put it: the absolute end
@@ -3632,11 +4251,13 @@ mod tests {
         // from the two positions rather than pinned as text, so what is claimed is where a
         // displacement puts a figure and not how a connector draws.
         let mut expected = Diagram::new();
-        expected.add(the_box());
-        expected.add(arm_connector(
-            Pos { x: 0, y: 3 }.into(),
-            Pos { x: 3, y: 3 }.into(),
-        ));
+        expected = expected.add(the_box()).0;
+        expected = expected
+            .add(arm_connector(
+                Pos { x: 0, y: 3 }.into(),
+                Pos { x: 3, y: 3 }.into(),
+            ))
+            .0;
 
         assert_eq!(
             cells(&after, origin, size),
@@ -3707,36 +4328,40 @@ mod tests {
             ("a box", &a_box_at as &dyn Fn(i32) -> Shape),
             ("a line", &a_line_at as &dyn Fn(i32) -> Shape),
         ] {
-            let mut diagram = Diagram::new();
-            let identity = diagram.add(figure_at(0));
+            let diagram = Diagram::new();
+            let (mut diagram, identity) = diagram.add(figure_at(0));
             for (anchor, to) in the_anchors.into_iter().zip(the_destinations) {
-                diagram.add(arm_connector(
-                    Position::Reference(Reference {
-                        id: identity,
-                        anchor,
-                        offset: Delta { dx: 0, dy: 0 },
-                    }),
-                    to.into(),
-                ));
+                diagram = diagram
+                    .add(arm_connector(
+                        Position::Reference(Reference {
+                            id: identity,
+                            anchor,
+                            offset: Delta { dx: 0, dy: 0 },
+                        }),
+                        to.into(),
+                    ))
+                    .0;
             }
             let before = draw_of(&diagram, origin, size);
 
             let moved = figure_at(0).displaced_by(by);
-            diagram.replace(identity, moved.clone());
+            diagram = diagram.replace(identity, moved.clone());
             let after = draw_of(&diagram, origin, size);
 
             // The same five figures with every anchor named as the point it resolved to before the
             // displacement, and again as the point it resolves to after.
             let mut expected_before = Diagram::new();
-            expected_before.add(figure_at(0));
+            expected_before = expected_before.add(figure_at(0)).0;
             for (anchor, to) in the_anchors.into_iter().zip(the_destinations) {
-                expected_before.add(arm_connector(
-                    figure_at(0)
-                        .anchor(anchor)
-                        .expect("a box and a line answer every anchor")
-                        .into(),
-                    to.into(),
-                ));
+                expected_before = expected_before
+                    .add(arm_connector(
+                        figure_at(0)
+                            .anchor(anchor)
+                            .expect("a box and a line answer every anchor")
+                            .into(),
+                        to.into(),
+                    ))
+                    .0;
             }
             assert_eq!(
                 cells(&before, origin, size),
@@ -3745,15 +4370,17 @@ mod tests {
             );
 
             let mut expected_after = Diagram::new();
-            expected_after.add(moved.clone());
+            expected_after = expected_after.add(moved.clone()).0;
             for (anchor, to) in the_anchors.into_iter().zip(the_destinations) {
-                expected_after.add(arm_connector(
-                    moved
-                        .anchor(anchor)
-                        .expect("a box and a line answer every anchor")
-                        .into(),
-                    to.into(),
-                ));
+                expected_after = expected_after
+                    .add(arm_connector(
+                        moved
+                            .anchor(anchor)
+                            .expect("a box and a line answer every anchor")
+                            .into(),
+                        to.into(),
+                    ))
+                    .0;
             }
             assert_eq!(
                 cells(&after, origin, size),
@@ -3775,9 +4402,9 @@ mod tests {
     /// started from a diagram the case before had already changed would be asking about both at
     /// once, which is what the last test below is for and what the rest are not.
     fn the_arrangement() -> (Diagram, ShapeId, ShapeId) {
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
-        let connector_id = diagram.add(arm_connector(
+        let diagram = Diagram::new();
+        let (diagram, box_id) = diagram.add(the_box());
+        let (diagram, connector_id) = diagram.add(arm_connector(
             Position::Reference(Reference {
                 id: box_id,
                 anchor: Anchor::Right,
@@ -3799,9 +4426,9 @@ mod tests {
     /// two halves of `both_directions_move_the_endpoint_differently` cannot drift apart by
     /// construction — they are the same arrangement by definition, not by agreement.
     fn the_arrangement_with_a_gap(gap: Delta, far_end: Pos) -> (Diagram, ShapeId, ShapeId) {
-        let mut diagram = Diagram::new();
-        let box_id = diagram.add(the_box());
-        let connector_id = diagram.add(arm_connector(
+        let diagram = Diagram::new();
+        let (diagram, box_id) = diagram.add(the_box());
+        let (diagram, connector_id) = diagram.add(arm_connector(
             Position::Reference(Reference {
                 id: box_id,
                 anchor: Anchor::Right,
@@ -3903,19 +4530,21 @@ mod tests {
 
         // And then the drawing: the same two figures with the connector standing where the rule put
         // it, reached by a second diagram that never displaced anything.
-        diagram.replace(connector_id, moved);
+        diagram = diagram.replace(connector_id, moved);
         let after = draw_of(&diagram, origin, size);
 
-        let mut expected = Diagram::new();
-        let expected_box = expected.add(the_box());
-        expected.add(arm_connector(
-            Position::Reference(Reference {
-                id: expected_box,
-                anchor: Anchor::Right,
-                offset: by,
-            }),
-            Pos { x: 7, y: 3 }.into(),
-        ));
+        let expected = Diagram::new();
+        let (mut expected, expected_box) = expected.add(the_box());
+        expected = expected
+            .add(arm_connector(
+                Position::Reference(Reference {
+                    id: expected_box,
+                    anchor: Anchor::Right,
+                    offset: by,
+                }),
+                Pos { x: 7, y: 3 }.into(),
+            ))
+            .0;
 
         assert_eq!(
             cells(&after, origin, size),
@@ -3967,21 +4596,23 @@ mod tests {
             fill: None,
         };
         let hanging_from_both = |from_offset: Delta, to_offset: Delta| {
-            let mut diagram = Diagram::new();
-            let a = diagram.add(the_box());
-            let b = diagram.add(second_box());
-            diagram.add(arm_connector(
-                Position::Reference(Reference {
-                    id: a,
-                    anchor: Anchor::Right,
-                    offset: from_offset,
-                }),
-                Position::Reference(Reference {
-                    id: b,
-                    anchor: Anchor::Left,
-                    offset: to_offset,
-                }),
-            ));
+            let diagram = Diagram::new();
+            let (diagram, a) = diagram.add(the_box());
+            let (mut diagram, b) = diagram.add(second_box());
+            diagram = diagram
+                .add(arm_connector(
+                    Position::Reference(Reference {
+                        id: a,
+                        anchor: Anchor::Right,
+                        offset: from_offset,
+                    }),
+                    Position::Reference(Reference {
+                        id: b,
+                        anchor: Anchor::Left,
+                        offset: to_offset,
+                    }),
+                ))
+                .0;
             diagram
         };
         let written = Delta { dx: 1, dy: 0 };
@@ -3996,7 +4627,7 @@ mod tests {
             .get(connector_id)
             .expect("the connector is held")
             .displaced_by(by);
-        diagram.replace(connector_id, moved);
+        diagram = diagram.replace(connector_id, moved);
         let after = draw_of(&diagram, origin, size);
 
         // Both grew by the delta, on both axes, and each is not what it was. The second offset is
@@ -4091,10 +4722,10 @@ mod tests {
         // it — otherwise "the connector is still there" would be the same claim as "the drawing
         // stopped".
         let hanging_from = |offset: Delta| {
-            let mut diagram = Diagram::new();
-            let box_id = diagram.add(the_box());
-            diagram.add(the_unrelated_box());
-            let connector_id = diagram.add(arm_connector(
+            let diagram = Diagram::new();
+            let (mut diagram, box_id) = diagram.add(the_box());
+            diagram = diagram.add(the_unrelated_box()).0;
+            let (diagram, connector_id) = diagram.add(arm_connector(
                 Position::Reference(Reference {
                     id: box_id,
                     anchor: Anchor::Right,
@@ -4116,7 +4747,7 @@ mod tests {
             .get(connector_id)
             .expect("the connector is held")
             .displaced_by(Delta { dx: 5, dy: 0 });
-        diagram.replace(connector_id, moved);
+        diagram = diagram.replace(connector_id, moved);
         assert_eq!(the_gap(&diagram, connector_id), at_the_end);
         assert_ne!(
             the_gap(&diagram, connector_id),
@@ -4134,7 +4765,7 @@ mod tests {
             .get(connector_id)
             .expect("the connector is held")
             .displaced_by(Delta { dx: -1, dy: 0 });
-        diagram.replace(connector_id, back);
+        diagram = diagram.replace(connector_id, back);
         assert_eq!(
             the_gap(&diagram, connector_id),
             Delta {
@@ -4161,12 +4792,14 @@ mod tests {
         // difference between the two drawings is whether the saturated point was reached through an
         // offset or written as a point.
         let mut with_the_point = Diagram::new();
-        with_the_point.add(the_box());
-        with_the_point.add(the_unrelated_box());
-        with_the_point.add(arm_connector(
-            Pos { x: i32::MAX, y: 1 }.into(),
-            the_other_end,
-        ));
+        with_the_point = with_the_point.add(the_box()).0;
+        with_the_point = with_the_point.add(the_unrelated_box()).0;
+        with_the_point = with_the_point
+            .add(arm_connector(
+                Pos { x: i32::MAX, y: 1 }.into(),
+                the_other_end,
+            ))
+            .0;
 
         assert_eq!(
             cells(&with_the_offset, origin, size),
@@ -4178,8 +4811,8 @@ mod tests {
         // And the distinction that is real: a saturated offset is not a reference that resolves to
         // nothing. The figure stays in the output, where an unresolved one would be gone from it.
         let mut without_the_connector = Diagram::new();
-        without_the_connector.add(the_box());
-        without_the_connector.add(the_unrelated_box());
+        without_the_connector = without_the_connector.add(the_box()).0;
+        without_the_connector = without_the_connector.add(the_unrelated_box()).0;
         assert_ne!(
             cells(&with_the_offset, origin, size),
             cells(&draw_of(&without_the_connector, origin, size), origin, size),
@@ -4223,7 +4856,7 @@ mod tests {
             moved_box,
             box_moved.get(box_id).expect("the box is held").clone()
         );
-        box_moved.replace(box_id, moved_box);
+        box_moved = box_moved.replace(box_id, moved_box);
         let after_box = draw_of(&box_moved, origin, size);
 
         assert_eq!(the_right_side(&box_moved, box_id), Some(Pos { x: 7, y: 1 }));
@@ -4240,8 +4873,12 @@ mod tests {
         );
 
         let mut expected_box = Diagram::new();
-        expected_box.add(the_box().displaced_by(Delta { dx: 4, dy: 0 }));
-        expected_box.add(arm_connector(Pos { x: 9, y: 1 }.into(), far_end.into()));
+        expected_box = expected_box
+            .add(the_box().displaced_by(Delta { dx: 4, dy: 0 }))
+            .0;
+        expected_box = expected_box
+            .add(arm_connector(Pos { x: 9, y: 1 }.into(), far_end.into()))
+            .0;
         assert_eq!(
             cells(&after_box, origin, size),
             cells(&draw_of(&expected_box, origin, size), origin, size)
@@ -4264,7 +4901,7 @@ mod tests {
                 .expect("the connector is held")
                 .clone()
         );
-        connector_moved.replace(connector_id, moved_connector);
+        connector_moved = connector_moved.replace(connector_id, moved_connector);
         let after_connector = draw_of(&connector_moved, origin, size);
 
         assert_eq!(
@@ -4284,11 +4921,13 @@ mod tests {
         );
 
         let mut expected_connector = Diagram::new();
-        expected_connector.add(the_box());
-        expected_connector.add(arm_connector(
-            Pos { x: 5, y: 3 }.into(),
-            Pos { x: 11, y: 3 }.into(),
-        ));
+        expected_connector = expected_connector.add(the_box()).0;
+        expected_connector = expected_connector
+            .add(arm_connector(
+                Pos { x: 5, y: 3 }.into(),
+                Pos { x: 11, y: 3 }.into(),
+            ))
+            .0;
         assert_eq!(
             cells(&after_connector, origin, size),
             cells(&draw_of(&expected_connector, origin, size), origin, size)
@@ -4385,7 +5024,7 @@ mod tests {
                 .get(the_figure_under_test)
                 .expect("the figure under test is held")
                 .displaced_by(by);
-            diagram.replace(the_figure_under_test, moved);
+            diagram = diagram.replace(the_figure_under_test, moved);
             let after = draw_of(&diagram, origin, size);
 
             // The offsets grew, on both axes, and this one is asked by value rather than by
@@ -4456,7 +5095,7 @@ mod tests {
             .get(box_id)
             .expect("the box is held")
             .displaced_by(Delta { dx: 0, dy: 2 });
-        diagram.replace(box_id, moved_box);
+        diagram = diagram.replace(box_id, moved_box);
         assert_eq!(
             the_ends(&diagram, connector_id),
             (Some(Pos { x: 3, y: 3 }), Some(Pos { x: 7, y: 1 }))
@@ -4469,7 +5108,7 @@ mod tests {
             .get(connector_id)
             .expect("the connector is held")
             .displaced_by(Delta { dx: 0, dy: 2 });
-        diagram.replace(connector_id, moved_connector);
+        diagram = diagram.replace(connector_id, moved_connector);
 
         assert_eq!(
             the_ends(&diagram, connector_id),
