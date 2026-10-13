@@ -145,6 +145,13 @@ and it is why the command is stored rather than derived.
 rather than what it started from, and what it started from is one place further back — which is what
 makes undo a walk over the sequence rather than a subtraction from it.
 
+**Holding the diagram the session was created over in the field keeps one rule rather than two.**
+The diagram in hand is that field or a step, decided by the position alone, and the field is written
+once, so what it holds is the same for the whole life of the session. **The other order works too**
+and would make the field hold the newest state rather than the first: a second place a diagram can
+be, one whose contents change with every command, and an answer at the end of the history that is a
+case of its own because the newest state is the one state kept outside it.
+
 **One command is one step, and the session merges nothing.** A caller asks, and what it asked for is
 one thing the caller may give back. The session records and does not interpret: it holds what it was
 told and what the diagram looked like afterwards, and it draws no conclusion from the pair. §3 says
