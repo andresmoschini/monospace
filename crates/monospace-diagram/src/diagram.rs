@@ -42,8 +42,8 @@ struct Placed {
 ///
 /// The copy answers `add` with the ordinal the original would have answered, which is what keeps
 /// two copies from handing out one identity. They are then two diagrams that both hold shapes
-/// under names that may coincide, and `add_under` already says that two entries under one identity
-/// are held and are not an error.
+/// under identities that may coincide, and `add_under` already says what one of them does to the
+/// figure already there.
 ///
 /// It is `Clone` and not `Copy`: a diagram is as likely to be as long as it is wide, and a copy of
 /// every figure is not a copy of nothing.
@@ -78,12 +78,17 @@ impl Diagram {
         Self::numbered_from(NonZeroU32::MIN)
     }
 
-    /// An empty diagram whose next `add` takes the ordinal `next`.
+    /// An empty diagram whose next `add` takes the first ordinal at or after `next` that names no
+    /// figure.
     ///
     /// **The ordinal is a [`NonZeroU32`], so a zero is refused here rather than by `add`.** A
     /// description saying `"next_id": 0` is turned away by the reader rather than seeded with an
     /// identity nothing can carry, and there is no path through this crate that produces the `0` a
     /// plain `u32` would have allowed.
+    ///
+    /// **The ordinal it is given is not the ordinal the next addition gets**, and the difference is
+    /// the whole of what a stale value costs: a description whose second entry was deleted resumes
+    /// at `2` and steps over it to `3`.
     #[must_use]
     pub fn numbered_from(next: NonZeroU32) -> Self {
         Self {
@@ -95,34 +100,62 @@ impl Diagram {
     /// Puts `shape` at the front of the order, in front of everything already there, and returns
     /// the identity the diagram gave it.
     ///
-    /// **The counter is advanced for the next addition, and by name when there is none.** A `u32`
-    /// has no ordinal after `u32::MAX`, and every identity it could hold next would be a `0` — the
-    /// one value this crate's own type cannot carry, and under the previous `+= 1` a release build
-    /// would have wrapped into it in silence. Saturating instead would hand the same identity out
-    /// twice, which §3 _Identity_ does not allow for a diagram-issued one, so the one answer left
-    /// is to say which of the two it was.
+    /// **The ordinal is one no figure is already under, and the counter steps over anything that is.**
+    /// The counter is trusted rather than checked, so a diagram numbered from 3 by a description
+    /// whose third entry was deleted issues `3` to whatever comes next and takes the caller's figure
+    /// with it: the issued figure would be unreachable by identity and the caller's would be drawn,
+    /// which is the outcome §3 _Identity_ says a diagram that hands out an ordinal a figure already
+    /// sits under has not kept. **Replacing it is not the other answer** — a figure that vanishes
+    /// with no error, no report and no way back is the one outcome nothing in this crate does — so
+    /// the counter steps over every ordinal already taken and issues the first free one after it.
+    ///
+    /// **The counter is advanced past the ordinal it issued, and stops there when there is nowhere
+    /// to go.** A `u32` has no ordinal after `u32::MAX`, so the counter stands where it is rather
+    /// than wrapping — under the previous `+= 1` a release build would have wrapped into the `0` a
+    /// plain `u32` allows in silence, and `0` is the one value this crate's own identity type
+    /// cannot carry. **The refusal belongs to the next `add` rather than to this one**: the ordinal
+    /// just issued is free and this figure is named under it, and the addition after it is the one
+    /// with nothing to hand out.
     ///
     /// # Panics
     ///
-    /// When the counter stands at [`u32::MAX`] and another shape is added: that ordinal is issued,
-    /// and the addition after it has no ordinal to name.
+    /// When every ordinal at or after the counter is already taken, [`u32::MAX`] among them. A
+    /// `u32` ends there and nothing here reports what could not be drawn.
     pub fn add(&mut self, shape: Shape) -> ShapeId {
-        let id = ShapeId::new(self.next);
-        self.next = self.next.checked_add(1).unwrap_or_else(|| {
-            panic!("a diagram has issued every ordinal a u32 can hold, and {id} was the last one")
-        });
+        let mut ordinal = self.next;
+        while self.find(ShapeId::new(ordinal)).is_some() {
+            ordinal = ordinal.checked_add(1).unwrap_or_else(|| {
+                let taken = ShapeId::new(ordinal);
+                panic!("a diagram has no ordinal left to issue: a u32 ends at {taken}")
+            });
+        }
+
+        let id = ShapeId::new(ordinal);
+        self.next = ordinal.checked_add(1).unwrap_or(ordinal);
         self.shapes.push(Placed { id, shape });
         id
     }
 
     /// Puts `shape` at the front of the order, under the identity `id`.
     ///
-    /// `add` with the caller's identity in place of the diagram's, and it hands back nothing: two
-    /// shapes may carry one identity, both are held, and neither is an error. It does **not** touch
-    /// the counter, so on a diagram numbered from 3 the next `add` is still handed `4` whatever a
-    /// caller writes here.
+    /// `add` with the caller's identity in place of the diagram's, and it hands back nothing. It
+    /// does **not** touch the counter, so on a diagram numbered from 3 the next `add` is still handed
+    /// `4` whatever a caller writes here.
+    ///
+    /// **A figure already held under `id` is replaced by this one, in the place it already had.**
+    /// One identity names one figure and one place in the order, so putting a second shape under a
+    /// name this diagram already carries is a change to what that name is rather than a second
+    /// entry — the shape written replaces the one there, the place in the order does not move, and
+    /// the diagram draws the identity once rather than twice.
+    ///
+    /// **A refusal would be worse than the replacement.** This crate reports nothing anywhere, so
+    /// refusing in silence is a figure the caller asked for and did not get, with no way to tell it
+    /// from a figure that was never added.
     pub fn add_under(&mut self, id: ShapeId, shape: Shape) {
-        self.shapes.push(Placed { id, shape });
+        match self.find(id) {
+            Some(index) => self.shapes[index].shape = shape,
+            None => self.shapes.push(Placed { id, shape }),
+        }
     }
 
     /// The place in the order the shape named by `id` stands, or `None` when this diagram holds
@@ -496,30 +529,37 @@ mod tests {
         );
     }
 
-    /// Two shapes carrying one identity both record it, exactly as `get` cannot tell them apart.
+    /// A second shape under one identity **replaces** the first, and the identity is drawn once, in
+    /// the place it already had.
     ///
     /// **Two boxes far enough apart to share no cell**, so every owner in the window is one figure's
-    /// and the two records are each wholly one identity. An identity issued by `add` is checked for
-    /// uniqueness and one supplied through `add_under` is not, so the record has no way to hold the
-    /// two apart either — and refusing the second stamp instead would leave a cell the diagram
-    /// plainly drew unowned, which is a worse answer than an ambiguous one.
+    /// and "drawn once" is a claim about cells rather than about which glyph is in front.
+    ///
+    /// **The picture is the one a diagram holding only the second box draws**, which is the whole of
+    /// what replacing means: nothing of the figure that was replaced is left anywhere, and comparing
+    /// against a diagram built from that one figure is what says so rather than listing the cells it
+    /// does not reach.
+    ///
+    /// This is what §3 _Identity_ now says, where it used to say that two shapes may carry one
+    /// identity, both are held, and the second is a shape no identity names until the first is
+    /// removed. Holding two figures under one name needs an identity for the _occurrence_, which the
+    /// model has no name for, and it turns the order into a sequence of occurrences rather than of
+    /// identities.
     #[test]
-    fn two_shapes_carrying_one_identity_both_record_it_as_get_cannot_tell_them_apart() {
+    fn a_second_shape_under_one_identity_replaces_it_and_is_drawn_once() {
         let shared = identity(1);
+        let a_box_at = |x: i32| Shape::Box {
+            at: Pos { x, y: 0 },
+            size: Size {
+                width: 2,
+                height: 2,
+            },
+            stroke: light(),
+            fill: None,
+        };
         let mut diagram = Diagram::new();
         for x in [0, 4] {
-            diagram.add_under(
-                shared,
-                Shape::Box {
-                    at: Pos { x, y: 0 },
-                    size: Size {
-                        width: 2,
-                        height: 2,
-                    },
-                    stroke: light(),
-                    fill: None,
-                },
-            );
+            diagram.add_under(shared, a_box_at(x));
         }
 
         let origin = Pos { x: 0, y: 0 };
@@ -530,32 +570,44 @@ mod tests {
         let mut buffer = Buffer::new(origin, size);
         diagram.draw(&mut buffer);
 
-        // `get` answers with the first of the two and there is no listing that would name the
-        // second, which is the whole of what "cannot tell them apart" means here.
+        // `get` answers with the second of the two, which is the one the diagram kept, and there is
+        // no listing that would name the other — which is not a limitation but the whole of it.
         assert!(
-            matches!(diagram.get(shared), Some(Shape::Box { at, .. }) if *at == Pos { x: 0, y: 0 }),
-            "get answers with the first of the two shapes sharing the identity"
+            matches!(diagram.get(shared), Some(Shape::Box { at, .. }) if *at == Pos { x: 4, y: 0 }),
+            "get answers with the second of the two shapes added under the identity"
         );
 
-        for offset in [
-            Offset { x: 0, y: 0 },
-            Offset { x: 1, y: 1 },
-            Offset { x: 4, y: 0 },
-            Offset { x: 5, y: 1 },
-        ] {
+        // What is on the screen is the one figure, where it stands, and nothing of the figure it
+        // replaced: the left box is gone rather than hidden behind the right one.
+        assert_eq!(
+            cells(&buffer, origin, size),
+            cells(&drawn(vec![a_box_at(4)], origin, size), origin, size),
+            "the identity is drawn once, as the figure that replaced the first"
+        );
+
+        for offset in [Offset { x: 4, y: 0 }, Offset { x: 5, y: 1 }] {
             assert_eq!(
                 buffer.owner(offset),
                 Some(shared),
-                "both shapes recorded the one identity they carry, at ({}, {})",
+                "every cell the surviving figure wrote carries the one identity it is held under, at \
+                 ({}, {})",
                 offset.x,
                 offset.y
             );
         }
-        assert_eq!(
-            buffer.owner(Offset { x: 2, y: 0 }),
-            None,
-            "and a position neither shape wrote is owned by nobody"
-        );
+        for offset in [
+            Offset { x: 0, y: 0 },
+            Offset { x: 1, y: 1 },
+            Offset { x: 2, y: 0 },
+        ] {
+            assert_eq!(
+                buffer.owner(offset),
+                None,
+                "the figure that was replaced wrote nothing, at ({}, {})",
+                offset.x,
+                offset.y
+            );
+        }
     }
 
     /// Scenario 3: an empty diagram leaves its buffer exactly as it was.
@@ -935,11 +987,10 @@ mod tests {
     /// second `add` then shows the advance itself: the counter's own ordinals are consecutive, which
     /// is the whole of what "the numbering resumes" means.
     ///
-    /// **And the accepted cost, which is the other half of this rule's neighborhood**: two shapes
-    /// under one identity are both held and `get` returns the first, so the second is a shape no
-    /// ordinal names until the first is taken out. Pinned as a **behavior rather than a bug**, so a
-    /// later slice that decides to report it has to say so rather than discover it. An ordinal is no
-    /// more unique than the name it replaced, and nothing here checks it either way.
+    /// **The caller's identity is nowhere near the counter on purpose.** An ordinal the counter is
+    /// standing on is a different case, and
+    /// `add_steps_over_an_ordinal_a_figure_already_sits_under` is what holds it: pinning a counter
+    /// that steps over something here would say nothing about a counter that does not.
     #[test]
     fn a_diagram_issues_the_counter_and_a_shape_added_under_a_callers_identity_does_not_move_it() {
         let a_box = || Shape::Box {
@@ -963,27 +1014,53 @@ mod tests {
             "4",
             "the counter advanced by one, and the caller's 7 is not in the way"
         );
+    }
 
-        // Two shapes under one identity are both held, and `get` returns the first — the second is
-        // a shape nobody can name until the first is taken out.
+    /// A second shape under an identity the diagram already holds **replaces** the first, and taking
+    /// the identity out takes that one out: there is no shape underneath waiting to be named.
+    ///
+    /// **Both directions of the same rule, because only one of them would pass by accident.** The
+    /// first is the replacement and the second is what `remove` finds — a diagram that still held
+    /// both would answer the first assertion and fail the second, and one that held neither would
+    /// fail both.
+    ///
+    /// The boxes are told apart by their **fill**, so "the second replaced the first" is a claim
+    /// about which figure `get` names rather than about a value that cannot tell them apart.
+    #[test]
+    fn a_repeated_identity_holds_the_shape_added_last_and_removing_it_leaves_nothing_behind() {
+        let a_box_filled_with = |fill: &'static str| Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 4,
+                height: 3,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new(fill).expect("one grapheme cluster")),
+        };
+
         let mut repeated = Diagram::new();
-        repeated.add_under(identity(1), a_box());
-        repeated.add_under(identity(1), a_box());
-        assert!(matches!(repeated.get(identity(1)), Some(Shape::Box { .. })));
+        repeated.add_under(identity(1), a_box_filled_with("░"));
+        repeated.add_under(identity(1), a_box_filled_with("▓"));
+        assert_eq!(
+            repeated.get(identity(1)),
+            Some(&a_box_filled_with("▓")),
+            "the second shape added under an identity is the one the diagram holds"
+        );
+
         repeated.remove(identity(1));
         assert!(
-            matches!(repeated.get(identity(1)), Some(Shape::Box { .. })),
-            "the second shape under a repeated identity is still there after the first is taken out"
+            repeated.get(identity(1)).is_none(),
+            "taking the identity out takes the one shape it held, and there is no second one under it"
         );
     }
 
     /// **The two `add` calls above stop at `u32::MAX`, and the one after them has nothing to hand
     /// back.** A `u32` has no ordinal after its largest one, and every value it could hold next is a
     /// `0` — the one thing this crate's identity type cannot carry, and what the old `+= 1` wrapped
-    /// into in a release build without saying so. Saturating would instead hand the same ordinal out
-    /// twice, so the exhaustion is named.
+    /// into in a release build without saying so. The last ordinal is issued because it is free, and
+    /// the addition after it is the one that says so rather than wrapping or handing it out twice.
     #[test]
-    #[should_panic(expected = "has issued every ordinal a u32 can hold")]
+    #[should_panic(expected = "a diagram has no ordinal left to issue")]
     fn a_diagram_that_has_run_out_of_ordinals_says_so_rather_than_issuing_zero() {
         let a_line = || Shape::Line {
             at: Pos { x: 0, y: 0 },
@@ -998,6 +1075,36 @@ mod tests {
         // And the one after it is not. Nothing wraps to zero and nothing hands back what it has
         // already handed out.
         diagram.add(a_line());
+    }
+
+    /// The last ordinal a `u32` can hold is **no different because a caller took it**: a diagram
+    /// numbered there with a figure already under that identity has nothing left to issue either,
+    /// and says so by name rather than replacing the caller's figure or naming it a second time.
+    ///
+    /// **The caller's figure is what makes this case and not the one above.** Without one the
+    /// counter simply runs out; with one it runs out a step early, and the step-over is what finds
+    /// nothing. A diagram that replaced the caller here would take a figure away with no report and
+    /// no way back, which is the outcome this rule refuses.
+    #[test]
+    #[should_panic(expected = "a diagram has no ordinal left to issue")]
+    fn a_diagram_with_no_ordinal_left_says_so_rather_than_repeating_one() {
+        let mut diagram = Diagram::numbered_from(NonZeroU32::new(u32::MAX).expect("the largest"));
+        diagram.add_under(
+            identity(u32::MAX),
+            Shape::Line {
+                at: Pos { x: 0, y: 0 },
+                len: 1,
+                orientation: Orientation::Horizontal,
+                stroke: light(),
+            },
+        );
+
+        diagram.add(Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 1,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        });
     }
 
     /// Adding three shapes to one diagram yields three identities that differ from one
@@ -3196,88 +3303,84 @@ mod tests {
         );
     }
 
-    /// The three routes that reached **one** picture byte for byte reach **three** now, and the
-    /// taken-out one is the odd one out — its arrow is still there.
+    /// An ordinal `add` issues is **one no figure is already under**, so the counter steps over
+    /// everything taken rather than naming a figure twice.
     ///
-    /// **One test rather than three, and the reason is the specification's:** the taken-out route is
-    /// compared against **both** of the others and against neither, and only one place can ask that.
-    /// Separately, each is a claim about a diagram, and the claim here is about the difference
-    /// between two of them.
+    /// **The caller's figure is still there afterwards, and it is still what its identity names.**
+    /// That is the whole of the difference from naming it anyway: replacing would leave the issued
+    /// figure unreachable by identity and the caller's figure gone, with no error, no report and no
+    /// way to ask for it back, which is the one outcome nothing in this crate does.
     ///
-    /// The still-held route's picture is **equal to the never-added route's**, byte for byte, and
-    /// that pair is the control which says the third is what moved. It is reached by holding the two
-    /// routes' diagrams to the same shape — the figure that answers no side sits under `1` in one
-    /// and under `2` in the other, and the hanging connector names `1` in both — so the two differ
-    /// by **which identity** the figure stands under and by nothing else. A reference naming a
-    /// figure that answers no side resolves to nothing, which is exactly the answer it gives an
-    /// identity that was never there, and the freeze changed nothing about that: it rewrites a
-    /// reference whose subject has just been removed, and this one names an identity nothing ever
-    /// held, which no removal created and so no removal repairs.
+    /// **The counter steps over one and over two, rather than one.** A diagram with a single
+    /// ordinal taken would pass a loop that gave up after the first, and the picture below is the
+    /// same either way — so what is asserted is the identity handed back and what it is bound to.
+    /// **And the counter is left past the one it issued**, which is the third assertion and the one
+    /// that says the step is not repeated on every later addition.
     ///
-    /// **Asserted as whole buffers rather than as a count of differing cells**, because the routes
-    /// differ everywhere the arrow stood and a count would not say where — which is the whole of
-    /// what §11's second question used to ask.
+    /// The case this replaces held that the three routes to one picture reach three now, because the
+    /// issued identity replaced a caller's figure. That is the behavior this rule refuses, and the
+    /// freeze it was the control for is held by `a_removal_freezes_what_hung_from_the_removed_shape`
+    /// and `two_connectors_from_one_figure_both_freeze_at_their_own_points`.
     #[test]
-    fn the_three_routes_to_one_picture_are_not_one_picture_now() {
-        let (origin, size) = the_window();
-        let nothing = Delta { dx: 0, dy: 0 };
-        let the_far_end = Pos { x: 8, y: 1 };
+    fn add_steps_over_an_ordinal_a_figure_already_sits_under() {
+        let the_line = || Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 1,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
 
-        // The figure that answers no side: a connector, which the model gives four anchors to a box
-        // and a line and none at all to this.
-        let answers_no_side = connector_leaving(
-            Pos { x: 0, y: 0 }.into(),
-            Direction::Down,
-            Pos { x: 0, y: 2 }.into(),
-            Direction::Up,
-        );
-
-        // Never added: the hanging connector names `1` and nothing here holds it.
-        let mut never_added = Diagram::new();
-        never_added.add_under(identity(2), answers_no_side.clone());
-        never_added.add_under(identity(1), hanging_from(identity(1), nothing, the_far_end));
-        never_added.add(the_unrelated_box());
-
-        // Taken out: the same shape, held and then removed.
-        let mut taken_out = Diagram::new();
-        let box_id = taken_out.add(the_box());
-        taken_out.add(hanging_from(box_id, nothing, the_far_end));
-        taken_out.add(the_unrelated_box());
-        taken_out.remove(box_id);
-
-        // Still held, by a figure answering no side: the same diagram as the first, with the figure
-        // under the identity the connector names.
-        let mut held_and_answering_none = Diagram::new();
-        held_and_answering_none.add_under(identity(1), answers_no_side);
-        held_and_answering_none.add(hanging_from(identity(1), nothing, the_far_end));
-        held_and_answering_none.add(the_unrelated_box());
-
-        let never = draw_of(&never_added, origin, size);
-        let out = draw_of(&taken_out, origin, size);
-        let held = draw_of(&held_and_answering_none, origin, size);
-
+        // The specification's own case: seeded at 1, the caller has already written 1, and the
+        // addition is named 2 rather than nothing at all.
+        let mut one_taken = Diagram::numbered_from(nz(1));
+        one_taken.add_under(identity(1), the_box());
+        let issued = one_taken.add(the_line());
         assert_eq!(
-            cells(&never, origin, size),
-            cells(&held, origin, size),
-            "the control moved: the never-added and the still-held routes were one picture before \
-             the freeze and are not one now"
+            issued.to_string(),
+            "2",
+            "the counter stepped over the ordinal a figure was already under"
         );
-        assert_ne!(
-            cells(&never, origin, size),
-            cells(&out, origin, size),
-            "the taken-out route draws the same picture as a reference to an identity that was never \
-             there, so nothing was frozen"
+        assert_eq!(
+            one_taken.get(identity(1)),
+            Some(&the_box()),
+            "the caller's figure is still what its identity names, and it was not replaced"
         );
-        assert_ne!(
-            cells(&held, origin, size),
-            cells(&out, origin, size),
-            "the freeze reached a figure that answers no side, which it must not"
+        assert_eq!(
+            one_taken.get(issued),
+            Some(&the_line()),
+            "and the issued figure is under the ordinal it was given rather than under nothing"
         );
 
-        // And the difference is the arrow, which is the claim this test exists for: the taken-out
-        // one is the only route whose picture carries one.
-        assert!(out.cell(THE_SIDE_CENTRE).is_some());
-        assert_eq!(never.cell(THE_SIDE_CENTRE), held.cell(THE_SIDE_CENTRE));
+        // The picture is the one a diagram holding both figures draws, which is the "rather than
+        // nothing at all" half of the rule said about cells rather than about identities.
+        let (origin, size) = the_window();
+        assert_eq!(
+            cells(&draw_of(&one_taken, origin, size), origin, size),
+            cells(
+                &drawn(vec![the_box(), the_line()], origin, size),
+                origin,
+                size
+            ),
+            "both figures are drawn, each under the identity it was added with"
+        );
+
+        // Two taken, one added, and then the counter is past the one it issued: 1 and 2 are the
+        // caller's, 3 is the first free ordinal, and 4 is what comes after it.
+        let mut two_taken = Diagram::numbered_from(nz(1));
+        two_taken.add_under(identity(1), the_box());
+        two_taken.add_under(identity(2), the_line());
+        let third = two_taken.add(the_box());
+        let fourth = two_taken.add(the_line());
+        assert_eq!(
+            third.to_string(),
+            "3",
+            "two ordinals were taken and one was stepped over"
+        );
+        assert_eq!(
+            fourth.to_string(),
+            "4",
+            "the counter is past the ordinal it issued rather than stepping over it again"
+        );
     }
 
     /// The specification's _Edge cases_, and **P1 applied twice rather than a cascade**: two

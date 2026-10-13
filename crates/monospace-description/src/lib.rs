@@ -527,11 +527,14 @@ struct Description {
     /// already is.
     ///
     /// **It is trusted, not checked, beyond being nonzero.** A stale value — an entry removed, a
-    /// `2` deleted — hands back an identity already in use, and the shape that arrives is one
-    /// nobody can name. That is D6's accepted cost, and the repair is one line in
-    /// `monospace-diagram`; nothing in this format checks it. What **is** checked is the zero: zero
-    /// is not an identity, so `"next_id": 0` is a data error naming the field rather than a counter
-    /// seeded with something the diagram could not carry.
+    /// `2` deleted — hands back an identity already in use. That is D6's accepted cost (see
+    /// `specs/197`), and the repair it named was one line in `monospace-diagram`: `Diagram::add`
+    /// issues the first ordinal at or after this one that names no figure, which is what
+    /// `specs/212-hold-the-diagram-as-a-persistent-value.md` decides. **So the numbering a file
+    /// resumes at is a lower bound rather than a promise**, and a figure the diagram issued can come
+    /// out under an ordinal later than the one the reader would have counted to. What **is** checked
+    /// is the zero: zero is not an identity, so `"next_id": 0` is a data error naming the field
+    /// rather than a counter seeded with something the diagram could not carry.
     #[serde(deserialize_with = "next_id")]
     next_id: NonZeroU32,
     /// The figures, in the order they are drawn. Required, and the order is load-bearing: the array
