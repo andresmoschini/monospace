@@ -58,6 +58,20 @@ rendered picture. The buffer it writes into is given to it when it draws, and it
 than that drawing; a glyph catalog it is never given at all, because it never renders — see
 _Drawing_.
 
+**The figures are held apart from the order that draws them.** A mapping from an identity to a
+figure says which figure answers to a name, and a sequence of identities says which of them draws
+first; neither says anything the other cannot, and naming a shape almost always means the first
+while rendering means the second. **The two are written together and they always agree**: one
+identity stands once in the order and names one figure, so a lookup answers and the drawing walks
+the order alone.
+
+**A diagram is a value, and changing one produces another rather than editing one.** Every one of
+its operations takes the diagram it was given and hands back a diagram, and the one it was given is
+unchanged whichever of them a caller keeps: a copy is held, drawn, changed and dropped without the
+first knowing it exists. **What a copy shares rather than duplicates is an implementation and
+nothing here promises otherwise** — what this section does promise is the other half, which is that
+a copy is free of the original either way, and that holds because nothing in a diagram is mutable.
+
 The order is a sequence, and its **front** is the end drawn first. A shape nearer the front decides
 a cell before one behind it. Nothing about the order is a coordinate: it says which shape decides
 first, and that is all it says.
@@ -93,14 +107,21 @@ nesting.
 
 Every shape in a diagram has an identity, and it is an ordinal — a number, `1`, `2`, and so on, and
 never `0`. A caller may choose the identity a shape is added under, or let the diagram issue one.
-The identities **the diagram issues** are unique within that diagram. An identity a caller supplies
-is **not checked**: two shapes may carry one, both are held, and the second is a shape no identity
-names until the first is removed.
+The identities **the diagram issues** are unique within that diagram, and an ordinal it issues is
+**one no figure is already under**: a diagram that handed out an ordinal a figure already sits under
+has not kept its own numbering unique, so the counter steps over what is taken.
+
+An identity a caller supplies **names one figure**. A second shape put under an identity the diagram
+already holds **replaces** the figure there and leaves its place in the order alone, so the identity
+is drawn once. **Refusing it would be the other answer and it is not this one**: nothing in this
+model reports anything anywhere, so a refusal is a figure the caller asked for and did not get, with
+no way to tell it from a figure that was never added.
 
 **Zero is not an identity**, and that is the one rule the type itself carries rather than this
 document. It is a rule about the value rather than about a diagram: nothing here ever issued a `0`,
-and a diagram whose first addition is `1` says so. Who issues an identity and whether two may share
-one are the questions above, and they stay here.
+and a diagram whose first addition is `1` says so. Who issues an identity is a question the rule
+above answers and it stays here; whether two figures may share one is settled — they may not, and
+that is what the replacement above is.
 
 An identity is what makes a shape findable after it has been placed: it is how a position refers to
 another shape, how a change names what it is changing, and what a position on the screen resolves
@@ -336,23 +357,31 @@ again produces a new one.
 
 ## 9. Changing a diagram
 
-Five changes, each naming a shape by its identity except the first:
+Five changes, each naming a shape by its identity except the first. **Each is a function that takes
+a diagram and produces a diagram**: none of them changes the one it was given, so a caller that
+drops what it was handed has changed nothing at all, and the diagram a caller holds across two
+changes is the one the second was given.
 
-| Change   | What it does                                                                            |
-| -------- | --------------------------------------------------------------------------------------- |
-| add      | Puts a shape at the front of the order and gives it an identity it has not given before |
-| remove   | Takes a shape out of the diagram                                                        |
-| replace  | Puts a different shape under an identity, in the same place in the order                |
-| forward  | Moves a shape one place toward the front of the order                                   |
-| backward | Moves a shape one place toward the back of the order                                    |
+| Change   | What it does                                                                               |
+| -------- | ------------------------------------------------------------------------------------------ |
+| add      | Puts a shape at the front of the order and gives it an identity no figure is already under |
+| remove   | Takes a shape out of the diagram, and its identity out of the order                        |
+| replace  | Puts a different shape under an identity, in the same place in the order                   |
+| forward  | Moves a shape one place toward the front of the order                                      |
+| backward | Moves a shape one place toward the back of the order                                       |
 
 None of them can fail. Naming a shape the diagram does not hold changes nothing, which is the same
 answer _Positions_ gives a reference to a shape that is not there.
 
+**`add` hands back the diagram and then the identity it gave the shape, in that order.** The caller
+needs the name, and deriving it from the counter would publish a number this model keeps to itself;
+looking it up afterwards would be asking a question the diagram has just answered by construction.
+
 **The identity `add` gives is one the diagram has not handed out before**, which is what makes it
-worth taking rather than a number that happens to be free. A caller who wants a name of their own
-puts a shape under one instead, and that is a different change: it hands back nothing, and it does
-not move the counter, so what it is called and what the diagram issues next are two separate
+worth taking rather than a number that happens to be free, and **the counter steps over what is
+already taken** rather than naming it twice — see _Identity_. A caller who wants a name of their own
+puts a shape under one instead, and that is a different change: it hands back only the diagram, and
+it does not move the counter, so what it is called and what the diagram issues next are two separate
 questions.
 
 **A shape is a value, and changing one is replacing it.** Shapes are immutable. A diagram does not
