@@ -11,8 +11,8 @@
 //! **`redraw` is the hook for incremental rendering**: the loop draws only when `should_quit` is
 //! false and `should_redraw` is true, and calls `mark_drawn` after a frame, which clears the flag.
 //! A message that changes something visible sets it true again, so the next frame draws; a message
-//! that changes nothing leaves it false and the frame is skipped. Today no message sets it true, so
-//! only the first frame draws.
+//! that changes nothing leaves it false and the frame is skipped. [`Message::Resize`] is the one
+//! that sets it true, so a terminal resize repaints at the new size.
 //!
 //! **The loop asks the model whether to run**, through `running_state`, rather than `update`
 //! returning a verdict: what a message means stays in the model, and the loop matches nothing.
@@ -62,6 +62,10 @@ impl Model {
             Message::Quit => Self {
                 running_state: RunningState::Done,
                 redraw: self.redraw,
+            },
+            Message::Resize => Self {
+                running_state: self.running_state,
+                redraw: true,
             },
         }
     }
@@ -115,6 +119,16 @@ mod tests {
         let model = model.update(Message::Quit);
 
         assert!(model.should_redraw());
+    }
+
+    #[test]
+    fn a_resize_message_asks_for_a_redraw() {
+        let model = Model::new();
+
+        let model = model.update(Message::Resize);
+
+        assert!(model.should_redraw());
+        assert!(!model.should_quit());
     }
 
     #[test]

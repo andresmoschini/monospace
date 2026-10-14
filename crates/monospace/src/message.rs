@@ -26,6 +26,8 @@ use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
 pub(crate) enum Message {
     /// Ctrl+Q was pressed; the loop leaves.
     Quit,
+    /// The terminal was resized; the next frame repaints at the new size.
+    Resize,
 }
 
 impl Message {
@@ -37,6 +39,8 @@ impl Message {
             && key.modifiers.contains(KeyModifiers::CONTROL)
         {
             Some(Message::Quit)
+        } else if matches!(event, Event::Resize(..)) {
+            Some(Message::Resize)
         } else {
             None
         }
@@ -73,6 +77,13 @@ mod tests {
         });
 
         assert_eq!(Message::parse(&event), None);
+    }
+
+    #[test]
+    fn a_resize_is_a_message() {
+        let event = Event::Resize(80, 24);
+
+        assert_eq!(Message::parse(&event), Some(Message::Resize));
     }
 
     #[test]
