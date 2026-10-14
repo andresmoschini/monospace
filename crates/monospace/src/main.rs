@@ -3,18 +3,19 @@
 mod message;
 mod model;
 mod terminal;
+mod view;
 
 use std::io;
 use std::{io::stdout, process::ExitCode};
 
 use crossterm::event;
 use ratatui::Frame;
-use ratatui::widgets::Block;
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 use crate::message::Message;
 use crate::model::Model;
 use crate::terminal::{Crossterm, TerminalGuard};
+use crate::view::view;
 
 fn main() -> ExitCode {
     let mut terminal = match Terminal::new(CrosstermBackend::new(stdout())) {
@@ -76,8 +77,7 @@ where
 }
 
 fn draw(frame: &mut Frame, model: &Model) {
-    eprintln!("{model:?}");
-    frame.render_widget(Block::bordered(), frame.area());
+    frame.render_widget(view(model), frame.area());
 }
 
 trait IntoTerminalError {
