@@ -1,15 +1,17 @@
 //! The interactive application: the loop, and the terminal it runs on.
 
+mod message;
 mod terminal;
 
 use std::io;
 use std::{io::stdout, process::ExitCode};
 
-use crossterm::event::{self, Event};
+use crossterm::event;
 use ratatui::Frame;
 use ratatui::widgets::Block;
 use ratatui::{Terminal, backend::CrosstermBackend};
 
+use crate::message::Message;
 use crate::terminal::{Crossterm, TerminalGuard};
 
 fn main() -> ExitCode {
@@ -51,20 +53,18 @@ where
     loop {
         terminal.draw(draw).map_err(B::Error::into_terminal_error)?;
 
-        let event = next()?;
+        let event = event::read()?;
+        eprintln!("{event:?}");
 
-        if let Event::Key(key) = event
-            && key.kind == event::KeyEventKind::Press
-            && key.code == event::KeyCode::Char('q')
-            && key.modifiers.contains(event::KeyModifiers::CONTROL)
-        {
-            return Ok(());
+        let message = Message::parse(&event);
+        eprintln!("{message:?}");
+
+        if let Some(message) = message {
+            match message {
+                Message::Quit => return Ok(()),
+            }
         }
     }
-}
-
-fn next() -> io::Result<Event> {
-    event::read()
 }
 
 fn draw(frame: &mut Frame) {
