@@ -1,47 +1,37 @@
-//! What one frame shows, as a pure function of the model.
+//! What one frame shows, as a pure function of the area.
 //!
 //! # Design notes
 //!
-//! **`view` takes `&Model` and returns an `impl Widget`, with no `Frame` and no `Backend`.** That is
-//! the whole of what makes the drawing testable: the function is pure, so a test renders it into a
-//! [`TestBackend`](ratatui::backend::TestBackend) and reads the buffer back, with no terminal involved. `draw` in `main` is the
-//! thin adapter that hands the widget to the `Frame`; it holds no logic of its own.
+//! **`draw` takes a `Rect` and a `Buffer`, and returns nothing.** That is the whole of what makes
+//! the drawing testable: the function is pure, so a test hands it an empty
+//! [`Buffer`] the size of the screen and reads the cells back, with no
+//! terminal and no `Frame` involved. What used to sit between them — the widget tree, the
+//! `impl Widget`, the `TestBackend` — is gone with the loop: the framework's render callback
+//! already owns the frame, so a widget to hand to it would be a ceremony with nothing to do.
 //!
-//! **What the model means for the picture stays here.** The test asserts on the widget the model
-//! produces rather than on a terminal, so when the model grows visible state, the widget tree grows
-//! here and the root stays the same.
+//! **What the frame shows is here and nowhere else.** The title is the application's name, because
+//! the state it used to report — running, and the frame after the way out — belonged to the loop
+//! and is `Control::Quit` now. The second was never drawn: the loop ended before the frame that
+//! would have shown it.
 
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Widget};
 
-use crate::model::Model;
-
-/// Builds the widget tree for one frame from the model's current state.
-pub(crate) fn view(model: &Model) -> impl Widget {
-    let state = if model.should_quit() {
-        "done"
-    } else {
-        "running"
-    };
-
-    Block::bordered().title(state)
+/// Draws one frame into the buffer.
+pub(crate) fn draw(area: Rect, buf: &mut Buffer) {
+    Block::bordered().title("mono").render(area, buf);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Model, view};
-    use crate::message::Message;
-    use ratatui::backend::TestBackend;
-    use ratatui::{Terminal, buffer::Buffer};
+    use super::draw;
+    use ratatui::{buffer::Buffer, layout::Rect};
 
-    fn render(model: &Model) -> Buffer {
-        let backend = TestBackend::new(10, 3);
-        let mut terminal = Terminal::new(backend).unwrap();
-
-        terminal
-            .draw(|frame| frame.render_widget(view(model), frame.area()))
-            .unwrap();
-
-        terminal.backend().buffer().clone()
+    fn render(width: u16, height: u16) -> Buffer {
+        let mut buffer = Buffer::empty(Rect::new(0, 0, width, height));
+        draw(Rect::new(0, 0, width, height), &mut buffer);
+        buffer
     }
 
     fn top_row(buffer: &Buffer) -> String {
@@ -51,21 +41,13 @@ mod tests {
     }
 
     #[test]
-    fn the_running_view_draws_a_titled_block() {
-        let buffer = render(&Model::new());
+    fn the_view_draws_a_titled_block() {
+        let buffer = render(10, 3);
 
         assert_eq!(buffer[(0, 0)].symbol(), "┌");
         assert_eq!(buffer[(9, 0)].symbol(), "┐");
         assert_eq!(buffer[(0, 2)].symbol(), "└");
         assert_eq!(buffer[(9, 2)].symbol(), "┘");
-        assert!(top_row(&buffer).contains("running"));
-    }
-
-    #[test]
-    fn the_done_view_says_done() {
-        let model = Model::new().update(Message::Quit);
-        let buffer = render(&model);
-
-        assert!(top_row(&buffer).contains("done"));
+        assert!(top_row(&buffer).contains("mono"));
     }
 }
