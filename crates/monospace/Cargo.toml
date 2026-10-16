@@ -6,20 +6,30 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
-# Three dependencies and no others, which is what `README.md` promises of this stage: a session to
-# hold, a framework to draw with, and the terminal underneath it. The first is the layer this one
-# sits on and the other two are the two D2 names, each pinned with `=` so that one `crossterm` is in
-# the tree — two majors cannot exchange types and a second one would mean a second event queue.
+# Five dependencies and no others, which is what `README.md` promises of this stage: a session to
+# hold, a model to start from, a framework to draw with, and the two libraries this spike
+# evaluates. Each is pinned with `=` because two majors cannot exchange types and a second one
+# would mean a second event queue. `rat-salsa` and `rat-widget` are re-checked against crates.io
+# before they land: rat-salsa 4.0.3 published 2026-03-08, rat-widget 3.2.1 published 2026-03-09,
+# both the maximum stable version on 2026-10-16.
 [dependencies]
 monospace-editing.workspace = true
-# Pinned to the version `ratatui` resolves, because the two cannot exchange types across majors.
-crossterm = "=0.29.0"
+monospace-diagram.workspace = true
+# Pinned to the version `rat-salsa` resolves, because the two cannot exchange types across majors.
+# It carries the terminal too: `rat-salsa`'s poll hands over an event type owned by
+# `ratatui-crossterm`, which picks its own `crossterm` by feature, and `events.rs` names it through
+# this re-export rather than depending on a `crossterm` of our own that would have to agree with
+# that one by coincidence.
 ratatui = "=0.30.2"
+# The event loop and the terminal, both of which the spike had to hand-roll so far.
+rat-salsa = "=4.0.3"
+# The chrome widgets the loop is here to host.
+rat-widget = "=3.2.1"
 
 [dev-dependencies]
-# The screen is pinned as a picture: `ratatui`'s `TestBackend` renders the whole buffer with no
-# terminal involved, which is the one thing `crossterm` alone could not do and half of what proves
-# the slice.
+# Unused today: `view.rs` proves the drawing by reading the buffer's cells back, which needs no
+# snapshot framework, and `TestBackend` went away with the loop. Declared for the chrome's screens,
+# which are meant to be pinned as snapshots rather than asserted one cell at a time.
 insta = "1.48.0"
 
 [lints]
