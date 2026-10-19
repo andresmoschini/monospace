@@ -48,6 +48,11 @@ pub(crate) fn event(
             Ok(Control::Changed)
         }
 
+        AppEvent::About => {
+            state.counter += 1;
+            Ok(Control::Changed)
+        }
+
         // Repaints although nobody asked. `rat_salsa` does not watch the terminal for resizes.
         AppEvent::Resized => Ok(Control::Changed),
 

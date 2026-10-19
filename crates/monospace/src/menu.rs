@@ -14,7 +14,11 @@ use ratatui::widgets::{Block, StatefulWidget};
 use crate::vocabulary::AppEvent;
 
 static MENU: StaticMenu = StaticMenu {
-    menu: &[("_File", &["_Quit|Ctrl+Q"]), ("_Edit", &["_Increment|+"])],
+    menu: &[
+        ("_File", &["_Quit|Ctrl+Q"]),
+        ("_Edit", &["_Increment|+"]),
+        ("_Help", &["_About"]),
+    ],
 };
 
 const FILE: usize = 0;
@@ -24,6 +28,10 @@ const QUIT: usize = 0;
 const EDIT: usize = 1;
 
 const INCREMENT: usize = 0;
+
+const HELP: usize = 2;
+
+const ABOUT: usize = 0;
 
 /// Where a key or a click goes while the bar is the whole of the chrome.
 ///
@@ -42,6 +50,7 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Control<AppEvent>
             match (label, entry) {
                 (FILE, QUIT) => Control::Event(AppEvent::Quit),
                 (EDIT, INCREMENT) => Control::Event(AppEvent::Increment),
+                (HELP, ABOUT) => Control::Event(AppEvent::About),
                 _ => Control::Changed,
             }
         }
@@ -165,7 +174,7 @@ mod tests {
 
         assert_eq!(
             labels,
-            ["_File", "_Edit"],
+            ["_File", "_Edit", "_Help"],
             "the bar is not the one under test"
         );
     }
@@ -231,6 +240,19 @@ mod tests {
 
         assert!(
             matches!(outcome, Control::Event(AppEvent::Increment)),
+            "the entry did not become its application event: {outcome:?}"
+        );
+    }
+
+    #[test]
+    fn taking_the_about_entry_becomes_its_application_event() {
+        let mut state = drawn();
+        open('h', &mut state);
+
+        let outcome = handle(&key(KeyCode::Enter), &mut state);
+
+        assert!(
+            matches!(outcome, Control::Event(AppEvent::About)),
             "the entry did not become its application event: {outcome:?}"
         );
     }

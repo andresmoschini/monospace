@@ -14,6 +14,8 @@ pub(crate) enum AppEvent {
 
     Increment,
 
+    About,
+
     /// An event a widget may want, carried as it arrived. Nothing consumes it yet.
     #[allow(
         dead_code,
