@@ -13,7 +13,7 @@ use ratatui::layout::Rect;
 
 use crate::state::AppState;
 use crate::vocabulary::{AppError, AppEvent};
-use crate::{context::AppGlobal, menu, paint};
+use crate::{about_dialog, context::AppGlobal, menu, paint};
 
 #[allow(clippy::unnecessary_wraps)]
 pub(crate) fn init(_state: &mut AppState, _global: &mut AppGlobal) -> Result<(), AppError> {
@@ -49,7 +49,7 @@ pub(crate) fn event(
         }
 
         AppEvent::About => {
-            state.about.set_active(true);
+            about_dialog::open(&mut state.about);
             Ok(Control::Changed)
         }
 

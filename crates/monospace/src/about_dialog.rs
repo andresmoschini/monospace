@@ -8,6 +8,21 @@ use ratatui::{
 const DIALOG_WIDTH: Constraint = Constraint::Length(40);
 const DIALOG_HEIGHT: Constraint = Constraint::Length(16);
 
+const TITLE: &str = "About Monospace";
+
+pub(crate) fn open(state: &mut MsgDialogState) {
+    state.clear();
+    state.title(TITLE);
+    state.append(&text());
+}
+
+fn text() -> String {
+    format!(
+        "Monospace {}\n\nA diagram editor for the terminal.",
+        env!("CARGO_PKG_VERSION")
+    )
+}
+
 pub(crate) fn draw(body_area: Rect, buf: &mut Buffer, state: &mut MsgDialogState) {
     if !state.active() {
         return;
@@ -62,6 +77,31 @@ mod tests {
         let frame = frame(&mut state);
 
         assert!(frame.contains("monospace"), "{frame:?}");
+    }
+
+    #[test]
+    fn an_open_dialog_carries_its_title_and_its_text() {
+        let mut state = MsgDialogState::default();
+        open(&mut state);
+
+        let frame = frame(&mut state);
+
+        assert!(frame.contains("About"), "{frame:?}");
+        assert!(frame.contains("A diagram editor"), "{frame:?}");
+    }
+
+    #[test]
+    fn opening_the_dialog_again_shows_the_text_again() {
+        let mut state = MsgDialogState::default();
+        open(&mut state);
+        // The widget empties the message when the dialog closes.
+        state.clear();
+
+        open(&mut state);
+        let frame = frame(&mut state);
+
+        assert!(frame.contains("About"), "{frame:?}");
+        assert!(frame.contains("A diagram editor"), "{frame:?}");
     }
 
     #[test]
