@@ -1,16 +1,19 @@
 //! The four signatures `rat_salsa` dictates, and what the application does when each is called.
 //!
-//! The signatures are fixed by `run_tui`'s parameters, which is why they are free functions. What
-//! is inside them is the application's behavior: a `+` increments, `Control+q` quits, a resize
-//! repaints.
+//! The signatures are fixed by `run_tui`'s parameters, which is why they are free functions. An
+//! entry the chrome takes does not decide for itself: it becomes an `AppEvent` and the loop
+//! re-enters `event` with it, so an entry and the key that means the same thing are decided in one
+//! match.
 
 use rat_salsa::Control;
+use rat_widget::event::flow;
 use ratatui::buffer::Buffer;
+use ratatui::crossterm::event::Event;
 use ratatui::layout::Rect;
 
 use crate::state::AppState;
 use crate::vocabulary::{AppError, AppEvent};
-use crate::{context::AppGlobal, paint};
+use crate::{context::AppGlobal, menu, paint};
 
 #[allow(clippy::unnecessary_wraps)]
 pub(crate) fn init(_state: &mut AppState, _global: &mut AppGlobal) -> Result<(), AppError> {
@@ -50,9 +53,17 @@ pub(crate) fn event(
 
         AppEvent::Rendered | AppEvent::Ignored => Ok(Control::Continue),
 
-        // No widget layer yet: nothing consumes a raw event, so it changes nothing.
-        AppEvent::Input(_) => Ok(Control::Continue),
+        AppEvent::Input(raw) => Ok(widgets(raw, state)),
     }
+}
+
+/// Where a key or a click goes, in the order the widgets are asked.
+///
+/// The drop-down is over the body, so the menu is asked before whatever is behind it: dispatch
+/// runs the reverse of drawing. The next widget is another line.
+fn widgets(raw: &Event, state: &mut AppState) -> Control<AppEvent> {
+    flow!(menu::handle(raw, &mut state.menu));
+    Control::Continue
 }
 
 pub(crate) fn error(
@@ -68,7 +79,12 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use monospace_diagram::Diagram;
+    use ratatui::buffer::Buffer;
     use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+    use ratatui::layout::Rect;
+
+    const WIDTH: u16 = 60;
+    const HEIGHT: u16 = 14;
 
     fn a_state() -> AppState {
         AppState::new(Diagram::new())
@@ -78,12 +94,60 @@ mod tests {
         AppGlobal::new(Config::default())
     }
 
+    /// A key no widget of the chrome uses.
     fn a_raw_event() -> AppEvent {
-        AppEvent::Input(Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE)))
+        AppEvent::Input(Event::Key(KeyEvent::new(
+            KeyCode::Char('z'),
+            KeyModifiers::NONE,
+        )))
     }
 
     fn send(app_event: &AppEvent, state: &mut AppState) -> Result<Control<AppEvent>, AppError> {
         event(app_event, state, &mut a_global())
+    }
+
+    fn key(code: KeyCode) -> AppEvent {
+        AppEvent::Input(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)))
+    }
+
+    fn draw(state: &mut AppState) -> Buffer {
+        let area = Rect::new(0, 0, WIDTH, HEIGHT);
+        let mut buffer = Buffer::empty(area);
+        render(area, &mut buffer, state, &mut a_global()).expect("a frame");
+        buffer
+    }
+
+    /// The bar only knows its labels after a frame has drawn them.
+    fn a_drawn_state() -> AppState {
+        let mut state = a_state();
+        draw(&mut state);
+        state
+    }
+
+    fn press(code: KeyCode, state: &mut AppState) {
+        let outcome = send(&key(code), state).expect("the key reached the application");
+        assert_eq!(outcome, Control::Changed, "{code:?} changed nothing");
+    }
+
+    /// Opens a label's drop-down by its letter, leaving the first entry selected.
+    fn open(label: char, state: &mut AppState) {
+        press(KeyCode::Char(label), state);
+        draw(state);
+    }
+
+    /// Finishes one event the way `rat_salsa` does: an `Event` control is a question asked again,
+    /// and the loop calls `event` with the event it carries. This is the whole of the claim that a
+    /// menu entry and a key arrive at one place.
+    fn drive(app_event: &AppEvent, state: &mut AppState) -> Control<AppEvent> {
+        let mut control = send(app_event, state).expect("the event reached the application");
+        loop {
+            match control {
+                Control::Event(next) => {
+                    control = send(&next, state).expect("the event reached the application");
+                }
+                answer => return answer,
+            }
+        }
     }
 
     #[test]
@@ -114,11 +178,15 @@ mod tests {
     #[test]
     fn everything_else_is_a_no_op() {
         for app_event in [AppEvent::Rendered, AppEvent::Ignored, a_raw_event()] {
-            let mut state = a_state();
+            let mut state = a_drawn_state();
             let outcome = send(&app_event, &mut state);
 
             assert!(matches!(outcome, Ok(Control::Continue)), "{app_event:?}");
             assert_eq!(state.counter, 0, "{app_event:?} changed the state");
+            assert!(
+                !state.menu.popup_active(),
+                "{app_event:?} opened a drop-down"
+            );
         }
     }
 
@@ -133,5 +201,15 @@ mod tests {
         let outcome = error(failure, &mut a_state(), &mut a_global());
 
         assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn an_entry_of_the_bar_leaves_where_the_key_leaves() {
+        let mut state = a_drawn_state();
+        open('f', &mut state);
+
+        let outcome = drive(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Quit), "{outcome:?}");
     }
 }

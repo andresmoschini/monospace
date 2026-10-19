@@ -7,6 +7,7 @@ mod callbacks;
 mod config;
 mod context;
 mod event;
+mod menu;
 mod paint;
 mod state;
 mod vocabulary;
