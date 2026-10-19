@@ -1,15 +1,26 @@
 //! The interactive application: the loop, and the terminal it runs on.
+//!
+//! The only place the two halves meet. `app` holds what the application is; `framework` holds
+//! everything that depends on `rat_salsa` or `ratatui`.
 
-mod app;
-mod message;
-mod view;
+mod callbacks;
+mod config;
+mod context;
+mod event;
+mod paint;
+mod state;
+mod vocabulary;
 
 use std::process::ExitCode;
 
+use monospace_diagram::Diagram;
 use rat_salsa::poll::{PollCrossterm, PollRendered};
 use rat_salsa::{RunConfig, run_tui};
 
-use crate::app::{AppError, Global, error, event, init, render};
+use crate::config::Config;
+use crate::context::AppGlobal;
+use crate::state::AppState;
+use crate::vocabulary::AppError;
 
 fn main() -> ExitCode {
     match run() {
@@ -22,17 +33,19 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), AppError> {
-    let mut global = Global::default();
-    let mut state = ();
+    let mut global = AppGlobal::new(Config::default());
+    let initial_diagram = Diagram::new();
+    let mut state = AppState::new(initial_diagram);
+    let cfg = RunConfig::default()?.poll(PollCrossterm).poll(PollRendered);
 
     run_tui(
-        init,
-        render,
-        event,
-        error,
+        callbacks::init,
+        callbacks::render,
+        callbacks::event,
+        callbacks::error,
         &mut global,
         &mut state,
-        RunConfig::default()?.poll(PollCrossterm).poll(PollRendered),
+        cfg,
     )?;
 
     Ok(())
