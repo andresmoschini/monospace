@@ -212,4 +212,15 @@ mod tests {
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
     }
+
+    #[test]
+    fn the_increment_entry_counts_the_way_the_key_does() {
+        let mut state = a_drawn_state();
+        open('e', &mut state);
+
+        let outcome = drive(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(state.counter, 1, "the entry did not count");
+    }
 }

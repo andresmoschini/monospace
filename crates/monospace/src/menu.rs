@@ -14,12 +14,16 @@ use ratatui::widgets::{Block, StatefulWidget};
 use crate::vocabulary::AppEvent;
 
 static MENU: StaticMenu = StaticMenu {
-    menu: &[("_File", &["_Quit|Ctrl+Q"])],
+    menu: &[("_File", &["_Quit|Ctrl+Q"]), ("_Edit", &["_Increment|+"])],
 };
 
 const FILE: usize = 0;
 
 const QUIT: usize = 0;
+
+const EDIT: usize = 1;
+
+const INCREMENT: usize = 0;
 
 /// Where a key or a click goes while the bar is the whole of the chrome.
 ///
@@ -37,6 +41,7 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Control<AppEvent>
             // The bar carries text and nothing else: an entry means what its position says.
             match (label, entry) {
                 (FILE, QUIT) => Control::Event(AppEvent::Quit),
+                (EDIT, INCREMENT) => Control::Event(AppEvent::Increment),
                 _ => Control::Changed,
             }
         }
@@ -158,7 +163,11 @@ mod tests {
     fn the_bar_holds_the_labels_under_test() {
         let labels: Vec<&str> = MENU.menu.iter().map(|(label, _)| *label).collect();
 
-        assert_eq!(labels, ["_File"], "the bar is not the one under test");
+        assert_eq!(
+            labels,
+            ["_File", "_Edit"],
+            "the bar is not the one under test"
+        );
     }
 
     #[test]
@@ -211,6 +220,19 @@ mod tests {
             "the entry did not become an application event: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
+    }
+
+    #[test]
+    fn taking_the_increment_entry_becomes_its_application_event() {
+        let mut state = drawn();
+        open('e', &mut state);
+
+        let outcome = handle(&key(KeyCode::Enter), &mut state);
+
+        assert!(
+            matches!(outcome, Control::Event(AppEvent::Increment)),
+            "the entry did not become its application event: {outcome:?}"
+        );
     }
 
     #[test]
