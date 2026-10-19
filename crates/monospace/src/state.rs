@@ -6,7 +6,7 @@
 
 use monospace_diagram::Diagram;
 use monospace_editing::Session;
-use rat_widget::menu::MenubarState;
+use rat_widget::{menu::MenubarState, msgdialog::MsgDialogState};
 
 /// Everything that survives between frames.
 pub(crate) struct AppState {
@@ -21,6 +21,8 @@ pub(crate) struct AppState {
     pub counter: usize,
 
     pub menu: MenubarState,
+
+    pub about: MsgDialogState,
 }
 
 impl AppState {
@@ -30,6 +32,7 @@ impl AppState {
             session: Session::new(initial_diagram),
             counter: 0,
             menu: MenubarState::default(),
+            about: MsgDialogState::default(),
         }
     }
 }

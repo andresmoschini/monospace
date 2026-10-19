@@ -9,6 +9,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::{Block, Widget};
 
+use crate::about_dialog;
 use crate::state::AppState;
 use crate::{context::AppGlobal, menu};
 
@@ -29,6 +30,7 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     menu::draw_bar(bar_area, buf, &mut state.menu);
     Block::bordered().title(title).render(body_area, buf);
     menu::draw_popup(bar_area, buf, &mut state.menu);
+    about_dialog::draw(area, buf, &mut state.about);
 }
 
 #[cfg(test)]

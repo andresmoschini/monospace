@@ -3,6 +3,7 @@
 //! The only place the two halves meet. `app` holds what the application is; `framework` holds
 //! everything that depends on `rat_salsa` or `ratatui`.
 
+mod about_dialog;
 mod callbacks;
 mod config;
 mod context;

@@ -49,7 +49,7 @@ pub(crate) fn event(
         }
 
         AppEvent::About => {
-            state.counter += 1;
+            state.about.set_active(true);
             Ok(Control::Changed)
         }
 
