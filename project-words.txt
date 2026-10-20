@@ -26,6 +26,7 @@ rpds
 RUSTFLAGS
 safecrlf
 speckit
+statusline
 stdlib
 TKTK
 truecolor
