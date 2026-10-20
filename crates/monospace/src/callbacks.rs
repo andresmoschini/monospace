@@ -64,9 +64,11 @@ pub(crate) fn event(
 
 /// Where a key or a click goes, in the order the widgets are asked.
 ///
-/// The drop-down is over the body, so the menu is asked before whatever is behind it: dispatch
-/// runs the reverse of drawing. The next widget is another line.
+/// Dispatch runs the reverse of drawing, and the dialog is drawn last of all, so it is asked first
+/// and keeps the keyboard to itself while it is open. The drop-down is over the body, so the menu
+/// is asked before whatever is behind it.
 fn widgets(raw: &Event, state: &mut AppState) -> Control<AppEvent> {
+    flow!(about_dialog::handle(raw, &mut state.about));
     flow!(menu::handle(raw, &mut state.menu));
     Control::Continue
 }
@@ -227,5 +229,20 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(state.counter, 1, "the entry did not count");
+    }
+
+    #[test]
+    fn an_open_dialog_keeps_the_menu_from_the_event() {
+        let mut state = a_drawn_state();
+        about_dialog::open(&mut state.about);
+
+        let outcome =
+            send(&key(KeyCode::Char('f')), &mut state).expect("the key reached the application");
+
+        assert!(matches!(outcome, Control::Unchanged), "{outcome:?}");
+        assert!(
+            !state.menu.popup_active(),
+            "the menu opened a drop-down behind the dialog"
+        );
     }
 }

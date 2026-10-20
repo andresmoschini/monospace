@@ -1,6 +1,8 @@
-use rat_widget::msgdialog::{MsgDialog, MsgDialogState};
+use rat_widget::event::Outcome;
+use rat_widget::msgdialog::{MsgDialog, MsgDialogState, handle_dialog_events};
 use ratatui::{
     buffer::Buffer,
+    crossterm::event::Event,
     layout::{Constraint, Flex, Layout, Rect},
     widgets::{Block, BorderType, Padding, StatefulWidget},
 };
@@ -44,13 +46,30 @@ pub(crate) fn draw(body_area: Rect, buf: &mut Buffer, state: &mut MsgDialogState
         .render(area, buf, state);
 }
 
+/// What the dialog does with an event.
+///
+/// The widget swallows every event while it is open and closes on `esc` and on its `Ok` button, so
+/// the application sees nothing until the dialog is gone.
+pub(crate) fn handle(raw: &Event, state: &mut MsgDialogState) -> Outcome {
+    handle_dialog_events(state, raw)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use ratatui::widgets::Widget;
 
     const WIDTH: u16 = 60;
     const HEIGHT: u16 = 20;
+
+    fn key(code: KeyCode) -> Event {
+        Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
+    }
+
+    fn key_of_kind(code: KeyCode, kind: KeyEventKind) -> Event {
+        Event::Key(KeyEvent::new_with_kind(code, KeyModifiers::NONE, kind))
+    }
 
     fn frame(state: &mut MsgDialogState) -> String {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
@@ -133,5 +152,44 @@ mod tests {
                 .is_some_and(|row| row.starts_with('└')),
             "{frame:?}"
         );
+    }
+
+    #[test]
+    fn escape_closes_the_dialog() {
+        let mut state = MsgDialogState::default();
+        open(&mut state);
+
+        handle(&key(KeyCode::Esc), &mut state);
+
+        assert!(!state.active(), "escape did not close the dialog");
+    }
+
+    #[test]
+    fn the_ok_button_closes_the_dialog() {
+        let mut state = MsgDialogState::default();
+        open(&mut state);
+
+        // The button fires on the release where the terminal reports key releases, and on the press
+        // where it does not, so both are sent.
+        handle(
+            &key_of_kind(KeyCode::Enter, KeyEventKind::Press),
+            &mut state,
+        );
+        handle(
+            &key_of_kind(KeyCode::Enter, KeyEventKind::Release),
+            &mut state,
+        );
+
+        assert!(!state.active(), "the Ok button did not close the dialog");
+    }
+
+    #[test]
+    fn a_key_the_dialog_does_not_use_leaves_it_open() {
+        let mut state = MsgDialogState::default();
+        open(&mut state);
+
+        handle(&key(KeyCode::Char('z')), &mut state);
+
+        assert!(state.active(), "the dialog closed on a key it does not use");
     }
 }
