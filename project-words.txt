@@ -12,6 +12,7 @@ frontmatter
 HAMT
 insta
 ISIG
+keymap
 Moschini
 msvc
 newtype
