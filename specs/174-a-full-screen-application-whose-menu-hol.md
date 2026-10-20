@@ -200,14 +200,19 @@ step in the gate runs it: `cargo tree -p crossterm` after a clean resolve must n
    explains why the CLI comes first.
 8. **Every picture of the screen is a snapshot.** The frames are rendered into a buffer with no
    terminal involved and pinned as `insta` snapshots, which is the thing a hand-written frame could
-   not do.
+   not do. **The picture is counted and not copied**: an expected value that was written out by hand
+   carries the defect it was written from, and a test that compares against it cannot fail.
+9. **An error is reported once, and the loop does not spin on it.** The framework hands the
+   application's error handler the error and takes back a control; answering with the error again is
+   the framework re-queueing the same failure for ever. The handler answers with a control that ends
+   the loop, and the error is written out.
 
 ## Examples
 
 **The same screen in the two frameworks, at forty columns.** The first is the snapshot of the
-attempt this specification replaces, on the branch that keeps it; the second is observed at the
-`spikes/rat-salsa` head on 2026-10-20. The difference is not in the picture — a bar, a region and
-something over it — but in what it took to draw it.
+attempt this specification replaces, on the branch that keeps it; the second is observed at
+`spikes/rat-salsa` at 1769ea3 on 2026-10-20. The difference is not in the picture — a bar, a region
+and something over it — but in what it took to draw it.
 
 ```text
  File  About
@@ -266,6 +271,7 @@ The tests do not exist yet. The names are what the building stage is held to.
 | 8    | `the_screen_at_rest`                                                |
 | 8    | `the_drop_down_open_over_the_region`                                |
 | 8    | `the_status_bar_below_the_region`                                   |
+| 9    | `the_error_handler_does_not_answer_with_the_error_again`            |
 
 **Rule 1 is the one rule with no test, and it is there on purpose.** The terminal comes back because
 the framework puts it back, and the repository has no way of saying otherwise: there is nothing of
@@ -301,20 +307,21 @@ family. The family was published before the decision was taken — `rat-salsa 4.
 nothing measured it. The building stage measured it, on the two screens in _Examples_, and the
 answer is the opposite one.
 
-**The rules that changed are the ones the framework owns.** Rules 1 to 4 of the specification this
-one replaces were about the terminal and the loop, and they are the framework's promise now. Rule
-5's three regions survive as the frame. The rules about the states of a control, the geometry, the
-focus, the colors and the pop-up are #189's, together with the decisions D3 to D7 this specification
-used to carry.
+**The rules that changed are the ones the framework owns.** The first four rules of the
+specification this one replaces were about the terminal and the loop, and they are the framework's
+promise now. The rule about the three regions survives as the frame. The rules about the states of a
+control, the geometry, the focus, the colors and the pop-up are #189's, together with the decisions
+D3 to D7 this specification used to carry.
 
-**The two rules the building stage amended on 2026-10-11 moved with them.** Rule 12 asked for the
-region holding the keyboard to be drawn with a different border from the others, and what was
-implemented does the opposite: a frame carrying reverse video is a second thing on screen saying
-where the keyboard is, and the coarser one is the one that would flicker. Rule 14 said that only
-what nothing took falls through to the application's own keys, and read that way it let `F9` reach
-past an open pop-up and close it: it is a gating rule and not an ordering rule, and the building
-stage got the reading wrong and the test that made it look settled. **Both amendments stand**, and
-their amended text is in #189, which implements the rules they amend.
+**The two rules the building stage amended on 2026-10-11 moved with them.** The rule about how the
+focus is shown asked for the region holding the keyboard to be drawn with a different border from
+the others, and what was implemented does the opposite: a frame carrying reverse video is a second
+thing on screen saying where the keyboard is, and the coarser one is the one that would flicker. The
+rule about where a key goes said that only what nothing took falls through to the application's own
+keys, and read that way it let `F9` reach past an open pop-up and close it: it is a gating rule and
+not an ordering rule, and the building stage got the reading wrong and the test that made it look
+settled. **Both amendments stand**, and their amended text is in #189, which implements the rules
+they amend.
 
 **The cut was too coarse, and the spec was over its ceiling by half.** This specification is the
 application and the frame; the chrome is #189. The split is what keeps this one a third of what it
