@@ -1,0 +1,18 @@
+---
+source: crates/monospace/src/frame.rs
+description: "A picture of the screen, as the frame paints it. The three regions are counted under the picture: the bar across the top, the region the diagram goes into, and the status bar along the bottom. The count of the cells that are not blank is there because a picture alone cannot say how much of the screen is spoken for, and because a number that is derived from the frame cannot be wrong the way a hand-written expectation is."
+expression: body
+---
+the drop-down open over the region, 40x10
+File
+┌──────────────┐───────────────────────┐
+│ Quit  Ctrl+Q │                       │
+└──────────────┘                       │
+│                                      │
+│                                      │
+│                                      │
+│                                      │
+└──────────────────────────────────────┘
+monospace                          0.1.0
+the bar is 1 row, the region is 8 rows and the status is 1 row
+136 of 400 cells are not blank

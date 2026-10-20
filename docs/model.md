@@ -510,7 +510,9 @@ not.
   this list until _Shapes_ was written and are not on it any more.
 - **A coordinate-and-glyph output**, as an alternative to the string.
 - **Color.** It fits the degradation rule — one owner imposes, the rest yield — and would be a good
-  way to test whether that rule generalizes.
+  way to test whether that rule generalizes. **The chrome's colors are the theme's**, which is a
+  different question from whether a cell carries one: the answer to the first is
+  [the application model's](application-model.md), and this list still holds the second.
 
 ## 11. Open questions
 

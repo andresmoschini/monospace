@@ -6,7 +6,7 @@
      silently accept a misspelling of it forever, and none of these is a word this project writes.
      cspell:ignore ALNUM affordances BUTTONBAR buttonbar checkflag cmdheight cmdline codepoint
      cspell:ignore ctlseqs defaultitem Elisp elisp ESCDELAY fboundp filemanager fselect geolocation
-     cspell:ignore halfdelay hline inputbox keymap laststatus ltlines LEFTMIDDLE lipgloss menuhot menuhotsel menusel
+     cspell:ignore halfdelay hline inputbox keymap laststatus ltlines LEFTMIDDLE lipgloss menuhot menuhotsel menuline menusel
      cspell:ignore Minibuffer minibuffer mysession nodelay NILP passwordbox RIGHTMIDDLE reselects
      cspell:ignore shortmess showmode SIGWINCH stdscr terminfo textinput tolower treeview vcur
      cspell:ignore Vinhibit waddstr wcwidth xdisp -->
@@ -21,7 +21,9 @@ it answered anything.
 **Researched:** 2026-10-10, from manual pages and from source. **Adapted into `docs/`:** 2026-10-11,
 in English, with the framing changed from a set of rules to follow into a record of what the sources
 say. The conclusions are the researcher's; where a claim could not be verified it is in §13 and it
-is asserted nowhere else.
+is asserted nowhere else. **§3.7 was added on 2026-10-20**, from the crates' own source: it is the
+one section that describes a framework this repository builds on rather than one it weighs itself
+against.
 
 **Why it exists.** There is no TUI style guide. What there is, is four different things that are
 routinely confused, and only the second of them is what this document is about:
@@ -274,6 +276,47 @@ Verified against each one's widget registry, not against blog posts:
 **The honest conclusion:** since 2020 the menubar was given up in favour of lists and shortcuts. The
 exception is that **a contextual action needs a name on screen**, and what there is for that is the
 help overlay, not the drop-down menu.
+
+### 3.7 The `rat` family, which has what the others gave up
+
+The framework an application here is built on is not one of the five in the table above. It is the
+**`rat` family**, four crates of one author, published on 2026-03-08 and 2026-03-09: `rat-salsa` for
+the loop, `rat-widget` for the widgets, `rat-menu` for the menu and `rat-theme4` for the theme. It
+is here because it is the one surveyed framework that has the menu of §3 and the focus that §7
+names, and because **how it behaves is what an application written on it has to know**.
+
+| Crate        | What it is                                          | What it fixes                                   |
+| ------------ | --------------------------------------------------- | ----------------------------------------------- |
+| `rat-salsa`  | the loop, the terminal and its restoration          | §2's anatomy, in one screen and one exit        |
+| `rat-widget` | the widgets: the menu, the status line, the dialogs | §5's status line, §8's boxes and buttons        |
+| `rat-menu`   | the menu bar and the drop-down it opens             | §3, in full, rather than as a list of shortcuts |
+| `rat-theme4` | the palette and the styles                          | §9's degradation, as sixteen colors             |
+
+**The menu bar is a widget, and the drop-down is the framework's.** `Menubar` splits itself into a
+line and a pop-up, and the two are drawn apart: the line with the rest of the frame, the pop-up
+after whatever it covers. The pop-up hangs from the label it belongs to and **covers the body rather
+than pushing it down**, which is what MC does and what the framework's own split is for.
+
+**The keys are the framework's, and they are the ones of §3.5.** The navigation character of a label
+opens its drop-down, `←` `→` change the label, `↑` `↓` move inside the drop-down, `Enter` takes the
+entry and `Esc` closes the drop-down. **The entry's own navigation character takes it too**, which
+is §3.3's finding that the bare letter fires, and a letter that is the nav char of an entry is a
+letter that fires.
+
+**The shortcut on the right of an entry is drawn and not routed.** `rat-menu`'s own source says of
+the right-aligned text of an item: _"Hotkey handling is not included in this crate."_ So the widget
+draws the shortcut and the application answers to it, and **the two are two places that can
+disagree** — the same split ncurses leaves to the application, and §3.5's finding that `menu(3x)`
+does not handle mnemonics holds here for the same reason.
+
+**The focus is a thing the framework has.** `rat-focus` gives every widget a focus flag and the
+application a stack of them, and the menu holds the keyboard while its drop-down is up. §7's three
+levels of focus are the framework's to keep, and an application that adds a control has to say which
+of them it belongs to.
+
+**The loop is the framework's too.** `rat-salsa` owns the terminal, the poll and the four callbacks
+an application answers, and it puts the terminal back when the application ends — including when a
+panic unwinds through the loop.
 
 ## 4. Key bars and toolbars
 
@@ -994,6 +1037,18 @@ convention:
   [`_toast.py`](https://raw.githubusercontent.com/Textualize/textual/main/src/textual/widgets/_toast.py).
 - Turbo Vision, as the ancestor:
   [`list_components.rs`](https://github.com/aovestdipaperino/turbo-vision-4-rust/blob/main/examples/list_components.rs).
+- The `rat` family, for §3.7: `rat-menu`'s
+  [`menubar.rs`](https://raw.githubusercontent.com/thscharler/rat-salsa/main/rat-menu/src/menubar.rs),
+  [`menuline.rs`](https://raw.githubusercontent.com/thscharler/rat-salsa/main/rat-menu/src/menuline.rs),
+  [`popup_menu.rs`](https://raw.githubusercontent.com/thscharler/rat-salsa/main/rat-menu/src/popup_menu.rs),
+  [`menuitem.rs`](https://raw.githubusercontent.com/thscharler/rat-salsa/main/rat-menu/src/menuitem.rs)
+  and [`lib.rs`](https://raw.githubusercontent.com/thscharler/rat-salsa/main/rat-menu/src/lib.rs);
+  `rat-widget`'s
+  [`statusline.rs`](https://raw.githubusercontent.com/thscharler/rat-salsa/main/rat-widget/src/statusline.rs);
+  `rat-salsa`'s
+  [`framework.rs`](https://raw.githubusercontent.com/thscharler/rat-salsa/main/rat-salsa/src/framework.rs);
+  and `rat-theme4`'s
+  [`themes/dark.rs`](https://raw.githubusercontent.com/thscharler/rat-salsa/main/rat-theme4/src/themes/dark.rs).
 
 ### A note on the manual-page sources
 

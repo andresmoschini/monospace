@@ -1,0 +1,45 @@
+[package]
+name = "monospace"
+description = "The interactive full-screen terminal application: the chrome around a diagram being edited"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+# Six dependencies and no others, which is what the specification's D2 says: the event loop and
+# the terminal it runs on, the widgets of the chrome, the theme it is drawn in, and the three
+# crates the framework itself draws with. Each is pinned with `=`, because the framework and the
+# application exchange types and a second version of any of them would mean a second `Buffer` and
+# a second event type in the tree. Every one of them was re-checked against crates.io on
+# 2026-10-20 and every one is more than seven days old: rat-salsa 4.0.3 published 2026-03-08,
+# rat-widget 3.2.1 published 2026-03-09, rat-theme4 4.5.3 published 2026-03-08, ratatui-core 0.1.2,
+# ratatui-widgets 0.3.2 and ratatui-crossterm 0.1.2 published 2026-06-19.
+#
+# The three `ratatui` crates are named one by one and not through the umbrella, because the
+# umbrella resolves `ratatui-core` by a second path and a `ratatui` that moves to a new
+# `ratatui-core` puts two `Buffer` types in the tree. Naming the three the framework itself names
+# keeps one version of each, and the application's version of `ratatui` is then the one `rat-salsa`
+# resolves.
+[dependencies]
+# The session the application holds: the layer above the diagram, and the only crate of this
+# workspace the application depends on. The crate holds no domain logic of its own.
+monospace-editing.workspace = true
+# The event loop, the terminal and its restoration.
+rat-salsa = "=4.0.3"
+# The palette and the styles the chrome is drawn in.
+rat-theme4 = "=4.5.3"
+# The menu bar, the drop-down it opens and the status line.
+rat-widget = "=3.2.1"
+# The buffer, the layout and the styles the drawing is made of.
+ratatui-core = "=0.1.2"
+# The event type the loop's poll hands over. It carries the one `crossterm` of the tree.
+ratatui-crossterm = "=0.1.2"
+# The block and the clear, which the frame is drawn with.
+ratatui-widgets = "=0.3.2"
+
+[dev-dependencies]
+# The pictures of the screen are snapshots, and this is what writes them.
+insta = "1.48.0"
+
+[lints]
+workspace = true
