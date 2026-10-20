@@ -52,35 +52,52 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Control<AppEvent>
             // The entry closes the drop-down, and a known one becomes an `AppEvent` for the loop
             // to feed back to `event` — the same place a key arrives.
             state.set_popup_active(false);
-            // The bar carries text and nothing else: an entry means what its position says.
-            match (label, entry) {
-                (FILE, QUIT) => Control::Event(AppEvent::Quit),
-                (EDIT, INCREMENT) => Control::Event(AppEvent::Increment),
-                (HELP, ABOUT) => Control::Event(AppEvent::About),
-                _ => Control::Changed,
-            }
+            meaning(label, entry)
         }
         // The bar took no interest in the event, so the shortcut of an entry may answer to it.
-        MenuOutcome::Continue => match raw {
-            Event::Key(key)
-                if key.kind == KeyEventKind::Press
-                    && key.code == KeyCode::Char('q')
-                    && key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
-                Control::Event(AppEvent::Quit)
-            }
-
-            Event::Key(key)
-                if key.kind == KeyEventKind::Press
-                    && key.code == KeyCode::Char('+')
-                    && !key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
-                Control::Event(AppEvent::Increment)
-            }
-
-            _ => Control::Continue,
+        MenuOutcome::Continue => match shortcut_of(raw) {
+            Some((label, entry)) => meaning(label, entry),
+            None => Control::Continue,
         },
         outcome => outcome.into(),
+    }
+}
+
+/// What an entry of the bar means to the application.
+///
+/// The bar carries text and nothing else: an entry means what its position says.
+fn meaning(label: usize, entry: usize) -> Control<AppEvent> {
+    match (label, entry) {
+        (FILE, QUIT) => Control::Event(AppEvent::Quit),
+        (EDIT, INCREMENT) => Control::Event(AppEvent::Increment),
+        (HELP, ABOUT) => Control::Event(AppEvent::About),
+        _ => Control::Changed,
+    }
+}
+
+/// The entry the event is the shortcut of, if it is one.
+///
+/// The drop-down shows the shortcut on the right of the entry, and these are the keys that answer
+/// to it.
+fn shortcut_of(raw: &Event) -> Option<(usize, usize)> {
+    match raw {
+        Event::Key(key)
+            if key.kind == KeyEventKind::Press
+                && key.code == KeyCode::Char('q')
+                && key.modifiers.contains(KeyModifiers::CONTROL) =>
+        {
+            Some((FILE, QUIT))
+        }
+
+        Event::Key(key)
+            if key.kind == KeyEventKind::Press
+                && key.code == KeyCode::Char('+')
+                && !key.modifiers.contains(KeyModifiers::CONTROL) =>
+        {
+            Some((EDIT, INCREMENT))
+        }
+
+        _ => None,
     }
 }
 
