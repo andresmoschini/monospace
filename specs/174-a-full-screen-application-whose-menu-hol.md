@@ -1,6 +1,6 @@
 ---
 status: agreed
-decided: "#191"
+decided: "#216"
 date: 2026-10-11
 ---
 
@@ -295,8 +295,8 @@ offers.
 
 ### Amended after the building stage
 
-**Amended on 2026-10-20, and the amendment is here rather than a silent rewrite so that what was
-agreed and what is being built can both be read.**
+**Amended on 2026-10-20 in #216, and the amendment is here rather than a silent rewrite so that what
+was agreed and what is being built can both be read.**
 
 **The decision that changed is D2, and the reason is a survey with a hole in it.** The deciding pull
 request #191 measured `crossterm` alone, `tuirealm`, `cursive`, `tui-realm-stdlib` and
