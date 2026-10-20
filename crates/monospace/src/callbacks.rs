@@ -117,6 +117,10 @@ mod tests {
         AppEvent::Input(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)))
     }
 
+    fn key_with(code: KeyCode, modifiers: KeyModifiers) -> AppEvent {
+        AppEvent::Input(Event::Key(KeyEvent::new(code, modifiers)))
+    }
+
     fn draw(state: &mut AppState) -> Buffer {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let mut buffer = Buffer::empty(area);
@@ -244,5 +248,57 @@ mod tests {
             !state.menu.popup_active(),
             "the menu opened a drop-down behind the dialog"
         );
+    }
+
+    #[test]
+    fn ctrl_q_quits_when_the_dialog_is_closed() {
+        let mut state = a_state();
+
+        let outcome = drive(
+            &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(matches!(outcome, Control::Quit), "{outcome:?}");
+    }
+
+    #[test]
+    fn the_plus_counts_when_the_dialog_is_closed() {
+        let mut state = a_state();
+
+        let outcome = drive(
+            &key_with(KeyCode::Char('+'), KeyModifiers::NONE),
+            &mut state,
+        );
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(state.counter, 1, "the key did not count");
+    }
+
+    #[test]
+    fn an_open_dialog_keeps_ctrl_q_from_quitting() {
+        let mut state = a_state();
+        about_dialog::open(&mut state.about);
+
+        let outcome = drive(
+            &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(matches!(outcome, Control::Unchanged), "{outcome:?}");
+    }
+
+    #[test]
+    fn an_open_dialog_keeps_the_plus_from_counting() {
+        let mut state = a_state();
+        about_dialog::open(&mut state.about);
+
+        let outcome = drive(
+            &key_with(KeyCode::Char('+'), KeyModifiers::NONE),
+            &mut state,
+        );
+
+        assert!(matches!(outcome, Control::Unchanged), "{outcome:?}");
+        assert_eq!(state.counter, 0, "the key counted behind the dialog");
     }
 }

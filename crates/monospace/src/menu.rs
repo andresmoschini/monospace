@@ -2,12 +2,15 @@
 //!
 //! The bar is drawn in two pieces with the body between them, so that the drop-down covers the
 //! body instead of pushing it down.
+//!
+//! The bar owns the shortcuts of the application as well: the drop-down shows each one on the
+//! right of its entry, and the entry answers to it.
 
 use rat_salsa::Control;
 use rat_widget::event::MenuOutcome;
 use rat_widget::menu::{Menubar, MenubarLine, MenubarPopup, MenubarState, StaticMenu, menubar};
 use ratatui::buffer::Buffer;
-use ratatui::crossterm::event::Event;
+use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, StatefulWidget};
 
@@ -38,6 +41,9 @@ const ABOUT: usize = 0;
 /// The bar holds the keyboard outright, so it is always given the focus. The menubar takes the
 /// drop-down while it is up and the bar otherwise. The bar answers a click only after it has been
 /// drawn once, because the areas it tests against come from the last frame.
+///
+/// A key the bar does not use may still be the shortcut of an entry, which the drop-down shows on
+/// the right of it.
 pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Control<AppEvent> {
     let outcome = menubar::handle_popup_events(state, true, raw);
 
@@ -54,6 +60,26 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Control<AppEvent>
                 _ => Control::Changed,
             }
         }
+        // The bar took no interest in the event, so the shortcut of an entry may answer to it.
+        MenuOutcome::Continue => match raw {
+            Event::Key(key)
+                if key.kind == KeyEventKind::Press
+                    && key.code == KeyCode::Char('q')
+                    && key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                Control::Event(AppEvent::Quit)
+            }
+
+            Event::Key(key)
+                if key.kind == KeyEventKind::Press
+                    && key.code == KeyCode::Char('+')
+                    && !key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                Control::Event(AppEvent::Increment)
+            }
+
+            _ => Control::Continue,
+        },
         outcome => outcome.into(),
     }
 }
@@ -91,6 +117,10 @@ mod tests {
 
     fn key(code: KeyCode) -> Event {
         Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
+    }
+
+    fn key_with(code: KeyCode, modifiers: KeyModifiers) -> Event {
+        Event::Key(KeyEvent::new(code, modifiers))
     }
 
     fn click(column: u16, row: u16) -> Event {
@@ -302,7 +332,90 @@ mod tests {
     fn a_key_the_bar_does_not_use_is_the_applications_own() {
         let mut state = drawn();
 
-        let outcome = handle(&key(KeyCode::Char('+')), &mut state);
+        let outcome = handle(&key(KeyCode::Char('z')), &mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+    }
+
+    #[test]
+    fn the_drop_down_shows_the_shortcut_the_entry_answers_to() {
+        let mut state = drawn();
+        open('f', &mut state);
+
+        let frame = frame_of(&mut state);
+
+        assert!(
+            frame.contains("Ctrl+Q"),
+            "the drop-down shows no shortcut: {frame:?}"
+        );
+    }
+
+    #[test]
+    fn the_quit_shortcut_answers_to_the_quit_entry() {
+        let mut state = drawn();
+
+        let outcome = handle(
+            &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Event(AppEvent::Quit)),
+            "the shortcut did not become the application event: {outcome:?}"
+        );
+    }
+
+    #[test]
+    fn the_increment_shortcut_answers_to_the_increment_entry() {
+        let mut state = drawn();
+
+        let outcome = handle(
+            &key_with(KeyCode::Char('+'), KeyModifiers::NONE),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Event(AppEvent::Increment)),
+            "the shortcut did not become the application event: {outcome:?}"
+        );
+    }
+
+    #[test]
+    fn a_shortcut_answers_to_nothing_but_a_press() {
+        for kind in [KeyEventKind::Release, KeyEventKind::Repeat] {
+            let event = Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Char('q'),
+                KeyModifiers::CONTROL,
+                kind,
+            ));
+            let mut state = drawn();
+
+            let outcome = handle(&event, &mut state);
+
+            assert!(
+                matches!(outcome, Control::Continue),
+                "{kind:?} answered: {outcome:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn q_without_control_answers_to_nothing() {
+        let mut state = drawn();
+
+        let outcome = handle(&key(KeyCode::Char('q')), &mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+    }
+
+    #[test]
+    fn a_shortcut_is_the_combination_it_shows_and_not_another_one() {
+        let mut state = drawn();
+
+        let outcome = handle(
+            &key_with(KeyCode::Char('+'), KeyModifiers::CONTROL),
+            &mut state,
+        );
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
     }

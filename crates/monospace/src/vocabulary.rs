@@ -16,11 +16,7 @@ pub(crate) enum AppEvent {
 
     About,
 
-    /// An event a widget may want, carried as it arrived. Nothing consumes it yet.
-    #[allow(
-        dead_code,
-        reason = "the widget layer it exists for does not exist yet"
-    )]
+    /// An event a widget may want, carried as it arrived.
     Input(Event),
 
     /// The terminal changed size.
