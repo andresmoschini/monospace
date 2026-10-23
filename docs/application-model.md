@@ -23,18 +23,18 @@ they are decided rather than repeating them.
 
 ## 1. Vocabulary
 
-| Term            | Meaning                                                                  |
-| --------------- | ------------------------------------------------------------------------ |
-| `Event`         | What the application is told: the terminal's, or the framework's own     |
-| `Action`        | What the application does about an event                                 |
-| `Frame`         | One picture of the whole screen                                          |
-| `Region`        | One of the three parts of the screen                                     |
-| `Bar`           | The region across the top, which holds the menu                          |
-| `Status bar`    | The region along the bottom, which says what the application is          |
-| `Chrome`        | Everything on the screen that is not the diagram                         |
-| `Shortcut`      | A key the application answers to on its own, rather than the chrome's    |
-| `Configuration` | What the application is configured with, read once at startup            |
-| `Session`       | The diagram being edited — [the editing model](editing-model.md) owns it |
+| Term            | Meaning                                                                             |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `Event`         | What the application is told: the terminal's, or the framework's own                |
+| `Action`        | What the application does about an event                                            |
+| `Frame`         | One picture of the whole screen                                                     |
+| `Region`        | One of the three parts of the screen                                                |
+| `Bar`           | The region across the top, which holds the menu                                     |
+| `Status bar`    | The region along the bottom, which says what the application is                     |
+| `Chrome`        | Everything on the screen that is not the diagram                                    |
+| `Shortcut`      | A key the application answers to, and how far it reaches before the chrome is asked |
+| `Configuration` | What the application is configured with, read once at startup                       |
+| `Session`       | The diagram being edited — [the editing model](editing-model.md) owns it            |
 
 **An event is not an action, and the two are kept apart.** The framework hands the application
 events — a key, a click, a resize — and the application decides what to do about them. A rule that
@@ -85,17 +85,20 @@ changes the state or does not.
 entry, and both apply that same action rather than a code path each: the entry and the key become
 the same thing before anything acts on them, so the two cannot disagree about what the way out is.
 
-**`Ctrl+C` is not that action.** It is a forced exit, and it is translated into an event of its own
-before anything else sees it: the terminal reports it as a key, and a key is something the chrome is
-asked about — a drop-down may be open, and an open drop-down holds the keyboard. A forced exit that
-reached the chrome as a key would be answered by the chrome, and the point of it is that it is
-answered by nothing. It ends the application whatever the state is.
+**`Ctrl+C` is not that action.** It is a forced exit: it ends the application whatever the state is.
+**It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a
+row of one table, and a row says how far the row reaches: a shortcut that reaches everything is
+answered before any handler, so a drop-down that is open and holds the keyboard is not asked first;
+a shortcut nobody has claimed is answered after the chrome, so a key the widget uses stays the
+widget's. A forced exit that reached the chrome as a key would be answered by the chrome, and the
+point of it is that it is answered by nothing.
 
 **The chrome's own keys are the chrome's.** The navigation character that opens a drop-down, the
 arrows that move it, `Enter` that takes an entry and `Esc` that closes it belong to the widget,
-which answers to them without asking anybody. What the application answers to on its own is a
-**shortcut**, and the table of shortcuts is the application's own: the menu draws the shortcut of an
-entry, and the application answers to it.
+which answers to them without asking anybody. What the application answers to is a **shortcut**: a
+key that means an action, with a reach that says whether anything may consume it first. The table of
+shortcuts is the application's own, and the menu draws the shortcut of an entry rather than
+answering to it.
 
 **The table of shortcuts and the menu are two places that can disagree.** The menu shows the
 shortcut of each entry on the right of it, and the application answers to the shortcut with a table
@@ -151,7 +154,8 @@ draws with, and the application names them rather than writing them.
 - A drop-down is not erased by the region being painted after it.
 - The way out is reached by the shortcut and by the menu's entry.
 - A click on the entry and its shortcut apply the same action.
-- `Ctrl+C` ends the application whatever the state is.
+- `Ctrl+C` ends the application whatever the state is, and every shortcut of that reach answers with
+  the drop-down open: the promise belongs to the reach, not to the key that happens to hold it.
 - A key reaches the state only as an action.
 - The error handler does not answer with the error again.
 

@@ -44,8 +44,9 @@ const QUIT: usize = 0;
 ///
 /// **The bar is asked about every event and answers what it was worth**: nothing if it took no
 /// interest, a repaint if it changed what the screen shows, and an action if an entry was taken.
-/// A shortcut is not the bar's to answer — the application's own keys are asked after it, in
-/// `callbacks` — so the bar says nothing about one.
+/// A shortcut is not the bar's to answer: the application's own are asked around it, in
+/// `callbacks` — before it the ones that reach everything, after it the ones nobody has claimed —
+/// so the bar says nothing about one.
 pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Answer {
     let outcome = menubar::handle_popup_events(state, true, raw);
 

@@ -7,11 +7,15 @@
 //! an action — and this module asks them in one fixed order and turns the answer into what the
 //! loop does next. An entry of the menu and the key that means the same thing therefore arrive at
 //! one place, and that place is here.
+//!
+//! **The order is the whole of the policy, and it is written once.** Nothing here names a key:
+//! which keys the application answers to, and whether a key has to be answered before the chrome,
+//! is `shortcuts`' table. This module only says when each layer is asked.
 
 use rat_salsa::Control;
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
-use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
+use ratatui_crossterm::crossterm::event::Event;
 
 use crate::context::AppGlobal;
 use crate::event::AppEvent;
@@ -57,14 +61,15 @@ pub(crate) fn event(
 
 /// What the application does about something the terminal said.
 ///
-/// **The order is the rule.** The forced exit is asked first, because `Ctrl+C` that reached the
-/// chrome as a key would be answered by the chrome, and the point of it is that it is answered by
-/// nothing. A resize comes next, because no widget wants one and a screen that is not painted
-/// after it keeps the layout it had. The bar is asked before the application's own shortcuts, so
-/// that a key the widget uses is the widget's.
+/// **The order is the rule, and it is one line per layer.** The shortcuts that reach everything
+/// are asked first: a `Ctrl+C` that reached the chrome as a key would be answered by the chrome,
+/// and the point of it is that it is answered by nothing. A resize comes next, because no widget
+/// wants one and a screen that is not painted after it keeps the layout it had. Then the bar, so
+/// that a key the widget uses is the widget's, and last the shortcuts nobody has claimed.
 fn terminal(event: &Event, state: &mut AppState) -> Control<AppEvent> {
-    if is_forced_exit(event) {
-        return apply(Action::ForceQuit);
+    match shortcuts::handle_always(event) {
+        Answer::Nothing => {}
+        answer => return control(answer),
     }
 
     if matches!(event, Event::Resize(_, _)) {
@@ -72,10 +77,12 @@ fn terminal(event: &Event, state: &mut AppState) -> Control<AppEvent> {
     }
 
     match menu::handle(event, &mut state.menu) {
-        // The bar took no interest in the event, so the application's own keys may.
-        Answer::Nothing => control(shortcuts::handle(event)),
-        answer => control(answer),
+        // The bar took no interest in the event, so the shortcuts nobody has claimed may.
+        Answer::Nothing => {}
+        answer => return control(answer),
     }
+
+    control(shortcuts::handle_unclaimed(event))
 }
 
 /// What an answer does to the loop.
@@ -95,21 +102,6 @@ fn apply(action: Action) -> Control<AppEvent> {
         // is #189's, and until then they end the same way.
         Action::Quit | Action::ForceQuit => Control::Quit,
     }
-}
-
-/// Whether the event is the forced exit: `Ctrl+C`, and nothing else.
-///
-/// **Only a press answers, and only that combination.** The terminal reports the release and the
-/// repeat of a key as well, and a shortcut that answered to those would end the application
-/// twice over; and `Ctrl+Shift+C` is a key of its own, not the forced exit.
-fn is_forced_exit(event: &Event) -> bool {
-    let Event::Key(key) = event else {
-        return false;
-    };
-
-    key.kind == KeyEventKind::Press
-        && key.code == KeyCode::Char('c')
-        && key.modifiers == KeyModifiers::CONTROL
 }
 
 /// What the application does about a failure.
@@ -254,34 +246,21 @@ mod tests {
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
     }
 
-    /// **The combination and the press are the whole of it.** A release, a repeat, or a `c` with
-    /// another modifier is a key like any other, and a forced exit that answered to those would
-    /// end the application twice over.
+    /// **Every shortcut of the first reach, and not the one that happens to be in the table
+    /// today.** The promise is that nothing may consume these keys, and a test that named `Ctrl+C`
+    /// would keep passing the day a second one is added and the chrome swallows it.
     #[test]
-    fn only_the_forced_exit_is_the_forced_exit() {
-        for event in [
-            Event::Key(KeyEvent::new_with_kind(
-                KeyCode::Char('c'),
-                KeyModifiers::CONTROL,
-                KeyEventKind::Release,
-            )),
-            Event::Key(KeyEvent::new_with_kind(
-                KeyCode::Char('c'),
-                KeyModifiers::CONTROL,
-                KeyEventKind::Repeat,
-            )),
-            key(KeyCode::Char('c')),
-            key_with(
-                KeyCode::Char('c'),
-                KeyModifiers::CONTROL | KeyModifiers::SHIFT,
-            ),
-        ] {
+    fn every_shortcut_answered_first_is_answered_with_the_drop_down_open() {
+        for event in shortcuts::events_answered_first() {
             let mut state = a_drawn_state();
+            let _ = send(&key(KeyCode::Char('f')), &mut state);
+            assert!(state.menu.popup_active(), "the drop-down did not open");
+
             let outcome = send(&event, &mut state);
 
             assert!(
-                matches!(outcome, Control::Continue),
-                "{event:?} ended the application: {outcome:?}"
+                matches!(outcome, Control::Quit),
+                "{event:?} was swallowed by the chrome: {outcome:?}"
             );
         }
     }
