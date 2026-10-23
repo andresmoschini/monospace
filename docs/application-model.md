@@ -76,10 +76,17 @@ discarded; the state is what the next frame is built from.
 
 ## 4. The action model
 
-**An event becomes an action, and the action is the only thing that changes the state.** There is no
-path from an event to the state that does not go through an action, which is what makes the state of
-the application something a reader can follow: an event arrives, it becomes an action, the action
-changes the state or does not.
+**An event becomes an action, and the action is the only thing that changes the session.** There is
+no path from an event to the session that does not go through an action, which is what makes the
+diagram something a reader can follow: an event arrives, it becomes an action, the action changes
+the session or does not.
+
+**The chrome's own is the other half of §3, and it is not this rule's.** The widget that owns a part
+of it changes that part when the event reaches it — the bar opens its drop-down and moves its
+selection, the status line takes a value — and no action is minted for it. An action is what a
+person means to do to the diagram, and it is what undo will hold; a selection and an open drop-down
+are neither, and putting them in the same list would stop the list from saying what a person can
+take back.
 
 **The way out is one action.** It is reached by the shortcut the menu shows and by the menu's own
 entry, and both apply that same action rather than a code path each: the entry and the key become
@@ -156,7 +163,7 @@ draws with, and the application names them rather than writing them.
 - A click on the entry and its shortcut apply the same action.
 - `Ctrl+C` ends the application whatever the state is, and every shortcut of that reach answers with
   the drop-down open: the promise belongs to the reach, not to the key that happens to hold it.
-- A key reaches the state only as an action.
+- A key reaches the session only as an action.
 - The error handler does not answer with the error again.
 
 ## 8. Open questions
