@@ -4,7 +4,9 @@
 //! it, and `rat-menu` says of that text that _"Hotkey handling is not included in this crate"_:
 //! the shortcut is drawn by the widget and answered to by the application. The two are two
 //! places that can disagree, and joining them is not this slice's work — it is #180's, where the
-//! first command that needs a name arrives.
+//! first command that needs a name arrives. What answers here is the application alone: the bar
+//! is asked first, and `callbacks` asks this table only about an event the bar said nothing
+//! about.
 //!
 //! **The framework's own keys are not here.** The navigation character that opens a drop-down,
 //! the arrows that move it, `Enter` that takes an entry and `Esc` that closes it belong to the
@@ -13,7 +15,7 @@
 
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
 
-use crate::vocabulary::Action;
+use crate::vocabulary::{Action, Answer};
 
 /// One shortcut: the key that carries it, and what it means.
 struct Shortcut {
@@ -34,23 +36,23 @@ const SHORTCUTS: [Shortcut; 1] = [Shortcut {
     action: Action::Quit,
 }];
 
-/// The action the event is the shortcut of, if it is one.
+/// What the event means to the application's own keys.
 ///
 /// **A shortcut is the combination it shows and not another one.** `Ctrl+Q` is the way out and
 /// `Q` is not, and `Ctrl+Shift+Q` is not either.
-pub(crate) fn action_of(event: &Event) -> Option<Action> {
+pub(crate) fn handle(event: &Event) -> Answer {
     let Event::Key(key) = event else {
-        return None;
+        return Answer::Nothing;
     };
 
     if key.kind != KeyEventKind::Press {
-        return None;
+        return Answer::Nothing;
     }
 
     SHORTCUTS
         .iter()
         .find(|shortcut| shortcut.key == key.code && shortcut.modifiers == key.modifiers)
-        .map(|shortcut| shortcut.action)
+        .map_or(Answer::Nothing, |shortcut| Answer::Action(shortcut.action))
 }
 
 #[cfg(test)]
@@ -68,7 +70,7 @@ mod tests {
     fn the_way_out_is_the_shortcut_the_menu_shows() {
         let event = key(KeyCode::Char('q'), KeyModifiers::CONTROL);
 
-        assert_eq!(action_of(&event), Some(Action::Quit));
+        assert_eq!(handle(&event), Answer::Action(Action::Quit));
     }
 
     #[test]
@@ -80,7 +82,7 @@ mod tests {
                 kind,
             ));
 
-            assert_eq!(action_of(&event), None, "{kind:?} answered");
+            assert_eq!(handle(&event), Answer::Nothing, "{kind:?} answered");
         }
     }
 
@@ -94,7 +96,7 @@ mod tests {
             ),
             key(KeyCode::Char('x'), KeyModifiers::CONTROL),
         ] {
-            assert_eq!(action_of(&event), None, "{event:?} answered");
+            assert_eq!(handle(&event), Answer::Nothing, "{event:?} answered");
         }
     }
 
@@ -107,6 +109,6 @@ mod tests {
             modifiers: KeyModifiers::NONE,
         });
 
-        assert_eq!(action_of(&event), None);
+        assert_eq!(handle(&event), Answer::Nothing);
     }
 }

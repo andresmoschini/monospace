@@ -1,35 +1,17 @@
-//! What the application calls its events, its actions and its failures.
+//! What the application calls its actions, its answers and its failures.
 //!
-//! **Three words, and they are not the same thing.** An *event* is what the application is told:
-//! the framework's own events, and the terminal's carried as they arrived. An *action* is what
-//! the application decides to do about one. A *failure* is what it reports when it cannot carry
-//! on. The three are kept apart because the rule the whole application rests on is that an event
-//! becomes an action and the action is the only thing that changes the state — and a word that
-//! means two of those at once cannot say which rule is being held.
-
-use ratatui_crossterm::crossterm::event::Event;
+//! **Three words, and they are not the same thing.** An *action* is what the application decides
+//! to do about an event; an *answer* is what a handler says about the event it was asked about;
+//! a *failure* is what the application reports when it cannot carry on. The three are kept apart
+//! because the rule the whole application rests on is that an event becomes an action and the
+//! action is the only thing that changes the state — and a word that means two of those at once
+//! cannot say which rule is being held.
+//!
+//! The event itself is not here: it is what the loop polls, and it lives in `crate::event`
+//! beside the two translations into it.
 
 /// What the application reports when it cannot carry on.
 pub(crate) type AppError = Box<dyn std::error::Error>;
-
-/// Everything the application is told.
-#[derive(Debug, PartialEq)]
-pub(crate) enum AppEvent {
-    /// An action the chrome or the application's own keys ask for.
-    Action(Action),
-
-    /// An event a widget may want, carried as it arrived.
-    Input(Event),
-
-    /// The terminal changed size.
-    Resized,
-
-    /// The loop finished drawing a frame.
-    Rendered,
-
-    /// Neither the application's nor a widget's.
-    Ignored,
-}
 
 /// What the application does about an event.
 ///
@@ -44,4 +26,21 @@ pub(crate) enum Action {
 
     /// The forced exit: the application ends whatever the state is.
     ForceQuit,
+}
+
+/// What a handler answers about an event it was asked to look at.
+///
+/// **A handler does not act.** It says what the event was worth to it, and the caller turns the
+/// answer into an action or into a request to repaint, so that an entry of the menu and the key
+/// that means the same thing are decided in one place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Answer {
+    /// It took no interest in the event.
+    Nothing,
+
+    /// It changed something the screen shows.
+    Repaint,
+
+    /// The event means an action.
+    Action(Action),
 }

@@ -1,19 +1,25 @@
 //! The four signatures the framework dictates, and what the application does when each is called.
 //!
 //! **They are free functions because the signatures are fixed** by the parameters of `run_tui`.
-//! An entry the chrome takes does not decide for itself: it becomes an event, and the loop asks
-//! about it again, so that an entry and the key that means the same thing are decided in one
-//! place.
+//!
+//! **This is where an event becomes an action.** The chrome and the application's own keys are
+//! handlers: each is handed the event and answers with what it was worth — nothing, a repaint, or
+//! an action — and this module asks them in one fixed order and turns the answer into what the
+//! loop does next. An entry of the menu and the key that means the same thing therefore arrive at
+//! one place, and that place is here.
 
 use rat_salsa::Control;
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
+use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
 
 use crate::context::AppGlobal;
+use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
+use crate::shortcuts;
 use crate::state::AppState;
-use crate::vocabulary::{Action, AppError, AppEvent};
+use crate::vocabulary::{Action, Answer, AppError};
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
 /// of ours to set up.
@@ -41,17 +47,43 @@ pub(crate) fn event(
     state: &mut AppState,
     _global: &mut AppGlobal,
 ) -> Result<Control<AppEvent>, AppError> {
-    match event {
-        // An action is the only thing that changes the state.
-        AppEvent::Action(action) => Ok(apply(*action)),
+    Ok(match event {
+        // The loop reporting on itself: the frame it painted is the whole of the answer.
+        AppEvent::Rendered(_) => Control::Continue,
 
-        // A resize repaints although nobody asked: the framework does not watch the terminal.
-        AppEvent::Resized => Ok(Control::Changed),
+        AppEvent::Terminal(event) => terminal(event, state),
+    })
+}
 
-        AppEvent::Rendered | AppEvent::Ignored => Ok(Control::Continue),
+/// What the application does about something the terminal said.
+///
+/// **The order is the rule.** The forced exit is asked first, because `Ctrl+C` that reached the
+/// chrome as a key would be answered by the chrome, and the point of it is that it is answered by
+/// nothing. A resize comes next, because no widget wants one and a screen that is not painted
+/// after it keeps the layout it had. The bar is asked before the application's own shortcuts, so
+/// that a key the widget uses is the widget's.
+fn terminal(event: &Event, state: &mut AppState) -> Control<AppEvent> {
+    if is_forced_exit(event) {
+        return apply(Action::ForceQuit);
+    }
 
-        // The chrome is asked about the event, and it may answer with an action.
-        AppEvent::Input(raw) => Ok(menu::handle(raw, &mut state.menu)),
+    if matches!(event, Event::Resize(_, _)) {
+        return Control::Changed;
+    }
+
+    match menu::handle(event, &mut state.menu) {
+        // The bar took no interest in the event, so the application's own keys may.
+        Answer::Nothing => control(shortcuts::handle(event)),
+        answer => control(answer),
+    }
+}
+
+/// What an answer does to the loop.
+fn control(answer: Answer) -> Control<AppEvent> {
+    match answer {
+        Answer::Nothing => Control::Continue,
+        Answer::Repaint => Control::Changed,
+        Answer::Action(action) => apply(action),
     }
 }
 
@@ -63,6 +95,21 @@ fn apply(action: Action) -> Control<AppEvent> {
         // is #189's, and until then they end the same way.
         Action::Quit | Action::ForceQuit => Control::Quit,
     }
+}
+
+/// Whether the event is the forced exit: `Ctrl+C`, and nothing else.
+///
+/// **Only a press answers, and only that combination.** The terminal reports the release and the
+/// repeat of a key as well, and a shortcut that answered to those would end the application
+/// twice over; and `Ctrl+Shift+C` is a key of its own, not the forced exit.
+fn is_forced_exit(event: &Event) -> bool {
+    let Event::Key(key) = event else {
+        return false;
+    };
+
+    key.kind == KeyEventKind::Press
+        && key.code == KeyCode::Char('c')
+        && key.modifiers == KeyModifiers::CONTROL
 }
 
 /// What the application does about a failure.
@@ -85,7 +132,7 @@ pub(crate) fn error(
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::vocabulary::{Action, AppError};
+    use crate::vocabulary::AppError;
     use ratatui_core::layout::Rect;
     use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
@@ -123,39 +170,27 @@ mod tests {
         buffer
     }
 
-    fn key(code: KeyCode) -> AppEvent {
-        AppEvent::Input(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)))
+    /// The event the terminal reports for a key.
+    fn key(code: KeyCode) -> Event {
+        Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
     }
 
-    fn key_with(code: KeyCode, modifiers: KeyModifiers) -> AppEvent {
-        AppEvent::Input(Event::Key(KeyEvent::new(code, modifiers)))
+    /// The event the terminal reports for a key with modifiers.
+    fn key_with(code: KeyCode, modifiers: KeyModifiers) -> Event {
+        Event::Key(KeyEvent::new(code, modifiers))
     }
 
-    /// Hands an event to the application.
-    fn send(app_event: &AppEvent, state: &mut AppState) -> Result<Control<AppEvent>, AppError> {
-        event(app_event, state, &mut a_global())
-    }
-
-    /// Finishes one event the way the framework does: an event control is a question asked
-    /// again, and the loop is called with the event it carries. This is the whole of the claim
-    /// that an entry of the menu and the key that means the same thing arrive at one place.
-    fn drive(app_event: &AppEvent, state: &mut AppState) -> Control<AppEvent> {
-        let mut control = send(app_event, state).expect("the event reached the application");
-        loop {
-            match control {
-                Control::Event(next) => {
-                    control = send(&next, state).expect("the event reached the application");
-                }
-                answer => return answer,
-            }
-        }
+    /// Hands an event to the application, the way the loop does.
+    fn send(raw: &Event, state: &mut AppState) -> Control<AppEvent> {
+        event(&AppEvent::Terminal(raw.clone()), state, &mut a_global())
+            .expect("the event reached the application")
     }
 
     #[test]
     fn the_way_out_is_reached_by_the_shortcut_and_by_the_menus_entry() {
         // The shortcut.
         let mut state = a_drawn_state();
-        let outcome = drive(
+        let outcome = send(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
             &mut state,
         );
@@ -166,7 +201,7 @@ mod tests {
         let mut state = a_drawn_state();
         let _ = send(&key(KeyCode::Char('f')), &mut state);
         let _ = draw(&mut state);
-        let outcome = drive(&key(KeyCode::Enter), &mut state);
+        let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
     }
@@ -175,7 +210,7 @@ mod tests {
     fn a_click_on_the_entry_and_its_shortcut_apply_the_same_action() {
         // The shortcut.
         let mut state = a_drawn_state();
-        let by_shortcut = drive(
+        let by_shortcut = send(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
             &mut state,
         );
@@ -185,17 +220,15 @@ mod tests {
         let _ = send(&key(KeyCode::Char('f')), &mut state);
         let buffer = draw(&mut state);
         let (column, row) = frame::cell_of(&buffer, "Quit");
-        let by_click = drive(
-            &AppEvent::Input(Event::Mouse(
-                ratatui_crossterm::crossterm::event::MouseEvent {
-                    kind: ratatui_crossterm::crossterm::event::MouseEventKind::Down(
-                        ratatui_crossterm::crossterm::event::MouseButton::Left,
-                    ),
-                    column,
-                    row,
-                    modifiers: KeyModifiers::NONE,
-                },
-            )),
+        let by_click = send(
+            &Event::Mouse(ratatui_crossterm::crossterm::event::MouseEvent {
+                kind: ratatui_crossterm::crossterm::event::MouseEventKind::Down(
+                    ratatui_crossterm::crossterm::event::MouseButton::Left,
+                ),
+                column,
+                row,
+                modifiers: KeyModifiers::NONE,
+            }),
             &mut state,
         );
 
@@ -213,41 +246,69 @@ mod tests {
         let _ = send(&key(KeyCode::Char('f')), &mut state);
         assert!(state.menu.popup_active(), "the drop-down did not open");
 
-        let forced = AppEvent::from(Event::Key(KeyEvent::new(
-            KeyCode::Char('c'),
-            KeyModifiers::CONTROL,
-        )));
-        let outcome = drive(&forced, &mut state);
+        let outcome = send(
+            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &mut state,
+        );
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
     }
 
+    /// **The combination and the press are the whole of it.** A release, a repeat, or a `c` with
+    /// another modifier is a key like any other, and a forced exit that answered to those would
+    /// end the application twice over.
     #[test]
-    fn a_key_reaches_the_state_only_as_an_action() {
-        // **The chrome's own keys are the framework's**: the navigation character opens a
-        // drop-down, and that is the widget's own state rather than the application's. What
-        // this holds is the application's own half — a key the table does not name is not an
-        // action, and an action is the only thing the application's handling produces.
+    fn only_the_forced_exit_is_the_forced_exit() {
+        for event in [
+            Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Char('c'),
+                KeyModifiers::CONTROL,
+                KeyEventKind::Release,
+            )),
+            Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Char('c'),
+                KeyModifiers::CONTROL,
+                KeyEventKind::Repeat,
+            )),
+            key(KeyCode::Char('c')),
+            key_with(
+                KeyCode::Char('c'),
+                KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+            ),
+        ] {
+            let mut state = a_drawn_state();
+            let outcome = send(&event, &mut state);
+
+            assert!(
+                matches!(outcome, Control::Continue),
+                "{event:?} ended the application: {outcome:?}"
+            );
+        }
+    }
+
+    /// **A key the table does not name is not an action**, and an action is the only thing the
+    /// application's handling produces. What the chrome does with its own keys is the widget's
+    /// state rather than the application's, and this is the application's half of it.
+    #[test]
+    fn a_key_with_no_action_changes_nothing() {
         let mut state = a_drawn_state();
 
-        let outcome = send(&key(KeyCode::Char('z')), &mut state).expect("the key arrived");
+        let outcome = send(&key(KeyCode::Char('z')), &mut state);
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
             !state.menu.popup_active(),
             "a key with no action changed the state"
         );
+    }
 
-        let outcome = send(
-            &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
-            &mut state,
-        )
-        .expect("the key arrived");
+    #[test]
+    fn a_resize_repaints_although_nobody_asked() {
+        let mut state = a_drawn_state();
 
-        assert!(
-            matches!(outcome, Control::Event(AppEvent::Action(Action::Quit))),
-            "the key did not become an action: {outcome:?}"
-        );
+        let outcome = send(&Event::Resize(80, 24), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
     }
 
     #[test]

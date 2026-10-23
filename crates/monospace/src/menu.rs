@@ -13,7 +13,6 @@
 //! arrows move it, `Enter` takes an entry and `Esc` closes it, and all four are the menu
 //! widget's own handling. What the bar adds is what an entry means.
 
-use rat_salsa::Control;
 use rat_theme4::WidgetStyle;
 use rat_theme4::theme::SalsaTheme;
 use rat_widget::event::MenuOutcome;
@@ -24,8 +23,7 @@ use ratatui_core::layout::Rect;
 use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::Event;
 
-use crate::shortcuts;
-use crate::vocabulary::{Action, AppEvent};
+use crate::vocabulary::{Action, Answer};
 
 /// The bar, and what each of its entries means.
 ///
@@ -44,26 +42,20 @@ const QUIT: usize = 0;
 
 /// What an event means to the chrome.
 ///
-/// **The bar is asked first and the application's own shortcuts after it.** The bar takes the
-/// events it uses — the navigation character, the arrows, `Enter`, `Esc` — and an event it takes
-/// no interest in may still be the shortcut of an entry.
-pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Control<AppEvent> {
+/// **The bar is asked about every event and answers what it was worth**: nothing if it took no
+/// interest, a repaint if it changed what the screen shows, and an action if an entry was taken.
+/// A shortcut is not the bar's to answer — the application's own keys are asked after it, in
+/// `callbacks` — so the bar says nothing about one.
+pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Answer {
     let outcome = menubar::handle_popup_events(state, true, raw);
 
     match outcome {
-        // An entry was taken: it means an action, and the loop is asked about the action in
-        // turn, so that an entry and the key that means the same thing are decided in one
-        // place.
+        // An entry was taken: it means an action, and `callbacks` applies it. The loop is not
+        // asked again, so an entry and the key that means the same thing end in one place.
         MenuOutcome::MenuActivated(label, entry) => {
             state.set_popup_active(false);
             meaning(label, entry)
         }
-
-        // The bar took no interest in the event, so the application's own shortcuts may.
-        MenuOutcome::Continue => match shortcuts::action_of(raw) {
-            Some(action) => Control::Event(AppEvent::Action(action)),
-            None => Control::Continue,
-        },
 
         outcome => outcome.into(),
     }
@@ -72,12 +64,32 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Control<AppEvent>
 /// What an entry of the bar means to the application.
 ///
 /// **The bar carries text and nothing else**: an entry means what its position says.
-fn meaning(label: usize, entry: usize) -> Control<AppEvent> {
+fn meaning(label: usize, entry: usize) -> Answer {
     match (label, entry) {
-        (FILE, QUIT) => Control::Event(AppEvent::Action(Action::Quit)),
+        (FILE, QUIT) => Answer::Action(Action::Quit),
 
         // An entry nobody knows still closed the drop-down, so the frame has to be painted again.
-        _ => Control::Changed,
+        _ => Answer::Repaint,
+    }
+}
+
+/// What the bar's own outcomes are worth to the application.
+///
+/// **The widget's vocabulary is finer than the application's.** Selecting, activating and hiding
+/// are all "the screen changed"; the one that is more than that is the entry that was taken, and
+/// `handle` has taken it before this conversion matters.
+impl From<MenuOutcome> for Answer {
+    fn from(outcome: MenuOutcome) -> Self {
+        match outcome {
+            MenuOutcome::Continue | MenuOutcome::Unchanged => Self::Nothing,
+
+            MenuOutcome::Changed
+            | MenuOutcome::Hide
+            | MenuOutcome::Selected(_)
+            | MenuOutcome::Activated(_)
+            | MenuOutcome::MenuSelected(_, _)
+            | MenuOutcome::MenuActivated(_, _) => Self::Repaint,
+        }
     }
 }
 
@@ -112,7 +124,7 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use ratatui_crossterm::crossterm::event::{
-        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
 
     /// The width of the screen these tests draw.
@@ -194,7 +206,7 @@ mod tests {
         let outcome = handle(&key(KeyCode::Char('f')), &mut state);
 
         assert!(
-            matches!(outcome, Control::Changed),
+            matches!(outcome, Answer::Repaint),
             "the navigation character changed nothing: {outcome:?}"
         );
         assert!(state.popup_active(), "the drop-down did not open");
@@ -202,7 +214,7 @@ mod tests {
         let outcome = handle(&key(KeyCode::Esc), &mut state);
 
         assert!(
-            matches!(outcome, Control::Changed),
+            matches!(outcome, Answer::Repaint),
             "escape changed nothing: {outcome:?}"
         );
         assert!(!state.popup_active(), "escape did not close the drop-down");
@@ -216,14 +228,14 @@ mod tests {
         let outcome = handle(&key(KeyCode::Enter), &mut state);
 
         assert!(
-            matches!(outcome, Control::Event(AppEvent::Action(Action::Quit))),
+            matches!(outcome, Answer::Action(Action::Quit)),
             "the entry did not become the action of the way out: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
     }
 
     #[test]
-    fn the_shortcut_of_the_entry_becomes_the_same_action() {
+    fn the_shortcuts_are_not_the_bars() {
         let mut state = drawn();
 
         let outcome = handle(
@@ -232,9 +244,10 @@ mod tests {
         );
 
         assert!(
-            matches!(outcome, Control::Event(AppEvent::Action(Action::Quit))),
-            "the shortcut did not become the action of the way out: {outcome:?}"
+            matches!(outcome, Answer::Nothing),
+            "the bar answered a shortcut: {outcome:?}"
         );
+        assert!(!state.popup_active(), "a shortcut opened a drop-down");
     }
 
     #[test]
@@ -247,7 +260,7 @@ mod tests {
         let outcome = handle(&click(column, row), &mut state);
 
         assert!(
-            matches!(outcome, Control::Event(AppEvent::Action(Action::Quit))),
+            matches!(outcome, Answer::Action(Action::Quit)),
             "the click did not become the action of the way out: {outcome:?}"
         );
     }
@@ -261,7 +274,7 @@ mod tests {
         let outcome = handle(&click(column, row), &mut state);
 
         assert!(
-            matches!(outcome, Control::Changed),
+            matches!(outcome, Answer::Repaint),
             "the click was not consumed: {outcome:?}"
         );
         assert!(state.popup_active(), "the click did not open the drop-down");
@@ -273,27 +286,8 @@ mod tests {
 
         let outcome = handle(&key(KeyCode::Char('z')), &mut state);
 
-        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(matches!(outcome, Answer::Nothing), "{outcome:?}");
         assert!(!state.popup_active(), "a key opened a drop-down");
-    }
-
-    #[test]
-    fn a_shortcut_answers_to_nothing_but_a_press() {
-        for kind in [KeyEventKind::Release, KeyEventKind::Repeat] {
-            let event = Event::Key(KeyEvent::new_with_kind(
-                KeyCode::Char('q'),
-                KeyModifiers::CONTROL,
-                kind,
-            ));
-            let mut state = drawn();
-
-            let outcome = handle(&event, &mut state);
-
-            assert!(
-                matches!(outcome, Control::Continue),
-                "{kind:?} answered: {outcome:?}"
-            );
-        }
     }
 
     #[test]

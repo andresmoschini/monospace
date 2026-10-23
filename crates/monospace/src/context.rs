@@ -6,7 +6,8 @@
 use rat_salsa::{SalsaAppContext, SalsaContext};
 
 use crate::config::Config;
-use crate::vocabulary::{AppError, AppEvent};
+use crate::event::AppEvent;
+use crate::vocabulary::AppError;
 
 /// The loop's half of the pair `run_tui` takes.
 pub(crate) struct AppGlobal {
