@@ -2,11 +2,11 @@
 //!
 //! **They are free functions because the signatures are fixed** by the parameters of `run_tui`.
 //!
-//! **This is where an event becomes an action.** The chrome and the application's own keys are
-//! handlers: each is handed the event and answers with what it was worth — nothing, a repaint, or
-//! an action — and this module asks them in one fixed order and turns the answer into what the
-//! loop does next. An entry of the menu and the key that means the same thing therefore arrive at
-//! one place, and that place is here.
+//! **This is where an event becomes an action.** A terminal event is routed to the first handler
+//! that wants it — the shortcuts that reach everything, the chrome, the shortcuts nobody has
+//! claimed — and that answer is carried out: nothing, a repaint, or an action. An entry of the
+//! menu and the key that means the same thing therefore arrive at one place, and that place is
+//! here.
 //!
 //! **The order is the whole of the policy, and it is written once.** Nothing here names a key:
 //! which keys the application answers to, and whether a key has to be answered before the chrome,
@@ -55,52 +55,55 @@ pub(crate) fn event(
         // The loop reporting on itself: the frame it painted is the whole of the answer.
         AppEvent::Rendered(_) => Control::Continue,
 
-        AppEvent::Terminal(event) => terminal(event, state),
+        // **A resize is answered here and not by the handlers.** It is not a question about the
+        // event — nobody wants a screen size — it is a fact about the frame: the layout it was
+        // painted with is the one it no longer has, so it is painted again.
+        AppEvent::Terminal(Event::Resize(_, _)) => Control::Changed,
+
+        AppEvent::Terminal(event) => apply(route(event, state), state),
     })
 }
 
-/// What the application does about something the terminal said.
+/// Which handler answers the event, and what it answers.
 ///
-/// **The order is the rule, and it is one line per layer.** The shortcuts that reach everything
-/// are asked first: a `Ctrl+C` that reached the chrome as a key would be answered by the chrome,
-/// and the point of it is that it is answered by nothing. A resize comes next, because no widget
-/// wants one and a screen that is not painted after it keeps the layout it had. Then the bar, so
-/// that a key the widget uses is the widget's, and last the shortcuts nobody has claimed.
-fn terminal(event: &Event, state: &mut AppState) -> Control<AppEvent> {
+/// **The order is the whole of the policy, and it is one line per layer.** The shortcuts that
+/// reach everything are asked first: a `Ctrl+C` that reached the chrome as a key would be answered
+/// by the chrome, and the point of it is that it is answered by nothing. Then the bar, so that a
+/// key the widget uses is the widget's; then the shortcuts nobody has claimed; and an event all
+/// three leave alone is nothing.
+///
+/// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
+/// state.menu` and nothing else, so what a widget may change about the application is what the
+/// widget's own signature makes possible: the selection and the drop-down, and never the session.
+fn route(event: &Event, state: &mut AppState) -> Answer {
     match shortcuts::handle_always(event) {
         Answer::Nothing => {}
-        answer => return control(answer),
-    }
-
-    if matches!(event, Event::Resize(_, _)) {
-        return Control::Changed;
+        answer => return answer,
     }
 
     match menu::handle(event, &mut state.menu) {
         // The bar took no interest in the event, so the shortcuts nobody has claimed may.
         Answer::Nothing => {}
-        answer => return control(answer),
+        answer => return answer,
     }
 
-    control(shortcuts::handle_unclaimed(event))
+    shortcuts::handle_unclaimed(event)
 }
 
-/// What an answer does to the loop.
-fn control(answer: Answer) -> Control<AppEvent> {
+/// What an answer does: nothing, a repaint, or an action that is carried out here.
+///
+/// **An action that reaches the state is carried out here, and nowhere else.** Neither of the two
+/// does today — both end the loop — and the state is taken anyway: the first action that edits the
+/// diagram, or opens the dialog of #189, finds it here already, and no caller changes with it.
+fn apply(answer: Answer, _state: &mut AppState) -> Control<AppEvent> {
     match answer {
         Answer::Nothing => Control::Continue,
         Answer::Repaint => Control::Changed,
-        Answer::Action(action) => apply(action),
-    }
-}
 
-/// What an action does to the loop.
-fn apply(action: Action) -> Control<AppEvent> {
-    match action {
         // The way out and the forced exit both end the loop. **They are two meanings and not two
         // code paths**: the way out grows a pop-up to confirm and the forced exit does not, which
         // is #189's, and until then they end the same way.
-        Action::Quit | Action::ForceQuit => Control::Quit,
+        Answer::Action(Action::Quit | Action::ForceQuit) => Control::Quit,
     }
 }
 
