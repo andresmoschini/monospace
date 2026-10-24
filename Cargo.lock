@@ -630,6 +630,7 @@ name = "monospace"
 version = "0.1.0"
 dependencies = [
  "insta",
+ "monospace-description",
  "monospace-editing",
  "rat-salsa",
  "rat-theme4",

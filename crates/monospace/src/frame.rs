@@ -142,7 +142,14 @@ mod tests {
 
     /// The state of an application that starts with nothing in it.
     fn a_state() -> AppState {
-        AppState::new()
+        #[allow(
+            clippy::default_trait_access,
+            reason = "the diagram's type is not named here: the application depends on \
+            the editing layer and not on the model below it"
+        )]
+        let session = monospace_editing::Session::new(Default::default());
+
+        AppState::new(session)
     }
 
     /// The configuration the application starts with.
