@@ -1,6 +1,7 @@
 ---
-status: agreed
+status: implemented
 decided: "#216"
+implemented: "#217"
 date: 2026-10-11
 ---
 
@@ -190,10 +191,12 @@ step in the gate runs it: `cargo tree -p crossterm` after a clean resolve must n
    region is byte-identical afterwards.
 5. The way out is one action, reached by the shortcut `Ctrl+Q` and by the menu's own entry, and both
    apply that same action rather than a code path each. **`Ctrl+C` is not that action**: it is a
-   forced exit, translated into an event of its own before anything else sees it, and it ends the
-   application whatever the state is.
-6. An event becomes an action, and the action is the only thing that changes the state. The state is
-   a `Session` and the chrome's own; the configuration is not part of it.
+   forced exit, answered before any handler is asked — the row of the shortcut table whose reach is
+   that — and it ends the application whatever the state is.
+6. An event becomes an action, and the action is the only thing that changes the session. The
+   chrome's own is changed by the widget that owns it when the event reaches it, and no action is
+   minted for that change. The state is a `Session` and the chrome's own; the configuration is not
+   part of it.
 7. The crate holds no domain logic. It depends on `monospace-editing` and the six crates D2 names,
    and on no other crate in the workspace, which is what `README.md` promises of the TUI when it
    explains why the CLI comes first.
@@ -265,7 +268,9 @@ The tests do not exist yet. The names are what the building stage is held to.
 | 5    | `the_way_out_is_reached_by_the_shortcut_and_by_the_menus_entry`     |
 | 5    | `a_click_on_the_entry_and_its_shortcut_apply_the_same_action`       |
 | 5    | `control_c_ends_the_application_whatever_the_state_is`              |
-| 6    | `a_key_reaches_the_state_only_as_an_action`                         |
+| 5    | `every_shortcut_answered_first_is_answered_with_the_drop_down_open` |
+| 6    | `a_key_with_no_action_changes_nothing`                              |
+| 6    | _the positive half is structural: no action edits the session yet_  |
 | 7    | _nothing holds this, and it is named here rather than claimed done_ |
 | 8    | `the_screen_at_rest`                                                |
 | 8    | `the_drop_down_open_over_the_region`                                |
@@ -326,3 +331,29 @@ they amend.
 application and the frame; the chrome is #189. The split is what keeps this one a third of what it
 was, and it is why the building pull request writes about five hundred lines of production code and
 not one thousand four hundred and fifty-five.
+
+**Amended on 2026-10-24 in #217, because two rules were written as the implementation they were
+agreed against rather than as the promise they make.**
+
+**The forced exit is a row of the shortcut table, not a translation.** Rule 5 said `Ctrl+C` "is
+translated into an event of its own before anything else sees it", and the promise holds by another
+mechanism: every shortcut is a row of one table, and a row says how far it reaches — the forced exit
+reaches past the chrome, the way out waits for it. **Why not the translation:** an event minted
+before the application sees anything is a second route for a key, and no row of the table can be
+read against it; as a row, the difference between the two shortcuts is one column, and the proof
+walks the table instead of naming the key. **What it costs:** the table no longer holds only what
+the application offers a person — a forced exit is no menu's entry — so reading it asks which row is
+also an entry.
+
+**The action changes the session, and the chrome's own is the widget's.** Rule 6 said the action is
+the only thing that changes "the state", and the state is the session and the chrome's own: the bar
+opens its drop-down and moves its selection without an action, because an action is what a person
+means to do to the diagram and what undo will hold. **Why not mint an action for a selection:** undo
+would then hold one, and the list would stop saying what a person can take back. **What it costs:**
+two rules where there was one.
+
+**The names in _What proves it_ moved with the two rules**, and the reach of the forced exit is
+proved by walking every shortcut of that reach, so the next one added is covered without the test
+being edited. **The positive half of rule 6 is named as structural rather than tested**: no action
+in this slice edits the session — both of them end the loop — so a test of the negative half is the
+only one there can be, and the table says so rather than lending it a proof it does not have.
