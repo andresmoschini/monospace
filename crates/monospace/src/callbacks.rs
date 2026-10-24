@@ -2,11 +2,11 @@
 //!
 //! **They are free functions because the signatures are fixed** by the parameters of `run_tui`.
 //!
-//! **This is where an event becomes an action.** A terminal event is routed to the first handler
-//! that wants it — the shortcuts that reach everything, the chrome, the shortcuts nobody has
-//! claimed — and that answer is carried out: nothing, a repaint, or an action. An entry of the
-//! menu and the key that means the same thing therefore arrive at one place, and that place is
-//! here.
+//! **This is where an event becomes an action.** A terminal event is answered here: a resize
+//! repaints, and everything else is routed to the first handler that wants it — the shortcuts that
+//! reach everything, the chrome, the shortcuts nobody has claimed — whose answer is carried out:
+//! nothing, a repaint, or an action. An entry of the menu and the key that means the same thing
+//! therefore arrive at one place, and that place is here.
 //!
 //! **The order is the whole of the policy, and it is written once.** Nothing here names a key:
 //! which keys the application answers to, and whether a key has to be answered before the chrome,

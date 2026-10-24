@@ -71,7 +71,8 @@ const SHORTCUTS: [Shortcut; 2] = [
 
 /// What the event means to a shortcut answered before any handler.
 ///
-/// This is the one `callbacks` asks first, before the resize and before the chrome.
+/// This is the one `callbacks` asks first, before the chrome. A resize never reaches it: that is
+/// answered before anything is routed.
 pub(crate) fn handle_always(event: &Event) -> Answer {
     handle(event, Reach::Always)
 }

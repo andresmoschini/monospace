@@ -3,8 +3,8 @@
 //! **The application's event type is the union of the two sources the loop polls, and nothing
 //! else**: the terminal's event, carried whole, and the loop's own report that a frame was
 //! painted. It is a transport and not a taxonomy — what an event *means* is decided in
-//! `callbacks`, where every handler is asked in turn, and a type that classified here would be a
-//! second place where the same rule lives.
+//! `callbacks`, and a type that classified here would be a second place where the same rule
+//! lives.
 //!
 //! The event type is the one `ratatui-crossterm` carries, and it is named through that crate
 //! rather than through a `crossterm` of our own: the poll of the framework reads it, and its
