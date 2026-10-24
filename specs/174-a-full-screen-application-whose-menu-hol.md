@@ -270,6 +270,7 @@ The tests do not exist yet. The names are what the building stage is held to.
 | 5    | `control_c_ends_the_application_whatever_the_state_is`              |
 | 5    | `every_shortcut_answered_first_is_answered_with_the_drop_down_open` |
 | 6    | `a_key_with_no_action_changes_nothing`                              |
+| 6    | _the positive half is structural: no action edits the session yet_  |
 | 7    | _nothing holds this, and it is named here rather than claimed done_ |
 | 8    | `the_screen_at_rest`                                                |
 | 8    | `the_drop_down_open_over_the_region`                                |
@@ -353,4 +354,6 @@ two rules where there was one.
 
 **The names in _What proves it_ moved with the two rules**, and the reach of the forced exit is
 proved by walking every shortcut of that reach, so the next one added is covered without the test
-being edited.
+being edited. **The positive half of rule 6 is named as structural rather than tested**: no action
+in this slice edits the session — both of them end the loop — so a test of the negative half is the
+only one there can be, and the table says so rather than lending it a proof it does not have.
