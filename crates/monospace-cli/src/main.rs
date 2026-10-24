@@ -257,7 +257,7 @@ fn parse_origin(text: &str) -> Result<Pos, String> {
 
 /// Renders `diagram` into `size` at `origin`, as one picture and nothing else.
 fn render_once(diagram: &Diagram, origin: Pos, size: Size) -> String {
-    picture(diagram, &glyph_catalog(), origin, size)
+    picture(diagram, &monospace_glyph_sets::all(), origin, size)
 }
 
 /// Draws `diagram` into a fresh window of `size` and hands back the buffer beside its rendering.
@@ -317,7 +317,7 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 /// front end would have to do and what the first seven steps have no way to check. A figure added
 /// before any of the three would move the answer, and the pictures below it are what catch that.
 fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
-    let catalog = glyph_catalog();
+    let catalog = monospace_glyph_sets::all();
     let mut session = Session::new(diagram);
 
     // The first drawing, kept rather than thrown away: the three identities are read out of it, and
@@ -534,22 +534,6 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     out
 }
 
-/// The glyph catalog the CLI renders with: the union of every glyph set the core does not ship
-/// and the core's own light table.
-fn glyph_catalog() -> GlyphCatalog {
-    GlyphCatalog::union([
-        GlyphCatalog::light(),
-        monospace_glyph_sets::ascii(),
-        monospace_glyph_sets::double(),
-        monospace_glyph_sets::heavy(),
-        monospace_glyph_sets::light_round(),
-        monospace_glyph_sets::light_double(),
-        monospace_glyph_sets::light_heavy(),
-        monospace_glyph_sets::light_round_double(),
-        monospace_glyph_sets::light_round_heavy(),
-    ])
-}
-
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU16;
@@ -561,7 +545,7 @@ mod tests {
     };
     use monospace_diagram::ShapeId;
 
-    use super::{Window, demonstrate, drawn, glyph_catalog, parse_args, render_once};
+    use super::{Window, demonstrate, drawn, parse_args, render_once};
     use crate::parse;
 
     /// The window the shipped demonstration is drawn at, as the pair the flags name.
@@ -1480,7 +1464,7 @@ mod tests {
     #[test]
     fn the_shape_a_position_resolves_to_is_the_front_most_of_the_two_that_wrote_it() {
         let diagram = parse(super::DEMO).expect("the shipped description reads");
-        let catalog = glyph_catalog();
+        let catalog = monospace_glyph_sets::all();
         let (origin, size) = in_the_demo_window();
         let (buffer, picture) = drawn(&diagram, &catalog, origin, size);
 
@@ -1559,7 +1543,7 @@ mod tests {
     fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
         let diagram = parse(super::DEMO).expect("the shipped description reads");
         let (origin, size) = in_the_demo_window();
-        let (buffer, _) = drawn(&diagram, &glyph_catalog(), origin, size);
+        let (buffer, _) = drawn(&diagram, &monospace_glyph_sets::all(), origin, size);
 
         for (at, expected, what) in [
             (
@@ -1814,7 +1798,7 @@ mod tests {
             width: 7,
             height: 5,
         };
-        let (buffer, picture) = drawn(&diagram, &glyph_catalog(), origin, size);
+        let (buffer, picture) = drawn(&diagram, &monospace_glyph_sets::all(), origin, size);
 
         for (asked, offset, cell, owner) in [
             ((-3, -2), (0, 0), ' ', None),
