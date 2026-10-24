@@ -36,10 +36,6 @@ impl AppState {
     /// The state of an application that starts with nothing in it.
     #[must_use]
     pub(crate) fn new() -> Self {
-        let mut status_line = StatusLineState::default();
-        status_line.status(0, status::NAME);
-        status_line.status(1, status::VERSION);
-
         Self {
             // The session is over an empty diagram. **The diagram's type is not named here**,
             // because the application depends on the editing layer and not on the model below
@@ -52,7 +48,7 @@ impl AppState {
             )]
             session: Session::new(Default::default()),
             menu: MenubarState::default(),
-            status: status_line,
+            status: status::state(),
         }
     }
 }
