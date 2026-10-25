@@ -281,6 +281,20 @@ mod tests {
             .expect("the event reached the application")
     }
 
+    /// Takes the entry of `menu` whose text is `text`, by clicking it on the frame.
+    ///
+    /// **The entry is found by its name**: a menu that gains entries above one moves where it is
+    /// but not what it says, and a test that pressed `Enter` would take whatever happens to be
+    /// first.
+    fn take_the_entry(state: &mut AppState, menu: char, text: &str) -> Control<AppEvent> {
+        let _ = send(&key(KeyCode::Char(menu)), state);
+        assert!(state.menu.popup_active(), "the {menu} menu did not open");
+        let buffer = draw(state);
+        let (column, row) = frame::cell_of(&buffer, text);
+
+        send(&click(column, row), state)
+    }
+
     #[test]
     fn the_way_out_is_reached_by_the_shortcut_and_by_the_menus_entry() {
         // The shortcut.
@@ -565,11 +579,12 @@ mod tests {
     fn the_edit_menus_delete_entry_removes_the_selected_shape() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let _ = send(&key(KeyCode::Char('e')), &mut state);
-        assert!(state.menu.popup_active(), "the Edit menu did not open");
-        let _ = draw(&mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected"
+        );
 
-        let outcome = send(&key(KeyCode::Enter), &mut state);
+        let outcome = take_the_entry(&mut state, 'e', "Delete");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.menu.popup_active(), "the entry left the menu open");
@@ -592,11 +607,8 @@ mod tests {
     #[test]
     fn the_edit_menus_delete_entry_is_offered_with_nothing_selected() {
         let mut state = a_drawn_state_over(A_BOX);
-        let _ = send(&key(KeyCode::Char('e')), &mut state);
-        assert!(state.menu.popup_active(), "the Edit menu did not open");
-        let _ = draw(&mut state);
 
-        let outcome = send(&key(KeyCode::Enter), &mut state);
+        let outcome = take_the_entry(&mut state, 'e', "Delete");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(

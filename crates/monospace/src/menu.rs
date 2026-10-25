@@ -191,6 +191,18 @@ mod tests {
         open_with(state, 'f');
     }
 
+    /// Takes the entry whose text is `text`, by clicking it on the frame, the way a person does.
+    ///
+    /// **The entry is found by its name**: a menu that gains entries above one moves where it is
+    /// but not what it says, and a test that pressed `Enter` would take whatever happens to be
+    /// first.
+    fn take(state: &mut MenubarState, text: &str) -> Option<Action> {
+        let buffer = draw(state);
+        let (column, row) = cell_of(&buffer, text);
+
+        handle(&click(column, row), state)
+    }
+
     fn key(code: KeyCode) -> Event {
         Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
     }
@@ -251,7 +263,7 @@ mod tests {
         let mut state = drawn();
         open_with(&mut state, 'e');
 
-        let outcome = handle(&key(KeyCode::Enter), &mut state);
+        let outcome = take(&mut state, "Delete");
 
         assert!(
             matches!(outcome, Some(Action::Delete)),
