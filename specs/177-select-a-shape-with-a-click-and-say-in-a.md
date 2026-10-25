@@ -40,7 +40,8 @@ the decisions taken for it while this issue was one slice.
 - **Editing, delete, undo and redo.** #178 and #181. This slice performs no command on the session,
   so a click records no step.
 - **Selecting more than one shape, selecting with the keyboard, and a selection that survives the
-  application.** None of the three was asked for, and each is a change of its own.
+  application.** None of the three was asked for, none is planned for now, and each is a change of
+  its own when it is wanted.
 - **A color for the selection.** Reverse video is a terminal attribute rather than a decision about
   the domain, and the color rule the model still holds unresolved stays unresolved (#189).
 - **The menu, the drop-down, the focus and the pop-up.** #189.
@@ -123,12 +124,15 @@ and an owner and no style, and `monospace-diagram` and `monospace-editing` are u
    style the frame's clear gave it.
 5. A shape that owns no cell in the window — clipped by it, or behind another shape everywhere it
    draws — is still selected: the state holds the identity, and a later frame that holds the shape
-   inverts it. Nothing on the screen says so until #226 names it.
+   inverts it. Nothing on the screen says so until #226 names it. **A shape no cell records at all
+   cannot be selected by any click in this slice**, and that is accepted: a list or a cycle of the
+   shapes under a cell is not planned.
 6. The selection is an identity rather than a rectangle, so a new frame recomputes the inversion
    from the new drawing: it survives a resize, and it follows the shape it names.
 7. A selection whose identity no cell of the drawing records inverts nothing, because the inversion
-   is read from the record and not from the selection. Whether the state drops the identity when the
-   shape it names is gone is the command's question (#181).
+   is read from the record and not from the selection: a command that removes the selected shape
+   leaves the selection simply gone from what is seen. Whether the state also drops the identity is
+   unobservable and #181's.
 8. A drop-down open over the region takes its clicks first: a click the menu answers never reaches
    the diagram, and the selection it does not answer is the diagram's.
 9. A click changes no diagram. The session is only read, so drawing again produces the same cells
@@ -190,17 +194,12 @@ stage is held to.
 
 ## Open questions
 
-**A shape that owns no visible cell is unreachable by click.** It is named only while it is selected
-from before, and a diagram with two shapes overlapping exactly has one of them that no click can
-reach. Whether a later slice offers a list or a cycle of the shapes under a cell is not this one's;
-the model already says what a list of owners would be, and no slice asks for it yet.
+**Whether the state drops the selected identity when its shape is removed.** What is observed is
+settled — with no cell recording the identity nothing is inverted, and #226 reports nothing — so the
+selection is simply gone. Whether the command also clears the identity, or the frame keeps it and
+finds nothing, is unobservable in this slice; rule 7 describes the second, which needs no code in
+the command's path, and #181 may choose the first.
 
-**Selecting several shapes and selecting with the keyboard.** Both are later changes, and neither is
-blocked by this one.
-
-**The stored selection when a command removes its shape.** A command can remove the selected shape
-(#181 and later); rule 7 says the inversion then shows nothing. Whether the command also clears the
-identity the state holds is that slice's question, and #226 reports nothing for it in the meantime.
-
-**The status bar's remaining width.** #226 takes the middle of the row for the selection. Whether a
-third report fits beside it is that slice's, and #181's.
+Nothing else is open here. A shape no click can reach cannot be selected for now (rule 5); selecting
+several shapes and selecting with the keyboard are not planned (Scope, Out); and the status bar is
+untouched by this slice — what it says, and how much room a report takes, is #226's.
