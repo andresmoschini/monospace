@@ -3,6 +3,7 @@
 //! The name is the framework's, so this crate reads against the framework's documentation without
 //! a translation table.
 
+use monospace_core::GlyphCatalog;
 use rat_salsa::{SalsaAppContext, SalsaContext};
 
 use crate::config::Config;
@@ -18,6 +19,9 @@ pub(crate) struct AppGlobal {
     /// What the application is configured with. Read once, at startup, and not after.
     pub cfg: Config,
 
+    /// The glyphs the diagram is drawn with, read once at startup like the configuration.
+    pub catalog: GlyphCatalog,
+
     /// The failure the error handler took, kept to be written out with the terminal back.
     failure: Option<AppError>,
 }
@@ -26,10 +30,11 @@ impl AppGlobal {
     /// Builds the global from its configuration. The loop installs the context itself, before
     /// `init` is called.
     #[must_use]
-    pub(crate) fn new(cfg: Config) -> Self {
+    pub(crate) fn new(cfg: Config, catalog: GlyphCatalog) -> Self {
         Self {
             ctx: SalsaAppContext::default(),
             cfg,
+            catalog,
             failure: None,
         }
     }

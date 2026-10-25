@@ -1,9 +1,11 @@
 # The application model
 
-**Status:** Design intent, with one slice implemented. What §1 through §5 describe is
+**Status:** Design intent, with two slices implemented. What §1 through §5 describe is
 [`monospace`](../crates/monospace), and
 [`specs/174-a-full-screen-application-whose-menu-hol.md`](../specs/174-a-full-screen-application-whose-menu-hol.md)
-is the specification that slice was built against. §6 _Deliberately unresolved_ and §8 _Open
+and
+[`specs/175-draw-the-demo-description-or-one-given-b.md`](../specs/175-draw-the-demo-description-or-one-given-b.md)
+are the specifications those slices were built against. §6 _Deliberately unresolved_ and §8 _Open
 questions_ are what a later change answers. Amend this document when reality contradicts it, and say
 so in the commit.
 
@@ -59,17 +61,37 @@ status bar, and the drop-down last of all: a widget drawn later covers the one b
 drop-down drawn under the region could not be seen, let alone clicked. A drop-down that closes
 therefore leaves the region exactly as it was, byte for byte.
 
+**The region's interior is the diagram's window.** The frame is the region's, and the diagram is
+drawn inside it: the window is the interior, one cell in from each side, and a click's column and
+row are counted from that interior's corner. On every frame the application draws the session's
+diagram into a buffer the size of the window at the scroll origin, and copies the cells the drawing
+holds into the frame one at a time. A cell no shape wrote, and a cell whose glyph the catalog does
+not answer, keeps the space the frame's clear painted; the copy writes only what it has.
+**`monospace_core::render` is not the way**: the string it returns is the picture and nothing else,
+and the buffer behind it is what answers a click.
+
 ## 3. The state
 
-**The state is a session and the chrome's own.** The session is what the person is working on, and
-the chrome's own is what the widgets of the screen hold between frames — which label of the bar is
-selected, whether a drop-down is open, what the status bar says. The two are one thing because they
-change together: a frame that changes one of them changes the other.
+**The state is a session, the drawing of the last frame, and the chrome's own.** The session is what
+the person is working on, the drawing is what the last frame put on the screen, and the chrome's own
+is what the widgets of the screen hold between frames — which label of the bar is selected, whether
+a drop-down is open, what the status bar says. The three are one thing because they change together:
+a frame that changes one of them changes the other.
+
+**The drawing of the last frame is kept because a click is a question about it.** A click on the
+diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
+that produced the picture the person saw rather than to one made when the click arrives: the diagram
+may have changed since, and a fresh drawing would answer about a picture nobody clicked. The window
+the last frame produced is therefore kept and replaced on every frame. **It is not the document** —
+the diagram is the document, the drawing is one rendering of it, and keeping it changes nothing
+about what a person can undo.
 
 **The configuration is not part of the state.** It is read once, when the application starts, and it
-does not change afterwards: what the state holds is the session and the chrome's own, and the
-palette of the theme is none of those. A diagram does not carry a palette, and a palette does not
-change because a figure was moved.
+does not change afterwards: what the state holds is the session, the drawing and the chrome's own,
+and the palette of the theme is none of those. **Neither is the glyph catalog the diagram is drawn
+with**, which is read once for the same reason and is what a cell becomes a character through.
+Whether the configuration is what holds that catalog is not settled here. A diagram does not carry a
+palette, and a palette does not change because a figure was moved.
 
 **The state survives between frames and nothing else does.** A frame is built from the state and
 discarded; the state is what the next frame is built from.
@@ -140,8 +162,11 @@ widgets, and what they look like, how they are drawn and which keys they answer 
 the rectangle a click is tested against: the widget knows where its labels are only once it has been
 drawn, and a click is tested against the areas of the frame before it.
 
-**The drawing is the framework's.** The buffer, the layout and the styles are the ones the framework
-draws with, and the application names them rather than writing them.
+**The drawing is the framework's and the core's.** The buffer, the layout and the styles the chrome
+is drawn with are the framework's, and the application names them rather than writing them. The
+cells inside the region are the core's, drawn into a `monospace_core::Buffer` the application owns:
+it chooses the window, keeps the buffer the last frame produced, and copies its cells into the
+framework's buffer one at a time.
 
 ## 6. Deliberately unresolved
 
@@ -171,6 +196,7 @@ draws with, and the application names them rather than writing them.
 - A key reaches the session only as an action.
 - A handler that took no interest leaves the event to the next one, and the first answer ends the
   asking.
+- A click is answered from the drawing of the last frame.
 - The error handler does not answer with the error again.
 
 ## 8. Open questions

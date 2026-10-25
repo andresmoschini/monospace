@@ -1,6 +1,7 @@
 ---
-status: agreed
+status: implemented
 decided: "#218"
+implemented: "#224"
 date: 2026-10-24
 ---
 
@@ -108,7 +109,11 @@ show it; the test is the function that reads and parses.
   drawn inside it; the drawing order puts the diagram after the bar and before the status bar, with
   the drop-down after the region.
 - `docs/application-model.md` §3: the state gains the drawing of the last frame, beside the session
-  and the chrome's own, because a click asks it what the picture said.
+  and the chrome's own, because a click asks it what the picture said; the glyph catalog is not part
+  of the state either, and whether the configuration holds it is not settled here.
+- `docs/application-model.md` §4: a handler answers with an action or with nothing, and the first
+  answer ends the asking; a change of the chrome's own mints a repaint, and a repaint is the one
+  action about the screen rather than about what a person means to do.
 - `docs/application-model.md` §5: the drawing is the framework's and the core's; the application
   copies the cells and owns the window.
 - `docs/diagram-model.md`: none. §7 already makes the window the caller's, and §8 already says the

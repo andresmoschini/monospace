@@ -637,6 +637,29 @@ fn build(table: &str, rows: &[Row]) -> GlyphCatalog {
     }))
 }
 
+/// Builds a catalog from every table in reach: the core's Light and the eight this crate ships.
+///
+/// **The union is here rather than in each caller**, so that a table added to this crate is drawn
+/// by every binary without a second list to change — the two callers today are `monospace-cli` and
+/// the interactive application, and a list kept in each would let one draw a table the other did
+/// not. The order is the order the tables are documented in, and the core's Light comes first:
+/// where two catalogs claim the same key, the earlier one wins, and a cell the core can draw is
+/// never taken from it by a table that reuses a stroke name.
+#[must_use]
+pub fn all() -> GlyphCatalog {
+    GlyphCatalog::union([
+        GlyphCatalog::light(),
+        ascii(),
+        double(),
+        heavy(),
+        light_round(),
+        light_double(),
+        light_heavy(),
+        light_round_double(),
+        light_round_heavy(),
+    ])
+}
+
 /// Builds a catalog from the ASCII table alone.
 #[must_use]
 pub fn ascii() -> GlyphCatalog {
@@ -690,7 +713,7 @@ mod tests {
     use monospace_core::{BoxShape, Buffer, Layer, Pos, Shape, Size, StampMode};
 
     use super::{
-        ascii, double, heavy, light_double, light_heavy, light_round, light_round_double,
+        all, ascii, double, heavy, light_double, light_heavy, light_round, light_round_double,
         light_round_heavy,
     };
 
@@ -1065,19 +1088,10 @@ mod tests {
             ),
         ];
 
-        // `monospace_core::GlyphCatalog::light()` is the ninth table this project ships; the
-        // other eight come from this crate.
-        let forward = monospace_core::GlyphCatalog::union([
-            monospace_core::GlyphCatalog::light(),
-            ascii(),
-            double(),
-            heavy(),
-            light_round(),
-            light_double(),
-            light_heavy(),
-            light_round_double(),
-            light_round_heavy(),
-        ]);
+        // The nine tables this project ships: the core's Light and the eight this crate holds.
+        // `all()` is the forward union, and the reverse is built here so that the two orders are
+        // compared rather than the one list trusted.
+        let forward = all();
         let reverse = monospace_core::GlyphCatalog::union([
             light_round_heavy(),
             light_round_double(),

@@ -6,14 +6,18 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
-# Six dependencies and no others, which is what the specification's D2 says: the event loop and
-# the terminal it runs on, the widgets of the chrome, the theme it is drawn in, and the three
-# crates the framework itself draws with. Each is pinned with `=`, because the framework and the
-# application exchange types and a second version of any of them would mean a second `Buffer` and
-# a second event type in the tree. Every one of them was re-checked against crates.io on
+# Six dependencies from crates.io and no others, which is what the specification's D2 says: the event
+# loop and the terminal it runs on, the widgets of the chrome, the theme it is drawn in, and the
+# three crates the framework itself draws with. Each is pinned with `=`, because the framework and
+# the application exchange types and a second version of any of them would mean a second `Buffer`
+# and a second event type in the tree. Every one of them was re-checked against crates.io on
 # 2026-10-20 and every one is more than seven days old: rat-salsa 4.0.3 published 2026-03-08,
 # rat-widget 3.2.1 published 2026-03-09, rat-theme4 4.5.3 published 2026-03-08, ratatui-core 0.1.2,
 # ratatui-widgets 0.3.2 and ratatui-crossterm 0.1.2 published 2026-06-19.
+#
+# The rest are this workspace's own, and they are what the application reads and draws with: the
+# editing layer that holds the session, the format both binaries read a description with, and the
+# tables they draw it in.
 #
 # The three `ratatui` crates are named one by one and not through the umbrella, because the
 # umbrella resolves `ratatui-core` by a second path and a `ratatui` that moves to a new
@@ -21,9 +25,17 @@ license.workspace = true
 # keeps one version of each, and the application's version of `ratatui` is then the one `rat-salsa`
 # resolves.
 [dependencies]
-# The session the application holds: the layer above the diagram, and the only crate of this
-# workspace the application depends on. The crate holds no domain logic of its own.
+# The session the application holds: the layer above the diagram, and the only one of the three
+# workspace crates that the application asks for what a person is working on.
 monospace-editing.workspace = true
+# The format the description is read with. **The same reader the command line uses**, so the screen
+# has no second way into the format and a change to it moves both binaries.
+monospace-description.workspace = true
+# The model the drawing goes into: a window of cells with the record of which shape decided each.
+# The application does not name a diagram type, but it holds the buffer the diagram is drawn into.
+monospace-core.workspace = true
+# The nine glyph tables the drawing is rendered with, shared with the command line.
+monospace-glyph-sets.workspace = true
 # The event loop, the terminal and its restoration.
 rat-salsa = "=4.0.3"
 # The palette and the styles the chrome is drawn in.

@@ -10,18 +10,14 @@
 //! frame is not using — because the screen is too short to hold it — is cleared rather than
 //! left alone.
 
-use rat_theme4::StyleName;
-use rat_theme4::theme::SalsaTheme;
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::{Constraint, Layout, Rect};
-use ratatui_core::style::Style;
 use ratatui_core::widgets::Widget;
-use ratatui_widgets::block::Block;
 use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
 use crate::state::AppState;
-use crate::{menu, status};
+use crate::{diagram_widget, menu, status};
 
 /// The height of the bar across the top.
 pub(crate) const BAR_HEIGHT: u16 = 1;
@@ -70,29 +66,20 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     Clear.render(area, buf);
 
     menu::draw_bar(regions.bar, buf, &mut state.menu, &global.cfg.theme);
-    draw_region(regions.region, buf, &global.cfg.theme);
+
+    diagram_widget::draw(
+        regions.region,
+        buf,
+        &mut state.diagram,
+        &global.catalog,
+        &global.cfg.theme,
+    );
+
     status::draw(regions.status, buf, &mut state.status, &global.cfg.theme);
 
     // The drop-down is drawn last: it hangs from the bar and covers the region, and a region
     // painted after it would erase it.
     menu::draw_drop_down(area, buf, &mut state.menu, &global.cfg.theme);
-}
-
-/// Paints the region the diagram goes into.
-///
-/// **It is a frame and nothing else.** What is inside it is the diagram's, and the diagram is
-/// #175's; all this slice draws is the box it goes into.
-///
-/// A box needs two rows, one for its top and one for its bottom, and a region that is shorter
-/// than that is not drawn at all: the frame clears it, and what a previous frame left in it is
-/// gone.
-fn draw_region(area: Rect, buf: &mut Buffer, theme: &SalsaTheme) {
-    if area.height < 2 {
-        return;
-    }
-
-    let border: Style = theme.style(Style::CONTAINER_BORDER_FG);
-    Block::bordered().style(border).render(area, buf);
 }
 
 /// Where a piece of text is on a frame, found in the frame itself so that a growing label
@@ -121,6 +108,7 @@ mod tests {
     use crate::context::AppGlobal;
     use crate::state::AppState;
     use crate::status;
+    use monospace_core::Offset;
     use ratatui_core::buffer::Buffer;
     use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent};
 
@@ -142,12 +130,55 @@ mod tests {
 
     /// The state of an application that starts with nothing in it.
     fn a_state() -> AppState {
-        AppState::new()
+        #[allow(
+            clippy::default_trait_access,
+            reason = "the diagram's type is not named here: the application depends on \
+            the editing layer and not on the model below it"
+        )]
+        let session = monospace_editing::Session::new(Default::default());
+
+        AppState::new(session)
     }
+
+    /// The state of an application over the diagram `json` describes.
+    fn a_state_over(json: &str) -> AppState {
+        let diagram =
+            monospace_description::parse(json).expect("the test's description is readable");
+
+        AppState::new(monospace_editing::Session::new(diagram))
+    }
+
+    /// A description whose only shape is a light 4×3 box at `(2, 1)` of the window.
+    const A_BOX: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a 2×2 light box at `(2, 1)` of the window.
+    const A_NARROW_BOX: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 2, "height": 2 }, "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a 4×3 box in the ASCII table.
+    const AN_ASCII_BOX: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "ascii" } ]
+    }"#;
+
+    /// A description whose only shape names a stroke no table answers.
+    const A_BOX_IN_NO_TABLE: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "mystery" } ]
+    }"#;
 
     /// The configuration the application starts with.
     fn a_global() -> AppGlobal {
-        AppGlobal::new(Config::default())
+        AppGlobal::new(Config::default(), monospace_glyph_sets::all())
     }
 
     /// Paints a frame into a buffer of the given size.
@@ -283,6 +314,287 @@ mod tests {
     }
 
     #[test]
+    fn the_interior_is_the_window_the_diagram_is_drawn_into() {
+        let mut state = a_state_over(A_BOX);
+        let buffer = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+
+        // The box is at `(2, 1)` of the window, and the window starts one cell in from the
+        // region's corner: the region's row is 1, so the box's top-left is row 3, column 3.
+        assert_eq!(
+            buffer[(3, 3)].symbol(),
+            "┌",
+            "the box's top-left is not at the interior's (2, 1)"
+        );
+        assert_eq!(
+            buffer[(6, 3)].symbol(),
+            "┐",
+            "the box is not four cells wide from the interior's corner"
+        );
+        assert_eq!(
+            buffer[(3, 5)].symbol(),
+            "└",
+            "the box is not three cells tall from the interior's corner"
+        );
+        assert_eq!(
+            buffer[(1, 2)].symbol(),
+            " ",
+            "the interior's own corner holds something"
+        );
+
+        // The record counts the offset from the same corner the drawing does.
+        assert!(
+            state
+                .diagram
+                .drawing()
+                .owner(Offset { x: 2, y: 1 })
+                .is_some(),
+            "the box does not own the cell it drew"
+        );
+    }
+
+    #[test]
+    fn the_diagram_is_drawn_again_on_every_frame() {
+        let mut state = a_state_over(A_BOX);
+        let global = a_global();
+
+        let _ = paint(&mut state, &global, WIDTH, HEIGHT);
+        assert!(
+            state
+                .diagram
+                .drawing()
+                .owner(Offset { x: 2, y: 2 })
+                .is_some(),
+            "the first frame did not draw the box"
+        );
+
+        // A screen three rows shorter: the interior is two rows tall, and the box's third row
+        // is outside it. The drawing of the frame that follows is what answers.
+        let _ = paint(&mut state, &global, WIDTH, 6);
+        assert!(
+            state
+                .diagram
+                .drawing()
+                .owner(Offset { x: 2, y: 2 })
+                .is_none(),
+            "the drawing of the first frame survived the second"
+        );
+    }
+
+    #[test]
+    fn a_cell_no_shape_wrote_is_a_space() {
+        let buffer = paint(&mut a_state_over(A_BOX), &a_global(), WIDTH, HEIGHT);
+
+        assert_eq!(
+            buffer[(1, 2)].symbol(),
+            " ",
+            "the interior's corner, which no shape wrote, is not a space"
+        );
+    }
+
+    #[test]
+    fn a_glyph_the_catalog_does_not_know_is_a_space() {
+        let buffer = paint(
+            &mut a_state_over(A_BOX_IN_NO_TABLE),
+            &a_global(),
+            WIDTH,
+            HEIGHT,
+        );
+
+        // The box's own cells are at `(0, 0)` through `(3, 2)` of the window, and no table has a
+        // rule for its stroke: every one of them renders as a space.
+        for line in 2..5 {
+            for column in 1..5 {
+                assert_eq!(
+                    buffer[(column, line)].symbol(),
+                    " ",
+                    "({column}, {line}) is not a space"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_owner_survives_the_copy() {
+        let mut state = a_state_over(A_BOX);
+        let buffer = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+        let drawing = state.diagram.drawing();
+
+        let top_left = Offset { x: 2, y: 1 };
+        let top_right = Offset { x: 5, y: 1 };
+
+        assert!(
+            drawing.owner(top_left).is_some(),
+            "the copy took the record with it"
+        );
+        assert_eq!(
+            drawing.owner(top_left),
+            drawing.owner(top_right),
+            "two cells of the same box name two different shapes"
+        );
+
+        // The picture and the record are the same drawing.
+        assert_eq!(buffer[(3, 3)].symbol(), "┌", "the copy drew no box");
+        assert_eq!(buffer[(6, 3)].symbol(), "┐", "the copy drew no box");
+    }
+
+    #[test]
+    fn the_owner_is_asked_with_the_click_offset_and_nothing_added() {
+        let mut state = a_state_over(A_NARROW_BOX);
+        let _ = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+        let drawing = state.diagram.drawing();
+
+        // The box is at `(2, 1)` of the window and covers two rows: `(3, 3)` is the click with
+        // the interior's corner `(1, 2)` added to it, and it names a cell nobody wrote.
+        assert!(
+            drawing.owner(Offset { x: 2, y: 1 }).is_some(),
+            "the click's own offset is not the one asked"
+        );
+        assert!(
+            drawing.owner(Offset { x: 3, y: 3 }).is_none(),
+            "the interior's corner was added to the click"
+        );
+    }
+
+    #[test]
+    fn the_buffer_of_the_last_frame_answers_a_click() {
+        let mut state = a_state_over(A_BOX);
+        let global = a_global();
+
+        assert!(
+            state
+                .diagram
+                .drawing()
+                .owner(Offset { x: 2, y: 1 })
+                .is_none(),
+            "the empty drawing answered a click"
+        );
+
+        let _ = paint(&mut state, &global, WIDTH, HEIGHT);
+        let asked = state.diagram.drawing().owner(Offset { x: 2, y: 1 });
+        assert!(asked.is_some(), "the frame's drawing does not answer");
+
+        let _ = paint(&mut state, &global, WIDTH, HEIGHT);
+        assert_eq!(
+            state.diagram.drawing().owner(Offset { x: 2, y: 1 }),
+            asked,
+            "the second frame's drawing does not answer the same click"
+        );
+    }
+
+    #[test]
+    fn an_ascii_box_is_drawn_with_the_ascii_table() {
+        let buffer = paint(&mut a_state_over(AN_ASCII_BOX), &a_global(), WIDTH, HEIGHT);
+
+        assert!(
+            row_of(&buffer, 2).starts_with("│+--+"),
+            "the box's top is not in the ASCII table: {:?}",
+            row_of(&buffer, 2)
+        );
+        assert!(
+            row_of(&buffer, 3).starts_with("│|  |"),
+            "the box's sides are not in the ASCII table: {:?}",
+            row_of(&buffer, 3)
+        );
+        assert!(
+            row_of(&buffer, 4).starts_with("│+--+"),
+            "the box's bottom is not in the ASCII table: {:?}",
+            row_of(&buffer, 4)
+        );
+    }
+
+    #[test]
+    fn an_empty_diagram_draws_nothing() {
+        let buffer = paint(&mut a_state(), &a_global(), WIDTH, HEIGHT);
+        let region = regions(Rect::new(0, 0, WIDTH, HEIGHT)).region;
+
+        for line in region.top() + 1..region.bottom() - 1 {
+            for column in region.left() + 1..region.right() - 1 {
+                assert_eq!(
+                    buffer[(column, line)].symbol(),
+                    " ",
+                    "({column}, {line}) is not blank"
+                );
+            }
+        }
+
+        assert!(
+            row_of(&buffer, region.top()).starts_with('┌'),
+            "the frame went with the diagram"
+        );
+    }
+
+    #[test]
+    fn a_region_with_no_interior_draws_nothing() {
+        let mut state = a_state_over(A_BOX);
+        let buffer = paint(&mut state, &a_global(), WIDTH, 3);
+
+        assert_eq!(
+            row_of(&buffer, 1),
+            " ".repeat(usize::from(WIDTH)),
+            "a region with no interior drew something"
+        );
+        assert!(
+            state
+                .diagram
+                .drawing()
+                .owner(Offset { x: 0, y: 0 })
+                .is_none(),
+            "a window with no cells owns one"
+        );
+    }
+
+    #[test]
+    fn the_demonstration_is_drawn_when_no_path_is_given() {
+        let session = crate::start(None).expect("the shipped demonstration is readable");
+        let buffer = paint(&mut AppState::new(session), &a_global(), WIDTH, HEIGHT);
+
+        let first = row_of(&buffer, 2);
+        assert!(
+            first.starts_with("│┌──┐"),
+            "the demonstration's first row is not inside the frame: {first:?}"
+        );
+        assert!(
+            first.contains("+--+"),
+            "the demonstration's ASCII box is not drawn: {first:?}"
+        );
+    }
+
+    #[test]
+    fn the_description_at_the_path_is_drawn() {
+        let path =
+            std::env::temp_dir().join(format!("monospace-app-frame-{}.json", std::process::id()));
+        std::fs::write(&path, A_BOX).expect("the temp description should be writable");
+        let named = path.to_str().expect("the temp path is UTF-8");
+
+        let session = crate::start(Some(named)).expect("the description at the path is readable");
+        let buffer = paint(&mut AppState::new(session), &a_global(), WIDTH, HEIGHT);
+
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(
+            buffer[(3, 3)].symbol(),
+            "┌",
+            "the description at the path is not drawn where its box says"
+        );
+    }
+
+    #[test]
+    fn the_screen_with_the_demo() {
+        let session = crate::start(None).expect("the shipped demonstration is readable");
+        let mut state = AppState::new(session);
+        let area = Rect::new(0, 0, WIDTH, HEIGHT);
+        let buffer = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+
+        snap(
+            "the_screen_with_the_demo",
+            &format!(
+                "the screen with the demonstration, {WIDTH}x{HEIGHT}\n{}",
+                described(&buffer, regions(area))
+            ),
+        );
+    }
+
+    #[test]
     fn the_bars_row_is_drawn_on_every_frame() {
         let mut state = a_state();
         let global = a_global();
@@ -348,7 +660,7 @@ mod tests {
 
     #[test]
     fn a_drop_down_leaves_the_region_byte_identical_when_it_closes() {
-        let mut state = a_state();
+        let mut state = a_state_over(A_BOX);
         let global = a_global();
 
         let before = paint(&mut state, &global, WIDTH, HEIGHT);
