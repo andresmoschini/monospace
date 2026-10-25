@@ -81,12 +81,17 @@ no path from an event to the session that does not go through an action, which i
 diagram something a reader can follow: an event arrives, it becomes an action, the action changes
 the session or does not.
 
+**A handler answers with an action, or with nothing, and the first answer ends the asking.** A
+handler that took no interest says so by answering nothing, so the event goes on to the next one,
+and **nothing is not an action that does nothing**: it is the handler saying the event was not its.
+
 **The chrome's own is the other half of §3, and it is not this rule's.** The widget that owns a part
 of it changes that part when the event reaches it — the bar opens its drop-down and moves its
-selection, the status line takes a value — and no action is minted for it. An action is what a
-person means to do to the diagram, and it is what undo will hold; a selection and an open drop-down
-are neither, and putting them in the same list would stop the list from saying what a person can
-take back.
+selection, the status line takes a value — and nothing it changes reaches the session. What it mints
+is `Action::ScreenChanged`, the frame being owed again: **a change of the screen is the one action
+about the screen rather than about what a person means to do**, and undo never holds one. A
+selection and an open drop-down are still not meanings of a person's, so no list of what a person
+can take back will ever hold one.
 
 **The way out is one action.** It is reached by the shortcut the menu shows and by the menu's own
 entry, and both apply that same action rather than a code path each: the entry and the key become
@@ -126,9 +131,9 @@ of ours in that promise, and so there is nothing of ours to test: the repository
 claiming a test it does not have.
 
 **The loop is the framework's.** It reads the terminal, hands the application an event, asks what to
-do about it, and paints a frame when the answer says the screen has changed. The application answers
-four questions — what to do at the start, what to paint, what to do about an event, and what to do
-about a failure — and the loop owns everything else about when they are asked.
+do about it, and paints a frame when the action says the screen is owed again. The application
+answers four questions — what to do at the start, what to paint, what to do about an event, and what
+to do about a failure — and the loop owns everything else about when they are asked.
 
 **The widgets are the framework's.** The menu bar, the drop-down it opens and the status line are
 widgets, and what they look like, how they are drawn and which keys they answer to are theirs. So is
@@ -164,6 +169,8 @@ draws with, and the application names them rather than writing them.
 - `Ctrl+C` ends the application whatever the state is, and every shortcut of that reach answers with
   the drop-down open: the promise belongs to the reach, not to the key that happens to hold it.
 - A key reaches the session only as an action.
+- A handler that took no interest leaves the event to the next one, and the first answer ends the
+  asking.
 - The error handler does not answer with the error again.
 
 ## 8. Open questions
