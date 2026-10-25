@@ -98,6 +98,15 @@ that follows a deletion inverts nothing because nothing is selected rather than 
 and the selection disagree. Naming the selected shape in words is not this document's: the status
 bar is §8's, and [#226](https://github.com/andresmoschini/monospace/issues/226) answers it.
 
+**The application keeps no history of its own, and the walk is the session's.** The steps behind and
+ahead are the session's, and the state holds no position and no copy of a step: `Session::undo` and
+`Session::redo` are one call each, and the next frame is drawn from what the session holds then.
+**Nothing on the screen is drawn from where the walk stands** — every entry is offered all the time
+— so there is nothing for the application to remember. **A walk does not restore the selection**: a
+step carries the drawing and nothing else, and the drawing that comes back arrives with nothing
+selected; a person who wants the figure selected clicks it again. A selection the restored drawing
+does not record is kept and inverts nothing, as it is for any other drawing.
+
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
 own, so what turns one into the other is the rectangle the interior covered on the screen. It is
@@ -155,13 +164,29 @@ where the action is carried out, so the key lives in the one table every shortcu
 than beside the click that minted a selection. The session performs one `Command::Remove` and
 records one step, which is what #181 gives back; the state drops the selection in the same action,
 so the next frame inverts nothing. **The removal is not confirmed**: the dialog that asks is #189's,
-and until it arrives an accidental `Delete` loses a figure with nothing to give it back. `Delete` is
+and until it arrives an accidental `Delete` is given back by `Undo` and by nothing else. `Delete` is
 a shortcut nobody has claimed, so an open drop-down does not keep it: the key removes the figure
 behind the menu and the menu stays open, which is what costs this slice the feedback of a deletion a
 person cannot see until the menu closes. **The entry is always offered**, with nothing selected as
 well as with a figure: the bar holds no selection to condition it on, and taking it with nothing
 selected performs no command while the frame is still owed, because carrying the action out paints
 the frame that closes the menu.
+
+**Undo and Redo are the actions that give a step back.** Each is reached by a key and by the Edit
+menu's entry, and both apply that same action rather than a code path each: `Ctrl+Z` and **Undo**,
+`Ctrl+Shift+Z` and **Redo**. **The application keeps no position**, so each action asks the session
+to walk one step rather than naming where to go; at either end the session answers with itself, and
+a press there changes nothing and still owes the frame, because the action was carried out. **The
+entries are offered all the time**, as **Delete** is: the list never changes, no entry carries a
+flag, and nothing on the screen says the walk has reached an end. Drawing one disabled needs the
+three states of a control, which §6 leaves to #189, and greying the two here is
+[#231](https://github.com/andresmoschini/monospace/issues/231)'s.
+
+**The two walks are shortcuts nobody has claimed**, as `Delete` is, so an open drop-down does not
+keep them: the history walks behind the menu and the menu stays open. Nothing in the bar's own
+vocabulary is `Ctrl+Z` or `Ctrl+Shift+Z` either, so there is no conflict for the chrome to settle
+today. **A terminal that reports `Ctrl+Shift+Z` as `Ctrl+Z` reports the undo**, and no event tells
+the two apart, so the Edit menu's entry is the way to redo there.
 
 **The way out is one action.** It is reached by the shortcut the menu shows and by the menu's own
 entry, and both apply that same action rather than a code path each: the entry and the key become
@@ -184,11 +209,11 @@ answering to it.
 
 **The table of shortcuts and the menu are two places that can disagree.** The menu shows the
 shortcut of each entry on the right of it, and the application answers to the shortcut with a table
-of its own. **The Edit menu's entry is the first written in both** — the menu draws `Del` and the
-table answers `Delete` — so the two places can disagree about one meaning, and nothing checks that
-they do not. Joining them is not this document's problem and not this slice's: #180 is the first
-slice whose menu carries more than one entry, and it is where reading one from the other is worth
-doing.
+of its own. **Three meanings are written in both** — the menu draws `Ctrl+Z`, `Ctrl+Shift+Z` and
+`Del`, and the table answers `Undo`, `Redo` and `Delete` — so the two places can disagree about
+three, and nothing checks that they do not. Joining them is not this document's problem and not this
+slice's: #180 is where reading one from the other is worth doing, and the two entries this slice
+adds did not force the join.
 
 **An error is reported once, and the loop does not spin on it.** The framework hands a failure to
 the application's handler and takes back a control; answering with the failure again is the
@@ -265,16 +290,29 @@ framework's buffer one at a time.
   and the selected shape is read from the state.
 - An open drop-down does not keep the `Delete` key.
 - A frame after a removal draws what hung from the removed figure where it stood.
+- `Ctrl+Z` gives the step behind back and `Ctrl+Shift+Z` the step ahead, each with no other
+  modifier, and both stop at the ends of the history.
+- The Edit menu's Undo and Redo entries carry the same actions as the keys, and they are offered at
+  every position of the history: no entry is drawn differently when there is nothing to give back.
+- Taking an entry with nothing to give back changes nothing and still paints.
+- Undo and redo leave the selection alone: an undo does not restore it and a redo does not drop it.
+- An open drop-down does not keep either key.
+- A frame after an undo draws the restored diagram.
+- The application keeps no history and reads no position: its whole use of the steps is the two
+  walks.
 - The error handler does not answer with the error again.
 
 ## 8. Open questions
 
 - **The shortcut table and the menu.** Two places that can disagree, and the question is where they
   are joined: a table of shortcuts that the menu reads would be one place, and a menu that reads a
-  table of actions would be another. What would settle it: the first command that needs a name.
+  table of actions would be another. What would settle it: the first command that needs a name. Undo
+  did not force it — the two entries are written in both places as `Delete` is, and nothing reads
+  one from the other yet.
 - **What the status bar says.** It names the application and its version, because that is what a
   person looking at the terminal can be told at once. The state of the session — what has been
-  changed and what can be undone — is the editing surface's, and it is what the row is for.
+  changed and what can be undone — is the editing surface's, and it is what the row is for;
+  [#226](https://github.com/andresmoschini/monospace/issues/226) owns it.
 - **The light terminal.** The framework has light palettes and a light theme, and the light theme is
   the dark one over a light palette, so "looks right on a light terminal" is a palette to choose
   rather than a style set that exists.
