@@ -4,7 +4,7 @@ description: "A picture of the screen, as the frame paints it. The three regions
 expression: body
 ---
 the status bar below the region, 40x10
-File
+File Edit
 ┌──────────────────────────────────────┐
 │                                      │
 │                                      │
@@ -15,4 +15,4 @@ File
 └──────────────────────────────────────┘
 monospace                          0.1.0
 the bar is 1 row, the region is 8 rows and the status is 1 row
-110 of 400 cells are not blank
+114 of 400 cells are not blank

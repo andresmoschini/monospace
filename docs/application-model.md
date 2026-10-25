@@ -32,7 +32,7 @@ they are decided rather than repeating them.
 | `Action`        | What the application does about an event                                            |
 | `Frame`         | One picture of the whole screen                                                     |
 | `Region`        | One of the three parts of the screen                                                |
-| `Bar`           | The region across the top, which holds the menu                                     |
+| `Bar`           | The region across the top, which holds the menus                                    |
 | `Status bar`    | The region along the bottom, which says what the application is                     |
 | `Chrome`        | Everything on the screen that is not the diagram                                    |
 | `Shortcut`      | A key the application answers to, and how far it reaches before the chrome is asked |
@@ -133,6 +133,13 @@ about the screen rather than about what a person means to do**, and undo never h
 selection and an open drop-down are still not meanings of a person's, so no list of what a person
 can take back will ever hold one.
 
+**A handler changes the screen and answers an action, and the two are separate facts.** An entry
+taken closes the drop-down and carries the meaning of the entry, so a handler can owe a frame on its
+own beside the action it answers with: taking **Edit ▸ Delete** with nothing selected names no
+command, changes no diagram, and the screen is still owed, because the menu the person saw was
+closed. The routing layer keeps the two apart — what the event means and whether a handler already
+changed the screen — and the action is carried out once, from the first answer.
+
 **A click on the diagram selects, and selecting is the same kind of change.** A left press inside
 the region's interior selects the shape the drawing records under it, or drops the selection where
 nobody owns the cell; what it mints is `ScreenChanged`, and only when the selection moved. **It is
@@ -142,16 +149,19 @@ but the left — is nobody's and the event goes on to the next handler. The drop
 the region, so a click it answers never reaches the diagram.
 
 **`Delete` is the first action that changes the session, and it carries a meaning rather than a
-shape.** A press of `Delete` with no modifiers removes the selected figure: the action is one row of
-the shortcut table, and it names no identity — the identity is read from the state where the action
-is carried out, so the key lives in the one table every shortcut is a row of rather than beside the
-click that minted a selection. The session performs one `Command::Remove` and records one step,
-which is what #181 gives back; the state drops the selection in the same action, so the next frame
-inverts nothing. **The removal is not confirmed**: the dialog that asks is #189's, and until it
-arrives an accidental `Delete` loses a figure with nothing to give it back. `Delete` is a shortcut
-nobody has claimed, so an open drop-down does not keep it: the key removes the figure behind the
-menu and the menu stays open, which is what costs this slice the feedback of a deletion a person
-cannot see until the menu closes.
+shape.** It is reached by the key and by the Edit menu's entry, and both apply that same action
+rather than a code path each. The action names no identity — the identity is read from the state
+where the action is carried out, so the key lives in the one table every shortcut is a row of rather
+than beside the click that minted a selection. The session performs one `Command::Remove` and
+records one step, which is what #181 gives back; the state drops the selection in the same action,
+so the next frame inverts nothing. **The removal is not confirmed**: the dialog that asks is #189's,
+and until it arrives an accidental `Delete` loses a figure with nothing to give it back. `Delete` is
+a shortcut nobody has claimed, so an open drop-down does not keep it: the key removes the figure
+behind the menu and the menu stays open, which is what costs this slice the feedback of a deletion a
+person cannot see until the menu closes. **The entry, unlike the key, is always offered**, with
+nothing selected as well as with a figure: the bar holds no selection to condition it on, and taking
+it with nothing selected performs no command while the frame is still owed, because the menu the
+person saw was closed by the entry.
 
 **The way out is one action.** It is reached by the shortcut the menu shows and by the menu's own
 entry, and both apply that same action rather than a code path each: the entry and the key become
@@ -174,8 +184,11 @@ answering to it.
 
 **The table of shortcuts and the menu are two places that can disagree.** The menu shows the
 shortcut of each entry on the right of it, and the application answers to the shortcut with a table
-of its own. Joining them is not this document's problem and not this slice's: the first command that
-needs a name is where it is worth doing.
+of its own. **The Edit menu's entry is the first written in both** — the menu draws `Del` and the
+table answers `Delete` — so the two places can disagree about one meaning, and nothing checks that
+they do not. Joining them is not this document's problem and not this slice's: #180 is the first
+slice whose menu carries more than one entry, and it is where reading one from the other is worth
+doing.
 
 **An error is reported once, and the loop does not spin on it.** The framework hands a failure to
 the application's handler and takes back a control; answering with the failure again is the
@@ -243,6 +256,9 @@ framework's buffer one at a time.
 - The selection survives a resize, because it is an identity rather than the cells it covered.
 - A click changes no diagram: it is not a command and it records no step.
 - `Delete` removes the selected figure, records one step, and leaves the state holding no selection.
+- The Edit menu's entry carries the same action as the key, and it is offered with nothing selected.
+- Taking the Edit menu's entry owes a frame even when it removes nothing, because it closes the
+  menu.
 - `Delete` with nothing selected changes nothing and owes no frame.
 - The delete shortcut carries the meaning and not an identity: the table answers `Action::Delete`,
   and the selected shape is read from the state.
