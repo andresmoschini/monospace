@@ -55,10 +55,12 @@ struct Shortcut {
 
 /// The shortcuts the application answers to.
 ///
-/// **Two rows that differ in one column, and that column is the whole of the precedence.** The
-/// forced exit is answered before anything, and the way out after everything: the two are the
-/// same mechanism with a different scope, rather than one a row and the other an `if`.
-const SHORTCUTS: [Shortcut; 2] = [
+/// **Three rows that differ in one column, and that column is the whole of the precedence.** The
+/// forced exit is answered before anything, and the way out and the deletion after everything: the
+/// three are the same mechanism with a different scope, rather than two a row and one an `if`. The
+/// deletion is `Unclaimed` because it is not the chrome's to swallow: which keys the chrome keeps is
+/// the focus rule #189 owns, and `Delete` is not one of the bar's own (D3).
+const SHORTCUTS: [Shortcut; 3] = [
     Shortcut {
         key: KeyCode::Char('c'),
         modifiers: KeyModifiers::CONTROL,
@@ -69,6 +71,12 @@ const SHORTCUTS: [Shortcut; 2] = [
         key: KeyCode::Char('q'),
         modifiers: KeyModifiers::CONTROL,
         action: Action::Quit,
+        reach: Reach::Unclaimed,
+    },
+    Shortcut {
+        key: KeyCode::Delete,
+        modifiers: KeyModifiers::NONE,
+        action: Action::Delete,
         reach: Reach::Unclaimed,
     },
 ];
@@ -154,7 +162,7 @@ mod tests {
         assert_eq!(handle_unclaimed(&event), Some(Action::Quit));
     }
 
-    /// **The two rows differ in their reach, and that is the decision.** The forced exit is
+    /// **The two exits differ in their reach, and that is the decision.** The forced exit is
     /// answered before anything and the way out after everything, so neither answers at the other
     /// one's reach.
     #[test]
@@ -196,20 +204,30 @@ mod tests {
         }
     }
 
+    /// **A shortcut is the combination it shows and not another one.** Every combination a terminal
+    /// can report other than the row's own is handed to its reach, and none of them answers.
+    ///
+    /// **The alternatives are counted rather than assumed to be `Shift`**: `Delete` is the first row
+    /// whose own combination is no modifier at all, so a test that only added `Shift` would hand the
+    /// row's own key to the table and call it another one.
     #[test]
     fn a_shortcut_is_the_combination_it_shows_and_not_another_one() {
         for shortcut in SHORTCUTS {
-            let mut with_shift = shortcut.modifiers;
-            with_shift.insert(KeyModifiers::SHIFT);
-
-            for event in [
-                key(shortcut.key, KeyModifiers::NONE),
-                key(shortcut.key, with_shift),
+            for modifiers in [
+                KeyModifiers::NONE,
+                KeyModifiers::SHIFT,
+                KeyModifiers::CONTROL,
+                KeyModifiers::ALT,
             ] {
+                if modifiers == shortcut.modifiers {
+                    continue;
+                }
+
                 assert_eq!(
-                    handle_at(&event, shortcut.reach),
+                    handle_at(&key(shortcut.key, modifiers), shortcut.reach),
                     None,
-                    "{event:?} answered"
+                    "{:?} with {modifiers:?} answered",
+                    shortcut.action
                 );
             }
         }

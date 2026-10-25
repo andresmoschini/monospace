@@ -92,10 +92,11 @@ about what a person can undo.
 drawing records beside the cell under it, and what the frame inverts is recomputed from the drawing
 of each frame: a resize gives the window another size, a scroll moves the origin, and a command may
 move the shape, so a rectangle would mark cells the shape no longer holds while missing the ones it
-gained. A selection no cell of a later drawing records inverts nothing, which is what makes a
-command that removes the shape need no code here. Naming the selected shape in words is not this
-document's: the status bar is §8's, and
-[#226](https://github.com/andresmoschini/monospace/issues/226) answers it.
+gained. A selection no cell of a later drawing records inverts nothing; **the removal of the
+selected figure also drops the identity**, as part of carrying the action out (see §4), so the frame
+that follows a deletion inverts nothing because nothing is selected rather than because the record
+and the selection disagree. Naming the selected shape in words is not this document's: the status
+bar is §8's, and [#226](https://github.com/andresmoschini/monospace/issues/226) answers it.
 
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
@@ -139,6 +140,18 @@ not a command**: the session is read and never changed, no step is recorded, and
 is not reached. A press anywhere else — the bar, the region's border, the status bar, or any button
 but the left — is nobody's and the event goes on to the next handler. The drop-down is asked before
 the region, so a click it answers never reaches the diagram.
+
+**`Delete` is the first action that changes the session, and it carries a meaning rather than a
+shape.** A press of `Delete` with no modifiers removes the selected figure: the action is one row of
+the shortcut table, and it names no identity — the identity is read from the state where the action
+is carried out, so the key lives in the one table every shortcut is a row of rather than beside the
+click that minted a selection. The session performs one `Command::Remove` and records one step,
+which is what #181 gives back; the state drops the selection in the same action, so the next frame
+inverts nothing. **The removal is not confirmed**: the dialog that asks is #189's, and until it
+arrives an accidental `Delete` loses a figure with nothing to give it back. `Delete` is a shortcut
+nobody has claimed, so an open drop-down does not keep it: the key removes the figure behind the
+menu and the menu stays open, which is what costs this slice the feedback of a deletion a person
+cannot see until the menu closes.
 
 **The way out is one action.** It is reached by the shortcut the menu shows and by the menu's own
 entry, and both apply that same action rather than a code path each: the entry and the key become
@@ -229,6 +242,12 @@ framework's buffer one at a time.
   inverts nothing.
 - The selection survives a resize, because it is an identity rather than the cells it covered.
 - A click changes no diagram: it is not a command and it records no step.
+- `Delete` removes the selected figure, records one step, and leaves the state holding no selection.
+- `Delete` with nothing selected changes nothing and owes no frame.
+- The delete shortcut carries the meaning and not an identity: the table answers `Action::Delete`,
+  and the selected shape is read from the state.
+- An open drop-down does not keep the `Delete` key.
+- A frame after a removal draws what hung from the removed figure where it stood.
 - The error handler does not answer with the error again.
 
 ## 8. Open questions

@@ -1,5 +1,6 @@
 ---
-status: draft
+status: agreed
+decided: "#228"
 date: 2026-10-25
 ---
 
@@ -268,23 +269,24 @@ drop-down open over all of it (D3) covers the region without changing what the d
 
 ## What proves it
 
-None of these tests exists yet; the deciding stage adds no code. The names are what the building
-stage is held to, and the four marked _already_ pass today and are not rewritten.
+None of these tests existed when the decision was taken; the names are what the building stage was
+held to. The key, the action, the empty selection and the frame after a removal are in `callbacks`,
+and the step and the dropped identity are in `state`.
 
-| Rule | Test                                                                                              |
-| ---- | ------------------------------------------------------------------------------------------------- |
-| 1    | `the_delete_key_removes_the_selected_shape`                                                       |
-| 1, 7 | `a_removal_leaves_the_session_one_step_further_on`                                                |
-| 2    | `the_delete_key_drops_the_selection`                                                              |
-| 3    | `the_delete_key_with_nothing_selected_changes_nothing`                                            |
-| 4    | `a_shortcut_answers_to_nothing_but_a_press` — already                                             |
-| 4    | `a_shortcut_is_the_combination_it_shows_and_not_another_one` — already                            |
-| 5    | `the_delete_key_is_answered_with_the_drop_down_open`                                              |
-| 6    | `the_delete_shortcut_says_only_that_it_deletes`                                                   |
-| 8    | `a_removal_freezes_what_hung_from_the_removed_shape` — already                                    |
-| 8    | `a_removal_touches_nothing_else` — already                                                        |
-| 8    | `a_frame_after_a_removal_draws_the_connector_where_it_stood`                                      |
-| 9    | _nothing holds this: a reviewer reads the imports, and the manifest names no `monospace-diagram`_ |
+| Rule | Test                                                                                                                                                                                       |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | `the_delete_key_removes_the_selected_shape`                                                                                                                                                |
+| 1, 7 | `a_removal_leaves_the_session_one_step_further_on`                                                                                                                                         |
+| 2    | `the_delete_key_drops_the_selection`                                                                                                                                                       |
+| 3    | `the_delete_key_with_nothing_selected_changes_nothing`                                                                                                                                     |
+| 4    | `a_shortcut_answers_to_nothing_but_a_press` — already                                                                                                                                      |
+| 4    | `a_shortcut_is_the_combination_it_shows_and_not_another_one` — already, and adapted to a row whose own combination is no modifier: it counts the alternatives rather than assuming `Shift` |
+| 5    | `the_delete_key_is_answered_with_the_drop_down_open`                                                                                                                                       |
+| 6    | `the_delete_shortcut_says_only_that_it_deletes`                                                                                                                                            |
+| 8    | `a_removal_freezes_what_hung_from_the_removed_shape` — already                                                                                                                             |
+| 8    | `a_removal_touches_nothing_else` — already                                                                                                                                                 |
+| 8    | `a_frame_after_a_removal_draws_the_connector_where_it_stood`                                                                                                                               |
+| 9    | _nothing holds this: a reviewer reads the imports, and the manifest names no `monospace-diagram`_                                                                                          |
 
 The three pictures in `## Examples` are held by their render markers: `cargo xtask render` rewrites
 them, and the gate fails if one is not what its description draws.
