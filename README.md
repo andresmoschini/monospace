@@ -91,7 +91,7 @@ it, so the same box draws in ASCII, Double, Heavy and their combinations without
 
 Behind that, and all of it enforced rather than merely intended:
 
-- **126** tests in `monospace-core`, **469** across the workspace.
+- **126** tests in `monospace-core`, **485** across the workspace.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
@@ -100,8 +100,8 @@ Behind that, and all of it enforced rather than merely intended:
   becoming a rewrite.
 
 Still missing, and named here rather than implied: the editing **surface** — the interactive
-application's frame, its menu and its way out are here, and the diagram it holds is not — and
-persistence.
+application's frame, its menu, its way out and the diagram it was given are here, and moving that
+diagram, selecting a shape and editing one are not — and persistence.
 
 ## Getting started
 
@@ -111,7 +111,8 @@ cargo xtask setup          # installs the Node tooling the gate needs
 
 cargo run -p monospace-cli                      # a demonstration: eight pictures, then the walk back
 cargo run -p monospace-cli -- path/to.json      # one picture, for the description you give it
-cargo run -p monospace                          # the interactive application: the frame, the menu, the way out
+cargo run -p monospace                          # the interactive application: the frame, the menu, the diagram and the way out
+cargo run -p monospace -- path/to.json          # the same screen, drawing the description you give it
 cargo xtask check                               # the whole quality gate
 ```
 
@@ -126,25 +127,25 @@ rule any file depends on.
 
 ### Layout
 
-| Path                           | What it is                                                     |
-| ------------------------------ | -------------------------------------------------------------- |
-| `crates/monospace-core`        | The library. All domain logic lives here, and nothing else.    |
-| `crates/monospace-diagram`     | The model: a diagram as an ordered set of shapes, drawable.    |
-| `crates/monospace-editing`     | A diagram being edited, and the steps behind and ahead of it.  |
-| `crates/monospace-glyph-sets`  | The glyph tables the core does not ship as built-in data.      |
-| `crates/monospace-description` | The JSON file format, read into a `Diagram`.                   |
-| `crates/monospace-cli`         | The command-line application. Holds no logic of its own.       |
-| `crates/monospace`             | The interactive application: the frame, the menu, the way out. |
-| `xtask/`                       | Repository automation. `cargo xtask check` is the gate.        |
-| `docs/model.md`                | The domain's design, its provenance, and its open questions.   |
-| `docs/diagram-model.md`        | The diagram model's rules: shapes, order, positions.           |
-| `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.      |
-| `docs/application-model.md`    | The layer above that one: the frame, the state, the actions.   |
-| `docs/glyph-sets.md`           | The glyph tables and how they degrade.                         |
-| `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.   |
-| `docs/memory-cost.md`          | What a diagram and a session cost, measured. Decides nothing.  |
-| `docs/workflow.md`             | Why the process works the way it does, written at length.      |
-| `specs/`                       | One spec per change that had a decision to agree first.        |
+| Path                           | What it is                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| `crates/monospace-core`        | The library. All domain logic lives here, and nothing else.                    |
+| `crates/monospace-diagram`     | The model: a diagram as an ordered set of shapes, drawable.                    |
+| `crates/monospace-editing`     | A diagram being edited, and the steps behind and ahead of it.                  |
+| `crates/monospace-glyph-sets`  | The glyph tables the core does not ship as built-in data.                      |
+| `crates/monospace-description` | The JSON file format, read into a `Diagram`.                                   |
+| `crates/monospace-cli`         | The command-line application. Holds no logic of its own.                       |
+| `crates/monospace`             | The interactive application: the frame, the menu, the diagram and the way out. |
+| `xtask/`                       | Repository automation. `cargo xtask check` is the gate.                        |
+| `docs/model.md`                | The domain's design, its provenance, and its open questions.                   |
+| `docs/diagram-model.md`        | The diagram model's rules: shapes, order, positions.                           |
+| `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.                      |
+| `docs/application-model.md`    | The layer above that one: the frame, the state, the actions.                   |
+| `docs/glyph-sets.md`           | The glyph tables and how they degrade.                                         |
+| `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.                   |
+| `docs/memory-cost.md`          | What a diagram and a session cost, measured. Decides nothing.                  |
+| `docs/workflow.md`             | Why the process works the way it does, written at length.                      |
+| `specs/`                       | One spec per change that had a decision to agree first.                        |
 
 ## Guiding principles
 
