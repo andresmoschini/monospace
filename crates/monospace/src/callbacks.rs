@@ -333,7 +333,7 @@ mod tests {
     #[test]
     fn a_left_click_selects_the_shape_that_owns_the_cell() {
         let mut state = a_drawn_state_over(A_BOX);
-        let owner = state.diagram.drawing().owner(Offset { x: 2, y: 1 });
+        let owner = state.diagram.owner(Offset { x: 2, y: 1 });
         assert!(owner.is_some(), "the box is not in the drawing");
 
         // The screen's `(3, 3)` is the window's `(2, 1)`: the region's interior starts one row

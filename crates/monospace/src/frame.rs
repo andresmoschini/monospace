@@ -414,11 +414,7 @@ mod tests {
 
         // The record counts the offset from the same corner the drawing does.
         assert!(
-            state
-                .diagram
-                .drawing()
-                .owner(Offset { x: 2, y: 1 })
-                .is_some(),
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
             "the box does not own the cell it drew"
         );
     }
@@ -430,11 +426,7 @@ mod tests {
 
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
         assert!(
-            state
-                .diagram
-                .drawing()
-                .owner(Offset { x: 2, y: 2 })
-                .is_some(),
+            state.diagram.owner(Offset { x: 2, y: 2 }).is_some(),
             "the first frame did not draw the box"
         );
 
@@ -442,11 +434,7 @@ mod tests {
         // is outside it. The drawing of the frame that follows is what answers.
         let _ = paint(&mut state, &global, WIDTH, 6);
         assert!(
-            state
-                .diagram
-                .drawing()
-                .owner(Offset { x: 2, y: 2 })
-                .is_none(),
+            state.diagram.owner(Offset { x: 2, y: 2 }).is_none(),
             "the drawing of the first frame survived the second"
         );
     }
@@ -488,18 +476,18 @@ mod tests {
     fn the_owner_survives_the_copy() {
         let mut state = a_state_over(A_BOX);
         let buffer = paint(&mut state, &a_global(), WIDTH, HEIGHT);
-        let drawing = state.diagram.drawing();
+        let diagram = &state.diagram;
 
         let top_left = Offset { x: 2, y: 1 };
         let top_right = Offset { x: 5, y: 1 };
 
         assert!(
-            drawing.owner(top_left).is_some(),
+            diagram.owner(top_left).is_some(),
             "the copy took the record with it"
         );
         assert_eq!(
-            drawing.owner(top_left),
-            drawing.owner(top_right),
+            diagram.owner(top_left),
+            diagram.owner(top_right),
             "two cells of the same box name two different shapes"
         );
 
@@ -512,16 +500,16 @@ mod tests {
     fn the_owner_is_asked_with_the_click_offset_and_nothing_added() {
         let mut state = a_state_over(A_NARROW_BOX);
         let _ = paint(&mut state, &a_global(), WIDTH, HEIGHT);
-        let drawing = state.diagram.drawing();
+        let diagram = &state.diagram;
 
         // The box is at `(2, 1)` of the window and covers two rows: `(3, 3)` is the click with
         // the interior's corner `(1, 2)` added to it, and it names a cell nobody wrote.
         assert!(
-            drawing.owner(Offset { x: 2, y: 1 }).is_some(),
+            diagram.owner(Offset { x: 2, y: 1 }).is_some(),
             "the click's own offset is not the one asked"
         );
         assert!(
-            drawing.owner(Offset { x: 3, y: 3 }).is_none(),
+            diagram.owner(Offset { x: 3, y: 3 }).is_none(),
             "the interior's corner was added to the click"
         );
     }
@@ -532,21 +520,17 @@ mod tests {
         let global = a_global();
 
         assert!(
-            state
-                .diagram
-                .drawing()
-                .owner(Offset { x: 2, y: 1 })
-                .is_none(),
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
             "the empty drawing answered a click"
         );
 
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
-        let asked = state.diagram.drawing().owner(Offset { x: 2, y: 1 });
+        let asked = state.diagram.owner(Offset { x: 2, y: 1 });
         assert!(asked.is_some(), "the frame's drawing does not answer");
 
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
         assert_eq!(
-            state.diagram.drawing().owner(Offset { x: 2, y: 1 }),
+            state.diagram.owner(Offset { x: 2, y: 1 }),
             asked,
             "the second frame's drawing does not answer the same click"
         );
@@ -561,7 +545,7 @@ mod tests {
         let global = a_global();
 
         let before = paint(&mut state, &global, WIDTH, HEIGHT);
-        let asked = state.diagram.drawing().owner(Offset { x: 2, y: 1 });
+        let asked = state.diagram.owner(Offset { x: 2, y: 1 });
         assert!(asked.is_some(), "the box is not in the drawing");
 
         // The box's top-left is the screen's `(3, 3)`.
@@ -570,7 +554,7 @@ mod tests {
         let after = paint(&mut state, &global, WIDTH, HEIGHT);
 
         assert_eq!(
-            state.diagram.drawing().owner(Offset { x: 2, y: 1 }),
+            state.diagram.owner(Offset { x: 2, y: 1 }),
             asked,
             "the click changed which shape the drawing records"
         );
@@ -748,11 +732,7 @@ mod tests {
             "a region with no interior drew something"
         );
         assert!(
-            state
-                .diagram
-                .drawing()
-                .owner(Offset { x: 0, y: 0 })
-                .is_none(),
+            state.diagram.owner(Offset { x: 0, y: 0 }).is_none(),
             "a window with no cells owns one"
         );
     }

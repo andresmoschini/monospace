@@ -69,7 +69,7 @@ impl DiagramState {
     /// window, a cell no shape wrote, or a cell this catalog does not answer.
     pub(crate) fn glyph<'a>(&'a self, at: Offset, catalog: &'a GlyphCatalog) -> Option<&'a str> {
         self.position(at)
-            .and_then(|position| self.drawing().cell(position))
+            .and_then(|position| self.buffer.cell(position))
             .and_then(|cell| cell.glyph_str(catalog))
     }
 
@@ -95,25 +95,29 @@ impl DiagramState {
         true
     }
 
-    /// Whether `owner` — the drawing's answer for a cell, or nobody — is the selected shape.
+    /// The shape the drawing of the last frame records at `at`, or `None` where nobody holds the
+    /// cell.
     ///
-    /// **This is where the inversion is decided, and it is decided from the record** (D1): a
-    /// position nobody owns is never the selection, and an identity no cell records inverts
-    /// nothing because no cell asks about it (rule 7).
-    pub(crate) fn is_selected(&self, owner: Option<ShapeId>) -> bool {
-        matches!(
-            (self.selected(), owner),
-            (Some(selected), Some(owner)) if selected == owner
-        )
-    }
-
-    /// The drawing of the last frame, which answers a click; empty before the first one.
+    /// **The answer is `Buffer::owner`'s and its `None` is passed on whole**: the window may not
+    /// hold the offset, no shape may have written the cell, or no shape may have decided it.
     ///
     /// **`Buffer::owner` is asked with the click's own offset**, counted from the interior's
     /// corner: the window's origin is the scroll origin, so nothing is added to the column and the
     /// row the terminal reports.
-    pub(crate) fn drawing(&self) -> &Buffer {
-        &self.buffer
+    pub(crate) fn owner(&self, at: Offset) -> Option<ShapeId> {
+        self.buffer.owner(at)
+    }
+
+    /// Whether the shape that owns `at` of the last frame's drawing is the selected shape.
+    ///
+    /// **This is where the inversion is decided, and it is decided from the record** (D1): a
+    /// position nobody owns is never the selection, and an identity no cell records inverts
+    /// nothing because no cell asks about it (rule 7).
+    pub(crate) fn is_cell_selected(&self, at: Offset) -> bool {
+        matches!(
+            (self.selected(), self.owner(at)),
+            (Some(selected), Some(owner)) if selected == owner
+        )
     }
 
     /// The offset into the last frame's drawing that the screen position `at` reaches, or `None`

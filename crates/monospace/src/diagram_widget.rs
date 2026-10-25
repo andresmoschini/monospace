@@ -70,7 +70,7 @@ pub(crate) fn handle(raw: &Event, state: &mut DiagramState) -> Option<Action> {
         x: mouse.column,
         y: mouse.row,
     };
-    let owner = state.drawing().owner(state.offset_of(at)?);
+    let owner = state.owner(state.offset_of(at)?);
 
     state.select(owner).then_some(Action::ScreenChanged)
 }
@@ -107,7 +107,7 @@ fn draw_diagram(area: Rect, buf: &mut Buffer, state: &DiagramState, catalog: &Gl
             let cell = &mut buf[(area.x + x, area.y + y)];
             cell.set_symbol(glyph);
 
-            if state.is_selected(state.drawing().owner(at)) {
+            if state.is_cell_selected(at) {
                 cell.set_style(Style::new().reversed());
             }
         }
