@@ -46,7 +46,8 @@ this slice decide whether an entry may be drawn disabled, which is D2's no.
   figure selected clicks it again.
 - **What the status bar says about the history.** #226 owns the row.
 - **An entry greyed when it cannot act.** Issue 231 asks for it once #189 has settled the three
-  states of a control; until then both entries are drawn as **Delete** is.
+  states of a control: Undo and Redo at the ends of the history, and **Delete** with nothing
+  selected. Until then every entry is drawn alike.
 - **Joining the shortcut an entry draws to the table that answers it.** #180.
 - **A bound on the history.** `docs/editing-model.md` §8 leaves it open.
 - **A confirmation, a dialog, or undo reached from one.** #189.
@@ -78,12 +79,13 @@ changes nothing and paints the frame. **Why not** drawing them disabled from `ca
 `can_redo`: it is the better answer and it is not this slice's. It makes the menu a value built each
 frame rather than one `static`, and it makes an entry the first thing on the screen whose state
 comes from the session; #189 owns the three states of a control and how the drop-down draws them,
-and issue 231 asks for the entry to be greyed once that is settled. **Why not** hiding an entry
-instead: the name of a command would come and go from the one place a command has a name (#191's
-D7), and a drop-down whose entries move under the pointer is worse than one that never moves. **What
-it costs:** nothing on the screen says the history has reached an end; the only signal is a painted
-frame whose drawing does not move. That is the silence **Delete** has when nothing is selected, and
-it is why the entry's state is worth its own issue.
+and issue 231 asks for the entry to be greyed once that is settled — the two here, and **Delete**
+with nothing selected, which #178's D4 left offered. **Why not** hiding an entry instead: the name
+of a command would come and go from the one place a command has a name (#191's D7), and a drop-down
+whose entries move under the pointer is worse than one that never moves. **What it costs:** nothing
+on the screen says the history has reached an end; the only signal is a painted frame whose drawing
+does not move. That is the silence **Delete** has when nothing is selected, and it is why the state
+of all three entries is worth its own issue.
 
 **D3 — do the two keys reach the application before the chrome, or after it?**
 
