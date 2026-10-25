@@ -86,11 +86,12 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
         .or_else(|| shortcuts::handle_unclaimed(event))
 }
 
-/// What an action does: paint the frame again, remove a shape, end the loop, or nothing at all.
+/// What an action does: paint the frame again, change the session, end the loop, or nothing at
+/// all.
 ///
-/// **An action is carried out here, and nowhere else.** The delete key is the first that changes
-/// the session, and it is carried out beside the two that end the loop so that a handler never does
-/// anything but say what the event meant.
+/// **An action is carried out here, and nowhere else.** The delete key performs the one command
+/// this slice issues, and the two walks give a step back; all three are carried out beside the two
+/// that end the loop so that a handler never does anything but say what the event meant.
 ///
 /// **The action carries the meaning and not the identity** (D2): the selected shape is read here,
 /// from the state the click left, rather than minted into the action by the region. A press with
@@ -108,7 +109,20 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
         // The screen changed, and the loop paints the frame it is owed.
         Some(Action::ScreenChanged) => Control::Changed,
 
-        // **The one action that changes the session.** D2: the meaning arrives from the table and
+        // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
+        // of where the walk stands. At either end the session answers with itself, and the frame is
+        // owed all the same, because the action was carried out.
+        Some(Action::Undo) => {
+            state.diagram.undo();
+            Control::Changed
+        }
+
+        Some(Action::Redo) => {
+            state.diagram.redo();
+            Control::Changed
+        }
+
+        // **The one action that performs a command.** D2: the meaning arrives from the table and
         // the identity is asked of the state, so the removal is one place and the key that means it
         // is another. **The frame is owed either way**: an action that was carried out repaints, so
         // taking the Edit menu's entry closes the drop-down on the screen even when there was no
@@ -232,6 +246,16 @@ mod tests {
         })
     }
 
+    /// The event the terminal reports for the pointer moving to `(column, row)`.
+    fn moved(column: u16, row: u16) -> Event {
+        Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Moved,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        })
+    }
+
     /// The state of an application that has been on the screen once.
     ///
     /// **The frame comes first**: the bar knows where its labels are only once it has been
@@ -260,6 +284,23 @@ mod tests {
         Event::Key(KeyEvent::new(code, modifiers))
     }
 
+    /// The event the terminal reports for `Ctrl+Z`.
+    fn undo_key() -> Event {
+        key_with(KeyCode::Char('z'), KeyModifiers::CONTROL)
+    }
+
+    /// The event the terminal reports for `Ctrl+Shift+Z`.
+    ///
+    /// **The shifted character with both modifiers**, which is what a terminal that reports the
+    /// combination at all reports: a terminal that folds the shift into the control character
+    /// reports `undo_key` instead, and D1 of #181 names what that costs.
+    fn redo_key() -> Event {
+        key_with(
+            KeyCode::Char('Z'),
+            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+        )
+    }
+
     /// One row of a frame, as text.
     fn row_of(buffer: &Buffer, line: u16) -> String {
         (buffer.area.left()..buffer.area.right())
@@ -279,6 +320,22 @@ mod tests {
     fn send(raw: &Event, state: &mut AppState) -> Control<AppEvent> {
         event(&AppEvent::Terminal(raw.clone()), state, &mut a_global())
             .expect("the event reached the application")
+    }
+
+    /// Takes the entry of `menu` whose text is `text`, by clicking it on the frame.
+    ///
+    /// **The entry is found by its name**: a menu that gains entries above one moves where it is
+    /// but not what it says, and a test that pressed `Enter` would take whatever happens to be
+    /// first. **The pointer moves onto it before the button goes down**, because the widget
+    /// activates the entry it has selected and a press alone selects nothing.
+    fn take_the_entry(state: &mut AppState, menu: char, text: &str) -> Control<AppEvent> {
+        let _ = send(&key(KeyCode::Char(menu)), state);
+        assert!(state.menu.popup_active(), "the {menu} menu did not open");
+        let buffer = draw(state);
+        let (column, row) = frame::cell_of(&buffer, text);
+        let _ = send(&moved(column, row), state);
+
+        send(&click(column, row), state)
     }
 
     #[test]
@@ -565,11 +622,12 @@ mod tests {
     fn the_edit_menus_delete_entry_removes_the_selected_shape() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let _ = send(&key(KeyCode::Char('e')), &mut state);
-        assert!(state.menu.popup_active(), "the Edit menu did not open");
-        let _ = draw(&mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected"
+        );
 
-        let outcome = send(&key(KeyCode::Enter), &mut state);
+        let outcome = take_the_entry(&mut state, 'e', "Delete");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.menu.popup_active(), "the entry left the menu open");
@@ -592,11 +650,8 @@ mod tests {
     #[test]
     fn the_edit_menus_delete_entry_is_offered_with_nothing_selected() {
         let mut state = a_drawn_state_over(A_BOX);
-        let _ = send(&key(KeyCode::Char('e')), &mut state);
-        assert!(state.menu.popup_active(), "the Edit menu did not open");
-        let _ = draw(&mut state);
 
-        let outcome = send(&key(KeyCode::Enter), &mut state);
+        let outcome = take_the_entry(&mut state, 'e', "Delete");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
@@ -658,6 +713,259 @@ mod tests {
             None,
             "the delete key reaches before the chrome"
         );
+    }
+
+    /// **An entry with nothing to give back changes nothing and paints** (rule 11): the drop-down
+    /// closes, the drawing is the one it already showed, and no step is recorded either way.
+    #[test]
+    fn taking_an_entry_with_nothing_to_give_back_changes_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let before = draw(&mut state);
+
+        let outcome = take_the_entry(&mut state, 'e', "Undo");
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.menu.popup_active(), "the entry left the menu open");
+        assert!(!state.diagram.can_undo(), "the entry recorded a step");
+        assert!(!state.diagram.can_redo(), "the entry left a step ahead");
+
+        let after = draw(&mut state);
+
+        for line in 0..HEIGHT {
+            assert_eq!(
+                row_of(&before, line),
+                row_of(&after, line),
+                "row {line} is not what it was"
+            );
+        }
+
+        let outcome = take_the_entry(&mut state, 'e', "Redo");
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.menu.popup_active(), "the entry left the menu open");
+        assert!(!state.diagram.can_undo(), "the redo entry recorded a step");
+        assert!(
+            !state.diagram.can_redo(),
+            "the redo entry left a step ahead"
+        );
+    }
+
+    /// **`Ctrl+Z` gives the step behind back** (rule 1). The deletion recorded one, and the undo
+    /// takes the drawing to the state the step before it left: the box is back on the frame and
+    /// there is a step ahead.
+    #[test]
+    fn the_undo_key_gives_the_step_back() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        let _ = draw(&mut state);
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            "the box was not removed, so the test proves nothing"
+        );
+
+        let outcome = send(&undo_key(), &mut state);
+        let buffer = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            "the undo did not give the box back"
+        );
+        assert_eq!(
+            buffer[(3, 3)].symbol(),
+            "┌",
+            "the frame after the undo does not draw the box"
+        );
+        assert!(!state.diagram.can_undo(), "the undo left a step behind");
+        assert!(state.diagram.can_redo(), "the undo left nothing to redo");
+    }
+
+    /// **`Ctrl+Shift+Z` gives the step ahead back** (rule 2): the undo left one, and the redo takes
+    /// the drawing to the state the step left.
+    #[test]
+    fn the_redo_key_gives_it_forward_again() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        let _ = send(&undo_key(), &mut state);
+        let _ = draw(&mut state);
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            "the undo did not give the box back, so the test proves nothing"
+        );
+
+        let outcome = send(&redo_key(), &mut state);
+        let buffer = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            "the redo did not take the box out again"
+        );
+        assert_eq!(
+            buffer[(3, 3)].symbol(),
+            " ",
+            "the frame after the redo still draws the box"
+        );
+        assert!(state.diagram.can_undo(), "the redo left nothing to undo");
+        assert!(!state.diagram.can_redo(), "the redo left a step ahead");
+    }
+
+    /// **At the oldest position `Ctrl+Z` walks nothing and paints** (rules 3 and 8): the session is
+    /// unchanged, no step is recorded, and the frame is owed because the action was carried out.
+    #[test]
+    fn the_undo_key_with_nothing_behind_changes_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+
+        let outcome = send(&undo_key(), &mut state);
+        let buffer = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.diagram.can_undo(), "the press recorded a step");
+        assert!(!state.diagram.can_redo(), "the press left a step ahead");
+        assert_eq!(
+            buffer[(3, 3)].symbol(),
+            "┌",
+            "the press changed the drawing"
+        );
+    }
+
+    /// **At the newest position `Ctrl+Shift+Z` walks nothing and paints** (rules 3 and 8).
+    #[test]
+    fn the_redo_key_with_nothing_ahead_changes_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+
+        let outcome = send(&redo_key(), &mut state);
+        let buffer = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.diagram.can_undo(), "the press recorded a step");
+        assert!(!state.diagram.can_redo(), "the press left a step ahead");
+        assert_eq!(
+            buffer[(3, 3)].symbol(),
+            "┌",
+            "the press changed the drawing"
+        );
+    }
+
+    /// **Both keys are `Unclaimed`, so an open drop-down does not keep either** (rule 5): the
+    /// history walks behind the menu and the menu stays open.
+    #[test]
+    fn the_undo_and_redo_keys_are_answered_with_the_drop_down_open() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        let _ = send(&key(KeyCode::Char('f')), &mut state);
+        assert!(state.menu.popup_active(), "the drop-down did not open");
+
+        let outcome = send(&undo_key(), &mut state);
+        let _ = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            "the drop-down kept the undo key from the history"
+        );
+        assert!(state.menu.popup_active(), "the undo closed the drop-down");
+
+        let outcome = send(&redo_key(), &mut state);
+        let _ = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            "the drop-down kept the redo key from the history"
+        );
+        assert!(state.menu.popup_active(), "the redo closed the drop-down");
+    }
+
+    /// **The table answers a meaning and not a count of steps** (rule 6): `Action::Undo` has no
+    /// field, and the session is asked to walk where the action is carried out.
+    #[test]
+    fn the_undo_shortcut_says_only_that_it_undoes() {
+        assert_eq!(
+            shortcuts::handle_unclaimed(&undo_key()),
+            Some(Action::Undo),
+            "the undo key is not a row of the table, or says something else"
+        );
+        assert_eq!(
+            shortcuts::handle_always(&undo_key()),
+            None,
+            "the undo key reaches before the chrome"
+        );
+    }
+
+    /// **The redo key says a meaning too**, and reaches after the chrome as the undo does.
+    #[test]
+    fn the_redo_shortcut_says_only_that_it_redoes() {
+        assert_eq!(
+            shortcuts::handle_unclaimed(&redo_key()),
+            Some(Action::Redo),
+            "the redo key is not a row of the table, or says something else"
+        );
+        assert_eq!(
+            shortcuts::handle_always(&redo_key()),
+            None,
+            "the redo key reaches before the chrome"
+        );
+    }
+
+    /// **A walk does not touch the selection** (rule 7). The box is selected again after the undo,
+    /// the redo takes the drawing out from under it, and the identity survives: no cell of the
+    /// restored drawing records it, so the next frame inverts nothing.
+    #[test]
+    fn the_undo_and_redo_keys_leave_the_selection_alone() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        let _ = send(&undo_key(), &mut state);
+        let _ = draw(&mut state);
+
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the undo restored a selection"
+        );
+
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram.selected();
+        assert!(selected.is_some(), "the box was not selected again");
+
+        let outcome = send(&redo_key(), &mut state);
+        let buffer = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.selected(),
+            selected,
+            "the redo changed the selection"
+        );
+        assert!(
+            !reversed(&buffer, 3, 3),
+            "the frame after the redo inverts a cell"
+        );
+    }
+
+    /// **The next frame draws the restored diagram into the same window** (rule 13): the undo
+    /// changes no region, and every figure is where the step left it.
+    #[test]
+    fn a_frame_after_an_undo_draws_the_restored_diagram() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let before = draw(&mut state);
+
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        let _ = send(&undo_key(), &mut state);
+        let after = draw(&mut state);
+
+        for line in 0..HEIGHT {
+            assert_eq!(
+                row_of(&before, line),
+                row_of(&after, line),
+                "row {line} is not where the step left it"
+            );
+        }
     }
 
     /// **What hung from the removed shape stays drawn where it stood** (rule 8). The diagram model

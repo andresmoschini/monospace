@@ -55,12 +55,17 @@ struct Shortcut {
 
 /// The shortcuts the application answers to.
 ///
-/// **Three rows that differ in one column, and that column is the whole of the precedence.** The
-/// forced exit is answered before anything, and the way out and the deletion after everything: the
-/// three are the same mechanism with a different scope, rather than two a row and one an `if`. The
-/// deletion is `Unclaimed` because it is not the chrome's to swallow: which keys the chrome keeps is
-/// the focus rule #189 owns, and `Delete` is not one of the bar's own (D3).
-const SHORTCUTS: [Shortcut; 3] = [
+/// **The rows differ in one column, and that column is the whole of the precedence.** The forced
+/// exit is answered before anything, and the other four after everything: they are the same
+/// mechanism with a different scope, rather than one mechanism per row and an `if` somewhere else.
+/// The deletion, the undo and the redo are `Unclaimed` because they are not the chrome's to
+/// swallow: which keys the chrome keeps is the focus rule #189 owns, and none of the three is one
+/// of the bar's own (D3 of #178, D3 of #181).
+///
+/// **A slice rather than an array of a counted length**: the count of an array is a number beside
+/// the rows it counts, and a row added without it is an error the compiler reports about the wrong
+/// thing.
+const SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         key: KeyCode::Char('c'),
         modifiers: KeyModifiers::CONTROL,
@@ -71,6 +76,22 @@ const SHORTCUTS: [Shortcut; 3] = [
         key: KeyCode::Char('q'),
         modifiers: KeyModifiers::CONTROL,
         action: Action::Quit,
+        reach: Reach::Unclaimed,
+    },
+    Shortcut {
+        key: KeyCode::Char('z'),
+        modifiers: KeyModifiers::CONTROL,
+        action: Action::Undo,
+        reach: Reach::Unclaimed,
+    },
+    // **The shifted character, not `z` with `SHIFT` set.** A terminal that reports the
+    // combination at all reports it as the character the shift produces with `Control` and `Shift`
+    // set; and one that folds the shift into the control character reports the undo instead, which
+    // is the cost D1 of #181 names. The two rows are told apart by the character.
+    Shortcut {
+        key: KeyCode::Char('Z'),
+        modifiers: KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        action: Action::Redo,
         reach: Reach::Unclaimed,
     },
     Shortcut {
@@ -207,22 +228,14 @@ mod tests {
     /// **A shortcut is the combination it shows and not another one.** Every combination a terminal
     /// can report other than the row's own is handed to its reach, and none of them answers.
     ///
-    /// **The alternatives are counted rather than assumed to be `Shift`**: `Delete` is the first row
-    /// whose own combination is no modifier at all, so a test that only added `Shift` would hand the
-    /// row's own key to the table and call it another one.
+    /// **The alternatives are walked rather than named**: `Delete` is the first row whose own
+    /// combination is no modifier at all, so the walk has to contain the empty set, and a row with
+    /// two modifiers has to be handed the ones it does not have — a hand-written list of single
+    /// modifiers would try neither.
     #[test]
     fn a_shortcut_is_the_combination_it_shows_and_not_another_one() {
         for shortcut in SHORTCUTS {
-            for modifiers in [
-                KeyModifiers::NONE,
-                KeyModifiers::SHIFT,
-                KeyModifiers::CONTROL,
-                KeyModifiers::ALT,
-            ] {
-                if modifiers == shortcut.modifiers {
-                    continue;
-                }
-
+            for modifiers in combinations_but(shortcut.modifiers) {
                 assert_eq!(
                     handle_at(&key(shortcut.key, modifiers), shortcut.reach),
                     None,
@@ -234,6 +247,28 @@ mod tests {
 
         let another_key = key(KeyCode::Char('x'), KeyModifiers::CONTROL);
         assert_eq!(handle_unclaimed(&another_key), None);
+    }
+
+    /// Every combination of the modifiers a terminal reports for these keys, other than `own`.
+    fn combinations_but(own: KeyModifiers) -> Vec<KeyModifiers> {
+        let mut combinations = Vec::new();
+
+        for shift in [false, true] {
+            for control in [false, true] {
+                for alt in [false, true] {
+                    let mut modifiers = KeyModifiers::NONE;
+                    modifiers.set(KeyModifiers::SHIFT, shift);
+                    modifiers.set(KeyModifiers::CONTROL, control);
+                    modifiers.set(KeyModifiers::ALT, alt);
+
+                    if modifiers != own {
+                        combinations.push(modifiers);
+                    }
+                }
+            }
+        }
+
+        combinations
     }
 
     #[test]

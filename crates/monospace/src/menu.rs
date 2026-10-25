@@ -31,11 +31,18 @@ use crate::vocabulary::Action;
 /// application**, which is what the table in `shortcuts` is for. The two are two places that can
 /// disagree, and joining them is #180's.
 ///
-/// **Every entry is offered all the time.** The bar carries no state about what is selected, so the
-/// Edit menu's entry is active whether or not a figure is selected; taking it with nothing selected
-/// is a deletion that removes nothing and repaints all the same, the same answer the key gives.
+/// **Every entry is offered all the time.** The bar carries no state about what is selected or
+/// whether a step can be given back, so the Edit menu's entries are active at every position of the
+/// history: taking one with nothing to do is an action that changes nothing and repaints all the
+/// same, the same answer the key gives (D2 of #181).
 static MENU: StaticMenu = StaticMenu {
-    menu: &[("_File", &["_Quit|Ctrl+Q"]), ("_Edit", &["_Delete|Del"])],
+    menu: &[
+        ("_File", &["_Quit|Ctrl+Q"]),
+        (
+            "_Edit",
+            &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z", "_Delete|Del"],
+        ),
+    ],
 };
 
 /// The label of the way out.
@@ -47,8 +54,14 @@ const QUIT: usize = 0;
 /// The label of the editing commands.
 const EDIT: usize = 1;
 
+/// The entry that gives back the step behind.
+const UNDO: usize = 0;
+
+/// The entry that gives back the step ahead.
+const REDO: usize = 1;
+
 /// The entry that removes the selected figure.
-const DELETE: usize = 0;
+const DELETE: usize = 2;
 
 /// What an event means to the chrome.
 ///
@@ -90,6 +103,8 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Option<Action> {
 fn meaning(label: usize, entry: usize) -> Action {
     match (label, entry) {
         (FILE, QUIT) => Action::Quit,
+        (EDIT, UNDO) => Action::Undo,
+        (EDIT, REDO) => Action::Redo,
         (EDIT, DELETE) => Action::Delete,
 
         // An entry nobody knows still closed the drop-down, so the frame has to be painted again.
@@ -191,6 +206,20 @@ mod tests {
         open_with(state, 'f');
     }
 
+    /// Takes the entry whose text is `text`, by clicking it on the frame, the way a person does.
+    ///
+    /// **The entry is found by its name**: a menu that gains entries above one moves where it is
+    /// but not what it says, and a test that pressed `Enter` would take whatever happens to be
+    /// first. **The pointer moves onto it before the button goes down**, because the widget
+    /// activates the entry it has selected and a press alone selects nothing.
+    fn take(state: &mut MenubarState, text: &str) -> Option<Action> {
+        let buffer = draw(state);
+        let (column, row) = cell_of(&buffer, text);
+        let _ = handle(&moved(column, row), state);
+
+        handle(&click(column, row), state)
+    }
+
     fn key(code: KeyCode) -> Event {
         Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
     }
@@ -202,6 +231,16 @@ mod tests {
     fn click(column: u16, row: u16) -> Event {
         Event::Mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        })
+    }
+
+    /// The event the terminal reports for the pointer moving to `(column, row)`.
+    fn moved(column: u16, row: u16) -> Event {
+        Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Moved,
             column,
             row,
             modifiers: KeyModifiers::NONE,
@@ -251,13 +290,82 @@ mod tests {
         let mut state = drawn();
         open_with(&mut state, 'e');
 
-        let outcome = handle(&key(KeyCode::Enter), &mut state);
+        let outcome = take(&mut state, "Delete");
 
         assert!(
             matches!(outcome, Some(Action::Delete)),
             "the entry did not become the action of the delete key: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
+    }
+
+    /// **The Edit menu's entries are the keys' actions.** The undo is the first, and taking it says
+    /// `Action::Undo` rather than a second spelling of the walk.
+    #[test]
+    fn taking_the_undo_entry_becomes_the_action_of_the_key() {
+        let mut state = drawn();
+        open_with(&mut state, 'e');
+
+        let outcome = take(&mut state, "Undo");
+
+        assert!(
+            matches!(outcome, Some(Action::Undo)),
+            "the entry did not become the action of the undo key: {outcome:?}"
+        );
+        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+    }
+
+    /// **The redo entry is the redo key's action**, the same way.
+    #[test]
+    fn taking_the_redo_entry_becomes_the_action_of_the_key() {
+        let mut state = drawn();
+        open_with(&mut state, 'e');
+
+        let outcome = take(&mut state, "Redo");
+
+        assert!(
+            matches!(outcome, Some(Action::Redo)),
+            "the entry did not become the action of the redo key: {outcome:?}"
+        );
+        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+    }
+
+    /// **The Edit menu holds the three entries in the order the keys are learned**: Undo, Redo and
+    /// Delete, each with the shortcut the table answers to (rule 9).
+    #[test]
+    fn the_edit_menu_shows_undo_and_redo_with_their_shortcuts() {
+        let mut state = drawn();
+        open_with(&mut state, 'e');
+
+        let frame = picture(&draw(&mut state));
+
+        assert!(
+            frame.contains("Undo"),
+            "the Edit menu offers no undo: {frame:?}"
+        );
+        assert!(
+            frame.contains("Redo"),
+            "the Edit menu offers no redo: {frame:?}"
+        );
+        assert!(
+            frame.contains("Ctrl+Z"),
+            "the undo entry shows no shortcut: {frame:?}"
+        );
+        assert!(
+            frame.contains("Ctrl+Shift+Z"),
+            "the redo entry shows no shortcut: {frame:?}"
+        );
+
+        let undo = frame.find("Undo").expect("the undo entry is on the frame");
+        let redo = frame.find("Redo").expect("the redo entry is on the frame");
+        let delete = frame
+            .find("Delete")
+            .expect("the delete entry is on the frame");
+
+        assert!(
+            undo < redo && redo < delete,
+            "the entries are not Undo, Redo, Delete: {frame:?}"
+        );
     }
 
     #[test]

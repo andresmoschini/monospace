@@ -5,8 +5,9 @@
 //! belongs to the loop, not to the application.
 //!
 //! **The session is read on every frame and changed only by an action.** Every frame draws it into
-//! the window the interior gives; the one command performed on it is the removal the delete key
-//! means, carried out in `crate::callbacks`, and #181 is where the step it records is given back.
+//! the window the interior gives; the Edit menu's three actions change it, all carried out in
+//! `crate::callbacks`: **Delete** performs one removal, and **Undo** and **Redo** walk the history
+//! the removal recorded. The application keeps no history of its own: the session is the history.
 
 use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, ShapeId, Size};
 use monospace_editing::{Command, Session};
@@ -41,8 +42,8 @@ pub(crate) struct DiagramState {
     /// drawing records is kept and inverts nothing (rule 7).
     selected: Option<ShapeId>,
 
-    /// **The session is read on every frame and changed by one action**: the delete key performs
-    /// its one command, and every other slice reads it.
+    /// **The session is read on every frame and changed by the Edit menu's three actions**: Delete
+    /// performs its one command, Undo and Redo give a step back, and every other slice reads it.
     session: Session,
 }
 
@@ -113,27 +114,60 @@ impl DiagramState {
     /// Takes the shape `id` out of the session, and drops the selection.
     ///
     /// **The removal is the session's and not the diagram's** (rule 7): one `Command::Remove` is
-    /// performed, which records one step that #181 gives back. The application names no `Diagram`
+    /// performed, which records the one step an undo gives back. The application names no `Diagram`
     /// and no `Shape`, and what hung from the removed shape is frozen by `Diagram::remove`, below
     /// this layer.
     ///
     /// **The identity is dropped with the command** (rule 2). A selection no cell of the next
-    /// drawing records would invert nothing on its own, but keeping it would leave the next click's
-    /// answer and #181's undo disagreeing about what is selected: the shape is gone, so the state
-    /// stops naming it.
+    /// drawing records would invert nothing on its own, but the shape is gone, so the state stops
+    /// naming it. **The undo does not bring the identity back** (D2 of #181): what comes back is
+    /// the drawing, and a person who wants the figure selected clicks it again.
     pub(crate) fn remove(&mut self, id: ShapeId) {
         self.session = self.session.perform(Command::Remove { id });
         self.selected = None;
     }
 
+    /// Gives back the step behind the session, if there is one.
+    ///
+    /// **The walk is the session's and the application keeps no copy of it** (§3 of the application
+    /// model): one `Session::undo` moves the position, and the next frame is drawn from what the
+    /// session holds then. At the oldest position nothing comes back, and the caller still owes the
+    /// frame because its action was carried out.
+    ///
+    /// **The selection is not restored**: the removal dropped the identity, and the drawing that
+    /// comes back arrives with nothing selected.
+    pub(crate) fn undo(&mut self) {
+        self.session = self.session.undo();
+    }
+
+    /// Gives back the step ahead of the session, if there is one.
+    ///
+    /// **The walk is the session's, here too**: one `Session::redo` moves the position, and the
+    /// application keeps no copy of where the walk stands. At the newest position nothing comes
+    /// back, and the caller still owes the frame.
+    ///
+    /// **The selection is not touched**: a redo takes the drawing ahead, and the identity the state
+    /// holds survives the walk even where no cell of the restored drawing records it.
+    pub(crate) fn redo(&mut self) {
+        self.session = self.session.redo();
+    }
+
     /// Whether a step is behind the session.
     ///
-    /// **This read exists for the tests, and #181 is where the frame will ask it for real.** The
-    /// application does not walk the history yet, so a non-test build has no use for it; the tests
-    /// ask it to tell a command from a press that performed none.
+    /// **This read exists for the tests**: no frame asks it, because every entry is drawn alike at
+    /// every position of the history (D2 of #181). The tests ask it to tell a walk from a press
+    /// that performed none.
     #[cfg(test)]
     pub(crate) fn can_undo(&self) -> bool {
         self.session.can_undo()
+    }
+
+    /// Whether a step is ahead of the session.
+    ///
+    /// **This read exists for the tests**, for the same reason [`Self::can_undo`] does.
+    #[cfg(test)]
+    pub(crate) fn can_redo(&self) -> bool {
+        self.session.can_redo()
     }
 
     /// Whether the shape that owns `at` of the last frame's drawing is the selected shape.
@@ -277,6 +311,66 @@ mod tests {
             state.diagram.selected(),
             None,
             "the removal kept the identity it took out"
+        );
+    }
+
+    /// **The walk stops at both ends of the history.** An undo at the oldest position and a redo at
+    /// the newest give nothing back, and the step between them is the one the removal recorded.
+    #[test]
+    fn undo_and_redo_stop_at_the_ends_of_the_history() {
+        let diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let mut state = AppState::new(Session::new(diagram));
+        let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+
+        state.diagram.undo();
+
+        assert!(
+            state.diagram.session.diagram().get(shape).is_some(),
+            "the undo at the oldest position took the box out"
+        );
+
+        state.diagram.remove(shape);
+
+        assert!(
+            state.diagram.session.diagram().get(shape).is_none(),
+            "the removal kept the box"
+        );
+        assert!(!state.diagram.can_redo(), "the removal left a step ahead");
+
+        state.diagram.undo();
+
+        assert!(
+            state.diagram.session.diagram().get(shape).is_some(),
+            "the undo did not give the box back"
+        );
+        assert!(
+            !state.diagram.can_undo(),
+            "one step back left another behind it"
+        );
+        assert!(state.diagram.can_redo(), "the undo left nothing to redo");
+
+        state.diagram.redo();
+
+        assert!(
+            state.diagram.session.diagram().get(shape).is_none(),
+            "the redo did not take the box out again"
+        );
+        assert!(
+            !state.diagram.can_redo(),
+            "one step forward left another ahead of it"
+        );
+        assert!(state.diagram.can_undo(), "the redo left nothing to undo");
+
+        state.diagram.redo();
+
+        assert!(
+            state.diagram.session.diagram().get(shape).is_none(),
+            "the redo at the newest position took the box out of nothing"
+        );
+        assert!(
+            !state.diagram.can_redo(),
+            "the redo at the newest position recorded a step"
         );
     }
 

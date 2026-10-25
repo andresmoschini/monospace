@@ -8,7 +8,9 @@
 //!
 //! **An action need not change anything.** `Action::ScreenChanged` is the screen being owed a
 //! paint, and it is the one action that never reaches the state; `Action::Delete` takes a shape out
-//! where one is selected and owes a paint either way, and the other two end the loop.
+//! where one is selected and owes a paint either way; `Action::Undo` and `Action::Redo` walk the
+//! session's history and owe a paint whether or not there is a step to give back; and
+//! `Action::Quit` and `Action::ForceQuit` end the loop.
 //!
 //! **A handler says an action rather than doing one**, so that an entry of the menu and the key
 //! that means the same thing are decided in one place. A handler that took no interest says
@@ -22,12 +24,11 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 
 /// What the application does about an event.
 ///
-/// **Three meanings and one change of the screen.** The way out is what a person asks for; the
-/// forced exit is what the terminal asks for when it is interrupted; `Delete` is what a person
-/// asks of the selected shape; `ScreenChanged` is what the screen is owed when an event changed it
-/// and nothing else. The way out and the forced exit are separate actions because they are
-/// separate meanings, and they end the loop the same way only because nothing has been edited
-/// yet: the way out grows a pop-up to confirm and the forced exit does not, which is #189's.
+/// **Every action but one is a meaning.** The way out and the forced exit end the loop; `Delete`
+/// takes a shape out, and `Undo` and `Redo` give a step back; `ScreenChanged` is the screen being
+/// owed a paint and nothing else. **The two exits are separate actions because they are separate
+/// meanings**, and they end the loop the same way only because nothing has been edited yet: the way
+/// out grows a pop-up to confirm and the forced exit does not, which is #189's.
 ///
 /// **A change of the screen is not a meaning of a person's, and undo will never hold one.** It is
 /// an action because an event becomes one thing, and what the application does about a screen that
@@ -37,6 +38,17 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 pub(crate) enum Action {
     /// It changed what the screen shows, and nothing else: the frame is owed again.
     ScreenChanged,
+
+    /// The step behind the session is given back, and the frame is owed either way.
+    ///
+    /// **A press with nothing behind walks nothing**: the session answers with itself, and the
+    /// action still paints, which is the silence at the oldest position (D2 of #181).
+    Undo,
+
+    /// The step ahead of the session is given back, and the frame is owed either way.
+    ///
+    /// **A press with nothing ahead walks nothing**, and the action still paints.
+    Redo,
 
     /// The selected shape is taken out of the session, and the frame is owed either way.
     ///
