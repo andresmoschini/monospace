@@ -58,7 +58,7 @@ impl<'a> Layer<'a> {
     /// two, or under none, and the caller above is the only thing that knows which.
     ///
     /// The identity is taken **by value**, which is what leaves this struct with a single lifetime:
-    /// an identity is four bytes and `Copy`, so a layer holds one without borrowing it, and nothing
+    /// an identity is two bytes and `Copy`, so a layer holds one without borrowing it, and nothing
     /// downstream of this constructor has to keep a shape's identity alive for the length of a
     /// drawing.
     #[must_use]
@@ -102,12 +102,12 @@ pub(crate) mod counting {
     /// See the module's own documentation.
     #[derive(Default)]
     pub(crate) struct CountingSurface {
-        counts: HashMap<(i32, i32), u32>,
+        counts: HashMap<(i16, i16), u16>,
     }
 
     impl CountingSurface {
         /// The largest number of times any single position has been stamped so far.
-        pub(crate) fn max_writes(&self) -> u32 {
+        pub(crate) fn max_writes(&self) -> u16 {
             self.counts.values().copied().max().unwrap_or(0)
         }
     }

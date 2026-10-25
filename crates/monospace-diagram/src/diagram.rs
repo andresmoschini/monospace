@@ -14,7 +14,7 @@
 //! direction is available and produces the same buffer; what it carries is not appearance but
 //! ownership, because which figure reaches a position first is what decides the cell it decides.
 
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 use monospace_core::{Buffer, Layer, ShapeId, StampMode};
 use rpds::{HashTrieMapSync, VectorSync};
@@ -66,9 +66,9 @@ pub struct Diagram {
     order: VectorSync<ShapeId>,
     /// The ordinal the next `add` takes. It is the ordinal itself rather than the last one issued,
     /// so seeding it is a plain assignment and no public method carries a subtraction. It is a
-    /// [`NonZeroU32`] rather than a `u32` because zero is not an identity, so a counter that could
+    /// [`NonZeroU16`] rather than a `u16` because zero is not an identity, so a counter that could
     /// stand at one would be a counter that could hand back nothing to name.
-    next_id: NonZeroU32,
+    next_id: NonZeroU16,
 }
 
 impl Default for Diagram {
@@ -79,7 +79,7 @@ impl Default for Diagram {
         Self {
             shapes: HashTrieMapSync::new_sync(),
             order: VectorSync::new_sync(),
-            next_id: NonZeroU32::MIN,
+            next_id: NonZeroU16::MIN,
         }
     }
 }
@@ -88,22 +88,22 @@ impl Diagram {
     /// An empty diagram, holding no shapes, whose first addition is handed `1`.
     #[must_use]
     pub fn new() -> Self {
-        Self::numbered_from(NonZeroU32::MIN)
+        Self::numbered_from(NonZeroU16::MIN)
     }
 
     /// An empty diagram whose next `add` takes the first ordinal at or after `next_id` that names no
     /// figure.
     ///
-    /// **The ordinal is a [`NonZeroU32`], so a zero is refused here rather than by `add`.** A
+    /// **The ordinal is a [`NonZeroU16`], so a zero is refused here rather than by `add`.** A
     /// description saying `"next_id": 0` is turned away by the reader rather than seeded with an
     /// identity nothing can carry, and there is no path through this crate that produces the `0` a
-    /// plain `u32` would have allowed.
+    /// plain `u16` would have allowed.
     ///
     /// **The ordinal it is given is not the ordinal the next addition gets**, and the difference is
     /// the whole of what a stale value costs: a description whose second entry was deleted resumes
     /// at `2` and steps over it to `3`.
     #[must_use]
-    pub fn numbered_from(next_id: NonZeroU32) -> Self {
+    pub fn numbered_from(next_id: NonZeroU16) -> Self {
         Self {
             shapes: HashTrieMapSync::new_sync(),
             order: VectorSync::new_sync(),
@@ -130,9 +130,9 @@ impl Diagram {
     /// first lookup misses and the addition is O(log n) rather than a scan.
     ///
     /// **The counter is advanced past the ordinal it issued, and stops there when there is nowhere
-    /// to go.** A `u32` has no ordinal after `u32::MAX`, so the counter stands where it is rather
+    /// to go.** A `u16` has no ordinal after `u16::MAX`, so the counter stands where it is rather
     /// than wrapping — under the previous `+= 1` a release build would have wrapped into the `0` a
-    /// plain `u32` allows in silence, and `0` is the one value this crate's own identity type
+    /// plain `u16` allows in silence, and `0` is the one value this crate's own identity type
     /// cannot carry. **The refusal belongs to the next `add` rather than to this one**: the ordinal
     /// just issued is free and this figure is named under it, and the addition after it is the one
     /// with nothing to hand out.
@@ -143,15 +143,15 @@ impl Diagram {
     ///
     /// # Panics
     ///
-    /// When every ordinal at or after the counter is already taken, [`u32::MAX`] among them. A
-    /// `u32` ends there and nothing here reports what could not be drawn.
+    /// When every ordinal at or after the counter is already taken, [`u16::MAX`] among them. A
+    /// `u16` ends there and nothing here reports what could not be drawn.
     #[must_use]
     pub fn add(&self, shape: Shape) -> (Self, ShapeId) {
         let mut ordinal = self.next_id;
         while self.shapes.contains_key(&ShapeId::new(ordinal)) {
             ordinal = ordinal.checked_add(1).unwrap_or_else(|| {
                 let taken = ShapeId::new(ordinal);
-                panic!("a diagram has no ordinal left to issue: a u32 ends at {taken}")
+                panic!("a diagram has no ordinal left to issue: a u16 ends at {taken}")
             });
         }
 
@@ -372,7 +372,7 @@ impl Diagram {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
+    use std::num::NonZeroU16;
 
     use monospace_core::{
         BoxShape, Buffer, Cell, Connector, Direction, Glyph, GlyphCatalog, Layer, Line, Offset,
@@ -387,12 +387,12 @@ mod tests {
     }
 
     /// The ordinal `ordinal`, which is what a diagram is seeded with.
-    fn nz(ordinal: u32) -> NonZeroU32 {
-        NonZeroU32::new(ordinal).expect("no test seeds a counter at zero")
+    fn nz(ordinal: u16) -> NonZeroU16 {
+        NonZeroU16::new(ordinal).expect("no test seeds a counter at zero")
     }
 
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
-    fn identity(ordinal: u32) -> ShapeId {
+    fn identity(ordinal: u16) -> ShapeId {
         ShapeId::new(nz(ordinal))
     }
 
@@ -403,8 +403,8 @@ mod tests {
             .flat_map(|dy| (0..size.width).map(move |dx| (dx, dy)))
             .map(|(dx, dy)| {
                 let at = Pos {
-                    x: origin.x + i32::try_from(dx).expect("width fits i32"),
-                    y: origin.y + i32::try_from(dy).expect("height fits i32"),
+                    x: origin.x + i16::try_from(dx).expect("width fits i16"),
+                    y: origin.y + i16::try_from(dy).expect("height fits i16"),
                 };
                 buffer.cell(at).cloned()
             })
@@ -887,8 +887,8 @@ mod tests {
             ),
         ] {
             let at = Pos {
-                x: i32::try_from(offset.x).expect("six columns"),
-                y: i32::try_from(offset.y).expect("four rows"),
+                x: i16::try_from(offset.x).expect("six columns"),
+                y: i16::try_from(offset.y).expect("four rows"),
             };
             assert!(buffer.cell(at).is_some(), "{at:?} holds a cell: {what}");
             assert_eq!(
@@ -985,7 +985,7 @@ mod tests {
     #[test]
     fn a_second_shape_under_one_identity_replaces_it_and_is_drawn_once() {
         let shared = identity(1);
-        let a_box_at = |x: i32| Shape::Box {
+        let a_box_at = |x: i16| Shape::Box {
             at: Pos { x, y: 0 },
             size: Size {
                 width: 2,
@@ -1230,7 +1230,7 @@ mod tests {
     ///
     /// A counter holding the *last issued* ordinal would hand back `4` in the first half below,
     /// which is the off-by-one `numbered_from` exists to make impossible rather than to document.
-    /// The ordinal is a `NonZeroU32` and `3` is read through it, so the seeding a file's `next_id`
+    /// The ordinal is a `NonZeroU16` and `3` is read through it, so the seeding a file's `next_id`
     /// arrives on is the same one this test writes.
     #[test]
     fn a_seeded_diagram_hands_back_the_ordinal_it_was_seeded_with_and_then_a_different_one() {
@@ -1286,7 +1286,7 @@ mod tests {
     /// three well-formed numbers that no diagram in this test issued, so "this identity names no
     /// shape here" is a statement about the counter rather than about how an identity is spelled.
     /// That is the cost of the change and it is a small one — three lines that read `identity(2)`
-    /// instead of `ShapeId::new("chosen")` — paid for an identity that is four bytes.
+    /// instead of `ShapeId::new("chosen")` — paid for an identity that is two bytes.
     ///
     /// The second half is the one that is easy to leave out, and the one that keeps "unique" a
     /// claim about what the diagram issues rather than a promise it keeps on a caller's behalf.
@@ -1364,7 +1364,7 @@ mod tests {
         // The fill is what makes the order visible. Unfilled boxes that share only their borders
         // compose to the same junction whichever is in front, so a drawing of them cannot tell
         // the two orders apart — measured, not assumed.
-        let a_filled_box = |x: i32, fill: &'static str| Shape::Box {
+        let a_filled_box = |x: i16, fill: &'static str| Shape::Box {
             at: Pos { x, y: 0 },
             size: Size {
                 width: 4,
@@ -1493,8 +1493,8 @@ mod tests {
         );
     }
 
-    /// **The two `add` calls above stop at `u32::MAX`, and the one after them has nothing to hand
-    /// back.** A `u32` has no ordinal after its largest one, and every value it could hold next is a
+    /// **The two `add` calls above stop at `u16::MAX`, and the one after them has nothing to hand
+    /// back.** A `u16` has no ordinal after its largest one, and every value it could hold next is a
     /// `0` — the one thing this crate's identity type cannot carry, and what the old `+= 1` wrapped
     /// into in a release build without saying so. The last ordinal is issued because it is free, and
     /// the addition after it is the one that says so rather than wrapping or handing it out twice.
@@ -1508,16 +1508,16 @@ mod tests {
             stroke: light(),
         };
 
-        let diagram = Diagram::numbered_from(NonZeroU32::new(u32::MAX).expect("the largest"));
+        let diagram = Diagram::numbered_from(NonZeroU16::new(u16::MAX).expect("the largest"));
         // The last ordinal there is: issued, and legal.
         let (diagram, last) = diagram.add(a_line());
-        assert_eq!(last.to_string(), u32::MAX.to_string());
+        assert_eq!(last.to_string(), u16::MAX.to_string());
         // And the one after it is not. Nothing wraps to zero and nothing hands back what it has
         // already handed out.
         let _ = diagram.add(a_line());
     }
 
-    /// The last ordinal a `u32` can hold is **no different because a caller took it**: a diagram
+    /// The last ordinal a `u16` can hold is **no different because a caller took it**: a diagram
     /// numbered there with a figure already under that identity has nothing left to issue either,
     /// and says so by name rather than replacing the caller's figure or naming it a second time.
     ///
@@ -1535,8 +1535,8 @@ mod tests {
             stroke: light(),
         };
 
-        let diagram = Diagram::numbered_from(NonZeroU32::new(u32::MAX).expect("the largest"))
-            .add_under(identity(u32::MAX), the_line());
+        let diagram = Diagram::numbered_from(NonZeroU16::new(u16::MAX).expect("the largest"))
+            .add_under(identity(u16::MAX), the_line());
 
         let _ = diagram.add(the_line());
     }
@@ -2039,8 +2039,8 @@ mod tests {
         (0..size.height)
             .flat_map(|dy| (0..size.width).map(move |dx| (dx, dy)))
             .map(|(dx, dy)| Pos {
-                x: origin.x + i32::try_from(dx).expect("width fits i32"),
-                y: origin.y + i32::try_from(dy).expect("height fits i32"),
+                x: origin.x + i16::try_from(dx).expect("width fits i16"),
+                y: origin.y + i16::try_from(dy).expect("height fits i16"),
             })
             .filter(|at| before.cell(*at) != after.cell(*at))
             .collect()
@@ -2102,7 +2102,7 @@ mod tests {
             width: 9,
             height: 3,
         };
-        let box_at = |x: i32| Shape::Box {
+        let box_at = |x: i16| Shape::Box {
             at: Pos { x, y: 0 },
             size: Size {
                 width: 4,
@@ -2354,7 +2354,7 @@ mod tests {
             width: 9,
             height: 3,
         };
-        let box_of = |width: u32| Shape::Box {
+        let box_of = |width: u16| Shape::Box {
             at: Pos { x: 1, y: 0 },
             size: Size { width, height: 3 },
             stroke: light(),
@@ -2494,7 +2494,7 @@ mod tests {
             width: 11,
             height: 3,
         };
-        let filled_box = |x: i32, fill: &str| Shape::Box {
+        let filled_box = |x: i16, fill: &str| Shape::Box {
             at: Pos { x, y: 0 },
             size: Size {
                 width: 3,
@@ -2503,7 +2503,7 @@ mod tests {
             stroke: light(),
             fill: Some(Glyph::new(fill).expect("one glyph")),
         };
-        let the_line = |x: i32| Shape::Line {
+        let the_line = |x: i16| Shape::Line {
             at: Pos { x, y: 1 },
             len: 5,
             orientation: Orientation::Horizontal,
@@ -4308,7 +4308,7 @@ mod tests {
             Pos { x: 12, y: 5 },
         ];
 
-        let a_box_at = |x: i32| Shape::Box {
+        let a_box_at = |x: i16| Shape::Box {
             at: Pos { x, y: 0 },
             size: Size {
                 width: 4,
@@ -4317,7 +4317,7 @@ mod tests {
             stroke: light(),
             fill: None,
         };
-        let a_line_at = |x: i32| Shape::Line {
+        let a_line_at = |x: i16| Shape::Line {
             at: Pos { x, y: 0 },
             len: 6,
             orientation: Orientation::Horizontal,
@@ -4325,8 +4325,8 @@ mod tests {
         };
 
         for (what, figure_at) in [
-            ("a box", &a_box_at as &dyn Fn(i32) -> Shape),
-            ("a line", &a_line_at as &dyn Fn(i32) -> Shape),
+            ("a box", &a_box_at as &dyn Fn(i16) -> Shape),
+            ("a line", &a_line_at as &dyn Fn(i16) -> Shape),
         ] {
             let diagram = Diagram::new();
             let (mut diagram, identity) = diagram.add(figure_at(0));
@@ -4713,7 +4713,7 @@ mod tests {
         let (origin, size) = the_window();
         let the_other_end: Position = Pos { x: 8, y: 1 }.into();
         let at_the_end = Delta {
-            dx: i32::MAX,
+            dx: i16::MAX,
             dy: 0,
         };
 
@@ -4752,7 +4752,7 @@ mod tests {
         assert_ne!(
             the_gap(&diagram, connector_id),
             Delta {
-                dx: i32::MIN + 4,
+                dx: i16::MIN + 4,
                 dy: 0
             }
         );
@@ -4769,7 +4769,7 @@ mod tests {
         assert_eq!(
             the_gap(&diagram, connector_id),
             Delta {
-                dx: i32::MAX - 1,
+                dx: i16::MAX - 1,
                 dy: 0
             }
         );
@@ -4796,7 +4796,7 @@ mod tests {
         with_the_point = with_the_point.add(the_unrelated_box()).0;
         with_the_point = with_the_point
             .add(arm_connector(
-                Pos { x: i32::MAX, y: 1 }.into(),
+                Pos { x: i16::MAX, y: 1 }.into(),
                 the_other_end,
             ))
             .0;

@@ -17,7 +17,7 @@
 //! what it asks is not what a diagram costs but whether a copy of one costs anything at all.
 
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 use std::sync::atomic::{AtomicIsize, Ordering};
 
 use monospace_core::{Buffer, Glyph, Offset, Pos, Size, Stroke};
@@ -78,8 +78,8 @@ fn live() -> isize {
 
 /// The ordinal `n` names, so the figures below are told apart by what they hold rather than by
 /// where they stand.
-fn identity(n: u32) -> ShapeId {
-    ShapeId::new(NonZeroU32::new(n).expect("no ordinal is zero"))
+fn identity(n: u16) -> ShapeId {
+    ShapeId::new(NonZeroU16::new(n).expect("no ordinal is zero"))
 }
 
 /// A window every figure below falls inside, so nothing has to be reasoned about a clip.
@@ -97,14 +97,14 @@ const WINDOW: (Pos, Size) = (
 /// **Three hundred, because one figure is a rounding error against the harness's own bookkeeping
 /// and three hundred is not.** The rule being pinned does not care how many there are, which is
 /// the whole reason it is measured rather than counted.
-fn a_diagram_of(count: u32) -> Diagram {
+fn a_diagram_of(count: u16) -> Diagram {
     let stroke = Stroke::from("light");
     let fill = Glyph::new("░").expect("one grapheme cluster");
     let mut diagram = Diagram::new();
     for n in 0..count {
         let at = Pos {
-            x: i32::try_from(n % 20).expect("twenty columns") * 5,
-            y: i32::try_from(n / 20).expect("fifteen rows") * 4,
+            x: i16::try_from(n % 20).expect("twenty columns") * 5,
+            y: i16::try_from(n / 20).expect("fifteen rows") * 4,
         };
         diagram = diagram.add_under(
             identity(n + 1),

@@ -36,7 +36,7 @@ use crate::shape::fragment::segment::Segment;
 use crate::shape::route::Route;
 use crate::stroke::Stroke;
 use crate::{
-    Arm, Connector, BoxShape, Buffer, Cell, Direction, Endpoint, Glyph, GlyphCatalog, Layer, Line,
+    Arm, BoxShape, Buffer, Cell, Connector, Direction, Endpoint, Glyph, GlyphCatalog, Layer, Line,
     Orientation, Pos, Size, StampMode, Surface, Terminal, render,
 };
 
@@ -184,7 +184,7 @@ fn snap(name: &str, body: &str) {
     settings.bind(|| insta::assert_snapshot!(name, body));
 }
 
-fn window(width: u32, height: u32) -> Size {
+fn window(width: u16, height: u16) -> Size {
     Size { width, height }
 }
 
@@ -208,11 +208,11 @@ fn head(leaving: Direction) -> Glyph {
     })
 }
 
-fn at(x: i32, y: i32) -> Pos {
+fn at(x: i16, y: i16) -> Pos {
     Pos { x, y }
 }
 
-fn glyph_end(x: i32, y: i32, leaving: Direction) -> Endpoint {
+fn glyph_end(x: i16, y: i16, leaving: Direction) -> Endpoint {
     Endpoint {
         at: at(x, y),
         leaving,
@@ -222,7 +222,7 @@ fn glyph_end(x: i32, y: i32, leaving: Direction) -> Endpoint {
     }
 }
 
-fn arm_end(x: i32, y: i32, leaving: Direction) -> Endpoint {
+fn arm_end(x: i16, y: i16, leaving: Direction) -> Endpoint {
     Endpoint {
         at: at(x, y),
         leaving,

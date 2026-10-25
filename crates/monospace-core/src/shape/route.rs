@@ -81,8 +81,8 @@ impl Shape for Route {
                 }
                 i += 1;
             }
-            let len = u32::try_from(i - start)
-                .expect("a route's run is bounded by the diagram, not by u32::MAX");
+            let len = u16::try_from(i - start)
+                .expect("a route's run is bounded by the diagram, not by u16::MAX");
             let run_start = self.positions[start];
             let run_end = self.positions[i - 1];
             let from = match orientation {

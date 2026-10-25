@@ -32,10 +32,10 @@ pub enum StampMode {
 pub struct Buffer {
     origin: Pos,
     size: Size,
-    cells: HashMap<(i32, i32), Cell>,
+    cells: HashMap<(i16, i16), Cell>,
     /// Who decided each position, for the positions somebody decided. A position absent here is
     /// owned by nobody: either no shape wrote it, or the shape that did wrote nothing there.
-    owners: HashMap<(i32, i32), ShapeId>,
+    owners: HashMap<(i16, i16), ShapeId>,
 }
 
 impl Buffer {
@@ -137,7 +137,7 @@ impl Buffer {
     /// The identity of whoever decided the cell at the offset `at`, counted from this window's own
     /// top-left corner, or `None` when nobody holds that position.
     ///
-    /// **The answer is a value rather than a borrow of one.** An identity is four bytes and `Copy`,
+    /// **The answer is a value rather than a borrow of one.** An identity is two bytes and `Copy`,
     /// so a caller holds what it is given and may go on drawing into this buffer and ask again,
     /// which is what a front end deciding what to do with a cell it was handed has to be able to
     /// do. Nothing is owed by holding it and nothing is spent by copying it.
@@ -164,13 +164,13 @@ impl Buffer {
     fn contains(&self, at: Pos) -> bool {
         let Some(dx) =
             at.x.checked_sub(self.origin.x)
-                .and_then(|d| u32::try_from(d).ok())
+                .and_then(|d| u16::try_from(d).ok())
         else {
             return false;
         };
         let Some(dy) =
             at.y.checked_sub(self.origin.y)
-                .and_then(|d| u32::try_from(d).ok())
+                .and_then(|d| u16::try_from(d).ok())
         else {
             return false;
         };
@@ -274,7 +274,7 @@ fn merge_arm(top: Arm, bottom: Arm) -> Arm {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
+    use std::num::NonZeroU16;
 
     use super::{Buffer, StampMode};
     use crate::{
@@ -299,13 +299,13 @@ mod tests {
     }
 
     /// An identity of the ordinal `ordinal`, which is how every test below states who stamped.
-    fn id(ordinal: u32) -> ShapeId {
-        ShapeId::new(NonZeroU32::new(ordinal).expect("no test asks for zero"))
+    fn id(ordinal: u16) -> ShapeId {
+        ShapeId::new(NonZeroU16::new(ordinal).expect("no test asks for zero"))
     }
 
     /// A window `width` by `height` at `origin`, which is how every test below states where the
     /// positions it asks about are.
-    fn window(origin: Pos, width: u32, height: u32) -> Buffer {
+    fn window(origin: Pos, width: u16, height: u16) -> Buffer {
         Buffer::new(origin, Size { width, height })
     }
 
@@ -378,10 +378,10 @@ mod tests {
     /// **Both, rather than whichever the assertion needs**, because the difference between them is
     /// what the rule about the window's origin is about, and a test that only ever used the pair
     /// correctly would not notice a buffer that read them the other way round.
-    fn every_offset(origin: Pos, width: u32, height: u32) -> Vec<(Offset, Pos)> {
-        let as_position = |x: u32, y: u32| Pos {
-            x: origin.x + i32::try_from(x).expect("a window this narrow"),
-            y: origin.y + i32::try_from(y).expect("a window this short"),
+    fn every_offset(origin: Pos, width: u16, height: u16) -> Vec<(Offset, Pos)> {
+        let as_position = |x: u16, y: u16| Pos {
+            x: origin.x + i16::try_from(x).expect("a window this narrow"),
+            y: origin.y + i16::try_from(y).expect("a window this short"),
         };
         (0..height)
             .flat_map(|y| (0..width).map(move |x| (Offset { x, y }, as_position(x, y))))
@@ -1372,8 +1372,8 @@ mod tests {
             Offset { x: 0, y: 2 },
             Offset { x: 2, y: 2 },
             Offset {
-                x: u32::MAX,
-                y: u32::MAX,
+                x: u16::MAX,
+                y: u16::MAX,
             },
         ] {
             assert_eq!(
@@ -1414,9 +1414,9 @@ mod tests {
         );
         assert_eq!(
             buffer.owner(Offset {
-                x: u32::try_from(origin.x + i32::try_from(clicked.x).expect("two columns"))
+                x: u16::try_from(origin.x + i16::try_from(clicked.x).expect("two columns"))
                     .expect("negative"),
-                y: u32::try_from(origin.y + i32::try_from(clicked.y).expect("three rows"))
+                y: u16::try_from(origin.y + i16::try_from(clicked.y).expect("three rows"))
                     .expect("negative"),
             }),
             None,
@@ -1427,14 +1427,14 @@ mod tests {
     /// An offset a window's own origin cannot carry is owned by nobody, and so is every cell it
     /// stands on.
     ///
-    /// **`i32::MIN` is a real origin rather than a theoretical one**, and it is the ordinary shape
+    /// **`i16::MIN` is a real origin rather than a theoretical one**, and it is the ordinary shape
     /// of the question: a window far enough to the left that the columns to its right cannot be
     /// added to it. `checked_add_unsigned` is what answers, so no caller performs the arithmetic
     /// and none of it overflows — the whole window is asked, in both directions, and every answer
     /// is `None` because the window holds no cell to own.
     #[test]
     fn an_offset_a_windows_own_origin_cannot_carry_is_owned_by_nobody() {
-        let mut buffer = window(Pos { x: i32::MIN, y: 0 }, 4, 3);
+        let mut buffer = window(Pos { x: i16::MIN, y: 0 }, 4, 3);
 
         a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
             &mut buffer,
@@ -1447,13 +1447,13 @@ mod tests {
                 assert_eq!(
                     buffer.owner(Offset { x, y }),
                     None,
-                    "the offset ({x}, {y}) cannot be a position in a window at i32::MIN"
+                    "the offset ({x}, {y}) cannot be a position in a window at i16::MIN"
                 );
             }
         }
         // And the run past the window's width, where the offset is representable and the sum is
         // not: this is the arithmetic `checked_add_unsigned` performs, so no caller performs it.
-        for offset in [Offset { x: 4, y: 0 }, Offset { x: u32::MAX, y: 0 }] {
+        for offset in [Offset { x: 4, y: 0 }, Offset { x: u16::MAX, y: 0 }] {
             assert_eq!(buffer.owner(offset), None);
         }
         assert_eq!(

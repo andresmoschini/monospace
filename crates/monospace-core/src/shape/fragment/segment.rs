@@ -14,7 +14,7 @@ use crate::{Arm, Cell, Orientation, Pos, Shape, Stroke, StrokeCell, Surface};
 #[derive(Debug)]
 pub(crate) struct Segment {
     pub(crate) from: Pos,
-    pub(crate) len: u32,
+    pub(crate) len: u16,
     pub(crate) orientation: Orientation,
     pub(crate) stroke: Stroke,
 }

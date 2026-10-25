@@ -189,7 +189,7 @@ impl Shape for Connector {
     }
 }
 
-/// One step from `at` in `dir`, or `None` if that would overflow `i32`.
+/// One step from `at` in `dir`, or `None` if that would overflow `i16`.
 fn offset(at: Pos, dir: Direction) -> Option<Pos> {
     match dir {
         Direction::Up => at.y.checked_sub(1).map(|y| Pos { x: at.x, y }),
@@ -250,10 +250,10 @@ fn expand_waypoints(waypoints: &[Pos]) -> Vec<Pos> {
 /// The smallest rectangle containing both starting positions. It bounds nothing; it is the span
 /// term 3 of the ranking measures its middle within — the module's _Design notes_.
 struct RouteRectangle {
-    x_min: i32,
-    x_max: i32,
-    y_min: i32,
-    y_max: i32,
+    x_min: i16,
+    x_max: i16,
+    y_min: i16,
+    y_max: i16,
 }
 
 impl RouteRectangle {
@@ -279,7 +279,7 @@ impl RouteRectangle {
 
     /// The cell halfway between `min` and `max` (inclusive), nearer `anchor` — which is always
     /// one of the two, since it is one of the two positions the rectangle spans.
-    fn midpoint(min: i32, max: i32, anchor: i32) -> i32 {
+    fn midpoint(min: i16, max: i16, anchor: i16) -> i16 {
         let half = (max - min) / 2;
         if anchor == min {
             min + half
@@ -303,10 +303,10 @@ fn direction_orientation(dir: Direction) -> Orientation {
 /// Why each term is there: the module's _Design notes_.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct Cost {
-    bends: u32,
-    length: u32,
-    from_middle: u32,
-    hand: u32,
+    bends: u16,
+    length: u16,
+    from_middle: u16,
+    hand: u16,
 }
 
 /// A fixed order over the four directions, used only to index arrays and hash-map keys —
@@ -332,8 +332,8 @@ fn direction_index(d: Direction) -> usize {
 /// a route turns only here — a claim the module's _Design notes_ call confirmed rather than
 /// proved, and what to re-run when a term is added to [`Cost`].
 struct Lattice {
-    x: Vec<i32>,
-    y: Vec<i32>,
+    x: Vec<i16>,
+    y: Vec<i16>,
 }
 
 /// A node of [`Lattice`], paired with the index into [`DIRECTIONS`] of the heading a run reaching
@@ -348,14 +348,14 @@ impl Lattice {
         }
     }
 
-    fn axis(s_c: i32, t_c: i32, mid_c: i32) -> Vec<i32> {
+    fn axis(s_c: i16, t_c: i16, mid_c: i16) -> Vec<i16> {
         let mut values = vec![s_c - 1, s_c, s_c + 1, mid_c, t_c - 1, t_c, t_c + 1];
         values.sort_unstable();
         values.dedup();
         values
     }
 
-    fn index_of(values: &[i32], value: i32) -> usize {
+    fn index_of(values: &[i16], value: i16) -> usize {
         values
             .binary_search(&value)
             .expect("value is one of axis's own candidates")
@@ -391,7 +391,7 @@ impl Lattice {
 /// `mid_c` — term 4 of the ranking, in the module's _Design notes_. Coordinates grow rightward
 /// and downward, so leaving `Up` or `Right` puts the larger coordinate to the right, and leaving
 /// `Down` or `Left` the smaller.
-fn is_right_of_travel(da: Direction, c: i32, mid_c: i32) -> bool {
+fn is_right_of_travel(da: Direction, c: i16, mid_c: i16) -> bool {
     match da {
         Direction::Up | Direction::Right => c >= mid_c,
         Direction::Down | Direction::Left => c <= mid_c,
@@ -402,14 +402,14 @@ fn is_right_of_travel(da: Direction, c: i32, mid_c: i32) -> bool {
 /// since a run's own fixed coordinate does not change — charges against `mid` and the connector's own
 /// travel `da`. `hand` is charged only where `orientation` matches `da`'s own, which is what makes
 /// term 4's handedness the connector's own travel rather than the coordinate system's.
-fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u32, u32) {
+fn run_cost(orientation: Orientation, pos: Pos, mid: Pos, da: Direction) -> (u16, u16) {
     let (c, mid_c) = match orientation {
         Orientation::Horizontal => (pos.y, mid.y),
         Orientation::Vertical => (pos.x, mid.x),
     };
     let from_middle = c.abs_diff(mid_c);
     let hand = if orientation == direction_orientation(da) {
-        u32::from(!is_right_of_travel(da, c, mid_c))
+        u16::from(!is_right_of_travel(da, c, mid_c))
     } else {
         0
     };
@@ -1078,7 +1078,7 @@ mod tests {
 
         let s = offset(a, da).expect("no overflow in this fixture");
         let t = offset(b, db).expect("no overflow in this fixture");
-        let middle_x = i32::midpoint(s.x.min(t.x), s.x.max(t.x));
+        let middle_x = i16::midpoint(s.x.min(t.x), s.x.max(t.x));
         assert_eq!(middle_x, 18);
 
         let path = derive_path(a, da, b, db).expect("the demonstration's connector has a route");
@@ -1262,12 +1262,12 @@ mod tests {
         );
 
         let char_at = |text: &str, at: Pos| {
-            let column = |value: i32| {
+            let column = |value: i16| {
                 value
                     .checked_sub(origin.x)
                     .and_then(|offset| usize::try_from(offset).ok())
             };
-            let row = |value: i32| {
+            let row = |value: i16| {
                 value
                     .checked_sub(origin.y)
                     .and_then(|offset| usize::try_from(offset).ok())
@@ -1283,8 +1283,8 @@ mod tests {
         let positions: Vec<Pos> = (0..size.height)
             .flat_map(|y| {
                 (0..size.width).map(move |x| Pos {
-                    x: origin.x + i32::try_from(x).expect("a window width fits i32"),
-                    y: origin.y + i32::try_from(y).expect("a window height fits i32"),
+                    x: origin.x + i16::try_from(x).expect("a window width fits i16"),
+                    y: origin.y + i16::try_from(y).expect("a window height fits i16"),
                 })
             })
             .collect();
@@ -1511,7 +1511,7 @@ mod tests {
     /// route's length by design.
     #[test]
     fn the_state_count_does_not_grow_with_distance() {
-        let states_apart = |cells_apart: i32| {
+        let states_apart = |cells_apart: i16| {
             let s = Pos { x: 0, y: -1 };
             let t = Pos {
                 x: 0,
@@ -1584,10 +1584,10 @@ mod tests {
     fn window_contains(p: Pos) -> bool {
         let dx =
             p.x.checked_sub(SWEEP_ORIGIN.x)
-                .and_then(|d| u32::try_from(d).ok());
+                .and_then(|d| u16::try_from(d).ok());
         let dy =
             p.y.checked_sub(SWEEP_ORIGIN.y)
-                .and_then(|d| u32::try_from(d).ok());
+                .and_then(|d| u16::try_from(d).ok());
         matches!((dx, dy), (Some(dx), Some(dy)) if dx < SWEEP_SIZE.width && dy < SWEEP_SIZE.height)
     }
 
