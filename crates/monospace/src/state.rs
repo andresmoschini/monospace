@@ -4,26 +4,88 @@
 //! built with the state and survives between frames like the rest of it. The global holds what
 //! belongs to the loop, not to the application.
 //!
-//! **The session is held and not read.** No slice of this one performs a command on a session, so
-//! there is nothing to ask it yet; what it is here for is that the state of the application is
-//! the session and the chrome's own, and a state that leaves out the session is a state that
-//! will have to grow one.
+//! **The session is read and never changed.** Every frame draws it into the window the interior
+//! gives; no slice of this one performs a command on it, and #181 is where one will.
 
+use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, Size};
 use monospace_editing::Session;
 use rat_widget::menu::MenubarState;
 use rat_widget::statusline::StatusLineState;
 
 use crate::status;
 
+/// The drawing the last frame produced, and the session it was drawn from.
+pub(crate) struct DiagramState {
+    /// The scroll origin: the position in the plane the interior's top-left corner reaches.
+    /// `(0, 0)` until #176 moves it.
+    origin: Pos,
+
+    /// The window the last frame drew into, kept so that a click is answered from the picture
+    /// the person saw rather than from a drawing made when the click arrives (D4). Empty until
+    /// the first frame is drawn.
+    buffer: Buffer,
+
+    /// **Read, never changed**: this slice performs no command on the session.
+    session: Session,
+}
+
+impl DiagramState {
+    /// A state over `session` that has not drawn a frame yet.
+    #[must_use]
+    pub(crate) fn new(session: Session) -> Self {
+        let origin = Pos { x: 0, y: 0 };
+
+        Self {
+            origin,
+            buffer: Buffer::new(
+                origin,
+                Size {
+                    width: 0,
+                    height: 0,
+                },
+            ),
+            session,
+        }
+    }
+
+    /// The glyph the last drawing put at `at`, or `None` where it put none: a position outside the
+    /// window, a cell no shape wrote, or a cell this catalog does not answer.
+    pub(crate) fn glyph<'a>(&'a self, at: Offset, catalog: &'a GlyphCatalog) -> Option<&'a str> {
+        self.position(at)
+            .and_then(|position| self.drawing().cell(position))
+            .and_then(|cell| cell.glyph_str(catalog))
+    }
+
+    /// The drawing of the last frame, which answers a click; empty before the first one.
+    ///
+    /// **`Buffer::owner` is asked with the click's own offset**, counted from the interior's
+    /// corner: the window's origin is the scroll origin, so nothing is added to the column and the
+    /// row the terminal reports.
+    pub(crate) fn drawing(&self) -> &Buffer {
+        &self.buffer
+    }
+
+    /// The position `at` reaches, counted from the window's corner, or `None` where the origin
+    /// and the offset cannot be added.
+    fn position(&self, at: Offset) -> Option<Pos> {
+        Some(Pos {
+            x: self.origin.x.checked_add_unsigned(at.x)?,
+            y: self.origin.y.checked_add_unsigned(at.y)?,
+        })
+    }
+
+    /// Draws the session's diagram into the window `size` large at the scroll origin, replacing
+    /// whatever the frame before drew.
+    pub(crate) fn redraw(&mut self, size: Size) {
+        let mut buffer = Buffer::new(self.origin, size);
+        self.session.diagram().draw(&mut buffer);
+        self.buffer = buffer;
+    }
+}
+
 /// Everything that survives between frames.
 pub(crate) struct AppState {
-    /// The session: the diagram being edited, and the steps behind and ahead of it.
-    #[allow(
-        dead_code,
-        reason = "rule 6 makes the session part of the state and no slice performs \
-        a command on it yet"
-    )]
-    session: Session,
+    pub diagram: DiagramState,
 
     /// The menu bar's own state: which label is selected and whether the drop-down is open.
     pub menu: MenubarState,
@@ -40,9 +102,9 @@ impl AppState {
     /// one. The caller parses the description, hands the diagram to [`Session::new`], and this
     /// takes what comes out.
     #[must_use]
-    pub(crate) fn new(session: Session) -> Self {
+    pub(crate) fn new(diagram_session: Session) -> Self {
         Self {
-            session,
+            diagram: DiagramState::new(diagram_session),
             menu: MenubarState::default(),
             status: status::state(),
         }

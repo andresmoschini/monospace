@@ -10,18 +10,14 @@
 //! frame is not using — because the screen is too short to hold it — is cleared rather than
 //! left alone.
 
-use rat_theme4::StyleName;
-use rat_theme4::theme::SalsaTheme;
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::{Constraint, Layout, Rect};
-use ratatui_core::style::Style;
 use ratatui_core::widgets::Widget;
-use ratatui_widgets::block::Block;
 use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
 use crate::state::AppState;
-use crate::{menu, status};
+use crate::{diagram_widget, menu, status};
 
 /// The height of the bar across the top.
 pub(crate) const BAR_HEIGHT: u16 = 1;
@@ -70,29 +66,20 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     Clear.render(area, buf);
 
     menu::draw_bar(regions.bar, buf, &mut state.menu, &global.cfg.theme);
-    draw_region(regions.region, buf, &global.cfg.theme);
+
+    diagram_widget::draw(
+        regions.region,
+        buf,
+        &mut state.diagram,
+        &global.catalog,
+        &global.cfg.theme,
+    );
+
     status::draw(regions.status, buf, &mut state.status, &global.cfg.theme);
 
     // The drop-down is drawn last: it hangs from the bar and covers the region, and a region
     // painted after it would erase it.
     menu::draw_drop_down(area, buf, &mut state.menu, &global.cfg.theme);
-}
-
-/// Paints the region the diagram goes into.
-///
-/// **It is a frame and nothing else.** What is inside it is the diagram's, and the diagram is
-/// #175's; all this slice draws is the box it goes into.
-///
-/// A box needs two rows, one for its top and one for its bottom, and a region that is shorter
-/// than that is not drawn at all: the frame clears it, and what a previous frame left in it is
-/// gone.
-fn draw_region(area: Rect, buf: &mut Buffer, theme: &SalsaTheme) {
-    if area.height < 2 {
-        return;
-    }
-
-    let border: Style = theme.style(Style::CONTAINER_BORDER_FG);
-    Block::bordered().style(border).render(area, buf);
 }
 
 /// Where a piece of text is on a frame, found in the frame itself so that a growing label
@@ -154,7 +141,7 @@ mod tests {
 
     /// The configuration the application starts with.
     fn a_global() -> AppGlobal {
-        AppGlobal::new(Config::default())
+        AppGlobal::new(Config::default(), monospace_glyph_sets::all())
     }
 
     /// Paints a frame into a buffer of the given size.

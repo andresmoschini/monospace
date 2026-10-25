@@ -61,15 +61,26 @@ therefore leaves the region exactly as it was, byte for byte.
 
 ## 3. The state
 
-**The state is a session and the chrome's own.** The session is what the person is working on, and
-the chrome's own is what the widgets of the screen hold between frames — which label of the bar is
-selected, whether a drop-down is open, what the status bar says. The two are one thing because they
-change together: a frame that changes one of them changes the other.
+**The state is a session, the drawing of the last frame, and the chrome's own.** The session is what
+the person is working on, the drawing is what the last frame put on the screen, and the chrome's own
+is what the widgets of the screen hold between frames — which label of the bar is selected, whether
+a drop-down is open, what the status bar says. The three are one thing because they change together:
+a frame that changes one of them changes the other.
+
+**The drawing of the last frame is kept because a click is a question about it.** A click on the
+diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
+that produced the picture the person saw rather than to one made when the click arrives: the diagram
+may have changed since, and a fresh drawing would answer about a picture nobody clicked. The window
+the last frame produced is therefore kept and replaced on every frame. **It is not the document** —
+the diagram is the document, the drawing is one rendering of it, and keeping it changes nothing
+about what a person can undo.
 
 **The configuration is not part of the state.** It is read once, when the application starts, and it
-does not change afterwards: what the state holds is the session and the chrome's own, and the
-palette of the theme is none of those. A diagram does not carry a palette, and a palette does not
-change because a figure was moved.
+does not change afterwards: what the state holds is the session, the drawing and the chrome's own,
+and the palette of the theme is none of those. **Neither is the glyph catalog the diagram is drawn
+with**, which is read once for the same reason and is what a cell becomes a character through.
+Whether the configuration is what holds that catalog is not settled here. A diagram does not carry a
+palette, and a palette does not change because a figure was moved.
 
 **The state survives between frames and nothing else does.** A frame is built from the state and
 discarded; the state is what the next frame is built from.
@@ -171,6 +182,7 @@ draws with, and the application names them rather than writing them.
 - A key reaches the session only as an action.
 - A handler that took no interest leaves the event to the next one, and the first answer ends the
   asking.
+- A click is answered from the drawing of the last frame.
 - The error handler does not answer with the error again.
 
 ## 8. Open questions

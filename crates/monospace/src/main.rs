@@ -10,6 +10,7 @@
 mod callbacks;
 mod config;
 mod context;
+mod diagram_widget;
 mod event;
 mod frame;
 mod menu;
@@ -66,7 +67,7 @@ fn run() -> Result<(), AppError> {
     // on the terminal a person is still looking at. The failure is not a frame, and no snapshot
     // can show it.
     let mut state = AppState::new(start(path)?);
-    let mut global = AppGlobal::new(Config::default());
+    let mut global = AppGlobal::new(Config::default(), monospace_glyph_sets::all());
     let cfg = RunConfig::default()?.poll(PollCrossterm).poll(PollRendered);
 
     let outcome = run_tui(

@@ -145,7 +145,7 @@ mod tests {
 
     /// The configuration the application starts with.
     fn a_global() -> AppGlobal {
-        AppGlobal::new(Config::default())
+        AppGlobal::new(Config::default(), monospace_glyph_sets::all())
     }
 
     /// The state of an application that has been on the screen once.

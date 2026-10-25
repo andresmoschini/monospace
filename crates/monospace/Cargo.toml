@@ -31,6 +31,11 @@ monospace-editing.workspace = true
 # The format the description is read with. **The same reader the command line uses**, so the screen
 # has no second way into the format and a change to it moves both binaries.
 monospace-description.workspace = true
+# The model the drawing goes into: a window of cells with the record of which shape decided each.
+# The application does not name a diagram type, but it holds the buffer the diagram is drawn into.
+monospace-core.workspace = true
+# The nine glyph tables the drawing is rendered with, shared with the command line.
+monospace-glyph-sets.workspace = true
 # The event loop, the terminal and its restoration.
 rat-salsa = "=4.0.3"
 # The palette and the styles the chrome is drawn in.
