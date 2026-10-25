@@ -1,9 +1,11 @@
 # The application model
 
-**Status:** Design intent, with one slice implemented. What §1 through §5 describe is
+**Status:** Design intent, with two slices implemented. What §1 through §5 describe is
 [`monospace`](../crates/monospace), and
 [`specs/174-a-full-screen-application-whose-menu-hol.md`](../specs/174-a-full-screen-application-whose-menu-hol.md)
-is the specification that slice was built against. §6 _Deliberately unresolved_ and §8 _Open
+and
+[`specs/175-draw-the-demo-description-or-one-given-b.md`](../specs/175-draw-the-demo-description-or-one-given-b.md)
+are the specifications those slices were built against. §6 _Deliberately unresolved_ and §8 _Open
 questions_ are what a later change answers. Amend this document when reality contradicts it, and say
 so in the commit.
 
@@ -58,6 +60,15 @@ left in a cell is gone with the frame that follows it.
 status bar, and the drop-down last of all: a widget drawn later covers the one before it, and a
 drop-down drawn under the region could not be seen, let alone clicked. A drop-down that closes
 therefore leaves the region exactly as it was, byte for byte.
+
+**The region's interior is the diagram's window.** The frame is the region's, and the diagram is
+drawn inside it: the window is the interior, one cell in from each side, and a click's column and
+row are counted from that interior's corner. On every frame the application draws the session's
+diagram into a buffer the size of the window at the scroll origin, and copies the cells the drawing
+holds into the frame one at a time. A cell no shape wrote, and a cell whose glyph the catalog does
+not answer, keeps the space the frame's clear painted; the copy writes only what it has.
+**`monospace_core::render` is not the way**: the string it returns is the picture and nothing else,
+and the buffer behind it is what answers a click.
 
 ## 3. The state
 
@@ -151,8 +162,11 @@ widgets, and what they look like, how they are drawn and which keys they answer 
 the rectangle a click is tested against: the widget knows where its labels are only once it has been
 drawn, and a click is tested against the areas of the frame before it.
 
-**The drawing is the framework's.** The buffer, the layout and the styles are the ones the framework
-draws with, and the application names them rather than writing them.
+**The drawing is the framework's and the core's.** The buffer, the layout and the styles the chrome
+is drawn with are the framework's, and the application names them rather than writing them. The
+cells inside the region are the core's, drawn into a `monospace_core::Buffer` the application owns:
+it chooses the window, keeps the buffer the last frame produced, and copies its cells into the
+framework's buffer one at a time.
 
 ## 6. Deliberately unresolved
 
