@@ -63,15 +63,16 @@ which is why this is a decision rather than a line of code.
 **D2 — what does the status bar say about the selected shape, and what does it say when there is
 none?**
 
-**Answer:** `box 2 at (2, 1)`, `line 7 at (0, 5)`, and for a connector both of its endpoints;
-nothing selected leaves the report empty; the application's name keeps the left, its version the
-right edge, and the report takes the middle. The position is the plane's rather than the window's,
-so scrolling moves none of these numbers, and a connector writes each endpoint as it resolves now,
-`?` where one does not. **Why not** the bare identity the previous bar showed: an identity with
-nothing to explain it cannot tell a box from a connector, which is what this issue is about. **Why
-not** the selection replacing the name and version: those are the only thing the bar says when
-nothing is selected, and a bar that says nothing at all is indistinguishable from a frame that
-failed to paint one; this change adds a signal rather than moving the chrome. **Why not**
+**Answer:** `box #2 at (2, 1)`, `line #7 at (0, 5)`, and for a connector both of its endpoints;
+every identity carries a `#` before its ordinal, so a number in the bar is never read as a
+coordinate. Nothing selected leaves the report empty; the application's name keeps the left, its
+version the right edge, and the report takes the middle. The position is the plane's rather than the
+window's, so scrolling moves none of these numbers, and a connector writes each endpoint as it
+resolves now, `?` where one does not. **Why not** the bare identity the previous bar showed: an
+identity with nothing to explain it cannot tell a box from a connector, which is what this issue is
+about. **Why not** the selection replacing the name and version: those are the only thing the bar
+says when nothing is selected, and a bar that says nothing at all is indistinguishable from a frame
+that failed to paint one; this change adds a signal rather than moving the chrome. **Why not**
 `no selection` where the report would be empty: the blank already says it, and the words cost their
 width on every frame. **Why not** only one endpoint of a connector: a connector stands in two places
 and one of them is not its position. **What it costs:** the middle of the bar is blank most of the
@@ -135,9 +136,9 @@ into its own window, and `monospace-diagram` already re-exports that identity.
    from the new drawing: it survives a resize, and it follows the shape it names.
 7. The status bar keeps its three sections: the name on the left, the report in the middle, and the
    version on the right edge, with the name and the report taking the width the version leaves. The
-   report says `box 2 at (2, 1)`, `line 7 at (0, 5)` and `connector 10 from (12, 3) to (22, 4)`: the
-   kind in lowercase, the identity as `ShapeId` writes it, and the position. Nothing selected leaves
-   the report empty, and the name and version stand where #174 put them.
+   report says `box #2 at (2, 1)`, `line #7 at (0, 5)` and `connector #10 from (12, 3) to (22, 4)`:
+   the kind in lowercase, the identity as a `#` and the ordinal `ShapeId` writes, and the position.
+   Nothing selected leaves the report empty, and the name and version stand where #174 put them.
 8. The position is in the plane and not in the window: a box or a line reports its `at`, and a
    connector reports both endpoints as they resolve now, an endpoint that does not resolve being
    written `?`. Scrolling the window moves none of these numbers.
@@ -155,23 +156,24 @@ into its own window, and `monospace-diagram` already re-exports that identity.
 ## Examples
 
 **The status bar under three selections, and under none.** Hypothetical: no code produces this yet,
-and none of it has been observed. The spacing is illustrative, and the 80-column width is chosen so
-that the longest line fits; the name and the report take the width the version leaves.
+and none of it has been observed. The spacing is illustrative, and the 84-column width leaves the
+longest report a space before the version; the name and the report take the width the version
+leaves.
 
 ```text
-monospace                             box 2 at (2, 1)                      0.1.0
-monospace                             line 7 at (0, 5)                     0.1.0
-monospace                             connector 10 from (12, 3) to (22, 4) 0.1.0
-monospace                                                                 0.1.0
+monospace                               box #2 at (2, 1)                       0.1.0
+monospace                               line #7 at (0, 5)                      0.1.0
+monospace                               connector #10 from (12, 3) to (22, 4)  0.1.0
+monospace                                                                      0.1.0
 ```
 
 **The three positions D2 has to name.** Hypothetical, for the same reason: each is what the status
 bar would say about a shape of the demonstration.
 
 ```text
-box 2 at (2, 1)
-line 7 at (0, 5)
-connector 10 from (12, 3) to (22, 4)
+box #2 at (2, 1)
+line #7 at (0, 5)
+connector #10 from (12, 3) to (22, 4)
 ```
 
 **The inversion is style and the snapshots are symbols.** A screen snapshot records the glyph of
