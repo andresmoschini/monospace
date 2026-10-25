@@ -56,10 +56,11 @@ struct Shortcut {
 /// The shortcuts the application answers to.
 ///
 /// **The rows differ in one column, and that column is the whole of the precedence.** The forced
-/// exit is answered before anything, and the ways out after everything: they are the same mechanism
-/// with a different scope, rather than one mechanism per row and an `if` somewhere else. The
-/// deletion is `Unclaimed` because it is not the chrome's to swallow: which keys the chrome keeps is
-/// the focus rule #189 owns, and `Delete` is not one of the bar's own (D3).
+/// exit is answered before anything, and the other four after everything: they are the same
+/// mechanism with a different scope, rather than one mechanism per row and an `if` somewhere else.
+/// The deletion, the undo and the redo are `Unclaimed` because they are not the chrome's to
+/// swallow: which keys the chrome keeps is the focus rule #189 owns, and none of the three is one
+/// of the bar's own (D3 of #178, D3 of #181).
 ///
 /// **A slice rather than an array of a counted length**: the count of an array is a number beside
 /// the rows it counts, and a row added without it is an error the compiler reports about the wrong
@@ -75,6 +76,22 @@ const SHORTCUTS: &[Shortcut] = &[
         key: KeyCode::Char('q'),
         modifiers: KeyModifiers::CONTROL,
         action: Action::Quit,
+        reach: Reach::Unclaimed,
+    },
+    Shortcut {
+        key: KeyCode::Char('z'),
+        modifiers: KeyModifiers::CONTROL,
+        action: Action::Undo,
+        reach: Reach::Unclaimed,
+    },
+    // **The shifted character, not `z` with `SHIFT` set.** A terminal that reports the
+    // combination at all reports it as the character the shift produces with `Control` and `Shift`
+    // set; and one that folds the shift into the control character reports the undo instead, which
+    // is the cost D1 of #181 names. The two rows are told apart by the character.
+    Shortcut {
+        key: KeyCode::Char('Z'),
+        modifiers: KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        action: Action::Redo,
         reach: Reach::Unclaimed,
     },
     Shortcut {
