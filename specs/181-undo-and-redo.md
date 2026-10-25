@@ -16,14 +16,14 @@ say what giving a change back means. The editing model owns the rule — §5 ste
 **What the issue used to leave open is answered, and this change does not re-open it.** The history
 lives in `monospace-editing` and not in the application, the diagram or a wrapper; the walk is
 linear, a step carries the state rather than inverting the change, and `can_undo` and `can_redo` are
-answerable without carrying anything out. That last property is what lets the menu grey an entry
-instead of guessing, and it is what makes D2 takeable.
+answerable without carrying anything out. That last property is what would let the menu grey an
+entry instead of guessing; D2 leaves that to #189 and to issue 231, and asks the session only to
+walk.
 
 **The keybinding question #191 left open is not forced here either.** `Delete` already reaches one
 command by a key and by a menu entry, and this slice makes three commands of that shape without
-joining the table that answers a shortcut to the menu that draws it. The join is #180's. What this
-slice does add is the first entry whose availability the bar draws from the session (D2), and that
-is a smaller question than where a binding lives.
+joining the table that answers a shortcut to the menu that draws it. The join is #180's. Nor does
+this slice decide whether an entry may be drawn disabled, which is D2's no.
 
 ## Scope
 
@@ -32,20 +32,21 @@ is a smaller question than where a binding lives.
 - `Ctrl+Z`, with no other modifier, gives the step behind back: one `Session::undo`.
 - `Ctrl+Shift+Z`, with no other modifier, gives the step ahead back: one `Session::redo`.
 - **Undo** and **Redo** in the Edit menu, above **Delete**, drawn with `Ctrl+Z` and `Ctrl+Shift+Z`,
-  each disabled — drawn in the theme's disabled style — exactly when the session cannot walk that
-  way (D2).
+  and offered all the time, as **Delete** is (D2).
 - Both the keys and the entries become `Action::Undo` and `Action::Redo`; `callbacks::apply` is
   where either reaches the state.
-- `DiagramState::undo`, `redo`, `can_undo` and `can_redo`, the last two readable in a non-test
-  build, and the tests that hold the rules below.
+- `DiagramState::undo` and `redo`, and the tests that hold the rules below. `can_undo` and
+  `can_redo` stay test-only, because nothing on the screen asks them (D2).
 
 ### Out
 
-- **A history of the application's own.** #197 owns the session; this slice asks it four questions
+- **A history of the application's own.** #197 owns the session; this slice asks it two questions
   and keeps no copy of the answers.
 - **Restoring the selection.** #178 answered it: undo restores the diagram, and a person who wants a
   figure selected clicks it again.
 - **What the status bar says about the history.** #226 owns the row.
+- **An entry greyed when it cannot act.** Issue 231 asks for it once #189 has settled the three
+  states of a control; until then both entries are drawn as **Delete** is.
 - **Joining the shortcut an entry draws to the table that answers it.** #180.
 - **A bound on the history.** `docs/editing-model.md` §8 leaves it open.
 - **A confirmation, a dialog, or undo reached from one.** #189.
@@ -71,19 +72,18 @@ shifted combination, and the test constructs that event rather than assuming wha
 **D2 — are Undo and Redo offered all the time, as Delete is, or disabled when there is nothing to
 give back?**
 
-**Answer:** disabled, each from `can_undo` and `can_redo`, and drawn in the theme's disabled style.
-The entries stay in the drop-down; only their disabled flag changes, and both flags are read from
-the session on every frame. **Why not** offering them always, which is what #178's D4 does for
-Delete: a control that cannot act and looks able is the failure the issue names, and §6 of the
-editing model makes the answer available without carrying anything out precisely so a caller can
-grey it rather than wait for it to fail. Delete could not be conditioned because the bar would have
-to hold what the diagram has selected; undo and redo need two booleans that are not the selection
-and are the same for the whole frame. **Why not** hiding an entry instead of disabling it: the name
-of a command would come and go from the one place a command has a name (#191's D7), and a drop-down
-whose entries move under the pointer as the history changes is worse than one whose entries dim.
-**What it costs:** the menu is no longer one `static` — it is built each frame from the two answers
-— and the widget learns the flags only when it is drawn, so a frame that did not follow a change
-would leave stale flags. Every action paints, so the frame follows.
+**Answer:** offered all the time, as **Delete** is: both entries are in the drop-down at every
+position of the history, drawn like any other entry, and a press when there is nothing to give back
+changes nothing and paints the frame. **Why not** drawing them disabled from `can_undo` and
+`can_redo`: it is the better answer and it is not this slice's. It makes the menu a value built each
+frame rather than one `static`, and it makes an entry the first thing on the screen whose state
+comes from the session; #189 owns the three states of a control and how the drop-down draws them,
+and issue 231 asks for the entry to be greyed once that is settled. **Why not** hiding an entry
+instead: the name of a command would come and go from the one place a command has a name (#191's
+D7), and a drop-down whose entries move under the pointer is worse than one that never moves. **What
+it costs:** nothing on the screen says the history has reached an end; the only signal is a painted
+frame whose drawing does not move. That is the silence **Delete** has when nothing is selected, and
+it is why the entry's state is worth its own issue.
 
 **D3 — do the two keys reach the application before the chrome, or after it?**
 
@@ -97,15 +97,14 @@ is swallowed; the row's reach is the one column to change, and this decision say
 
 ## Model slice
 
-- `docs/application-model.md` §3: the application keeps no history of its own. What can be given
-  back is read from the session when the frame is built, and the selection is not part of it.
+- `docs/application-model.md` §3: the application keeps no history of its own and draws no state
+  from one; the selection is not part of what undo restores.
 - §4: Undo and Redo are two actions, each reached by a key and by the Edit menu's entry; the entries
-  are the first availability the bar draws from the session, and a disabled entry carries no
-  meaning; the selection is not restored; the keys are `Unclaimed`; a carried-out action paints.
+  are offered all the time and carry no state; the selection is not restored; the keys are
+  `Unclaimed`; a carried-out action paints.
 - §7: the properties this change adds — the two keys walk the history and stop at its ends, the two
-  entries do the same, an entry is disabled exactly when the session cannot take it, a disabled
-  entry is not carried out, undo and redo leave the selection alone, a drop-down does not keep
-  either key, and a command after an undo leaves nothing to redo.
+  entries do the same, an entry is never drawn differently, undo and redo leave the selection alone,
+  a drop-down does not keep either key, and a command after an undo leaves nothing to redo.
 - §8: the shortcut-table question is unchanged and still #180's; "what can be undone" stays the
   status bar's and #226's.
 - `docs/editing-model.md`: none. §5 and §6 already own the steps and the walk, and
@@ -120,14 +119,11 @@ No crate gains or loses a public item, and the binary's arguments do not change.
 - `Action` gains `Undo` and `Redo`, both with no fields, so it stays `Copy`, `PartialEq` and `Eq`.
 - `shortcuts::SHORTCUTS` gains two rows, five in all: `Char('z')` with `CONTROL`, and the shifted
   character with `CONTROL|SHIFT`, both `Reach::Unclaimed`.
-- `DiagramState` gains `pub(crate) fn undo(&mut self)`, `redo(&mut self)`, `can_undo(&self)` and
-  `can_redo(&self)`. `can_undo` loses its `#[cfg(test)]`; both reads are asked by the frame.
-- `menu::MENU` stops being a `static` and becomes a value built from two booleans; `meaning` gains
-  the two arms, and `UNDO`, `REDO` and `DELETE` are its indices. `draw_bar` and `draw_drop_down`
-  take the two answers, not the state that holds the session. All of it is private.
-- `menu::handle` answers an activated entry that is disabled with `ScreenChanged` rather than with
-  the entry's meaning, so a disabled entry reaches no command; the drop-down closes and the frame is
-  painted.
+- `DiagramState` gains `pub(crate) fn undo(&mut self)` and `redo(&mut self)`. `can_undo` and
+  `can_redo` keep their `#[cfg(test)]`: no frame asks them, because no entry is drawn disabled.
+- `menu::MENU` gains two entries above **Delete**, and `meaning` gains the two arms, with `UNDO`,
+  `REDO` and `DELETE` as its indices. It stays one `static`. All of it is private.
+- `menu::handle` is unchanged: an activated entry answers its meaning whatever the session holds.
 - `callbacks::apply` answers `Control::Changed` for `Undo` and `Redo`.
 - `monospace-editing`, `monospace-diagram` and `monospace-core` are unchanged, and
   `crates/monospace/Cargo.toml` gains no dependency.
@@ -152,22 +148,21 @@ No crate gains or loses a public item, and the binary's arguments do not change.
 7. Undo and redo do not touch the selection. The identity after the walk is the one the state held
    before it, and a selection no cell of the restored drawing records inverts nothing — §3 of the
    application model, not a rule of this slice.
-8. A press or an entry with nothing to give back is not a command: no step is recorded and no figure
-   changes.
+8. A press or an entry with nothing to give back records no step and changes no figure. It is still
+   an action that was carried out, so the frame is painted.
 9. The Edit menu holds **Undo**, **Redo** and **Delete**, in that order. Undo draws `Ctrl+Z`, Redo
    draws `Ctrl+Shift+Z`, and Delete still draws `Del`.
-10. Undo is disabled exactly when `can_undo()` is false, and Redo exactly when `can_redo()` is
-    false. The two are read from the session on every frame, and the list of entries never changes —
-    only the flags.
-11. An entry that is disabled is not carried out by any route: taking it closes the drop-down and
-    paints the frame, and no command reaches the session.
-12. A command carried out after an undo discards the steps ahead, so the Redo entry is disabled on
-    the next frame. The application keeps no copy that could re-enable it; that is §6 of the editing
-    model.
+10. Undo and Redo are drawn like every other entry at every position of the history: the list never
+    changes and no entry carries a flag. `can_undo` and `can_redo` are not read by the frame.
+11. Taking an entry does what its key does. With nothing to give back the drop-down closes, the
+    frame is painted, and the drawing is the one it already showed.
+12. A command carried out after an undo discards the steps ahead, and nothing on the screen says so:
+    Redo is drawn as it always is. The application keeps no copy that could say otherwise; that is
+    §6 of the editing model.
 13. The next frame draws the restored diagram into the same window at the same origin, and every
     figure is where the step left it.
 14. The application keeps no history and reads no step or position: its whole use of the editing
-    layer's history is `can_undo`, `can_redo`, `undo` and `redo`.
+    layer's history is `undo` and `redo`.
 
 ## Examples
 
@@ -192,29 +187,21 @@ nothing. The fourth and sixth show the two ends of one step: undo leaves a step 
 it; the fifth is the other key at the newest position, which is rule 3 at that end. The ninth is
 rule 7 at its sharpest: the box was selected before the redo took it out again, the identity
 survives the walk, and the frame inverts nothing because no cell records it. The last row is rule
-12: the delete after the undo discarded the step ahead, and the next frame draws the Redo entry
-disabled. The rows with `Ctrl+Y` and `Alt+Z` are the cost of D1 and rule 4: the first is a redo the
-application does not answer to, and the second is a combination the table does not have.
+12: the delete after the undo discarded the step ahead, and the drawing does not say so. The rows
+with `Ctrl+Y` and `Alt+Z` are the cost of D1 and rule 4: the first is a redo the application does
+not answer to, and the second is a combination the table does not have.
 
-**The entries, as the drop-down draws them.** The style is a picture rather than a column of the
-table above, and the disabled one is the theme's disabled color:
-
-| Session                 | Undo     | Redo     | Delete  |
-| ----------------------- | -------- | -------- | ------- |
-| fresh                   | disabled | disabled | enabled |
-| after a delete          | enabled  | disabled | enabled |
-| after a delete and undo | disabled | enabled  | enabled |
-
-Taking a disabled entry closes the drop-down and paints, and no command reaches the session (rule
-11). The redo the terminal folds into `Ctrl+Z` is the cost D1 names: the event is an undo, the undo
+**The entries do not move.** Undo, Redo and Delete are in the drop-down at every position of the
+history, drawn alike, so the rows above differ in what a press does and not in how the menu looks
+(D2). The redo the terminal folds into `Ctrl+Z` is the cost D1 names: the event is an undo, the undo
 row answers it, and the Redo entry is the way forward there.
 
 ## What proves it
 
 The tests this change adds did not exist when the decision was taken; the names are what the
 building stage is held to, and the rows marked already say where the test lives. The keys, the
-actions and the repaint are in `callbacks`, the walk and the selection are in `state`, and the bar,
-the two entries and their disabled flags are in `menu`.
+actions and the repaint are in `callbacks`, the walk and the selection are in `state`, and the bar
+and the two entries are in `menu`.
 
 | Rule | Test                                                                                                  |
 | ---- | ----------------------------------------------------------------------------------------------------- |
@@ -228,18 +215,17 @@ the two entries and their disabled flags are in `menu`.
 | 6    | `the_undo_shortcut_says_only_that_it_undoes`, `taking_the_undo_entry_becomes_the_action_of_the_key`   |
 | 7    | `the_undo_and_redo_keys_leave_the_selection_alone`                                                    |
 | 9    | `the_edit_menu_shows_undo_and_redo_with_their_shortcuts`                                              |
-| 10   | `an_entry_is_disabled_exactly_when_the_session_cannot_take_it`                                        |
-| 11   | `a_disabled_entry_is_not_taken`                                                                       |
+| 10   | `the_edit_menu_offers_undo_and_redo_at_every_position`                                                |
+| 11   | `taking_an_entry_with_nothing_to_give_back_changes_nothing`                                           |
 | 12   | `a_command_with_steps_ahead_discards_them` — already, in the editing layer's contract                 |
 | 13   | `a_frame_after_an_undo_draws_the_restored_diagram`                                                    |
 | 14   | _nothing holds this: a reviewer reads the imports, and the manifest names no `monospace-diagram`_     |
 
-The disabled style is a picture, so rule 10's test draws the frame and compares the Undo cells'
-color with the Delete cells' rather than asserting a glyph. No existing snapshot moves: the bar's
-labels are unchanged and the File drop-down is untouched. The picture of the Edit drop-down with one
-entry dimmed is new, and it is the first snapshot of a disabled entry in this repository. The two
-tables under `## Examples` are hypothetical and are what the building stage turns into the tests
-above; nothing here has been observed.
+No existing snapshot moves: the bar's labels are unchanged and the File drop-down is untouched. The
+picture of the Edit drop-down with Undo and Redo above Delete is new. Rule 10's test draws it twice
+— fresh and after a delete — and compares the two, because the claim is that the menu looks the same
+at both ends of the history. The two tables under `## Examples` are hypothetical and are what the
+building stage turns into the tests above; nothing here has been observed.
 
 ## Open questions
 
@@ -248,3 +234,8 @@ selection is the delete slice's, both answered and both tested below this slice.
 join is issue 180's, the status bar issue 226's, the dialog issue 189's, and how many steps a
 session keeps is §8 of the editing model. The folded key is a cost D1 names rather than a question:
 no rule here could recover the redo from an event that cannot be told apart from the undo.
+
+**The greyed entry is issue 231's, and it is not this slice's.** D2 draws both entries as **Delete**
+is drawn, so nothing on the screen says the history has reached an end. Greying one needs the three
+states of a control, which #189 owns, and the decision to use them here belongs with that, not with
+undo.
