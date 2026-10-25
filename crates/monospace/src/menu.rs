@@ -30,15 +30,25 @@ use crate::vocabulary::Action;
 /// **The shortcut on the right of the entry is drawn by the widget and answered to by the
 /// application**, which is what the table in `shortcuts` is for. The two are two places that can
 /// disagree, and joining them is #180's.
+///
+/// **Every entry is offered all the time.** The bar carries no state about what is selected, so the
+/// Edit menu's entry is active whether or not a figure is selected; taking it with nothing selected
+/// is a deletion that removes nothing and repaints all the same, the same answer the key gives.
 static MENU: StaticMenu = StaticMenu {
-    menu: &[("_File", &["_Quit|Ctrl+Q"])],
+    menu: &[("_File", &["_Quit|Ctrl+Q"]), ("_Edit", &["_Delete|Del"])],
 };
 
-/// The label of the only menu of the bar.
+/// The label of the way out.
 const FILE: usize = 0;
 
-/// The entry of the only menu of the bar.
+/// The entry of the way out.
 const QUIT: usize = 0;
+
+/// The label of the editing commands.
+const EDIT: usize = 1;
+
+/// The entry that removes the selected figure.
+const DELETE: usize = 0;
 
 /// What an event means to the chrome.
 ///
@@ -80,6 +90,7 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Option<Action> {
 fn meaning(label: usize, entry: usize) -> Action {
     match (label, entry) {
         (FILE, QUIT) => Action::Quit,
+        (EDIT, DELETE) => Action::Delete,
 
         // An entry nobody knows still closed the drop-down, so the frame has to be painted again.
         _ => Action::ScreenChanged,
@@ -170,9 +181,14 @@ mod tests {
     /// **The frame is drawn after the key as well as before it**: the widget knows what it
     /// holds only once it has been drawn, and a frame that is not drawn leaves the drop-down
     /// without an entry to take.
-    fn open(state: &mut MenubarState) {
-        let _ = handle(&key(KeyCode::Char('f')), state);
+    fn open_with(state: &mut MenubarState, navigation: char) {
+        let _ = handle(&key(KeyCode::Char(navigation)), state);
         draw(state);
+    }
+
+    /// Opens the File drop-down.
+    fn open(state: &mut MenubarState) {
+        open_with(state, 'f');
     }
 
     fn key(code: KeyCode) -> Event {
@@ -225,6 +241,44 @@ mod tests {
             "the entry did not become the action of the way out: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
+    }
+
+    /// **The Edit menu's entry is the key's action, and the bar holds no selection to condition
+    /// it on.** The entry is always offered, and with nothing selected the application carries the
+    /// action out as a deletion that removes nothing rather than the menu refusing to open it.
+    #[test]
+    fn taking_the_delete_entry_becomes_the_action_of_the_key() {
+        let mut state = drawn();
+        open_with(&mut state, 'e');
+
+        let outcome = handle(&key(KeyCode::Enter), &mut state);
+
+        assert!(
+            matches!(outcome, Some(Action::Delete)),
+            "the entry did not become the action of the delete key: {outcome:?}"
+        );
+        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+    }
+
+    #[test]
+    fn the_edit_menu_is_on_the_bar_and_shows_the_delete_entry() {
+        let mut state = drawn();
+        open_with(&mut state, 'e');
+
+        let frame = picture(&draw(&mut state));
+
+        assert!(
+            frame.contains("Edit"),
+            "the bar has no Edit menu: {frame:?}"
+        );
+        assert!(
+            frame.contains("Delete"),
+            "the Edit menu offers no delete: {frame:?}"
+        );
+        assert!(
+            frame.contains("Del"),
+            "the entry shows no shortcut: {frame:?}"
+        );
     }
 
     #[test]

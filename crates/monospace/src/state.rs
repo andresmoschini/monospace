@@ -4,11 +4,12 @@
 //! built with the state and survives between frames like the rest of it. The global holds what
 //! belongs to the loop, not to the application.
 //!
-//! **The session is read and never changed.** Every frame draws it into the window the interior
-//! gives; no slice of this one performs a command on it, and #181 is where one will.
+//! **The session is read on every frame and changed only by an action.** Every frame draws it into
+//! the window the interior gives; the one command performed on it is the removal the delete key
+//! means, carried out in `crate::callbacks`, and #181 is where the step it records is given back.
 
 use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, ShapeId, Size};
-use monospace_editing::Session;
+use monospace_editing::{Command, Session};
 use rat_widget::menu::MenubarState;
 use rat_widget::statusline::StatusLineState;
 use ratatui_core::layout::{Position, Rect};
@@ -40,7 +41,8 @@ pub(crate) struct DiagramState {
     /// drawing records is kept and inverts nothing (rule 7).
     selected: Option<ShapeId>,
 
-    /// **Read, never changed**: this slice performs no command on the session.
+    /// **The session is read on every frame and changed by one action**: the delete key performs
+    /// its one command, and every other slice reads it.
     session: Session,
 }
 
@@ -106,6 +108,32 @@ impl DiagramState {
     /// row the terminal reports.
     pub(crate) fn owner(&self, at: Offset) -> Option<ShapeId> {
         self.buffer.owner(at)
+    }
+
+    /// Takes the shape `id` out of the session, and drops the selection.
+    ///
+    /// **The removal is the session's and not the diagram's** (rule 7): one `Command::Remove` is
+    /// performed, which records one step that #181 gives back. The application names no `Diagram`
+    /// and no `Shape`, and what hung from the removed shape is frozen by `Diagram::remove`, below
+    /// this layer.
+    ///
+    /// **The identity is dropped with the command** (rule 2). A selection no cell of the next
+    /// drawing records would invert nothing on its own, but keeping it would leave the next click's
+    /// answer and #181's undo disagreeing about what is selected: the shape is gone, so the state
+    /// stops naming it.
+    pub(crate) fn remove(&mut self, id: ShapeId) {
+        self.session = self.session.perform(Command::Remove { id });
+        self.selected = None;
+    }
+
+    /// Whether a step is behind the session.
+    ///
+    /// **This read exists for the tests, and #181 is where the frame will ask it for real.** The
+    /// application does not walk the history yet, so a non-test build has no use for it; the tests
+    /// ask it to tell a command from a press that performed none.
+    #[cfg(test)]
+    pub(crate) fn can_undo(&self) -> bool {
+        self.session.can_undo()
     }
 
     /// Whether the shape that owns `at` of the last frame's drawing is the selected shape.
@@ -197,6 +225,14 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::num::NonZeroU16;
+
+    /// A description whose only shape is a light 4×3 box at `(2, 1)`.
+    const A_BOX: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
 
     #[test]
     fn the_bar_and_the_status_start_inert() {
@@ -207,6 +243,41 @@ mod tests {
             "a drop-down is open on the first frame"
         );
         assert_eq!(state.status.status.len(), 2, "the status bar says nothing");
+    }
+
+    /// **The removal is the session's, and it records the step #181 gives back.** One command is
+    /// one step: there is something behind the position and nothing ahead of it.
+    #[test]
+    fn a_removal_leaves_the_session_one_step_further_on() {
+        let diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let mut state = AppState::new(Session::new(diagram));
+        let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+
+        assert!(
+            !state.diagram.session.can_undo(),
+            "a fresh session has a step behind it"
+        );
+
+        state.diagram.remove(shape);
+
+        assert!(
+            state.diagram.session.can_undo(),
+            "the removal recorded no step"
+        );
+        assert!(
+            !state.diagram.session.can_redo(),
+            "the removal recorded more than one step"
+        );
+        assert!(
+            state.diagram.session.diagram().get(shape).is_none(),
+            "the session still holds the removed shape"
+        );
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the removal kept the identity it took out"
+        );
     }
 
     /// A session over an empty diagram. **The diagram's type is not named here** either: the

@@ -1,5 +1,7 @@
 ---
-status: draft
+status: implemented
+decided: "#228"
+implemented: "#229"
 date: 2026-10-25
 ---
 
@@ -27,8 +29,8 @@ referencing figure therefore stays drawable, and the rule that makes it so is `m
 already.
 
 What is left is the application: an event becomes an action, the action becomes the session's
-command, and the state stops holding the identity. Three things about that are not settled by the
-model, and D1 to D3 take them.
+command, and the state stops holding the identity. Four things about that are not settled by the
+model, and D1 to D4 take them.
 
 ## Scope
 
@@ -39,6 +41,8 @@ model, and D1 to D3 take them.
 - The same action drops the selected identity, so the next frame inverts nothing.
 - The key is one row of the application's shortcut table, and `callbacks::apply` is where the action
   becomes the command.
+- An **Edit** menu on the bar, with one **Delete** entry drawn with the shortcut `Del`, which is
+  always offered and carries the same action the key does (D4).
 - The `DiagramState` method that performs the removal, and the tests that hold the rules below.
 
 ### Out
@@ -47,9 +51,14 @@ model, and D1 to D3 take them.
 - **A confirmation.** #189 owns the dialog, its geometry, its controls and which of them holds the
   keyboard. D1 takes the removal without one and names the cost.
 - **Moving, resizing or otherwise editing a figure.** #179.
-- **The menu entry and the name it shows.** There is no Edit menu to hold one; the key is answered
-  here and drawn nowhere, and the model's open question about joining the table and the menu stays
-  open. #180 is the menu creating shapes, which is a different slice.
+- **Any other entry in the Edit menu.** Cut, copy, paste and undo are #180's, #181's, or asked for
+  nowhere, and the menu this change adds holds the one entry the slice is about.
+- **Joining the shortcut the entry draws to the table that answers it.** The entry says `Del` and
+  the table has a `Delete` row, written in two places that nothing checks against each other, and
+  #180 is where they are joined.
+- **A menu entry that looks different when there is nothing to act on.** D4 offers the entry always;
+  a disabled state would need the bar to hold the selection, which §3 of the model keeps in one
+  place.
 - **What the status bar says.** #226. After this action nothing is selected, so it has nothing to
   name.
 - **Selecting more than one figure, and selecting with the keyboard.** Neither was asked for, and
@@ -92,6 +101,18 @@ rule about the keyboard's owner in a change about one key. The bar's own vocabul
 them, so nothing in the chrome claims it. **What it costs:** a Delete pressed while a menu is open
 removes a figure behind it, and the person sees the result only when the menu closes.
 
+**D4 — is the Edit menu's entry offered when nothing is selected, or is it disabled and greyed?**
+
+**Answer:** offered, always, and it looks the same with a figure selected as without one. **Why
+not** a disabled entry: the bar would have to know what the diagram has selected in order to decide
+how to draw itself, and §3 of the model keeps the selection in one place so that nothing else can
+disagree with it; `StaticMenu` has no per-entry disabled marker either, so the alternative is a menu
+whose shape is built from the state rather than stated once. It would also need a second rule about
+what "nothing happens" looks like, when behavior rule 3 already says what the action does with no
+selection: nothing, and no step. **What it costs:** a person can take an entry and see no figure
+disappear. The frame is repainted anyway, because carrying the action out paints it, so the screen
+shows the menu gone even when the diagram is untouched.
+
 ## Model slice
 
 - `docs/application-model.md` §3: the selection is an identity, and a command that removes the
@@ -101,10 +122,14 @@ removes a figure behind it, and the person sees the result only when the menu cl
 - `docs/application-model.md` §4: the application gains its first action that changes the session. A
   key of the shortcut table can mean a command; the action carries the meaning and the identity is
   read from the state where the action is carried out; the removal is not confirmed, and a drop-down
-  does not keep the key.
+  does not keep the key. The Edit menu's entry reaches the same action and is always offered (D4),
+  and an action that is carried out paints whether or not it removed a figure, which is what closes
+  the entry's drop-down on the screen.
 - `docs/application-model.md` §7: the properties this change adds — Delete removes the selected
-  figure and records one step, Delete with nothing selected changes nothing, the state holds no
-  selection afterwards, and a drop-down open does not keep the key.
+  figure and records one step, Delete with nothing selected removes nothing and records no step, the
+  state holds no selection afterwards, a drop-down open does not keep the key, the Edit menu's entry
+  carries the same action and is offered with nothing selected, and taking it paints because the
+  action is carried out.
 - `docs/application-model.md` §6: none. _The pop-up_ stays #189's; this change records that a
   removal is not one of the places one is asked for.
 - `docs/diagram-model.md`: none. §4 and §6 already state the freeze, and `remove` already performs
@@ -123,7 +148,14 @@ No crate gains or loses a public item, and the binary's arguments do not change.
 - `shortcuts::SHORTCUTS` gains a third row: `KeyCode::Delete`, no modifiers, `Action::Delete`,
   `Reach::Unclaimed`. The table is private and its length is a constant.
 - `DiagramState` gains a `pub(crate)` method, `remove(&mut self, id: ShapeId)`, which replaces its
-  session with `session.perform(Command::Remove { id })` and sets `selected` to `None`.
+  session with `session.perform(Command::Remove { id })` and sets `selected` to `None`. It also
+  gains a test-only read, `can_undo()`, so that a test can tell a command from a press that
+  performed none.
+- `menu::MENU` gains a second menu, `_Edit`, with one entry `_Delete|Del`, and `menu::meaning` maps
+  that pair to `Action::Delete`. Both are private, and `EDIT` and `DELETE` are the indices the match
+  reads.
+- `callbacks::apply` answers `Control::Changed` for `Action::Delete` whether or not a figure was
+  removed. Its signature does not change; the repaint is the action's, so no second type carries it.
 - `AppState`, `Session`, `Command`, `Diagram` and everything below `monospace-editing` are
   unchanged. `crates/monospace/Cargo.toml` gains no dependency.
 
@@ -134,8 +166,9 @@ No crate gains or loses a public item, and the binary's arguments do not change.
 2. The same press drops the selected identity: `selected()` answers `None` afterwards, and the next
    frame inverts no cell.
 3. A press of `Delete` with no shape selected changes nothing: the session is the one it was, no
-   step is recorded, the state still holds no selection, and the frame is not owed
-   (`Control::Continue`).
+   step is recorded, the state still holds no selection, and the frame is painted again
+   (`Control::Changed`): carrying the action out repaints, which is what closes an entry taken with
+   nothing selected.
 4. A press of `Delete` carrying any modifier, a release, and a repeat are not the shortcut. The
    table's existing rule holds them all, and the state does not change.
 5. `Delete` is a row of the shortcut table with `Reach::Unclaimed`. An open drop-down does not keep
@@ -156,21 +189,36 @@ No crate gains or loses a public item, and the binary's arguments do not change.
 9. The application holds no reference logic and names no type below `monospace-editing`: nothing in
    `crates/monospace` reads a `Position`, a `Reference`, a `Shape` or a `Diagram`, and the crate
    does not depend on `monospace-diagram`. The freeze is tested where it lives.
+10. The bar carries a **File** menu and an **Edit** menu. The Edit menu holds one entry, **Delete**,
+    drawn with the shortcut `Del`, and taking it carries out exactly rule 1's action: it is
+    `Action::Delete`, the same meaning the key answers with, not a second path to the removal.
+11. The entry is offered whether or not a figure is selected (D4). With nothing selected, taking it
+    performs no command and records no step, exactly as rule 3 says of the key — and the result is
+    `Control::Changed`: carrying the action out repaints, so the drop-down the entry closed is gone
+    from the screen.
+12. An entry taken closes the drop-down before its meaning is carried out, and the frame that
+    follows is the action's. Nothing here needs a second action for the screen the bar changed:
+    `Delete` paints whether or not it removed a figure, and `Quit` ends the loop. The bar mints
+    `ScreenChanged` only for a change of its own that carries no meaning.
 
 ## Examples
 
 **The key and what it leaves behind.** Hypothetical: none of it has been observed, and it is what
 the acceptance list checks. One figure over an empty diagram, selected by a click before each
-scenario starts:
+scenario that starts from a selection:
 
-| Scenario                                | Event            | Commands performed | Steps | `selected()` | `Control`  |
-| --------------------------------------- | ---------------- | ------------------ | ----- | ------------ | ---------- |
-| a figure is selected                    | `Delete`         | 1, `Remove { 1 }`  | 1     | `None`       | `Changed`  |
-| the same, and `Delete` is pressed again | `Delete`         | 0                  | 1     | `None`       | `Continue` |
-| a figure is selected                    | `Shift`+`Delete` | 0                  | 0     | `Some(1)`    | `Continue` |
-| a figure is selected                    | a release        | 0                  | 0     | `Some(1)`    | `Continue` |
+| Scenario                                | Event         | Commands performed | Steps | `selected()` | `Control`  |
+| --------------------------------------- | ------------- | ------------------ | ----- | ------------ | ---------- |
+| a figure is selected                    | `Delete`      | 1, `Remove { 1 }`  | 1     | `None`       | `Changed`  |
+| the same, and `Delete` is pressed again | `Delete`      | 0                  | 1     | `None`       | `Changed`  |
+| a figure is selected                    | `Shift`+`Del` | 0                  | 0     | `Some(1)`    | `Continue` |
+| a figure is selected                    | a release     | 0                  | 0     | `Some(1)`    | `Continue` |
+| a figure is selected                    | Edit ▸ Delete | 1, `Remove { 1 }`  | 1     | `None`       | `Changed`  |
+| nothing is selected                     | Edit ▸ Delete | 0                  | 0     | `None`       | `Changed`  |
 
-`can_undo()` is `true` after the first row's command, and no key walks the history back.
+`can_undo()` is `true` after the first row's command, and no key walks the history back. The second
+row removes nothing and is painted again all the same; the last row's `Changed` is the same repaint
+with the drop-down closing, and no action changed the diagram.
 
 **The issue's two answers, drawn.** The same arrangement in three states. First, the arrangement: a
 box at the left with a connector hanging from its right side, and a box at the right that the same
@@ -266,25 +314,40 @@ reference is left alone, and it is the silence the issue complains about.
 draws that window inside the region's border, with the bar above and the status bar below, and a
 drop-down open over all of it (D3) covers the region without changing what the deletion did.
 
+**The bar is not something a render marker can draw.** The markers of this repository describe a
+diagram's window, and the bar is chrome; the picture of the bar with the Edit menu open is a frame
+snapshot, and `## What proves it` names it. Two alternatives D4 weighs are a bar whose entry is
+always drawn the same and one whose entry is greyed with nothing selected; the second is not a state
+the widget can be put into, so there is no picture of it to compare against, and the reason it was
+not built is in D4 rather than in a drawing.
+
 ## What proves it
 
-None of these tests exists yet; the deciding stage adds no code. The names are what the building
-stage is held to, and the four marked _already_ pass today and are not rewritten.
+None of these tests existed when the decision was taken; the names are what the building stage was
+held to. The key, the action, the empty selection and the frame after a removal are in `callbacks`,
+the step and the dropped identity are in `state`, and the bar and its two menus are in `menu`.
 
-| Rule | Test                                                                                              |
-| ---- | ------------------------------------------------------------------------------------------------- |
-| 1    | `the_delete_key_removes_the_selected_shape`                                                       |
-| 1, 7 | `a_removal_leaves_the_session_one_step_further_on`                                                |
-| 2    | `the_delete_key_drops_the_selection`                                                              |
-| 3    | `the_delete_key_with_nothing_selected_changes_nothing`                                            |
-| 4    | `a_shortcut_answers_to_nothing_but_a_press` — already                                             |
-| 4    | `a_shortcut_is_the_combination_it_shows_and_not_another_one` — already                            |
-| 5    | `the_delete_key_is_answered_with_the_drop_down_open`                                              |
-| 6    | `the_delete_shortcut_says_only_that_it_deletes`                                                   |
-| 8    | `a_removal_freezes_what_hung_from_the_removed_shape` — already                                    |
-| 8    | `a_removal_touches_nothing_else` — already                                                        |
-| 8    | `a_frame_after_a_removal_draws_the_connector_where_it_stood`                                      |
-| 9    | _nothing holds this: a reviewer reads the imports, and the manifest names no `monospace-diagram`_ |
+| Rule | Test                                                                                                                                                                                       |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | `the_delete_key_removes_the_selected_shape`                                                                                                                                                |
+| 1, 7 | `a_removal_leaves_the_session_one_step_further_on`                                                                                                                                         |
+| 2    | `the_delete_key_drops_the_selection`                                                                                                                                                       |
+| 3    | `the_delete_key_with_nothing_selected_removes_nothing`                                                                                                                                     |
+| 4    | `a_shortcut_answers_to_nothing_but_a_press` — already                                                                                                                                      |
+| 4    | `a_shortcut_is_the_combination_it_shows_and_not_another_one` — already, and adapted to a row whose own combination is no modifier: it counts the alternatives rather than assuming `Shift` |
+| 5    | `the_delete_key_is_answered_with_the_drop_down_open`                                                                                                                                       |
+| 6    | `the_delete_shortcut_says_only_that_it_deletes`                                                                                                                                            |
+| 8    | `a_removal_freezes_what_hung_from_the_removed_shape` — already                                                                                                                             |
+| 8    | `a_removal_touches_nothing_else` — already                                                                                                                                                 |
+| 8    | `a_frame_after_a_removal_draws_the_connector_where_it_stood`                                                                                                                               |
+| 9    | _nothing holds this: a reviewer reads the imports, and the manifest names no `monospace-diagram`_                                                                                          |
+| 10   | `taking_the_delete_entry_becomes_the_action_of_the_key` and `the_edit_menus_delete_entry_removes_the_selected_shape`                                                                       |
+| 10   | `the_edit_menu_is_on_the_bar_and_shows_the_delete_entry`, on the picture of the frame                                                                                                      |
+| 11   | `the_edit_menus_delete_entry_is_offered_with_nothing_selected`                                                                                                                             |
+
+The frame snapshots of `frame` moved with this change — `File` became `File Edit` and four cells
+joined the count in each — and `cargo insta review` reported them rather than the change asserting
+them by hand. They are the picture of the bar the two menus are held to.
 
 The three pictures in `## Examples` are held by their render markers: `cargo xtask render` rewrites
 them, and the gate fails if one is not what its description draws.
@@ -297,5 +360,6 @@ command, so a later undo restores the diagram and not the selection, and a perso
 clicks again. That is the answer the issue asked for, and #181 inherits it.
 
 **Nothing else is open here.** The confirmation dialog is #189's and D1 says what happens until it
-arrives; the menu entry and the shortcut it would show are #180's; the status bar is #226's; and
-what a removal does to a reference is #142's and #161's, already answered and already tested.
+arrives; the shortcut the Edit menu draws is written beside the table that answers it rather than
+derived from it, and joining them is #180's; the status bar is #226's; and what a removal does to a
+reference is #142's and #161's, already answered and already tested.

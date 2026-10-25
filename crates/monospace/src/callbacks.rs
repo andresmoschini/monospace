@@ -86,21 +86,39 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
         .or_else(|| shortcuts::handle_unclaimed(event))
 }
 
-/// What an action does: paint the frame again, end the loop, or nothing at all.
+/// What an action does: paint the frame again, remove a shape, end the loop, or nothing at all.
 ///
-/// **An action is carried out here, and nowhere else.** None of the actions of this slice touches
-/// the state, and the state is taken anyway: the first action that edits the diagram, or opens the
-/// dialog of #189, finds it here already, and no caller changes with it.
+/// **An action is carried out here, and nowhere else.** The delete key is the first that changes
+/// the session, and it is carried out beside the two that end the loop so that a handler never does
+/// anything but say what the event meant.
+///
+/// **The action carries the meaning and not the identity** (D2): the selected shape is read here,
+/// from the state the click left, rather than minted into the action by the region. A press with
+/// nothing selected performs no command and records no step, and the frame is owed all the same:
+/// carrying the action out repaints, which is what makes the Edit menu's entry close on the screen
+/// with nothing selected.
 ///
 /// The way out and the forced exit both end the loop. **They are two meanings and not two code
 /// paths**: the way out grows a pop-up to confirm and the forced exit does not, which is #189's,
 /// and until then they end the same way.
-fn apply(action: Option<Action>, _state: &mut AppState) -> Control<AppEvent> {
+fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
     match action {
         None => Control::Continue,
 
         // The screen changed, and the loop paints the frame it is owed.
         Some(Action::ScreenChanged) => Control::Changed,
+
+        // **The one action that changes the session.** D2: the meaning arrives from the table and
+        // the identity is asked of the state, so the removal is one place and the key that means it
+        // is another. **The frame is owed either way**: an action that was carried out repaints, so
+        // taking the Edit menu's entry closes the drop-down on the screen even when there was no
+        // figure to remove.
+        Some(Action::Delete) => {
+            if let Some(selected) = state.diagram.selected() {
+                state.diagram.remove(selected);
+            }
+            Control::Changed
+        }
 
         Some(Action::Quit | Action::ForceQuit) => Control::Quit,
     }
@@ -129,6 +147,7 @@ mod tests {
     use crate::vocabulary::AppError;
     use monospace_core::Offset;
     use ratatui_core::layout::Rect;
+    use ratatui_core::style::Modifier;
     use ratatui_crossterm::crossterm::event::{
         Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
@@ -164,6 +183,28 @@ mod tests {
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    /// The arrangement §4 and §6 of the diagram model are shown with: a box at the left, a box at
+    /// the right, and one connector hung from the right side of the first and reaching the left
+    /// side of the second.
+    ///
+    /// The left box is at `(0, 1)` of the window, so its top-left is the screen's `(1, 3)`; the
+    /// right box's is at `(16, 1)`, the screen's `(17, 3)`.
+    const A_BOX_AND_WHAT_HANGS_FROM_IT: &str = r#"{
+        "next_id": 4,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 1 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 16, "y": 1 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "connector", "id": 3,
+              "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" },
+                        "leaving": "right", "terminal": { "kind": "arm" } },
+              "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left" },
+                        "leaving": "left", "terminal": { "kind": "arm" } },
+              "stroke": "light" }
+        ]
     }"#;
 
     /// The state of an application over the diagram `json` describes.
@@ -217,6 +258,21 @@ mod tests {
     /// The event the terminal reports for a key with modifiers.
     fn key_with(code: KeyCode, modifiers: KeyModifiers) -> Event {
         Event::Key(KeyEvent::new(code, modifiers))
+    }
+
+    /// One row of a frame, as text.
+    fn row_of(buffer: &Buffer, line: u16) -> String {
+        (buffer.area.left()..buffer.area.right())
+            .map(|column| buffer[(column, line)].symbol().to_string())
+            .collect()
+    }
+
+    /// Whether the cell at a frame position is painted in reverse video.
+    fn reversed(buffer: &Buffer, column: u16, line: u16) -> bool {
+        buffer[(column, line)]
+            .style()
+            .add_modifier
+            .contains(Modifier::REVERSED)
     }
 
     /// Hands an event to the application, the way the loop does.
@@ -422,6 +478,228 @@ mod tests {
             state.diagram.selected(),
             None,
             "the click the drop-down took reached the diagram"
+        );
+    }
+
+    /// **The delete key is the first action that changes the session.** The selected shape is gone
+    /// from the drawing the next frame makes, and the frame is owed because of it.
+    #[test]
+    fn the_delete_key_removes_the_selected_shape() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected"
+        );
+
+        let outcome = send(&key(KeyCode::Delete), &mut state);
+        let buffer = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            "the drawing still records the removed box"
+        );
+        assert_eq!(
+            buffer[(3, 3)].symbol(),
+            " ",
+            "the frame still draws the removed box"
+        );
+    }
+
+    /// **The identity goes with the command** (rule 2): nothing is selected afterwards, and the
+    /// next frame inverts no cell. The cell the click selected is inverted before the removal, so
+    /// the answer after it proves the inversion went with the selection.
+    #[test]
+    fn the_delete_key_drops_the_selection() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            reversed(&draw(&mut state), 3, 3),
+            "the click selected nothing, so the test proves nothing"
+        );
+
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        let buffer = draw(&mut state);
+
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the identity survived the removal"
+        );
+        assert!(
+            !reversed(&buffer, 3, 3),
+            "the frame after the removal inverts a cell"
+        );
+    }
+
+    /// **A press with nothing selected is not a command.** It removes nothing and records no step,
+    /// and the frame is painted again because the action was carried out: that is the repaint an
+    /// entry taken with nothing selected needs, and the key costs the same one.
+    #[test]
+    fn the_delete_key_with_nothing_selected_removes_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+
+        let outcome = send(&key(KeyCode::Delete), &mut state);
+        let _ = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.diagram.can_undo(),
+            "a press with nothing selected recorded a step"
+        );
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "a press with nothing selected left a selection"
+        );
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            "the box was removed without a selection"
+        );
+    }
+
+    /// **The Edit menu's entry is the delete key's action.** The menu carries no selection, so the
+    /// entry is offered and taken with a figure selected, and it removes it.
+    #[test]
+    fn the_edit_menus_delete_entry_removes_the_selected_shape() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('e')), &mut state);
+        assert!(state.menu.popup_active(), "the Edit menu did not open");
+        let _ = draw(&mut state);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.menu.popup_active(), "the entry left the menu open");
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the entry kept the identity it removed"
+        );
+
+        let _ = draw(&mut state);
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            "the entry did not remove the selected shape"
+        );
+    }
+
+    /// **The entry is offered with nothing selected**, not only when a figure is. Taking it removes
+    /// nothing and records no step, and the frame is still painted: the action was carried out, and
+    /// the drop-down the person saw was closed by the entry.
+    #[test]
+    fn the_edit_menus_delete_entry_is_offered_with_nothing_selected() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&key(KeyCode::Char('e')), &mut state);
+        assert!(state.menu.popup_active(), "the Edit menu did not open");
+        let _ = draw(&mut state);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.menu.popup_active(),
+            "the entry stayed open with nothing to remove"
+        );
+        assert!(
+            !state.diagram.can_undo(),
+            "the entry recorded a step with nothing selected"
+        );
+
+        let _ = draw(&mut state);
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            "a figure was removed with nothing selected"
+        );
+    }
+
+    /// **`Delete` is `Unclaimed`, so the drop-down does not keep it** (D3): the figure behind the
+    /// open menu is removed and the menu's own state — including whether it is open — is untouched.
+    #[test]
+    fn the_delete_key_is_answered_with_the_drop_down_open() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('f')), &mut state);
+        assert!(state.menu.popup_active(), "the drop-down did not open");
+
+        let outcome = send(&key(KeyCode::Delete), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the drop-down kept the selection"
+        );
+        assert!(
+            state.menu.popup_active(),
+            "the deletion closed the drop-down"
+        );
+
+        let _ = draw(&mut state);
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            "the drop-down kept the delete key from the diagram"
+        );
+    }
+
+    /// **The table answers a meaning, and not an identity** (D2): `Action::Delete` has no field to
+    /// carry one, and the shape is read from the state by `apply` rather than minted by a handler.
+    #[test]
+    fn the_delete_shortcut_says_only_that_it_deletes() {
+        assert_eq!(
+            shortcuts::handle_unclaimed(&key(KeyCode::Delete)),
+            Some(Action::Delete),
+            "the delete key is not a row of the table, or says something else"
+        );
+        assert_eq!(
+            shortcuts::handle_always(&key(KeyCode::Delete)),
+            None,
+            "the delete key reaches before the chrome"
+        );
+    }
+
+    /// **What hung from the removed shape stays drawn where it stood** (rule 8). The diagram model
+    /// freezes the reference at the point it resolved to, and the frame that follows the removal
+    /// draws the connector there rather than leaving it out.
+    #[test]
+    fn a_frame_after_a_removal_draws_the_connector_where_it_stood() {
+        let mut state = a_drawn_state_over(A_BOX_AND_WHAT_HANGS_FROM_IT);
+        let _ = send(&click(1, 3), &mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the left box was not selected"
+        );
+
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        let buffer = draw(&mut state);
+
+        // The left box is gone, and its cells are blank.
+        for (column, line) in [(1, 3), (4, 3), (1, 4), (1, 5), (4, 5)] {
+            assert_eq!(
+                buffer[(column, line)].symbol(),
+                " ",
+                "({column}, {line}) still holds the removed box"
+            );
+        }
+
+        // The connector's near end was frozen at the point it resolved to: the window's `(3, 2)`
+        // is the screen's `(4, 4)`, and the line reaches the right box's left side at `(17, 4)`.
+        assert_eq!(
+            row_of(&buffer, 4),
+            "│   ─────────────┤  │                  │",
+            "the frame does not draw the connector where it stood"
+        );
+        assert_eq!(
+            buffer[(17, 3)].symbol(),
+            "┌",
+            "the right box went with the connector"
+        );
+        assert_eq!(
+            buffer[(20, 3)].symbol(),
+            "┐",
+            "the right box is not four cells wide"
         );
     }
 
