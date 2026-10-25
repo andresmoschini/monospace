@@ -133,12 +133,12 @@ about the screen rather than about what a person means to do**, and undo never h
 selection and an open drop-down are still not meanings of a person's, so no list of what a person
 can take back will ever hold one.
 
-**A handler changes the screen and answers an action, and the two are separate facts.** An entry
-taken closes the drop-down and carries the meaning of the entry, so a handler can owe a frame on its
-own beside the action it answers with: taking **Edit ▸ Delete** with nothing selected names no
-command, changes no diagram, and the screen is still owed, because the menu the person saw was
-closed. The routing layer keeps the two apart — what the event means and whether a handler already
-changed the screen — and the action is carried out once, from the first answer.
+**An action that is carried out repaints.** An entry taken closes the drop-down before its meaning
+is carried out, so the frame that follows is owed by the action rather than by a second one:
+`Delete` paints whether or not it removed a figure, which is what makes the entry disappear with
+nothing selected. A handler still mints `ScreenChanged` for a change of its own that carries no
+meaning — the drop-down opening, the selection moving — and a key that changed nothing at all owes
+nothing.
 
 **A click on the diagram selects, and selecting is the same kind of change.** A left press inside
 the region's interior selects the shape the drawing records under it, or drops the selection where
@@ -158,10 +158,10 @@ so the next frame inverts nothing. **The removal is not confirmed**: the dialog 
 and until it arrives an accidental `Delete` loses a figure with nothing to give it back. `Delete` is
 a shortcut nobody has claimed, so an open drop-down does not keep it: the key removes the figure
 behind the menu and the menu stays open, which is what costs this slice the feedback of a deletion a
-person cannot see until the menu closes. **The entry, unlike the key, is always offered**, with
-nothing selected as well as with a figure: the bar holds no selection to condition it on, and taking
-it with nothing selected performs no command while the frame is still owed, because the menu the
-person saw was closed by the entry.
+person cannot see until the menu closes. **The entry is always offered**, with nothing selected as
+well as with a figure: the bar holds no selection to condition it on, and taking it with nothing
+selected performs no command while the frame is still owed, because carrying the action out paints
+the frame that closes the menu.
 
 **The way out is one action.** It is reached by the shortcut the menu shows and by the menu's own
 entry, and both apply that same action rather than a code path each: the entry and the key become
@@ -257,9 +257,10 @@ framework's buffer one at a time.
 - A click changes no diagram: it is not a command and it records no step.
 - `Delete` removes the selected figure, records one step, and leaves the state holding no selection.
 - The Edit menu's entry carries the same action as the key, and it is offered with nothing selected.
-- Taking the Edit menu's entry owes a frame even when it removes nothing, because it closes the
-  menu.
-- `Delete` with nothing selected changes nothing and owes no frame.
+- Taking the Edit menu's entry paints even when it removes nothing, because carrying the action out
+  owes the frame.
+- `Delete` with nothing selected removes nothing and records no step, and the frame is painted
+  again.
 - The delete shortcut carries the meaning and not an identity: the table answers `Action::Delete`,
   and the selected shape is read from the state.
 - An open drop-down does not keep the `Delete` key.

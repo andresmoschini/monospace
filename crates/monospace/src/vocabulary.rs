@@ -7,8 +7,8 @@
 //! instead of becoming one.
 //!
 //! **An action need not change anything.** `Action::ScreenChanged` is the screen being owed a
-//! paint, and it is the one action that never reaches the state; `Action::Delete` changes the
-//! session and owes a paint, and the other two end the loop.
+//! paint, and it is the one action that never reaches the state; `Action::Delete` takes a shape out
+//! where one is selected and owes a paint either way, and the other two end the loop.
 //!
 //! **A handler says an action rather than doing one**, so that an entry of the menu and the key
 //! that means the same thing are decided in one place. A handler that took no interest says
@@ -38,11 +38,13 @@ pub(crate) enum Action {
     /// It changed what the screen shows, and nothing else: the frame is owed again.
     ScreenChanged,
 
-    /// The selected shape is taken out of the session.
+    /// The selected shape is taken out of the session, and the frame is owed either way.
     ///
     /// **The meaning and not the identity.** The shape is read from the state where the action is
     /// carried out, so the key is one row of the shortcut table rather than a second way of
-    /// naming what a click selected.
+    /// naming what a click selected. **A deletion with nothing selected removes nothing and still
+    /// paints**: carrying an action out owes the frame, which is what closes the menu's entry on
+    /// the screen when there was no figure to take.
     Delete,
 
     /// The way out: the application ends and the terminal comes back.

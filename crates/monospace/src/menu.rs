@@ -33,7 +33,7 @@ use crate::vocabulary::Action;
 ///
 /// **Every entry is offered all the time.** The bar carries no state about what is selected, so the
 /// Edit menu's entry is active whether or not a figure is selected; taking it with nothing selected
-/// is an action the application carries out as nothing, the same answer the key gives.
+/// is a deletion that removes nothing and repaints all the same, the same answer the key gives.
 static MENU: StaticMenu = StaticMenu {
     menu: &[("_File", &["_Quit|Ctrl+Q"]), ("_Edit", &["_Delete|Del"])],
 };
@@ -245,7 +245,7 @@ mod tests {
 
     /// **The Edit menu's entry is the key's action, and the bar holds no selection to condition
     /// it on.** The entry is always offered, and with nothing selected the application carries the
-    /// action out as nothing rather than the menu refusing to open it.
+    /// action out as a deletion that removes nothing rather than the menu refusing to open it.
     #[test]
     fn taking_the_delete_entry_becomes_the_action_of_the_key() {
         let mut state = drawn();

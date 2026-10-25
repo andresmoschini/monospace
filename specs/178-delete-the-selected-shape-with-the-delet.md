@@ -110,8 +110,8 @@ disagree with it; `StaticMenu` has no per-entry disabled marker either, so the a
 whose shape is built from the state rather than stated once. It would also need a second rule about
 what "nothing happens" looks like, when behavior rule 3 already says what the action does with no
 selection: nothing, and no step. **What it costs:** a person can take an entry and see no figure
-disappear. The frame is repainted anyway, because taking the entry closes the drop-down, so the
-screen shows the menu gone even when the diagram is untouched.
+disappear. The frame is repainted anyway, because carrying the action out paints it, so the screen
+shows the menu gone even when the diagram is untouched.
 
 ## Model slice
 
@@ -123,12 +123,13 @@ screen shows the menu gone even when the diagram is untouched.
   key of the shortcut table can mean a command; the action carries the meaning and the identity is
   read from the state where the action is carried out; the removal is not confirmed, and a drop-down
   does not keep the key. The Edit menu's entry reaches the same action and is always offered (D4),
-  and a handler that closes the drop-down owes a frame beside the action it answers with.
+  and an action that is carried out paints whether or not it removed a figure, which is what closes
+  the entry's drop-down on the screen.
 - `docs/application-model.md` §7: the properties this change adds — Delete removes the selected
-  figure and records one step, Delete with nothing selected changes nothing, the state holds no
-  selection afterwards, a drop-down open does not keep the key, the Edit menu's entry carries the
-  same action and is offered with nothing selected, and taking it owes a frame because it closes the
-  menu.
+  figure and records one step, Delete with nothing selected removes nothing and records no step, the
+  state holds no selection afterwards, a drop-down open does not keep the key, the Edit menu's entry
+  carries the same action and is offered with nothing selected, and taking it paints because the
+  action is carried out.
 - `docs/application-model.md` §6: none. _The pop-up_ stays #189's; this change records that a
   removal is not one of the places one is asked for.
 - `docs/diagram-model.md`: none. §4 and §6 already state the freeze, and `remove` already performs
@@ -147,13 +148,14 @@ No crate gains or loses a public item, and the binary's arguments do not change.
 - `shortcuts::SHORTCUTS` gains a third row: `KeyCode::Delete`, no modifiers, `Action::Delete`,
   `Reach::Unclaimed`. The table is private and its length is a constant.
 - `DiagramState` gains a `pub(crate)` method, `remove(&mut self, id: ShapeId)`, which replaces its
-  session with `session.perform(Command::Remove { id })` and sets `selected` to `None`.
+  session with `session.perform(Command::Remove { id })` and sets `selected` to `None`. It also
+  gains a test-only read, `can_undo()`, so that a test can tell a command from a press that
+  performed none.
 - `menu::MENU` gains a second menu, `_Edit`, with one entry `_Delete|Del`, and `menu::meaning` maps
   that pair to `Action::Delete`. Both are private, and `EDIT` and `DELETE` are the indices the match
   reads.
-- `callbacks::route` answers an `Answer { action, screen_owed }` rather than a bare
-  `Option<Action>`, and `apply` takes one. The struct is private; the split is what lets an entry
-  owe a frame when it closes the drop-down and its action changes nothing.
+- `callbacks::apply` answers `Control::Changed` for `Action::Delete` whether or not a figure was
+  removed. Its signature does not change; the repaint is the action's, so no second type carries it.
 - `AppState`, `Session`, `Command`, `Diagram` and everything below `monospace-editing` are
   unchanged. `crates/monospace/Cargo.toml` gains no dependency.
 
@@ -164,8 +166,9 @@ No crate gains or loses a public item, and the binary's arguments do not change.
 2. The same press drops the selected identity: `selected()` answers `None` afterwards, and the next
    frame inverts no cell.
 3. A press of `Delete` with no shape selected changes nothing: the session is the one it was, no
-   step is recorded, the state still holds no selection, and the frame is not owed
-   (`Control::Continue`).
+   step is recorded, the state still holds no selection, and the frame is painted again
+   (`Control::Changed`): carrying the action out repaints, which is what closes an entry taken with
+   nothing selected.
 4. A press of `Delete` carrying any modifier, a release, and a repeat are not the shortcut. The
    table's existing rule holds them all, and the state does not change.
 5. `Delete` is a row of the shortcut table with `Reach::Unclaimed`. An open drop-down does not keep
@@ -190,12 +193,13 @@ No crate gains or loses a public item, and the binary's arguments do not change.
     drawn with the shortcut `Del`, and taking it carries out exactly rule 1's action: it is
     `Action::Delete`, the same meaning the key answers with, not a second path to the removal.
 11. The entry is offered whether or not a figure is selected (D4). With nothing selected, taking it
-    performs no command and records no step, exactly as rule 3 says of the key — but the result is
-    `Control::Changed` rather than `Control::Continue`, because the drop-down the person saw was
-    closed by the entry and the frame that showed it open is no longer the state.
-12. Taking the entry closes the drop-down, and so does taking the File menu's. A drop-down closed by
-    an entry is the only screen change a handler makes on its own; a key that no drop-down answers
-    still changes the screen only through its action.
+    performs no command and records no step, exactly as rule 3 says of the key — and the result is
+    `Control::Changed`: carrying the action out repaints, so the drop-down the entry closed is gone
+    from the screen.
+12. An entry taken closes the drop-down before its meaning is carried out, and the frame that
+    follows is the action's. Nothing here needs a second action for the screen the bar changed:
+    `Delete` paints whether or not it removed a figure, and `Quit` ends the loop. The bar mints
+    `ScreenChanged` only for a change of its own that carries no meaning.
 
 ## Examples
 
@@ -206,15 +210,15 @@ scenario that starts from a selection:
 | Scenario                                | Event         | Commands performed | Steps | `selected()` | `Control`  |
 | --------------------------------------- | ------------- | ------------------ | ----- | ------------ | ---------- |
 | a figure is selected                    | `Delete`      | 1, `Remove { 1 }`  | 1     | `None`       | `Changed`  |
-| the same, and `Delete` is pressed again | `Delete`      | 0                  | 1     | `None`       | `Continue` |
+| the same, and `Delete` is pressed again | `Delete`      | 0                  | 1     | `None`       | `Changed`  |
 | a figure is selected                    | `Shift`+`Del` | 0                  | 0     | `Some(1)`    | `Continue` |
 | a figure is selected                    | a release     | 0                  | 0     | `Some(1)`    | `Continue` |
 | a figure is selected                    | Edit ▸ Delete | 1, `Remove { 1 }`  | 1     | `None`       | `Changed`  |
 | nothing is selected                     | Edit ▸ Delete | 0                  | 0     | `None`       | `Changed`  |
 
-`can_undo()` is `true` after the first row's command, and no key walks the history back. The last
-row's `Changed` is the drop-down closing: the action changed nothing, and the frame is owed anyway
-(rule 11).
+`can_undo()` is `true` after the first row's command, and no key walks the history back. The second
+row removes nothing and is painted again all the same; the last row's `Changed` is the same repaint
+with the drop-down closing, and no action changed the diagram.
 
 **The issue's two answers, drawn.** The same arrangement in three states. First, the arrangement: a
 box at the left with a connector hanging from its right side, and a box at the right that the same
@@ -328,7 +332,7 @@ the step and the dropped identity are in `state`, and the bar and its two menus 
 | 1    | `the_delete_key_removes_the_selected_shape`                                                                                                                                                |
 | 1, 7 | `a_removal_leaves_the_session_one_step_further_on`                                                                                                                                         |
 | 2    | `the_delete_key_drops_the_selection`                                                                                                                                                       |
-| 3    | `the_delete_key_with_nothing_selected_changes_nothing`                                                                                                                                     |
+| 3    | `the_delete_key_with_nothing_selected_removes_nothing`                                                                                                                                     |
 | 4    | `a_shortcut_answers_to_nothing_but_a_press` — already                                                                                                                                      |
 | 4    | `a_shortcut_is_the_combination_it_shows_and_not_another_one` — already, and adapted to a row whose own combination is no modifier: it counts the alternatives rather than assuming `Shift` |
 | 5    | `the_delete_key_is_answered_with_the_drop_down_open`                                                                                                                                       |

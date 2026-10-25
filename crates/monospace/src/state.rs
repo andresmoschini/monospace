@@ -126,6 +126,16 @@ impl DiagramState {
         self.selected = None;
     }
 
+    /// Whether a step is behind the session.
+    ///
+    /// **This read exists for the tests, and #181 is where the frame will ask it for real.** The
+    /// application does not walk the history yet, so a non-test build has no use for it; the tests
+    /// ask it to tell a command from a press that performed none.
+    #[cfg(test)]
+    pub(crate) fn can_undo(&self) -> bool {
+        self.session.can_undo()
+    }
+
     /// Whether the shape that owns `at` of the last frame's drawing is the selected shape.
     ///
     /// **This is where the inversion is decided, and it is decided from the record** (D1): a

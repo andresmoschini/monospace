@@ -66,31 +66,6 @@ pub(crate) fn event(
     })
 }
 
-/// Which handler answers the event, what it answers, and whether it owed a frame on its own.
-///
-/// **An action is not the only thing that changes the screen.** A click that moves the selection
-/// and an entry that closes a drop-down change it before any action is carried out; the action an
-/// entry carries can change nothing and the frame is still owed, because the menu the person saw is
-/// gone. The two facts travel together so `apply` can tell them apart.
-#[derive(Debug, Clone, Copy)]
-struct Answer {
-    /// What the first handler that claimed the event said it means.
-    action: Option<Action>,
-
-    /// Whether a handler changed the screen itself, beside any action it answered with.
-    screen_owed: bool,
-}
-
-impl Answer {
-    /// An answer that carries an action and no screen change of its own.
-    fn action(action: Action) -> Self {
-        Self {
-            action: Some(action),
-            screen_owed: false,
-        }
-    }
-}
-
 /// Which handler answers the event, and what it answers.
 ///
 /// **The order is the whole of the policy, and the chain is the order.** The shortcuts that reach
@@ -104,30 +79,11 @@ impl Answer {
 /// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
 /// application is what its own signature makes possible: the selection and the drop-down, and never
 /// the session.
-fn route(event: &Event, state: &mut AppState) -> Answer {
-    if let Some(action) = shortcuts::handle_always(event) {
-        return Answer::action(action);
-    }
-
-    // **An entry that was taken closed the drop-down**, and the frame that showed it open is no
-    // longer the frame the state describes. The action can change nothing — a deletion with no
-    // selection — and the screen is still owed for the menu's own change.
-    let drop_down_was_open = state.menu.popup_active();
-    if let Some(action) = menu::handle(event, &mut state.menu) {
-        return Answer {
-            action: Some(action),
-            screen_owed: drop_down_was_open && !state.menu.popup_active(),
-        };
-    }
-
-    if let Some(action) = diagram_widget::handle(event, &mut state.diagram) {
-        return Answer::action(action);
-    }
-
-    Answer {
-        action: shortcuts::handle_unclaimed(event),
-        screen_owed: false,
-    }
+fn route(event: &Event, state: &mut AppState) -> Option<Action> {
+    shortcuts::handle_always(event)
+        .or_else(|| menu::handle(event, &mut state.menu))
+        .or_else(|| diagram_widget::handle(event, &mut state.diagram))
+        .or_else(|| shortcuts::handle_unclaimed(event))
 }
 
 /// What an action does: paint the frame again, remove a shape, end the loop, or nothing at all.
@@ -138,19 +94,15 @@ fn route(event: &Event, state: &mut AppState) -> Answer {
 ///
 /// **The action carries the meaning and not the identity** (D2): the selected shape is read here,
 /// from the state the click left, rather than minted into the action by the region. A press with
-/// nothing selected performs no command and records no step, so the action's own answer is that the
-/// frame is not owed — unless a handler changed the screen on its own, which is the menu closing.
+/// nothing selected performs no command and records no step, and the frame is owed all the same:
+/// carrying the action out repaints, which is what makes the Edit menu's entry close on the screen
+/// with nothing selected.
 ///
 /// The way out and the forced exit both end the loop. **They are two meanings and not two code
 /// paths**: the way out grows a pop-up to confirm and the forced exit does not, which is #189's,
 /// and until then they end the same way.
-fn apply(answer: Answer, state: &mut AppState) -> Control<AppEvent> {
-    let Answer {
-        action,
-        screen_owed,
-    } = answer;
-
-    let control = match action {
+fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
+    match action {
         None => Control::Continue,
 
         // The screen changed, and the loop paints the frame it is owed.
@@ -158,22 +110,17 @@ fn apply(answer: Answer, state: &mut AppState) -> Control<AppEvent> {
 
         // **The one action that changes the session.** D2: the meaning arrives from the table and
         // the identity is asked of the state, so the removal is one place and the key that means it
-        // is another.
-        Some(Action::Delete) => match state.diagram.selected() {
-            Some(selected) => {
+        // is another. **The frame is owed either way**: an action that was carried out repaints, so
+        // taking the Edit menu's entry closes the drop-down on the screen even when there was no
+        // figure to remove.
+        Some(Action::Delete) => {
+            if let Some(selected) = state.diagram.selected() {
                 state.diagram.remove(selected);
-                Control::Changed
             }
-            None => Control::Continue,
-        },
+            Control::Changed
+        }
 
         Some(Action::Quit | Action::ForceQuit) => Control::Quit,
-    };
-
-    if screen_owed && matches!(control, Control::Continue) {
-        Control::Changed
-    } else {
-        control
     }
 }
 
@@ -586,16 +533,21 @@ mod tests {
         );
     }
 
-    /// **A press with nothing selected is not a command.** It removes nothing, records no step and
-    /// owes no frame; the drawing still holds what it held.
+    /// **A press with nothing selected is not a command.** It removes nothing and records no step,
+    /// and the frame is painted again because the action was carried out: that is the repaint an
+    /// entry taken with nothing selected needs, and the key costs the same one.
     #[test]
-    fn the_delete_key_with_nothing_selected_changes_nothing() {
+    fn the_delete_key_with_nothing_selected_removes_nothing() {
         let mut state = a_drawn_state_over(A_BOX);
 
         let outcome = send(&key(KeyCode::Delete), &mut state);
         let _ = draw(&mut state);
 
-        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.diagram.can_undo(),
+            "a press with nothing selected recorded a step"
+        );
         assert_eq!(
             state.diagram.selected(),
             None,
@@ -604,35 +556,6 @@ mod tests {
         assert!(
             state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
             "the box was removed without a selection"
-        );
-    }
-
-    /// **`Delete` is `Unclaimed`, so the drop-down does not keep it** (D3): the figure behind the
-    /// open menu is removed and the menu's own state — including whether it is open — is untouched.
-    #[test]
-    fn the_delete_key_is_answered_with_the_drop_down_open() {
-        let mut state = a_drawn_state_over(A_BOX);
-        let _ = send(&click(3, 3), &mut state);
-        let _ = send(&key(KeyCode::Char('f')), &mut state);
-        assert!(state.menu.popup_active(), "the drop-down did not open");
-
-        let outcome = send(&key(KeyCode::Delete), &mut state);
-
-        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert_eq!(
-            state.diagram.selected(),
-            None,
-            "the drop-down kept the selection"
-        );
-        assert!(
-            state.menu.popup_active(),
-            "the deletion closed the drop-down"
-        );
-
-        let _ = draw(&mut state);
-        assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
-            "the drop-down kept the delete key from the diagram"
         );
     }
 
@@ -663,9 +586,9 @@ mod tests {
         );
     }
 
-    /// **The entry is always offered**, not only when a figure is selected. Taking it with nothing
-    /// selected removes nothing and records no step, but the frame is still owed because the menu
-    /// that the person saw was closed by the entry.
+    /// **The entry is offered with nothing selected**, not only when a figure is. Taking it removes
+    /// nothing and records no step, and the frame is still painted: the action was carried out, and
+    /// the drop-down the person saw was closed by the entry.
     #[test]
     fn the_edit_menus_delete_entry_is_offered_with_nothing_selected() {
         let mut state = a_drawn_state_over(A_BOX);
@@ -680,11 +603,44 @@ mod tests {
             !state.menu.popup_active(),
             "the entry stayed open with nothing to remove"
         );
+        assert!(
+            !state.diagram.can_undo(),
+            "the entry recorded a step with nothing selected"
+        );
 
         let _ = draw(&mut state);
         assert!(
             state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
             "a figure was removed with nothing selected"
+        );
+    }
+
+    /// **`Delete` is `Unclaimed`, so the drop-down does not keep it** (D3): the figure behind the
+    /// open menu is removed and the menu's own state — including whether it is open — is untouched.
+    #[test]
+    fn the_delete_key_is_answered_with_the_drop_down_open() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('f')), &mut state);
+        assert!(state.menu.popup_active(), "the drop-down did not open");
+
+        let outcome = send(&key(KeyCode::Delete), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the drop-down kept the selection"
+        );
+        assert!(
+            state.menu.popup_active(),
+            "the deletion closed the drop-down"
+        );
+
+        let _ = draw(&mut state);
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            "the drop-down kept the delete key from the diagram"
         );
     }
 
