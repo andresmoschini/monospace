@@ -23,7 +23,7 @@ use ratatui_core::layout::Rect;
 use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::Event;
 
-use crate::vocabulary::{Action, Answer};
+use crate::vocabulary::Action;
 
 /// The bar, and what each of its entries means.
 ///
@@ -42,55 +42,47 @@ const QUIT: usize = 0;
 
 /// What an event means to the chrome.
 ///
-/// **The bar is asked about every event and answers what it was worth**: nothing if it took no
-/// interest, a repaint if it changed what the screen shows, and an action if an entry was taken.
-/// A shortcut is not the bar's to answer: the application's own are asked around it, in
+/// **The bar is asked about every event and says what it was worth**: `None` if it took no
+/// interest, `ScreenChanged` if it changed what the screen shows, and the action of the entry that
+/// was taken. A shortcut is not the bar's to answer: the application's own are asked around it, in
 /// `callbacks` — before it the ones that reach everything, after it the ones nobody has claimed —
 /// so the bar says nothing about one.
-pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Answer {
-    let outcome = menubar::handle_popup_events(state, true, raw);
-
-    match outcome {
+///
+/// **`None` is `Continue` and `Unchanged`, and the application makes no difference between them**:
+/// the widget handled the event and there is nothing for the screen to paint, so the shortcuts
+/// nobody has claimed are still asked. Telling the two apart is #189's, when the chrome holds more
+/// than one thing.
+pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Option<Action> {
+    match menubar::handle_popup_events(state, true, raw) {
         // An entry was taken: it means an action, and `callbacks` applies it. The loop is not
         // asked again, so an entry and the key that means the same thing end in one place.
         MenuOutcome::MenuActivated(label, entry) => {
             state.set_popup_active(false);
-            meaning(label, entry)
+            Some(meaning(label, entry))
         }
 
-        outcome => outcome.into(),
+        // **The widget's vocabulary is finer than the application's.** Selecting, activating and
+        // hiding are all "the screen changed"; the other two leave the application nothing to do,
+        // and the shortcuts nobody has claimed are asked after it.
+        MenuOutcome::Changed
+        | MenuOutcome::Hide
+        | MenuOutcome::Selected(_)
+        | MenuOutcome::Activated(_)
+        | MenuOutcome::MenuSelected(_, _) => Some(Action::ScreenChanged),
+
+        MenuOutcome::Continue | MenuOutcome::Unchanged => None,
     }
 }
 
 /// What an entry of the bar means to the application.
 ///
 /// **The bar carries text and nothing else**: an entry means what its position says.
-fn meaning(label: usize, entry: usize) -> Answer {
+fn meaning(label: usize, entry: usize) -> Action {
     match (label, entry) {
-        (FILE, QUIT) => Answer::Action(Action::Quit),
+        (FILE, QUIT) => Action::Quit,
 
         // An entry nobody knows still closed the drop-down, so the frame has to be painted again.
-        _ => Answer::Repaint,
-    }
-}
-
-/// What the bar's own outcomes are worth to the application.
-///
-/// **The widget's vocabulary is finer than the application's.** Selecting, activating and hiding
-/// are all "the screen changed"; the one that is more than that is the entry that was taken, and
-/// `handle` has taken it before this conversion matters.
-impl From<MenuOutcome> for Answer {
-    fn from(outcome: MenuOutcome) -> Self {
-        match outcome {
-            MenuOutcome::Continue | MenuOutcome::Unchanged => Self::Nothing,
-
-            MenuOutcome::Changed
-            | MenuOutcome::Hide
-            | MenuOutcome::Selected(_)
-            | MenuOutcome::Activated(_)
-            | MenuOutcome::MenuSelected(_, _)
-            | MenuOutcome::MenuActivated(_, _) => Self::Repaint,
-        }
+        _ => Action::ScreenChanged,
     }
 }
 
@@ -207,16 +199,16 @@ mod tests {
         let outcome = handle(&key(KeyCode::Char('f')), &mut state);
 
         assert!(
-            matches!(outcome, Answer::Repaint),
-            "the navigation character changed nothing: {outcome:?}"
+            matches!(outcome, Some(Action::ScreenChanged)),
+            "the navigation character did not report a screen change: {outcome:?}"
         );
         assert!(state.popup_active(), "the drop-down did not open");
 
         let outcome = handle(&key(KeyCode::Esc), &mut state);
 
         assert!(
-            matches!(outcome, Answer::Repaint),
-            "escape changed nothing: {outcome:?}"
+            matches!(outcome, Some(Action::ScreenChanged)),
+            "escape did not report a screen change: {outcome:?}"
         );
         assert!(!state.popup_active(), "escape did not close the drop-down");
     }
@@ -229,7 +221,7 @@ mod tests {
         let outcome = handle(&key(KeyCode::Enter), &mut state);
 
         assert!(
-            matches!(outcome, Answer::Action(Action::Quit)),
+            matches!(outcome, Some(Action::Quit)),
             "the entry did not become the action of the way out: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
@@ -245,7 +237,7 @@ mod tests {
         );
 
         assert!(
-            matches!(outcome, Answer::Nothing),
+            outcome.is_none(),
             "the bar answered a shortcut: {outcome:?}"
         );
         assert!(!state.popup_active(), "a shortcut opened a drop-down");
@@ -261,7 +253,7 @@ mod tests {
         let outcome = handle(&click(column, row), &mut state);
 
         assert!(
-            matches!(outcome, Answer::Action(Action::Quit)),
+            matches!(outcome, Some(Action::Quit)),
             "the click did not become the action of the way out: {outcome:?}"
         );
     }
@@ -275,8 +267,8 @@ mod tests {
         let outcome = handle(&click(column, row), &mut state);
 
         assert!(
-            matches!(outcome, Answer::Repaint),
-            "the click was not consumed: {outcome:?}"
+            matches!(outcome, Some(Action::ScreenChanged)),
+            "the click did not report a screen change: {outcome:?}"
         );
         assert!(state.popup_active(), "the click did not open the drop-down");
     }
@@ -287,7 +279,7 @@ mod tests {
 
         let outcome = handle(&key(KeyCode::Char('z')), &mut state);
 
-        assert!(matches!(outcome, Answer::Nothing), "{outcome:?}");
+        assert!(outcome.is_none(), "{outcome:?}");
         assert!(!state.popup_active(), "a key opened a drop-down");
     }
 
