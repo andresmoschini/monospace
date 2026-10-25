@@ -246,6 +246,16 @@ mod tests {
         })
     }
 
+    /// The event the terminal reports for the pointer moving to `(column, row)`.
+    fn moved(column: u16, row: u16) -> Event {
+        Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Moved,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        })
+    }
+
     /// The state of an application that has been on the screen once.
     ///
     /// **The frame comes first**: the bar knows where its labels are only once it has been
@@ -316,12 +326,14 @@ mod tests {
     ///
     /// **The entry is found by its name**: a menu that gains entries above one moves where it is
     /// but not what it says, and a test that pressed `Enter` would take whatever happens to be
-    /// first.
+    /// first. **The pointer moves onto it before the button goes down**, because the widget
+    /// activates the entry it has selected and a press alone selects nothing.
     fn take_the_entry(state: &mut AppState, menu: char, text: &str) -> Control<AppEvent> {
         let _ = send(&key(KeyCode::Char(menu)), state);
         assert!(state.menu.popup_active(), "the {menu} menu did not open");
         let buffer = draw(state);
         let (column, row) = frame::cell_of(&buffer, text);
+        let _ = send(&moved(column, row), state);
 
         send(&click(column, row), state)
     }
@@ -700,6 +712,41 @@ mod tests {
             shortcuts::handle_always(&key(KeyCode::Delete)),
             None,
             "the delete key reaches before the chrome"
+        );
+    }
+
+    /// **An entry with nothing to give back changes nothing and paints** (rule 11): the drop-down
+    /// closes, the drawing is the one it already showed, and no step is recorded either way.
+    #[test]
+    fn taking_an_entry_with_nothing_to_give_back_changes_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let before = draw(&mut state);
+
+        let outcome = take_the_entry(&mut state, 'e', "Undo");
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.menu.popup_active(), "the entry left the menu open");
+        assert!(!state.diagram.can_undo(), "the entry recorded a step");
+        assert!(!state.diagram.can_redo(), "the entry left a step ahead");
+
+        let after = draw(&mut state);
+
+        for line in 0..HEIGHT {
+            assert_eq!(
+                row_of(&before, line),
+                row_of(&after, line),
+                "row {line} is not what it was"
+            );
+        }
+
+        let outcome = take_the_entry(&mut state, 'e', "Redo");
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.menu.popup_active(), "the entry left the menu open");
+        assert!(!state.diagram.can_undo(), "the redo entry recorded a step");
+        assert!(
+            !state.diagram.can_redo(),
+            "the redo entry left a step ahead"
         );
     }
 

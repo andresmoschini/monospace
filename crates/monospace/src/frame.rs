@@ -219,6 +219,53 @@ mod tests {
             .join("\n")
     }
 
+    /// The drop-down's own cells, cut out of the frame.
+    ///
+    /// **The pop-up is drawn over what it covers**, so a picture of the frame holds the region
+    /// behind it, and two frames of the same menu over two drawings would differ in the part the
+    /// menu does not own. The cut is the pop-up's box: from the row under the bar to the row of its
+    /// lower border, and from its upper-left corner to its upper-right one.
+    fn drop_down_picture(buffer: &Buffer) -> String {
+        let top = BAR_HEIGHT;
+        let row: Vec<char> = row_of(buffer, top).chars().collect();
+
+        // The region draws a corner of its own on this row, so the drop-down's is the last one.
+        let mut left = None;
+
+        for (column, glyph) in row.iter().enumerate() {
+            if *glyph == '┌' {
+                left = Some(column);
+            }
+        }
+
+        let left = left.expect("the drop-down has no upper-left corner");
+        let right = row
+            .iter()
+            .skip(left)
+            .position(|glyph| *glyph == '┐')
+            .map(|offset| left + offset)
+            .expect("the drop-down has no upper-right corner");
+
+        let mut lines = Vec::new();
+
+        for line in top..buffer.area.bottom() {
+            let text: String = row_of(buffer, line)
+                .chars()
+                .skip(left)
+                .take(right - left + 1)
+                .collect();
+            let last = text.starts_with('└');
+
+            lines.push(text);
+
+            if last {
+                break;
+            }
+        }
+
+        lines.join("\n")
+    }
+
     /// The number of cells of the frame that are not blank.
     fn written(buffer: &Buffer) -> usize {
         (buffer.area.top()..buffer.area.bottom())
@@ -867,6 +914,40 @@ mod tests {
         }
     }
 
+    /// **The entries do not move with the history** (rule 10). The same drop-down is drawn over a
+    /// fresh session and over one a deletion has left, and the two pictures are equal: no entry
+    /// carries a flag, and `can_undo` and `can_redo` are not read by the frame.
+    #[test]
+    fn the_edit_menu_offers_undo_and_redo_at_every_position() {
+        let mut state = a_state_over(A_BOX);
+        let global = a_global();
+
+        open_the_drop_down(&mut state, &global, 'e');
+        let fresh = drop_down_picture(&paint(&mut state, &global, WIDTH, HEIGHT));
+
+        // The drop-down closes, the box is removed, and the same drop-down opens over the newest
+        // position.
+        state.menu.set_popup_active(false);
+        let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+        state.diagram.remove(shape);
+        let _ = paint(&mut state, &global, WIDTH, HEIGHT);
+        open_the_drop_down(&mut state, &global, 'e');
+        let after_the_delete = drop_down_picture(&paint(&mut state, &global, WIDTH, HEIGHT));
+
+        assert!(
+            fresh.contains("Undo"),
+            "the drop-down shows no undo: {fresh:?}"
+        );
+        assert!(
+            fresh.contains("Redo"),
+            "the drop-down shows no redo: {fresh:?}"
+        );
+        assert_eq!(
+            fresh, after_the_delete,
+            "the Edit menu moves with the history"
+        );
+    }
+
     #[test]
     fn the_screen_at_rest() {
         let mut state = a_state();
@@ -896,6 +977,26 @@ mod tests {
             "the_drop_down_open_over_the_region",
             &format!(
                 "the drop-down open over the region, {WIDTH}x{HEIGHT}\n{}",
+                described(&buffer, regions(area))
+            ),
+        );
+    }
+
+    /// **The Edit drop-down is the picture the two extra entries make.** Undo, Redo and Delete are
+    /// drawn in that order, each with the shortcut the table answers to.
+    #[test]
+    fn the_edit_drop_down() {
+        let mut state = a_state();
+        let global = a_global();
+        let area = Rect::new(0, 0, WIDTH, HEIGHT);
+
+        open_the_drop_down(&mut state, &global, 'e');
+        let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        snap(
+            "the_edit_drop_down",
+            &format!(
+                "the Edit drop-down open over the region, {WIDTH}x{HEIGHT}\n{}",
                 described(&buffer, regions(area))
             ),
         );
