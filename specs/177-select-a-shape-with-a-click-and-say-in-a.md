@@ -157,9 +157,15 @@ and a click is a column and a row counted from the interior's corner.
 
 | Click  | `drawing().owner(offset)` | Selected after the click | Cells the frame inverts |
 | ------ | ------------------------- | ------------------------ | ----------------------- |
-| (2, 1) | `box 2`                   | `box 2`                  | the box's twelve cells  |
-| (5, 1) | `box 2`                   | `box 2`, unchanged       | the same twelve         |
+| (2, 1) | `box 2`                   | `box 2`                  | the box's ten cells     |
+| (5, 1) | `box 2`                   | `box 2`, unchanged       | the same ten            |
 | (0, 0) | nobody                    | none                     | none                    |
+
+**A box's interior is not a cell of the drawing.** The copy writes the cells a shape stamped and
+only those, so what a selected shape inverts is its stroke: the ten cells a four-by-three box's
+border covers, and not the two the area holds inside them. The example above counted twelve until
+the building stage measured ten on a frame; rule 4 said ten all along, and the copy is what rule 4
+describes.
 
 **The click's own offset is the one asked.** The interior's corner is one cell in from the region's,
 so a click the terminal reports at the screen's `(3, 3)` is the interior's `(2, 1)` and asks about
@@ -174,8 +180,9 @@ on the cell's style, `Style::new().reversed()`, and this spec does not claim a p
 
 ## What proves it
 
-None of these tests exists yet; the deciding stage adds no code. The names are what the building
-stage is held to.
+Each row names a test that holds the rule, and the test is in the module the rule belongs to: the
+click and the asking order in `callbacks`, the copy and the inversion in `frame`, and the offset and
+the buttons in `diagram_widget`.
 
 | Rule | Test                                                                          |
 | ---- | ----------------------------------------------------------------------------- |
