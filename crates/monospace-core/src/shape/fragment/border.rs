@@ -16,7 +16,7 @@ use crate::{Arm, Cell, Orientation, Pos, Shape, Stroke, StrokeCell, Surface};
 #[derive(Debug)]
 pub(crate) struct Border {
     pub(crate) from: Pos,
-    pub(crate) len: u32,
+    pub(crate) len: u16,
     pub(crate) side: Side,
     pub(crate) stroke: Stroke,
     /// Whether the side facing the figure's interior stamps `Arm::Closed` (`true`) or

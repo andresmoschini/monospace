@@ -21,7 +21,7 @@ pub struct Line {
     /// The position of the line's first cell.
     pub at: Pos,
     /// How many cells the line occupies. Any value is accepted, including 0.
-    pub len: u32,
+    pub len: u16,
     /// Whether the line runs along a row or a column.
     pub orientation: Orientation,
     /// The stroke every cell this line writes is drawn in.
@@ -30,8 +30,8 @@ pub struct Line {
 
 impl Line {
     /// The position `i` cells along this line's orientation from `at`, or `None` if that would
-    /// overflow `i32`.
-    fn pos_at(&self, i: u32) -> Option<Pos> {
+    /// overflow `i16`.
+    fn pos_at(&self, i: u16) -> Option<Pos> {
         match self.orientation {
             Orientation::Horizontal => self
                 .at

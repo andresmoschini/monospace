@@ -325,7 +325,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     // what makes the offsets above checkable — a name in this function would answer every offset,
     // including a wrong one, and there would be nothing left to fail.
     //
-    // Each answer is a four-byte ordinal rather than a borrow of one, so nothing has to outlive the
+    // Each answer is a two-byte ordinal rather than a borrow of one, so nothing has to outlive the
     // borrow `owner` hands back and the `.cloned()` this used to need is gone: `the_back_most` is
     // read four times across the steps below, after the buffer has been drawn into again.
     //
@@ -552,7 +552,7 @@ fn glyph_catalog() -> GlyphCatalog {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
+    use std::num::NonZeroU16;
     use std::ops::Range;
 
     use monospace_core::{
@@ -608,8 +608,8 @@ mod tests {
         demonstrate(diagram, window.0, window.1)
     }
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
-    fn identity(ordinal: u32) -> ShapeId {
-        ShapeId::new(NonZeroU32::new(ordinal).expect("no test names zero"))
+    fn identity(ordinal: u16) -> ShapeId {
+        ShapeId::new(NonZeroU16::new(ordinal).expect("no test names zero"))
     }
 
     fn one_box_json() -> &'static str {
@@ -1462,7 +1462,7 @@ mod tests {
     /// shipped description's first and fourth entries — two filled boxes at `(0, 0)` and `(7, 1)`,
     /// the second listed later and so in front — and the three cells below are where their fills and
     /// a corner meet.
-    const THE_CROSSING_CELLS: [(usize, usize, char, u32); 3] =
+    const THE_CROSSING_CELLS: [(usize, usize, char, u16); 3] =
         [(9, 2, '░', 4), (10, 3, '┘', 4), (11, 3, '░', 3)];
 
     /// The shape a position resolves to is the front-most of the two that wrote it, and the character
@@ -1486,14 +1486,14 @@ mod tests {
 
         for (x, y, glyph, expected) in THE_CROSSING_CELLS {
             let at = Pos {
-                x: i32::try_from(x).expect("a fifty-column window"),
-                y: i32::try_from(y).expect("a thirteen-row window"),
+                x: i16::try_from(x).expect("a fifty-column window"),
+                y: i16::try_from(y).expect("a thirteen-row window"),
             };
             assert_eq!(the_glyph_at(&picture, (x, y)), glyph, "the cell at {at:?}");
             assert_eq!(
                 buffer.owner(Offset {
-                    x: u32::try_from(x).expect("a fifty-column window"),
-                    y: u32::try_from(y).expect("a thirteen-row window"),
+                    x: u16::try_from(x).expect("a fifty-column window"),
+                    y: u16::try_from(y).expect("a thirteen-row window"),
                 }),
                 Some(identity(expected)),
                 "{at:?} is written by two shapes and resolves to the one in front"

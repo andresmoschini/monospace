@@ -96,7 +96,7 @@ pub enum Shape {
         /// The position of the line's first cell.
         at: Pos,
         /// How many cells the line occupies. Any value is accepted, including 0.
-        len: u32,
+        len: u16,
         /// Whether the line runs along a row or a column.
         orientation: Orientation,
         /// The stroke every cell this line writes is drawn in.
@@ -340,7 +340,7 @@ mod tests {
         Stroke::from("light")
     }
 
-    fn box_at(x: i32) -> Shape {
+    fn box_at(x: i16) -> Shape {
         Shape::Box {
             at: Pos { x, y: 0 },
             size: Size {
@@ -371,7 +371,7 @@ mod tests {
     }
 
     /// A line across the same window, so all three kinds are one call away.
-    fn line_at(x: i32) -> Shape {
+    fn line_at(x: i16) -> Shape {
         Shape::Line {
             at: Pos { x, y: 0 },
             len: 3,

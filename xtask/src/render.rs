@@ -50,9 +50,9 @@ const CLOSE: &str = "<!-- /render -->";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Window {
     /// The window's top-left corner, which may be negative.
-    origin: (i32, i32),
+    origin: (i16, i16),
     /// The window's extent in cells.
-    size: (u32, u32),
+    size: (u16, u16),
 }
 
 /// One marker: the description it carries, the window it is drawn into, and where its picture sits

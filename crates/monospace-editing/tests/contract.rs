@@ -12,7 +12,7 @@
 //! four, and the worked example in that document is reproduced here number for number. `FIXTURE`
 //! is wider and taller because the fixture has two boxes and a connector under them.
 
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 use monospace_core::{Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, render};
 use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Shape, ShapeId};
@@ -55,8 +55,8 @@ const ONE_RIGHT: &str = "   ┌──┐ \n   │  │ \n   └──┘ \n";
 const SIX_RIGHT: &str = "      ┌─\n      │ \n      └─\n";
 
 /// An identity of the ordinal `ordinal`, which is how every test below names a figure.
-fn id(ordinal: u32) -> ShapeId {
-    ShapeId::new(NonZeroU32::new(ordinal).expect("no test names zero"))
+fn id(ordinal: u16) -> ShapeId {
+    ShapeId::new(NonZeroU16::new(ordinal).expect("no test names zero"))
 }
 
 /// The box the specification's example calls `small_box(0, 0, no fill)`: four cells by three, no

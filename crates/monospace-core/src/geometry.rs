@@ -1,6 +1,9 @@
 //! Positions and sizes, kept as separate types so the compiler refuses one where the other
 //! belongs: a position is signed and may be negative, a size never is, and one rectangle carrying
 //! both pairs would make the two interchangeable where the distinction matters.
+//!
+//! **The widths are the terminal's; [`docs/model.md`](../../../docs/model.md) §2 says what they are
+//! and what the range costs.**
 
 /// An absolute position in the plane a buffer occupies.
 ///
@@ -8,9 +11,9 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Pos {
     /// Grows to the right.
-    pub x: i32,
+    pub x: i16,
     /// Grows downward.
-    pub y: i32,
+    pub y: i16,
 }
 
 /// A position **inside one window**, counted from its top-left corner.
@@ -23,9 +26,9 @@ pub struct Pos {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Offset {
     /// Grows to the right, from the window's own leftmost column.
-    pub x: u32,
+    pub x: u16,
     /// Grows downward, from the window's own topmost row.
-    pub y: u32,
+    pub y: u16,
 }
 
 /// The extent of a window or a rendered area, in cells.
@@ -35,9 +38,9 @@ pub struct Offset {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Size {
     /// Never negative, by the type.
-    pub width: u32,
+    pub width: u16,
     /// Never negative, by the type.
-    pub height: u32,
+    pub height: u16,
 }
 
 /// A way to move across the plane: up, right, down or left.

@@ -123,6 +123,12 @@ and a diagram whose first addition is `1` says so. Who issues an identity is a q
 above answers and it stays here; whether two figures may share one is settled — they may not, and
 that is what the replacement above is.
 
+**The ordinal is a `u16`, so a diagram holds at most 65 535 figures.** The identity is recorded
+beside every stamped position, so its width is paid once per cell a drawing decides, and 65 535
+figures is past what a diagram anyone edits holds. **What that costs** is a diagram that outgrows
+it: the counter stops rather than wrapping to the `0` that is not an identity, and the addition
+after the last ordinal is refused.
+
 An identity is what makes a shape findable after it has been placed: it is how a position refers to
 another shape, how a change names what it is changing, and what a position on the screen resolves
 back to. It survives every change to the shape it names, including replacing it and reordering it —

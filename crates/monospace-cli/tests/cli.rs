@@ -51,7 +51,7 @@ fn first_demonstrated_picture(output: &str) -> String {
 /// An identity written as a string prints nothing to stdout, names the field on stderr, and fails.
 ///
 /// **The refusal the whole wire change turns on**, and the wording is asserted rather than
-/// described: `serde` alone reports `invalid type: string "#1", expected a nonzero u32`, which names
+/// described: `serde` alone reports `invalid type: string "#1", expected a nonzero u16`, which names
 /// neither `id` nor what the file did wrong beyond its own words, so the reader puts the field in
 /// front of it. `"#1"` is the spelling every description in this repository used until the change,
 /// so it is the one a caller upgrading this format will have in hand.

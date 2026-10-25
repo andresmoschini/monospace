@@ -64,7 +64,7 @@ mod tests {
     use super::{swapped, without};
 
     /// The sequence `[1, 2, 3, 4]`, built by the pushes a caller builds it with.
-    fn sequence_of(numbers: &[u32]) -> VectorSync<u32> {
+    fn sequence_of(numbers: &[u16]) -> VectorSync<u16> {
         numbers
             .iter()
             .fold(VectorSync::new_sync(), |sequence, number| {
@@ -73,7 +73,7 @@ mod tests {
     }
 
     /// Every element of `sequence`, front to back, so two sequences can be compared by value.
-    fn elements(sequence: &VectorSync<u32>) -> Vec<u32> {
+    fn elements(sequence: &VectorSync<u16>) -> Vec<u16> {
         sequence.iter().copied().collect()
     }
 

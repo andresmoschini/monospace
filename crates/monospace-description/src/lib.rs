@@ -43,7 +43,7 @@
 //! this crate reaches a filesystem — which is also what keeps it portable by naming rather than by
 //! anything it avoids.
 
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 use monospace_core::{Direction, Glyph, Orientation as CoreOrientation};
 use monospace_diagram::{
@@ -107,7 +107,7 @@ impl std::error::Error for ParseError {
 /// .expect("a well-formed description");
 ///
 /// assert!(diagram
-///     .get(monospace_diagram::ShapeId::new(std::num::NonZeroU32::new(1).expect("one is nonzero")))
+///     .get(monospace_diagram::ShapeId::new(std::num::NonZeroU16::new(1).expect("one is nonzero")))
 ///     .is_some());
 /// ```
 pub fn parse(json: &str) -> Result<Diagram, ParseError> {
@@ -118,8 +118,8 @@ pub fn parse(json: &str) -> Result<Diagram, ParseError> {
 /// A position, mirroring `monospace_core::Pos` for deserialization.
 #[derive(Deserialize, Debug, Clone, Copy)]
 struct Pos {
-    x: i32,
-    y: i32,
+    x: i16,
+    y: i16,
 }
 
 impl From<Pos> for monospace_core::Pos {
@@ -131,8 +131,8 @@ impl From<Pos> for monospace_core::Pos {
 /// A size, mirroring `monospace_core::Size` for deserialization.
 #[derive(Deserialize, Debug, Clone, Copy)]
 struct Size {
-    width: u32,
-    height: u32,
+    width: u16,
+    height: u16,
 }
 
 impl From<Size> for monospace_core::Size {
@@ -212,24 +212,24 @@ where
 /// An identity is a number greater than zero — `1`, not `"#1"` — so a file spelling it any other
 /// way is a **data error**, and the message says which field was wrong rather than leaving a reader
 /// to work back from a position: `serde` reports `invalid type: string "#1", expected a nonzero
-/// u32`, which names neither `id` nor `shape` nor `next_id`, and the three are the whole of what a
+/// u16`, which names neither `id` nor `shape` nor `next_id`, and the three are the whole of what a
 /// caller has to go on.
 ///
 /// The name is the field's, written beside the field rather than read from serde's error, because
-/// serde cannot know it: the same [`NonZeroU32`] is deserialized from three different keys. The
+/// serde cannot know it: the same [`NonZeroU16`] is deserialized from three different keys. The
 /// underlying message is carried through whole, so what the file actually said survives next to the
 /// field it was said in.
-fn ordinal<'de, D>(field: &'static str, deserializer: D) -> Result<NonZeroU32, D::Error>
+fn ordinal<'de, D>(field: &'static str, deserializer: D) -> Result<NonZeroU16, D::Error>
 where
     D: Deserializer<'de>,
 {
-    NonZeroU32::deserialize(deserializer)
+    NonZeroU16::deserialize(deserializer)
         .map_err(|error| serde::de::Error::custom(format!("`{field}` is an ordinal: {error}")))
 }
 
 /// The `id` of an entry in `shapes`. A thin wrapper over [`ordinal`] so that the name in the message
 /// is the field's own, beside the field it belongs to.
-fn id<'de, D>(deserializer: D) -> Result<NonZeroU32, D::Error>
+fn id<'de, D>(deserializer: D) -> Result<NonZeroU16, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -237,7 +237,7 @@ where
 }
 
 /// The `next_id` a diagram's numbering resumes from.
-fn next_id<'de, D>(deserializer: D) -> Result<NonZeroU32, D::Error>
+fn next_id<'de, D>(deserializer: D) -> Result<NonZeroU16, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -245,7 +245,7 @@ where
 }
 
 /// The `shape` a reference names.
-fn shape<'de, D>(deserializer: D) -> Result<NonZeroU32, D::Error>
+fn shape<'de, D>(deserializer: D) -> Result<NonZeroU16, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -309,8 +309,8 @@ impl From<AnchorDescription> for Anchor {
 /// side it is measured from.
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
 struct OffsetDescription {
-    dx: i32,
-    dy: i32,
+    dx: i16,
+    dy: i16,
 }
 
 impl From<OffsetDescription> for Delta {
@@ -364,12 +364,12 @@ enum At {
     Point(Pos),
     Reference {
         #[serde(deserialize_with = "shape")]
-        shape: NonZeroU32,
+        shape: NonZeroU16,
         anchor: AnchorDescription,
         #[serde(default)]
         offset: OffsetDescription,
         #[serde(default)]
-        out: i32,
+        out: i16,
     },
 }
 
@@ -434,7 +434,7 @@ impl From<Endpoint> for DiagramEndpoint {
 enum ShapeDescription {
     Box {
         #[serde(deserialize_with = "id")]
-        id: NonZeroU32,
+        id: NonZeroU16,
         at: Pos,
         size: Size,
         stroke: String,
@@ -443,15 +443,15 @@ enum ShapeDescription {
     },
     Line {
         #[serde(deserialize_with = "id")]
-        id: NonZeroU32,
+        id: NonZeroU16,
         at: Pos,
-        len: u32,
+        len: u16,
         orientation: Orientation,
         stroke: String,
     },
     Connector {
         #[serde(deserialize_with = "id")]
-        id: NonZeroU32,
+        id: NonZeroU16,
         from: Endpoint,
         to: Endpoint,
         stroke: String,
@@ -536,7 +536,7 @@ struct Description {
     /// is the zero: zero is not an identity, so `"next_id": 0` is a data error naming the field
     /// rather than a counter seeded with something the diagram could not carry.
     #[serde(deserialize_with = "next_id")]
-    next_id: NonZeroU32,
+    next_id: NonZeroU16,
     /// The figures, in the order they are drawn. Required, and the order is load-bearing: the array
     /// order is the drawing order, so the last entry is front-most and decides a shared cell first.
     shapes: Vec<ShapeDescription>,
@@ -940,7 +940,7 @@ mod tests {
         // first. Nothing else changes between the four descriptions below, so the route can only
         // move if the reader is following the place rather than the identity.
         let description_with =
-            |left: u32, right: u32, right_listed_first: bool, connector_names| {
+            |left: u16, right: u16, right_listed_first: bool, connector_names| {
                 let left_box = format!(
                     r#"{{ "kind": "box", "id": {left}, "at": {{ "x": 0, "y": 3 }},
                   "size": {{ "width": 4, "height": 3 }}, "stroke": "light" }}"#
@@ -1045,7 +1045,7 @@ mod tests {
     ///
     /// **Both fields, and both spellings**, because the three identity fields share one
     /// deserializer and the only thing that differs between them is the name it puts in the
-    /// message. `serde`'s own wording — `invalid type: string "#1", expected a nonzero u32` — names
+    /// message. `serde`'s own wording — `invalid type: string "#1", expected a nonzero u16` — names
     /// neither, so a reader handed it has nothing to work back from; and a wrapper that named
     /// `id` for all three would send a reader after the wrong field on the other two.
     ///

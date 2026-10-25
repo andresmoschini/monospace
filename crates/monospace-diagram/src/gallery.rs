@@ -34,7 +34,7 @@ use monospace_core::{
     Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, render,
 };
 
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 use crate::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
@@ -66,7 +66,7 @@ fn arm_text(arm: &Arm) -> String {
     }
 }
 
-fn at(x: i32, y: i32) -> Pos {
+fn at(x: i16, y: i16) -> Pos {
     Pos { x, y }
 }
 
@@ -83,11 +83,11 @@ fn glyph(text: &str) -> Glyph {
 /// **Hand-written rather than read back from the diagram**, which is what the gallery's own `WHAT`
 /// says: a diagram offers one query by an identity and no listing of the shapes it holds, so a label
 /// naming one is a claim about what was added rather than a reading of what is held.
-fn id(ordinal: u32) -> ShapeId {
-    ShapeId::new(NonZeroU32::new(ordinal).expect("no gallery names zero"))
+fn id(ordinal: u16) -> ShapeId {
+    ShapeId::new(NonZeroU16::new(ordinal).expect("no gallery names zero"))
 }
 
-fn window(width: u32, height: u32) -> Size {
+fn window(width: u16, height: u16) -> Size {
     Size { width, height }
 }
 
@@ -131,7 +131,7 @@ fn box_shape(at_: Pos, fill: Option<&str>) -> Shape {
     }
 }
 
-fn line_shape(at_: Pos, len: u32) -> Shape {
+fn line_shape(at_: Pos, len: u16) -> Shape {
     Shape::Line {
         at: at_,
         len,

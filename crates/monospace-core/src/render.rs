@@ -12,6 +12,11 @@ use crate::{Buffer, GlyphCatalog, Pos, Size};
 /// holds a cell either — and so does a position that `origin` and an offset within `size` cannot
 /// even address as a `Pos`, since nothing could ever have been stamped there.
 ///
+/// **The rectangle is passed rather than taken from the buffer's window.** A window is where the
+/// buffer was drawn, and a rendering asks for the same rectangle, a part of it, or one that reaches
+/// past it — the last of which is what the paragraph above is about, and a rendering that took the
+/// window instead could not ask for it.
+///
 /// [`Cell::glyph_str`]: crate::Cell::glyph_str
 #[must_use]
 pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -> String {
@@ -31,8 +36,8 @@ fn glyph_at<'a>(
     buffer: &'a Buffer,
     glyphs: &'a GlyphCatalog,
     origin: Pos,
-    dx: u32,
-    dy: u32,
+    dx: u16,
+    dy: u16,
 ) -> &'a str {
     origin
         .x
@@ -349,9 +354,9 @@ mod tests {
     }
 
     #[test]
-    fn an_origin_near_i32_max_does_not_overflow() {
+    fn an_origin_near_i16_max_does_not_overflow() {
         let origin = Pos {
-            x: i32::MAX - 1,
+            x: i16::MAX - 1,
             y: 0,
         };
         let size = Size {

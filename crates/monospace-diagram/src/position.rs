@@ -56,15 +56,15 @@ impl Anchor {
     ///
     /// The four signs belong to this crate rather than to whoever reads a file, because a sign is a
     /// fact about which way a side faces and this is the module that answers that. A caller that
-    /// wants the screen axes anyway holds the [`offset`](Reference::offset), which is two `i32`s it
+    /// wants the screen axes anyway holds the [`offset`](Reference::offset), which is two `i16`s it
     /// can put anything into — this is a second spelling of a gap, not a replacement for one.
     ///
-    /// `saturating_neg` rather than `-`, because `i32::MIN` has no positive counterpart and a plain
+    /// `saturating_neg` rather than `-`, because `i16::MIN` has no positive counterpart and a plain
     /// negation of it overflows, which in a debug build is a panic on a value a description is free
     /// to spell. Saturating puts that one input a cell nearer than it could have gone rather than
     /// turning a picture into a crash, which is the same trade [`Delta::apply`](crate::Delta)
     /// makes and for the same reason.
-    pub(crate) fn outward(self, out: i32) -> Delta {
+    pub(crate) fn outward(self, out: i16) -> Delta {
         match self {
             Self::Top => Delta {
                 dx: 0,
@@ -96,7 +96,7 @@ impl Anchor {
 /// a value. [`ShapeId::new`] builds the identity it holds, and the identity a diagram's own
 /// [`add`](crate::Diagram::add) handed back is the one the reference should hold.
 ///
-/// It is `Copy`, because every field is: an identity is four bytes and `Delta` is two `i32`s, and a
+/// It is `Copy`, because every field is: an identity is two bytes and `Delta` is two `i16`s, and a
 /// reference is a value a caller hands on rather than one it has to keep track of.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reference {
@@ -134,7 +134,7 @@ impl Reference {
     /// resolves to nothing however large its gap, which is §4's answer for an unresolved reference
     /// and no exception to it.
     #[must_use]
-    pub fn new(id: ShapeId, anchor: Anchor, offset: Delta, out: i32) -> Self {
+    pub fn new(id: ShapeId, anchor: Anchor, offset: Delta, out: i16) -> Self {
         Self {
             id,
             anchor,
@@ -162,7 +162,7 @@ impl From<Pos> for Position {
     /// Wraps a point as a position that never fails to resolve — the second way in, for a caller
     /// holding a point rather than a position. It builds one and does nothing else.
     ///
-    /// It is here for the same reason [`From<(i32, i32)> for Delta`](crate::Delta) is: the field
+    /// It is here for the same reason [`From<(i16, i16)> for Delta`](crate::Delta) is: the field
     /// this type lands on is filled from a point at every site that builds an endpoint, and without
     /// the conversion each of them would name the variant.
     fn from(at: Pos) -> Self {
@@ -188,7 +188,7 @@ impl Position {
     /// Both `?`s come **before** the addition, so a reference that resolves to nothing is still
     /// nothing however large its offset: there is no clamping, no fallback and no report, and the
     /// figure holding it is not drawn. `Delta::apply` saturates rather than wrapping, and it is the
-    /// same function a displacement uses, so a coordinate past the end of any window a `u32` width
+    /// same function a displacement uses, so a coordinate past the end of any window a `u16` width
     /// can describe draws nothing rather than wrapping back into one.
     ///
     /// A displacement is the other half and it is reached here **from the other side**: it grows
@@ -222,15 +222,15 @@ impl Position {
     /// — which is what a displacement of **one** figure means, and why the model's §4 says a
     /// displacement is a property of one figure rather than of a diagram.
     ///
-    /// Nothing here is cloned: the identity is four bytes and the side is a unit variant, so the
+    /// Nothing here is cloned: the identity is two bytes and the side is a unit variant, so the
     /// only field a displacement grows is the gap. A displacement of nothing returns the position
     /// equal to itself, and a reference naming something this diagram does not hold comes back the
     /// same reference with a larger offset and still resolves to nothing — the arithmetic builds a
     /// value and cannot fail, so there is no error path here and nothing to report.
     #[must_use]
-    pub(crate) fn displaced_by(&self, by: Delta) -> Self {
+    pub(crate) fn displaced_by(self, by: Delta) -> Self {
         match self {
-            Self::Absolute(at) => Self::Absolute(by.apply(*at)),
+            Self::Absolute(at) => Self::Absolute(by.apply(at)),
             Self::Reference(reference) => Self::Reference(Reference {
                 id: reference.id,
                 anchor: reference.anchor,
@@ -281,7 +281,7 @@ pub(crate) fn side_centre(at: Pos, size: Size, anchor: Anchor) -> Pos {
 /// A line has no width and no height, only a length and a way to lie, so the one helper that
 /// answers the middle of a side of a box needs something box-shaped to be asked about. This is it,
 /// and it is the only reason a line answers the same four centers a box does.
-pub(crate) fn flat_size(len: u32, orientation: Orientation) -> Size {
+pub(crate) fn flat_size(len: u16, orientation: Orientation) -> Size {
     match orientation {
         Orientation::Horizontal => Size {
             width: len,
@@ -296,7 +296,7 @@ pub(crate) fn flat_size(len: u32, orientation: Orientation) -> Size {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
+    use std::num::NonZeroU16;
 
     use monospace_core::{
         Buffer, Direction, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, render,
@@ -306,8 +306,8 @@ mod tests {
     use crate::{Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
 
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
-    fn identity(ordinal: u32) -> ShapeId {
-        ShapeId::new(NonZeroU32::new(ordinal).expect("no test names zero"))
+    fn identity(ordinal: u16) -> ShapeId {
+        ShapeId::new(NonZeroU16::new(ordinal).expect("no test names zero"))
     }
 
     fn light() -> Stroke {
@@ -459,13 +459,13 @@ mod tests {
     /// arithmetic the crate uses, so the two sides cannot be wrong together.
     #[test]
     fn a_line_answers_the_four_side_centres_of_a_flat_box() {
-        let line = |at: Pos, len: u32, orientation| Shape::Line {
+        let line = |at: Pos, len: u16, orientation| Shape::Line {
             at,
             len,
             orientation,
             stroke: light(),
         };
-        let flat = |at: Pos, len: u32, orientation| Shape::Box {
+        let flat = |at: Pos, len: u16, orientation| Shape::Box {
             at,
             size: super::flat_size(len, orientation),
             stroke: light(),
