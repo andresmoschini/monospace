@@ -1,10 +1,11 @@
 # The application model
 
-**Status:** Design intent, with two slices implemented. What §1 through §5 describe is
+**Status:** Design intent, with three slices implemented. What §1 through §5 describe is
 [`monospace`](../crates/monospace), and
-[`specs/174-a-full-screen-application-whose-menu-hol.md`](../specs/174-a-full-screen-application-whose-menu-hol.md)
-and
+[`specs/174-a-full-screen-application-whose-menu-hol.md`](../specs/174-a-full-screen-application-whose-menu-hol.md),
 [`specs/175-draw-the-demo-description-or-one-given-b.md`](../specs/175-draw-the-demo-description-or-one-given-b.md)
+and
+[`specs/177-select-a-shape-with-a-click-and-say-in-a.md`](../specs/177-select-a-shape-with-a-click-and-say-in-a.md)
 are the specifications those slices were built against. §6 _Deliberately unresolved_ and §8 _Open
 questions_ are what a later change answers. Amend this document when reality contradicts it, and say
 so in the commit.
@@ -72,11 +73,12 @@ and the buffer behind it is what answers a click.
 
 ## 3. The state
 
-**The state is a session, the drawing of the last frame, and the chrome's own.** The session is what
-the person is working on, the drawing is what the last frame put on the screen, and the chrome's own
-is what the widgets of the screen hold between frames — which label of the bar is selected, whether
-a drop-down is open, what the status bar says. The three are one thing because they change together:
-a frame that changes one of them changes the other.
+**The state is a session, the drawing of the last frame, the shape a click selected, and the
+chrome's own.** The session is what the person is working on, the drawing is what the last frame put
+on the screen, the selection is the shape that drawing answered with, and the chrome's own is what
+the widgets of the screen hold between frames — which label of the bar is selected, whether a
+drop-down is open, what the status bar says. The four are one thing because they change together: a
+frame that changes one of them changes the others.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
@@ -86,12 +88,27 @@ the last frame produced is therefore kept and replaced on every frame. **It is n
 the diagram is the document, the drawing is one rendering of it, and keeping it changes nothing
 about what a person can undo.
 
+**The selection is an identity and not a rectangle.** What a click selects is the identity the
+drawing records beside the cell under it, and what the frame inverts is recomputed from the drawing
+of each frame: a resize gives the window another size, a scroll moves the origin, and a command may
+move the shape, so a rectangle would mark cells the shape no longer holds while missing the ones it
+gained. A selection no cell of a later drawing records inverts nothing, which is what makes a
+command that removes the shape need no code here. Naming the selected shape in words is not this
+document's: the status bar is §8's, and
+[#226](https://github.com/andresmoschini/monospace/issues/226) answers it.
+
+**The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
+as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
+own, so what turns one into the other is the rectangle the interior covered on the screen. It is
+replaced with the drawing on every frame, and an empty one — a screen too short for the region —
+holds no position at all, so a press there answers nothing.
+
 **The configuration is not part of the state.** It is read once, when the application starts, and it
-does not change afterwards: what the state holds is the session, the drawing and the chrome's own,
-and the palette of the theme is none of those. **Neither is the glyph catalog the diagram is drawn
-with**, which is read once for the same reason and is what a cell becomes a character through.
-Whether the configuration is what holds that catalog is not settled here. A diagram does not carry a
-palette, and a palette does not change because a figure was moved.
+does not change afterwards: what the state holds is the session, the drawing, the selection and the
+chrome's own, and the palette of the theme is none of those. **Neither is the glyph catalog the
+diagram is drawn with**, which is read once for the same reason and is what a cell becomes a
+character through. Whether the configuration is what holds that catalog is not settled here. A
+diagram does not carry a palette, and a palette does not change because a figure was moved.
 
 **The state survives between frames and nothing else does.** A frame is built from the state and
 discarded; the state is what the next frame is built from.
@@ -114,6 +131,14 @@ is `Action::ScreenChanged`, the frame being owed again: **a change of the screen
 about the screen rather than about what a person means to do**, and undo never holds one. A
 selection and an open drop-down are still not meanings of a person's, so no list of what a person
 can take back will ever hold one.
+
+**A click on the diagram selects, and selecting is the same kind of change.** A left press inside
+the region's interior selects the shape the drawing records under it, or drops the selection where
+nobody owns the cell; what it mints is `ScreenChanged`, and only when the selection moved. **It is
+not a command**: the session is read and never changed, no step is recorded, and the editing layer
+is not reached. A press anywhere else — the bar, the region's border, the status bar, or any button
+but the left — is nobody's and the event goes on to the next handler. The drop-down is asked before
+the region, so a click it answers never reaches the diagram.
 
 **The way out is one action.** It is reached by the shortcut the menu shows and by the menu's own
 entry, and both apply that same action rather than a code path each: the entry and the key become
@@ -197,6 +222,13 @@ framework's buffer one at a time.
 - A handler that took no interest leaves the event to the next one, and the first answer ends the
   asking.
 - A click is answered from the drawing of the last frame.
+- A left click inside the region selects the shape that owns the cell, and a click on a cell nobody
+  owns drops the selection.
+- A press outside the interior, and a press of any button but the left, is nobody's.
+- The selected shape's cells are inverted and no others, and a selection the drawing does not record
+  inverts nothing.
+- The selection survives a resize, because it is an identity rather than the cells it covered.
+- A click changes no diagram: it is not a command and it records no step.
 - The error handler does not answer with the error again.
 
 ## 8. Open questions
