@@ -12,6 +12,11 @@ anything.**
 
 **Created:** 2026-10-12
 
+**Measured before the base types narrowed.** Every number below was taken when `Pos`, `Offset`,
+`Size` and `ShapeId` were still 32-bit;
+[#219](https://github.com/andresmoschini/monospace/issues/219) makes them 16-bit and does not
+re-measure this document, so these are the older, larger sizes.
+
 **The question.** `docs/editing-model.md` §8 lists _How many steps a session keeps_ as deliberately
 unresolved, and gives the condition that would settle it: _the first diagram big enough for the
 copies to be felt rather than measured._ This is that measurement, taken on a 300-shape diagram with

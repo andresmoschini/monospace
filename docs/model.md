@@ -83,6 +83,12 @@ lowest and highest positions it answers for.
 - The buffer knows nothing about glyphs. It holds stroke names; translating to characters is the
   renderer's job.
 
+**The numbers are the terminal's.** A coordinate is an `i16` and an extent a `u16`, the widths a
+terminal counts its frame in, so a cell of a drawing goes into a frame without a cast and a click's
+column and row are the offset the buffer is asked with. **What that costs is range**: a coordinate
+that runs from −32 768 to 32 767 and an extent of at most 65 535 cells, which is past what any
+terminal draws and past what any description here comes near.
+
 ## 3. The cell
 
 A defined cell holds a base stroke, always present, and four arms — and not a character. Merging two
