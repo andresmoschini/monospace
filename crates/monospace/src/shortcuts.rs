@@ -55,12 +55,16 @@ struct Shortcut {
 
 /// The shortcuts the application answers to.
 ///
-/// **Three rows that differ in one column, and that column is the whole of the precedence.** The
-/// forced exit is answered before anything, and the way out and the deletion after everything: the
-/// three are the same mechanism with a different scope, rather than two a row and one an `if`. The
+/// **The rows differ in one column, and that column is the whole of the precedence.** The forced
+/// exit is answered before anything, and the ways out after everything: they are the same mechanism
+/// with a different scope, rather than one mechanism per row and an `if` somewhere else. The
 /// deletion is `Unclaimed` because it is not the chrome's to swallow: which keys the chrome keeps is
 /// the focus rule #189 owns, and `Delete` is not one of the bar's own (D3).
-const SHORTCUTS: [Shortcut; 3] = [
+///
+/// **A slice rather than an array of a counted length**: the count of an array is a number beside
+/// the rows it counts, and a row added without it is an error the compiler reports about the wrong
+/// thing.
+const SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         key: KeyCode::Char('c'),
         modifiers: KeyModifiers::CONTROL,
