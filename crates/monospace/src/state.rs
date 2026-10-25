@@ -7,10 +7,11 @@
 //! **The session is read and never changed.** Every frame draws it into the window the interior
 //! gives; no slice of this one performs a command on it, and #181 is where one will.
 
-use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, Size};
+use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, ShapeId, Size};
 use monospace_editing::Session;
 use rat_widget::menu::MenubarState;
 use rat_widget::statusline::StatusLineState;
+use ratatui_core::layout::{Position, Rect};
 
 use crate::status;
 
@@ -24,6 +25,20 @@ pub(crate) struct DiagramState {
     /// the person saw rather than from a drawing made when the click arrives (D4). Empty until
     /// the first frame is drawn.
     buffer: Buffer,
+
+    /// The interior the last frame drew the diagram into, as the screen holds it. A click arrives
+    /// as a column and a row of the screen, and this is what says whether it landed inside the
+    /// window and what its offset from the window's corner is. Empty until the first frame is
+    /// drawn, and empty for a screen too short to hold a region.
+    interior: Rect,
+
+    /// The shape a click selected, or `None` while no cell of the last frame is inverted.
+    ///
+    /// **An identity rather than the cells it inverted** (D2): what is inverted is recomputed from
+    /// the drawing of each frame, so a resize gives the window another size and the selection
+    /// follows the shape rather than a rectangle left where it was. A selection no cell of the
+    /// drawing records is kept and inverts nothing (rule 7).
+    selected: Option<ShapeId>,
 
     /// **Read, never changed**: this slice performs no command on the session.
     session: Session,
@@ -44,6 +59,8 @@ impl DiagramState {
                     height: 0,
                 },
             ),
+            interior: Rect::new(0, 0, 0, 0),
+            selected: None,
             session,
         }
     }
@@ -56,6 +73,40 @@ impl DiagramState {
             .and_then(|cell| cell.glyph_str(catalog))
     }
 
+    /// The shape a click selected, or `None` while no shape is selected.
+    ///
+    /// **The identity and not the cells it covers**: a resize, a scroll or a command that moves
+    /// the shape changes what is inverted without changing this (D2).
+    pub(crate) fn selected(&self) -> Option<ShapeId> {
+        self.selected
+    }
+
+    /// Makes `selection` the shape a click selected, and says whether the screen has to be painted
+    /// again.
+    ///
+    /// **A click that selects what is already selected changed nothing**, and neither did one on a
+    /// cell nobody owns with no selection to drop: the answer is `false` and the frame is not owed.
+    pub(crate) fn select(&mut self, selection: Option<ShapeId>) -> bool {
+        if self.selected == selection {
+            return false;
+        }
+
+        self.selected = selection;
+        true
+    }
+
+    /// Whether `owner` — the drawing's answer for a cell, or nobody — is the selected shape.
+    ///
+    /// **This is where the inversion is decided, and it is decided from the record** (D1): a
+    /// position nobody owns is never the selection, and an identity no cell records inverts
+    /// nothing because no cell asks about it (rule 7).
+    pub(crate) fn is_selected(&self, owner: Option<ShapeId>) -> bool {
+        matches!(
+            (self.selected(), owner),
+            (Some(selected), Some(owner)) if selected == owner
+        )
+    }
+
     /// The drawing of the last frame, which answers a click; empty before the first one.
     ///
     /// **`Buffer::owner` is asked with the click's own offset**, counted from the interior's
@@ -63,6 +114,24 @@ impl DiagramState {
     /// row the terminal reports.
     pub(crate) fn drawing(&self) -> &Buffer {
         &self.buffer
+    }
+
+    /// The offset into the last frame's drawing that the screen position `at` reaches, or `None`
+    /// where the position is outside the interior.
+    ///
+    /// **The interior's corner is taken off, and the window's origin takes no part.** A click
+    /// arrives as a column and a row of the screen, and the offset `Buffer::owner` asks for is
+    /// counted from the corner of the window the person saw — the scroll origin belongs to the
+    /// plane rather than to the screen, and adding it here would ask about another cell (rule 1).
+    pub(crate) fn offset_of(&self, at: Position) -> Option<Offset> {
+        if !self.interior.contains(at) {
+            return None;
+        }
+
+        Some(Offset {
+            x: at.x - self.interior.x,
+            y: at.y - self.interior.y,
+        })
     }
 
     /// The position `at` reaches, counted from the window's corner, or `None` where the origin
@@ -74,12 +143,22 @@ impl DiagramState {
         })
     }
 
-    /// Draws the session's diagram into the window `size` large at the scroll origin, replacing
-    /// whatever the frame before drew.
-    pub(crate) fn redraw(&mut self, size: Size) {
-        let mut buffer = Buffer::new(self.origin, size);
+    /// Draws the session's diagram into `interior` — the window, as the screen holds it — at the
+    /// scroll origin, replacing whatever the frame before drew.
+    ///
+    /// **The window is kept whole rather than as a size**, because the two questions later frames
+    /// ask of it are both about the whole: how large it is, and where its corner is on the screen.
+    pub(crate) fn redraw(&mut self, interior: Rect) {
+        let mut buffer = Buffer::new(
+            self.origin,
+            Size {
+                width: interior.width,
+                height: interior.height,
+            },
+        );
         self.session.diagram().draw(&mut buffer);
         self.buffer = buffer;
+        self.interior = interior;
     }
 }
 

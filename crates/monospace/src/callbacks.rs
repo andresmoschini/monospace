@@ -4,9 +4,10 @@
 //!
 //! **This is where an event becomes an action.** A terminal event is answered here: a resize
 //! repaints, and everything else is routed to the first handler that claims it — the shortcuts
-//! that reach everything, the chrome, the shortcuts nobody has claimed — and the action it names
-//! is carried out: the screen changed, the way out, or the forced exit. An entry of the menu and
-//! the key that means the same thing therefore arrive at one place, and that place is here.
+//! that reach everything, the chrome, the diagram, and the shortcuts nobody has claimed — and the
+//! action it names is carried out: the screen changed, the way out, or the forced exit. An entry of
+//! the menu and the key that means the same thing therefore arrive at one place, and that place is
+//! here.
 //!
 //! **The order is the whole of the policy, and it is written once.** Nothing here names a key:
 //! which keys the application answers to, and whether a key has to be answered before the chrome,
@@ -18,6 +19,7 @@ use ratatui_core::layout::Rect;
 use ratatui_crossterm::crossterm::event::Event;
 
 use crate::context::AppGlobal;
+use crate::diagram_widget;
 use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
@@ -69,15 +71,18 @@ pub(crate) fn event(
 /// **The order is the whole of the policy, and the chain is the order.** The shortcuts that reach
 /// everything are asked first: a `Ctrl+C` that reached the chrome as a key would be answered by the
 /// chrome, and the point of it is that it is answered by nothing. Then the bar, so that a key the
-/// widget uses is the widget's; then the shortcuts nobody has claimed. The first action wins, and
-/// an event all three leave alone is answered by nobody.
+/// widget uses is the widget's; then the region, so that a click a drop-down covers is the
+/// drop-down's and the one it leaves is the diagram's; then the shortcuts nobody has claimed. The
+/// first action wins, and an event all of them leave alone is answered by nobody.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
-/// state.menu` and nothing else, so what a widget may change about the application is what the
-/// widget's own signature makes possible: the selection and the drop-down, and never the session.
+/// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
+/// application is what its own signature makes possible: the selection and the drop-down, and never
+/// the session.
 fn route(event: &Event, state: &mut AppState) -> Option<Action> {
     shortcuts::handle_always(event)
         .or_else(|| menu::handle(event, &mut state.menu))
+        .or_else(|| diagram_widget::handle(event, &mut state.diagram))
         .or_else(|| shortcuts::handle_unclaimed(event))
 }
 
@@ -122,8 +127,11 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::vocabulary::AppError;
+    use monospace_core::Offset;
     use ratatui_core::layout::Rect;
-    use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+    use ratatui_crossterm::crossterm::event::{
+        Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
 
     /// The width of the screen these tests draw.
     const WIDTH: u16 = 40;
@@ -146,6 +154,41 @@ mod tests {
     /// The configuration the application starts with.
     fn a_global() -> AppGlobal {
         AppGlobal::new(Config::default(), monospace_glyph_sets::all())
+    }
+
+    /// A description whose only shape is a light 4×3 box at `(2, 1)` of the window.
+    ///
+    /// The window is the region's interior, which on a screen of the size these tests draw is
+    /// `38×6` at `(1, 2)` of the screen: the box's top-left is the screen's `(3, 3)`.
+    const A_BOX: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    /// The state of an application over the diagram `json` describes.
+    fn a_state_over(json: &str) -> AppState {
+        let diagram =
+            monospace_description::parse(json).expect("the test's description is readable");
+
+        AppState::new(monospace_editing::Session::new(diagram))
+    }
+
+    /// The state of an application over the diagram `json` describes, with a frame painted.
+    fn a_drawn_state_over(json: &str) -> AppState {
+        let mut state = a_state_over(json);
+        let _ = draw(&mut state);
+        state
+    }
+
+    /// The event the terminal reports for a left press at the screen position `(column, row)`.
+    fn click(column: u16, row: u16) -> Event {
+        Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        })
     }
 
     /// The state of an application that has been on the screen once.
@@ -282,6 +325,103 @@ mod tests {
         assert!(
             !state.menu.popup_active(),
             "a key with no action changed the state"
+        );
+    }
+
+    /// **A click asks the drawing rather than a drawing of its own**, and the identity it finds is
+    /// what the state holds afterwards.
+    #[test]
+    fn a_left_click_selects_the_shape_that_owns_the_cell() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let owner = state.diagram.drawing().owner(Offset { x: 2, y: 1 });
+        assert!(owner.is_some(), "the box is not in the drawing");
+
+        // The screen's `(3, 3)` is the window's `(2, 1)`: the region's interior starts one row
+        // and one column in from the region's corner.
+        let outcome = send(&click(3, 3), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.selected(),
+            owner,
+            "the click selected another shape"
+        );
+    }
+
+    /// **A click on a cell nobody owns is the way out of a selection** (D3): the empty space is the
+    /// target that always means nothing. A second click there has nothing left to drop.
+    #[test]
+    fn a_click_on_a_cell_nobody_owns_drops_the_selection() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected"
+        );
+
+        // The window's own corner: the interior, and no shape wrote it.
+        let outcome = send(&click(1, 2), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the selection survived a blank cell"
+        );
+
+        let outcome = send(&click(1, 2), &mut state);
+
+        assert!(
+            matches!(outcome, Control::Continue),
+            "there was nothing to drop and the frame was owed: {outcome:?}"
+        );
+    }
+
+    /// **A press outside the interior is nobody's**, and the frame is not owed: the bar, the
+    /// region's border, the status bar and a rectangle no frame drew into are all outside the
+    /// window the drawing answered from.
+    #[test]
+    fn a_click_outside_the_interior_changes_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+
+        for (column, row, what) in [
+            (WIDTH - 1, 0, "the bar"),
+            (3, 1, "the region's top border"),
+            (0, 3, "the region's left border"),
+            (3, HEIGHT - 1, "the status bar"),
+            (WIDTH - 1, 3, "the region's right border"),
+        ] {
+            let outcome = send(&click(column, row), &mut state);
+
+            assert!(
+                matches!(outcome, Control::Continue),
+                "{what} was the region's: {outcome:?}"
+            );
+        }
+
+        assert!(
+            state.diagram.selected().is_some(),
+            "a press outside the interior dropped the selection"
+        );
+    }
+
+    /// **The drop-down is asked before the region**, so a click it answers never reaches the
+    /// diagram — and a click on its `Quit` entry is the way out rather than a selection.
+    #[test]
+    fn a_click_the_drop_down_takes_never_reaches_the_diagram() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&key(KeyCode::Char('f')), &mut state);
+        let buffer = draw(&mut state);
+        let (column, row) = frame::cell_of(&buffer, "Quit");
+
+        let outcome = send(&click(column, row), &mut state);
+
+        assert!(matches!(outcome, Control::Quit), "{outcome:?}");
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the click the drop-down took reached the diagram"
         );
     }
 

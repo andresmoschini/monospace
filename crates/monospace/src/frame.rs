@@ -108,9 +108,14 @@ mod tests {
     use crate::context::AppGlobal;
     use crate::state::AppState;
     use crate::status;
-    use monospace_core::Offset;
+    use crate::vocabulary::Action;
+    use monospace_core::{Offset, ShapeId};
     use ratatui_core::buffer::Buffer;
-    use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent};
+    use ratatui_core::style::Modifier;
+    use ratatui_crossterm::crossterm::event::{
+        Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
+    use std::num::NonZeroU16;
 
     /// The width of the screens these tests draw.
     const WIDTH: u16 = 40;
@@ -160,6 +165,16 @@ mod tests {
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
                       "size": { "width": 2, "height": 2 }, "stroke": "light" } ]
+    }"#;
+
+    /// Two light 4×3 boxes side by side, the left at `(2, 1)` of the window and the right at
+    /// `(6, 1)`: the second is as close to the first as a shape can be without sharing a cell.
+    const A_BOX_AND_ITS_NEIGHBOR: &str = r#"{
+        "next_id": 3,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                    { "kind": "box", "id": 2, "at": { "x": 6, "y": 1 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
     }"#;
 
     /// A description whose only shape is a 4×3 box in the ASCII table.
@@ -271,6 +286,62 @@ mod tests {
     /// The picture of a frame, with the counts under it.
     fn described(buffer: &Buffer, regions: Regions) -> String {
         format!("{}\n{}", picture(buffer), counts(buffer, regions))
+    }
+
+    /// Whether the cell at a frame position is painted in reverse video.
+    fn reversed(buffer: &Buffer, column: u16, line: u16) -> bool {
+        buffer[(column, line)]
+            .style()
+            .add_modifier
+            .contains(Modifier::REVERSED)
+    }
+
+    /// The frame positions whose cell is painted in reverse video, in the order the frame is read.
+    fn inverted(buffer: &Buffer) -> Vec<(u16, u16)> {
+        (buffer.area.top()..buffer.area.bottom())
+            .flat_map(|line| {
+                (buffer.area.left()..buffer.area.right()).map(move |column| (column, line))
+            })
+            .filter(|(column, line)| reversed(buffer, *column, *line))
+            .collect()
+    }
+
+    /// The screen positions the box of `A_BOX` writes: its border, at `(2, 1)` of the window and
+    /// four cells wide and three tall.
+    ///
+    /// **A box's interior is not a cell of the drawing**, so nothing is written there and nothing
+    /// is inverted there: the ten cells here are what the copy writes for the box. The window's
+    /// corner is the screen's `(1, 2)`.
+    fn cells_of_the_box() -> Vec<(u16, u16)> {
+        vec![
+            (3, 3),
+            (4, 3),
+            (5, 3),
+            (6, 3),
+            (3, 4),
+            (6, 4),
+            (3, 5),
+            (4, 5),
+            (5, 5),
+            (6, 5),
+        ]
+    }
+
+    /// Clicks the screen position `(column, line)` with the left button, the way a person does.
+    fn click(state: &mut AppState, column: u16, line: u16) {
+        let event = Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row: line,
+            modifiers: KeyModifiers::NONE,
+        });
+
+        let outcome = crate::diagram_widget::handle(&event, &mut state.diagram);
+
+        assert!(
+            matches!(outcome, Some(Action::ScreenChanged)),
+            "({column}, {line}) selected nothing: {outcome:?}"
+        );
     }
 
     #[test]
@@ -478,6 +549,149 @@ mod tests {
             state.diagram.drawing().owner(Offset { x: 2, y: 1 }),
             asked,
             "the second frame's drawing does not answer the same click"
+        );
+    }
+
+    /// **A click is a question and not a command.** The session is only read, so the frame that
+    /// follows holds the same cells and the same record; what the click changed is the style of
+    /// those cells, which a picture of symbols does not show.
+    #[test]
+    fn a_click_changes_no_diagram() {
+        let mut state = a_state_over(A_BOX);
+        let global = a_global();
+
+        let before = paint(&mut state, &global, WIDTH, HEIGHT);
+        let asked = state.diagram.drawing().owner(Offset { x: 2, y: 1 });
+        assert!(asked.is_some(), "the box is not in the drawing");
+
+        // The box's top-left is the screen's `(3, 3)`.
+        click(&mut state, 3, 3);
+
+        let after = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        assert_eq!(
+            state.diagram.drawing().owner(Offset { x: 2, y: 1 }),
+            asked,
+            "the click changed which shape the drawing records"
+        );
+        assert_eq!(
+            picture(&before),
+            picture(&after),
+            "the click changed the cells the frame holds"
+        );
+        assert!(
+            !inverted(&after).is_empty(),
+            "the click selected nothing, so the frame proves nothing"
+        );
+    }
+
+    /// **The inversion is the record's answer, cell by cell.** The cells of the selected shape are
+    /// reverse video and no others, however close another shape's cells are.
+    #[test]
+    fn the_selected_shapes_cells_are_inverted_and_no_others() {
+        let mut state = a_state_over(A_BOX_AND_ITS_NEIGHBOR);
+        let global = a_global();
+        let _ = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        // The left box's top-left, and no cell of the right one.
+        click(&mut state, 3, 3);
+        let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        assert_eq!(
+            inverted(&buffer),
+            cells_of_the_box(),
+            "the cells the frame inverts are not the selected box's"
+        );
+        assert!(
+            !reversed(&buffer, 7, 3),
+            "the neighboring box's border is inverted"
+        );
+    }
+
+    /// **The inversion is read from the record and not from the selection.** An identity no cell of
+    /// the drawing names inverts nothing, which is what leaves a command that removes the selected
+    /// shape a frame with no inversion rather than a stale one (rule 7).
+    #[test]
+    fn a_selection_the_drawing_does_not_record_inverts_nothing() {
+        let mut state = a_state_over(A_BOX);
+        let global = a_global();
+        let _ = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        let unrecorded = ShapeId::new(NonZeroU16::new(9).expect("9 is not zero"));
+        assert!(
+            state.diagram.select(Some(unrecorded)),
+            "the selection did not move"
+        );
+
+        let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        assert!(
+            inverted(&buffer).is_empty(),
+            "an identity no cell records inverted cells"
+        );
+    }
+
+    /// **A shape the window does not hold is still selected.** The state holds the identity, so a
+    /// frame that holds the shape again inverts it: the selection is what the click recorded, and
+    /// not the cells the frame that answered it happened to hold.
+    #[test]
+    fn a_selected_shape_with_no_cell_in_the_window_is_still_selected() {
+        let mut state = a_state_over(A_BOX);
+        let global = a_global();
+        let _ = paint(&mut state, &global, WIDTH, HEIGHT);
+        click(&mut state, 3, 3);
+
+        // Four rows leave the region two and its interior none: the window holds no cell of the
+        // box, so nothing is drawn and nothing is inverted.
+        let empty = paint(&mut state, &global, WIDTH, 4);
+        assert!(
+            inverted(&empty).is_empty(),
+            "a cell of a shape the window does not hold is inverted"
+        );
+        assert!(
+            state.diagram.selected().is_some(),
+            "the selection was dropped when the window stopped holding the shape"
+        );
+
+        let held_again = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        assert_eq!(
+            inverted(&held_again),
+            cells_of_the_box(),
+            "the frame that holds the box again does not invert it"
+        );
+    }
+
+    /// **The selection is an identity, so a resize recomputes what it covers.** A screen shorter
+    /// than the box clips it: the part the window holds is inverted and the rest is not, and the
+    /// screen that holds the whole box again inverts the whole box.
+    #[test]
+    fn the_selection_survives_a_resize() {
+        let mut state = a_state_over(A_BOX);
+        let global = a_global();
+        let _ = paint(&mut state, &global, WIDTH, HEIGHT);
+        click(&mut state, 3, 3);
+
+        // Seven rows leave the region five rows and its interior three: the box's third row is
+        // outside the window.
+        let clipped = paint(&mut state, &global, WIDTH, 7);
+        let rows_the_window_holds: Vec<(u16, u16)> = cells_of_the_box()
+            .into_iter()
+            .filter(|(_, line)| *line < 5)
+            .collect();
+
+        assert_eq!(
+            inverted(&clipped),
+            rows_the_window_holds,
+            "the resize inverted cells the window does not hold, or dropped the cells it does"
+        );
+
+        let restored = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        assert_eq!(
+            inverted(&restored),
+            cells_of_the_box(),
+            "the selection did not survive the resize"
         );
     }
 
