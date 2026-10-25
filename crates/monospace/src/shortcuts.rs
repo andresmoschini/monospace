@@ -211,22 +211,14 @@ mod tests {
     /// **A shortcut is the combination it shows and not another one.** Every combination a terminal
     /// can report other than the row's own is handed to its reach, and none of them answers.
     ///
-    /// **The alternatives are counted rather than assumed to be `Shift`**: `Delete` is the first row
-    /// whose own combination is no modifier at all, so a test that only added `Shift` would hand the
-    /// row's own key to the table and call it another one.
+    /// **The alternatives are walked rather than named**: `Delete` is the first row whose own
+    /// combination is no modifier at all, so the walk has to contain the empty set, and a row with
+    /// two modifiers has to be handed the ones it does not have — a hand-written list of single
+    /// modifiers would try neither.
     #[test]
     fn a_shortcut_is_the_combination_it_shows_and_not_another_one() {
         for shortcut in SHORTCUTS {
-            for modifiers in [
-                KeyModifiers::NONE,
-                KeyModifiers::SHIFT,
-                KeyModifiers::CONTROL,
-                KeyModifiers::ALT,
-            ] {
-                if modifiers == shortcut.modifiers {
-                    continue;
-                }
-
+            for modifiers in combinations_but(shortcut.modifiers) {
                 assert_eq!(
                     handle_at(&key(shortcut.key, modifiers), shortcut.reach),
                     None,
@@ -238,6 +230,28 @@ mod tests {
 
         let another_key = key(KeyCode::Char('x'), KeyModifiers::CONTROL);
         assert_eq!(handle_unclaimed(&another_key), None);
+    }
+
+    /// Every combination of the modifiers a terminal reports for these keys, other than `own`.
+    fn combinations_but(own: KeyModifiers) -> Vec<KeyModifiers> {
+        let mut combinations = Vec::new();
+
+        for shift in [false, true] {
+            for control in [false, true] {
+                for alt in [false, true] {
+                    let mut modifiers = KeyModifiers::NONE;
+                    modifiers.set(KeyModifiers::SHIFT, shift);
+                    modifiers.set(KeyModifiers::CONTROL, control);
+                    modifiers.set(KeyModifiers::ALT, alt);
+
+                    if modifiers != own {
+                        combinations.push(modifiers);
+                    }
+                }
+            }
+        }
+
+        combinations
     }
 
     #[test]
