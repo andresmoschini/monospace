@@ -101,9 +101,9 @@ Behind that, and all of it enforced rather than merely intended:
 
 Still missing, and named here rather than implied: the editing **surface** — the interactive
 application's frame, its menu, its way out, the diagram it was given, selecting one of its shapes
-with a click, deleting the selected shape, giving that change back, the keyboard moving between the
-bar and the diagram, `Alt` or `F10` reaching a menu, and the About dialog are here, and moving that
-diagram and editing one beyond that are not — and persistence.
+with a click, deleting the selected shape, moving it with the arrow keys, giving that change back,
+the keyboard moving between the bar and the diagram, `Alt` or `F10` reaching a menu, and the About
+dialog are here, and editing one beyond that is not — and persistence.
 
 ## Getting started
 

@@ -25,9 +25,11 @@ use ratatui_core::{
     style::Style,
     widgets::Widget,
 };
-use ratatui_crossterm::crossterm::event::{Event, MouseButton, MouseEventKind};
+use ratatui_crossterm::crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 
-use crate::state::DiagramState;
+use crate::state::{DiagramState, Focus};
 use crate::vocabulary::Action;
 
 /// Paints the region, and the diagram the state draws inside it.
@@ -44,6 +46,58 @@ pub(crate) fn draw(
     draw_diagram(interior, buf, state, catalog);
 }
 
+/// What an event means to the region.
+///
+/// **The region answers a click and the four arrows.** A click is the region's whatever leaf holds
+/// the keyboard (D1), and a key is the region's only while it does: the arrows are what the region
+/// does with the keyboard it is given.
+///
+/// **Everything else is answered with nothing** so that the event goes on to the next handler
+/// (rule 3).
+pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus) -> Option<Action> {
+    match raw {
+        Event::Mouse(mouse) => click(*mouse, state),
+        Event::Key(_) if focus == Focus::Region => key(raw),
+        _ => None,
+    }
+}
+
+/// What a key means to the region.
+///
+/// **The four arrows displace the selected figure one cell** (rule 1 of #179): the action carries
+/// the delta the arrow names and no identity, and the selection is read where the action is carried
+/// out. A key that is no arrow is not the region's.
+fn key(raw: &Event) -> Option<Action> {
+    let (dx, dy) = displacement(raw)?;
+
+    Some(Action::Move(dx, dy))
+}
+
+/// The delta the four arrows name, or `None` for any other event.
+///
+/// **A press with no modifiers and nothing else** (rule 8): a release and a repeat are not a press,
+/// and a modified arrow is another combination. Right is one cell along the x axis, Down along the
+/// y one, and the two negatives are the other directions.
+fn displacement(event: &Event) -> Option<(i16, i16)> {
+    let Event::Key(KeyEvent {
+        code,
+        modifiers: KeyModifiers::NONE,
+        kind: KeyEventKind::Press,
+        ..
+    }) = event
+    else {
+        return None;
+    };
+
+    match code {
+        KeyCode::Right => Some((1, 0)),
+        KeyCode::Left => Some((-1, 0)),
+        KeyCode::Up => Some((0, -1)),
+        KeyCode::Down => Some((0, 1)),
+        _ => None,
+    }
+}
+
 /// What a click means to the region.
 ///
 /// **A left press inside the interior selects the shape the drawing records at the cell under it,
@@ -57,11 +111,7 @@ pub(crate) fn draw(
 ///
 /// **The answer is `ScreenChanged` only when the selection moved.** Selecting what is already
 /// selected, or dropping a selection that is not there, changed nothing and owes no frame.
-pub(crate) fn handle(raw: &Event, state: &mut DiagramState) -> Option<Action> {
-    let Event::Mouse(mouse) = raw else {
-        return None;
-    };
-
+fn click(mouse: MouseEvent, state: &mut DiagramState) -> Option<Action> {
     if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
         return None;
     }
@@ -147,7 +197,7 @@ fn inner_region(area: Rect) -> Rect {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use ratatui_crossterm::crossterm::event::{KeyModifiers, MouseEvent};
+    use ratatui_crossterm::crossterm::event::{KeyEvent, KeyEventKind, KeyModifiers, MouseEvent};
 
     /// The region these tests draw into. **Its interior is `18×6` at `(1, 1)` of the screen**, which
     /// is what says where a click's column and row land.
@@ -244,12 +294,12 @@ mod tests {
         let mut state = a_state_over(A_BOX);
         let _ = paint(&mut state);
         let at = screen(2, 1);
-        let _ = handle(&click(at.x, at.y), &mut state);
+        let _ = handle(&click(at.x, at.y), &mut state, Focus::Region);
         assert!(state.selected().is_some(), "the box was not selected");
 
         for button in [MouseButton::Right, MouseButton::Middle] {
             assert_eq!(
-                handle(&press(button, at.x, at.y), &mut state),
+                handle(&press(button, at.x, at.y), &mut state, Focus::Region),
                 None,
                 "{button:?} was the region's"
             );
@@ -261,11 +311,119 @@ mod tests {
             row: at.y,
             modifiers: KeyModifiers::NONE,
         });
-        assert_eq!(handle(&released, &mut state), None, "a release was a press");
+        assert_eq!(
+            handle(&released, &mut state, Focus::Region),
+            None,
+            "a release was a press"
+        );
 
         assert!(
             state.selected().is_some(),
             "a press that is not the left button dropped the selection"
         );
+    }
+
+    /// The event the terminal reports for a press of `code` with no modifiers.
+    fn key(code: KeyCode) -> Event {
+        Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
+    }
+
+    /// **The four arrows are the region's while it holds the keyboard** (rule 6), each carrying the
+    /// delta of its own axis and no identity (rule 1).
+    #[test]
+    fn the_arrows_are_the_regions_while_it_holds_the_keyboard() {
+        let mut state = a_state_over(A_BOX);
+
+        for (arrow, delta) in [
+            (KeyCode::Right, (1, 0)),
+            (KeyCode::Left, (-1, 0)),
+            (KeyCode::Up, (0, -1)),
+            (KeyCode::Down, (0, 1)),
+        ] {
+            assert_eq!(
+                handle(&key(arrow), &mut state, Focus::Region),
+                Some(Action::Move(delta.0, delta.1)),
+                "{arrow:?} did not answer the movement"
+            );
+        }
+    }
+
+    /// **The action is the movement and not a figure** (rule 4): the region answers `Move` with
+    /// nothing selected as well, and the handler neither selects nor performs anything.
+    #[test]
+    fn the_arrows_say_only_that_they_move() {
+        let mut state = a_state_over(A_BOX);
+        assert_eq!(state.selected(), None, "the test starts with a selection");
+
+        let answer = handle(&key(KeyCode::Right), &mut state, Focus::Region);
+
+        assert_eq!(answer, Some(Action::Move(1, 0)));
+        assert_eq!(
+            state.selected(),
+            None,
+            "the region minted a selection into the action"
+        );
+    }
+
+    /// **A move is the arrow and no modifier** (rule 8): another combination, a release and a
+    /// repeat are not the region's, and neither is a key that is no arrow.
+    #[test]
+    fn a_move_is_the_arrow_and_no_modifier() {
+        let mut state = a_state_over(A_BOX);
+
+        for modifiers in [
+            KeyModifiers::SHIFT,
+            KeyModifiers::CONTROL,
+            KeyModifiers::ALT,
+        ] {
+            assert_eq!(
+                handle(
+                    &Event::Key(KeyEvent::new(KeyCode::Right, modifiers)),
+                    &mut state,
+                    Focus::Region,
+                ),
+                None,
+                "a modified arrow was the region's"
+            );
+        }
+
+        for kind in [KeyEventKind::Release, KeyEventKind::Repeat] {
+            let event = Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Right,
+                KeyModifiers::NONE,
+                kind,
+            ));
+            assert_eq!(
+                handle(&event, &mut state, Focus::Region),
+                None,
+                "{kind:?} was a press"
+            );
+        }
+
+        assert_eq!(
+            handle(&key(KeyCode::Char('x')), &mut state, Focus::Region),
+            None,
+            "a key that is no arrow was the region's"
+        );
+    }
+
+    /// **A bar that holds the keyboard answers the arrows itself** (rule 6): `Up` and `Down` are
+    /// nobody's there, so the region must not move the figure from a leaf that does not hold it.
+    #[test]
+    fn an_arrow_with_the_bar_focused_moves_nothing() {
+        let mut state = a_state_over(A_BOX);
+        let _ = paint(&mut state);
+        let _ = handle(&click(3, 2), &mut state, Focus::Region);
+        assert!(state.selected().is_some(), "the box was not selected");
+
+        for arrow in [KeyCode::Up, KeyCode::Down] {
+            assert_eq!(
+                handle(&key(arrow), &mut state, Focus::Bar),
+                None,
+                "{arrow:?} reached the region while the bar held the keyboard"
+            );
+        }
+
+        assert!(state.selected().is_some(), "the box lost its selection");
     }
 }
