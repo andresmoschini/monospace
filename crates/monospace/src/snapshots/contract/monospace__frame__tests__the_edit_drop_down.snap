@@ -4,7 +4,7 @@ description: "A picture of the screen, as the frame paints it. The three regions
 expression: body
 ---
 the Edit drop-down open over the region, 40x10
-File Edit
+File Edit Help
 ┌──┌────────────────────┐──────────────┐
 │  │ Undo        Ctrl+Z │              │
 │  │ Redo  Ctrl+Shift+Z │              │
@@ -15,4 +15,4 @@ File Edit
 └──────────────────────────────────────┘
 monospace                          0.1.0
 the bar is 1 row, the region is 8 rows and the status is 1 row
-177 of 400 cells are not blank
+181 of 400 cells are not blank

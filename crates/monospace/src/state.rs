@@ -12,6 +12,7 @@
 use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, ShapeId, Size};
 use monospace_editing::{Command, Session};
 use rat_widget::menu::MenubarState;
+use rat_widget::msgdialog::MsgDialogState;
 use rat_widget::statusline::StatusLineState;
 use ratatui_core::layout::{Position, Rect};
 
@@ -33,6 +34,11 @@ pub(crate) struct DiagramState {
     /// window and what its offset from the window's corner is. Empty until the first frame is
     /// drawn, and empty for a screen too short to hold a region.
     interior: Rect,
+
+    /// The region's own rectangle, border included, as the last frame drew it. **A press on the
+    /// border is the region's without being the window's** (rule 2 of #189), so the outer
+    /// rectangle is kept beside the interior rather than derived from it.
+    region: Rect,
 
     /// The shape a click selected, or `None` while no cell of the last frame is inverted.
     ///
@@ -63,6 +69,7 @@ impl DiagramState {
                 },
             ),
             interior: Rect::new(0, 0, 0, 0),
+            region: Rect::new(0, 0, 0, 0),
             selected: None,
             session,
         }
@@ -200,6 +207,15 @@ impl DiagramState {
         })
     }
 
+    /// The region's own rectangle, border included, as the last frame drew it.
+    ///
+    /// **The outer rectangle and not the window** (rule 2 of #189): a press on the border gives the
+    /// region the keyboard without landing in the drawing, and a press outside the rectangle
+    /// belongs to another leaf or to none. Empty until the first frame is drawn.
+    pub(crate) fn region(&self) -> Rect {
+        self.region
+    }
+
     /// The position `at` reaches, counted from the window's corner, or `None` where the origin
     /// and the offset cannot be added.
     fn position(&self, at: Offset) -> Option<Pos> {
@@ -214,7 +230,11 @@ impl DiagramState {
     ///
     /// **The window is kept whole rather than as a size**, because the two questions later frames
     /// ask of it are both about the whole: how large it is, and where its corner is on the screen.
-    pub(crate) fn redraw(&mut self, interior: Rect) {
+    ///
+    /// **The region is kept beside it** (rule 2 of #189): a press on the border gives the region
+    /// the keyboard without landing in the window, so the outer rectangle is a fact of the frame
+    /// the region answered and not one the interior can be asked for.
+    pub(crate) fn redraw(&mut self, region: Rect, interior: Rect) {
         let mut buffer = Buffer::new(
             self.origin,
             Size {
@@ -225,7 +245,23 @@ impl DiagramState {
         self.session.diagram().draw(&mut buffer);
         self.buffer = buffer;
         self.interior = interior;
+        self.region = region;
     }
+}
+
+/// Which leaf of the chrome holds the keyboard.
+///
+/// **The bar and the region are the two leaves** (rule 1 of #189): the status line is not one, and
+/// a control inside a leaf — a label, an entry, the dialog's button — never holds the keyboard on
+/// its own. The dialog is an overlay and runs its own focus while it is up; the application's leaf
+/// stays where it was, which is what makes closing the dialog give the keyboard back unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Focus {
+    /// The menu bar, and the drop-down it opens: the pop-up is the bar's.
+    Bar,
+
+    /// The diagram region, border included.
+    Region,
 }
 
 /// Everything that survives between frames.
@@ -237,6 +273,15 @@ pub(crate) struct AppState {
 
     /// The status line's own state: what each of its sections says.
     pub status: StatusLineState,
+
+    /// Which leaf holds the keyboard: the region at startup (D1 of #189).
+    pub focus: Focus,
+
+    /// The About dialog's own state: its message, its `Ok`, and whether it is up (D5 of #189).
+    ///
+    /// **The dialog runs its own focus** while it is up, and the application's leaf is left where
+    /// it was, so closing the dialog gives the keyboard back unchanged.
+    pub about: MsgDialogState,
 }
 
 impl AppState {
@@ -252,7 +297,41 @@ impl AppState {
             diagram: DiagramState::new(diagram_session),
             menu: MenubarState::default(),
             status: status::state(),
+            focus: Focus::Region,
+            about: MsgDialogState::default(),
         }
+    }
+
+    /// The leaf a left press at `at` lands in, or `None` where it lands in neither.
+    ///
+    /// **The drop-down is the bar's** (rule 1 of #189): a press on an open entry gives the keyboard
+    /// to the bar rather than to the region behind it, so the pop-up is asked about before the
+    /// region's rectangle. A press on the status line lands in neither leaf and moves nothing.
+    pub(crate) fn leaf_at(&self, at: Position) -> Option<Focus> {
+        if self.menu.area.contains(at)
+            || (self.menu.popup_active() && self.menu.popup.area.contains(at))
+        {
+            Some(Focus::Bar)
+        } else if self.diagram.region().contains(at) {
+            Some(Focus::Region)
+        } else {
+            None
+        }
+    }
+
+    /// Moves the keyboard to the leaf at `at`, returning whether the focus changed.
+    ///
+    /// **A position in neither leaf leaves the focus alone**: the status line and empty space
+    /// are not destinations for the keyboard. The leaf is resolved by [`Self::leaf_at`], so an
+    /// open drop-down belongs to the bar even where it overlaps the region.
+    pub(crate) fn set_focus_at(&mut self, at: Position) -> bool {
+        let Some(leaf) = self.leaf_at(at) else {
+            return false;
+        };
+
+        let moved = self.focus != leaf;
+        self.focus = leaf;
+        moved
     }
 }
 

@@ -5,9 +5,14 @@
 //! the two are drawn at different moments: the line with the rest of the frame, the pop-up after
 //! the region it covers.
 //!
-//! **The bar holds the keyboard.** The chrome of this slice is the bar and nothing else, so it is
-//! always given the focus; the rules about the focus are #189's, and they are about a chrome
-//! with more than one thing in it.
+//! **The bar is one of the two leaves that hold the keyboard.** Which one holds it is the
+//! application's answer — kept in `AppState` — and the bar is handed it: the widget draws its
+//! selected label differently only while it has the focus, and it answers a key only while it has
+//! it. **The bar asks for the keyboard and gives it back**: `F10` asks for it from either leaf,
+//! `Alt` plus a navigation character brings it with the press, and `Esc` with nothing left to close
+//! gives it back. **A leaf is not a meaning** (D1 of #189): these three keys move the keyboard
+//! where they are read, so the bar moves it and no action names a leaf. The rules about the focus
+//! are #189's.
 //!
 //! **The framework's keys are the framework's.** The navigation character opens a drop-down, the
 //! arrows move it, `Enter` takes an entry and `Esc` closes it, and all four are the menu
@@ -20,9 +25,11 @@ use rat_widget::menu::menubar;
 use rat_widget::menu::{MenuStyle, Menubar, MenubarLine, MenubarPopup, MenubarState, StaticMenu};
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
+use ratatui_core::style::Style;
 use ratatui_core::widgets::StatefulWidget;
-use ratatui_crossterm::crossterm::event::Event;
+use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
+use crate::state::Focus;
 use crate::vocabulary::Action;
 
 /// The bar, and what each of its entries means.
@@ -35,6 +42,10 @@ use crate::vocabulary::Action;
 /// whether a step can be given back, so the Edit menu's entries are active at every position of the
 /// history: taking one with nothing to do is an action that changes nothing and repaints all the
 /// same, the same answer the key gives (D2 of #181).
+///
+/// **The label's navigation character is the letter after its `_`**, and it is the only table of
+/// names: `Alt` reaches the same character here that a bare press answers when the bar holds the
+/// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
 static MENU: StaticMenu = StaticMenu {
     menu: &[
         ("_File", &["_Quit|Ctrl+Q"]),
@@ -42,6 +53,7 @@ static MENU: StaticMenu = StaticMenu {
             "_Edit",
             &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z", "_Delete|Del"],
         ),
+        ("_Help", &["_About"]),
     ],
 };
 
@@ -63,22 +75,72 @@ const REDO: usize = 1;
 /// The entry that removes the selected figure.
 const DELETE: usize = 2;
 
+/// The label of the dialog.
+const HELP: usize = 2;
+
+/// The entry that says what the application is.
+const ABOUT: usize = 0;
+
 /// What an event means to the chrome.
 ///
 /// **The bar is asked about every event and says what it was worth**: `None` if it took no
-/// interest, `ScreenChanged` if it changed what the screen shows, and the action of the entry that
-/// was taken. A shortcut is not the bar's to answer: the application's own are asked around it, in
-/// `callbacks` — before it the ones that reach everything, after it the ones nobody has claimed —
-/// so the bar says nothing about one.
+/// interest, `ScreenChanged` if it changed what the screen shows, and the action the event means —
+/// the entry that was taken, or the keyboard leaving the bar or arriving there. A shortcut is not
+/// the bar's to answer: the application's own are asked around it, in `callbacks` — before it the
+/// ones that reach everything, after it the ones nobody has claimed — so the bar says nothing about
+/// one.
 ///
 /// **`None` is `Continue` and `Unchanged`, and the application makes no difference between them**:
 /// the widget handled the event and there is nothing for the screen to paint, so the shortcuts
-/// nobody has claimed are still asked. Telling the two apart is #189's, when the chrome holds more
-/// than one thing.
-pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Option<Action> {
-    match menubar::handle_popup_events(state, true, raw) {
-        // An entry was taken: it means an action, and `callbacks` applies it. The loop is not
-        // asked again, so an entry and the key that means the same thing end in one place.
+/// nobody has claimed are still asked. **The widget only answers a key while the bar holds the
+/// keyboard**: the leaf it is handed says whether it does, and a bar that does not hold it answers
+/// no key and closes the drop-down the keyboard left behind.
+///
+/// **The three keys that move the keyboard are read here, and the bar moves it** (rule 5 of #189).
+/// `F10` asks for the bar from either leaf (D4, amended). `Alt` plus a navigation character brings
+/// the keyboard with the press: the character is looked up in the labels, so the menu stays the only
+/// table of names, and the keyboard is the bar's before the widget is asked (D4). `Esc` while the
+/// bar holds it and no drop-down is open gives it back to the region. **A leaf is not a meaning**:
+/// the keyboard moves where the event is addressed, and for these three keys that is here — which is
+/// why no action names a leaf, and why this is the one handler that writes the focus.
+///
+/// **A bar that moved the keyboard answers**, with the frame owed because a label reversed is a
+/// label that changed. The caller's chain stops there, so nothing after the bar is asked with the
+/// keyboard somewhere other than where it was when the event arrived.
+pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focus: &mut Focus) -> Option<Action> {
+    let bar = *focus == Focus::Bar;
+
+    // **`F10` asks for the bar** (D4, amended): the key every terminal reports, where a bare `Alt`
+    // is not one. It asks for the keyboard and opens nothing, so the bar looks focused with no
+    // drop-down in the way.
+    if !bar && asks_for_the_bar(raw) {
+        *focus = Focus::Bar;
+        return Some(Action::ScreenChanged);
+    }
+
+    // **`Esc` on a bar with nothing left to close gives the keyboard back** (rule 5): the widget
+    // answers the key while a drop-down is open, and this is the press after it.
+    if bar && steps_back(raw, state) {
+        *focus = Focus::Region;
+        return Some(Action::ScreenChanged);
+    }
+
+    let translated;
+    let (raw, arriving) = match alt_navigation(raw) {
+        Some(character) => {
+            translated = Event::Key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
+            let arrived = *focus != Focus::Bar;
+            *focus = Focus::Bar;
+            (&translated, arrived)
+        }
+        None => (raw, false),
+    };
+
+    let answer = match menubar::handle_popup_events(state, *focus == Focus::Bar, raw) {
+        // An entry was taken: it means an action, and `callbacks` applies it — which is also where
+        // the keyboard goes back to the region, because a meaning carried out is left there. The
+        // loop is not asked again, so an entry and the key that means the same thing end in one
+        // place.
         MenuOutcome::MenuActivated(label, entry) => {
             state.set_popup_active(false);
             Some(meaning(label, entry))
@@ -94,7 +156,90 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Option<Action> {
         | MenuOutcome::MenuSelected(_, _) => Some(Action::ScreenChanged),
 
         MenuOutcome::Continue | MenuOutcome::Unchanged => None,
+    };
+
+    // **The keyboard arrived with the translation** (D4): the label reversed and the drop-down
+    // opened are changes the widget has answered, and the frame is owed even where it said nothing
+    // — the keyboard that arrived is the screen changing. It cannot be an entry: an entry is only
+    // taken from an open drop-down, and an open drop-down means the bar already held the keyboard.
+    answer.or(arriving.then_some(Action::ScreenChanged))
+}
+
+/// The navigation character an `Alt` press names, or `None` where the event is not one.
+///
+/// **The answer comes from the labels** (D4): the character the menu answers to is the letter
+/// after its `_`, and looking it up here keeps the bar the only table of names. **A press of any
+/// other key, or with any other modifier, is not one**: a bare `Alt` is not a key, and a
+/// combination that names no label changes nothing.
+fn alt_navigation(raw: &Event) -> Option<char> {
+    let Event::Key(key) = raw else {
+        return None;
+    };
+
+    if key.kind != KeyEventKind::Press || key.modifiers != KeyModifiers::ALT {
+        return None;
     }
+
+    let KeyCode::Char(character) = key.code else {
+        return None;
+    };
+    let character = character.to_ascii_lowercase();
+
+    MENU.menu
+        .iter()
+        .any(|(label, _)| navigation(label) == Some(character))
+        .then_some(character)
+}
+
+/// Whether the event is the `F10` press that asks for the bar.
+///
+/// **`F10` is the key every terminal reports** (D4, amended): a bare `Alt` is not one — the
+/// framework asks for the terminal's extended keys only off Windows, and a terminal without them
+/// sends nothing for `Alt` alone — so the bar is reachable from the region with a key that is
+/// always there. **It asks only for the keyboard**: no drop-down opens, and the bar draws its first
+/// label in reverse video because that is what holding the keyboard looks like. [`handle`] asks it
+/// only while the bar does not hold the keyboard, and moves the keyboard there.
+fn asks_for_the_bar(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key(KeyEvent {
+            code: KeyCode::F(10),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            ..
+        })
+    )
+}
+
+/// Whether the event tells the bar to give the keyboard back.
+///
+/// **A bar with a drop-down open has something to close**, so `Esc` is the widget's there; with none
+/// open the key has nothing left to do here, and this is the bar's own reading of it: the bar steps
+/// back and the keyboard goes to the region (rule 5). [`handle`] asks it only while the bar holds
+/// the keyboard, and moves the keyboard back.
+fn steps_back(event: &Event, state: &MenubarState) -> bool {
+    !state.popup_active() && is_escape(event)
+}
+
+/// Whether the event is an `Esc` press, with no modifier on it and no kind but a press.
+fn is_escape(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key(KeyEvent {
+            code: KeyCode::Esc,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            ..
+        })
+    )
+}
+
+/// The navigation character a label carries: the letter after its `_`.
+fn navigation(label: &str) -> Option<char> {
+    label
+        .strip_prefix('_')
+        .and_then(|rest| rest.chars().next())
+        .map(|character| character.to_ascii_lowercase())
 }
 
 /// What an entry of the bar means to the application.
@@ -106,6 +251,7 @@ fn meaning(label: usize, entry: usize) -> Action {
         (EDIT, UNDO) => Action::Undo,
         (EDIT, REDO) => Action::Redo,
         (EDIT, DELETE) => Action::Delete,
+        (HELP, ABOUT) => Action::About,
 
         // An entry nobody knows still closed the drop-down, so the frame has to be painted again.
         _ => Action::ScreenChanged,
@@ -113,8 +259,19 @@ fn meaning(label: usize, entry: usize) -> Action {
 }
 
 /// Paints the bar across the top.
-pub(crate) fn draw_bar(area: Rect, buf: &mut Buffer, state: &mut MenubarState, theme: &SalsaTheme) {
+///
+/// **The focus is given before the frame is drawn**, because the widget paints its selected label
+/// differently only while it holds the keyboard: a frame that did not say which leaf holds it
+/// would draw the label the way the last event left it.
+pub(crate) fn draw_bar(
+    area: Rect,
+    buf: &mut Buffer,
+    state: &mut MenubarState,
+    theme: &SalsaTheme,
+    focused: bool,
+) {
     let (bar, _) = widgets(theme);
+    state.bar.focus.set(focused);
     bar.render(area, buf, state);
 }
 
@@ -133,8 +290,15 @@ pub(crate) fn draw_drop_down(
 }
 
 /// The bar and the drop-down, as the two widgets the menu splits itself into.
+///
+/// **The focus is reverse video over the theme's own colors** (D3 of #189): the two focus styles
+/// are replaced with the modifier alone, so the base style painted under the label keeps its
+/// colors and the widget adds `Modifier::REVERSED` to the cells it owns. The theme's `focus`
+/// background is not used, which is what makes the bar and the dialog's `Ok` say the same thing.
 fn widgets(theme: &SalsaTheme) -> (MenubarLine<'static>, MenubarPopup<'static>) {
-    let style: MenuStyle = theme.style(WidgetStyle::MENU);
+    let mut style: MenuStyle = theme.style(WidgetStyle::MENU);
+    style.focus = Some(Style::new().reversed());
+    style.popup_focus = Some(Style::new().reversed());
     Menubar::new(&MENU).styles(style).into_widgets()
 }
 
@@ -143,7 +307,7 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use ratatui_crossterm::crossterm::event::{
-        KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
 
     /// The width of the screen these tests draw.
@@ -159,9 +323,20 @@ mod tests {
 
     /// The bar and its drop-down, drawn into a buffer of the whole screen.
     fn draw(state: &mut MenubarState) -> Buffer {
+        draw_with(state, true)
+    }
+
+    /// The bar and its drop-down, with the keyboard on the bar or not.
+    fn draw_with(state: &mut MenubarState, focused: bool) -> Buffer {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let mut buffer = Buffer::empty(area);
-        draw_bar(Rect::new(0, 0, WIDTH, 1), &mut buffer, state, &theme());
+        draw_bar(
+            Rect::new(0, 0, WIDTH, 1),
+            &mut buffer,
+            state,
+            &theme(),
+            focused,
+        );
         draw_drop_down(area, &mut buffer, state, &theme());
         buffer
     }
@@ -176,13 +351,16 @@ mod tests {
     /// The picture of the frame, as text.
     fn picture(buffer: &Buffer) -> String {
         (buffer.area.top()..buffer.area.bottom())
-            .map(|line| {
-                (buffer.area.left()..buffer.area.right())
-                    .map(|column| buffer[(column, line)].symbol().to_string())
-                    .collect::<String>()
-            })
+            .map(|line| row_of(buffer, line))
             .collect::<Vec<String>>()
             .join("\n")
+    }
+
+    /// One row of the frame, as text.
+    fn row_of(buffer: &Buffer, line: u16) -> String {
+        (buffer.area.left()..buffer.area.right())
+            .map(|column| buffer[(column, line)].symbol().to_string())
+            .collect()
     }
 
     /// Where a piece of text is on the frame, found in the frame itself so that a growing
@@ -191,13 +369,27 @@ mod tests {
         crate::frame::cell_of(buffer, text)
     }
 
+    /// Whether the cell at a frame position is painted in reverse video.
+    fn reversed(buffer: &Buffer, column: u16, line: u16) -> bool {
+        buffer[(column, line)]
+            .style()
+            .add_modifier
+            .contains(ratatui_core::style::Modifier::REVERSED)
+    }
+
+    /// Hands the event to the bar with the keyboard on it, where the test is not about the focus.
+    fn on_the_bar(event: &Event, state: &mut MenubarState) -> Option<Action> {
+        let mut focus = Focus::Bar;
+        handle(event, state, &mut focus)
+    }
+
     /// Opens the drop-down of the label, the way a person does.
     ///
     /// **The frame is drawn after the key as well as before it**: the widget knows what it
     /// holds only once it has been drawn, and a frame that is not drawn leaves the drop-down
     /// without an entry to take.
     fn open_with(state: &mut MenubarState, navigation: char) {
-        let _ = handle(&key(KeyCode::Char(navigation)), state);
+        let _ = on_the_bar(&key(KeyCode::Char(navigation)), state);
         draw(state);
     }
 
@@ -215,9 +407,9 @@ mod tests {
     fn take(state: &mut MenubarState, text: &str) -> Option<Action> {
         let buffer = draw(state);
         let (column, row) = cell_of(&buffer, text);
-        let _ = handle(&moved(column, row), state);
+        let _ = on_the_bar(&moved(column, row), state);
 
-        handle(&click(column, row), state)
+        on_the_bar(&click(column, row), state)
     }
 
     fn key(code: KeyCode) -> Event {
@@ -247,11 +439,48 @@ mod tests {
         })
     }
 
+    /// **The control the keyboard is on is drawn in reverse video over the theme's colors**
+    /// (D3 of #189): the focused label gains the modifier and keeps the foreground and background
+    /// the base style gave it, so the theme's `focus` background is not what says where the
+    /// keyboard is.
+    #[test]
+    fn a_control_the_keyboard_is_on_is_drawn_in_reverse_video() {
+        let mut without = MenubarState::default();
+        let unfocused = draw_with(&mut without, false);
+        let (column, row) = cell_of(&unfocused, "File");
+        let plain = unfocused[(column, row)].style();
+
+        let mut with = drawn();
+        let focused = draw(&mut with);
+        let lit = focused[(column, row)].style();
+
+        assert!(
+            !reversed(&unfocused, column, row),
+            "a label is reversed while the bar does not hold the keyboard"
+        );
+        assert!(
+            reversed(&focused, column, row),
+            "the label the keyboard is on is not reversed"
+        );
+        assert_eq!(lit.fg, plain.fg, "the focus changed the label's foreground");
+        assert_eq!(
+            lit.bg, plain.bg,
+            "the theme's focus background is used, not reverse video"
+        );
+
+        // The rest of the bar keeps the plain style: the cue is one label, not the whole row.
+        let (column, row) = cell_of(&focused, "Edit");
+        assert!(
+            !reversed(&focused, column, row),
+            "another label is reversed with the one the keyboard is on"
+        );
+    }
+
     #[test]
     fn the_navigation_character_opens_the_drop_down_and_escape_closes_it() {
         let mut state = drawn();
 
-        let outcome = handle(&key(KeyCode::Char('f')), &mut state);
+        let outcome = on_the_bar(&key(KeyCode::Char('f')), &mut state);
 
         assert!(
             matches!(outcome, Some(Action::ScreenChanged)),
@@ -259,7 +488,7 @@ mod tests {
         );
         assert!(state.popup_active(), "the drop-down did not open");
 
-        let outcome = handle(&key(KeyCode::Esc), &mut state);
+        let outcome = on_the_bar(&key(KeyCode::Esc), &mut state);
 
         assert!(
             matches!(outcome, Some(Action::ScreenChanged)),
@@ -268,12 +497,121 @@ mod tests {
         assert!(!state.popup_active(), "escape did not close the drop-down");
     }
 
+    /// **The key that leaves the bar is a press and nothing else** (rule 5): a release, a repeat,
+    /// and a press with a modifier on it are not the bar stepping back, and neither is a press
+    /// while a drop-down is open.
+    #[test]
+    fn an_escape_press_is_the_bars_way_out() {
+        let mut state = drawn();
+
+        assert!(
+            steps_back(&key(KeyCode::Esc), &state),
+            "the escape press was not read"
+        );
+
+        for kind in [KeyEventKind::Release, KeyEventKind::Repeat] {
+            let event = Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Esc,
+                KeyModifiers::NONE,
+                kind,
+            ));
+
+            assert!(!steps_back(&event, &state), "{kind:?} was read as it");
+        }
+
+        assert!(
+            !steps_back(&key_with(KeyCode::Esc, KeyModifiers::CONTROL), &state),
+            "a modified escape was read as it"
+        );
+        assert!(
+            !steps_back(&key(KeyCode::Enter), &state),
+            "another key was read as it"
+        );
+
+        open(&mut state);
+        assert!(
+            !steps_back(&key(KeyCode::Esc), &state),
+            "the escape that closes the drop-down was read as the bar stepping back"
+        );
+    }
+
+    /// **The key that asks for the bar is `F10` and nothing else** (D4, amended): not with a
+    /// modifier on it, not released or repeated, and not a character a label already answers to.
+    #[test]
+    fn a_key_that_asks_for_the_bar_is_a_press_and_nothing_else() {
+        assert!(
+            asks_for_the_bar(&key(KeyCode::F(10))),
+            "F10 did not ask for the bar"
+        );
+        assert!(
+            !asks_for_the_bar(&key_with(KeyCode::F(10), KeyModifiers::SHIFT)),
+            "a shifted F10 asked for the bar"
+        );
+        assert!(
+            !asks_for_the_bar(&key(KeyCode::F(9))),
+            "another function key asked for the bar"
+        );
+        assert!(
+            !asks_for_the_bar(&key(KeyCode::Char('f'))),
+            "a navigation character asked for the bar on its own"
+        );
+
+        for kind in [KeyEventKind::Release, KeyEventKind::Repeat] {
+            let event = Event::Key(KeyEvent::new_with_kind(
+                KeyCode::F(10),
+                KeyModifiers::NONE,
+                kind,
+            ));
+
+            assert!(!asks_for_the_bar(&event), "{kind:?} asked for the bar");
+        }
+    }
+
+    /// **`F10` moves the keyboard where the key is read** (rule 5 and D4, amended): the bar is what
+    /// knows the key, so the bar is where the leaf changes, and the label that stops being reversed
+    /// is why the frame is owed. It opens nothing on the way.
+    #[test]
+    fn f10_moves_the_keyboard_to_the_bar_and_owes_the_frame() {
+        let mut state = drawn();
+        let mut focus = Focus::Region;
+
+        let outcome = handle(&key(KeyCode::F(10)), &mut state, &mut focus);
+
+        assert_eq!(focus, Focus::Bar, "F10 left the keyboard where it was");
+        assert!(
+            matches!(outcome, Some(Action::ScreenChanged)),
+            "F10 answered {outcome:?}"
+        );
+        assert!(!state.popup_active(), "F10 opened a drop-down");
+    }
+
+    /// **The escape that closes nothing gives the keyboard back where it is read** (rule 5): the
+    /// bar has nothing left to close, so this is the press that leaves, and the frame is owed
+    /// because the label stops being reversed.
+    #[test]
+    fn the_escape_that_closes_nothing_gives_the_keyboard_back() {
+        let mut state = drawn();
+        let mut focus = Focus::Bar;
+
+        let outcome = handle(&key(KeyCode::Esc), &mut state, &mut focus);
+
+        assert_eq!(
+            focus,
+            Focus::Region,
+            "the escape left the keyboard on the bar"
+        );
+        assert!(
+            matches!(outcome, Some(Action::ScreenChanged)),
+            "the escape answered {outcome:?}"
+        );
+    }
+
     #[test]
     fn taking_the_quit_entry_becomes_the_action_of_the_way_out() {
         let mut state = drawn();
         open(&mut state);
 
-        let outcome = handle(&key(KeyCode::Enter), &mut state);
+        let outcome = on_the_bar(&key(KeyCode::Enter), &mut state);
 
         assert!(
             matches!(outcome, Some(Action::Quit)),
@@ -311,6 +649,47 @@ mod tests {
         assert!(
             matches!(outcome, Some(Action::Undo)),
             "the entry did not become the action of the undo key: {outcome:?}"
+        );
+        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+    }
+
+    /// **Help is the third label and About its only entry, with no shortcut drawn** (rule 8):
+    /// About opens a dialog rather than a command, so there is no key to show beside it.
+    #[test]
+    fn the_help_menu_holds_about_and_draws_no_shortcut() {
+        let mut state = drawn();
+        open_with(&mut state, 'h');
+
+        let buffer = draw(&mut state);
+        let frame = picture(&buffer);
+
+        assert!(frame.contains("Help"), "the bar has no Help: {frame:?}");
+        assert!(
+            frame.contains("About"),
+            "the Help menu offers no About: {frame:?}"
+        );
+
+        let (_, row) = cell_of(&buffer, "About");
+        let line = row_of(&buffer, row);
+
+        assert!(
+            !line.contains("Ctrl") && !line.contains("Del"),
+            "the About entry draws a shortcut: {line:?}"
+        );
+    }
+
+    /// **Taking About mints `Action::About`** (rule 8): the entry is a meaning, and the dialog is
+    /// opened where the action is carried out rather than by the bar.
+    #[test]
+    fn taking_the_about_entry_mints_the_about_action() {
+        let mut state = drawn();
+        open_with(&mut state, 'h');
+
+        let outcome = take(&mut state, "About");
+
+        assert!(
+            matches!(outcome, Some(Action::About)),
+            "the entry did not become the action of the About dialog: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
     }
@@ -392,16 +771,19 @@ mod tests {
     #[test]
     fn the_shortcuts_are_not_the_bars() {
         let mut state = drawn();
+        let mut focus = Focus::Bar;
 
         let outcome = handle(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
             &mut state,
+            &mut focus,
         );
 
         assert!(
             outcome.is_none(),
             "the bar answered a shortcut: {outcome:?}"
         );
+        assert_eq!(focus, Focus::Bar, "the bar gave the keyboard away");
         assert!(!state.popup_active(), "a shortcut opened a drop-down");
     }
 
@@ -412,7 +794,7 @@ mod tests {
         let buffer = draw(&mut state);
         let (column, row) = cell_of(&buffer, "Quit");
 
-        let outcome = handle(&click(column, row), &mut state);
+        let outcome = on_the_bar(&click(column, row), &mut state);
 
         assert!(
             matches!(outcome, Some(Action::Quit)),
@@ -426,7 +808,7 @@ mod tests {
         let buffer = draw(&mut state);
         let (column, row) = cell_of(&buffer, "File");
 
-        let outcome = handle(&click(column, row), &mut state);
+        let outcome = on_the_bar(&click(column, row), &mut state);
 
         assert!(
             matches!(outcome, Some(Action::ScreenChanged)),
@@ -439,7 +821,7 @@ mod tests {
     fn a_key_the_bar_does_not_use_is_nothing() {
         let mut state = drawn();
 
-        let outcome = handle(&key(KeyCode::Char('z')), &mut state);
+        let outcome = on_the_bar(&key(KeyCode::Char('z')), &mut state);
 
         assert!(outcome.is_none(), "{outcome:?}");
         assert!(!state.popup_active(), "a key opened a drop-down");

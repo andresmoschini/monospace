@@ -15,6 +15,7 @@ ISIG
 keymap
 Moschini
 msvc
+msgdialog
 newtype
 nvmrc
 Nygard

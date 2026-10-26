@@ -1,8 +1,9 @@
 //! One frame of the screen: the three regions, and the order they are painted in.
 //!
-//! **The order is the picture.** The bar, then the region, then the status bar, and the
-//! drop-down last of all: a widget drawn later covers the one before it, and a drop-down drawn
-//! under the region could not be seen, let alone clicked.
+//! **The order is the picture.** The bar, then the region, then the status bar, then the
+//! drop-down, and the dialog last of all: a widget drawn later covers the one before it, and a
+//! drop-down drawn under the region could not be seen, let alone clicked. **The dialog is the
+//! overlay** (D6 of #189), so it covers the drop-down as well as everything else.
 //!
 //! **Every cell of the screen is painted on every frame.** The terminal diffs against the
 //! previous frame rather than clearing, so a cell that is not painted keeps what was in it. The
@@ -16,8 +17,8 @@ use ratatui_core::widgets::Widget;
 use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
-use crate::state::AppState;
-use crate::{diagram_widget, menu, status};
+use crate::state::{AppState, Focus};
+use crate::{about, diagram_widget, menu, status};
 
 /// The height of the bar across the top.
 pub(crate) const BAR_HEIGHT: u16 = 1;
@@ -65,7 +66,13 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // region uses.
     Clear.render(area, buf);
 
-    menu::draw_bar(regions.bar, buf, &mut state.menu, &global.cfg.theme);
+    menu::draw_bar(
+        regions.bar,
+        buf,
+        &mut state.menu,
+        &global.cfg.theme,
+        state.focus == Focus::Bar,
+    );
 
     diagram_widget::draw(
         regions.region,
@@ -77,9 +84,13 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
 
     status::draw(regions.status, buf, &mut state.status, &global.cfg.theme);
 
-    // The drop-down is drawn last: it hangs from the bar and covers the region, and a region
-    // painted after it would erase it.
+    // The drop-down is drawn after the region: it hangs from the bar and covers the region, and
+    // a region painted after it would erase it.
     menu::draw_drop_down(area, buf, &mut state.menu, &global.cfg.theme);
+
+    // **The dialog is drawn last of all** (D6): it is the overlay, so it covers the drop-down
+    // and everything else, and a control behind it is not there to be seen or clicked.
+    about::draw(regions.region, buf, &mut state.about, &global.cfg.theme);
 }
 
 /// Where a piece of text is on a frame, found in the frame itself so that a growing label
@@ -110,6 +121,8 @@ mod tests {
     use crate::status;
     use crate::vocabulary::Action;
     use monospace_core::{Offset, ShapeId};
+    use rat_theme4::palettes::dark::BASE16;
+    use rat_theme4::themes::create_dark;
     use ratatui_core::buffer::Buffer;
     use ratatui_core::style::Modifier;
     use ratatui_crossterm::crossterm::event::{
@@ -315,8 +328,9 @@ mod tests {
     /// been drawn, and a key that arrives before that finds nothing to open.
     fn open_the_drop_down(state: &mut AppState, global: &AppGlobal, navigation: char) {
         let _ = paint(state, global, WIDTH, HEIGHT);
+        state.focus = Focus::Bar;
         let event = Event::Key(KeyEvent::new(KeyCode::Char(navigation), KeyModifiers::NONE));
-        let _ = crate::menu::handle(&event, &mut state.menu);
+        let _ = crate::menu::handle(&event, &mut state.menu, &mut state.focus);
         assert!(
             state.menu.popup_active(),
             "the navigation character did not open the drop-down"
@@ -717,6 +731,89 @@ mod tests {
             cells_of_the_box(),
             "the selection did not survive the resize"
         );
+    }
+
+    /// **The dialog is drawn last of all** (rule 9): it is the overlay, so it covers the drop-down
+    /// as well as the region, and a control behind it is not there to be seen.
+    #[test]
+    fn the_dialog_is_drawn_last_of_all() {
+        let mut state = a_state();
+        let global = a_global();
+
+        open_the_drop_down(&mut state, &global, 'f');
+        about::open(&mut state.about);
+        let frame = picture(&paint(&mut state, &global, WIDTH, HEIGHT));
+
+        assert!(
+            frame.contains(&format!("About {}", status::NAME)),
+            "the dialog is not on the frame: {frame:?}"
+        );
+        assert!(
+            !frame.contains("Quit"),
+            "the drop-down is drawn over the dialog: {frame:?}"
+        );
+    }
+
+    /// **The palette is the dark BASE16 theme** (rule 12): the frame the default configuration
+    /// paints is the one the theme paints, cell for cell, so nothing reads a terminal color and no
+    /// other palette is in use.
+    #[test]
+    fn the_palette_is_the_dark_base16_theme() {
+        let by_default = paint(&mut a_state(), &a_global(), WIDTH, HEIGHT);
+
+        let dark = AppGlobal::new(
+            Config {
+                theme: create_dark(BASE16),
+            },
+            monospace_glyph_sets::all(),
+        );
+        let by_the_theme = paint(&mut a_state(), &dark, WIDTH, HEIGHT);
+
+        for line in 0..HEIGHT {
+            for column in 0..WIDTH {
+                assert_eq!(
+                    by_default[(column, line)].symbol(),
+                    by_the_theme[(column, line)].symbol(),
+                    "({column}, {line}) is not what the dark BASE16 theme paints"
+                );
+                assert_eq!(
+                    by_default[(column, line)].style(),
+                    by_the_theme[(column, line)].style(),
+                    "({column}, {line}) is painted in another palette"
+                );
+            }
+        }
+    }
+
+    /// **The region has no focus cue of its own** (D2 of #189): it is the body, and it is drawn the
+    /// same whether or not it holds the keyboard. A cue lives on a control that has one, so the
+    /// frame that moves the keyboard to the bar leaves every cell of the region untouched.
+    #[test]
+    fn the_region_is_drawn_the_same_with_and_without_the_keyboard() {
+        let mut state = a_state_over(A_BOX);
+        let global = a_global();
+        let area = Rect::new(0, 0, WIDTH, HEIGHT);
+        let region = regions(area).region;
+
+        state.focus = Focus::Region;
+        let without = paint(&mut state, &global, WIDTH, HEIGHT);
+        state.focus = Focus::Bar;
+        let with = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        for line in region.top()..region.bottom() {
+            for column in region.left()..region.right() {
+                assert_eq!(
+                    with[(column, line)].symbol(),
+                    without[(column, line)].symbol(),
+                    "({column}, {line}) changed with the keyboard"
+                );
+                assert_eq!(
+                    with[(column, line)].style(),
+                    without[(column, line)].style(),
+                    "({column}, {line}) was painted differently with the keyboard"
+                );
+            }
+        }
     }
 
     #[test]
