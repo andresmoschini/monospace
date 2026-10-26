@@ -101,10 +101,12 @@ bar is §8's, and [#226](https://github.com/andresmoschini/monospace/issues/226)
 
 **The focus is the chrome's own, and it is not the selection.** Which of the two leaves — the bar
 and the diagram region — holds the keyboard is a fact about the chrome, held between frames: it
-starts on the region, and a left press moves it to the rectangle it lands in. The region keeps its
-outer rectangle beside its interior, because a press on the border gives it the keyboard without
-selecting a shape. **The selection's inversion is not a cue for it**: inverting the selected shape
-is [#177](https://github.com/andresmoschini/monospace/issues/177)'s, and a focused region looks the
+starts on the region, a left press moves it to the rectangle it lands in, and `Esc` on a bar with no
+drop-down open gives it back. The first `Esc` is the drop-down's, because closing one is the only
+thing the key does there. The region keeps its outer rectangle beside its interior, because a press
+on the border gives it the keyboard without selecting a shape. **The selection's inversion is not a
+cue for it**: inverting the selected shape is
+[#177](https://github.com/andresmoschini/monospace/issues/177)'s, and a focused region looks the
 same as an unfocused one. The status line is not a leaf: a press on it moves nothing.
 
 **The application keeps no history of its own, and the walk is the session's.** The steps behind and
@@ -146,10 +148,12 @@ and **nothing is not an action that does nothing**: it is the handler saying the
 **The chrome's own is the other half of §3, and it is not this rule's.** The widget that owns a part
 of it changes that part when the event reaches it — the bar opens its drop-down and moves its
 selection, the status line takes a value — and nothing it changes reaches the session. What it mints
-is `Action::ScreenChanged`, the frame being owed again: **a change of the screen is the one action
-about the screen rather than about what a person means to do**, and undo never holds one. A
-selection and an open drop-down are still not meanings of a person's, so no list of what a person
-can take back will ever hold one.
+is `Action::ScreenChanged`, the frame being owed again, and the two actions that move the keyboard:
+the bar reads `F10`, `Alt` plus a navigation character and the `Esc` with nothing left to close, and
+says where the leaf goes rather than moving it, because the focus is the application's (D4 and rule
+5 of #189). **These three are about the screen and not about what a person means to do**, and undo
+never holds one: a selection, an open drop-down and the leaf that holds the keyboard are not what
+anybody takes back.
 
 **An action that is carried out repaints.** An entry taken closes the drop-down before its meaning
 is carried out, so the frame that follows is owed by the action rather than by a second one:
@@ -254,9 +258,14 @@ knows where its labels are only once it has been drawn, and a click is tested ag
 the frame before it.
 
 **`Alt` reaches the menu's own navigation character**, and it is not a second menu: the application
-translates `Alt` plus a label's character into the press the widget already answers when it holds
-the keyboard, so the labels remain the only table of names. A combination that names no label
-changes nothing and moves no keyboard.
+translates `Alt` plus a label's character into the press the widget answers, and the keyboard moves
+to the bar with the same press, so the labels remain the only table of names. A combination that
+names no label changes nothing and moves no keyboard.
+
+**`F10` asks for the bar and nothing else.** It is the key every terminal reports, where a bare
+`Alt` is not one — the framework asks for the terminal's extended keys only off Windows, and a
+terminal that does not answer sends nothing for `Alt` alone — so the keyboard reaches the bar with a
+press that opens no drop-down and leaves the arrows and the navigation character to open one.
 
 **The drawing is the framework's and the core's.** The buffer, the layout and the styles the chrome
 is drawn with are the framework's, and the application names them rather than writing them. The
@@ -285,9 +294,11 @@ framework's buffer one at a time.
 - A region that stops being drawn does not keep what was last in it.
 - The navigation character opens the drop-down and `Esc` closes it.
 - `Alt` plus a label's navigation character focuses the bar and opens that label's drop-down, and a
-  combination that names no label changes nothing.
+  combination that names no label changes nothing; `F10` focuses the bar and opens nothing.
 - The diagram region holds the keyboard at startup, and a left press moves it to the rectangle it
-  lands in; a press on the border gives the region the keyboard without selecting a shape.
+  lands in; a press on the border gives the region the keyboard without selecting a shape. `Esc`
+  closes the drop-down, and the next one gives the keyboard back to the region; `Esc` in the region
+  changes nothing.
 - The control the keyboard is on is drawn in reverse video over the theme's colors, and the region
   has no focus cue of its own.
 - A drop-down leaves the region byte-identical when it closes.

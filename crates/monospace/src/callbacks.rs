@@ -79,15 +79,14 @@ pub(crate) fn event(
 /// diagram's; then the shortcuts nobody has claimed. The first action wins, and an event all of
 /// them leave alone is answered by nobody.
 ///
-/// **A left press gives the keyboard to the leaf it lands in before anything is asked** (D1 of
-/// #189): the bar, its open drop-down included, or the region's outer rectangle. A press on the
-/// status line, and one on a rectangle no frame drew into, lands in neither leaf and moves nothing.
-/// Moving the keyboard paints, because the label that was reversed is not any more, and the
-/// drop-down the keyboard left behind closes on the same press.
+/// **The bar's keys that move the keyboard are read by the bar** (D4 and rule 5 of #189): `Alt` plus
+/// a label's navigation character brings it with the press, `F10` asks for it, and the `Esc` that
+/// has nothing left to close gives it back. `menu::handle` answers `Action::FocusBar` or
+/// `Action::FocusRegion`, and `apply` moves it like any other meaning.
 ///
-/// **`Alt` and a label's navigation character give the bar the keyboard before the menu is asked**
-/// (D4): the menu then answers a plain character, which is the press it already handles when it
-/// holds the keyboard. The lookup is `menu`'s, so the labels stay the only table of names.
+/// **The one thing that is settled before a handler is asked is where the event is addressed**
+/// (D1): [`address`] gives the keyboard to the leaf a press lands in, and says whether it moved,
+/// because the frame that follows is owed even where nothing answers.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
 /// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
@@ -108,40 +107,51 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
         };
     }
 
-    let mut keyboard_moved = false;
-
-    if let Event::Mouse(mouse) = event
-        && mouse.kind == MouseEventKind::Down(MouseButton::Left)
-    {
-        let at = Position {
-            x: mouse.column,
-            y: mouse.row,
-        };
-
-        if let Some(leaf) = state.leaf_at(at)
-            && state.focus != leaf
-        {
-            state.focus = leaf;
-            keyboard_moved = true;
-        }
-    }
-
-    if menu::alt_navigation(event).is_some() {
-        state.focus = Focus::Bar;
-    }
+    let moved = address(event, state);
 
     menu::handle(event, &mut state.menu, state.focus == Focus::Bar)
         .or_else(|| diagram_widget::handle(event, &mut state.diagram))
         .or_else(|| shortcuts::handle_unclaimed(event))
-        .or_else(|| keyboard_moved.then_some(Action::ScreenChanged))
+        .or_else(|| moved.then_some(Action::ScreenChanged))
+}
+
+/// **A press is addressed before it is answered** (D1 of #189): the leaf it lands in is who the
+/// event is for, so the keyboard moves to it before the bar and the region are asked — a click on a
+/// label opens nothing if the bar is told it does not hold the keyboard, and a click in the region
+/// closes the drop-down on the same press.
+///
+/// **This is the one focus move that is not an action.** An action is carried out after the
+/// routing, and the label a press opens and the drop-down a press closes are changes the handlers
+/// make while they are asked, so moving the keyboard afterwards would answer the wrong leaf.
+///
+/// **A press on the status line, and one on a rectangle no frame drew into, lands in neither leaf**
+/// and moves nothing. **The answer is whether the keyboard moved**, because that is a frame owed
+/// even where no handler answers it: the label that was reversed is not any more.
+fn address(event: &Event, state: &mut AppState) -> bool {
+    let Event::Mouse(mouse) = event else {
+        return false;
+    };
+
+    if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+        return false;
+    }
+
+    let Some(leaf) = state.leaf_at(Position::new(mouse.column, mouse.row)) else {
+        return false;
+    };
+
+    let moved = state.focus != leaf;
+    state.focus = leaf;
+    moved
 }
 
 /// What an action does: paint the frame again, change the session, end the loop, or nothing at
 /// all.
 ///
 /// **An action is carried out here, and nowhere else.** The delete key performs the one command
-/// this slice issues, and the two walks give a step back; all three are carried out beside the two
-/// that end the loop so that a handler never does anything but say what the event meant.
+/// this slice issues, the two walks give a step back, and the two focus actions move the keyboard
+/// between the leaves; all of them are carried out beside the two that end the loop so that a
+/// handler never does anything but say what the event meant.
 ///
 /// **The action carries the meaning and not the identity** (D2): the selected shape is read here,
 /// from the state the click left, rather than minted into the action by the region. A press with
@@ -188,6 +198,20 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
         Some(Action::About) => {
             about::open(&mut state.about);
+            Control::Changed
+        }
+
+        // **The keyboard's leaf moves as a meaning** (D4 and rule 5 of #189): the two arms below
+        // are where it lands. The bar reads `F10`, `Alt` plus a navigation character and the `Esc`
+        // that has nothing left to close, and says where the keyboard goes rather than taking it.
+        // The frame is owed because the label that was reversed is not any more.
+        Some(Action::FocusBar) => {
+            state.focus = Focus::Bar;
+            Control::Changed
+        }
+
+        Some(Action::FocusRegion) => {
+            state.focus = Focus::Region;
             Control::Changed
         }
 
@@ -941,6 +965,84 @@ mod tests {
             "a combination that names no label moved the keyboard"
         );
         assert!(!state.menu.popup_active(), "a drop-down opened");
+    }
+
+    /// **`Esc` closes the drop-down, and the next one gives the keyboard back to the region**
+    /// (rule 5): the key is the widget's while there is something to close, and the bar's way out
+    /// after it. Neither press reaches the diagram.
+    #[test]
+    fn a_second_escape_gives_the_keyboard_back_to_the_region() {
+        let mut state = a_drawn_state();
+        open_the_drop_down(&mut state, 'f');
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+        let frame = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.menu.popup_active(), "escape left the drop-down open");
+        assert_eq!(state.focus, Focus::Bar, "the first escape left the bar");
+        let (column, row) = frame::cell_of(&frame, "File");
+        assert!(
+            reversed(&frame, column, row),
+            "the label stopped looking focused with the bar still holding the keyboard"
+        );
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+        let frame = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the second escape did not give the keyboard back"
+        );
+        assert!(
+            !reversed(&frame, column, row),
+            "a label is reversed with the region holding the keyboard"
+        );
+    }
+
+    /// **`Esc` is not the region's**: with the keyboard there the key changes nothing, so the bar's
+    /// way out is a press that acts on the chrome and never on the drawing.
+    #[test]
+    fn escape_in_the_region_changes_nothing() {
+        let mut state = a_drawn_state();
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the region does not start with the keyboard"
+        );
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert_eq!(state.focus, Focus::Region, "escape moved the keyboard");
+        assert!(!state.menu.popup_active(), "escape opened a drop-down");
+    }
+
+    /// **`F10` asks for the bar where a bare `Alt` cannot** (D4, amended): it moves the keyboard and
+    /// opens nothing, so the bar looks focused while the region stays the picture under it.
+    #[test]
+    fn f10_gives_the_bar_the_keyboard_without_opening_a_drop_down() {
+        let mut state = a_drawn_state();
+        assert_eq!(state.focus, Focus::Region, "the test starts on the bar");
+
+        let outcome = send(&key(KeyCode::F(10)), &mut state);
+        let frame = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.focus,
+            Focus::Bar,
+            "F10 did not give the bar the keyboard"
+        );
+        assert!(!state.menu.popup_active(), "F10 opened a drop-down");
+
+        let (column, row) = frame::cell_of(&frame, "File");
+        assert!(
+            reversed(&frame, column, row),
+            "the bar does not look focused"
+        );
     }
 
     /// **The drop-down is asked before the region**, so a click it answers never reaches the
