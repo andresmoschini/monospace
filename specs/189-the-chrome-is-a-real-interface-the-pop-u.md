@@ -55,11 +55,10 @@ become code. #179's D1 can be answered from here.
 **Answer:** the diagram region holds the keyboard at startup, and a left press moves it to the
 rectangle it lands in — the bar, or the region's outer rectangle, border included; the press selects
 a shape only inside the interior. The bar and the region are the two leaves; the status line is not
-one. How the focus is held — `rat-focus` now, or a flag in the state — is the spike's. **Why not**
-the bar at startup: the diagram is what a person came to work on, and a bar that starts focused
-promises a menu before a drawing. **Why not** a selection-derived rule: it answers "which place does
-this key go to?" with a fact about the drawing, so tabbing to the bar would be undone by the
-selection still there. **Answered by** the maintainer, in #189.
+one. **Why not** the bar at startup: the diagram is what a person came to work on, and a bar that
+starts focused promises a menu before a drawing. **Why not** a selection-derived rule: it answers
+"which place does this key go to?" with a fact about the drawing, so tabbing to the bar would be
+undone by the selection still there. **Answered by** the maintainer, in #189.
 
 **D2 — the region has no focus cue of its own.**
 
@@ -140,8 +139,10 @@ No crate gains or loses a public item, the binary's arguments do not change, and
 
 - `Action` gains `About`, with no fields, so it stays `Copy`, `PartialEq` and `Eq`. `AppState` gains
   `about: MsgDialogState`; `AppState::new` starts it closed and the region focused.
-- Focus state: the spike decides whether `rat-focus` is introduced or `AppState` keeps the flag.
-  `DiagramState` keeps the region's outer rectangle beside `interior`.
+- `AppState` gains `focus: Focus`, a two-variant value (`Bar`, `Region`) that starts `Region`; the
+  menu is handed whether the bar holds it. `rat-focus` is not added: the slice has no `Tab`, the
+  dialog owns its own focus, and the manifest's dependencies do not change. `DiagramState` keeps the
+  region's outer rectangle beside `interior`.
 - `menu::MENU` gains `("_Help", &["_About"])`, `HELP` and `ABOUT`, and `meaning` maps
   `(HELP, ABOUT)` to `Action::About`. `menu::handle` takes whether the bar holds the keyboard and
   translates `Alt` plus a navigation character into the focus and open the menu already answers.
@@ -150,9 +151,10 @@ No crate gains or loses a public item, the binary's arguments do not change, and
   `handle(&Event, &mut MsgDialogState) -> Outcome`; `frame::draw` draws it last, and `draw` reverses
   the button's `focus` and `armed` and clears `hover`.
 - `callbacks::route`: `handle_always` first, before the dialog; if the dialog is open and did not
-  answer, only the dialog is asked. Otherwise the menu, the region and `handle_unclaimed` follow.
-  `callbacks::apply` answers `About` by opening the dialog and returning `Changed`, the session
-  untouched.
+  answer, only the dialog is asked. Otherwise a left press first gives the keyboard to the leaf it
+  lands in — the bar, its pop-up included, or the region — and a press outside both leaves it where
+  it was. Then the menu, the region and `handle_unclaimed` follow. `callbacks::apply` answers
+  `About` by opening the dialog and returning `Changed`, the session untouched.
 
 ## Behavior
 
@@ -161,7 +163,10 @@ No crate gains or loses a public item, the binary's arguments do not change, and
 2. A left press inside the region's rectangle moves the keyboard there, border included; inside the
    interior it also selects; outside both it changes neither. A press on the border focuses and
    selects no shape.
-3. A press on the bar moves the keyboard there; the label under it opens its drop-down.
+3. A press on the bar moves the keyboard there; the label under it opens its drop-down. A left press
+   in the region while a drop-down is open moves the keyboard there, closes the drop-down on the
+   same press, and selects inside the interior; the drop-down is not an overlay, so the press is not
+   swallowed.
 4. The control the keyboard is on is drawn in reverse video over the theme's colors; the theme's
    `focus` background is not used. The region looks the same with and without the keyboard, and its
    frame is never reversed. A pressed control that is not focused is reversed too. A control under
@@ -200,6 +205,7 @@ and `HEIGHT` 20, so the interior starts at `(1, 2)`.
 | region         | `Right`        | region         | none            | no drop-down, no label moves              |
 | bar            | `Right`        | bar            | `ScreenChanged` | `Edit` selected, its drop-down open       |
 | bar            | press `(3, 3)` | region         | `ScreenChanged` | box selected, no label reversed           |
+| bar, Edit open | press `(3, 3)` | region         | `ScreenChanged` | drop-down closed, box selected            |
 | bar, Edit open | `Delete`       | bar            | `Delete`        | box gone behind the menu, menu still open |
 | bar            | `Help > About` | bar            | `About`         | dialog open, no session change            |
 | dialog         | `Ctrl+C`       | —              | `ForceQuit`     | the application ends                      |
@@ -218,7 +224,7 @@ The tests do not exist yet; the names bind the building stage, and `already` mar
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1    | `the_diagram_region_holds_the_keyboard_at_startup`, `a_click_on_the_status_bar_moves_nothing`                                                                                                                        |
 | 2    | `a_press_inside_the_region_moves_the_keyboard_and_selects`, `a_press_on_the_border_moves_the_keyboard_and_selects_nothing`                                                                                           |
-| 3    | `a_press_on_a_label_moves_the_keyboard_and_opens_its_drop_down`                                                                                                                                                      |
+| 3    | `a_press_on_a_label_moves_the_keyboard_and_opens_its_drop_down`, `a_press_in_the_region_closes_the_drop_down_and_selects`                                                                                            |
 | 4    | `a_control_the_keyboard_is_on_is_drawn_in_reverse_video`, `a_pressed_ok_that_is_not_focused_is_reversed`, `the_region_is_drawn_the_same_with_and_without_the_keyboard`, `a_control_under_the_pointer_is_not_a_state` |
 | 5    | `the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard`; `the_navigation_character_opens_the_drop_down_and_escape_closes_it` — already                                                                     |
 | 6    | `alt_and_a_labels_character_opens_that_labels_drop_down`, `alt_with_a_character_that_names_no_label_changes_nothing`                                                                                                 |
@@ -235,11 +241,6 @@ leaves it alone. `the_bar_and_the_status_start_inert` still holds: nothing is se
 first frame.
 
 ## Open questions
-
-**Spike before merge — the focus.** Whether `rat-focus` is introduced now or the state keeps the
-flag, where it lives, and whether the menu reads it; whether a click in the region closes an open
-drop-down and moves the keyboard; and what remains of `Tab`/`Shift+Tab` between the leaves. The
-behavior above does not change with the answers.
 
 **The light palette.** D7 keeps the dark BASE16 theme, and the framework's light theme is the dark
 one over a light palette; the change that adds a configuration chooses one or asks.
