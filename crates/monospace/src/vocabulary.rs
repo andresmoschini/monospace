@@ -58,13 +58,16 @@ pub(crate) enum Action {
     /// carried out, so the key is one row of the shortcut table rather than a second way of
     /// naming what a click selected. **A deletion with nothing selected removes nothing and still
     /// paints**: carrying an action out owes the frame, which is what closes the menu's entry on
-    /// the screen when there was no figure to take.
+    /// the screen when there was no figure to take. **The keyboard goes back to the region** (rule
+    /// 13 of #189): the shape the person acted on is gone, and what is left to do is there.
     Delete,
 
     /// The About dialog is opened, and the frame is owed.
     ///
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,
-    /// so the drawing and its history are untouched.
+    /// so the drawing and its history are untouched. **The keyboard is left on the region** (rule
+    /// 13): the dialog takes the whole screen and runs its own focus while it is up, so the leaf is
+    /// put where it will be given back.
     About,
 
     /// The keyboard goes to the menu bar, and the frame is owed.

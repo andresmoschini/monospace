@@ -208,7 +208,14 @@ the same thing before anything acts on them, so the two cannot disagree about wh
 **`About` is the chrome's own, and it changes no session.** Taking `Help > About` mints
 `Action::About`, which opens the framework's message dialog and records no step: there is no command
 and no drawing to change, so the session and the selection are exactly what they were. The dialog
-runs its own focus while it is up, and the application's leaf does not move.
+runs its own focus while it is up, and the keyboard is left on the region, where it is given back
+when the dialog closes.
+
+**Some meanings give the keyboard back to the drawing.** `Delete` and `About` are both asked for
+with the keyboard on the bar and leave nothing to do there: a removal takes out the shape the person
+was working on, and the dialog takes the whole screen. So carrying them out puts the leaf back on
+the region, and the drop-down the keyboard leaves behind closes with it. **The two walks do not**:
+they are pressed in runs, and the menu behind them is what repeats them (rule 13 of #189).
 
 **`Ctrl+C` is not that action.** It is a forced exit: it ends the application whatever the state is.
 **It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a

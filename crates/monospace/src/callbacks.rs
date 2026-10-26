@@ -149,9 +149,10 @@ fn address(event: &Event, state: &mut AppState) -> bool {
 /// all.
 ///
 /// **An action is carried out here, and nowhere else.** The delete key performs the one command
-/// this slice issues, the two walks give a step back, and the two focus actions move the keyboard
-/// between the leaves; all of them are carried out beside the two that end the loop so that a
-/// handler never does anything but say what the event meant.
+/// this slice issues, the two walks give a step back, the two focus actions move the keyboard
+/// between the leaves, and the two meanings that leave nothing to do on the bar send it back to the
+/// region; all of them are carried out beside the two that end the loop so that a handler never
+/// does anything but say what the event meant.
 ///
 /// **The action carries the meaning and not the identity** (D2): the selected shape is read here,
 /// from the state the click left, rather than minted into the action by the region. A press with
@@ -186,19 +187,22 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
         // the identity is asked of the state, so the removal is one place and the key that means it
         // is another. **The frame is owed either way**: an action that was carried out repaints, so
         // taking the Edit menu's entry closes the drop-down on the screen even when there was no
-        // figure to remove.
+        // figure to remove. **The keyboard goes back to the drawing** (rule 13 of #189): the shape
+        // the person acted on is gone, and what is left to do is there.
         Some(Action::Delete) => {
             if let Some(selected) = state.diagram.selected() {
                 state.diagram.remove(selected);
             }
-            Control::Changed
+            back_to_the_region(state)
         }
 
         // **The one action that opens an overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
+        // **It takes the whole screen while it is up**, so the keyboard is left where the dialog
+        // will give it back: the region (rule 13).
         Some(Action::About) => {
             about::open(&mut state.about);
-            Control::Changed
+            back_to_the_region(state)
         }
 
         // **The keyboard's leaf moves as a meaning** (D4 and rule 5 of #189): the two arms below
@@ -210,13 +214,20 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
             Control::Changed
         }
 
-        Some(Action::FocusRegion) => {
-            state.focus = Focus::Region;
-            Control::Changed
-        }
+        Some(Action::FocusRegion) => back_to_the_region(state),
 
         Some(Action::Quit | Action::ForceQuit) => Control::Quit,
     }
+}
+
+/// **The keyboard leaves the bar** (rule 5 and rule 13 of #189): the leaf goes to the region, and
+/// the drop-down the keyboard was on closes with it, because a menu nobody holds the keyboard on is
+/// not open. **This is where a meaning puts the keyboard back**, so an action that sends it there
+/// and the `Esc` that means the same thing are one place.
+fn back_to_the_region(state: &mut AppState) -> Control<AppEvent> {
+    state.menu.set_popup_active(false);
+    state.focus = Focus::Region;
+    Control::Changed
 }
 
 /// What the application does about a failure.
@@ -441,6 +452,10 @@ mod tests {
     }
 
     /// Opens the About dialog the way a person does: `Help > About` by pointer.
+    ///
+    /// **It also checks the keyboard goes back to the region** (rule 13): the dialog takes the
+    /// whole screen while it is up, so the leaf is already where it will be given back, and every
+    /// test that opens the dialog is checking that without saying so again.
     fn open_the_about_dialog(state: &mut AppState) {
         let outcome = take_the_entry(state, 'h', "About");
 
@@ -449,6 +464,15 @@ mod tests {
             "taking About owed no frame: {outcome:?}"
         );
         assert!(state.about.active(), "taking About opened no dialog");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "taking About left the keyboard on the bar"
+        );
+        assert!(
+            !state.menu.popup_active(),
+            "taking About left the drop-down open"
+        );
     }
 
     /// **The chrome's own and no session** (rule 8): About opens an overlay and records no step,
@@ -484,8 +508,9 @@ mod tests {
         );
     }
 
-    /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, moves no
-    /// keyboard, opens no drop-down, and changes neither the selection nor the history.
+    /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, leaves the
+    /// keyboard where the dialog was given it — the region, rule 13 — opens no drop-down, and
+    /// changes neither the selection nor the history.
     #[test]
     fn escape_closes_the_about_dialog_and_the_event_reaches_nothing_else() {
         let mut state = a_drawn_state_over(A_BOX);
@@ -493,16 +518,13 @@ mod tests {
         let selected = state.diagram.selected();
         open_the_about_dialog(&mut state);
         assert!(state.about.active(), "the dialog is not open");
+        let focus = state.focus;
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.about.active(), "escape did not close the dialog");
-        assert_eq!(
-            state.focus,
-            Focus::Bar,
-            "the closing event moved the keyboard"
-        );
+        assert_eq!(state.focus, focus, "the closing event moved the keyboard");
         assert!(
             !state.menu.popup_active(),
             "the closing event opened a drop-down"
@@ -527,6 +549,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         open_the_about_dialog(&mut state);
         let (column, row) = frame::cell_of(&draw(&mut state), "File");
+        let focus = state.focus;
 
         let outcome = send(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
@@ -543,8 +566,7 @@ mod tests {
         let _ = send(&click(column, row), &mut state);
 
         assert_eq!(
-            state.focus,
-            Focus::Bar,
+            state.focus, focus,
             "the click on the bar moved the keyboard"
         );
         assert!(
@@ -1197,9 +1219,11 @@ mod tests {
     }
 
     /// **`Delete` is `Unclaimed`, so the drop-down does not keep it** (D3): the figure behind the
-    /// open menu is removed and the menu's own state — including whether it is open — is untouched.
+    /// open menu is removed, which is what proves the key reached the session. **The keyboard then
+    /// goes back to the region** (rule 13), so the drop-down the bar was showing closes with it —
+    /// the removal is taken and the person is left looking at the drawing.
     #[test]
-    fn the_delete_key_is_answered_with_the_drop_down_open() {
+    fn the_delete_key_with_the_drop_down_open_removes_and_takes_the_keyboard_back() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         open_the_drop_down(&mut state, 'f');
@@ -1212,15 +1236,45 @@ mod tests {
             None,
             "the drop-down kept the selection"
         );
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the removal left the keyboard on the bar"
+        );
         assert!(
-            state.menu.popup_active(),
-            "the deletion closed the drop-down"
+            !state.menu.popup_active(),
+            "a drop-down is open with the keyboard on the region"
         );
 
         let _ = draw(&mut state);
         assert!(
             state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
             "the drop-down kept the delete key from the diagram"
+        );
+    }
+
+    /// **The Edit menu's entry leaves the keyboard on the region** (rule 13): the shape the person
+    /// acted on is gone, and what is left to do is in the drawing.
+    #[test]
+    fn taking_the_delete_entry_gives_the_keyboard_back_to_the_region() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
+
+        let outcome = take_the_entry(&mut state, 'e', "Delete");
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the entry left the keyboard on the bar"
+        );
+        assert!(
+            !state.menu.popup_active(),
+            "the entry left a drop-down open"
         );
     }
 

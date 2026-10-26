@@ -125,8 +125,10 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Op
     };
 
     let answer = match menubar::handle_popup_events(state, focused || arriving, raw) {
-        // An entry was taken: it means an action, and `callbacks` applies it. The loop is not
-        // asked again, so an entry and the key that means the same thing end in one place.
+        // An entry was taken: it means an action, and `callbacks` applies it — which is also where
+        // the keyboard is put back on the region when the meaning leaves nothing to do here. The
+        // loop is not asked again, so an entry and the key that means the same thing end in one
+        // place.
         MenuOutcome::MenuActivated(label, entry) => {
             state.set_popup_active(false);
             Some(meaning(label, entry))
