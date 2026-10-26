@@ -130,8 +130,17 @@ impl DiagramState {
     /// naming it. **The undo does not bring the identity back** (D2 of #181): what comes back is
     /// the drawing, and a person who wants the figure selected clicks it again.
     pub(crate) fn remove(&mut self, id: ShapeId) {
-        self.session = self.session.perform(Command::Remove { id });
+        self.perform(Command::Remove { id });
         self.selected = None;
+    }
+
+    /// Performs `command` on the session, recording its one step.
+    ///
+    /// **The session is the only thing performed on, and the application keeps no copy of it.**
+    /// Every command a slice adds goes through here, so the layer below stays the one that decides
+    /// what a step is.
+    fn perform(&mut self, command: Command) {
+        self.session = self.session.perform(command);
     }
 
     /// Gives back the step behind the session, if there is one.
