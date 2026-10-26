@@ -185,6 +185,17 @@ selected as well as with a figure: the bar holds no selection to condition it on
 nothing selected performs no command while the frame is still owed, because carrying the action out
 paints the frame that closes the menu.
 
+**The four arrows move what is selected, and the movement is one action carrying a delta.** A press
+of an arrow while the region holds the keyboard displaces the selected figure one cell along the
+arrow's own axis, and the action carries `(dx, dy)` rather than an identity: the shape is read from
+the state where the action is carried out, as the deletion's is. **One press is one `Command::Move`
+and one step**, so `Undo` gives back one cell per press. **The selection survives**, because the
+figure is still there one cell along, and the next frame inverts the cells it now owns. **An arrow
+with nothing selected performs no command and owes no frame**: nothing was carried out. **The arrows
+are the region's only while it holds the keyboard**, and the application names no position and
+clamps nothing — what a displacement does to a reference is `docs/diagram-model.md` §4's, and a
+figure moved past the window's edge is not drawn.
+
 **Undo and Redo are the actions that give a step back.** Each is reached by a key and by the Edit
 menu's entry, and both apply that same action rather than a code path each: `Ctrl+Z` and **Undo**,
 `Ctrl+Shift+Z` and **Redo**. **The application keeps no position**, so each action asks the session
@@ -211,13 +222,13 @@ and no drawing to change, so the session and the selection are exactly what they
 runs its own focus while it is up, and the keyboard is left on the region, where it is given back
 when the dialog closes.
 
-**A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Delete` and
-`About` are asked for with the keyboard on the bar and leave nothing to do there — a walk changes
-what the drawing shows, a removal takes out what was selected, and the dialog takes the whole screen
-while it is up — so carrying them out puts the leaf back where the person is looking, and the
-drop-down the bar was showing closes with it. **Only two things are not that**: the screen changing,
-which is not a meaning, and the two exits, which are not carried out at all. The rule is one place
-and not a line in each action (rule 13 of #189).
+**A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Delete`,
+`Move` and `About` are asked for with the keyboard on the bar and leave nothing to do there — a walk
+changes what the drawing shows, a removal takes out what was selected, a move displaces it, and the
+dialog takes the whole screen while it is up — so carrying them out puts the leaf back where the
+person is looking, and the drop-down the bar was showing closes with it. **Only two things are not
+that**: the screen changing, which is not a meaning, and the two exits, which are not carried out at
+all. The rule is one place and not a line in each action (rule 13 of #189).
 
 **`Ctrl+C` is not that action.** It is a forced exit: it ends the application whatever the state is.
 **It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a
@@ -232,7 +243,10 @@ arrows that move it, `Enter` that takes an entry and `Esc` that closes it belong
 which answers to them without asking anybody. What the application answers to is a **shortcut**: a
 key that means an action, with a reach that says whether anything may consume it first. The table of
 shortcuts is the application's own, and the menu draws the shortcut of an entry rather than
-answering to it.
+answering to it. **A leaf's handler answers the keys it owns, so not every key is a row of that
+table**: the bar answers its own three, and the region answers the four arrows while it holds the
+keyboard. The handler is handed the focus along with its own state, as the bar already is, and the
+table's two reaches say how far a shortcut is asked rather than which leaf answers it.
 
 **The table of shortcuts and the menu are two places that can disagree.** The menu shows the
 shortcut of each entry on the right of it, and the application answers to the shortcut with a table
@@ -342,6 +356,13 @@ framework's buffer one at a time.
   and the selected shape is read from the state.
 - An open drop-down does not keep the `Delete` key.
 - A frame after a removal draws what hung from the removed figure where it stood.
+- An arrow moves the selected figure one cell along its own axis, records one step, and leaves the
+  selection on it.
+- An arrow with nothing selected performs no command and owes no frame.
+- An arrow while the bar holds the keyboard, or while the dialog is up, moves nothing.
+- A move with a modifier, a release and a repeat move nothing.
+- A carried-out move leaves the keyboard on the region.
+- A figure moved past the window's edge is not drawn.
 - `Ctrl+Z` gives the step behind back and `Ctrl+Shift+Z` the step ahead, each with no other
   modifier, and both stop at the ends of the history.
 - The Edit menu's Undo and Redo entries carry the same actions as the keys, and they are offered at
