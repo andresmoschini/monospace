@@ -15,8 +15,8 @@
 
 use rat_salsa::Control;
 use ratatui_core::buffer::Buffer;
-use ratatui_core::layout::Rect;
-use ratatui_crossterm::crossterm::event::Event;
+use ratatui_core::layout::{Position, Rect};
+use ratatui_crossterm::crossterm::event::{Event, MouseButton, MouseEventKind};
 
 use crate::context::AppGlobal;
 use crate::diagram_widget;
@@ -24,7 +24,7 @@ use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
 use crate::shortcuts;
-use crate::state::AppState;
+use crate::state::{AppState, Focus};
 use crate::vocabulary::{Action, AppError};
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
@@ -75,15 +75,51 @@ pub(crate) fn event(
 /// drop-down's and the one it leaves is the diagram's; then the shortcuts nobody has claimed. The
 /// first action wins, and an event all of them leave alone is answered by nobody.
 ///
+/// **A left press gives the keyboard to the leaf it lands in before anything is asked** (D1 of
+/// #189): the bar, its open drop-down included, or the region's outer rectangle. A press on the
+/// status line, and one on a rectangle no frame drew into, lands in neither leaf and moves nothing.
+/// Moving the keyboard paints, because the label that was reversed is not any more, and the
+/// drop-down the keyboard left behind closes on the same press.
+///
+/// **`Alt` and a label's navigation character give the bar the keyboard before the menu is asked**
+/// (D4): the menu then answers a plain character, which is the press it already handles when it
+/// holds the keyboard. The lookup is `menu`'s, so the labels stay the only table of names.
+///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
 /// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
 /// application is what its own signature makes possible: the selection and the drop-down, and never
 /// the session.
 fn route(event: &Event, state: &mut AppState) -> Option<Action> {
-    shortcuts::handle_always(event)
-        .or_else(|| menu::handle(event, &mut state.menu, true))
+    if let Some(action) = shortcuts::handle_always(event) {
+        return Some(action);
+    }
+
+    let mut keyboard_moved = false;
+
+    if let Event::Mouse(mouse) = event
+        && mouse.kind == MouseEventKind::Down(MouseButton::Left)
+    {
+        let at = Position {
+            x: mouse.column,
+            y: mouse.row,
+        };
+
+        if let Some(leaf) = state.leaf_at(at)
+            && state.focus != leaf
+        {
+            state.focus = leaf;
+            keyboard_moved = true;
+        }
+    }
+
+    if menu::alt_navigation(event).is_some() {
+        state.focus = Focus::Bar;
+    }
+
+    menu::handle(event, &mut state.menu, state.focus == Focus::Bar)
         .or_else(|| diagram_widget::handle(event, &mut state.diagram))
         .or_else(|| shortcuts::handle_unclaimed(event))
+        .or_else(|| keyboard_moved.then_some(Action::ScreenChanged))
 }
 
 /// What an action does: paint the frame again, change the session, end the loop, or nothing at
@@ -322,6 +358,27 @@ mod tests {
             .expect("the event reached the application")
     }
 
+    /// Opens the drop-down of `label` the way the region reaches the bar: `Alt` and the label's
+    /// navigation character in one press (D4 of #189).
+    fn open_the_drop_down(state: &mut AppState, label: char) {
+        let outcome = send(&key_with(KeyCode::Char(label), KeyModifiers::ALT), state);
+        let _ = draw(state);
+
+        assert!(
+            matches!(outcome, Control::Changed),
+            "Alt+{label} did not owe a frame: {outcome:?}"
+        );
+        assert_eq!(
+            state.focus,
+            Focus::Bar,
+            "Alt+{label} did not give the bar the keyboard"
+        );
+        assert!(
+            state.menu.popup_active(),
+            "Alt+{label} did not open the drop-down"
+        );
+    }
+
     /// Takes the entry of `menu` whose text is `text`, by clicking it on the frame.
     ///
     /// **The entry is found by its name**: a menu that gains entries above one moves where it is
@@ -329,8 +386,7 @@ mod tests {
     /// first. **The pointer moves onto it before the button goes down**, because the widget
     /// activates the entry it has selected and a press alone selects nothing.
     fn take_the_entry(state: &mut AppState, menu: char, text: &str) -> Control<AppEvent> {
-        let _ = send(&key(KeyCode::Char(menu)), state);
-        assert!(state.menu.popup_active(), "the {menu} menu did not open");
+        open_the_drop_down(state, menu);
         let buffer = draw(state);
         let (column, row) = frame::cell_of(&buffer, text);
         let _ = send(&moved(column, row), state);
@@ -351,8 +407,7 @@ mod tests {
 
         // The entry of the menu.
         let mut state = a_drawn_state();
-        let _ = send(&key(KeyCode::Char('f')), &mut state);
-        let _ = draw(&mut state);
+        open_the_drop_down(&mut state, 'f');
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
@@ -369,7 +424,7 @@ mod tests {
 
         // The click on the entry of the menu.
         let mut state = a_drawn_state();
-        let _ = send(&key(KeyCode::Char('f')), &mut state);
+        open_the_drop_down(&mut state, 'f');
         let buffer = draw(&mut state);
         let (column, row) = frame::cell_of(&buffer, "Quit");
         let by_click = send(
@@ -395,8 +450,7 @@ mod tests {
         // The drop-down is open: the chrome holds the keyboard, and the forced exit is not the
         // chrome's to answer.
         let mut state = a_drawn_state();
-        let _ = send(&key(KeyCode::Char('f')), &mut state);
-        assert!(state.menu.popup_active(), "the drop-down did not open");
+        open_the_drop_down(&mut state, 'f');
 
         let outcome = send(
             &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
@@ -413,8 +467,7 @@ mod tests {
     fn every_shortcut_answered_first_is_answered_with_the_drop_down_open() {
         for event in shortcuts::events_answered_first() {
             let mut state = a_drawn_state();
-            let _ = send(&key(KeyCode::Char('f')), &mut state);
-            assert!(state.menu.popup_active(), "the drop-down did not open");
+            open_the_drop_down(&mut state, 'f');
 
             let outcome = send(&event, &mut state);
 
@@ -490,33 +543,211 @@ mod tests {
         );
     }
 
-    /// **A press outside the interior is nobody's**, and the frame is not owed: the bar, the
-    /// region's border, the status bar and a rectangle no frame drew into are all outside the
-    /// window the drawing answered from.
+    /// **The region is where the keyboard starts** (D1 of #189): the diagram is what a person came
+    /// to work on, so the bar does not promise a menu before a drawing.
     #[test]
-    fn a_click_outside_the_interior_changes_nothing() {
+    fn the_diagram_region_holds_the_keyboard_at_startup() {
+        let state = a_state();
+
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the bar started with the keyboard"
+        );
+    }
+
+    /// **A left press inside the region's rectangle gives it the keyboard, and inside the interior
+    /// it selects as well.** The bar held it first, so the press is what moves it.
+    #[test]
+    fn a_press_inside_the_region_moves_the_keyboard_and_selects() {
+        let mut state = a_drawn_state_over(A_BOX);
+        state.focus = Focus::Bar;
+        let _ = draw(&mut state);
+
+        let outcome = send(&click(3, 3), &mut state);
+
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the press left the keyboard on the bar"
+        );
+        assert!(
+            state.diagram.selected().is_some(),
+            "the press inside the interior selected nothing"
+        );
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+    }
+
+    /// **The border is the region's without being the window's**: a press there gives it the
+    /// keyboard and selects nothing, and a selection already made survives.
+    #[test]
+    fn a_press_on_the_border_moves_the_keyboard_and_selects_nothing() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram.selected();
+        assert!(
+            selected.is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
 
         for (column, row, what) in [
-            (WIDTH - 1, 0, "the bar"),
-            (3, 1, "the region's top border"),
-            (0, 3, "the region's left border"),
-            (3, HEIGHT - 1, "the status bar"),
-            (WIDTH - 1, 3, "the region's right border"),
+            (3, 1, "the top border"),
+            (0, 3, "the left border"),
+            (WIDTH - 1, 3, "the right border"),
+            (3, HEIGHT - 2, "the bottom border"),
         ] {
+            state.focus = Focus::Bar;
+            let _ = draw(&mut state);
+
             let outcome = send(&click(column, row), &mut state);
+
+            assert_eq!(
+                state.focus,
+                Focus::Region,
+                "{what} did not give the region the keyboard"
+            );
+            assert_eq!(
+                state.diagram.selected(),
+                selected,
+                "{what} changed the selection"
+            );
+            assert!(matches!(outcome, Control::Changed), "{what}: {outcome:?}");
+        }
+    }
+
+    /// **The status line is not a leaf**: a press there moves the keyboard nowhere and owes no
+    /// frame.
+    #[test]
+    fn a_click_on_the_status_bar_moves_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram.selected();
+        state.focus = Focus::Bar;
+        let _ = draw(&mut state);
+
+        let outcome = send(&click(3, HEIGHT - 1), &mut state);
+
+        assert_eq!(state.focus, Focus::Bar, "the status line took the keyboard");
+        assert_eq!(
+            state.diagram.selected(),
+            selected,
+            "the status line changed the selection"
+        );
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+    }
+
+    /// **A press on a label gives the bar the keyboard and opens that label's drop-down**, which is
+    /// what lets a person work by pointer without reaching for `Alt` first.
+    #[test]
+    fn a_press_on_a_label_moves_the_keyboard_and_opens_its_drop_down() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let buffer = draw(&mut state);
+        let (column, row) = frame::cell_of(&buffer, "File");
+
+        let outcome = send(&click(column, row), &mut state);
+
+        assert_eq!(
+            state.focus,
+            Focus::Bar,
+            "the label did not give the bar the keyboard"
+        );
+        assert!(
+            state.menu.popup_active(),
+            "the label did not open its drop-down"
+        );
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+    }
+
+    /// **A press in the region is not swallowed by an open drop-down** (D6): it moves the keyboard
+    /// to the region, closes the drop-down on the same press, and selects inside the interior.
+    #[test]
+    fn a_press_in_the_region_closes_the_drop_down_and_selects() {
+        let mut state = a_drawn_state_over(A_BOX_AND_WHAT_HANGS_FROM_IT);
+        open_the_drop_down(&mut state, 'f');
+        assert!(state.menu.popup_active(), "the drop-down did not open");
+
+        // The right box's top-left is outside the File drop-down, so the press is the region's.
+        let outcome = send(&click(17, 3), &mut state);
+
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the press left the keyboard on the bar; the drop-down is {:?}",
+            state.menu.popup.area
+        );
+        assert!(
+            !state.menu.popup_active(),
+            "the drop-down survived the keyboard leaving it"
+        );
+        assert!(
+            state.diagram.selected().is_some(),
+            "the press inside the interior selected nothing"
+        );
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+    }
+
+    /// **The arrows are not the bar's while the region holds the keyboard** (rule 5): they open no
+    /// drop-down and move no label, so #179 and #176 can bind them from here.
+    #[test]
+    fn the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard() {
+        let mut state = a_drawn_state();
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the bar started with the keyboard"
+        );
+
+        for arrow in [KeyCode::Left, KeyCode::Right, KeyCode::Up, KeyCode::Down] {
+            let selected = state.menu.bar.selected;
+            let outcome = send(&key(arrow), &mut state);
 
             assert!(
                 matches!(outcome, Control::Continue),
-                "{what} was the region's: {outcome:?}"
+                "{arrow:?}: {outcome:?}"
+            );
+            assert!(!state.menu.popup_active(), "{arrow:?} opened a drop-down");
+            assert_eq!(
+                state.menu.bar.selected, selected,
+                "{arrow:?} moved the bar's label"
             );
         }
+    }
 
-        assert!(
-            state.diagram.selected().is_some(),
-            "a press outside the interior dropped the selection"
+    /// **`Alt` and a label's character gives the bar the keyboard and opens that label's
+    /// drop-down in one press** (D4), from the region.
+    #[test]
+    fn alt_and_a_labels_character_opens_that_labels_drop_down() {
+        for (label, text) in [('f', "Quit"), ('e', "Undo")] {
+            let mut state = a_drawn_state();
+            assert_eq!(state.focus, Focus::Region, "the test starts on the bar");
+
+            open_the_drop_down(&mut state, label);
+
+            let frame = draw(&mut state);
+            let shown: String = (0..HEIGHT).map(|line| row_of(&frame, line)).collect();
+
+            assert!(
+                shown.contains(text),
+                "Alt+{label} opened another drop-down: {shown:?}"
+            );
+        }
+    }
+
+    /// **A combination that names no label changes nothing and moves no keyboard** (D4): `Alt+Z`
+    /// is not a character of any label, and a bar that does not hold the keyboard answers nothing.
+    #[test]
+    fn alt_with_a_character_that_names_no_label_changes_nothing() {
+        let mut state = a_drawn_state();
+
+        let outcome = send(&key_with(KeyCode::Char('z'), KeyModifiers::ALT), &mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "a combination that names no label moved the keyboard"
         );
+        assert!(!state.menu.popup_active(), "a drop-down opened");
     }
 
     /// **The drop-down is asked before the region**, so a click it answers never reaches the
@@ -524,7 +755,7 @@ mod tests {
     #[test]
     fn a_click_the_drop_down_takes_never_reaches_the_diagram() {
         let mut state = a_drawn_state_over(A_BOX);
-        let _ = send(&key(KeyCode::Char('f')), &mut state);
+        open_the_drop_down(&mut state, 'f');
         let buffer = draw(&mut state);
         let (column, row) = frame::cell_of(&buffer, "Quit");
 
@@ -676,8 +907,7 @@ mod tests {
     fn the_delete_key_is_answered_with_the_drop_down_open() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let _ = send(&key(KeyCode::Char('f')), &mut state);
-        assert!(state.menu.popup_active(), "the drop-down did not open");
+        open_the_drop_down(&mut state, 'f');
 
         let outcome = send(&key(KeyCode::Delete), &mut state);
 
@@ -856,8 +1086,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         let _ = send(&key(KeyCode::Delete), &mut state);
-        let _ = send(&key(KeyCode::Char('f')), &mut state);
-        assert!(state.menu.popup_active(), "the drop-down did not open");
+        open_the_drop_down(&mut state, 'f');
 
         let outcome = send(&undo_key(), &mut state);
         let _ = draw(&mut state);

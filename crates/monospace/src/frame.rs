@@ -16,7 +16,7 @@ use ratatui_core::widgets::Widget;
 use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
-use crate::state::AppState;
+use crate::state::{AppState, Focus};
 use crate::{diagram_widget, menu, status};
 
 /// The height of the bar across the top.
@@ -65,7 +65,13 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // region uses.
     Clear.render(area, buf);
 
-    menu::draw_bar(regions.bar, buf, &mut state.menu, &global.cfg.theme, true);
+    menu::draw_bar(
+        regions.bar,
+        buf,
+        &mut state.menu,
+        &global.cfg.theme,
+        state.focus == Focus::Bar,
+    );
 
     diagram_widget::draw(
         regions.region,
@@ -315,6 +321,7 @@ mod tests {
     /// been drawn, and a key that arrives before that finds nothing to open.
     fn open_the_drop_down(state: &mut AppState, global: &AppGlobal, navigation: char) {
         let _ = paint(state, global, WIDTH, HEIGHT);
+        state.focus = Focus::Bar;
         let event = Event::Key(KeyEvent::new(KeyCode::Char(navigation), KeyModifiers::NONE));
         let _ = crate::menu::handle(&event, &mut state.menu, true);
         assert!(
@@ -717,6 +724,37 @@ mod tests {
             cells_of_the_box(),
             "the selection did not survive the resize"
         );
+    }
+
+    /// **The region has no focus cue of its own** (D2 of #189): it is the body, and it is drawn the
+    /// same whether or not it holds the keyboard. A cue lives on a control that has one, so the
+    /// frame that moves the keyboard to the bar leaves every cell of the region untouched.
+    #[test]
+    fn the_region_is_drawn_the_same_with_and_without_the_keyboard() {
+        let mut state = a_state_over(A_BOX);
+        let global = a_global();
+        let area = Rect::new(0, 0, WIDTH, HEIGHT);
+        let region = regions(area).region;
+
+        state.focus = Focus::Region;
+        let without = paint(&mut state, &global, WIDTH, HEIGHT);
+        state.focus = Focus::Bar;
+        let with = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        for line in region.top()..region.bottom() {
+            for column in region.left()..region.right() {
+                assert_eq!(
+                    with[(column, line)].symbol(),
+                    without[(column, line)].symbol(),
+                    "({column}, {line}) changed with the keyboard"
+                );
+                assert_eq!(
+                    with[(column, line)].style(),
+                    without[(column, line)].style(),
+                    "({column}, {line}) was painted differently with the keyboard"
+                );
+            }
+        }
     }
 
     #[test]

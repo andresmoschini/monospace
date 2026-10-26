@@ -40,7 +40,7 @@ pub(crate) fn draw(
 ) {
     draw_region(area, buf, theme);
     let interior = inner_region(area);
-    state.redraw(interior);
+    state.redraw(area, interior);
     draw_diagram(interior, buf, state, catalog);
 }
 

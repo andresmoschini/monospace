@@ -21,8 +21,9 @@ use rat_widget::menu::menubar;
 use rat_widget::menu::{MenuStyle, Menubar, MenubarLine, MenubarPopup, MenubarState, StaticMenu};
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
+use ratatui_core::style::Style;
 use ratatui_core::widgets::StatefulWidget;
-use ratatui_crossterm::crossterm::event::Event;
+use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::vocabulary::Action;
 
@@ -36,6 +37,10 @@ use crate::vocabulary::Action;
 /// whether a step can be given back, so the Edit menu's entries are active at every position of the
 /// history: taking one with nothing to do is an action that changes nothing and repaints all the
 /// same, the same answer the key gives (D2 of #181).
+///
+/// **The label's navigation character is the letter after its `_`**, and it is the only table of
+/// names: `Alt` reaches the same character here that a bare press answers when the bar holds the
+/// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
 static MENU: StaticMenu = StaticMenu {
     menu: &[
         ("_File", &["_Quit|Ctrl+Q"]),
@@ -77,7 +82,21 @@ const DELETE: usize = 2;
 /// nobody has claimed are still asked. **The bar only answers a key while it holds the keyboard**:
 /// `focused` is what the application's focus says, and a bar that does not hold it answers no key
 /// and closes the drop-down the keyboard left behind.
+///
+/// **`Alt` and a navigation character are translated into the press the widget already answers**
+/// (D4): the character is looked up in the labels, so the menu stays the only table of names, and
+/// the translated event reaches a bar the caller has already given the keyboard. A combination
+/// that names no label is handed on untouched and changes nothing.
 pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Option<Action> {
+    let translated;
+    let raw = match alt_navigation(raw) {
+        Some(character) => {
+            translated = Event::Key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
+            &translated
+        }
+        None => raw,
+    };
+
     match menubar::handle_popup_events(state, focused, raw) {
         // An entry was taken: it means an action, and `callbacks` applies it. The loop is not
         // asked again, so an entry and the key that means the same thing end in one place.
@@ -97,6 +116,40 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Op
 
         MenuOutcome::Continue | MenuOutcome::Unchanged => None,
     }
+}
+
+/// The navigation character an `Alt` press names, or `None` where the event is not one.
+///
+/// **The answer comes from the labels** (D4): the character the menu answers to is the letter
+/// after its `_`, and looking it up here keeps the bar the only table of names. **A press of any
+/// other key, or with any other modifier, is not one**: a bare `Alt` is not a key, and a
+/// combination that names no label changes nothing.
+pub(crate) fn alt_navigation(raw: &Event) -> Option<char> {
+    let Event::Key(key) = raw else {
+        return None;
+    };
+
+    if key.kind != KeyEventKind::Press || key.modifiers != KeyModifiers::ALT {
+        return None;
+    }
+
+    let KeyCode::Char(character) = key.code else {
+        return None;
+    };
+    let character = character.to_ascii_lowercase();
+
+    MENU.menu
+        .iter()
+        .any(|(label, _)| navigation(label) == Some(character))
+        .then_some(character)
+}
+
+/// The navigation character a label carries: the letter after its `_`.
+fn navigation(label: &str) -> Option<char> {
+    label
+        .strip_prefix('_')
+        .and_then(|rest| rest.chars().next())
+        .map(|character| character.to_ascii_lowercase())
 }
 
 /// What an entry of the bar means to the application.
@@ -146,8 +199,15 @@ pub(crate) fn draw_drop_down(
 }
 
 /// The bar and the drop-down, as the two widgets the menu splits itself into.
+///
+/// **The focus is reverse video over the theme's own colors** (D3 of #189): the two focus styles
+/// are replaced with the modifier alone, so the base style painted under the label keeps its
+/// colors and the widget adds `Modifier::REVERSED` to the cells it owns. The theme's `focus`
+/// background is not used, which is what makes the bar and the dialog's `Ok` say the same thing.
 fn widgets(theme: &SalsaTheme) -> (MenubarLine<'static>, MenubarPopup<'static>) {
-    let style: MenuStyle = theme.style(WidgetStyle::MENU);
+    let mut style: MenuStyle = theme.style(WidgetStyle::MENU);
+    style.focus = Some(Style::new().reversed());
+    style.popup_focus = Some(Style::new().reversed());
     Menubar::new(&MENU).styles(style).into_widgets()
 }
 
@@ -172,6 +232,11 @@ mod tests {
 
     /// The bar and its drop-down, drawn into a buffer of the whole screen.
     fn draw(state: &mut MenubarState) -> Buffer {
+        draw_with(state, true)
+    }
+
+    /// The bar and its drop-down, with the keyboard on the bar or not.
+    fn draw_with(state: &mut MenubarState, focused: bool) -> Buffer {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let mut buffer = Buffer::empty(area);
         draw_bar(
@@ -179,7 +244,7 @@ mod tests {
             &mut buffer,
             state,
             &theme(),
-            true,
+            focused,
         );
         draw_drop_down(area, &mut buffer, state, &theme());
         buffer
@@ -208,6 +273,14 @@ mod tests {
     /// label does not move the click away from it.
     fn cell_of(buffer: &Buffer, text: &str) -> (u16, u16) {
         crate::frame::cell_of(buffer, text)
+    }
+
+    /// Whether the cell at a frame position is painted in reverse video.
+    fn reversed(buffer: &Buffer, column: u16, line: u16) -> bool {
+        buffer[(column, line)]
+            .style()
+            .add_modifier
+            .contains(ratatui_core::style::Modifier::REVERSED)
     }
 
     /// Opens the drop-down of the label, the way a person does.
@@ -264,6 +337,43 @@ mod tests {
             row,
             modifiers: KeyModifiers::NONE,
         })
+    }
+
+    /// **The control the keyboard is on is drawn in reverse video over the theme's colors**
+    /// (D3 of #189): the focused label gains the modifier and keeps the foreground and background
+    /// the base style gave it, so the theme's `focus` background is not what says where the
+    /// keyboard is.
+    #[test]
+    fn a_control_the_keyboard_is_on_is_drawn_in_reverse_video() {
+        let mut without = MenubarState::default();
+        let unfocused = draw_with(&mut without, false);
+        let (column, row) = cell_of(&unfocused, "File");
+        let plain = unfocused[(column, row)].style();
+
+        let mut with = drawn();
+        let focused = draw(&mut with);
+        let lit = focused[(column, row)].style();
+
+        assert!(
+            !reversed(&unfocused, column, row),
+            "a label is reversed while the bar does not hold the keyboard"
+        );
+        assert!(
+            reversed(&focused, column, row),
+            "the label the keyboard is on is not reversed"
+        );
+        assert_eq!(lit.fg, plain.fg, "the focus changed the label's foreground");
+        assert_eq!(
+            lit.bg, plain.bg,
+            "the theme's focus background is used, not reverse video"
+        );
+
+        // The rest of the bar keeps the plain style: the cue is one label, not the whole row.
+        let (column, row) = cell_of(&focused, "Edit");
+        assert!(
+            !reversed(&focused, column, row),
+            "another label is reversed with the one the keyboard is on"
+        );
     }
 
     #[test]
