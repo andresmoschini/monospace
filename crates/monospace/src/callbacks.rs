@@ -86,14 +86,11 @@ pub(crate) fn event(
 /// that was reversed is not any more, and the drop-down the keyboard left behind closed on the same
 /// press — so the leaf is remembered and the comparison is the last fallback.
 ///
-/// **`Alt` and a label's navigation character give the bar the keyboard before the menu is asked**
-/// (D4): the menu then answers a plain character, which is the press it already handles when it
-/// holds the keyboard. The lookup is `menu`'s, so the labels stay the only table of names.
-///
-/// **`F10` and the `Esc` that has nothing left to close are read by the bar** (D4, amended; rule
-/// 5): `menu::handle` answers `Action::FocusBar` or `Action::FocusRegion`, and `apply` moves the
-/// keyboard like any other meaning. What the router moves it for is what has to be right before a
-/// handler is asked: a press, and `Alt` before the menu.
+/// **The bar's keys that move the keyboard are read by the bar** (D4 and rule 5 of #189): `Alt` plus
+/// a label's navigation character brings it with the press, `F10` asks for it, and the `Esc` that
+/// has nothing left to close gives it back. `menu::handle` answers `Action::FocusBar` or
+/// `Action::FocusRegion`, and `apply` moves it like any other meaning. What the router moves the
+/// keyboard for is what has to be right before a handler is asked: a press.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
 /// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
@@ -124,10 +121,6 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
         })
     {
         state.focus = leaf;
-    }
-
-    if menu::alt_navigation(event).is_some() {
-        state.focus = Focus::Bar;
     }
 
     menu::handle(event, &mut state.menu, state.focus == Focus::Bar)

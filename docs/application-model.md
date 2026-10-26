@@ -149,10 +149,11 @@ and **nothing is not an action that does nothing**: it is the handler saying the
 of it changes that part when the event reaches it — the bar opens its drop-down and moves its
 selection, the status line takes a value — and nothing it changes reaches the session. What it mints
 is `Action::ScreenChanged`, the frame being owed again, and the two actions that move the keyboard:
-the bar reads `F10` and the `Esc` with nothing left to close and says where the leaf goes rather
-than moving it, because the focus is the application's (D4 and rule 5 of #189). **These three are
-about the screen and not about what a person means to do**, and undo never holds one: a selection,
-an open drop-down and the leaf that holds the keyboard are not what anybody takes back.
+the bar reads `F10`, `Alt` plus a navigation character and the `Esc` with nothing left to close, and
+says where the leaf goes rather than moving it, because the focus is the application's (D4 and rule
+5 of #189). **These three are about the screen and not about what a person means to do**, and undo
+never holds one: a selection, an open drop-down and the leaf that holds the keyboard are not what
+anybody takes back.
 
 **An action that is carried out repaints.** An entry taken closes the drop-down before its meaning
 is carried out, so the frame that follows is owed by the action rather than by a second one:
@@ -257,9 +258,9 @@ knows where its labels are only once it has been drawn, and a click is tested ag
 the frame before it.
 
 **`Alt` reaches the menu's own navigation character**, and it is not a second menu: the application
-translates `Alt` plus a label's character into the press the widget already answers when it holds
-the keyboard, so the labels remain the only table of names. A combination that names no label
-changes nothing and moves no keyboard.
+translates `Alt` plus a label's character into the press the widget answers, and the keyboard moves
+to the bar with the same press, so the labels remain the only table of names. A combination that
+names no label changes nothing and moves no keyboard.
 
 **`F10` asks for the bar and nothing else.** It is the key every terminal reports, where a bare
 `Alt` is not one — the framework asks for the terminal's extended keys only off Windows, and a

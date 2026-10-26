@@ -147,10 +147,11 @@ fixes the palette as the configuration's choice.
 - §3: the focus is one of the chrome's own, beside the selected label and the open drop-down, and
   not the selection; the region keeps its outer rectangle beside its interior.
 - §4: `About` changes the chrome's own and no session. The action model gains the two focus actions:
-  the bar reads `F10` and the `Esc` with nothing left to close and says where the leaf goes, and the
-  action is carried out where the others are. The Delete paragraph's "the dialog that asks is
-  #189's" is amended: this slice ships About only, and the removal stays unconfirmed. The `Ctrl+C`
-  paragraph names the dialog: the shortcut that reaches everything is answered before it.
+  the bar reads `F10`, `Alt` plus a navigation character and the `Esc` with nothing left to close,
+  and says where the leaf goes; the action is carried out where the others are. The Delete
+  paragraph's "the dialog that asks is #189's" is amended: this slice ships About only, and the
+  removal stays unconfirmed. The `Ctrl+C` paragraph names the dialog: the shortcut that reaches
+  everything is answered before it.
 - §5: `rat-widget`'s `MsgDialog` is the pop-up; the widgets' keys stay theirs; `Alt` reaches the
   menu's navigation character (D4).
 - §6: the focus leaves "Deliberately unresolved"; the light palette and the confirmations stay.
@@ -171,10 +172,10 @@ No crate gains or loses a public item, the binary's arguments do not change, and
   region's outer rectangle beside `interior`.
 - `menu::MENU` gains `("_Help", &["_About"])`, `HELP` and `ABOUT`, and `meaning` maps
   `(HELP, ABOUT)` to `Action::About`. `menu::handle` takes whether the bar holds the keyboard and
-  answers the action, the two that move it included: `F10` asks for the bar from either leaf, and
-  the `Esc` with no drop-down open gives it back. The router moves the keyboard only where it has to
-  be right before a handler is asked — for a press, and for `Alt` before the menu — and
-  `callbacks::apply` carries the two focus actions out.
+  answers the action, the two that move it included: `F10` asks for the bar from either leaf, `Alt`
+  plus a navigation character brings it with the press, and the `Esc` with no drop-down open gives
+  it back. The router moves the keyboard only for a press, where the leaf has to be right before a
+  handler is asked, and `callbacks::apply` carries the two focus actions out.
 - A new `about` module: `open(&mut MsgDialogState)`,
   `draw(Rect, &mut Buffer, &mut MsgDialogState, &SalsaTheme)` and
   `handle(&Event, &mut MsgDialogState) -> Outcome`; `frame::draw` draws it last, and `draw` reverses

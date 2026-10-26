@@ -8,11 +8,10 @@
 //! **The bar is one of the two leaves that hold the keyboard.** Which one holds it is the
 //! application's answer — kept in `AppState` — and it is given to the bar here: the widget draws
 //! its selected label differently only while it has the focus, and it answers a key only while it
-//! has it. **The bar also asks for it and gives it back**: `Alt` plus a navigation character is
-//! given to the bar before it is asked, `F10` asks for the keyboard from either leaf, and `Esc`
-//! with nothing left to close gives it back. The focus itself is the application's, so the bar
-//! answers with an action and the application carries it out. The rules about the focus are
-//! #189's.
+//! has it. **The bar asks for the keyboard and gives it back**: `F10` asks for it from either leaf,
+//! `Alt` plus a navigation character brings it with the press, and `Esc` with nothing left to close
+//! gives it back. The focus itself is the application's, so the bar answers with an action and the
+//! application carries it out. The rules about the focus are #189's.
 //!
 //! **The framework's keys are the framework's.** The navigation character opens a drop-down, the
 //! arrows move it, `Enter` takes an entry and `Esc` closes it, and all four are the menu
@@ -95,13 +94,12 @@ const ABOUT: usize = 0;
 /// keyboard**: `focused` is what the application's focus says, and a bar that does not hold it
 /// answers no key and closes the drop-down the keyboard left behind.
 ///
-/// **`Alt` and a navigation character reach a bar that already holds the keyboard**: the router
-/// gives it to the bar before asking (D4), so the translated press is a character the widget
-/// already answers.
-///
-/// **`F10` asks for the keyboard and `Esc` gives it back** (D4, amended; rule 5): `F10` from either
-/// leaf, `Esc` while the bar holds the keyboard and no drop-down is open. **The bar does not move
-/// the focus itself**, because the focus is the application's: it answers `Action::FocusBar` or
+/// **The three keys that move the keyboard are read here, and answered as actions.** `F10` asks for
+/// the bar from either leaf (D4, amended). `Alt` plus a navigation character brings the keyboard
+/// with the press: the character is looked up in the labels, so the menu stays the only table of
+/// names, and the widget is asked as if it already held the keyboard (D4). `Esc` while the bar holds
+/// it and no drop-down is open gives it back to the region (rule 5). **The bar does not move the
+/// focus itself**, because the focus is the application's: it answers `Action::FocusBar` or
 /// `Action::FocusRegion`, and the action is carried out where every other one is.
 pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Option<Action> {
     // **`F10` asks for the bar** (D4, amended): the key every terminal reports, where a bare `Alt`
@@ -118,15 +116,15 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Op
     }
 
     let translated;
-    let raw = match alt_navigation(raw) {
+    let (raw, arriving) = match alt_navigation(raw) {
         Some(character) => {
             translated = Event::Key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
-            &translated
+            (&translated, !focused)
         }
-        None => raw,
+        None => (raw, false),
     };
 
-    match menubar::handle_popup_events(state, focused, raw) {
+    let answer = match menubar::handle_popup_events(state, focused || arriving, raw) {
         // An entry was taken: it means an action, and `callbacks` applies it. The loop is not
         // asked again, so an entry and the key that means the same thing end in one place.
         MenuOutcome::MenuActivated(label, entry) => {
@@ -144,6 +142,16 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Op
         | MenuOutcome::MenuSelected(_, _) => Some(Action::ScreenChanged),
 
         MenuOutcome::Continue | MenuOutcome::Unchanged => None,
+    };
+
+    // **The keyboard arrived with the translation** (D4): the press opened the drop-down, and the
+    // action that gives the bar the keyboard is the one that paints, so what the widget answered
+    // has nothing left to say. It cannot be an entry: an entry is only taken from an open drop-down
+    // and an open drop-down means the bar already held the keyboard.
+    if arriving {
+        Some(Action::FocusBar)
+    } else {
+        answer
     }
 }
 
@@ -153,7 +161,7 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Op
 /// after its `_`, and looking it up here keeps the bar the only table of names. **A press of any
 /// other key, or with any other modifier, is not one**: a bare `Alt` is not a key, and a
 /// combination that names no label changes nothing.
-pub(crate) fn alt_navigation(raw: &Event) -> Option<char> {
+fn alt_navigation(raw: &Event) -> Option<char> {
     let Event::Key(key) = raw else {
         return None;
     };

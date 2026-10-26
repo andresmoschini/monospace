@@ -70,8 +70,8 @@ pub(crate) enum Action {
     /// The keyboard goes to the menu bar, and the frame is owed.
     ///
     /// **The bar's key and not the bar's move** (D4 of #189): `F10` asks for the keyboard from
-    /// either leaf, and the bar says so. The focus is the application's, and carrying the action out
-    /// is where it moves.
+    /// either leaf, and `Alt` plus a navigation character brings it with the press. The bar says so,
+    /// and carrying the action out is where the focus moves.
     FocusBar,
 
     /// The keyboard goes back to the region, and the frame is owed.
