@@ -77,8 +77,8 @@ and the buffer behind it is what answers a click.
 chrome's own.** The session is what the person is working on, the drawing is what the last frame put
 on the screen, the selection is the shape that drawing answered with, and the chrome's own is what
 the widgets of the screen hold between frames — which label of the bar is selected, whether a
-drop-down is open, what the status bar says. The four are one thing because they change together: a
-frame that changes one of them changes the others.
+drop-down is open, which of the two leaves holds the keyboard, what the status bar says. The four
+are one thing because they change together: a frame that changes one of them changes the others.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
@@ -97,6 +97,14 @@ selected figure also drops the identity**, as part of carrying the action out (s
 that follows a deletion inverts nothing because nothing is selected rather than because the record
 and the selection disagree. Naming the selected shape in words is not this document's: the status
 bar is §8's, and [#226](https://github.com/andresmoschini/monospace/issues/226) answers it.
+
+**The focus is the chrome's own, and it is not the selection.** Which of the two leaves — the bar
+and the diagram region — holds the keyboard is a fact about the chrome, held between frames: it
+starts on the region, and a left press moves it to the rectangle it lands in. The region keeps its
+outer rectangle beside its interior, because a press on the border gives it the keyboard without
+selecting a shape. **The selection's inversion is not a cue for it**: inverting the selected shape
+is [#177](https://github.com/andresmoschini/monospace/issues/177)'s, and a focused region looks the
+same as an unfocused one. The status line is not a leaf: a press on it moves nothing.
 
 **The application keeps no history of its own, and the walk is the session's.** The steps behind and
 ahead are the session's, and the state holds no position and no copy of a step: `Session::undo` and
@@ -163,14 +171,14 @@ rather than a code path each. The action names no identity — the identity is r
 where the action is carried out, so the key lives in the one table every shortcut is a row of rather
 than beside the click that minted a selection. The session performs one `Command::Remove` and
 records one step, which is what #181 gives back; the state drops the selection in the same action,
-so the next frame inverts nothing. **The removal is not confirmed**: the dialog that asks is #189's,
-and until it arrives an accidental `Delete` is given back by `Undo` and by nothing else. `Delete` is
-a shortcut nobody has claimed, so an open drop-down does not keep it: the key removes the figure
-behind the menu and the menu stays open, which is what costs this slice the feedback of a deletion a
-person cannot see until the menu closes. **The entry is always offered**, with nothing selected as
-well as with a figure: the bar holds no selection to condition it on, and taking it with nothing
-selected performs no command while the frame is still owed, because carrying the action out paints
-the frame that closes the menu.
+so the next frame inverts nothing. **The removal is not confirmed**: the dialog that asks is a later
+change's, and until it arrives an accidental `Delete` is given back by `Undo` and by nothing else.
+`Delete` is a shortcut nobody has claimed, so an open drop-down does not keep it: the key removes
+the figure behind the menu and the menu stays open, which is what costs this slice the feedback of a
+deletion a person cannot see until the menu closes. **The entry is always offered**, with nothing
+selected as well as with a figure: the bar holds no selection to condition it on, and taking it with
+nothing selected performs no command while the frame is still owed, because carrying the action out
+paints the frame that closes the menu.
 
 **Undo and Redo are the actions that give a step back.** Each is reached by a key and by the Edit
 menu's entry, and both apply that same action rather than a code path each: `Ctrl+Z` and **Undo**,
@@ -195,10 +203,10 @@ the same thing before anything acts on them, so the two cannot disagree about wh
 **`Ctrl+C` is not that action.** It is a forced exit: it ends the application whatever the state is.
 **It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a
 row of one table, and a row says how far the row reaches: a shortcut that reaches everything is
-answered before any handler, so a drop-down that is open and holds the keyboard is not asked first;
-a shortcut nobody has claimed is answered after the chrome, so a key the widget uses stays the
-widget's. A forced exit that reached the chrome as a key would be answered by the chrome, and the
-point of it is that it is answered by nothing.
+answered before any handler, so a drop-down that is open and holds the keyboard, and the dialog that
+takes every other key, are not asked first; a shortcut nobody has claimed is answered after the
+chrome, so a key the widget uses stays the widget's. A forced exit that reached the chrome as a key
+would be answered by the chrome, and the point of it is that it is answered by nothing.
 
 **The chrome's own keys are the chrome's.** The navigation character that opens a drop-down, the
 arrows that move it, `Enter` that takes an entry and `Esc` that closes it belong to the widget,
@@ -247,12 +255,13 @@ framework's buffer one at a time.
 ## 6. Deliberately unresolved
 
 - **The colors of the chrome.** They are the theme's, and the theme is the framework's, so what the
-  chrome looks like is a question about the palette and not about the application. Choosing between
-  a dark theme and a light one is [#189](https://github.com/andresmoschini/monospace/issues/189)'s.
-- **The focus.** Which of the chrome's controls holds the keyboard is the framework's rule and, with
-  more than one control in the chrome, #189's.
-- **The pop-up.** The dialog that asks for a confirmation is #189's, and so are the three states of
-  a control and the geometry that places them.
+  chrome looks like is a question about the palette and not about the application. The light palette
+  is still open: [#189](https://github.com/andresmoschini/monospace/issues/189) keeps the dark
+  BASE16 theme and reads it once, and the change that adds a configuration chooses.
+- **The pop-up.** The dialog that asks for a confirmation is still open:
+  [#189](https://github.com/andresmoschini/monospace/issues/189) ships About only, settling the
+  three states of a control and the geometry, and a confirmation uses `DialogFrame` when a later
+  change adds it.
 - **The width of a glyph.** The core assumes a glyph occupies one cell and computes no width, and
   the chrome inherits that: a glyph that is not one cell wide is not this layer's problem.
 
@@ -263,12 +272,14 @@ framework's buffer one at a time.
 - The bar's row is drawn on every frame.
 - A region that stops being drawn does not keep what was last in it.
 - The navigation character opens the drop-down and `Esc` closes it.
+- The diagram region holds the keyboard at startup, and a left press moves it to the rectangle it
+  lands in; a press on the border gives the region the keyboard without selecting a shape.
 - A drop-down leaves the region byte-identical when it closes.
 - A drop-down is not erased by the region being painted after it.
 - The way out is reached by the shortcut and by the menu's entry.
 - A click on the entry and its shortcut apply the same action.
-- `Ctrl+C` ends the application whatever the state is, and every shortcut of that reach answers with
-  the drop-down open: the promise belongs to the reach, not to the key that happens to hold it.
+- `Ctrl+C` ends the application whatever the state is, with the drop-down open and with the dialog
+  up: the promise belongs to the reach, not to the key that happens to hold it.
 - A key reaches the session only as an action.
 - A handler that took no interest leaves the event to the next one, and the first answer ends the
   asking.
