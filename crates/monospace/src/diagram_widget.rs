@@ -25,7 +25,7 @@ use ratatui_core::{
     style::Style,
     widgets::Widget,
 };
-use ratatui_crossterm::crossterm::event::{Event, MouseButton, MouseEventKind};
+use ratatui_crossterm::crossterm::event::{Event, MouseButton, MouseEvent, MouseEventKind};
 
 use crate::state::DiagramState;
 use crate::vocabulary::Action;
@@ -44,6 +44,17 @@ pub(crate) fn draw(
     draw_diagram(interior, buf, state, catalog);
 }
 
+/// What an event means to the region.
+///
+/// **The region answers a click and no key yet** (rule 3): what it was not asked about is answered
+/// with nothing so that the event goes on to the next handler.
+pub(crate) fn handle(raw: &Event, state: &mut DiagramState) -> Option<Action> {
+    match raw {
+        Event::Mouse(mouse) => click(*mouse, state),
+        _ => None,
+    }
+}
+
 /// What a click means to the region.
 ///
 /// **A left press inside the interior selects the shape the drawing records at the cell under it,
@@ -57,11 +68,7 @@ pub(crate) fn draw(
 ///
 /// **The answer is `ScreenChanged` only when the selection moved.** Selecting what is already
 /// selected, or dropping a selection that is not there, changed nothing and owes no frame.
-pub(crate) fn handle(raw: &Event, state: &mut DiagramState) -> Option<Action> {
-    let Event::Mouse(mouse) = raw else {
-        return None;
-    };
-
+fn click(mouse: MouseEvent, state: &mut DiagramState) -> Option<Action> {
     if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
         return None;
     }
