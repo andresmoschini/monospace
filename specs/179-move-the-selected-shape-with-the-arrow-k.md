@@ -28,7 +28,9 @@ fact is §11's open question and stays open here.
 ### In
 
 - The four arrow keys, with no modifiers, move the selected figure one cell along their own axis
-  while the region holds the keyboard: one `Command::Move` and one step per press (D1).
+  while the region holds the keyboard: one `Command::Move { id, by: (dx, dy).into() }` and one step
+  per press (D1). The delta `(dx, dy)` depends on which arrow: Right → (1, 0), Left → (-1, 0), Up →
+  (0, -1), Down → (0, 1).
 - The selection survives the move, so the next press moves the same figure and the frame inverts the
   cells it now owns.
 - `DiagramState` gains the move, `diagram_widget` the four keys, `route` the focus, and `apply`
@@ -56,21 +58,22 @@ fact is §11's open question and stays open here.
 
 **Answer:** the region's own handler, and nobody while the bar holds the keyboard. `route` hands
 `diagram_widget::handle` the focus beside the region's state, as it already hands the bar its own,
-and the handler answers the four arrows with `Action::MoveLeft`, `MoveRight`, `MoveUp` and
-`MoveDown` while the focus it is handed is `Focus::Region`; `apply` reads the selection and performs
-one `Command::Move`. #189 says which leaf holds the keyboard and when it changes, and its rule 5
-leaves the arrows unclaimed while the region holds it. So a bare arrow moves the selected figure
-from the drawing, and one pressed while the bar holds the keyboard does nothing: the bar's `Left`
-and `Right` are the bar's, and its `Up` and `Down` open no drop-down and move no label. **Why not**
-a third reach, `Reach::Region`, in the table: the table is focus-blind by design — a reach says how
-far a key is asked, not which leaf owns it — and such a row would make the keymap know the chrome's
-focus. **Why not** plain `Unclaimed` rows, as `Delete` and the two walks are: measured in `rat-menu`
-3.1.1, the bar's line claims `Left` and `Right` with no drop-down open and leaves `Up` and `Down`
-alone, so those two would move the figure from a leaf that does not hold the keyboard. **Why not** a
-guard in `apply`, where the four actions would be minted and then refused: an answer is a handler
-saying the event was its, and an action the next step declines to carry out is a lie about that; and
-because `apply` leaves the keyboard on the region after every carried-out meaning, a move minted on
-the bar would take the keyboard with it. **Answered by** rule 5 and D1 of #189.
+and the handler answers the four arrows with `Action::Move(dx, dy)` (mapping Right → (1, 0), Left →
+(-1, 0), Up → (0, -1), Down → (0, 1)) while the focus it is handed is `Focus::Region`; `apply` reads
+the selection and performs one `Command::Move { id, by: (dx, dy).into() }`. #189 says which leaf
+holds the keyboard and when it changes, and its rule 5 leaves the arrows unclaimed while the region
+holds it. So a bare arrow moves the selected figure from the drawing, and one pressed while the bar
+holds the keyboard does nothing: the bar's `Left` and `Right` are the bar's, and its `Up` and `Down`
+open no drop-down and move no label. **Why not** a third reach, `Reach::Region`, in the table: the
+table is focus-blind by design — a reach says how far a key is asked, not which leaf owns it — and
+such a row would make the keymap know the chrome's focus. **Why not** plain `Unclaimed` rows, as
+`Delete` and the two walks are: measured in `rat-menu` 3.1.1, the bar's line claims `Left` and
+`Right` with no drop-down open and leaves `Up` and `Down` alone, so those two would move the figure
+from a leaf that does not hold the keyboard. **Why not** a guard in `apply`, where the four actions
+would be minted and then refused: an answer is a handler saying the event was its, and an action the
+next step declines to carry out is a lie about that; and because `apply` leaves the keyboard on the
+region after every carried-out meaning, a move minted on the bar would take the keyboard with it.
+**Answered by** rule 5 and D1 of #189.
 
 **D2 — what happens when a figure is moved past the edge of the region?**
 
@@ -115,16 +118,18 @@ bar naming what is selected is #226's.
 
 No crate gains or loses a public item, and the binary's arguments do not change.
 
-- `Action` gains four unit variants — `MoveLeft`, `MoveRight`, `MoveUp`, `MoveDown` — and stays
-  `Copy`, `PartialEq` and `Eq`, because it carries no identity and no amount.
-- `shortcuts` does not change: no reach, no row, and `Delete` stays the `Unclaimed` row it is.
+- `Action` gains one unit variant — `Move(i16, i16)` — and stays `Copy`, `PartialEq` and `Eq`,
+  because it carries no identity and no amount.
+- `shortcuts` does not change: no reach, no row, and `Delete` stays the `Unclaimed` row it is. Arrow
+  keys are mapped to `Action::Move(dx, dy)` in the diagram widget's key handler.
 - `diagram_widget::handle` gains a third argument, `focus: Focus`, and the key branch that answers
-  the four arrows with the action of their axis while `focus` is `Focus::Region`. The mouse branch
-  is unchanged and not gated: a click is the region's whatever the keyboard holds.
+  `Action::Move(dx, dy)` while `focus` is `Focus::Region`, mapping the four arrow keys to signed
+  deltas: Right → (1, 0), Left → (-1, 0), Up → (0, -1), Down → (0, 1). The mouse branch is unchanged
+  and not gated: a click is the region's whatever the keyboard holds.
 - `callbacks::route` passes `state.focus` to `diagram_widget::handle`, which stays between
-  `menu::handle` and `handle_unclaimed`. `callbacks::apply` maps the four variants to a `(dx, dy)`
-  pair, calls `move_shape` when `selected()` answers an identity, and answers `Control::Continue`
-  before the cleanup when it does not — nothing was carried out, so nothing is owed.
+  `menu::handle` and `handle_unclaimed`. `callbacks::apply` receives `Action::Move(dx, dy)` and
+  calls `move_shape` when `selected()` answers an identity, and answers `Control::Continue` before
+  the cleanup when it does not — nothing was carried out, so nothing is owed.
 - `DiagramState` gains a `pub(crate)` method,
   `move_shape(&mut self, id: ShapeId, dx: i16, dy: i16)`, which replaces its session with
   `session.perform(Command::Move { id, by: (dx, dy).into() })`. It names no `Delta`: the diagram
@@ -143,9 +148,9 @@ No crate gains or loses a public item, and the binary's arguments do not change.
 3. The selection survives the move: `selected()` answers the same identity afterwards, and the next
    frame inverts the cells the moved figure owns rather than the ones it left.
 4. The action carries the meaning and not the identity (D2 of #178): `diagram_widget` answers
-   `Action::MoveRight` and `callbacks::apply` asks the state for the selection. The application
-   never calls `Diagram::replace` or `Shape::displaced_by`, and the step is the one #181's `Undo`
-   gives back.
+   `Action::Move(dx, dy)` (the delta corresponding to the pressed arrow) and `callbacks::apply` asks
+   the state for the selection. The application never calls `Diagram::replace` or
+   `Shape::displaced_by`, and the step is the one #181's `Undo` gives back.
 5. A move with nothing selected changes nothing: no command, no step, and `Control::Continue` —
    nothing was carried out, so no frame is owed. `Delete` differs: it owes the frame because
    carrying it out closes the menu entry that was taken.
