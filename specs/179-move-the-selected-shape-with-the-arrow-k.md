@@ -28,9 +28,8 @@ fact is §11's open question and stays open here.
 ### In
 
 - The four arrow keys, with no modifiers, move the selected figure one cell along their own axis
-  while the region holds the keyboard: one `Command::Move { id, by: (dx, dy).into() }` and one step
-  per press (D1). The delta `(dx, dy)` depends on which arrow: Right → (1, 0), Left → (-1, 0), Up →
-  (0, -1), Down → (0, 1).
+  while the region holds the keyboard: one `Command::Move` and one step per press (D1), with the
+  arrow's own `(dx, dy)`: Right (1, 0), Left (-1, 0), Up (0, -1), Down (0, 1).
 - The selection survives the move, so the next press moves the same figure and the frame inverts the
   cells it now owns.
 - `DiagramState` gains the move, `diagram_widget` the four keys, `route` the focus, and `apply`
@@ -69,9 +68,9 @@ table is focus-blind by design — a reach says how far a key is asked, not whic
 such a row would make the keymap know the chrome's focus. **Why not** plain `Unclaimed` rows, as
 `Delete` and the two walks are: measured in `rat-menu` 3.1.1, the bar's line claims `Left` and
 `Right` with no drop-down open and leaves `Up` and `Down` alone, so those two would move the figure
-from a leaf that does not hold the keyboard. **Why not** a guard in `apply`, where the four actions
-would be minted and then refused: an answer is a handler saying the event was its, and an action the
-next step declines to carry out is a lie about that; and because `apply` leaves the keyboard on the
+from a leaf that does not hold the keyboard. **Why not** a guard in `apply`, where the action would
+be minted and then refused: an answer is a handler saying the event was its, and an action the next
+step declines to carry out is a lie about that; and because `apply` leaves the keyboard on the
 region after every carried-out meaning, a move minted on the bar would take the keyboard with it.
 **Answered by** rule 5 and D1 of #189.
 
@@ -97,12 +96,12 @@ bar naming what is selected is #226's.
 
 ## Model slice
 
-- `docs/application-model.md` §4: gains the movement paragraph — the four arrows are four actions
-  carrying a meaning and not an identity, one press is one `Command::Move` and one step, the
-  selection survives, and a move with nothing selected performs no command and owes no frame. The
-  "chrome's own keys" paragraph is amended: a leaf's handler answers the keys it owns, so not every
-  key is a row of the table; the region is handed the focus along with its own state, as the bar
-  already is, and the table's two reaches stay about order rather than about which leaf answers.
+- `docs/application-model.md` §4: gains the movement paragraph — the four arrows are one action
+  carrying a delta and not an identity, one press is one `Command::Move` and one step, the selection
+  survives, and a move with nothing selected performs no command and owes no frame. The "chrome's
+  own keys" paragraph is amended: a leaf's handler answers the keys it owns, so not every key is a
+  row of the table; the region is handed the focus along with its own state, as the bar already is,
+  and the table's two reaches stay about order rather than about which leaf answers.
 - `docs/application-model.md` §6: none. The focus the bullets left open is #189's, settled there.
 - `docs/application-model.md` §7: the properties this change adds — an arrow moves the selected
   figure one cell and records one step, an arrow with nothing selected performs no command, an arrow
@@ -118,10 +117,9 @@ bar naming what is selected is #226's.
 
 No crate gains or loses a public item, and the binary's arguments do not change.
 
-- `Action` gains one unit variant — `Move(i16, i16)` — and stays `Copy`, `PartialEq` and `Eq`,
-  because it carries no identity and no amount.
-- `shortcuts` does not change: no reach, no row, and `Delete` stays the `Unclaimed` row it is. Arrow
-  keys are mapped to `Action::Move(dx, dy)` in the diagram widget's key handler.
+- `Action` gains one variant — `Move(i16, i16)` — and stays `Copy`, `PartialEq` and `Eq`: it carries
+  a delta and no identity.
+- `shortcuts` does not change: no reach, no row, and `Delete` stays the `Unclaimed` row it is.
 - `diagram_widget::handle` gains a third argument, `focus: Focus`, and the key branch that answers
   `Action::Move(dx, dy)` while `focus` is `Focus::Region`, mapping the four arrow keys to signed
   deltas: Right → (1, 0), Left → (-1, 0), Up → (0, -1), Down → (0, 1). The mouse branch is unchanged
