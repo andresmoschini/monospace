@@ -12,6 +12,7 @@
 use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, ShapeId, Size};
 use monospace_editing::{Command, Session};
 use rat_widget::menu::MenubarState;
+use rat_widget::msgdialog::MsgDialogState;
 use rat_widget::statusline::StatusLineState;
 use ratatui_core::layout::{Position, Rect};
 
@@ -275,6 +276,12 @@ pub(crate) struct AppState {
 
     /// Which leaf holds the keyboard: the region at startup (D1 of #189).
     pub focus: Focus,
+
+    /// The About dialog's own state: its message, its `Ok`, and whether it is up (D5 of #189).
+    ///
+    /// **The dialog runs its own focus** while it is up, and the application's leaf is left where
+    /// it was, so closing the dialog gives the keyboard back unchanged.
+    pub about: MsgDialogState,
 }
 
 impl AppState {
@@ -291,6 +298,7 @@ impl AppState {
             menu: MenubarState::default(),
             status: status::state(),
             focus: Focus::Region,
+            about: MsgDialogState::default(),
         }
     }
 

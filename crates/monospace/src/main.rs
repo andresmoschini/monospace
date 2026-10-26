@@ -7,6 +7,7 @@
 //! The name is the one `AGENTS.md` reserves for the interactive application, and the binary is
 //! the whole of it: there is no library here, and the state is private to it.
 
+mod about;
 mod callbacks;
 mod config;
 mod context;

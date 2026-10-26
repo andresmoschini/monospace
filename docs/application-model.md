@@ -57,10 +57,11 @@ therefore paints the whole of the screen it is given — a region that the frame
 the screen is too short to hold it, is cleared rather than left alone — and what a previous frame
 left in a cell is gone with the frame that follows it.
 
-**The order the regions are painted in is part of the picture.** The bar, then the region, then the
-status bar, and the drop-down last of all: a widget drawn later covers the one before it, and a
-drop-down drawn under the region could not be seen, let alone clicked. A drop-down that closes
-therefore leaves the region exactly as it was, byte for byte.
+**The order the screen is painted in is part of the picture.** The bar, then the region, then the
+status bar, then the drop-down, and the dialog last of all: a widget drawn later covers the one
+before it, and a drop-down drawn under the region could not be seen, let alone clicked. **The dialog
+is the overlay**, so it covers the drop-down as well. A drop-down or a dialog that closes therefore
+leaves the region exactly as it was, byte for byte.
 
 **The region's interior is the diagram's window.** The frame is the region's, and the diagram is
 drawn inside it: the window is the interior, one cell in from each side, and a click's column and
@@ -200,6 +201,11 @@ the two apart, so the Edit menu's entry is the way to redo there.
 entry, and both apply that same action rather than a code path each: the entry and the key become
 the same thing before anything acts on them, so the two cannot disagree about what the way out is.
 
+**`About` is the chrome's own, and it changes no session.** Taking `Help > About` mints
+`Action::About`, which opens the framework's message dialog and records no step: there is no command
+and no drawing to change, so the session and the selection are exactly what they were. The dialog
+runs its own focus while it is up, and the application's leaf does not move.
+
 **`Ctrl+C` is not that action.** It is a forced exit: it ends the application whatever the state is.
 **It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a
 row of one table, and a row says how far the row reaches: a shortcut that reaches everything is
@@ -241,10 +247,16 @@ do about it, and paints a frame when the action says the screen is owed again. T
 answers four questions — what to do at the start, what to paint, what to do about an event, and what
 to do about a failure — and the loop owns everything else about when they are asked.
 
-**The widgets are the framework's.** The menu bar, the drop-down it opens and the status line are
-widgets, and what they look like, how they are drawn and which keys they answer to are theirs. So is
-the rectangle a click is tested against: the widget knows where its labels are only once it has been
-drawn, and a click is tested against the areas of the frame before it.
+**The widgets are the framework's.** The menu bar, the drop-down it opens, the status line and the
+`MsgDialog` the About dialog is drawn in are widgets, and what they look like, how they are drawn
+and which keys they answer to are theirs. So is the rectangle a click is tested against: the widget
+knows where its labels are only once it has been drawn, and a click is tested against the areas of
+the frame before it.
+
+**`Alt` reaches the menu's own navigation character**, and it is not a second menu: the application
+translates `Alt` plus a label's character into the press the widget already answers when it holds
+the keyboard, so the labels remain the only table of names. A combination that names no label
+changes nothing and moves no keyboard.
 
 **The drawing is the framework's and the core's.** The buffer, the layout and the styles the chrome
 is drawn with are the framework's, and the application names them rather than writing them. The
@@ -272,10 +284,19 @@ framework's buffer one at a time.
 - The bar's row is drawn on every frame.
 - A region that stops being drawn does not keep what was last in it.
 - The navigation character opens the drop-down and `Esc` closes it.
+- `Alt` plus a label's navigation character focuses the bar and opens that label's drop-down, and a
+  combination that names no label changes nothing.
 - The diagram region holds the keyboard at startup, and a left press moves it to the rectangle it
   lands in; a press on the border gives the region the keyboard without selecting a shape.
+- The control the keyboard is on is drawn in reverse video over the theme's colors, and the region
+  has no focus cue of its own.
 - A drop-down leaves the region byte-identical when it closes.
 - A drop-down is not erased by the region being painted after it.
+- `Help > About` opens the dialog, changes no session and records no step.
+- The dialog is drawn last of all, and it leaves the region byte-identical when it closes.
+- `Esc` and `Ok` close the dialog, and the closing event reaches nothing else.
+- `Ctrl+Q` does nothing while the dialog is up, and a click on the bar behind it reaches nothing.
+- The palette is the dark BASE16 theme, read once.
 - The way out is reached by the shortcut and by the menu's entry.
 - A click on the entry and its shortcut apply the same action.
 - `Ctrl+C` ends the application whatever the state is, with the drop-down open and with the dialog

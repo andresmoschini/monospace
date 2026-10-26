@@ -14,10 +14,12 @@
 //! is `shortcuts`' table. This module only says when each layer is asked.
 
 use rat_salsa::Control;
+use rat_widget::event::Outcome;
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::{Position, Rect};
 use ratatui_crossterm::crossterm::event::{Event, MouseButton, MouseEventKind};
 
+use crate::about;
 use crate::context::AppGlobal;
 use crate::diagram_widget;
 use crate::event::AppEvent;
@@ -70,10 +72,12 @@ pub(crate) fn event(
 ///
 /// **The order is the whole of the policy, and the chain is the order.** The shortcuts that reach
 /// everything are asked first: a `Ctrl+C` that reached the chrome as a key would be answered by the
-/// chrome, and the point of it is that it is answered by nothing. Then the bar, so that a key the
-/// widget uses is the widget's; then the region, so that a click a drop-down covers is the
-/// drop-down's and the one it leaves is the diagram's; then the shortcuts nobody has claimed. The
-/// first action wins, and an event all of them leave alone is answered by nobody.
+/// chrome, and the point of it is that it is answered by nothing. **Then the dialog, while it is
+/// up**: it is the overlay, it takes every key and every control, and an event it leaves alone
+/// reaches nothing else. Then the bar, so that a key the widget uses is the widget's; then the
+/// region, so that a click a drop-down covers is the drop-down's and the one it leaves is the
+/// diagram's; then the shortcuts nobody has claimed. The first action wins, and an event all of
+/// them leave alone is answered by nobody.
 ///
 /// **A left press gives the keyboard to the leaf it lands in before anything is asked** (D1 of
 /// #189): the bar, its open drop-down included, or the region's outer rectangle. A press on the
@@ -92,6 +96,16 @@ pub(crate) fn event(
 fn route(event: &Event, state: &mut AppState) -> Option<Action> {
     if let Some(action) = shortcuts::handle_always(event) {
         return Some(action);
+    }
+
+    // **The dialog is the overlay** (D6): while it is up, it is the only thing asked. A closing
+    // event paints; anything else it consumed reaches nothing. `Ctrl+C` was answered above, which
+    // is what keeps the forced exit out of the dialog's hands.
+    if state.about.active() {
+        return match about::handle(event, &mut state.about) {
+            Outcome::Changed => Some(Action::ScreenChanged),
+            _ => None,
+        };
     }
 
     let mut keyboard_moved = false;
@@ -170,6 +184,13 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
             Control::Changed
         }
 
+        // **The one action that opens an overlay.** The dialog is the chrome's own, so the
+        // session is untouched: no command is performed and no step is recorded (D5 of #189).
+        Some(Action::About) => {
+            about::open(&mut state.about);
+            Control::Changed
+        }
+
         Some(Action::Quit | Action::ForceQuit) => Control::Quit,
     }
 }
@@ -194,6 +215,7 @@ pub(crate) fn error(
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::status;
     use crate::vocabulary::AppError;
     use monospace_core::Offset;
     use ratatui_core::layout::Rect;
@@ -394,6 +416,161 @@ mod tests {
         send(&click(column, row), state)
     }
 
+    /// Opens the About dialog the way a person does: `Help > About` by pointer.
+    fn open_the_about_dialog(state: &mut AppState) {
+        let outcome = take_the_entry(state, 'h', "About");
+
+        assert!(
+            matches!(outcome, Control::Changed),
+            "taking About owed no frame: {outcome:?}"
+        );
+        assert!(state.about.active(), "taking About opened no dialog");
+    }
+
+    /// **The chrome's own and no session** (rule 8): About opens an overlay and records no step,
+    /// so the drawing and its history are exactly what they were.
+    #[test]
+    fn the_about_action_changes_no_session() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram.selected();
+        assert!(
+            selected.is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
+
+        open_the_about_dialog(&mut state);
+
+        assert_eq!(
+            state.diagram.selected(),
+            selected,
+            "the dialog changed the selection"
+        );
+        assert!(
+            !state.diagram.can_undo(),
+            "opening the dialog recorded a step"
+        );
+        assert!(
+            !state.diagram.can_redo(),
+            "opening the dialog left a step ahead"
+        );
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            "opening the dialog removed the box"
+        );
+    }
+
+    /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, moves no
+    /// keyboard, opens no drop-down, and changes neither the selection nor the history.
+    #[test]
+    fn escape_closes_the_about_dialog_and_the_event_reaches_nothing_else() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram.selected();
+        open_the_about_dialog(&mut state);
+        assert!(state.about.active(), "the dialog is not open");
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.about.active(), "escape did not close the dialog");
+        assert_eq!(
+            state.focus,
+            Focus::Bar,
+            "the closing event moved the keyboard"
+        );
+        assert!(
+            !state.menu.popup_active(),
+            "the closing event opened a drop-down"
+        );
+        assert_eq!(
+            state.diagram.selected(),
+            selected,
+            "the closing event changed the selection"
+        );
+        assert!(
+            !state.diagram.can_undo(),
+            "the closing event recorded a step"
+        );
+    }
+
+    /// **The overlay takes the controls behind it** (rule 10): `Ctrl+Q` is `Unclaimed`, so while
+    /// the dialog is up the dialog answers it and nothing happens, and a click on the bar behind
+    /// it moves no keyboard and opens no menu. `Ctrl+C` is answered before the dialog, and
+    /// [`control_c_ends_the_application_whatever_the_state_is`] is where that is proven.
+    #[test]
+    fn control_q_does_nothing_while_the_dialog_is_up() {
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_about_dialog(&mut state);
+        let (column, row) = frame::cell_of(&draw(&mut state), "File");
+
+        let outcome = send(
+            &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Continue),
+            "the way out was answered through the dialog: {outcome:?}"
+        );
+        assert!(state.about.active(), "Ctrl+Q closed the dialog");
+
+        // The bar is behind the overlay even where the dialog does not cover it.
+        let _ = send(&click(column, row), &mut state);
+
+        assert_eq!(
+            state.focus,
+            Focus::Bar,
+            "the click on the bar moved the keyboard"
+        );
+        assert!(
+            !state.menu.popup_active(),
+            "the click behind the dialog opened a drop-down"
+        );
+        assert!(
+            state.about.active(),
+            "the click on the bar closed the dialog"
+        );
+    }
+
+    /// **Closing leaves the region byte-identical** (rule 11): the dialog is drawn over it and
+    /// taken away, and every cell it covered is what it was, the selection's inversion included.
+    #[test]
+    fn the_region_is_byte_identical_after_the_dialog_closes() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let before = draw(&mut state);
+
+        open_the_about_dialog(&mut state);
+        let during = draw(&mut state);
+        let shown: String = (0..HEIGHT).map(|line| row_of(&during, line)).collect();
+        assert!(
+            shown.contains(&format!("About {}", status::NAME)),
+            "the dialog is not over the region: {shown:?}"
+        );
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+
+        let after = draw(&mut state);
+        let region = frame::regions(Rect::new(0, 0, WIDTH, HEIGHT)).region;
+
+        for line in region.top()..region.bottom() {
+            for column in region.left()..region.right() {
+                assert_eq!(
+                    before[(column, line)].symbol(),
+                    after[(column, line)].symbol(),
+                    "({column}, {line}) is not what it was"
+                );
+                assert_eq!(
+                    before[(column, line)].style(),
+                    after[(column, line)].style(),
+                    "({column}, {line}) is painted differently"
+                );
+            }
+        }
+    }
+
     #[test]
     fn the_way_out_is_reached_by_the_shortcut_and_by_the_menus_entry() {
         // The shortcut.
@@ -458,6 +635,22 @@ mod tests {
         );
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
+
+        // The About dialog is up: the overlay takes every control but this one, which is
+        // answered before it (D6 of #189).
+        let mut state = a_drawn_state();
+        open_the_about_dialog(&mut state);
+        assert!(state.about.active(), "the dialog is not open");
+
+        let outcome = send(
+            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Quit),
+            "the dialog swallowed the forced exit: {outcome:?}"
+        );
     }
 
     /// **Every shortcut of the first reach, and not the one that happens to be in the table
@@ -717,7 +910,7 @@ mod tests {
     /// drop-down in one press** (D4), from the region.
     #[test]
     fn alt_and_a_labels_character_opens_that_labels_drop_down() {
-        for (label, text) in [('f', "Quit"), ('e', "Undo")] {
+        for (label, text) in [('f', "Quit"), ('e', "Undo"), ('h', "About")] {
             let mut state = a_drawn_state();
             assert_eq!(state.focus, Focus::Region, "the test starts on the bar");
 

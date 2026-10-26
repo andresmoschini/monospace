@@ -48,6 +48,7 @@ static MENU: StaticMenu = StaticMenu {
             "_Edit",
             &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z", "_Delete|Del"],
         ),
+        ("_Help", &["_About"]),
     ],
 };
 
@@ -68,6 +69,12 @@ const REDO: usize = 1;
 
 /// The entry that removes the selected figure.
 const DELETE: usize = 2;
+
+/// The label of the dialog.
+const HELP: usize = 2;
+
+/// The entry that says what the application is.
+const ABOUT: usize = 0;
 
 /// What an event means to the chrome.
 ///
@@ -161,6 +168,7 @@ fn meaning(label: usize, entry: usize) -> Action {
         (EDIT, UNDO) => Action::Undo,
         (EDIT, REDO) => Action::Redo,
         (EDIT, DELETE) => Action::Delete,
+        (HELP, ABOUT) => Action::About,
 
         // An entry nobody knows still closed the drop-down, so the frame has to be painted again.
         _ => Action::ScreenChanged,
@@ -260,13 +268,16 @@ mod tests {
     /// The picture of the frame, as text.
     fn picture(buffer: &Buffer) -> String {
         (buffer.area.top()..buffer.area.bottom())
-            .map(|line| {
-                (buffer.area.left()..buffer.area.right())
-                    .map(|column| buffer[(column, line)].symbol().to_string())
-                    .collect::<String>()
-            })
+            .map(|line| row_of(buffer, line))
             .collect::<Vec<String>>()
             .join("\n")
+    }
+
+    /// One row of the frame, as text.
+    fn row_of(buffer: &Buffer, line: u16) -> String {
+        (buffer.area.left()..buffer.area.right())
+            .map(|column| buffer[(column, line)].symbol().to_string())
+            .collect()
     }
 
     /// Where a piece of text is on the frame, found in the frame itself so that a growing
@@ -440,6 +451,47 @@ mod tests {
         assert!(
             matches!(outcome, Some(Action::Undo)),
             "the entry did not become the action of the undo key: {outcome:?}"
+        );
+        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+    }
+
+    /// **Help is the third label and About its only entry, with no shortcut drawn** (rule 8):
+    /// About opens a dialog rather than a command, so there is no key to show beside it.
+    #[test]
+    fn the_help_menu_holds_about_and_draws_no_shortcut() {
+        let mut state = drawn();
+        open_with(&mut state, 'h');
+
+        let buffer = draw(&mut state);
+        let frame = picture(&buffer);
+
+        assert!(frame.contains("Help"), "the bar has no Help: {frame:?}");
+        assert!(
+            frame.contains("About"),
+            "the Help menu offers no About: {frame:?}"
+        );
+
+        let (_, row) = cell_of(&buffer, "About");
+        let line = row_of(&buffer, row);
+
+        assert!(
+            !line.contains("Ctrl") && !line.contains("Del"),
+            "the About entry draws a shortcut: {line:?}"
+        );
+    }
+
+    /// **Taking About mints `Action::About`** (rule 8): the entry is a meaning, and the dialog is
+    /// opened where the action is carried out rather than by the bar.
+    #[test]
+    fn taking_the_about_entry_mints_the_about_action() {
+        let mut state = drawn();
+        open_with(&mut state, 'h');
+
+        let outcome = take(&mut state, "About");
+
+        assert!(
+            matches!(outcome, Some(Action::About)),
+            "the entry did not become the action of the About dialog: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
     }

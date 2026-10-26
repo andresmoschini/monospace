@@ -59,6 +59,12 @@ pub(crate) enum Action {
     /// the screen when there was no figure to take.
     Delete,
 
+    /// The About dialog is opened, and the frame is owed.
+    ///
+    /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,
+    /// so the drawing and its history are untouched.
+    About,
+
     /// The way out: the application ends and the terminal comes back.
     Quit,
 

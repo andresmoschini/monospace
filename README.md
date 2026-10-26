@@ -91,7 +91,7 @@ it, so the same box draws in ASCII, Double, Heavy and their combinations without
 
 Behind that, and all of it enforced rather than merely intended:
 
-- **126** tests in `monospace-core`, **523** across the workspace.
+- **126** tests in `monospace-core`, **545** across the workspace.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
@@ -101,8 +101,9 @@ Behind that, and all of it enforced rather than merely intended:
 
 Still missing, and named here rather than implied: the editing **surface** — the interactive
 application's frame, its menu, its way out, the diagram it was given, selecting one of its shapes
-with a click, deleting the selected shape and giving that change back are here, and moving that
-diagram and editing one beyond that are not — and persistence.
+with a click, deleting the selected shape, giving that change back, the keyboard moving between the
+bar and the diagram, `Alt` reaching a menu, and the About dialog are here, and moving that diagram
+and editing one beyond that are not — and persistence.
 
 ## Getting started
 
