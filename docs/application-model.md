@@ -260,6 +260,11 @@ translates `Alt` plus a label's character into the press the widget already answ
 the keyboard, so the labels remain the only table of names. A combination that names no label
 changes nothing and moves no keyboard.
 
+**`F10` asks for the bar and nothing else.** It is the key every terminal reports, where a bare
+`Alt` is not one — the framework asks for the terminal's extended keys only off Windows, and a
+terminal that does not answer sends nothing for `Alt` alone — so the keyboard reaches the bar with a
+press that opens no drop-down and leaves the arrows and the navigation character to open one.
+
 **The drawing is the framework's and the core's.** The buffer, the layout and the styles the chrome
 is drawn with are the framework's, and the application names them rather than writing them. The
 cells inside the region are the core's, drawn into a `monospace_core::Buffer` the application owns:
@@ -287,7 +292,7 @@ framework's buffer one at a time.
 - A region that stops being drawn does not keep what was last in it.
 - The navigation character opens the drop-down and `Esc` closes it.
 - `Alt` plus a label's navigation character focuses the bar and opens that label's drop-down, and a
-  combination that names no label changes nothing.
+  combination that names no label changes nothing; `F10` focuses the bar and opens nothing.
 - The diagram region holds the keyboard at startup, and a left press moves it to the rectangle it
   lands in; a press on the border gives the region the keyboard without selecting a shape. `Esc`
   closes the drop-down, and the next one gives the keyboard back to the region; `Esc` in the region

@@ -155,6 +155,25 @@ pub(crate) fn alt_navigation(raw: &Event) -> Option<char> {
         .then_some(character)
 }
 
+/// Whether the event asks for the bar with a key of its own.
+///
+/// **`F10` is the key every terminal reports** (D4, amended): a bare `Alt` is not one — the
+/// framework asks for the terminal's extended keys only off Windows, and a terminal without them
+/// sends nothing for `Alt` alone — so the bar is reachable from the region with a key that is
+/// always there. **It asks only for the keyboard**: no drop-down opens, and the bar draws its first
+/// label in reverse video because that is what holding the keyboard looks like.
+pub(crate) fn asks_for_the_bar(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key(KeyEvent {
+            code: KeyCode::F(10),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            ..
+        })
+    )
+}
+
 /// Whether the event tells the bar to give the keyboard back.
 ///
 /// **A bar with a drop-down open has something to close**, so `Esc` is the widget's there; with none
@@ -475,6 +494,38 @@ mod tests {
             !steps_back(&key(KeyCode::Esc), &state, true),
             "the escape that closes the drop-down was read as the bar stepping back"
         );
+    }
+
+    /// **The key that asks for the bar is `F10` and nothing else** (D4, amended): not with a
+    /// modifier on it, not released or repeated, and not a character a label already answers to.
+    #[test]
+    fn a_key_that_asks_for_the_bar_is_a_press_and_nothing_else() {
+        assert!(
+            asks_for_the_bar(&key(KeyCode::F(10))),
+            "F10 did not ask for the bar"
+        );
+        assert!(
+            !asks_for_the_bar(&key_with(KeyCode::F(10), KeyModifiers::SHIFT)),
+            "a shifted F10 asked for the bar"
+        );
+        assert!(
+            !asks_for_the_bar(&key(KeyCode::F(9))),
+            "another function key asked for the bar"
+        );
+        assert!(
+            !asks_for_the_bar(&key(KeyCode::Char('f'))),
+            "a navigation character asked for the bar on its own"
+        );
+
+        for kind in [KeyEventKind::Release, KeyEventKind::Repeat] {
+            let event = Event::Key(KeyEvent::new_with_kind(
+                KeyCode::F(10),
+                KeyModifiers::NONE,
+                kind,
+            ));
+
+            assert!(!asks_for_the_bar(&event), "{kind:?} asked for the bar");
+        }
     }
 
     #[test]

@@ -137,6 +137,13 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
         keyboard_moved = true;
     }
 
+    // **`F10` asks for the bar** (D4, amended): the key is reported by every terminal, and it moves
+    // only the keyboard — a drop-down opens when a navigation character or an arrow asks for one.
+    if menu::asks_for_the_bar(event) && state.focus != Focus::Bar {
+        state.focus = Focus::Bar;
+        keyboard_moved = true;
+    }
+
     if menu::alt_navigation(event).is_some() {
         state.focus = Focus::Bar;
     }
@@ -1005,6 +1012,31 @@ mod tests {
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert_eq!(state.focus, Focus::Region, "escape moved the keyboard");
         assert!(!state.menu.popup_active(), "escape opened a drop-down");
+    }
+
+    /// **`F10` asks for the bar where a bare `Alt` cannot** (D4, amended): it moves the keyboard and
+    /// opens nothing, so the bar looks focused while the region stays the picture under it.
+    #[test]
+    fn f10_gives_the_bar_the_keyboard_without_opening_a_drop_down() {
+        let mut state = a_drawn_state();
+        assert_eq!(state.focus, Focus::Region, "the test starts on the bar");
+
+        let outcome = send(&key(KeyCode::F(10)), &mut state);
+        let frame = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.focus,
+            Focus::Bar,
+            "F10 did not give the bar the keyboard"
+        );
+        assert!(!state.menu.popup_active(), "F10 opened a drop-down");
+
+        let (column, row) = frame::cell_of(&frame, "File");
+        assert!(
+            reversed(&frame, column, row),
+            "the bar does not look focused"
+        );
     }
 
     /// **The drop-down is asked before the region**, so a click it answers never reaches the

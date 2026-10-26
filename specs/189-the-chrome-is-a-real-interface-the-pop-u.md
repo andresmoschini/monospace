@@ -27,7 +27,8 @@ become code. #179's D1 can be answered from here.
 - The diagram region holds the keyboard at startup. The bar and the region are the two leaves, and a
   left press moves the keyboard to the rectangle it lands in, border included; the press selects a
   shape only inside the interior (D1). `Esc` on a bar with no drop-down open gives it back (D1,
-  amended 2026-10-26).
+  amended 2026-10-26), and `F10` asks for the bar without opening a drop-down (D4, amended
+  2026-10-26).
 - A focused control is drawn in reverse video over the theme's colors, not the theme's `focus`
   background, and a pressed control that is not focused is reversed too; the region has no cue (D2,
   D3).
@@ -101,6 +102,16 @@ terminal reports a bare `Alt` as `Esc` if at all, which would close a drop-down.
 alone: a menu is not a form, and the menu widget has no key of its own that asks for the bar.
 **Answered by** the maintainer, in #189.
 
+**Amended 2026-10-26:** `F10` focuses the bar from either leaf and opens nothing. The label the bar
+draws in reverse video is the one it has selected, and the keyboard is there for the navigation
+character or the arrows to use. **Why not** a bare `Alt`, which the first answer refused and which
+is not a key a terminal necessarily sends: `rat-salsa` asks for the terminal's extended keys only
+off Windows, and a terminal that does not answer sends nothing at all for `Alt` alone, so the key
+would be dead where this is read. **Why not** `F9`: the menu widget has no handling for it either,
+and `F10` is the convention for a menu bar, written where the application already translates `Alt`.
+**Answered by** the maintainer, in the follow-up to
+[#189](https://github.com/andresmoschini/monospace/issues/189).
+
 **D5 — the About dialog is the framework's message dialog, under `Help`.**
 
 **Answer:** `Help > About`, no shortcut; the framework's `MsgDialog` with the theme's `MSG_DIALOG`
@@ -159,7 +170,8 @@ No crate gains or loses a public item, the binary's arguments do not change, and
   `(HELP, ABOUT)` to `Action::About`. `menu::handle` takes whether the bar holds the keyboard and
   translates `Alt` plus a navigation character into the focus and open the menu already answers.
   `menu::steps_back` answers whether the bar gives the keyboard back, and `callbacks::route` moves
-  it when it does.
+  it when it does; `menu::asks_for_the_bar` answers for `F10`, which moves the keyboard and nothing
+  else.
 - A new `about` module: `open(&mut MsgDialogState)`,
   `draw(Rect, &mut Buffer, &mut MsgDialogState, &SalsaTheme)` and
   `handle(&Event, &mut MsgDialogState) -> Outcome`; `frame::draw` draws it last, and `draw` reverses
@@ -192,7 +204,7 @@ No crate gains or loses a public item, the binary's arguments do not change, and
    region holding it, `Esc` changes nothing.
 6. `Alt` plus a label's navigation character focuses the bar and opens that drop-down in one press,
    from either leaf. A combination that names no label changes nothing and moves no keyboard; a bare
-   `Alt` is not a key.
+   `Alt` is not a key. `F10` focuses the bar from either leaf and opens no drop-down.
 7. The drop-down closes when the bar loses the keyboard, and the region is byte-identical after. It
    is not an overlay: with it open, `Delete`, `Ctrl+Z`, `Ctrl+Shift+Z` and `Ctrl+Q` still reach the
    application, and the menu stays open.
@@ -218,6 +230,7 @@ and `HEIGHT` 20, so the interior starts at `(1, 2)`.
 | -------------- | -------------- | -------------- | --------------- | ----------------------------------------- |
 | startup        | none           | region         | none            | no label reversed                         |
 | startup        | `Alt+F`        | bar            | `ScreenChanged` | `File` drop-down open                     |
+| region         | `F10`          | bar            | `ScreenChanged` | `File` reversed, no drop-down open        |
 | region         | `Right`        | region         | none            | no drop-down, no label moves              |
 | bar            | `Right`        | bar            | `ScreenChanged` | `Edit` selected, its drop-down open       |
 | bar, File open | `Esc`          | bar            | `ScreenChanged` | drop-down closed, `File` still reversed   |
@@ -232,9 +245,10 @@ and `HEIGHT` 20, so the interior starts at `(1, 2)`.
 | dialog         | `Tab`          | bar            | none            | `Ok` reversed                             |
 | dialog         | `Esc` or `Ok`  | bar            | `ScreenChanged` | dialog gone, region byte-identical        |
 
-The table carries the decisions: `Alt+F` is D4's one press; the two `Esc` rows are D1's amendment,
-which closes the drop-down first and the bar after; `Delete` is D6's drop-down, which stays open;
-the `Ctrl+C` row is the forced exit reaching through the overlay.
+The table carries the decisions: `Alt+F` is D4's one press and `F10` its amendment, which asks for
+the bar and opens nothing; the two `Esc` rows are D1's amendment, which closes the drop-down first
+and the bar after; `Delete` is D6's drop-down, which stays open; the `Ctrl+C` row is the forced exit
+reaching through the overlay.
 
 ## What proves it
 
@@ -247,7 +261,7 @@ The tests do not exist yet; the names bind the building stage, and `already` mar
 | 3    | `a_press_on_a_label_moves_the_keyboard_and_opens_its_drop_down`, `a_press_in_the_region_closes_the_drop_down_and_selects`                                                                                                                                                                |
 | 4    | `a_control_the_keyboard_is_on_is_drawn_in_reverse_video`, `a_pressed_ok_that_is_not_focused_is_reversed`, `the_region_is_drawn_the_same_with_and_without_the_keyboard`, `a_control_under_the_pointer_is_not_a_state`                                                                     |
 | 5    | `the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard`; `the_navigation_character_opens_the_drop_down_and_escape_closes_it` — already; `a_second_escape_gives_the_keyboard_back_to_the_region`, `escape_in_the_region_changes_nothing`, `an_escape_press_is_the_bars_way_out` |
-| 6    | `alt_and_a_labels_character_opens_that_labels_drop_down`, `alt_with_a_character_that_names_no_label_changes_nothing`                                                                                                                                                                     |
+| 6    | `alt_and_a_labels_character_opens_that_labels_drop_down`, `alt_with_a_character_that_names_no_label_changes_nothing`; `a_key_that_asks_for_the_bar_is_a_press_and_nothing_else`, `f10_gives_the_bar_the_keyboard_without_opening_a_drop_down`                                            |
 | 7    | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`; `the_delete_key_is_answered_with_the_drop_down_open`, `the_undo_and_redo_keys_are_answered_with_the_drop_down_open` — both already                                                                                        |
 | 8    | `the_help_menu_holds_about_and_draws_no_shortcut`, `taking_the_about_entry_mints_the_about_action`, `the_about_action_changes_no_session`                                                                                                                                                |
 | 9    | `the_about_dialog_carries_the_name_and_the_version`, `the_dialog_is_drawn_last_of_all`                                                                                                                                                                                                   |
