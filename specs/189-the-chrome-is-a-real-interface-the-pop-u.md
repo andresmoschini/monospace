@@ -169,9 +169,9 @@ No crate gains or loses a public item, the binary's arguments do not change, and
 - `menu::MENU` gains `("_Help", &["_About"])`, `HELP` and `ABOUT`, and `meaning` maps
   `(HELP, ABOUT)` to `Action::About`. `menu::handle` takes whether the bar holds the keyboard and
   translates `Alt` plus a navigation character into the focus and open the menu already answers.
-  `menu::steps_back` answers whether the bar gives the keyboard back, and `callbacks::route` moves
-  it when it does; `menu::asks_for_the_bar` answers for `F10`, which moves the keyboard and nothing
-  else.
+  `menu::steps_back` answers whether the bar gives the keyboard back and `menu::asks_for_the_bar`
+  whether `F10` asks for it. The router holds the focus, so it asks each question only in the case
+  that applies, and moves the keyboard itself.
 - A new `about` module: `open(&mut MsgDialogState)`,
   `draw(Rect, &mut Buffer, &mut MsgDialogState, &SalsaTheme)` and
   `handle(&Event, &mut MsgDialogState) -> Outcome`; `frame::draw` draws it last, and `draw` reverses

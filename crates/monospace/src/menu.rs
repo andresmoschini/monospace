@@ -161,7 +161,8 @@ pub(crate) fn alt_navigation(raw: &Event) -> Option<char> {
 /// framework asks for the terminal's extended keys only off Windows, and a terminal without them
 /// sends nothing for `Alt` alone — so the bar is reachable from the region with a key that is
 /// always there. **It asks only for the keyboard**: no drop-down opens, and the bar draws its first
-/// label in reverse video because that is what holding the keyboard looks like.
+/// label in reverse video because that is what holding the keyboard looks like. **The caller asks
+/// only while the bar does not hold the keyboard**, which is its own fact and not the bar's.
 pub(crate) fn asks_for_the_bar(event: &Event) -> bool {
     matches!(
         event,
@@ -178,10 +179,10 @@ pub(crate) fn asks_for_the_bar(event: &Event) -> bool {
 ///
 /// **A bar with a drop-down open has something to close**, so `Esc` is the widget's there; with none
 /// open the key has nothing left to do here, and this is the caller's reading of it: the bar steps
-/// back and the keyboard goes to the region (rule 5). **A bar that does not hold the keyboard does
-/// not answer at all**, which is what keeps `Esc` in the region from moving anything.
-pub(crate) fn steps_back(event: &Event, state: &MenubarState, focused: bool) -> bool {
-    focused && !state.popup_active() && is_escape(event)
+/// back and the keyboard goes to the region (rule 5). **The caller asks only while the bar holds the
+/// keyboard**, which is its own fact and not the bar's.
+pub(crate) fn steps_back(event: &Event, state: &MenubarState) -> bool {
+    !state.popup_active() && is_escape(event)
 }
 
 /// Whether the event is an `Esc` press, with no modifier on it and no kind but a press.
@@ -456,18 +457,14 @@ mod tests {
 
     /// **The key that leaves the bar is a press and nothing else** (rule 5): a release, a repeat,
     /// and a press with a modifier on it are not the bar stepping back, and neither is a press
-    /// while a drop-down is open or while another leaf holds the keyboard.
+    /// while a drop-down is open.
     #[test]
     fn an_escape_press_is_the_bars_way_out() {
         let mut state = drawn();
 
         assert!(
-            steps_back(&key(KeyCode::Esc), &state, true),
+            steps_back(&key(KeyCode::Esc), &state),
             "the escape press was not read"
-        );
-        assert!(
-            !steps_back(&key(KeyCode::Esc), &state, false),
-            "a bar without the keyboard answered escape"
         );
 
         for kind in [KeyEventKind::Release, KeyEventKind::Repeat] {
@@ -477,21 +474,21 @@ mod tests {
                 kind,
             ));
 
-            assert!(!steps_back(&event, &state, true), "{kind:?} was read as it");
+            assert!(!steps_back(&event, &state), "{kind:?} was read as it");
         }
 
         assert!(
-            !steps_back(&key_with(KeyCode::Esc, KeyModifiers::CONTROL), &state, true),
+            !steps_back(&key_with(KeyCode::Esc, KeyModifiers::CONTROL), &state),
             "a modified escape was read as it"
         );
         assert!(
-            !steps_back(&key(KeyCode::Enter), &state, true),
+            !steps_back(&key(KeyCode::Enter), &state),
             "another key was read as it"
         );
 
         open(&mut state);
         assert!(
-            !steps_back(&key(KeyCode::Esc), &state, true),
+            !steps_back(&key(KeyCode::Esc), &state),
             "the escape that closes the drop-down was read as the bar stepping back"
         );
     }

@@ -89,6 +89,9 @@ pub(crate) fn event(
 /// (D4): the menu then answers a plain character, which is the press it already handles when it
 /// holds the keyboard. The lookup is `menu`'s, so the labels stay the only table of names.
 ///
+/// **`F10` asks for the bar and opens nothing** (D4, amended): the menu widget has no key of its
+/// own for it, so the press is read here and only the keyboard moves.
+///
 /// **`Esc` gives the bar back once there is nothing left there to close** (rule 5): the widget
 /// answers `Esc` while a drop-down is open, and the next one is read here, as the bar stepping
 /// back. With the region holding the keyboard the key changes nothing.
@@ -132,14 +135,14 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
 
     // **`Esc` on a bar with no drop-down open gives the keyboard back** (rule 5): the press has
     // nothing left to close, so it is not the widget's, and the region is where a person works.
-    if menu::steps_back(event, &state.menu, state.focus == Focus::Bar) {
+    if state.focus == Focus::Bar && menu::steps_back(event, &state.menu) {
         state.focus = Focus::Region;
         keyboard_moved = true;
     }
 
     // **`F10` asks for the bar** (D4, amended): the key is reported by every terminal, and it moves
     // only the keyboard — a drop-down opens when a navigation character or an arrow asks for one.
-    if menu::asks_for_the_bar(event) && state.focus != Focus::Bar {
+    if state.focus != Focus::Bar && menu::asks_for_the_bar(event) {
         state.focus = Focus::Bar;
         keyboard_moved = true;
     }
