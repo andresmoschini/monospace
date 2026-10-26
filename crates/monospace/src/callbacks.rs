@@ -81,17 +81,18 @@ pub(crate) fn event(
 ///
 /// **The bar's keys that move the keyboard are read by the bar** (D4 and rule 5 of #189): `Alt` plus
 /// a label's navigation character brings it with the press, `F10` asks for it, and the `Esc` that
-/// has nothing left to close gives it back. `menu::handle` answers `Action::FocusBar` or
-/// `Action::FocusRegion`, and `apply` moves it like any other meaning.
+/// has nothing left to close gives it back. **A leaf is not a meaning**, so these three keys move
+/// the keyboard where they are read: the bar is handed the focus along with its own state, and no
+/// action names a leaf.
 ///
 /// **The one thing that is settled before a handler is asked is where the event is addressed**
 /// (D1): [`address`] gives the keyboard to the leaf a press lands in, and says whether it moved,
 /// because the frame that follows is owed even where nothing answers.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
-/// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
-/// application is what its own signature makes possible: the selection and the drop-down, and never
-/// the session.
+/// state.menu` and the leaf the keyboard is on, and the region `&mut state.diagram`, so what a
+/// handler may change about the application is what its own signature makes possible: the selection,
+/// the drop-down and which leaf holds the keyboard, and never the session.
 fn route(event: &Event, state: &mut AppState) -> Option<Action> {
     if let Some(action) = shortcuts::handle_always(event) {
         return Some(action);
@@ -109,7 +110,7 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
 
     let moved = address(event, state);
 
-    menu::handle(event, &mut state.menu, state.focus == Focus::Bar)
+    menu::handle(event, &mut state.menu, &mut state.focus)
         .or_else(|| diagram_widget::handle(event, &mut state.diagram))
         .or_else(|| shortcuts::handle_unclaimed(event))
         .or_else(|| moved.then_some(Action::ScreenChanged))
@@ -120,9 +121,11 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
 /// label opens nothing if the bar is told it does not hold the keyboard, and a click in the region
 /// closes the drop-down on the same press.
 ///
-/// **This is the one focus move that is not an action.** An action is carried out after the
-/// routing, and the label a press opens and the drop-down a press closes are changes the handlers
-/// make while they are asked, so moving the keyboard afterwards would answer the wrong leaf.
+/// **The keyboard moves where the event is addressed** (D1 of #189), and this is the press's
+/// half of it: a click is addressed by its position, and the bar's own three keys are addressed by
+/// [`crate::menu::handle`]. It happens before the handlers are asked because the label a press opens
+/// and the drop-down a press closes are changes they make while they are asked, so moving the
+/// keyboard afterwards would answer the wrong leaf. No action names a leaf.
 ///
 /// **A press on the status line, and one on a rectangle no frame drew into, lands in neither leaf**
 /// and moves nothing. **The answer is whether the keyboard moved**, because that is a frame owed
@@ -136,22 +139,21 @@ fn address(event: &Event, state: &mut AppState) -> bool {
         return false;
     }
 
-    let Some(leaf) = state.leaf_at(Position::new(mouse.column, mouse.row)) else {
-        return false;
-    };
-
-    let moved = state.focus != leaf;
-    state.focus = leaf;
-    moved
+    state.set_focus_at(Position::new(mouse.column, mouse.row))
 }
 
 /// What an action does: paint the frame again, change the session, end the loop, or nothing at
 /// all.
 ///
 /// **An action is carried out here, and nowhere else.** The delete key performs the one command
-/// this slice issues, the two walks give a step back, and the two focus actions move the keyboard
-/// between the leaves; all of them are carried out beside the two that end the loop so that a
-/// handler never does anything but say what the event meant.
+/// this slice issues, the two walks give a step back, and `About` opens the dialog; all of them are
+/// carried out beside the two that end the loop so that a handler never does anything but say what
+/// the event meant. **Every meaning that is carried out also leaves the keyboard on the region**
+/// (rule 13 of #189), and that is said once, at the end, rather than in each arm.
+///
+/// **No action names a leaf** (rule 5): the keyboard moves where the event is addressed — a press in
+/// `route`, the bar's three keys in `menu::handle` — so the only thing the rule at the end exempts
+/// is the screen changing, which carries nothing out.
 ///
 /// **The action carries the meaning and not the identity** (D2): the selected shape is read here,
 /// from the state the click left, rather than minted into the action by the region. A press with
@@ -163,60 +165,51 @@ fn address(event: &Event, state: &mut AppState) -> bool {
 /// paths**: the way out grows a pop-up to confirm and the forced exit does not, which is #189's,
 /// and until then they end the same way.
 fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
-    match action {
-        None => Control::Continue,
+    let Some(action) = action else {
+        return Control::Continue;
+    };
 
-        // The screen changed, and the loop paints the frame it is owed.
-        Some(Action::ScreenChanged) => Control::Changed,
+    match action {
+        // **The two that end the loop**, and the only two that are not carried out.
+        Action::Quit | Action::ForceQuit => return Control::Quit,
+
+        // **The frame is owed, but no action is carried out.** `route` has already addressed any
+        // press, and this action preserves that focus and the menu state instead of applying the
+        // cleanup below.
+        Action::ScreenChanged => return Control::Changed,
 
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
         // of where the walk stands. At either end the session answers with itself, and the frame is
         // owed all the same, because the action was carried out.
-        Some(Action::Undo) => {
-            state.diagram.undo();
-            Control::Changed
-        }
+        Action::Undo => state.diagram.undo(),
 
-        Some(Action::Redo) => {
-            state.diagram.redo();
-            Control::Changed
-        }
+        Action::Redo => state.diagram.redo(),
 
         // **The one action that performs a command.** D2: the meaning arrives from the table and
         // the identity is asked of the state, so the removal is one place and the key that means it
         // is another. **The frame is owed either way**: an action that was carried out repaints, so
         // taking the Edit menu's entry closes the drop-down on the screen even when there was no
         // figure to remove.
-        Some(Action::Delete) => {
+        Action::Delete => {
             if let Some(selected) = state.diagram.selected() {
                 state.diagram.remove(selected);
             }
-            Control::Changed
         }
 
         // **The one action that opens an overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
-        Some(Action::About) => {
-            about::open(&mut state.about);
-            Control::Changed
-        }
-
-        // **The keyboard's leaf moves as a meaning** (D4 and rule 5 of #189): the two arms below
-        // are where it lands. The bar reads `F10`, `Alt` plus a navigation character and the `Esc`
-        // that has nothing left to close, and says where the keyboard goes rather than taking it.
-        // The frame is owed because the label that was reversed is not any more.
-        Some(Action::FocusBar) => {
-            state.focus = Focus::Bar;
-            Control::Changed
-        }
-
-        Some(Action::FocusRegion) => {
-            state.focus = Focus::Region;
-            Control::Changed
-        }
-
-        Some(Action::Quit | Action::ForceQuit) => Control::Quit,
+        Action::About => about::open(&mut state.about),
     }
+
+    // **A meaning that is carried out leaves the keyboard on the region** (rule 13 of #189): what a
+    // person took from the bar is done, and what is left to do is in the drawing. The drop-down the
+    // bar was showing closes with it, because a menu nobody holds the keyboard on is not open.
+    // **Only actions carried out reach this cleanup**: `ScreenChanged` returns above with the
+    // focus and menu state that routing established. Keeping the cleanup here means every other
+    // carried-out action closes the drop-down and leaves the keyboard on the region.
+    state.menu.set_popup_active(false);
+    state.focus = Focus::Region;
+    Control::Changed
 }
 
 /// What the application does about a failure.
@@ -441,6 +434,10 @@ mod tests {
     }
 
     /// Opens the About dialog the way a person does: `Help > About` by pointer.
+    ///
+    /// **It also checks the keyboard goes back to the region** (rule 13): the dialog takes the
+    /// whole screen while it is up, so the leaf is already where it will be given back, and every
+    /// test that opens the dialog is checking that without saying so again.
     fn open_the_about_dialog(state: &mut AppState) {
         let outcome = take_the_entry(state, 'h', "About");
 
@@ -449,6 +446,15 @@ mod tests {
             "taking About owed no frame: {outcome:?}"
         );
         assert!(state.about.active(), "taking About opened no dialog");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "taking About left the keyboard on the bar"
+        );
+        assert!(
+            !state.menu.popup_active(),
+            "taking About left the drop-down open"
+        );
     }
 
     /// **The chrome's own and no session** (rule 8): About opens an overlay and records no step,
@@ -484,8 +490,9 @@ mod tests {
         );
     }
 
-    /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, moves no
-    /// keyboard, opens no drop-down, and changes neither the selection nor the history.
+    /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, leaves the
+    /// keyboard where the dialog was given it — the region, rule 13 — opens no drop-down, and
+    /// changes neither the selection nor the history.
     #[test]
     fn escape_closes_the_about_dialog_and_the_event_reaches_nothing_else() {
         let mut state = a_drawn_state_over(A_BOX);
@@ -493,16 +500,13 @@ mod tests {
         let selected = state.diagram.selected();
         open_the_about_dialog(&mut state);
         assert!(state.about.active(), "the dialog is not open");
+        let focus = state.focus;
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.about.active(), "escape did not close the dialog");
-        assert_eq!(
-            state.focus,
-            Focus::Bar,
-            "the closing event moved the keyboard"
-        );
+        assert_eq!(state.focus, focus, "the closing event moved the keyboard");
         assert!(
             !state.menu.popup_active(),
             "the closing event opened a drop-down"
@@ -527,6 +531,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         open_the_about_dialog(&mut state);
         let (column, row) = frame::cell_of(&draw(&mut state), "File");
+        let focus = state.focus;
 
         let outcome = send(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
@@ -543,8 +548,7 @@ mod tests {
         let _ = send(&click(column, row), &mut state);
 
         assert_eq!(
-            state.focus,
-            Focus::Bar,
+            state.focus, focus,
             "the click on the bar moved the keyboard"
         );
         assert!(
@@ -1197,9 +1201,11 @@ mod tests {
     }
 
     /// **`Delete` is `Unclaimed`, so the drop-down does not keep it** (D3): the figure behind the
-    /// open menu is removed and the menu's own state — including whether it is open — is untouched.
+    /// open menu is removed, which is what proves the key reached the session. **The keyboard then
+    /// goes back to the region** (rule 13), so the drop-down the bar was showing closes with it —
+    /// the removal is taken and the person is left looking at the drawing.
     #[test]
-    fn the_delete_key_is_answered_with_the_drop_down_open() {
+    fn the_delete_key_with_the_drop_down_open_removes_and_takes_the_keyboard_back() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         open_the_drop_down(&mut state, 'f');
@@ -1212,15 +1218,45 @@ mod tests {
             None,
             "the drop-down kept the selection"
         );
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the removal left the keyboard on the bar"
+        );
         assert!(
-            state.menu.popup_active(),
-            "the deletion closed the drop-down"
+            !state.menu.popup_active(),
+            "a drop-down is open with the keyboard on the region"
         );
 
         let _ = draw(&mut state);
         assert!(
             state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
             "the drop-down kept the delete key from the diagram"
+        );
+    }
+
+    /// **The Edit menu's entry leaves the keyboard on the region** (rule 13): the shape the person
+    /// acted on is gone, and what is left to do is in the drawing.
+    #[test]
+    fn taking_the_delete_entry_gives_the_keyboard_back_to_the_region() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
+
+        let outcome = take_the_entry(&mut state, 'e', "Delete");
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the entry left the keyboard on the bar"
+        );
+        assert!(
+            !state.menu.popup_active(),
+            "the entry left a drop-down open"
         );
     }
 
@@ -1374,15 +1410,21 @@ mod tests {
         );
     }
 
-    /// **Both keys are `Unclaimed`, so an open drop-down does not keep either** (rule 5): the
-    /// history walks behind the menu and the menu stays open.
+    /// **Both keys are `Unclaimed`, so an open drop-down does not keep either** (rule 7): the
+    /// history walks behind the menu, the shape comes back and goes again, and **the keyboard then
+    /// goes back to the region, which closes the drop-down with it** (rule 13).
     #[test]
-    fn the_undo_and_redo_keys_are_answered_with_the_drop_down_open() {
+    fn the_walks_are_answered_with_the_drop_down_open_and_take_the_keyboard_back() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         let _ = send(&key(KeyCode::Delete), &mut state);
-        open_the_drop_down(&mut state, 'f');
+        let _ = draw(&mut state);
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            "the box was not removed, so the test proves nothing"
+        );
 
+        open_the_drop_down(&mut state, 'f');
         let outcome = send(&undo_key(), &mut state);
         let _ = draw(&mut state);
 
@@ -1391,8 +1433,17 @@ mod tests {
             state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
             "the drop-down kept the undo key from the history"
         );
-        assert!(state.menu.popup_active(), "the undo closed the drop-down");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the undo left the keyboard on the bar"
+        );
+        assert!(
+            !state.menu.popup_active(),
+            "a drop-down is open with the keyboard on the region"
+        );
 
+        open_the_drop_down(&mut state, 'f');
         let outcome = send(&redo_key(), &mut state);
         let _ = draw(&mut state);
 
@@ -1401,7 +1452,15 @@ mod tests {
             state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
             "the drop-down kept the redo key from the history"
         );
-        assert!(state.menu.popup_active(), "the redo closed the drop-down");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the redo left the keyboard on the bar"
+        );
+        assert!(
+            !state.menu.popup_active(),
+            "a drop-down is open with the keyboard on the region"
+        );
     }
 
     /// **The table answers a meaning and not a count of steps** (rule 6): `Action::Undo` has no

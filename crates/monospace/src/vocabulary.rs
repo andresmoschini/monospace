@@ -26,11 +26,21 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 /// What the application does about an event.
 ///
 /// **Every action but one is a meaning.** The way out and the forced exit end the loop; `Delete`
-/// takes a shape out, and `Undo` and `Redo` give a step back; `About` opens the chrome's dialog and
-/// the two focus actions move the keyboard between the leaves; `ScreenChanged` is the screen being
-/// owed a paint and nothing else. **The two exits are separate actions because they are separate
-/// meanings**, and they end the loop the same way only because nothing has been edited yet: the way
-/// out grows a pop-up to confirm and the forced exit does not, which is #189's.
+/// takes a shape out, and `Undo` and `Redo` give a step back; `About` opens the chrome's dialog;
+/// `ScreenChanged` is the screen being owed a paint and nothing else. **The two exits are separate
+/// actions because they are separate meanings**, and they end the loop the same way only because
+/// nothing has been edited yet: the way out grows a pop-up to confirm and the forced exit does not,
+/// which is #189's.
+///
+/// **A meaning that is carried out leaves the keyboard on the region** (rule 13 of #189), and the
+/// drop-down the bar was showing closes with it. Only two things are not that: the screen changing,
+/// which is not a meaning, and the two exits, which are not carried out at all. **So a meaning does
+/// not say where the keyboard is left** — `callbacks::apply` says it once — which is why this is a
+/// table of meanings and not a table of leaves.
+///
+/// **No action names a leaf** (D1 of #189): the keyboard moves where the event is addressed — a
+/// press by its position, the bar's own three keys inside [`crate::menu::handle`] — so there is no
+/// action for reaching the bar and none for leaving it.
 ///
 /// **A change of the screen is not a meaning of a person's, and undo will never hold one.** It is
 /// an action because an event becomes one thing, and what the application does about a screen that
@@ -66,19 +76,6 @@ pub(crate) enum Action {
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,
     /// so the drawing and its history are untouched.
     About,
-
-    /// The keyboard goes to the menu bar, and the frame is owed.
-    ///
-    /// **The bar's key and not the bar's move** (D4 of #189): `F10` asks for the keyboard from
-    /// either leaf, and `Alt` plus a navigation character brings it with the press. The bar says so,
-    /// and carrying the action out is where the focus moves.
-    FocusBar,
-
-    /// The keyboard goes back to the region, and the frame is owed.
-    ///
-    /// **The bar's key and not the bar's move** (rule 5 of #189): the `Esc` with no drop-down left
-    /// to close says so, and the application moves the focus the way it does for a press.
-    FocusRegion,
 
     /// The way out: the application ends and the terminal comes back.
     Quit,

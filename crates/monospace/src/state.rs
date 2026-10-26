@@ -318,6 +318,21 @@ impl AppState {
             None
         }
     }
+
+    /// Moves the keyboard to the leaf at `at`, returning whether the focus changed.
+    ///
+    /// **A position in neither leaf leaves the focus alone**: the status line and empty space
+    /// are not destinations for the keyboard. The leaf is resolved by [`Self::leaf_at`], so an
+    /// open drop-down belongs to the bar even where it overlaps the region.
+    pub(crate) fn set_focus_at(&mut self, at: Position) -> bool {
+        let Some(leaf) = self.leaf_at(at) else {
+            return false;
+        };
+
+        let moved = self.focus != leaf;
+        self.focus = leaf;
+        moved
+    }
 }
 
 #[cfg(test)]
