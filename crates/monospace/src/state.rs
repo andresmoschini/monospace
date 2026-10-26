@@ -134,6 +134,23 @@ impl DiagramState {
         self.selected = None;
     }
 
+    /// Displaces the shape `id` by `(dx, dy)` cells and keeps the selection.
+    ///
+    /// **The movement is a replacement like any other** (§9 of the diagram model): one
+    /// `Command::Move` is performed, and the diagram below decides what a displacement does to a
+    /// reference hanging from the figure and to the gap of one the figure holds. The application
+    /// names no `Delta`: the pair is converted where the command is written, so this crate does not
+    /// reach below the editing layer for one value.
+    ///
+    /// **The identity survives**, unlike the removal's: the figure is still there, one cell along,
+    /// so the next frame inverts the cells it now owns.
+    pub(crate) fn move_shape(&mut self, id: ShapeId, dx: i16, dy: i16) {
+        self.perform(Command::Move {
+            id,
+            by: (dx, dy).into(),
+        });
+    }
+
     /// Performs `command` on the session, recording its one step.
     ///
     /// **The session is the only thing performed on, and the application keeps no copy of it.**
@@ -399,6 +416,31 @@ mod tests {
             state.diagram.selected(),
             None,
             "the removal kept the identity it took out"
+        );
+    }
+
+    /// **The movement is the session's too, and it records one step.** The figure stays under its
+    /// identity and there is a step behind the position, which is what `Undo` gives back.
+    #[test]
+    fn a_move_leaves_the_session_one_step_further_on() {
+        let diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let mut state = AppState::new(Session::new(diagram));
+        let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+
+        state.diagram.move_shape(shape, 1, 0);
+
+        assert!(
+            state.diagram.session.can_undo(),
+            "the move recorded no step"
+        );
+        assert!(
+            !state.diagram.session.can_redo(),
+            "the move recorded more than one step"
+        );
+        assert!(
+            state.diagram.session.diagram().get(shape).is_some(),
+            "the session lost the shape it moved"
         );
     }
 

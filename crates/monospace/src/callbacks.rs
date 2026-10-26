@@ -111,7 +111,7 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
     let moved = address(event, state);
 
     menu::handle(event, &mut state.menu, &mut state.focus)
-        .or_else(|| diagram_widget::handle(event, &mut state.diagram))
+        .or_else(|| diagram_widget::handle(event, &mut state.diagram, state.focus))
         .or_else(|| shortcuts::handle_unclaimed(event))
         .or_else(|| moved.then_some(Action::ScreenChanged))
 }
@@ -194,6 +194,18 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
             if let Some(selected) = state.diagram.selected() {
                 state.diagram.remove(selected);
             }
+        }
+
+        // **The movement is the same shape of action as the deletion** (rule 4 of #179): the delta
+        // arrives from the region's handler and the identity is read here. **But a move with
+        // nothing selected is answered before the cleanup**, because nothing was carried out: no
+        // command, no step and no frame owed.
+        Action::Move(dx, dy) => {
+            let Some(selected) = state.diagram.selected() else {
+                return Control::Continue;
+            };
+
+            state.diagram.move_shape(selected, dx, dy);
         }
 
         // **The one action that opens an overlay.** The dialog is the chrome's own, so the
@@ -931,6 +943,269 @@ mod tests {
                 state.menu.bar.selected, selected,
                 "{arrow:?} moved the bar's label"
             );
+        }
+    }
+
+    /// **The right arrow displaces the selected figure one cell** (rule 1): one command, one step,
+    /// and the next frame draws the box where the move put it.
+    #[test]
+    fn the_right_arrow_moves_the_selected_shape_one_cell() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected"
+        );
+        let before = draw(&mut state);
+
+        let outcome = send(&key(KeyCode::Right), &mut state);
+        let after = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(state.diagram.can_undo(), "the move recorded no step");
+        assert_eq!(
+            state.diagram.owner(Offset { x: 3, y: 1 }),
+            state.diagram.selected(),
+            "the drawing does not record the box one cell right"
+        );
+        assert_eq!(
+            before[(3, 3)].symbol(),
+            "┌",
+            "the test's frame does not start where it says"
+        );
+        assert_eq!(
+            after[(4, 3)].symbol(),
+            "┌",
+            "the frame does not draw the box one cell right"
+        );
+        assert_eq!(
+            after[(3, 3)].symbol(),
+            " ",
+            "the frame still draws the box where it stood"
+        );
+    }
+
+    /// **Each arrow moves along its own axis** (rule 1): Right, Left, Up and Down displace the
+    /// figure by the sign their axis names and no other.
+    #[test]
+    fn each_arrow_moves_along_its_own_axis() {
+        for (arrow, at) in [
+            (KeyCode::Right, Offset { x: 3, y: 1 }),
+            (KeyCode::Left, Offset { x: 1, y: 1 }),
+            (KeyCode::Up, Offset { x: 2, y: 0 }),
+            (KeyCode::Down, Offset { x: 2, y: 2 }),
+        ] {
+            let mut state = a_drawn_state_over(A_BOX);
+            let _ = send(&click(3, 3), &mut state);
+            assert!(
+                state.diagram.selected().is_some(),
+                "{arrow:?}: the box was not selected"
+            );
+
+            let outcome = send(&key(arrow), &mut state);
+            let _ = draw(&mut state);
+
+            assert!(
+                matches!(outcome, Control::Changed),
+                "{arrow:?}: {outcome:?}"
+            );
+            assert_eq!(
+                state.diagram.owner(at),
+                state.diagram.selected(),
+                "{arrow:?} did not move the box along its own axis"
+            );
+            assert!(state.diagram.can_undo(), "{arrow:?} recorded no step");
+        }
+    }
+
+    /// **Each press is its own step** (rule 2): two presses are two commands, and the undo gives
+    /// back one cell per press rather than the whole walk.
+    #[test]
+    fn two_presses_are_two_steps() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+
+        let _ = send(&key(KeyCode::Right), &mut state);
+        let _ = send(&key(KeyCode::Right), &mut state);
+        let _ = draw(&mut state);
+
+        assert!(
+            state.diagram.owner(Offset { x: 4, y: 1 }).is_some(),
+            "the two presses did not move the box twice"
+        );
+        assert_eq!(
+            state.diagram.owner(Offset { x: 3, y: 1 }),
+            None,
+            "the second press moved nothing"
+        );
+
+        let _ = send(&undo_key(), &mut state);
+        let _ = draw(&mut state);
+
+        assert!(
+            state.diagram.owner(Offset { x: 3, y: 1 }).is_some(),
+            "one undo did not give back one press"
+        );
+
+        let _ = send(&undo_key(), &mut state);
+        let _ = draw(&mut state);
+
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            "the second undo did not give back the first press"
+        );
+        assert!(
+            !state.diagram.can_undo(),
+            "two presses were more than two steps"
+        );
+    }
+
+    /// **The selection survives the move** (rule 3): the next frame inverts the cells the figure
+    /// now owns rather than the ones it left.
+    #[test]
+    fn a_move_keeps_the_selection() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram.selected();
+        assert!(selected.is_some(), "the box was not selected");
+
+        let _ = send(&key(KeyCode::Right), &mut state);
+        let buffer = draw(&mut state);
+
+        assert_eq!(
+            state.diagram.selected(),
+            selected,
+            "the move dropped the selection"
+        );
+        assert!(
+            reversed(&buffer, 4, 3),
+            "the frame does not invert the cells the box now owns"
+        );
+        assert!(
+            !reversed(&buffer, 3, 3),
+            "the frame still inverts the cell the box left"
+        );
+    }
+
+    /// **A move with nothing selected performs no command** (rule 5): no step is recorded and the
+    /// answer is `Continue` — nothing was carried out, so no frame is owed.
+    #[test]
+    fn a_move_with_nothing_selected_performs_no_command() {
+        let mut state = a_drawn_state_over(A_BOX);
+
+        let outcome = send(&key(KeyCode::Right), &mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(
+            !state.diagram.can_undo(),
+            "a move with nothing selected recorded a step"
+        );
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            "the box moved with nothing selected"
+        );
+    }
+
+    /// **The dialog is the overlay and takes the arrow too** (rule 6): a move behind it changes
+    /// nothing, because the event never reaches the region.
+    #[test]
+    fn an_arrow_while_the_dialog_is_up_moves_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected"
+        );
+        open_the_about_dialog(&mut state);
+
+        let _ = send(&key(KeyCode::Right), &mut state);
+
+        assert!(
+            state.about.active(),
+            "the arrow closed the dialog it should not have reached"
+        );
+        assert!(
+            !state.diagram.can_undo(),
+            "a key the dialog swallowed recorded a step"
+        );
+        assert!(
+            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            "the box moved behind the dialog"
+        );
+    }
+
+    /// **A carried-out move leaves the keyboard on the region** (rule 7), closing the drop-down
+    /// the bar was showing, as every other carried-out meaning does.
+    #[test]
+    fn a_move_leaves_the_keyboard_on_the_region() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected"
+        );
+        state.focus = Focus::Bar;
+        state.menu.set_popup_active(true);
+
+        let outcome = apply(Some(Action::Move(1, 0)), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the move left the keyboard on the bar"
+        );
+        assert!(!state.menu.popup_active(), "the move left a drop-down open");
+        assert!(state.diagram.can_undo(), "the move recorded no step");
+    }
+
+    /// **A frame after a move draws the figure one cell further on** (rule 9): the drawing is the
+    /// session's, and the application adds no rule to it.
+    #[test]
+    fn a_frame_after_a_move_draws_the_shape_one_cell_further_on() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let before = draw(&mut state);
+
+        let _ = send(&key(KeyCode::Right), &mut state);
+        let after = draw(&mut state);
+
+        assert_eq!(
+            before[(3, 3)].symbol(),
+            after[(4, 3)].symbol(),
+            "the frame does not draw the figure one cell further on"
+        );
+        assert_eq!(
+            after[(3, 3)].symbol(),
+            " ",
+            "the frame still draws the figure where it stood"
+        );
+    }
+
+    /// **A figure moved past the window's edge is not drawn** (D2): its cells fall outside the
+    /// window, and the frame draws what the window holds, which is nothing.
+    #[test]
+    fn a_frame_after_a_move_out_of_the_window_draws_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+
+        for _ in 0..7 {
+            let _ = send(&key(KeyCode::Left), &mut state);
+        }
+        let _ = draw(&mut state);
+
+        assert!(state.diagram.can_undo(), "the presses recorded no step");
+
+        // The region's own border is a box too, so the window is what is asked: no offset of the
+        // drawing answers a glyph, and the copy therefore writes none.
+        let catalog = monospace_glyph_sets::all();
+        for y in 0..6 {
+            for x in 0..38 {
+                assert!(
+                    state.diagram.glyph(Offset { x, y }, &catalog).is_none(),
+                    "({x}, {y}) still draws the figure that left the window"
+                );
+            }
         }
     }
 

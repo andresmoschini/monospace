@@ -71,6 +71,14 @@ pub(crate) enum Action {
     /// the screen when there was no figure to take.
     Delete,
 
+    /// The selected shape is displaced by `(dx, dy)` cells, and the frame is owed when one moved.
+    ///
+    /// **The meaning and not the identity**, as [`Self::Delete`] is: the shape is read from the
+    /// state where the action is carried out, so the four arrows are one action carrying a delta
+    /// rather than four actions naming a figure each. **A move with nothing selected moves nothing
+    /// and owes no frame**: nothing was carried out, so there is nothing to paint.
+    Move(i16, i16),
+
     /// The About dialog is opened, and the frame is owed.
     ///
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,

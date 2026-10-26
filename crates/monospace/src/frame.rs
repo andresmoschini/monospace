@@ -390,7 +390,7 @@ mod tests {
             modifiers: KeyModifiers::NONE,
         });
 
-        let outcome = crate::diagram_widget::handle(&event, &mut state.diagram);
+        let outcome = crate::diagram_widget::handle(&event, &mut state.diagram, state.focus);
 
         assert!(
             matches!(outcome, Some(Action::ScreenChanged)),
