@@ -9,8 +9,9 @@
 //! **An action need not change anything.** `Action::ScreenChanged` is the screen being owed a
 //! paint, and it is the one action that never reaches the state; `Action::Delete` takes a shape out
 //! where one is selected and owes a paint either way; `Action::Undo` and `Action::Redo` walk the
-//! session's history and owe a paint whether or not there is a step to give back; and
-//! `Action::Quit` and `Action::ForceQuit` end the loop.
+//! session's history and owe a paint whether or not there is a step to give back; the two focus
+//! actions move the keyboard between the leaves and owe one too; and `Action::Quit` and
+//! `Action::ForceQuit` end the loop.
 //!
 //! **A handler says an action rather than doing one**, so that an entry of the menu and the key
 //! that means the same thing are decided in one place. A handler that took no interest says
@@ -25,7 +26,8 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 /// What the application does about an event.
 ///
 /// **Every action but one is a meaning.** The way out and the forced exit end the loop; `Delete`
-/// takes a shape out, and `Undo` and `Redo` give a step back; `ScreenChanged` is the screen being
+/// takes a shape out, and `Undo` and `Redo` give a step back; `About` opens the chrome's dialog and
+/// the two focus actions move the keyboard between the leaves; `ScreenChanged` is the screen being
 /// owed a paint and nothing else. **The two exits are separate actions because they are separate
 /// meanings**, and they end the loop the same way only because nothing has been edited yet: the way
 /// out grows a pop-up to confirm and the forced exit does not, which is #189's.
@@ -64,6 +66,19 @@ pub(crate) enum Action {
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,
     /// so the drawing and its history are untouched.
     About,
+
+    /// The keyboard goes to the menu bar, and the frame is owed.
+    ///
+    /// **The bar's key and not the bar's move** (D4 of #189): `F10` asks for the keyboard from
+    /// either leaf, and the bar says so. The focus is the application's, and carrying the action out
+    /// is where it moves.
+    FocusBar,
+
+    /// The keyboard goes back to the region, and the frame is owed.
+    ///
+    /// **The bar's key and not the bar's move** (rule 5 of #189): the `Esc` with no drop-down left
+    /// to close says so, and the application moves the focus the way it does for a press.
+    FocusRegion,
 
     /// The way out: the application ends and the terminal comes back.
     Quit,

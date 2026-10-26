@@ -82,19 +82,18 @@ pub(crate) fn event(
 /// **A left press gives the keyboard to the leaf it lands in before anything is asked** (D1 of
 /// #189): the bar, its open drop-down included, or the region's outer rectangle. A press on the
 /// status line, and one on a rectangle no frame drew into, lands in neither leaf and moves nothing.
-/// Moving the keyboard paints, because the label that was reversed is not any more, and the
-/// drop-down the keyboard left behind closes on the same press.
+/// **A press that moved the keyboard is owed a frame even where no handler answers it** — the label
+/// that was reversed is not any more, and the drop-down the keyboard left behind closed on the same
+/// press — so the leaf is remembered and the comparison is the last fallback.
 ///
 /// **`Alt` and a label's navigation character give the bar the keyboard before the menu is asked**
 /// (D4): the menu then answers a plain character, which is the press it already handles when it
 /// holds the keyboard. The lookup is `menu`'s, so the labels stay the only table of names.
 ///
-/// **`F10` asks for the bar and opens nothing** (D4, amended): the menu widget has no key of its
-/// own for it, so the press is read here and only the keyboard moves.
-///
-/// **`Esc` gives the bar back once there is nothing left there to close** (rule 5): the widget
-/// answers `Esc` while a drop-down is open, and the next one is read here, as the bar stepping
-/// back. With the region holding the keyboard the key changes nothing.
+/// **`F10` and the `Esc` that has nothing left to close are read by the bar** (D4, amended; rule
+/// 5): `menu::handle` answers `Action::FocusBar` or `Action::FocusRegion`, and `apply` moves the
+/// keyboard like any other meaning. What the router moves it for is what has to be right before a
+/// handler is asked: a press, and `Alt` before the menu.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
 /// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
@@ -115,36 +114,16 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
         };
     }
 
-    let mut keyboard_moved = false;
+    let before = state.focus;
 
     if let Event::Mouse(mouse) = event
         && mouse.kind == MouseEventKind::Down(MouseButton::Left)
-    {
-        let at = Position {
+        && let Some(leaf) = state.leaf_at(Position {
             x: mouse.column,
             y: mouse.row,
-        };
-
-        if let Some(leaf) = state.leaf_at(at)
-            && state.focus != leaf
-        {
-            state.focus = leaf;
-            keyboard_moved = true;
-        }
-    }
-
-    // **`Esc` on a bar with no drop-down open gives the keyboard back** (rule 5): the press has
-    // nothing left to close, so it is not the widget's, and the region is where a person works.
-    if state.focus == Focus::Bar && menu::steps_back(event, &state.menu) {
-        state.focus = Focus::Region;
-        keyboard_moved = true;
-    }
-
-    // **`F10` asks for the bar** (D4, amended): the key is reported by every terminal, and it moves
-    // only the keyboard — a drop-down opens when a navigation character or an arrow asks for one.
-    if state.focus != Focus::Bar && menu::asks_for_the_bar(event) {
-        state.focus = Focus::Bar;
-        keyboard_moved = true;
+        })
+    {
+        state.focus = leaf;
     }
 
     if menu::alt_navigation(event).is_some() {
@@ -154,15 +133,16 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
     menu::handle(event, &mut state.menu, state.focus == Focus::Bar)
         .or_else(|| diagram_widget::handle(event, &mut state.diagram))
         .or_else(|| shortcuts::handle_unclaimed(event))
-        .or_else(|| keyboard_moved.then_some(Action::ScreenChanged))
+        .or_else(|| (state.focus != before).then_some(Action::ScreenChanged))
 }
 
 /// What an action does: paint the frame again, change the session, end the loop, or nothing at
 /// all.
 ///
 /// **An action is carried out here, and nowhere else.** The delete key performs the one command
-/// this slice issues, and the two walks give a step back; all three are carried out beside the two
-/// that end the loop so that a handler never does anything but say what the event meant.
+/// this slice issues, the two walks give a step back, and the two focus actions move the keyboard
+/// between the leaves; all of them are carried out beside the two that end the loop so that a
+/// handler never does anything but say what the event meant.
 ///
 /// **The action carries the meaning and not the identity** (D2): the selected shape is read here,
 /// from the state the click left, rather than minted into the action by the region. A press with
@@ -209,6 +189,19 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
         Some(Action::About) => {
             about::open(&mut state.about);
+            Control::Changed
+        }
+
+        // **The keyboard's leaf moves as a meaning** (D4 and rule 5 of #189): the bar reads `F10`
+        // and the `Esc` that has nothing left to close, and says where the keyboard goes rather
+        // than taking it. The frame is owed because the label that was reversed is not any more.
+        Some(Action::FocusBar) => {
+            state.focus = Focus::Bar;
+            Control::Changed
+        }
+
+        Some(Action::FocusRegion) => {
+            state.focus = Focus::Region;
             Control::Changed
         }
 

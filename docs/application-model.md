@@ -148,10 +148,11 @@ and **nothing is not an action that does nothing**: it is the handler saying the
 **The chrome's own is the other half of §3, and it is not this rule's.** The widget that owns a part
 of it changes that part when the event reaches it — the bar opens its drop-down and moves its
 selection, the status line takes a value — and nothing it changes reaches the session. What it mints
-is `Action::ScreenChanged`, the frame being owed again: **a change of the screen is the one action
-about the screen rather than about what a person means to do**, and undo never holds one. A
-selection and an open drop-down are still not meanings of a person's, so no list of what a person
-can take back will ever hold one.
+is `Action::ScreenChanged`, the frame being owed again, and the two actions that move the keyboard:
+the bar reads `F10` and the `Esc` with nothing left to close and says where the leaf goes rather
+than moving it, because the focus is the application's (D4 and rule 5 of #189). **These three are
+about the screen and not about what a person means to do**, and undo never holds one: a selection,
+an open drop-down and the leaf that holds the keyboard are not what anybody takes back.
 
 **An action that is carried out repaints.** An entry taken closes the drop-down before its meaning
 is carried out, so the frame that follows is owed by the action rather than by a second one:

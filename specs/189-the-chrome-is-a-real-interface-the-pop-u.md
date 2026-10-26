@@ -146,9 +146,11 @@ fixes the palette as the configuration's choice.
   a closed dialog leaves the region byte-identical.
 - §3: the focus is one of the chrome's own, beside the selected label and the open drop-down, and
   not the selection; the region keeps its outer rectangle beside its interior.
-- §4: `About` changes the chrome's own and no session. The Delete paragraph's "the dialog that asks
-  is #189's" is amended: this slice ships About only, and the removal stays unconfirmed. The
-  `Ctrl+C` paragraph names the dialog: the shortcut that reaches everything is answered before it.
+- §4: `About` changes the chrome's own and no session. The action model gains the two focus actions:
+  the bar reads `F10` and the `Esc` with nothing left to close and says where the leaf goes, and the
+  action is carried out where the others are. The Delete paragraph's "the dialog that asks is
+  #189's" is amended: this slice ships About only, and the removal stays unconfirmed. The `Ctrl+C`
+  paragraph names the dialog: the shortcut that reaches everything is answered before it.
 - §5: `rat-widget`'s `MsgDialog` is the pop-up; the widgets' keys stay theirs; `Alt` reaches the
   menu's navigation character (D4).
 - §6: the focus leaves "Deliberately unresolved"; the light palette and the confirmations stay.
@@ -160,18 +162,19 @@ fixes the palette as the configuration's choice.
 No crate gains or loses a public item, the binary's arguments do not change, and
 `crates/monospace/Cargo.toml` gains no dependency.
 
-- `Action` gains `About`, with no fields, so it stays `Copy`, `PartialEq` and `Eq`. `AppState` gains
-  `about: MsgDialogState`; `AppState::new` starts it closed and the region focused.
+- `Action` gains `About`, `FocusBar` and `FocusRegion`, with no fields, so it stays `Copy`,
+  `PartialEq` and `Eq`. `AppState` gains `about: MsgDialogState`; `AppState::new` starts it closed
+  and the region focused.
 - `AppState` gains `focus: Focus`, a two-variant value (`Bar`, `Region`) that starts `Region`; the
   menu is handed whether the bar holds it. `rat-focus` is not added: the slice has no `Tab`, the
   dialog owns its own focus, and the manifest's dependencies do not change. `DiagramState` keeps the
   region's outer rectangle beside `interior`.
 - `menu::MENU` gains `("_Help", &["_About"])`, `HELP` and `ABOUT`, and `meaning` maps
   `(HELP, ABOUT)` to `Action::About`. `menu::handle` takes whether the bar holds the keyboard and
-  translates `Alt` plus a navigation character into the focus and open the menu already answers.
-  `menu::steps_back` answers whether the bar gives the keyboard back and `menu::asks_for_the_bar`
-  whether `F10` asks for it. The router holds the focus, so it asks each question only in the case
-  that applies, and moves the keyboard itself.
+  answers the action, the two that move it included: `F10` asks for the bar from either leaf, and
+  the `Esc` with no drop-down open gives it back. The router moves the keyboard only where it has to
+  be right before a handler is asked — for a press, and for `Alt` before the menu — and
+  `callbacks::apply` carries the two focus actions out.
 - A new `about` module: `open(&mut MsgDialogState)`,
   `draw(Rect, &mut Buffer, &mut MsgDialogState, &SalsaTheme)` and
   `handle(&Event, &mut MsgDialogState) -> Outcome`; `frame::draw` draws it last, and `draw` reverses
