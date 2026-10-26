@@ -18,7 +18,7 @@ use rat_theme4::theme::SalsaTheme;
 use rat_widget::event::{Dialog, HandleEvent, Outcome};
 use rat_widget::msgdialog::{MsgDialog, MsgDialogState, MsgDialogStyle};
 use ratatui_core::buffer::Buffer;
-use ratatui_core::layout::Rect;
+use ratatui_core::layout::{Constraint, Rect};
 use ratatui_core::style::Style;
 use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::Event;
@@ -43,16 +43,20 @@ pub(crate) fn open(state: &mut MsgDialogState) {
     state.append(&format!("{} {}", status::NAME, status::VERSION));
 }
 
-/// Paints the dialog, centred in `area`.
+/// Paints the dialog, centered in `area`.
 ///
 /// **The dialog is given a rectangle and the caller keeps it small** (D5): `MsgDialog` lays its
 /// content out inside the area it is handed but does not build a pop-up of its own, so the size
-/// and place are the application's. A region smaller than the maximum clamps the pop-up to itself
-/// rather than shrinking the frame around it.
+/// and place are the application's. **The rectangle is the layout's**: `centered` clamps a `Max`
+/// constraint to the area it is given, so a region smaller than the maximum shrinks the pop-up
+/// rather than the frame around it, and the one cell an odd margin leaves over goes to the top and
+/// the left — where the arithmetic this replaced gave it to the bottom and the right.
 pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut MsgDialogState, theme: &SalsaTheme) {
+    let pop_up = area.centered(Constraint::Max(MAX_WIDTH), Constraint::Max(MAX_HEIGHT));
+
     MsgDialog::new()
         .styles(dialog_style(theme))
-        .render(pop_up(area), buf, state);
+        .render(pop_up, buf, state);
 }
 
 /// What an event means to the dialog.
@@ -81,20 +85,6 @@ fn dialog_style(theme: &SalsaTheme) -> MsgDialogStyle {
     }
 
     style
-}
-
-/// The rectangle the dialog is drawn into: at most [`MAX_WIDTH`] by [`MAX_HEIGHT`] cells, clamped
-/// to `area`, and centred in it.
-fn pop_up(area: Rect) -> Rect {
-    let width = area.width.min(MAX_WIDTH);
-    let height = area.height.min(MAX_HEIGHT);
-
-    Rect {
-        x: area.x + (area.width - width) / 2,
-        y: area.y + (area.height - height) / 2,
-        width,
-        height,
-    }
 }
 
 #[cfg(test)]
