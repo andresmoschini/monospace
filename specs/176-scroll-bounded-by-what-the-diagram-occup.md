@@ -7,13 +7,11 @@ date: 2026-10-26
 
 ## Why now
 
-The arrow keys move the selected figure, and #179 says in its D2 what that costs: a figure displaced
-past the edge of the region is not drawn, and the arrow that put it there is the way back only while
-the person remembers which one it was. A viewport that moves is the other answer to the same cost,
-and it is the one [#175](https://github.com/andresmoschini/monospace/issues/175) left at `(0, 0)`
-and #177 and #179 have drawn through since. **Because the drawing is redrawn at the new origin
-rather than cut out of a fixed grid, a scroll is a change of origin and nothing else** — the
-pictures in _Examples_ are drawn that way today.
+The view is fixed at `(0, 0)`: [#175](https://github.com/andresmoschini/monospace/issues/175) left
+the origin there and #177 and #179 have drawn through it since, so a figure moved past the edge is
+not drawn and the arrow that put it there is the way back only while the person remembers which one
+it was (D2 of #179). A viewport that moves is the other answer to the same cost, and it is what
+makes the application usable on a diagram larger than the region.
 
 **Nothing measures a diagram, and that is the part that has to be answered first.** `Diagram`
 answers `new`, `numbered_from`, `add`, `add_under`, `forward`, `backward`, `get`, `remove`,
@@ -32,35 +30,45 @@ sizing a canvas to its content" — and says that layer "is also the first layer
 what a bound means for a figure whose written positions are sparse". D1 and D2 are that decision,
 and the withdrawal stands: no shape gains a method.
 
+**The view opens at `(0, 0)`, and the first screen is the other half of the bound.** The plane's
+coordinates are signed (`Pos` is an `i16`), so a drawing may lie left of or above the origin as well
+as past the screen's right and bottom edges. The content is therefore the smallest rectangle holding
+the drawing **and the window at `(0, 0)`**: the view opens on the first screen, goes left to reach
+what is negative and right to reach what is beyond it, and a drawing inside the first screen does
+not scroll at all. The issue's title names the drawing's half, because that is the half nothing
+could answer. The wheel and the scrollbar move the view; the keyboard is
+[#237](https://github.com/andresmoschini/monospace/issues/237)'s, because which keys move it and how
+far a press moves is a rule this cut does not take.
+
 ## Scope
 
 ### In
 
 - `monospace-diagram`: `Diagram::bounds` and the `Bounds` it answers, measured by drawing the shapes
   into a surface that records the positions and keeps no cell.
-- `monospace`: the origin the state already holds at `(0, 0)` becomes the scroll position, four keys
-  move it (D5), and every frame bounds it by the drawing (D4). `Action::Scroll` and
-  `DiagramState::scroll` are the two new names.
+- `monospace`: the origin becomes the content's first cell plus the offset of a `ScrollState` per
+  axis, and the wheel and the bar move it. The content is the drawing union the first screen. The
+  bar is the rat helper's (`rat_widget::scrolled`), drawn on the region's border, per axis, only
+  when the content does not fit (`Collapse`).
 - The demonstration, its snapshots and every picture already in a tracked document: unchanged,
-  because the demonstration's drawing starts at `(0, 0)` and the clamp leaves the origin there.
+  because the demonstration's drawing fits its interior and the bar is hidden.
 
 ### Out
 
-- **An indicator of where the view is.** #174 lists the scrollbar as #176's and this slice moves the
-  view without drawing anything about it. An indicator decides cells the diagram does not own — a
-  bar on the region's border, a mark in the interior — and the issue asks for the stop, not for a
-  report of the position (see _Open questions_).
-- **The plain arrows.** #179, agreed, and this spec reads its rule 1 and leaves it as it is (D5).
-- **Paging, the wheel, a scroll of more than one cell, fitting the whole drawing, and zoom.** Each
-  is a second rule about how far a press moves or a change to how a cell is drawn; this is one cell
-  per press at a scale of one cell.
+- **The keyboard.** [#237](https://github.com/andresmoschini/monospace/issues/237) decides which
+  keys move the view and how far a press moves; this slice has no key for it, and the plain arrows
+  stay what #179 made them.
+- **An indicator of the view anywhere but the border.** A mark in the interior or a number in the
+  status bar is not this change; the status line is
+  [#226](https://github.com/andresmoschini/monospace/issues/226)'s.
 - **A bound taken from the figures' declared geometry.** D1: the measurement is the drawing.
-- **Keeping a rectangle beside the session between frames.** D1's cost and rule 3: nothing is
-  cached, so nothing can be stale.
-- **What the status bar says about the view.**
-  [#226](https://github.com/andresmoschini/monospace/issues/226).
-- **Building before #179's building stage merges.** The four plain arrows have to exist before a
-  modifier is added beside them, and the scroll's keys are read in the same handler.
+- **Keeping a rectangle beside the session between frames.** D1's cost: nothing is cached, so
+  nothing can be stale.
+- **Paging, a wheel step of one cell, fitting the whole drawing, and zoom.** Each is a second rule
+  about how far an input moves or a change to how a cell is drawn; the wheel moves the page's tenth,
+  as the helper suggests.
+- **Building before #179's building stage merges.** It edits the same handler and state this change
+  does, and the change is cut after it.
 
 ## The decision
 
@@ -77,8 +85,7 @@ nothing, and a connector whose endpoint does not resolve writes nothing, and a d
 would claim all three. **Why not** drawing into a buffer and scanning it: the bound is what the
 buffer's size would have to be, so the question is circular. **What it costs:** the measurement is a
 second pass over the shapes, and caching it would need a freshness rule nothing else in the state
-has (rule 3). **Answered by** practice: it is the only reading under which a shape still answers
-nothing.
+has. **Answered by** practice: it is the only reading under which a shape still answers nothing.
 
 **D2 — what a bound means for a figure whose written positions are sparse.**
 
@@ -107,52 +114,64 @@ on the window's size, which the model does not know. **Why not** the name `Exten
 _Shapes_ withdrew was a shape's own report, and reusing its word would read as though it had come
 back.
 
-**D4 — where the origin stops.**
+**D4 — what the view is bounded by.**
 
-**Answer:** _pending_ — recommended: the window stays inside the drawing's rectangle, and the
-drawing sits at the window's corner when it is the smaller of the two. In each axis the origin lies
-in `[first, max(first, first + span − window)]`, the rectangle being what D1 answers and the window
-being the interior's size; every frame clamps it, and a scroll that cannot move changes nothing and
-owes no frame. **Why not** the looser bound that stops when the drawing's far edge reaches the
-window's near edge: it allows a view with nothing in it, and the picture at `11,4` in _Examples_ is
-the corner of a rectangle whose cells that corner does not hold. **Why not** clamping only when a
-scroll moves the origin: a description whose figures are away from `(0, 0)` would open on an empty
-screen, and the first scroll after it would jump. **What it costs:** a drawing that does not start
-at `(0, 0)` is drawn flush to the corner rather than where its author put it, and a deletion that
-shrinks a drawing past the origin moves the picture back inside it.
+**Answer:** the content is the smallest rectangle holding the drawing's written cells and the first
+screen — the window at `(0, 0)`, which is where the view opens. On each axis the origin lies in
+`[min(0, first), max(0, last − window + 1)]`, where `first` and `last` are the drawing's first and
+last written coordinates and `window` is the interior's size; every frame puts it at the nearest
+value in that range. **Why not** the drawing alone: a drawing away from `(0, 0)` would open at its
+first cell rather than at `(0, 0)`, and the plane's negative positions would be unreachable. **Why
+not** stopping when the drawing's far edge reaches the window's near edge (`last`): it allows a view
+with nothing in it, and the picture at `(11, 4)` is a corner the drawing does not write. **Why not**
+clamping only when a scroll moves the origin: a drawing away from `(0, 0)` would open on an empty
+screen and jump on the first scroll, and a resize would do the same. **What it costs:** a drawing
+that fits the first screen but starts before `(0, 0)` opens with part of it off-screen, and the
+person scrolls left to bring it in. **Answered by** the maintainer, with the three-line example.
 
-**D5 — which keys move the view.**
+**D5 — what moves the view.**
 
-**Answer:** _pending_ — recommended: `Ctrl` with the four arrows, answered by the region while it
-holds the keyboard, each press carrying `Action::Scroll(dx, dy)` with the arrow's own delta. The
-plain arrows stay what #179 made them, and a modified arrow is a combination no rule answers today,
-so the scroll takes keys nothing else wants. **Why not** the plain arrows while nothing is selected:
-a key whose meaning depends on the selection cannot scroll to a figure that was just moved out of
-sight, and the region's handler would read the selection to decide what to mint. **Why not**
-`PageUp`/`PageDown` and `Home`/`End`: a press moves by a window or to an end, which is a second rule
-about how far a press moves. **Why not** the wheel: it is a gesture and not a key, it is not
-reported for every terminal or on both axes, and the region's mouse branch would answer it beside
-the click. **What it costs:** #179's rule 8 says a press carrying any modifier moves nothing, and
-its test walks every modifier; with the scroll on `Ctrl` that test narrows to the modifiers that are
-not the scroll's, which is a decision taken here rather than a test edited to fit. And a person who
-does not know the keys will try the plain arrows, because the menu has no entry to read: #226 is
-where the screen could say so.
+**Answer:** the wheel and the bar, both the rat helper's: a wheel turn over the region moves the
+view by a tenth of the window (at least one cell) on the axis the wheel reports, and `Alt` with the
+wheel moves it across; a press on the bar takes the view to that position and a drag follows the
+pointer. **Why not** the keyboard here: which keys, how far a press moves, and whether a held key
+walks are a rule of its own, and [#237](https://github.com/andresmoschini/monospace/issues/237)
+decides it; this slice has no key for the view. **Why not** one cell per wheel turn: the helper's
+step is the page's tenth, a gesture's natural step, and overriding it would be a second rule about
+how far a turn moves. **Why not** a bar that only marks: the helper answers a press and a drag with
+a position, and a bar that looked live and was not would be worse than no bar. **What it costs:**
+the wheel moves a tenth of the window and the bar jumps, so a person who wants to move exactly one
+cell has no input for it until #237. **Answered by** the maintainer.
+
+**D6 — where the bar is drawn, and when it shows.**
+
+**Answer:** on the region's border: the helper lays the vertical bar on the right border column and
+the horizontal one on the bottom border row, over the border's glyphs, taking no cell from the
+window. Each axis shows its bar only when the content does not fit it (`ScrollbarPolicy::Collapse`),
+so content that fits leaves the border as it was. **Why not** inside the interior: it would cost a
+column or a row of the window, and the window's size would change when the bar appears, moving the
+bound with it. **Why not** always visible: the demonstration's drawing fits, and its frames would
+change for a bar that says nothing. **Why not** the helper's default `Minimize`: it keeps the bar's
+cells when there is nothing to scroll, which is the same cost with less to read. **What it costs:**
+when the content does not fit, the border the bar is on stops being a plain line; the corners stay.
+**Answered by** the maintainer.
 
 ## Model slice
 
 - `docs/diagram-model.md` §7 gains the measurement: the diagram answers the rectangle its drawing
   occupies, by drawing into a surface that records the positions, and the window stays the caller's;
-  a caller that has to choose one now has a question to ask. §10 gains the properties rules 1 to 3
-  state. §11's _How big is a diagram?_ is answered and leaves the list.
+  §10 gains the properties rules 1 to 3 state; §11's _How big is a diagram?_ is answered and leaves
+  the list.
 - `docs/model.md` _Shapes_, in _Pieces_: the paragraph that withdrew a shape's extent is amended.
-  "Which positions a figure occupies is a question for the layer that decides where figures go, and
-  that layer does not exist yet" stops being true — the layer exists, and it asks the drawing rather
-  than the shape, so the withdrawal stands and no shape gains a method. The sentence naming the
-  caller that would bring a rectangle back names this one.
-- `docs/application-model.md` §3: the origin is bounded by the drawing rather than written nowhere;
-  §4: a scroll is an action that changes no session and records no step; §7: the properties rules 4
-  to 9 state.
-- `README.md`: the paragraph naming what is still missing gains the view moving.
+  The layer that decides where figures go now exists, and it asks the drawing rather than the shape,
+  so the withdrawal stands and no shape gains a method. The sentence naming the caller that would
+  bring a rectangle back names this one.
+- `docs/application-model.md` §3: the state holds the view's origin and the two scroll offsets
+  beside the drawing; §4: the wheel and the bar change the view and not the session, and answer
+  `ScreenChanged`; §5: the bar is the framework's widget, drawn on the region's border; §7: the
+  properties rules 4 to 11 state.
+- `README.md`: the paragraph naming what is still missing gains the view moving, and leaves the
+  keyboard to #237.
 - `docs/editing-model.md`: none. A scroll is not a command, so §5's one-step-per-command is not
   touched and the walk never holds a view.
 
@@ -176,17 +195,22 @@ impl Diagram {
   accessors are the whole of it, and a rectangle is a value rather than a place to write into.
 - `Diagram::bounds` takes `&self` and answers nothing when the drawing writes no cell. It is the
   only addition below the application.
-- `monospace`: `Action` gains one variant, `Scroll(i16, i16)`, and stays `Copy`, `PartialEq` and
-  `Eq` — it carries a delta and no origin, as `Move` carries a delta and no identity.
-- `diagram_widget::handle` answers the four `Ctrl` arrows with `Action::Scroll` while the focus it
-  is handed is `Focus::Region`; `shortcuts` does not change, because the region's own handler is
-  where the arrows already live (D1 of #179).
-- `DiagramState` gains `pub(crate) fn scroll(&mut self, dx: i16, dy: i16) -> bool`, which asks the
-  session's diagram for its bounds, clamps the origin against the interior of the last frame, and
-  answers whether the origin moved. `DiagramState::redraw` clamps the origin before it builds the
-  buffer. `callbacks::apply` carries the action and owes the frame only when the answer is `true`.
-- No dependency is added, and no crate's public API is widened for the application: the value
-  `bounds` answers is used where it is returned, as `draw`'s buffer is.
+- `monospace`: `DiagramState` keeps the origin it already holds and gains a `ScrollState` per axis
+  and the two `Scroll` descriptors. `redraw` sets each state's `page_len` and `max_offset` from the
+  content, clamps the origin to the range of rule 5, writes the clamped origin into the state as its
+  offset from the content's first cell, and draws at the origin. `handle` applies the step or
+  position the helper reports to that state and takes the origin back from the offset it leaves.
+  **The origin is what survives a frame, so a content change does not carry the view with it**; the
+  first frame's origin is `(0, 0)`.
+- `diagram_widget::draw` renders the bars with `ScrollArea` after the diagram, over the region's own
+  block, so the border keeps its style; `handle` answers the wheel and the bar with a
+  `ScrollAreaState` built over the region (`.area(region)`), applies what it reports to that axis's
+  `ScrollState` (`scroll_up`, `scroll_down`, `set_offset`), and answers `Action::ScreenChanged` only
+  when the apply said the view moved. `Action` gains no variant; #237 owns the key one.
+- The app names
+  `rat_widget::scrolled::{Scroll, ScrollArea, ScrollAreaState, ScrollState, ScrollbarPolicy}` and
+  nothing below `monospace-editing`: no `Bounds`, no `Diagram`. `rat_widget` re-exports the helper,
+  so no dependency is added.
 
 ## Behavior
 
@@ -197,31 +221,37 @@ impl Diagram {
    contributes the smallest rectangle around its cells, the empty corner of a turn included.
 3. Asking changes nothing and answers the same rectangle twice. A span wider or taller than a `Size`
    holds saturates at 65 535, which is the plane's own range (`docs/model.md` §2).
-4. `Ctrl` plus an arrow with the region holding the keyboard answers `Action::Scroll` with one cell
-   along that arrow's axis, and records no step. A press with any other modifier, any other key, a
-   release and a repeat answer nothing, and so does every key while the bar holds the keyboard.
-5. A scroll the bounds allow moves the origin one cell and owes the frame; a scroll they refuse
-   changes nothing and owes none.
-6. Every frame draws at the origin the bounds allow: on each axis it lies in
-   `[first, max(first, first + span − window)]`, the window being the interior's size. A frame with
-   an empty interior draws nothing and does not move the origin.
-7. A scroll changes no session and records no step: the walk behind and ahead are what they were,
-   and neither an undo nor a redo moves the view.
-8. A scroll keeps the selection, and the frame after it inverts the cells the drawing records for
+4. The view opens at `(0, 0)`, and the content is the drawing union the first screen: a drawing away
+   from the origin still draws at `(0, 0)`, and a drawing that writes nothing leaves the content as
+   the first screen.
+5. On each axis the origin lies in `[min(0, first), max(0, last − window + 1)]`, where `first` and
+   `last` are the drawing's first and last written coordinates; every frame puts it at the nearest
+   value. **The origin is carried, so a change to the content does not move the view unless the
+   content no longer holds it.** A drawing inside the first screen does not scroll.
+6. A wheel turn over the region moves the view by a tenth of the window (at least one cell) on the
+   axis it reports; `Alt` with the wheel moves it across. A turn the content refuses changes nothing
+   and owes no frame.
+7. The bar shows on the border, per axis, only when the content does not fit that axis, and takes no
+   cell from the window. A press on it takes the view to that position and a drag follows the
+   pointer; both owe a frame only when the origin moved.
+8. A scroll changes no session and records no step: the walk behind and ahead are what they were,
+   and neither an undo nor a redo restores a view. The origin is where rule 5 leaves it.
+9. A scroll keeps the selection, and the frame after it inverts the cells the drawing records for
    that identity inside the new window, and no others.
-9. A click after a scroll is answered at the offset from the window's corner, as it was before it:
-   the origin belongs to the plane and takes no part in the click's arithmetic (rule 1 of #177).
-10. The demonstration's frames are the ones they were, because its drawing starts at `(0, 0)` and
-    the clamp leaves the origin there. The application names no type below `monospace-editing` — no
-    `Bounds`, no `Diagram` — and depends on no crate for either.
+10. A click after a scroll is answered at the offset from the window's corner, as it was before it:
+    the origin belongs to the plane and takes no part in the click's arithmetic (rule 1 of #177). A
+    press on the bar is the bar's, not the diagram's.
+11. The demonstration's frames are the ones they were, because its drawing fits the interior and the
+    bar is hidden. The application names no `Bounds` and no `Diagram`, and depends on no crate
+    beyond the six.
 
 ## Examples
 
-**One drawing, and the three windows that argue D4.** The description is twelve columns by five: a
-light box at `(0, 0)`, a double box at `(10, 1)` and a line at `(2, 4)`. Every picture here is
+**One drawing, and the windows that argue D4.** The description is twelve columns by five: a light
+box at `(0, 0)`, a double box at `(10, 1)` and a line at `(2, 4)`. Every picture here is
 **generated**: a marker draws a window at an origin, and a frame at a scroll origin is the same
-drawing seen through the same window, so `cargo xtask render` re-draws all four. What has not been
-observed is the scrolling itself: that is what the tests in _What proves it_ pin.
+drawing seen through the same window, so `cargo xtask render` re-draws all of them. What has not
+been observed is the scrolling itself: that is what the tests in _What proves it_ pin.
 
 <!-- render: 12x5
 { "next_id": 4,
@@ -248,8 +278,9 @@ observed is the scrolling itself: that is what the tests in _What proves it_ pin
 The whole drawing. Its rectangle is `12x5` at `(0, 0)`, which is what D1 has to answer from the
 cells these three figures write rather than from the positions they name.
 
-**The near end of the bound.** A window of `5x3`, which is the interior of a small region: with the
-drawing larger on both axes, the origin lies in `[0, 7]` across and `[0, 2]` down.
+**The initial view, and the near end of the bound.** A window of `5x3`, which is the interior of a
+small region: the drawing is larger on both axes, so the origin lies in `[0, 7]` across and `[0, 2]`
+down.
 
 <!-- render: 5x3
 { "next_id": 4,
@@ -271,9 +302,9 @@ drawing larger on both axes, the origin lies in `[0, 7]` across and `[0, 2]` dow
 
 <!-- /render -->
 
-**The far end of the bound.** `Ctrl+Right` seven times and `Ctrl+Down` twice from the near end land
-here, at `7,2` — the last origin D4 allows, because the window's right edge is the drawing's and its
-bottom edge is the drawing's. An eighth `Ctrl+Right` changes nothing and owes no frame (rule 5).
+**The far end of the bound.** The bar dragged to its corner lands here, at `7,2` — the last origin
+D4 allows, because the window's right edge is the drawing's and its bottom edge is the drawing's. A
+step past it changes nothing and owes no frame (rule 6).
 
 <!-- render: 5x3 at 7,2
 { "next_id": 4,
@@ -321,25 +352,118 @@ cells does not (D2).
 
 <!-- /render -->
 
-**Origins, as a table.** The same drawing and the same window, with the arithmetic of rule 6 written
-out. It is arithmetic rather than observation: none of it has been run.
+**The first screen is the other half of the content.** Three lines of three cells, one at `x = -4`,
+one at `x = 0` and one at `x = 7`, with a window of `6x2`. The content is the drawing union the
+first screen, so it runs from `-4` to `9` across, and the origin lies in `[-4, 4]`; the view opens
+at `(0, 0)`, which is the middle of that range because the content extends to the left of the
+origin.
 
-| Drawing                              | Window | Allowed origins, across | down       |
-| ------------------------------------ | ------ | ----------------------- | ---------- |
-| the `12x5` above                     | `5x3`  | `0` to `7`              | `0` to `2` |
-| the same, with nothing written       | `5x3`  | none: the origin stays  | none       |
-| a box at `(20, 10)`, `4x3`           | `20x6` | `20` only               | `10` only  |
-| a `1x1` box at `(30, 0)` and nothing | `5x3`  | none: the origin stays  | none       |
+<!-- render: 14x2 at -4,0
+{ "next_id": 4,
+  "shapes": [
+    { "kind": "line", "id": 1, "at": { "x": -4, "y": 1 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" },
+    { "kind": "line", "id": 2, "at": { "x": 0, "y": 0 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" },
+    { "kind": "line", "id": 3, "at": { "x": 7, "y": 1 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" }
+  ] }
+-->
 
-The third row is the one that decides where a drawing that starts away from `(0, 0)` is drawn: it
-sits at the window's corner, because the window is the larger of the two. The second and the fourth
-are D2's and rule 2's: a drawing that writes no cell answers no bound, so there is nothing to
-scroll, and a `1x1` box writes no cell at all.
+```text
+    ───
+───        ───
+```
+
+<!-- /render -->
+
+**At the origin, the middle line.** Nothing negative and nothing past the screen is in the window;
+the person scrolls left or right to find it.
+
+<!-- render: 6x2 at 0,0
+{ "next_id": 4,
+  "shapes": [
+    { "kind": "line", "id": 1, "at": { "x": -4, "y": 1 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" },
+    { "kind": "line", "id": 2, "at": { "x": 0, "y": 0 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" },
+    { "kind": "line", "id": 3, "at": { "x": 7, "y": 1 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" }
+  ] }
+-->
+
+```text
+───
+
+```
+
+<!-- /render -->
+
+**The left end.** At `-4` the window's left edge is the negative line's first cell; a step further
+left admits only empty plane.
+
+<!-- render: 6x2 at -4,0
+{ "next_id": 4,
+  "shapes": [
+    { "kind": "line", "id": 1, "at": { "x": -4, "y": 1 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" },
+    { "kind": "line", "id": 2, "at": { "x": 0, "y": 0 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" },
+    { "kind": "line", "id": 3, "at": { "x": 7, "y": 1 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" }
+  ] }
+-->
+
+```text
+    ──
+───
+```
+
+<!-- /render -->
+
+**The right end.** At `4` the window's right edge is the positive line's last cell.
+
+<!-- render: 6x2 at 4,0
+{ "next_id": 4,
+  "shapes": [
+    { "kind": "line", "id": 1, "at": { "x": -4, "y": 1 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" },
+    { "kind": "line", "id": 2, "at": { "x": 0, "y": 0 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" },
+    { "kind": "line", "id": 3, "at": { "x": 7, "y": 1 }, "len": 3, "orientation": "horizontal",
+      "stroke": "light" }
+  ] }
+-->
+
+```text
+
+   ───
+```
+
+<!-- /render -->
+
+**Origins, as a table.** The content's range on each axis, written out. It is arithmetic rather than
+observation: none of it has been run.
+
+| Drawing                   | Window | Opens at                           | Across  | Down   |
+| ------------------------- | ------ | ---------------------------------- | ------- | ------ |
+| the `12x5` above          | `5x3`  | `(0, 0)`                           | 0 to 7  | 0 to 2 |
+| the three lines above     | `6x2`  | `(0, 0)`                           | −4 to 4 | 0 only |
+| a `4x3` box at `(20, 10)` | `20x6` | `(0, 0)`, showing nothing          | 0 to 4  | 0 to 7 |
+| a `3x3` box at `(2, 2)`   | `20x6` | `(0, 0)`, with the box at `(2, 2)` | 0 only  | 0 only |
+| nothing written           | `5x3`  | `(0, 0)`                           | 0 only  | 0 only |
+| a `1x1` box at `(30, 0)`  | `5x3`  | `(0, 0)`                           | 0 only  | 0 only |
+
+The third row is where the first screen matters: the drawing is past the screen, so the view opens
+on an empty first screen and scrolls right and down until the box reaches the bottom-right corner.
+The fourth is a drawing inside the first screen: it opens where it is and the view does not move.
+The last two are D2's and rule 2's: a drawing that writes no cell answers no bound, and a `1x1` box
+writes no cell at all.
 
 ## What proves it
 
-The names bind the building stage. The measurement is in `monospace-diagram`; the keys, the origin
-and the clamp are in the application, where a test reaches them through the state.
+The names bind the building stage. The measurement is in `monospace-diagram`; the wheel, the bar and
+the content are in the application, where a test reaches them through the state and the frame.
 
 | Rule | Test                                                                                                                                                           |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -347,41 +471,35 @@ and the clamp are in the application, where a test reaches them through the stat
 | 2    | `a_box_too_small_to_draw_contributes_no_bound`, `a_line_of_no_cells_contributes_no_bound`, `a_connector_that_does_not_resolve_contributes_no_bound`            |
 | 2    | `a_sparse_figures_bound_holds_the_corner_it_leaves_empty`                                                                                                      |
 | 3    | `asking_for_the_bounds_twice_answers_the_same`, `a_span_wider_than_a_size_saturates`                                                                           |
-| 4    | `a_ctrl_arrow_scrolls_one_cell_on_its_axis`, `a_scroll_is_a_press_and_no_other_combination`                                                                    |
-| 4    | `the_arrows_are_not_the_regions_while_the_bar_holds_the_keyboard` — already, from #179                                                                         |
-| 5    | `a_scroll_at_the_end_of_the_bound_moves_nothing_and_owes_no_frame`, `a_scroll_one_cell_in_owes_the_frame`                                                      |
-| 6    | `a_frame_draws_at_the_origin_the_bounds_allow`, `a_drawing_smaller_than_the_window_sits_at_its_corner`                                                         |
-| 6    | `a_frame_with_no_interior_moves_nothing`                                                                                                                       |
-| 7    | `a_scroll_records_no_step`, `neither_an_undo_nor_a_redo_moves_the_view`                                                                                        |
-| 8    | `a_scroll_keeps_the_selection`                                                                                                                                 |
-| 9    | `a_click_after_a_scroll_selects_the_cell_under_the_pointer`                                                                                                    |
-| 10   | `the_demonstrations_frames_are_unchanged` — the snapshots — and _nothing holds the absence of the dependency: a reviewer reads the imports_                    |
+| 4    | `a_frame_opens_at_the_origin`, `a_drawing_inside_the_first_screen_does_not_scroll`                                                                             |
+| 5    | `a_frame_draws_at_the_origin_the_content_allows`, `a_frame_at_the_end_of_the_content_owes_no_frame`, `a_content_change_keeps_the_origin`                       |
+| 6    | `the_wheel_moves_the_view_by_the_helpers_step`, `a_wheel_at_the_end_moves_nothing_and_owes_no_frame`                                                           |
+| 7    | `the_bar_is_on_the_border_and_takes_no_cell_from_the_window`, `the_bar_is_hidden_when_the_content_fits`                                                        |
+| 7    | `a_press_on_the_bar_jumps_the_view`, `a_drag_on_the_bar_follows_the_pointer`                                                                                   |
+| 8    | `a_scroll_records_no_step`, `neither_an_undo_nor_a_redo_restores_a_view`                                                                                       |
+| 9    | `a_scroll_keeps_the_selection`                                                                                                                                 |
+| 10   | `a_click_after_a_scroll_selects_the_cell_under_the_pointer`                                                                                                    |
+| 11   | `the_demonstrations_frames_are_unchanged` — the snapshots — and _nothing holds the absence of the dependency: a reviewer reads the imports_                    |
 
-The four pictures in _Examples_ are held by their markers: `cargo xtask render` rewrites them and
-the gate fails if one is not what its description draws. #179's test
-`a_move_is_the_arrow_and_no_modifier` changes with rule 4 — `Ctrl` plus an arrow is the scroll now —
-and that is the one existing contract test this change amends (D5).
+The eight pictures in _Examples_ are held by their markers: `cargo xtask render` rewrites them and
+the gate fails if one is not what its description draws. The bar is not in any of them, because the
+command line draws the diagram and no chrome; the bar's frame is the application's test. #179's
+tests are untouched: the plain arrows still move the figure, and no key moves the view.
 
 **Measured in the building stage and reported there.** That the demonstration's frames did not move,
-with the count of snapshots that did; and the cost of rule 3, as the time a frame spends on a second
-pass over the shapes against the same frame without it. Neither is claimed here: the pictures are
+with the count of snapshots that did; the cells the bar takes on the border, and that the interior
+kept its size; and the cost of the measurement (rule 1), as the time a frame spends on a second pass
+over the shapes against the same frame without it. None of it is claimed here: the pictures are
 generated, the scrolling is not yet written.
 
 ## Open questions
 
-**The scrollbar #174 names.** It lists "the selection highlight for a shape, the scrollbar, and the
-keybindings hint" as #176, #177 and later; this slice moves the view and draws no indicator of where
-it is. An indicator is a figure of the chrome and not of the diagram — it decides cells the region
-does not give the drawing, and it needs the bounds and the window, which this change puts at hand.
-It is a change of its own, and the issue is opened when this spec is agreed rather than listed here
-as work.
-
-**Holding a key down.** A repeat is not a press, so a held arrow moves one cell and stops; whether a
-held key should walk, and whether a walk is one step or many, is `docs/editing-model.md` §8's, left
-to the first gesture — and for the view a walk would record no step either way.
+**The horizontal wheel.** The helper answers `Alt` with the wheel as a scroll across, and does not
+answer the terminal's `ScrollLeft` and `ScrollRight` events. Whether those should be answered, and
+whether a terminal sends them at all, is a question for the first one seen to do it.
 
 **The view following the selection.** A move can still take the selected figure past the window's
 edge (D2 of #179), and nothing brings it back. Whether the view should follow a figure that a
 command moves, rather than waiting for the person to scroll, is a relation between an action and the
-origin that this change does not have: the scroll is the only action that moves the origin. What
+origin that this change does not have: the wheel and the bar are the only things that move it. What
 would settle it: a person who moves a figure out of sight and asks for it back.
