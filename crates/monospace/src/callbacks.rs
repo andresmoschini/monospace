@@ -79,18 +79,21 @@ pub(crate) fn event(
 /// diagram's; then the shortcuts nobody has claimed. The first action wins, and an event all of
 /// them leave alone is answered by nobody.
 ///
-/// **A left press gives the keyboard to the leaf it lands in before anything is asked** (D1 of
-/// #189): the bar, its open drop-down included, or the region's outer rectangle. A press on the
+/// **A press is addressed before it is answered** (D1 of #189): the leaf it lands in is who the
+/// event is for, so the keyboard moves to it before the bar and the region are asked — a click on a
+/// label opens nothing if the bar is told it does not hold the keyboard, and a click in the region
+/// closes the drop-down on the same press. **This is the one focus move that is not an action**,
+/// because an action is carried out after the routing, and the label a press opens and the
+/// drop-down a press closes are changes the handlers make while they are asked. A press on the
 /// status line, and one on a rectangle no frame drew into, lands in neither leaf and moves nothing.
 /// **A press that moved the keyboard is owed a frame even where no handler answers it** — the label
-/// that was reversed is not any more, and the drop-down the keyboard left behind closed on the same
-/// press — so the leaf is remembered and the comparison is the last fallback.
+/// that was reversed is not any more — so the leaf is remembered and the comparison is the last
+/// fallback.
 ///
 /// **The bar's keys that move the keyboard are read by the bar** (D4 and rule 5 of #189): `Alt` plus
 /// a label's navigation character brings it with the press, `F10` asks for it, and the `Esc` that
 /// has nothing left to close gives it back. `menu::handle` answers `Action::FocusBar` or
-/// `Action::FocusRegion`, and `apply` moves it like any other meaning. What the router moves the
-/// keyboard for is what has to be right before a handler is asked: a press.
+/// `Action::FocusRegion`, and `apply` moves it like any other meaning.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
 /// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
@@ -113,6 +116,8 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
 
     let before = state.focus;
 
+    // **The event is addressed here, before it is answered** (D1): the leaf the press lands in is
+    // who it is for, and an action is carried out after the routing instead.
     if let Event::Mouse(mouse) = event
         && mouse.kind == MouseEventKind::Down(MouseButton::Left)
         && let Some(leaf) = state.leaf_at(Position {
