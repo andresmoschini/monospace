@@ -6,12 +6,13 @@
 //! the region it covers.
 //!
 //! **The bar is one of the two leaves that hold the keyboard.** Which one holds it is the
-//! application's answer — kept in `AppState` — and it is given to the bar here: the widget draws
-//! its selected label differently only while it has the focus, and it answers a key only while it
-//! has it. **The bar asks for the keyboard and gives it back**: `F10` asks for it from either leaf,
+//! application's answer — kept in `AppState` — and the bar is handed it: the widget draws its
+//! selected label differently only while it has the focus, and it answers a key only while it has
+//! it. **The bar asks for the keyboard and gives it back**: `F10` asks for it from either leaf,
 //! `Alt` plus a navigation character brings it with the press, and `Esc` with nothing left to close
-//! gives it back. The focus itself is the application's, so the bar answers with an action and the
-//! application carries it out. The rules about the focus are #189's.
+//! gives it back. **A leaf is not a meaning** (D1 of #189): these three keys move the keyboard
+//! where they are read, so the bar moves it and no action names a leaf. The rules about the focus
+//! are #189's.
 //!
 //! **The framework's keys are the framework's.** The navigation character opens a drop-down, the
 //! arrows move it, `Enter` takes an entry and `Esc` closes it, and all four are the menu
@@ -28,6 +29,7 @@ use ratatui_core::style::Style;
 use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
+use crate::state::Focus;
 use crate::vocabulary::Action;
 
 /// The bar, and what each of its entries means.
@@ -91,40 +93,50 @@ const ABOUT: usize = 0;
 /// **`None` is `Continue` and `Unchanged`, and the application makes no difference between them**:
 /// the widget handled the event and there is nothing for the screen to paint, so the shortcuts
 /// nobody has claimed are still asked. **The widget only answers a key while the bar holds the
-/// keyboard**: `focused` is what the application's focus says, and a bar that does not hold it
-/// answers no key and closes the drop-down the keyboard left behind.
+/// keyboard**: the leaf it is handed says whether it does, and a bar that does not hold it answers
+/// no key and closes the drop-down the keyboard left behind.
 ///
-/// **The three keys that move the keyboard are read here, and answered as actions.** `F10` asks for
-/// the bar from either leaf (D4, amended). `Alt` plus a navigation character brings the keyboard
-/// with the press: the character is looked up in the labels, so the menu stays the only table of
-/// names, and the widget is asked as if it already held the keyboard (D4). `Esc` while the bar holds
-/// it and no drop-down is open gives it back to the region (rule 5). **The bar does not move the
-/// focus itself**, because the focus is the application's: it answers `Action::FocusBar` or
-/// `Action::FocusRegion`, and the action is carried out where every other one is.
-pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Option<Action> {
+/// **The three keys that move the keyboard are read here, and the bar moves it** (rule 5 of #189).
+/// `F10` asks for the bar from either leaf (D4, amended). `Alt` plus a navigation character brings
+/// the keyboard with the press: the character is looked up in the labels, so the menu stays the only
+/// table of names, and the keyboard is the bar's before the widget is asked (D4). `Esc` while the
+/// bar holds it and no drop-down is open gives it back to the region. **A leaf is not a meaning**:
+/// the keyboard moves where the event is addressed, and for these three keys that is here — which is
+/// why no action names a leaf, and why this is the one handler that writes the focus.
+///
+/// **A bar that moved the keyboard answers**, with the frame owed because a label reversed is a
+/// label that changed. The caller's chain stops there, so nothing after the bar is asked with the
+/// keyboard somewhere other than where it was when the event arrived.
+pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focus: &mut Focus) -> Option<Action> {
+    let bar = *focus == Focus::Bar;
+
     // **`F10` asks for the bar** (D4, amended): the key every terminal reports, where a bare `Alt`
     // is not one. It asks for the keyboard and opens nothing, so the bar looks focused with no
     // drop-down in the way.
-    if !focused && asks_for_the_bar(raw) {
-        return Some(Action::FocusBar);
+    if !bar && asks_for_the_bar(raw) {
+        *focus = Focus::Bar;
+        return Some(Action::ScreenChanged);
     }
 
     // **`Esc` on a bar with nothing left to close gives the keyboard back** (rule 5): the widget
     // answers the key while a drop-down is open, and this is the press after it.
-    if focused && steps_back(raw, state) {
-        return Some(Action::FocusRegion);
+    if bar && steps_back(raw, state) {
+        *focus = Focus::Region;
+        return Some(Action::ScreenChanged);
     }
 
     let translated;
     let (raw, arriving) = match alt_navigation(raw) {
         Some(character) => {
             translated = Event::Key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
-            (&translated, !focused)
+            let arrived = *focus != Focus::Bar;
+            *focus = Focus::Bar;
+            (&translated, arrived)
         }
         None => (raw, false),
     };
 
-    let answer = match menubar::handle_popup_events(state, focused || arriving, raw) {
+    let answer = match menubar::handle_popup_events(state, *focus == Focus::Bar, raw) {
         // An entry was taken: it means an action, and `callbacks` applies it — which is also where
         // the keyboard goes back to the region, because a meaning carried out is left there. The
         // loop is not asked again, so an entry and the key that means the same thing end in one
@@ -146,15 +158,11 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Op
         MenuOutcome::Continue | MenuOutcome::Unchanged => None,
     };
 
-    // **The keyboard arrived with the translation** (D4): the press opened the drop-down, and the
-    // action that gives the bar the keyboard is the one that paints, so what the widget answered
-    // has nothing left to say. It cannot be an entry: an entry is only taken from an open drop-down
-    // and an open drop-down means the bar already held the keyboard.
-    if arriving {
-        Some(Action::FocusBar)
-    } else {
-        answer
-    }
+    // **The keyboard arrived with the translation** (D4): the label reversed and the drop-down
+    // opened are changes the widget has answered, and the frame is owed even where it said nothing
+    // — the keyboard that arrived is the screen changing. It cannot be an entry: an entry is only
+    // taken from an open drop-down, and an open drop-down means the bar already held the keyboard.
+    answer.or(arriving.then_some(Action::ScreenChanged))
 }
 
 /// The navigation character an `Alt` press names, or `None` where the event is not one.
@@ -190,7 +198,7 @@ fn alt_navigation(raw: &Event) -> Option<char> {
 /// sends nothing for `Alt` alone — so the bar is reachable from the region with a key that is
 /// always there. **It asks only for the keyboard**: no drop-down opens, and the bar draws its first
 /// label in reverse video because that is what holding the keyboard looks like. [`handle`] asks it
-/// only while the bar does not hold the keyboard, and answers that the keyboard goes there.
+/// only while the bar does not hold the keyboard, and moves the keyboard there.
 fn asks_for_the_bar(event: &Event) -> bool {
     matches!(
         event,
@@ -208,7 +216,7 @@ fn asks_for_the_bar(event: &Event) -> bool {
 /// **A bar with a drop-down open has something to close**, so `Esc` is the widget's there; with none
 /// open the key has nothing left to do here, and this is the bar's own reading of it: the bar steps
 /// back and the keyboard goes to the region (rule 5). [`handle`] asks it only while the bar holds
-/// the keyboard, and answers that the keyboard goes back.
+/// the keyboard, and moves the keyboard back.
 fn steps_back(event: &Event, state: &MenubarState) -> bool {
     !state.popup_active() && is_escape(event)
 }
@@ -371,7 +379,8 @@ mod tests {
 
     /// Hands the event to the bar with the keyboard on it, where the test is not about the focus.
     fn on_the_bar(event: &Event, state: &mut MenubarState) -> Option<Action> {
-        handle(event, state, true)
+        let mut focus = Focus::Bar;
+        handle(event, state, &mut focus)
     }
 
     /// Opens the drop-down of the label, the way a person does.
@@ -558,30 +567,41 @@ mod tests {
         }
     }
 
-    /// **`F10` says where the keyboard goes, and not that the screen changed** (D4, amended): the
-    /// focus is the application's, so the bar answers the action that moves it and `apply` carries
-    /// it out. A test that looked only at the leaf afterwards would pass with the bar moving it
-    /// itself, which is what this one is here to rule out.
+    /// **`F10` moves the keyboard where the key is read** (rule 5 and D4, amended): the bar is what
+    /// knows the key, so the bar is where the leaf changes, and the label that stops being reversed
+    /// is why the frame is owed. It opens nothing on the way.
     #[test]
-    fn f10_answers_the_focus_action() {
+    fn f10_moves_the_keyboard_to_the_bar_and_owes_the_frame() {
         let mut state = drawn();
+        let mut focus = Focus::Region;
 
-        let outcome = handle(&key(KeyCode::F(10)), &mut state, false);
+        let outcome = handle(&key(KeyCode::F(10)), &mut state, &mut focus);
 
-        assert_eq!(outcome, Some(Action::FocusBar), "F10 answered {outcome:?}");
+        assert_eq!(focus, Focus::Bar, "F10 left the keyboard where it was");
+        assert!(
+            matches!(outcome, Some(Action::ScreenChanged)),
+            "F10 answered {outcome:?}"
+        );
+        assert!(!state.popup_active(), "F10 opened a drop-down");
     }
 
-    /// **The escape that closes nothing says where the keyboard goes too** (rule 5): the press is
-    /// the bar giving it back, and it answers the action rather than painting on its own.
+    /// **The escape that closes nothing gives the keyboard back where it is read** (rule 5): the
+    /// bar has nothing left to close, so this is the press that leaves, and the frame is owed
+    /// because the label stops being reversed.
     #[test]
-    fn the_escape_that_closes_nothing_answers_the_focus_action() {
+    fn the_escape_that_closes_nothing_gives_the_keyboard_back() {
         let mut state = drawn();
+        let mut focus = Focus::Bar;
 
-        let outcome = handle(&key(KeyCode::Esc), &mut state, true);
+        let outcome = handle(&key(KeyCode::Esc), &mut state, &mut focus);
 
         assert_eq!(
-            outcome,
-            Some(Action::FocusRegion),
+            focus,
+            Focus::Region,
+            "the escape left the keyboard on the bar"
+        );
+        assert!(
+            matches!(outcome, Some(Action::ScreenChanged)),
             "the escape answered {outcome:?}"
         );
     }
@@ -751,17 +771,19 @@ mod tests {
     #[test]
     fn the_shortcuts_are_not_the_bars() {
         let mut state = drawn();
+        let mut focus = Focus::Bar;
 
         let outcome = handle(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
             &mut state,
-            true,
+            &mut focus,
         );
 
         assert!(
             outcome.is_none(),
             "the bar answered a shortcut: {outcome:?}"
         );
+        assert_eq!(focus, Focus::Bar, "the bar gave the keyboard away");
         assert!(!state.popup_active(), "a shortcut opened a drop-down");
     }
 

@@ -330,7 +330,7 @@ mod tests {
         let _ = paint(state, global, WIDTH, HEIGHT);
         state.focus = Focus::Bar;
         let event = Event::Key(KeyEvent::new(KeyCode::Char(navigation), KeyModifiers::NONE));
-        let _ = crate::menu::handle(&event, &mut state.menu, true);
+        let _ = crate::menu::handle(&event, &mut state.menu, &mut state.focus);
         assert!(
             state.menu.popup_active(),
             "the navigation character did not open the drop-down"

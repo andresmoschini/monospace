@@ -81,17 +81,18 @@ pub(crate) fn event(
 ///
 /// **The bar's keys that move the keyboard are read by the bar** (D4 and rule 5 of #189): `Alt` plus
 /// a label's navigation character brings it with the press, `F10` asks for it, and the `Esc` that
-/// has nothing left to close gives it back. `menu::handle` answers `Action::FocusBar` or
-/// `Action::FocusRegion`, and `apply` moves it like any other meaning.
+/// has nothing left to close gives it back. **A leaf is not a meaning**, so these three keys move
+/// the keyboard where they are read: the bar is handed the focus along with its own state, and no
+/// action names a leaf.
 ///
 /// **The one thing that is settled before a handler is asked is where the event is addressed**
 /// (D1): [`address`] gives the keyboard to the leaf a press lands in, and says whether it moved,
 /// because the frame that follows is owed even where nothing answers.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
-/// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
-/// application is what its own signature makes possible: the selection and the drop-down, and never
-/// the session.
+/// state.menu` and the leaf the keyboard is on, and the region `&mut state.diagram`, so what a
+/// handler may change about the application is what its own signature makes possible: the selection,
+/// the drop-down and which leaf holds the keyboard, and never the session.
 fn route(event: &Event, state: &mut AppState) -> Option<Action> {
     if let Some(action) = shortcuts::handle_always(event) {
         return Some(action);
@@ -109,7 +110,7 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
 
     let moved = address(event, state);
 
-    menu::handle(event, &mut state.menu, state.focus == Focus::Bar)
+    menu::handle(event, &mut state.menu, &mut state.focus)
         .or_else(|| diagram_widget::handle(event, &mut state.diagram))
         .or_else(|| shortcuts::handle_unclaimed(event))
         .or_else(|| moved.then_some(Action::ScreenChanged))
@@ -120,9 +121,11 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
 /// label opens nothing if the bar is told it does not hold the keyboard, and a click in the region
 /// closes the drop-down on the same press.
 ///
-/// **This is the one focus move that is not an action.** An action is carried out after the
-/// routing, and the label a press opens and the drop-down a press closes are changes the handlers
-/// make while they are asked, so moving the keyboard afterwards would answer the wrong leaf.
+/// **The keyboard moves where the event is addressed** (D1 of #189), and this is the press's
+/// half of it: a click is addressed by its position, and the bar's own three keys are addressed by
+/// [`crate::menu::handle`]. It happens before the handlers are asked because the label a press opens
+/// and the drop-down a press closes are changes they make while they are asked, so moving the
+/// keyboard afterwards would answer the wrong leaf. No action names a leaf.
 ///
 /// **A press on the status line, and one on a rectangle no frame drew into, lands in neither leaf**
 /// and moves nothing. **The answer is whether the keyboard moved**, because that is a frame owed
@@ -154,6 +157,10 @@ fn address(event: &Event, state: &mut AppState) -> bool {
 /// the event meant. **Every meaning that is carried out also leaves the keyboard on the region**
 /// (rule 13 of #189), and that is said once, at the end, rather than in each arm.
 ///
+/// **No action names a leaf** (rule 5): the keyboard moves where the event is addressed — a press in
+/// `route`, the bar's three keys in `menu::handle` — so the only thing the rule at the end exempts
+/// is the screen changing, which carries nothing out.
+///
 /// **The action carries the meaning and not the identity** (D2): the selected shape is read here,
 /// from the state the click left, rather than minted into the action by the region. A press with
 /// nothing selected performs no command and records no step, and the frame is owed all the same:
@@ -172,9 +179,9 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
         // **The two that end the loop**, and the only two that are not carried out.
         Action::Quit | Action::ForceQuit => return Control::Quit,
 
-        // **The frame is owed and nothing is carried out.** They differ in where the keyboard is
-        // left, which is the rule below.
-        Action::ScreenChanged | Action::FocusRegion => {}
+        // **The frame is owed and nothing is carried out.** The keyboard is where it already was:
+        // a label changed or a drop-down opened over it, not the leaf.
+        Action::ScreenChanged => {}
 
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
         // of where the walk stands. At either end the session answers with itself, and the frame is
@@ -197,20 +204,16 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
         // **The one action that opens an overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
         Action::About => about::open(&mut state.about),
-
-        // **The bar asks for the keyboard** (D4 and rule 5 of #189): the one meaning that puts it
-        // somewhere other than the region, and the reason the rule below has an exception.
-        Action::FocusBar => state.focus = Focus::Bar,
     }
 
     // **A meaning that is carried out leaves the keyboard on the region** (rule 13 of #189): what a
     // person took from the bar is done, and what is left to do is in the drawing. The drop-down the
     // bar was showing closes with it, because a menu nobody holds the keyboard on is not open.
-    // **The two exceptions are the ones the match has already told apart**: the screen changing and
-    // the bar asking for the keyboard, which are about the chrome, and the exits, which never get
-    // this far. The rule is here and not in each arm, so a meaning added to `Action` is left on the
-    // region without anybody remembering to say so.
-    if !matches!(action, Action::ScreenChanged | Action::FocusBar) {
+    // **The frame owed for a screen that changed is the one thing that is not that**: nothing was
+    // carried out, and the leaf is where the event was addressed. The rule is here and not in each
+    // arm, so a meaning added to `Action` is left on the region without anybody remembering to say
+    // so.
+    if !matches!(action, Action::ScreenChanged) {
         state.menu.set_popup_active(false);
         state.focus = Focus::Region;
     }

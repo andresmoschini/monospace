@@ -147,13 +147,13 @@ and **nothing is not an action that does nothing**: it is the handler saying the
 
 **The chrome's own is the other half of §3, and it is not this rule's.** The widget that owns a part
 of it changes that part when the event reaches it — the bar opens its drop-down and moves its
-selection, the status line takes a value — and nothing it changes reaches the session. What it mints
-is `Action::ScreenChanged`, the frame being owed again, and the two actions that move the keyboard:
-the bar reads `F10`, `Alt` plus a navigation character and the `Esc` with nothing left to close, and
-says where the leaf goes rather than moving it, because the focus is the application's (D4 and rule
-5 of #189). **These three are about the screen and not about what a person means to do**, and undo
-never holds one: a selection, an open drop-down and the leaf that holds the keyboard are not what
-anybody takes back.
+selection, the status line takes a value — and nothing it changes reaches the session. What a
+handler mints is `Action::ScreenChanged`, the frame being owed again. **A leaf is not a meaning**:
+the keyboard moves where the event is addressed, and the bar's three keys — `F10`, `Alt` plus a
+navigation character and the `Esc` with nothing left to close — are read by the bar, so the bar is
+the one handler that moves it (D4 and rule 5 of #189). **These three are about the screen and not
+about what a person means to do**, and undo never holds one: a selection, an open drop-down and the
+leaf that holds the keyboard are not what anybody takes back.
 
 **An action that is carried out repaints.** An entry taken closes the drop-down before its meaning
 is carried out, so the frame that follows is owed by the action rather than by a second one:
@@ -215,10 +215,9 @@ when the dialog closes.
 `About` are asked for with the keyboard on the bar and leave nothing to do there — a walk changes
 what the drawing shows, a removal takes out what was selected, and the dialog takes the whole screen
 while it is up — so carrying them out puts the leaf back where the person is looking, and the
-drop-down the bar was showing closes with it. **Only three things are not that**: the screen
-changing, which is not a meaning; the bar asking for the keyboard, which is the one meaning that
-puts it elsewhere; and the two exits, which are not carried out at all. The rule is one place and
-not a line in each action (rule 13 of #189).
+drop-down the bar was showing closes with it. **Only two things are not that**: the screen changing,
+which is not a meaning, and the two exits, which are not carried out at all. The rule is one place
+and not a line in each action (rule 13 of #189).
 
 **`Ctrl+C` is not that action.** It is a forced exit: it ends the application whatever the state is.
 **It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a

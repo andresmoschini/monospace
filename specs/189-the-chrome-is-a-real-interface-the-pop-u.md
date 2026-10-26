@@ -79,11 +79,26 @@ the person was working on, a walk changes what the drawing shows, and the dialog
 screen while it is up: in all three what is left to do is in the drawing, and the drop-down the
 keyboard leaves behind closes with it. **Why not** a list of the actions that send it back: the leaf
 is not a fact about the drawing, and a list would be kept in step with `Action` by hand; the rule is
-the other way round, and only the screen changing, the bar asking for the keyboard and the two exits
-escape it. **Why not** a second action answered after the first, or a router that painted and then
-moved the leaf: an action is one meaning, and the keyboard it leaves behind is part of carrying it
-out — `apply` is the only place that does either. **Answered by** the maintainer, in the follow-up
-to [#189](https://github.com/andresmoschini/monospace/issues/189).
+the other way round, and only the screen changing and the two exits escape it. **Why not** a second
+action answered after the first, or a router that painted and then moved the leaf: an action is one
+meaning, and the keyboard a meaning leaves behind is part of carrying it out — `apply` is the only
+place that does either. **Answered by** the maintainer, in the follow-up to
+[#189](https://github.com/andresmoschini/monospace/issues/189).
+
+**Amended 2026-10-26:** a leaf is not a meaning, so **no action names one**. The keyboard moves
+where the event is addressed: a press by its position, and the bar's three keys — `F10`, `Alt` plus
+a navigation character, and the `Esc` with nothing left to close — inside `menu::handle`, which is
+the only thing that reads them. `Action` keeps the meanings, `About` among them, and
+`ScreenChanged`; `apply` loses its two leaf arms, and the rule that a meaning is left on the region
+has one exception instead of two. **Why not** two actions that say where the leaf goes: nobody means
+to go to the bar, they mean to use its entries, and the going is how the event arrives — so an
+action named after a leaf makes the vocabulary a table of places. **Why not** the router reading
+`F10` and the escape: the bar's keys would be a table in two modules, and the one that does not own
+the labels would be reading them. **Why not** moving the keyboard after the answer: the widget has
+to be asked _as_ the leaf it is, so `Alt` must have moved it before the drop-down opens — which is
+how D4's first answer put it, before this slice's earlier reading took the move out of the handler.
+**Answered by** the maintainer, in the follow-up to
+[#189](https://github.com/andresmoschini/monospace/issues/189).
 
 **D2 — the region has no focus cue of its own.**
 
@@ -158,13 +173,13 @@ fixes the palette as the configuration's choice.
   a closed dialog leaves the region byte-identical.
 - §3: the focus is one of the chrome's own, beside the selected label and the open drop-down, and
   not the selection; the region keeps its outer rectangle beside its interior.
-- §4: `About` changes the chrome's own and no session. The action model gains the two focus actions:
-  the bar reads `F10`, `Alt` plus a navigation character and the `Esc` with nothing left to close,
-  and says where the leaf goes; the action is carried out where the others are. It also says that
-  `Delete` and `About` give the keyboard back to the region, and why the two walks do not. The
-  Delete paragraph's "the dialog that asks is #189's" is amended: this slice ships About only, and
-  the removal stays unconfirmed. The `Ctrl+C` paragraph names the dialog: the shortcut that reaches
-  everything is answered before it.
+- §4: `About` changes the chrome's own and no session. The action model gains `About` and no leaf:
+  the keyboard moves where the event is addressed — a press by its position, and `F10`, `Alt` plus a
+  navigation character and the `Esc` with nothing left to close inside the bar, which is what reads
+  them. It also says that every meaning that is carried out leaves the keyboard on the region, and
+  why. The Delete paragraph's "the dialog that asks is #189's" is amended: this slice ships About
+  only, and the removal stays unconfirmed. The `Ctrl+C` paragraph names the dialog: the shortcut
+  that reaches everything is answered before it.
 - §5: `rat-widget`'s `MsgDialog` is the pop-up; the widgets' keys stay theirs; `Alt` reaches the
   menu's navigation character (D4).
 - §6: the focus leaves "Deliberately unresolved"; the light palette and the confirmations stay.
@@ -176,20 +191,21 @@ fixes the palette as the configuration's choice.
 No crate gains or loses a public item, the binary's arguments do not change, and
 `crates/monospace/Cargo.toml` gains no dependency.
 
-- `Action` gains `About`, `FocusBar` and `FocusRegion`, with no fields, so it stays `Copy`,
-  `PartialEq` and `Eq`. `AppState` gains `about: MsgDialogState`; `AppState::new` starts it closed
-  and the region focused.
+- `Action` gains `About`, with no fields, so it stays `Copy`, `PartialEq` and `Eq`. **No action
+  names a leaf**: reaching the bar and leaving it are addressing, not meanings. `AppState` gains
+  `about: MsgDialogState`; `AppState::new` starts it closed and the region focused.
 - `AppState` gains `focus: Focus`, a two-variant value (`Bar`, `Region`) that starts `Region`; the
-  menu is handed whether the bar holds it. `rat-focus` is not added: the slice has no `Tab`, the
+  menu is handed the leaf, and moves it. `rat-focus` is not added: the slice has no `Tab`, the
   dialog owns its own focus, and the manifest's dependencies do not change. `DiagramState` keeps the
   region's outer rectangle beside `interior`.
 - `menu::MENU` gains `("_Help", &["_About"])`, `HELP` and `ABOUT`, and `meaning` maps
-  `(HELP, ABOUT)` to `Action::About`. `menu::handle` takes whether the bar holds the keyboard and
-  answers the action, the two that move it included: `F10` asks for the bar from either leaf, `Alt`
-  plus a navigation character brings it with the press, and the `Esc` with no drop-down open gives
-  it back. The router moves the keyboard only for a press, where the leaf has to be right before a
-  handler is asked, and `callbacks::apply` carries the two focus actions out — and leaves the
-  keyboard on the region after every meaning that is carried out.
+  `(HELP, ABOUT)` to `Action::About`. `menu::handle` takes the bar's own state and the keyboard's
+  leaf, where it used to take a boolean, and moves it: `F10` asks for the bar from either leaf,
+  `Alt` plus a navigation character brings it with the press before the widget is asked, and the
+  `Esc` with no drop-down open gives it back. Each of the three answers `ScreenChanged`, because the
+  frame is owed, and a bar that moved the keyboard has answered. The router moves the keyboard only
+  for a press, where the leaf has to be right before a handler is asked, and `callbacks::apply`
+  leaves it on the region after every meaning that is carried out.
 - A new `about` module: `open(&mut MsgDialogState)`,
   `draw(Rect, &mut Buffer, &mut MsgDialogState, &SalsaTheme)` and
   `handle(&Event, &mut MsgDialogState) -> Outcome`; `frame::draw` draws it last, and `draw` reverses
@@ -242,9 +258,10 @@ No crate gains or loses a public item, the binary's arguments do not change, and
     reads no terminal color.
 13. A meaning that is carried out leaves the keyboard on the region: `Undo`, `Redo`, `Delete` and
     `About`, from the key or from the menu's own entry. The drop-down the keyboard leaves behind
-    closes with it. Three things are not that: the screen changing, which is not a meaning; the bar
-    asking for the keyboard, which puts it elsewhere; and the two exits, which are not carried out.
-    `Esc` on the bar is the meaning that says only that the keyboard goes back.
+    closes with it. Two things are not that: the screen changing, which is not a meaning, and the
+    two exits, which are not carried out. **The leaf itself is not a meaning**: `F10`, `Alt` plus a
+    navigation character and the `Esc` on a bar with nothing left to close move the keyboard where
+    the bar reads them, and no action is minted for the move.
 
 ## Examples
 
@@ -254,12 +271,12 @@ and `HEIGHT` 20, so the interior starts at `(1, 2)`.
 | Start          | Event          | Keyboard after | Action          | Screen                                  |
 | -------------- | -------------- | -------------- | --------------- | --------------------------------------- |
 | startup        | none           | region         | none            | no label reversed                       |
-| startup        | `Alt+F`        | bar            | `FocusBar`      | `File` drop-down open                   |
-| region         | `F10`          | bar            | `FocusBar`      | `File` reversed, no drop-down open      |
+| startup        | `Alt+F`        | bar            | `ScreenChanged` | `File` drop-down open                   |
+| region         | `F10`          | bar            | `ScreenChanged` | `File` reversed, no drop-down open      |
 | region         | `Right`        | region         | none            | no drop-down, no label moves            |
 | bar            | `Right`        | bar            | `ScreenChanged` | `Edit` selected, its drop-down open     |
 | bar, File open | `Esc`          | bar            | `ScreenChanged` | drop-down closed, `File` still reversed |
-| bar            | `Esc`          | region         | `FocusRegion`   | no label reversed                       |
+| bar            | `Esc`          | region         | `ScreenChanged` | no label reversed                       |
 | region         | `Esc`          | region         | none            | nothing changes                         |
 | bar            | press `(3, 3)` | region         | `ScreenChanged` | box selected, no label reversed         |
 | bar, Edit open | press `(3, 3)` | region         | `ScreenChanged` | drop-down closed, box selected          |
@@ -276,27 +293,29 @@ The table carries the decisions: `Alt+F` is D4's one press and `F10` its amendme
 the bar and opens nothing; the two `Esc` rows are D1's amendment, which closes the drop-down first
 and the bar after; the `Delete` and `Ctrl+Z` rows are rule 13, which takes the keyboard back to the
 drawing and closes the drop-down with it; the `Ctrl+C` row is the forced exit reaching through the
-overlay.
+overlay. **The three rows where the leaf moves carry `ScreenChanged` and no action of their own**
+(D1's third amendment): where the keyboard ends up is the `Keyboard after` column's to say, and the
+`Action` column says what was carried out.
 
 ## What proves it
 
 The tests do not exist yet; the names bind the building stage, and `already` marks one that exists.
 
-| Rule | Test                                                                                                                                                                                                                                                                                                                                   |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `the_diagram_region_holds_the_keyboard_at_startup`, `a_click_on_the_status_bar_moves_nothing`                                                                                                                                                                                                                                          |
-| 2    | `a_press_inside_the_region_moves_the_keyboard_and_selects`, `a_press_on_the_border_moves_the_keyboard_and_selects_nothing`                                                                                                                                                                                                             |
-| 3    | `a_press_on_a_label_moves_the_keyboard_and_opens_its_drop_down`, `a_press_in_the_region_closes_the_drop_down_and_selects`                                                                                                                                                                                                              |
-| 4    | `a_control_the_keyboard_is_on_is_drawn_in_reverse_video`, `a_pressed_ok_that_is_not_focused_is_reversed`, `the_region_is_drawn_the_same_with_and_without_the_keyboard`, `a_control_under_the_pointer_is_not_a_state`                                                                                                                   |
-| 5    | `the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard`; `the_navigation_character_opens_the_drop_down_and_escape_closes_it` — already; `a_second_escape_gives_the_keyboard_back_to_the_region`, `escape_in_the_region_changes_nothing`, `an_escape_press_is_the_bars_way_out`                                               |
-| 6    | `alt_and_a_labels_character_opens_that_labels_drop_down`, `alt_with_a_character_that_names_no_label_changes_nothing`; `a_key_that_asks_for_the_bar_is_a_press_and_nothing_else`, `f10_gives_the_bar_the_keyboard_without_opening_a_drop_down`                                                                                          |
-| 7    | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`; `the_delete_key_with_the_drop_down_open_removes_and_takes_the_keyboard_back`, `the_walks_are_answered_with_the_drop_down_open_and_take_the_keyboard_back`                                                                                                               |
-| 8    | `the_help_menu_holds_about_and_draws_no_shortcut`, `taking_the_about_entry_mints_the_about_action`, `the_about_action_changes_no_session`                                                                                                                                                                                              |
-| 9    | `the_about_dialog_carries_the_name_and_the_version`, `the_dialog_is_drawn_last_of_all`                                                                                                                                                                                                                                                 |
-| 10   | `escape_closes_the_about_dialog_and_the_event_reaches_nothing_else`, `control_q_does_nothing_while_the_dialog_is_up`, `control_c_ends_the_application_whatever_the_state_is` — already                                                                                                                                                 |
-| 11   | `tab_moves_from_the_message_to_the_ok_and_the_ok_is_reversed`, `the_region_is_byte_identical_after_the_dialog_closes`                                                                                                                                                                                                                  |
-| 12   | `the_palette_is_the_dark_base16_theme` — a frame compared to the theme's own                                                                                                                                                                                                                                                           |
-| 13   | `taking_the_delete_entry_gives_the_keyboard_back_to_the_region`, `the_delete_key_with_the_drop_down_open_removes_and_takes_the_keyboard_back`, `the_walks_are_answered_with_the_drop_down_open_and_take_the_keyboard_back`, `the_about_action_changes_no_session`, `escape_closes_the_about_dialog_and_the_event_reaches_nothing_else` |
+| Rule | Test                                                                                                                                                                                                                                                                                                                                               |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `the_diagram_region_holds_the_keyboard_at_startup`, `a_click_on_the_status_bar_moves_nothing`                                                                                                                                                                                                                                                      |
+| 2    | `a_press_inside_the_region_moves_the_keyboard_and_selects`, `a_press_on_the_border_moves_the_keyboard_and_selects_nothing`                                                                                                                                                                                                                         |
+| 3    | `a_press_on_a_label_moves_the_keyboard_and_opens_its_drop_down`, `a_press_in_the_region_closes_the_drop_down_and_selects`                                                                                                                                                                                                                          |
+| 4    | `a_control_the_keyboard_is_on_is_drawn_in_reverse_video`, `a_pressed_ok_that_is_not_focused_is_reversed`, `the_region_is_drawn_the_same_with_and_without_the_keyboard`, `a_control_under_the_pointer_is_not_a_state`                                                                                                                               |
+| 5    | `the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard`; `the_navigation_character_opens_the_drop_down_and_escape_closes_it` — already; `a_second_escape_gives_the_keyboard_back_to_the_region`, `escape_in_the_region_changes_nothing`, `an_escape_press_is_the_bars_way_out`, `the_escape_that_closes_nothing_gives_the_keyboard_back` |
+| 6    | `alt_and_a_labels_character_opens_that_labels_drop_down`, `alt_with_a_character_that_names_no_label_changes_nothing`; `a_key_that_asks_for_the_bar_is_a_press_and_nothing_else`, `f10_gives_the_bar_the_keyboard_without_opening_a_drop_down`, `f10_moves_the_keyboard_to_the_bar_and_owes_the_frame`                                              |
+| 7    | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`; `the_delete_key_with_the_drop_down_open_removes_and_takes_the_keyboard_back`, `the_walks_are_answered_with_the_drop_down_open_and_take_the_keyboard_back`                                                                                                                           |
+| 8    | `the_help_menu_holds_about_and_draws_no_shortcut`, `taking_the_about_entry_mints_the_about_action`, `the_about_action_changes_no_session`                                                                                                                                                                                                          |
+| 9    | `the_about_dialog_carries_the_name_and_the_version`, `the_dialog_is_drawn_last_of_all`                                                                                                                                                                                                                                                             |
+| 10   | `escape_closes_the_about_dialog_and_the_event_reaches_nothing_else`, `control_q_does_nothing_while_the_dialog_is_up`, `control_c_ends_the_application_whatever_the_state_is` — already                                                                                                                                                             |
+| 11   | `tab_moves_from_the_message_to_the_ok_and_the_ok_is_reversed`, `the_region_is_byte_identical_after_the_dialog_closes`                                                                                                                                                                                                                              |
+| 12   | `the_palette_is_the_dark_base16_theme` — a frame compared to the theme's own                                                                                                                                                                                                                                                                       |
+| 13   | `taking_the_delete_entry_gives_the_keyboard_back_to_the_region`, `the_delete_key_with_the_drop_down_open_removes_and_takes_the_keyboard_back`, `the_walks_are_answered_with_the_drop_down_open_and_take_the_keyboard_back`, `the_about_action_changes_no_session`, `escape_closes_the_about_dialog_and_the_event_reaches_nothing_else`             |
 
 Every bar snapshot moves: the labels gain `Help` and File and Edit are untouched; the focused
 label's style moves because D3 makes it reverse video, and the region's border does not because D2
