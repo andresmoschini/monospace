@@ -101,10 +101,12 @@ bar is §8's, and [#226](https://github.com/andresmoschini/monospace/issues/226)
 
 **The focus is the chrome's own, and it is not the selection.** Which of the two leaves — the bar
 and the diagram region — holds the keyboard is a fact about the chrome, held between frames: it
-starts on the region, and a left press moves it to the rectangle it lands in. The region keeps its
-outer rectangle beside its interior, because a press on the border gives it the keyboard without
-selecting a shape. **The selection's inversion is not a cue for it**: inverting the selected shape
-is [#177](https://github.com/andresmoschini/monospace/issues/177)'s, and a focused region looks the
+starts on the region, a left press moves it to the rectangle it lands in, and `Esc` on a bar with no
+drop-down open gives it back. The first `Esc` is the drop-down's, because closing one is the only
+thing the key does there. The region keeps its outer rectangle beside its interior, because a press
+on the border gives it the keyboard without selecting a shape. **The selection's inversion is not a
+cue for it**: inverting the selected shape is
+[#177](https://github.com/andresmoschini/monospace/issues/177)'s, and a focused region looks the
 same as an unfocused one. The status line is not a leaf: a press on it moves nothing.
 
 **The application keeps no history of its own, and the walk is the session's.** The steps behind and
@@ -287,7 +289,9 @@ framework's buffer one at a time.
 - `Alt` plus a label's navigation character focuses the bar and opens that label's drop-down, and a
   combination that names no label changes nothing.
 - The diagram region holds the keyboard at startup, and a left press moves it to the rectangle it
-  lands in; a press on the border gives the region the keyboard without selecting a shape.
+  lands in; a press on the border gives the region the keyboard without selecting a shape. `Esc`
+  closes the drop-down, and the next one gives the keyboard back to the region; `Esc` in the region
+  changes nothing.
 - The control the keyboard is on is drawn in reverse video over the theme's colors, and the region
   has no focus cue of its own.
 - A drop-down leaves the region byte-identical when it closes.

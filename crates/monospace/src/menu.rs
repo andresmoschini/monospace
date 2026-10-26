@@ -94,6 +94,10 @@ const ABOUT: usize = 0;
 /// (D4): the character is looked up in the labels, so the menu stays the only table of names, and
 /// the translated event reaches a bar the caller has already given the keyboard. A combination
 /// that names no label is handed on untouched and changes nothing.
+///
+/// **`Esc` is the widget's only while there is a drop-down to close**, and the caller reads
+/// [`steps_back`] when there is not: with nothing open, the bar has nothing to do with it, and the
+/// keyboard goes back to the region (rule 5).
 pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Option<Action> {
     let translated;
     let raw = match alt_navigation(raw) {
@@ -149,6 +153,29 @@ pub(crate) fn alt_navigation(raw: &Event) -> Option<char> {
         .iter()
         .any(|(label, _)| navigation(label) == Some(character))
         .then_some(character)
+}
+
+/// Whether the event tells the bar to give the keyboard back.
+///
+/// **A bar with a drop-down open has something to close**, so `Esc` is the widget's there; with none
+/// open the key has nothing left to do here, and this is the caller's reading of it: the bar steps
+/// back and the keyboard goes to the region (rule 5). **A bar that does not hold the keyboard does
+/// not answer at all**, which is what keeps `Esc` in the region from moving anything.
+pub(crate) fn steps_back(event: &Event, state: &MenubarState, focused: bool) -> bool {
+    focused && !state.popup_active() && is_escape(event)
+}
+
+/// Whether the event is an `Esc` press, with no modifier on it and no kind but a press.
+fn is_escape(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key(KeyEvent {
+            code: KeyCode::Esc,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            ..
+        })
+    )
 }
 
 /// The navigation character a label carries: the letter after its `_`.
@@ -224,7 +251,7 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use ratatui_crossterm::crossterm::event::{
-        KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
 
     /// The width of the screen these tests draw.
@@ -406,6 +433,48 @@ mod tests {
             "escape did not report a screen change: {outcome:?}"
         );
         assert!(!state.popup_active(), "escape did not close the drop-down");
+    }
+
+    /// **The key that leaves the bar is a press and nothing else** (rule 5): a release, a repeat,
+    /// and a press with a modifier on it are not the bar stepping back, and neither is a press
+    /// while a drop-down is open or while another leaf holds the keyboard.
+    #[test]
+    fn an_escape_press_is_the_bars_way_out() {
+        let mut state = drawn();
+
+        assert!(
+            steps_back(&key(KeyCode::Esc), &state, true),
+            "the escape press was not read"
+        );
+        assert!(
+            !steps_back(&key(KeyCode::Esc), &state, false),
+            "a bar without the keyboard answered escape"
+        );
+
+        for kind in [KeyEventKind::Release, KeyEventKind::Repeat] {
+            let event = Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Esc,
+                KeyModifiers::NONE,
+                kind,
+            ));
+
+            assert!(!steps_back(&event, &state, true), "{kind:?} was read as it");
+        }
+
+        assert!(
+            !steps_back(&key_with(KeyCode::Esc, KeyModifiers::CONTROL), &state, true),
+            "a modified escape was read as it"
+        );
+        assert!(
+            !steps_back(&key(KeyCode::Enter), &state, true),
+            "another key was read as it"
+        );
+
+        open(&mut state);
+        assert!(
+            !steps_back(&key(KeyCode::Esc), &state, true),
+            "the escape that closes the drop-down was read as the bar stepping back"
+        );
     }
 
     #[test]

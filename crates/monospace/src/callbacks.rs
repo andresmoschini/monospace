@@ -89,6 +89,10 @@ pub(crate) fn event(
 /// (D4): the menu then answers a plain character, which is the press it already handles when it
 /// holds the keyboard. The lookup is `menu`'s, so the labels stay the only table of names.
 ///
+/// **`Esc` gives the bar back once there is nothing left there to close** (rule 5): the widget
+/// answers `Esc` while a drop-down is open, and the next one is read here, as the bar stepping
+/// back. With the region holding the keyboard the key changes nothing.
+///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
 /// state.menu` and the region `&mut state.diagram`, so what a handler may change about the
 /// application is what its own signature makes possible: the selection and the drop-down, and never
@@ -124,6 +128,13 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
             state.focus = leaf;
             keyboard_moved = true;
         }
+    }
+
+    // **`Esc` on a bar with no drop-down open gives the keyboard back** (rule 5): the press has
+    // nothing left to close, so it is not the widget's, and the region is where a person works.
+    if menu::steps_back(event, &state.menu, state.focus == Focus::Bar) {
+        state.focus = Focus::Region;
+        keyboard_moved = true;
     }
 
     if menu::alt_navigation(event).is_some() {
@@ -941,6 +952,59 @@ mod tests {
             "a combination that names no label moved the keyboard"
         );
         assert!(!state.menu.popup_active(), "a drop-down opened");
+    }
+
+    /// **`Esc` closes the drop-down, and the next one gives the keyboard back to the region**
+    /// (rule 5): the key is the widget's while there is something to close, and the bar's way out
+    /// after it. Neither press reaches the diagram.
+    #[test]
+    fn a_second_escape_gives_the_keyboard_back_to_the_region() {
+        let mut state = a_drawn_state();
+        open_the_drop_down(&mut state, 'f');
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+        let frame = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.menu.popup_active(), "escape left the drop-down open");
+        assert_eq!(state.focus, Focus::Bar, "the first escape left the bar");
+        let (column, row) = frame::cell_of(&frame, "File");
+        assert!(
+            reversed(&frame, column, row),
+            "the label stopped looking focused with the bar still holding the keyboard"
+        );
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+        let frame = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the second escape did not give the keyboard back"
+        );
+        assert!(
+            !reversed(&frame, column, row),
+            "a label is reversed with the region holding the keyboard"
+        );
+    }
+
+    /// **`Esc` is not the region's**: with the keyboard there the key changes nothing, so the bar's
+    /// way out is a press that acts on the chrome and never on the drawing.
+    #[test]
+    fn escape_in_the_region_changes_nothing() {
+        let mut state = a_drawn_state();
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the region does not start with the keyboard"
+        );
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert_eq!(state.focus, Focus::Region, "escape moved the keyboard");
+        assert!(!state.menu.popup_active(), "escape opened a drop-down");
     }
 
     /// **The drop-down is asked before the region**, so a click it answers never reaches the

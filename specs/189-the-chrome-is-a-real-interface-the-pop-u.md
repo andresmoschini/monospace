@@ -26,7 +26,8 @@ become code. #179's D1 can be answered from here.
 
 - The diagram region holds the keyboard at startup. The bar and the region are the two leaves, and a
   left press moves the keyboard to the rectangle it lands in, border included; the press selects a
-  shape only inside the interior (D1).
+  shape only inside the interior (D1). `Esc` on a bar with no drop-down open gives it back (D1,
+  amended 2026-10-26).
 - A focused control is drawn in reverse video over the theme's colors, not the theme's `focus`
   background, and a pressed control that is not focused is reversed too; the region has no cue (D2,
   D3).
@@ -61,6 +62,15 @@ one. **Why not** the bar at startup: the diagram is what a person came to work o
 starts focused promises a menu before a drawing. **Why not** a selection-derived rule: it answers
 "which place does this key go to?" with a fact about the drawing, so tabbing to the bar would be
 undone by the selection still there. **Answered by** the maintainer, in #189.
+
+**Amended 2026-10-26:** `Esc` on a bar with no drop-down open gives the keyboard back to the region.
+The first `Esc` stays the drop-down's, because closing it is the only thing the key does while one
+is open; with none open the key has nothing left to close and is read as the bar stepping back.
+**Why not** leaving the bar without a key: a place that is entered with `Alt` and left only with the
+pointer is a trap, and the key a person tries first is the one that should work. **Why not** `Esc`
+on a closed bar meaning the way out: the way out is `Ctrl+Q` and the menu's entry, and a back key
+that silently ends the work is the one thing it must not do. **Answered by** the maintainer, in the
+follow-up to [#189](https://github.com/andresmoschini/monospace/issues/189).
 
 **D2 — the region has no focus cue of its own.**
 
@@ -148,6 +158,8 @@ No crate gains or loses a public item, the binary's arguments do not change, and
 - `menu::MENU` gains `("_Help", &["_About"])`, `HELP` and `ABOUT`, and `meaning` maps
   `(HELP, ABOUT)` to `Action::About`. `menu::handle` takes whether the bar holds the keyboard and
   translates `Alt` plus a navigation character into the focus and open the menu already answers.
+  `menu::steps_back` answers whether the bar gives the keyboard back, and `callbacks::route` moves
+  it when it does.
 - A new `about` module: `open(&mut MsgDialogState)`,
   `draw(Rect, &mut Buffer, &mut MsgDialogState, &SalsaTheme)` and
   `handle(&Event, &mut MsgDialogState) -> Outcome`; `frame::draw` draws it last, and `draw` reverses
@@ -175,7 +187,9 @@ No crate gains or loses a public item, the binary's arguments do not change, and
    the pointer is not a state, and the selection's inversion is #177's.
 5. With the region holding the keyboard, the arrows open no drop-down and move no label; they are
    unclaimed until #179 binds them. With the bar holding it, the menu's keys hold: the navigation
-   character opens a drop-down, the arrows move it, `Enter` activates, `Esc` closes.
+   character opens a drop-down, the arrows move it, `Enter` activates, `Esc` closes. With no
+   drop-down open, the same `Esc` closes the bar and gives the keyboard back to the region; with the
+   region holding it, `Esc` changes nothing.
 6. `Alt` plus a label's navigation character focuses the bar and opens that drop-down in one press,
    from either leaf. A combination that names no label changes nothing and moves no keyboard; a bare
    `Alt` is not a key.
@@ -206,6 +220,9 @@ and `HEIGHT` 20, so the interior starts at `(1, 2)`.
 | startup        | `Alt+F`        | bar            | `ScreenChanged` | `File` drop-down open                     |
 | region         | `Right`        | region         | none            | no drop-down, no label moves              |
 | bar            | `Right`        | bar            | `ScreenChanged` | `Edit` selected, its drop-down open       |
+| bar, File open | `Esc`          | bar            | `ScreenChanged` | drop-down closed, `File` still reversed   |
+| bar            | `Esc`          | region         | `ScreenChanged` | no label reversed                         |
+| region         | `Esc`          | region         | none            | nothing changes                           |
 | bar            | press `(3, 3)` | region         | `ScreenChanged` | box selected, no label reversed           |
 | bar, Edit open | press `(3, 3)` | region         | `ScreenChanged` | drop-down closed, box selected            |
 | bar, Edit open | `Delete`       | bar            | `Delete`        | box gone behind the menu, menu still open |
@@ -215,27 +232,28 @@ and `HEIGHT` 20, so the interior starts at `(1, 2)`.
 | dialog         | `Tab`          | bar            | none            | `Ok` reversed                             |
 | dialog         | `Esc` or `Ok`  | bar            | `ScreenChanged` | dialog gone, region byte-identical        |
 
-The table carries the decisions: `Alt+F` is D4's one press; `Delete` is D6's drop-down, which stays
-open; the `Ctrl+C` row is the forced exit reaching through the overlay.
+The table carries the decisions: `Alt+F` is D4's one press; the two `Esc` rows are D1's amendment,
+which closes the drop-down first and the bar after; `Delete` is D6's drop-down, which stays open;
+the `Ctrl+C` row is the forced exit reaching through the overlay.
 
 ## What proves it
 
 The tests do not exist yet; the names bind the building stage, and `already` marks one that exists.
 
-| Rule | Test                                                                                                                                                                                                                 |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `the_diagram_region_holds_the_keyboard_at_startup`, `a_click_on_the_status_bar_moves_nothing`                                                                                                                        |
-| 2    | `a_press_inside_the_region_moves_the_keyboard_and_selects`, `a_press_on_the_border_moves_the_keyboard_and_selects_nothing`                                                                                           |
-| 3    | `a_press_on_a_label_moves_the_keyboard_and_opens_its_drop_down`, `a_press_in_the_region_closes_the_drop_down_and_selects`                                                                                            |
-| 4    | `a_control_the_keyboard_is_on_is_drawn_in_reverse_video`, `a_pressed_ok_that_is_not_focused_is_reversed`, `the_region_is_drawn_the_same_with_and_without_the_keyboard`, `a_control_under_the_pointer_is_not_a_state` |
-| 5    | `the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard`; `the_navigation_character_opens_the_drop_down_and_escape_closes_it` — already                                                                     |
-| 6    | `alt_and_a_labels_character_opens_that_labels_drop_down`, `alt_with_a_character_that_names_no_label_changes_nothing`                                                                                                 |
-| 7    | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`; `the_delete_key_is_answered_with_the_drop_down_open`, `the_undo_and_redo_keys_are_answered_with_the_drop_down_open` — both already                    |
-| 8    | `the_help_menu_holds_about_and_draws_no_shortcut`, `taking_the_about_entry_mints_the_about_action`, `the_about_action_changes_no_session`                                                                            |
-| 9    | `the_about_dialog_carries_the_name_and_the_version`, `the_dialog_is_drawn_last_of_all`                                                                                                                               |
-| 10   | `escape_closes_the_about_dialog_and_the_event_reaches_nothing_else`, `control_q_does_nothing_while_the_dialog_is_up`, `control_c_ends_the_application_whatever_the_state_is` — already                               |
-| 11   | `tab_moves_from_the_message_to_the_ok_and_the_ok_is_reversed`, `the_region_is_byte_identical_after_the_dialog_closes`                                                                                                |
-| 12   | `the_palette_is_the_dark_base16_theme` — a frame compared to the theme's own                                                                                                                                         |
+| Rule | Test                                                                                                                                                                                                                                                                                     |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `the_diagram_region_holds_the_keyboard_at_startup`, `a_click_on_the_status_bar_moves_nothing`                                                                                                                                                                                            |
+| 2    | `a_press_inside_the_region_moves_the_keyboard_and_selects`, `a_press_on_the_border_moves_the_keyboard_and_selects_nothing`                                                                                                                                                               |
+| 3    | `a_press_on_a_label_moves_the_keyboard_and_opens_its_drop_down`, `a_press_in_the_region_closes_the_drop_down_and_selects`                                                                                                                                                                |
+| 4    | `a_control_the_keyboard_is_on_is_drawn_in_reverse_video`, `a_pressed_ok_that_is_not_focused_is_reversed`, `the_region_is_drawn_the_same_with_and_without_the_keyboard`, `a_control_under_the_pointer_is_not_a_state`                                                                     |
+| 5    | `the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard`; `the_navigation_character_opens_the_drop_down_and_escape_closes_it` — already; `a_second_escape_gives_the_keyboard_back_to_the_region`, `escape_in_the_region_changes_nothing`, `an_escape_press_is_the_bars_way_out` |
+| 6    | `alt_and_a_labels_character_opens_that_labels_drop_down`, `alt_with_a_character_that_names_no_label_changes_nothing`                                                                                                                                                                     |
+| 7    | `a_drop_down_leaves_the_region_byte_identical_when_it_closes`; `the_delete_key_is_answered_with_the_drop_down_open`, `the_undo_and_redo_keys_are_answered_with_the_drop_down_open` — both already                                                                                        |
+| 8    | `the_help_menu_holds_about_and_draws_no_shortcut`, `taking_the_about_entry_mints_the_about_action`, `the_about_action_changes_no_session`                                                                                                                                                |
+| 9    | `the_about_dialog_carries_the_name_and_the_version`, `the_dialog_is_drawn_last_of_all`                                                                                                                                                                                                   |
+| 10   | `escape_closes_the_about_dialog_and_the_event_reaches_nothing_else`, `control_q_does_nothing_while_the_dialog_is_up`, `control_c_ends_the_application_whatever_the_state_is` — already                                                                                                   |
+| 11   | `tab_moves_from_the_message_to_the_ok_and_the_ok_is_reversed`, `the_region_is_byte_identical_after_the_dialog_closes`                                                                                                                                                                    |
+| 12   | `the_palette_is_the_dark_base16_theme` — a frame compared to the theme's own                                                                                                                                                                                                             |
 
 Every bar snapshot moves: the labels gain `Help` and File and Edit are untouched; the focused
 label's style moves because D3 makes it reverse video, and the region's border does not because D2
