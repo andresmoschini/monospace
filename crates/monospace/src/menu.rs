@@ -5,9 +5,10 @@
 //! the two are drawn at different moments: the line with the rest of the frame, the pop-up after
 //! the region it covers.
 //!
-//! **The bar holds the keyboard.** The chrome of this slice is the bar and nothing else, so it is
-//! always given the focus; the rules about the focus are #189's, and they are about a chrome
-//! with more than one thing in it.
+//! **The bar is one of the two leaves that hold the keyboard.** Whether it holds it is the
+//! application's answer — kept in `AppState` — and it is given to the bar here: the widget draws
+//! its selected label differently only while it has the focus, and it answers a key only while it
+//! has it. The rules about the focus are #189's.
 //!
 //! **The framework's keys are the framework's.** The navigation character opens a drop-down, the
 //! arrows move it, `Enter` takes an entry and `Esc` closes it, and all four are the menu
@@ -73,10 +74,11 @@ const DELETE: usize = 2;
 ///
 /// **`None` is `Continue` and `Unchanged`, and the application makes no difference between them**:
 /// the widget handled the event and there is nothing for the screen to paint, so the shortcuts
-/// nobody has claimed are still asked. Telling the two apart is #189's, when the chrome holds more
-/// than one thing.
-pub(crate) fn handle(raw: &Event, state: &mut MenubarState) -> Option<Action> {
-    match menubar::handle_popup_events(state, true, raw) {
+/// nobody has claimed are still asked. **The bar only answers a key while it holds the keyboard**:
+/// `focused` is what the application's focus says, and a bar that does not hold it answers no key
+/// and closes the drop-down the keyboard left behind.
+pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focused: bool) -> Option<Action> {
+    match menubar::handle_popup_events(state, focused, raw) {
         // An entry was taken: it means an action, and `callbacks` applies it. The loop is not
         // asked again, so an entry and the key that means the same thing end in one place.
         MenuOutcome::MenuActivated(label, entry) => {
@@ -113,8 +115,19 @@ fn meaning(label: usize, entry: usize) -> Action {
 }
 
 /// Paints the bar across the top.
-pub(crate) fn draw_bar(area: Rect, buf: &mut Buffer, state: &mut MenubarState, theme: &SalsaTheme) {
+///
+/// **The focus is given before the frame is drawn**, because the widget paints its selected label
+/// differently only while it holds the keyboard: a frame that did not say which leaf holds it
+/// would draw the label the way the last event left it.
+pub(crate) fn draw_bar(
+    area: Rect,
+    buf: &mut Buffer,
+    state: &mut MenubarState,
+    theme: &SalsaTheme,
+    focused: bool,
+) {
     let (bar, _) = widgets(theme);
+    state.bar.focus.set(focused);
     bar.render(area, buf, state);
 }
 
@@ -161,7 +174,13 @@ mod tests {
     fn draw(state: &mut MenubarState) -> Buffer {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let mut buffer = Buffer::empty(area);
-        draw_bar(Rect::new(0, 0, WIDTH, 1), &mut buffer, state, &theme());
+        draw_bar(
+            Rect::new(0, 0, WIDTH, 1),
+            &mut buffer,
+            state,
+            &theme(),
+            true,
+        );
         draw_drop_down(area, &mut buffer, state, &theme());
         buffer
     }
@@ -197,7 +216,7 @@ mod tests {
     /// holds only once it has been drawn, and a frame that is not drawn leaves the drop-down
     /// without an entry to take.
     fn open_with(state: &mut MenubarState, navigation: char) {
-        let _ = handle(&key(KeyCode::Char(navigation)), state);
+        let _ = handle(&key(KeyCode::Char(navigation)), state, true);
         draw(state);
     }
 
@@ -215,9 +234,9 @@ mod tests {
     fn take(state: &mut MenubarState, text: &str) -> Option<Action> {
         let buffer = draw(state);
         let (column, row) = cell_of(&buffer, text);
-        let _ = handle(&moved(column, row), state);
+        let _ = handle(&moved(column, row), state, true);
 
-        handle(&click(column, row), state)
+        handle(&click(column, row), state, true)
     }
 
     fn key(code: KeyCode) -> Event {
@@ -251,7 +270,7 @@ mod tests {
     fn the_navigation_character_opens_the_drop_down_and_escape_closes_it() {
         let mut state = drawn();
 
-        let outcome = handle(&key(KeyCode::Char('f')), &mut state);
+        let outcome = handle(&key(KeyCode::Char('f')), &mut state, true);
 
         assert!(
             matches!(outcome, Some(Action::ScreenChanged)),
@@ -259,7 +278,7 @@ mod tests {
         );
         assert!(state.popup_active(), "the drop-down did not open");
 
-        let outcome = handle(&key(KeyCode::Esc), &mut state);
+        let outcome = handle(&key(KeyCode::Esc), &mut state, true);
 
         assert!(
             matches!(outcome, Some(Action::ScreenChanged)),
@@ -273,7 +292,7 @@ mod tests {
         let mut state = drawn();
         open(&mut state);
 
-        let outcome = handle(&key(KeyCode::Enter), &mut state);
+        let outcome = handle(&key(KeyCode::Enter), &mut state, true);
 
         assert!(
             matches!(outcome, Some(Action::Quit)),
@@ -396,6 +415,7 @@ mod tests {
         let outcome = handle(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
             &mut state,
+            true,
         );
 
         assert!(
@@ -412,7 +432,7 @@ mod tests {
         let buffer = draw(&mut state);
         let (column, row) = cell_of(&buffer, "Quit");
 
-        let outcome = handle(&click(column, row), &mut state);
+        let outcome = handle(&click(column, row), &mut state, true);
 
         assert!(
             matches!(outcome, Some(Action::Quit)),
@@ -426,7 +446,7 @@ mod tests {
         let buffer = draw(&mut state);
         let (column, row) = cell_of(&buffer, "File");
 
-        let outcome = handle(&click(column, row), &mut state);
+        let outcome = handle(&click(column, row), &mut state, true);
 
         assert!(
             matches!(outcome, Some(Action::ScreenChanged)),
@@ -439,7 +459,7 @@ mod tests {
     fn a_key_the_bar_does_not_use_is_nothing() {
         let mut state = drawn();
 
-        let outcome = handle(&key(KeyCode::Char('z')), &mut state);
+        let outcome = handle(&key(KeyCode::Char('z')), &mut state, true);
 
         assert!(outcome.is_none(), "{outcome:?}");
         assert!(!state.popup_active(), "a key opened a drop-down");

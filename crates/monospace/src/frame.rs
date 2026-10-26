@@ -65,7 +65,7 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // region uses.
     Clear.render(area, buf);
 
-    menu::draw_bar(regions.bar, buf, &mut state.menu, &global.cfg.theme);
+    menu::draw_bar(regions.bar, buf, &mut state.menu, &global.cfg.theme, true);
 
     diagram_widget::draw(
         regions.region,
@@ -316,7 +316,7 @@ mod tests {
     fn open_the_drop_down(state: &mut AppState, global: &AppGlobal, navigation: char) {
         let _ = paint(state, global, WIDTH, HEIGHT);
         let event = Event::Key(KeyEvent::new(KeyCode::Char(navigation), KeyModifiers::NONE));
-        let _ = crate::menu::handle(&event, &mut state.menu);
+        let _ = crate::menu::handle(&event, &mut state.menu, true);
         assert!(
             state.menu.popup_active(),
             "the navigation character did not open the drop-down"

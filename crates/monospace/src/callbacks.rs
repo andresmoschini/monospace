@@ -81,7 +81,7 @@ pub(crate) fn event(
 /// the session.
 fn route(event: &Event, state: &mut AppState) -> Option<Action> {
     shortcuts::handle_always(event)
-        .or_else(|| menu::handle(event, &mut state.menu))
+        .or_else(|| menu::handle(event, &mut state.menu, true))
         .or_else(|| diagram_widget::handle(event, &mut state.diagram))
         .or_else(|| shortcuts::handle_unclaimed(event))
 }
