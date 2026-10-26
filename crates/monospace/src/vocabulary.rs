@@ -27,10 +27,17 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 ///
 /// **Every action but one is a meaning.** The way out and the forced exit end the loop; `Delete`
 /// takes a shape out, and `Undo` and `Redo` give a step back; `About` opens the chrome's dialog and
-/// the two focus actions move the keyboard between the leaves; `ScreenChanged` is the screen being
-/// owed a paint and nothing else. **The two exits are separate actions because they are separate
-/// meanings**, and they end the loop the same way only because nothing has been edited yet: the way
-/// out grows a pop-up to confirm and the forced exit does not, which is #189's.
+/// the two focus actions say where the keyboard is; `ScreenChanged` is the screen being owed a paint
+/// and nothing else. **The two exits are separate actions because they are separate meanings**, and
+/// they end the loop the same way only because nothing has been edited yet: the way out grows a
+/// pop-up to confirm and the forced exit does not, which is #189's.
+///
+/// **A meaning that is carried out leaves the keyboard on the region** (rule 13 of #189), and the
+/// drop-down the bar was showing closes with it. Only three things are not that: the screen
+/// changing, which is not a meaning; the bar asking for the keyboard, which is the one meaning that
+/// puts it somewhere else; and the two exits, which are not carried out at all. **So a meaning does
+/// not say where the keyboard is left** — `callbacks::apply` says it once — which is why this is a
+/// table of meanings and not a table of leaves.
 ///
 /// **A change of the screen is not a meaning of a person's, and undo will never hold one.** It is
 /// an action because an event becomes one thing, and what the application does about a screen that
@@ -58,16 +65,13 @@ pub(crate) enum Action {
     /// carried out, so the key is one row of the shortcut table rather than a second way of
     /// naming what a click selected. **A deletion with nothing selected removes nothing and still
     /// paints**: carrying an action out owes the frame, which is what closes the menu's entry on
-    /// the screen when there was no figure to take. **The keyboard goes back to the region** (rule
-    /// 13 of #189): the shape the person acted on is gone, and what is left to do is there.
+    /// the screen when there was no figure to take.
     Delete,
 
     /// The About dialog is opened, and the frame is owed.
     ///
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,
-    /// so the drawing and its history are untouched. **The keyboard is left on the region** (rule
-    /// 13): the dialog takes the whole screen and runs its own focus while it is up, so the leaf is
-    /// put where it will be given back.
+    /// so the drawing and its history are untouched.
     About,
 
     /// The keyboard goes to the menu bar, and the frame is owed.
@@ -79,8 +83,9 @@ pub(crate) enum Action {
 
     /// The keyboard goes back to the region, and the frame is owed.
     ///
-    /// **The bar's key and not the bar's move** (rule 5 of #189): the `Esc` with no drop-down left
-    /// to close says so, and the application moves the focus the way it does for a press.
+    /// **The meaning that says only that** (rule 13 of #189): the `Esc` with no drop-down left to
+    /// close answers it, and every other meaning that is carried out leaves the keyboard there
+    /// without saying so.
     FocusRegion,
 
     /// The way out: the application ends and the terminal comes back.
