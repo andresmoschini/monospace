@@ -1,7 +1,7 @@
 //! What a shape draws into, and what a shape is. See _Shapes_ in
 //! [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Buffer, Cell, Pos, ShapeId, StampMode, StampSink};
+use crate::{Cell, Pos, ShapeId, StampMode, StampSink};
 
 mod box_shape;
 mod connector;
@@ -23,7 +23,7 @@ pub trait Surface {
     fn stamp(&mut self, at: Pos, cell: Cell);
 }
 
-/// A buffer, a stamp mode and **who is stamping**, bound together at construction.
+/// A sink, a stamp mode and **who is stamping**, bound together at construction.
 ///
 /// The caller's choice between the two stamp modes is taken here, once: no shape or fragment
 /// this crate defines ever names a [`StampMode`] itself, since a shape has no opinion about how
@@ -35,23 +35,23 @@ pub trait Surface {
 /// A layer bound by [`new`](Self::new) is bound to nobody and owns nothing, which is what the
 /// core's own figures ask for — they are values that draw and nothing more.
 pub struct Layer<'a> {
-    buffer: &'a mut Buffer,
+    sink: &'a mut dyn StampSink,
     mode: StampMode,
     owner: Option<ShapeId>,
 }
 
 impl<'a> Layer<'a> {
-    /// Binds `buffer` to `mode` for every stamp drawn through this layer, under no identity.
+    /// Binds `sink` to `mode` for every stamp drawn through this layer, under no identity.
     #[must_use]
-    pub fn new(buffer: &'a mut Buffer, mode: StampMode) -> Self {
+    pub fn new(sink: &'a mut dyn StampSink, mode: StampMode) -> Self {
         Self {
-            buffer,
+            sink,
             mode,
             owner: None,
         }
     }
 
-    /// Binds `buffer` to `mode` and to `owner` for every stamp drawn through this layer.
+    /// Binds `sink` to `mode` and to `owner` for every stamp drawn through this layer.
     ///
     /// One layer per figure rather than one per stamp, which is what keeps the identity off
     /// [`Surface::stamp`]: a figure with an identity parameter is a figure that can be drawn under
@@ -62,9 +62,9 @@ impl<'a> Layer<'a> {
     /// downstream of this constructor has to keep a shape's identity alive for the length of a
     /// drawing.
     #[must_use]
-    pub fn stamped_by(buffer: &'a mut Buffer, mode: StampMode, owner: ShapeId) -> Self {
+    pub fn stamped_by(sink: &'a mut dyn StampSink, mode: StampMode, owner: ShapeId) -> Self {
         Self {
-            buffer,
+            sink,
             mode,
             owner: Some(owner),
         }
@@ -73,7 +73,7 @@ impl<'a> Layer<'a> {
 
 impl Surface for Layer<'_> {
     fn stamp(&mut self, at: Pos, cell: Cell) {
-        self.buffer.stamp(at, cell, self.mode, self.owner);
+        self.sink.stamp(at, cell, self.mode, self.owner);
     }
 }
 
