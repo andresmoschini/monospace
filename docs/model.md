@@ -51,6 +51,7 @@ character matches.
 | `GlyphRule`     | One `GlyphKey` mapped to a glyph                                               |
 | `GlyphSet`      | A group of rules as they are written or loaded: one table                      |
 | `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it  |
+| `Style`         | Four glyphs, one for each way a head may point                                 |
 | `stamp`         | The single write operation                                                     |
 | `StampSink`     | One write operation and no reader; what a figure layer writes through          |
 | `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided   |
@@ -377,7 +378,9 @@ path's steps into a border run's two sides happen in the route.
 Three figures, and each of them names the **stroke** its cells are drawn in: it is the base stroke
 of every stroke cell the figure writes. The core holds no default for it. What a diagram looks like
 is the caller's to say, and a constant inside the core would be an appearance decision no glyph set
-could reach.
+could reach. The one appearance the core does hold is a `Style`'s default table, and it is not a
+default for anything a figure left unsaid: it answers a name nothing claims, which is a name the
+caller did say.
 
 A **box** is a position, a size and a stroke, with a fill as an option: corners, border runs and an
 interior, placed correctly. Which pieces it has depends on its size rather than on its kind, so a
@@ -394,12 +397,13 @@ An **connector** is two **endpoints** and a stroke. An endpoint is a position, t
 connector leaves it in, and a **terminal**; `at` is the cell the terminal hangs from. What a
 terminal may write is vocabulary this document owns, so naming one more of them is a change here and
 in the figure, and to whatever states it as a rule. A glyph terminal's glyph points opposite to the
-direction that endpoint leaves in.
+direction that endpoint leaves in, and a style terminal writes the entry its table names for that
+same direction.
 
 ### What a terminal writes
 
-A **terminal** is what an endpoint contributes to the cell at `at`, and it is a **glyph** or an
-**arm**. It writes that cell and nothing else.
+A **terminal** is what an endpoint contributes to the cell at `at`, and it is a **glyph**, an
+**arm** or a **style**. It writes that cell and nothing else.
 
 An **arm** writes one arm — the one the connector arrives on — in the connector's own stroke, and
 leaves its other three sides `Unset`, so it renders through the glyph set like every other stroke
@@ -422,12 +426,23 @@ answer because a glyph points and no set holds a rule that points: `▲ ► ◄ 
 `╾ ╼` are claimed in both mixing sets that hold them by keys meaning heavy on one side and light on
 the other.
 
-That asymmetry is a limit of the data rather than a preference. Heads that follow the glyph set
-would be the better answer, and they are an open question below. One change would reverse the half
-above as well, and it stays available rather than settled: four new single-arm rules rendering
-`╶ ╴ ╵ ╷` would make an end both derived and visibly an end. Those four keys are claimed today, so
-adding them is not a tweak but a change to what existing cells render, which is why it is a question
-for a slice of its own rather than a line to add.
+A **style** writes one glyph out of a **table of four**, the entry named for the direction opposite
+the one `leaving` names, so the glyph points away from the route. It is a literal in every other
+respect: it covers the cell, nothing composes into it, and it follows no stroke and no glyph set.
+Each entry is named by the way its glyph points rather than by the direction the connector leaves
+in, which is why the table's `down` holds `▲` and the endpoint leaving down is the one that writes
+it. `solid-pointer` is the table the core carries, and the rest are in
+[`terminal-styles.md`](terminal-styles.md). A style is not derived from the stroke, so one
+description draws the same heads whatever glyph sets a build shipped, and that is the whole of why
+it is a table of its own rather than a row in a set.
+
+That asymmetry is a limit of the data rather than a preference. A style is the answer available now,
+and heads that follow the glyph set would be the better one: they are the open question below, which
+a style narrows rather than closes. One change would reverse the half above as well, and it stays
+available rather than settled: four new single-arm rules rendering `╶ ╴ ╵ ╷` would make an end both
+derived and visibly an end. Those four keys are claimed today, so adding them is not a tweak but a
+change to what existing cells render, which is why it is a question for a slice of its own rather
+than a line to add.
 
 ### The route of a connector
 
@@ -564,8 +579,8 @@ core expose mutable state for editing?_ has left: the core exposes none, and
   of them: a rounded corner, a double line. Each needs either its rule keyed like the rest or a
   chosen glyph, which is the route a head took. What would settle it: the first slice that needs one
   of them.
-- **Where does a terminal's glyph come from, once a glyph set can hold one?** _What a terminal
-  writes_ has the caller supply it, because no set holds a rule that points and the two characters
-  that could have been keyed are already claimed. What would settle it: a slice that gives a set its
-  own heads, which also has to decide whether the caller's glyph then becomes an override or goes
-  away.
+- **Where does a set's head come from?** _What a terminal writes_ has the caller choose a glyph or a
+  style, because no set holds a rule that points and the two characters that could have been keyed
+  are already claimed. A style is the answer available now: it gives the four directions a table
+  without touching a cell. What would settle the rest: a slice that gives a glyph set its own heads,
+  which also has to decide whether the caller's glyph and style then become overrides or go away.

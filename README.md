@@ -148,6 +148,7 @@ rule any file depends on.
 | `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.                      |
 | `docs/application-model.md`    | The layer above that one: the frame, the state, the actions.                   |
 | `docs/glyph-sets.md`           | The glyph tables and how they degrade.                                         |
+| `docs/terminal-styles.md`      | The eleven terminal styles, as tables indexed by the way each glyph points.    |
 | `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.                   |
 | `docs/memory-cost.md`          | What a diagram and a session cost, measured. Decides nothing.                  |
 | `docs/workflow.md`             | Why the process works the way it does, written at length.                      |

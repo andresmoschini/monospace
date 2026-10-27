@@ -248,7 +248,8 @@ does to an attachment, and _Positions_ is where the rule it follows is stated.
 The direction the connector leaves in and the terminal it carries are not derived from the
 attachment. They are the caller's. Deriving a direction from which side of a shape was attached to
 is an open question below, and every anchor being a side is what keeps it answerable: a side has an
-outside to leave through.
+outside to leave through. A style's glyph follows `leaving` rather than the anchor, so attaching an
+endpoint decides neither which glyph it writes nor which way that glyph points.
 
 A connector's `from` endpoint standing on the right border of a box, and its `to` endpoint out in
 the open. The cell at `(3, 1)` reads `├`, and neither figure wrote a junction there — the box's
