@@ -1,4 +1,4 @@
-//! The diagram: an ordered set of shapes, drawable into a buffer the caller gives it. See
+//! The diagram: an ordered set of shapes, drawable into a sink the caller gives it. See
 //! [`docs/diagram-model.md`](../../../docs/diagram-model.md).
 //!
 //! **The window is the caller's and the order is this crate's.** A buffer is a window with an
@@ -16,7 +16,7 @@
 
 use std::num::NonZeroU16;
 
-use monospace_core::{Buffer, FigureLayer, ShapeId, StampMode};
+use monospace_core::{FigureLayer, ShapeId, StampMode, StampSink};
 use rpds::{HashTrieMapSync, VectorSync};
 
 use crate::Shape;
@@ -338,9 +338,9 @@ impl Diagram {
         }
     }
 
-    /// Draws every shape into `buffer`, front to back, stamping every cell with
+    /// Draws every shape into `sink`, front to back, stamping every cell with
     /// [`StampMode::Below`] and **binding the shape's own identity** to each layer. Drawing changes
-    /// nothing about this diagram, so two drawings into equal windows produce equal buffers.
+    /// nothing about this diagram, so two drawings into equal windows produce equal drawings.
     ///
     /// The diagram is what a connector's endpoints resolve through, which is why it is the one that
     /// hands itself to each figure. A connector with an endpoint that does not resolve — an identity
@@ -349,13 +349,13 @@ impl Diagram {
     /// to ask which figures were dropped; see
     /// [#88](https://github.com/andresmoschini/monospace/issues/88).
     ///
-    /// **The signature does not change, and the identity is not a parameter of it.** Whoever draws a
-    /// diagram already holds every shape's identity and knows which is which, so asking for it again
-    /// would be asking a question this method is the only one able to answer — and a caller that
-    /// passed one in could pass one that disagrees with the diagram. The record is a property of the
-    /// drawing rather than of the diagram, which is why changing the diagram changes nothing about a
-    /// buffer already drawn.
-    pub fn draw(&self, buffer: &mut Buffer) {
+    /// **The identity is not a parameter of the signature.** Whoever draws a diagram already holds
+    /// every shape's identity and knows which is which, so asking for it again would be asking a
+    /// question this method is the only one able to answer — and a caller that passed one in could
+    /// pass one that disagrees with the diagram. The record is a property of the drawing rather than
+    /// of the diagram, which is why changing the diagram changes nothing about a buffer already
+    /// drawn.
+    pub fn draw(&self, sink: &mut dyn StampSink) {
         for id in self.order.iter().rev() {
             // **Every place in the order names a figure, and the guard is here rather than a panic
             // because the two are written together and nothing reaches into either.** It would not
@@ -364,7 +364,7 @@ impl Diagram {
             let Some(shape) = self.shapes.get(id) else {
                 continue;
             };
-            let mut layer = FigureLayer::stamped_by(buffer, StampMode::Below, *id);
+            let mut layer = FigureLayer::stamped_by(&mut *sink, StampMode::Below, *id);
             shape.draw(&mut layer, self);
         }
     }
