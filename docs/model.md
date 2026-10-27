@@ -334,6 +334,12 @@ test, and what brings one back in its place is a caller that needs to know what 
 occupies — routing around an obstacle, or sizing a canvas to its content — which is also the first
 layer to have to decide what a bound means for a figure whose written positions are sparse.
 
+**The first such caller has arrived, and it reads the stamps rather than the shapes.** The status
+bar says how far a drawing reaches, and the answer is the `Footprint` of _The buffer_ — measured by
+the sink as the stamps pass. No shape gained a method: a sparse figure, a compositor and a route
+computed while drawing all answer with the positions they wrote, and the layer that decides where
+figures go still asks nothing of a shape.
+
 Composition goes to arbitrary depth and no shape depends on knowing how deep it sits: one placed as
 a piece is drawable the same way at the top level. Defining a new kind of shape touches no existing
 shape, because there is no central list of them to touch.

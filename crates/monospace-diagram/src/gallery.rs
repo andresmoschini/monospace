@@ -15,7 +15,7 @@
 //! The cost is one place the rule from the core's gallery does not hold. A `Diagram` keeps its
 //! figures in a private map keyed by their identities and offers one query by an identity, with no
 //! listing of what it holds, so there is nothing to derive a label from and the block says which
-//! shapes it holds in a string written by hand. A shape's own footprint was withdrawn from the
+//! shapes it holds in a string written by hand. A shape's own rectangle was withdrawn from the
 //! shape abstraction for the same reason — a shape with no reader — and the reader that has since
 //! arrived is that one query, not the read iterator that was declined and not the listing beside it.
 //!

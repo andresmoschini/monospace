@@ -282,12 +282,17 @@ an anchor rather than a corner:
 
 A diagram draws into a buffer the caller gives it, and that buffer's origin and size are the window.
 It writes cells and stops there: turning them into text is the caller's, with the glyph catalog the
-caller holds. The diagram measures nothing and sizes nothing: a shape may answer no anchor point at
-all, so there is nothing to measure a canvas from, and what falls outside the window is clipped
-exactly as a stamp outside a buffer's window has always been. Which part of a diagram to draw is the
-caller's question in any case — a terminal draws what fits at the scroll position it is at, and no
-measurement of the content answers that — so the window being the caller's does not depend on the
-diagram's inability to measure itself.
+caller holds. The diagram measures nothing of its shapes and sizes nothing: a shape may answer no
+anchor point at all, so there is nothing to measure a canvas from, and what falls outside the window
+is clipped exactly as a stamp outside a buffer's window has always been. Which part of a diagram to
+draw is the caller's question in any case — a terminal draws what fits at the scroll position it is
+at — so the window being the caller's does not depend on the diagram's inability to measure itself.
+
+**A sink at the boundary can measure the traffic, and the window does not decide that answer.**
+`FootprintSink` accumulates every stamp's position before the buffer decides whether it holds the
+position, so a figure the window clips, one another figure covers, and one whose cell decides no
+side all count. The answer is the `Footprint` of _The buffer_ in [`model.md`](model.md) — how far
+the drawing reaches, not which part of it to show, which stays the caller's question.
 
 Shapes are visited from the front of the order to the back, and every cell is stamped with `Below`.
 By _The two orders are equivalent_ in [`model.md`](model.md), that produces the same buffer as
@@ -357,6 +362,12 @@ that arm, the glyph is made by both and the cell belongs to the front one. The r
 yet: when an editor needs it, what it gets is a list of owners for the position, front-most first,
 because a character is what a person clicks on and the arms inside one cannot be pointed at
 separately.
+
+**A position nobody owns was still reached.** The `Footprint` of _The buffer_ in
+[`model.md`](model.md) counts every stamp, so a position another figure decided, one whose arms are
+all `Unset`, and one outside the window all widen it. The record says what a click lands on; the
+footprint says how far the drawing goes. The two are different questions about the same cell, and
+neither answers the other.
 
 The record belongs to the drawing that produced it. Changing the diagram does not update it; drawing
 again produces a new one.
@@ -460,10 +471,6 @@ that needs one of them answered amends this document first and then implements t
 - **Does an attachment decide the direction a connector leaves in?** Attaching to a box's right side
   and leaving leftward is expressible today and draws something nobody wants. What would settle it:
   the first slice where the caller's direction and the anchor's side are routinely the same.
-- **How big is a diagram?** Nothing measures one. The window stays the caller's either way — which
-  part of a diagram to draw is a question about a viewport, not about the content — so what is
-  missing is a way to ask a diagram what it occupies. What would settle it: a consumer that has to
-  choose a window with nothing to base it on, an exporter being the obvious one.
 - **What does a group of shapes do to this model?** Issue #58 asks for one, and groups are
   deliberately out of scope here. A group contains shapes, which is the first thing in this document
   that would want to speak about shapes generically rather than by kind.
