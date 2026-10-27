@@ -340,22 +340,26 @@ negative amount is simply a point on the far side of the anchor.
 
 <!-- /render -->
 
-## Two terminals, and the one difference between them
+## Three terminals, and the difference between them
 
-A terminal is an `arm` or a `glyph`, and the choice decides what happens at the cell the endpoint
-stands on. An **arm** composes into whatever is already there: the first row's left end sits on the
-box's border and the two figures make a junction, `├`. A **glyph** is one grapheme cluster written
-as a literal, and a literal **replaces** the cell it lands on: the second and third rows lose the
-border at that cell and show the head instead.
+A terminal is an `arm`, a `glyph` or a `style`, and the choice decides what happens at the cell the
+endpoint stands on. An **arm** composes into whatever is already there: the first row's left end
+sits on the box's border and the two figures make a junction, `├`. A **glyph** is one grapheme
+cluster written as a literal, and a literal **replaces** the cell it lands on: the second and third
+rows lose the border at that cell and show the head instead. A **style** is a literal too, and the
+difference from a glyph is where it came from: the fourth row names `ascii-arrow` at each end, and
+the table answers `<` for the end leaving rightward and `>` for the one leaving leftward — each
+pointing away from the route, and neither spelled out in the file.
 
 The right-hand ends differ for a second reason worth keeping apart. A connector's `leaving` is its
 own and not the anchor's, so an `arm` arriving from the right writes its arm on the side it is
 leaving and leaves the other three unset — which is why the first row ends in a bare `─` and the
-third in one too, while the second row's `▶` is a literal and closes both ends.
+third in one too, while the second row's `▶` and the fourth row's `>` are literals and close both
+ends.
 
-<!-- render: 16x12
+<!-- render: 16x16
 {
-  "next_id": 5,
+  "next_id": 6,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
@@ -376,6 +380,12 @@ third in one too, while the second row's `▶` is a literal and closes both ends
                 "terminal": { "kind": "glyph", "glyph": "◀" } },
       "to":   { "at": { "kind": "point", "x": 13, "y": 9 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
+      "stroke": "light" },
+    { "kind": "connector", "id": 5,
+      "from": { "at": { "kind": "point", "x": 3, "y": 13 }, "leaving": "right",
+                "terminal": { "kind": "style", "style": "ascii-arrow" } },
+      "to":   { "at": { "kind": "point", "x": 13, "y": 13 }, "leaving": "left",
+                "terminal": { "kind": "style", "style": "ascii-arrow" } },
       "stroke": "light" } ] }
 -->
 
@@ -390,6 +400,10 @@ third in one too, while the second row's `▶` is a literal and closes both ends
 
 
    ◀──────────
+
+
+
+   <─────────>
 
 
 ```
