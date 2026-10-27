@@ -274,12 +274,9 @@ where
 /// sit on and the external form has none — `Glyph(Glyph)` does not compile, since `Glyph` derives
 /// no `Deserialize`. A field an `arm` does not know is ignored, as everywhere else in this format.
 ///
-/// **A style's name is resolved here, as the file is read, against the catalog [`parse`] is given**,
-/// and a name that catalog does not hold draws `solid-pointer` in silence. A catalog is open the way
-/// a glyph catalog is, so a file written against a later one stays readable by an earlier build, and
-/// [`parse`] answers a `Diagram` or a [`ParseError`] with no third channel a substitution could be
-/// reported on. The cost is that a misspelled style is invisible, and that is accepted rather than
-/// overlooked.
+/// **A style's name is resolved here, as the file is read, against the catalog [`parse`] is given.**
+/// A name that catalog does not hold draws `solid-pointer`, and `style_named` says what that costs
+/// and why it is accepted.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum Terminal {
