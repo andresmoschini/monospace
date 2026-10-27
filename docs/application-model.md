@@ -72,6 +72,12 @@ not answer, keeps the space the frame's clear painted; the copy writes only what
 **`monospace_core::render` is not the way**: the string it returns is the picture and nothing else,
 and the buffer behind it is what answers a click.
 
+**The status bar says how far the drawing reaches.** The section is written from the footprint of
+the frame being drawn — measured by the sink on the way into the buffer, see _The buffer_ in
+[`model.md`](model.md) — so the bar and the region speak about the same drawing rather than about
+the one before it. A figure the region clips and one another figure covers still count: the bar says
+the drawing's extent, not the interior's, and a drawing that stamped nothing says `nothing drawn`.
+
 ## 3. The state
 
 **The state is a session, the drawing of the last frame, the shape a click selected, and the
@@ -85,9 +91,10 @@ are one thing because they change together: a frame that changes one of them cha
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
 that produced the picture the person saw rather than to one made when the click arrives: the diagram
 may have changed since, and a fresh drawing would answer about a picture nobody clicked. The window
-the last frame produced is therefore kept and replaced on every frame. **It is not the document** —
-the diagram is the document, the drawing is one rendering of it, and keeping it changes nothing
-about what a person can undo.
+the last frame produced is therefore kept and replaced on every frame, and the footprint it reached
+is kept beside it because the status bar is drawn after the region and speaks about the same
+drawing. **It is not the document** — the diagram is the document, the drawing is one rendering of
+it, and keeping it changes nothing about what a person can undo.
 
 **The selection is an identity and not a rectangle.** What a click selects is the identity the
 drawing records beside the cell under it, and what the frame inverts is recomputed from the drawing
@@ -382,9 +389,10 @@ framework's buffer one at a time.
   table of actions would be another. What would settle it: the first command that needs a name. Undo
   did not force it — the two entries are written in both places as `Delete` is, and nothing reads
   one from the other yet.
-- **What the status bar says.** It names the application and its version, because that is what a
-  person looking at the terminal can be told at once. The state of the session — what has been
-  changed and what can be undone — is the editing surface's, and it is what the row is for;
+- **What the status bar says.** It names the application and its version, and it says how far the
+  drawing reaches — the footprint of _The buffer_ in [`model.md`](model.md), as §2 states. What else
+  it should say is open: the state of the session — what has been changed and what can be undone —
+  is the editing surface's, and it is what the rest of the row is for;
   [#226](https://github.com/andresmoschini/monospace/issues/226) owns it.
 - **The light terminal.** The framework has light palettes and a light theme, and the light theme is
   the dark one over a light palette, so "looks right on a light terminal" is a palette to choose
