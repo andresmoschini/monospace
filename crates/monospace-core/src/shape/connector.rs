@@ -66,7 +66,7 @@
 //! line in the model's vocabulary — the shape of a description does not change and no record
 //! reopens. A field and its absence would instead make "no terminal" a third spelling, and a
 //! caller who left the field out would get a connector that draws nothing at either end rather than a
-//! refusal naming the two values that were expected.
+//! refusal naming the values that were expected.
 //!
 //! **A glyph decides every side; an arm leaves three undecided.** That difference is the whole of
 //! what the two write, and it is not this module's rule to state: _Stamping_ in
@@ -77,11 +77,12 @@
 //! choosing its stroke would be a second thing to keep consistent with the route it joins, while
 //! the model's arm is a stroke cell of the figure.
 //!
-//! **The set is closed at two, and is not `#[non_exhaustive]`.** A third terminal is a new variant
-//! in a later slice, which is a change to this enum and to the model rather than an invisible one.
-//! Marking it non-exhaustive would let a caller match on it exhaustively today and go on compiling
-//! after a third member exists, which is the one outcome the model's sentence about naming one more
-//! of them is written to prevent.
+//! **The set is closed at three, and is not `#[non_exhaustive]`.** It was closed at two, and the
+//! third arrived exactly as this section said it would: as a variant here, a tag in the description,
+//! and a line in the model's vocabulary, rather than as an invisible widening. Marking it
+//! non-exhaustive would let a caller match on the three it has today and go on compiling after a
+//! fourth exists, which is the one outcome the model's sentence about naming one more of them is
+//! written to prevent.
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
@@ -90,7 +91,7 @@ use crate::cell::Side;
 use crate::shape::fragment::end::End;
 use crate::shape::fragment::head::Head;
 use crate::shape::route::Route;
-use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
+use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Style, Surface};
 
 /// Where a connector ends: a position, the direction it leaves in, and a terminal. See _The initial
 /// set_ and _What a terminal writes_ in
@@ -120,13 +121,17 @@ impl Endpoint {
                 at: self.at,
                 glyph: glyph.clone(),
             }),
+            Terminal::Style { style } => Some(Head {
+                at: self.at,
+                glyph: style.glyph(self.leaving).clone(),
+            }),
             Terminal::Arm => None,
         }
     }
 }
 
-/// What an endpoint contributes to the cell at its own position. A caller builds either variant as
-/// a literal, and reads one back by matching this public field.
+/// What an endpoint contributes to the cell at its own position. A caller builds one of the three
+/// as a literal, and reads one back by matching this public field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Terminal {
     /// One chosen glyph, written as a literal: decided on every side, so nothing composes into it.
@@ -138,6 +143,13 @@ pub enum Terminal {
     /// One arm, in the connector's own stroke, on the side `leaving` names, leaving the other three
     /// sides undecided.
     Arm,
+    /// One glyph out of a style's table: the entry named for the direction opposite `leaving`,
+    /// written as a literal, so nothing composes into it and no stroke or glyph set is consulted.
+    Style {
+        /// The resolved table. A name is not held here: the reader resolves it once, so nothing
+        /// above the reader looks a style up at draw time.
+        style: Style,
+    },
 }
 
 /// The side an arm terminal writes: the leaving direction's own side, and not its opposite, because
@@ -166,7 +178,7 @@ pub struct Connector {
     /// The other endpoint of the connector.
     pub to: Endpoint,
     /// The stroke the route between the two endpoints is drawn in, and the stroke an arm terminal
-    /// is written in. A glyph terminal is drawn as its own glyph, not in this stroke.
+    /// is written in. A glyph or style terminal is drawn as its own glyph, not in this stroke.
     pub stroke: Stroke,
 }
 
@@ -562,7 +574,7 @@ mod tests {
     use crate::shape::counting::CountingSurface;
     use crate::{
         Arm, Buffer, Cell, CellReader, Direction, FigureLayer, Glyph, GlyphCatalog, Line,
-        Orientation, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window, render,
+        Orientation, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Style, Window, render,
     };
 
     fn light() -> Stroke {
@@ -587,6 +599,18 @@ mod tests {
             terminal: Terminal::Glyph {
                 glyph: head_for(leaving),
             },
+        }
+    }
+
+    /// A style whose four entries are one glyph, so a picture tells it apart from `solid-pointer`
+    /// at a glance: a diamond points nowhere and the default does.
+    fn solid_diamonds() -> Style {
+        let diamond = Glyph::new("◆").expect("one glyph");
+        Style {
+            up: diamond.clone(),
+            right: diamond.clone(),
+            down: diamond.clone(),
+            left: diamond,
         }
     }
 
@@ -1167,6 +1191,124 @@ mod tests {
             buffer.cell(at),
             Some(&Cell::Literal(head_for(Direction::Right)))
         );
+    }
+
+    /// A style terminal writes the entry named for the direction opposite `leaving`, so its glyph
+    /// points away from the route. All four directions, because the table is indexed by the
+    /// direction and a mapping that is right for three of them is wrong.
+    #[test]
+    fn a_style_writes_the_entry_for_the_direction_opposite_leaving() {
+        let expected = [
+            (Direction::Up, "▼"),
+            (Direction::Right, "◄"),
+            (Direction::Down, "▲"),
+            (Direction::Left, "►"),
+        ];
+
+        for (leaving, written) in expected {
+            // A one-by-one window on the endpoint's own position, so nothing but the terminal
+            // writes there: the route starts one step away and the other endpoint is off-window.
+            let at = Pos { x: 3, y: 3 };
+            let mut buffer = Buffer::new(Window {
+                origin: at,
+                size: Size {
+                    width: 1,
+                    height: 1,
+                },
+            });
+            Connector {
+                from: Endpoint {
+                    at,
+                    leaving,
+                    terminal: Terminal::Style {
+                        style: Style::default(),
+                    },
+                },
+                to: endpoint(Pos { x: 9, y: 9 }, Direction::Up),
+                stroke: light(),
+            }
+            .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+
+            assert_eq!(
+                buffer.cell(at),
+                Some(&Cell::Literal(
+                    Glyph::new(written).expect("one of the four head glyphs is one glyph each")
+                )),
+                "leaving {leaving:?}"
+            );
+        }
+    }
+
+    /// A style writes a literal, so it covers the cell and nothing composes into it — the same
+    /// behavior a chosen glyph has, and the one difference from an arm. An arm written at that
+    /// same position afterwards leaves the cell exactly as the style wrote it, and the connector's
+    /// stroke plays no part in it.
+    #[test]
+    fn a_style_covers_the_cell_and_composes_with_nothing() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 7,
+            height: 1,
+        };
+        let at = origin;
+        let mut buffer = Buffer::new(Window { origin, size });
+
+        Connector {
+            from: Endpoint {
+                at,
+                leaving: Direction::Right,
+                terminal: Terminal::Style {
+                    style: solid_diamonds(),
+                },
+            },
+            to: endpoint(Pos { x: 6, y: 0 }, Direction::Left),
+            stroke: light(),
+        }
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+
+        // A line's first cell is an end carrying one arm, so this writes an arm on the same
+        // position the style terminal occupies and nothing else.
+        Line {
+            at,
+            len: 1,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        }
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Below));
+
+        assert_eq!(
+            buffer.cell(at),
+            Some(&Cell::Literal(Glyph::new("◆").expect("one glyph")))
+        );
+    }
+
+    /// Each endpoint chooses its own terminal, so one connector may carry two styles: a diamond at
+    /// the end leaving rightward and a pointer at the end leaving leftward, `◆──────►`.
+    #[test]
+    fn the_two_endpoints_of_a_connector_choose_their_styles_independently() {
+        let text = render_connector(
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 8,
+                height: 1,
+            },
+            Endpoint {
+                at: Pos { x: 0, y: 0 },
+                leaving: Direction::Right,
+                terminal: Terminal::Style {
+                    style: solid_diamonds(),
+                },
+            },
+            Endpoint {
+                at: Pos { x: 7, y: 0 },
+                leaving: Direction::Left,
+                terminal: Terminal::Style {
+                    style: Style::default(),
+                },
+            },
+        );
+
+        assert_eq!(text, "◆──────►\n");
     }
 
     /// An arm terminal writes one arm — the

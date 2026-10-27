@@ -19,6 +19,7 @@ mod identity;
 mod render;
 mod shape;
 mod stroke;
+mod style;
 
 pub use buffer::{Buffer, CellReader, OwnerReader, StampMode, StampSink};
 pub use cell::{Arm, Cell, StrokeCell};
@@ -29,3 +30,4 @@ pub use identity::ShapeId;
 pub use render::render;
 pub use shape::{BoxShape, Connector, Endpoint, FigureLayer, Line, Shape, Surface, Terminal};
 pub use stroke::Stroke;
+pub use style::Style;
