@@ -17,6 +17,24 @@ pub enum StampMode {
     Below,
 }
 
+/// What a stamp is handed to: one write operation and no reader.
+///
+/// **A sink is the whole of what writing needs**, which is what lets a figure layer hold one
+/// without holding a [`Buffer`], and lets an adapter stand between a drawing and the store that
+/// keeps it — measuring what passes, or sending it somewhere else — without the drawing knowing.
+/// [`Buffer`] is the sink this crate ships, and the one that keeps the cells and the owners.
+///
+/// The call is the one [`Surface::stamp`](crate::Surface::stamp) becomes, and it carries the two
+/// things a fragment is never told: which [`StampMode`] decides the composition, and which identity
+/// the stamp is made under. See _Stamping_ in [`docs/model.md`](../../../docs/model.md).
+pub trait StampSink {
+    /// Writes `cell` at the absolute position `at`, under `mode`, recorded under `owner`.
+    ///
+    /// **What a sink does with a stamp it cannot hold is its own answer**: a buffer writes nothing
+    /// outside its window.
+    fn stamp(&mut self, at: Pos, cell: Cell, mode: StampMode, owner: Option<ShapeId>);
+}
+
 /// A window of cells, and a record of which shape decided each of them.
 ///
 /// Every position in a freshly created buffer is undefined: it holds no cell until [`stamp`] is
@@ -28,7 +46,7 @@ pub enum StampMode {
 /// every catalog lookup would then depend on it. [`owner`] reads the record back.
 ///
 /// [`owner`]: Buffer::owner
-/// [`stamp`]: Buffer::stamp
+/// [`stamp`]: StampSink::stamp
 pub struct Buffer {
     window: Window,
     cells: HashMap<(i16, i16), Cell>,
@@ -61,6 +79,47 @@ impl Buffer {
         self.window
     }
 
+    /// Returns the cell at an absolute position, or `None` if it is undefined.
+    ///
+    /// An undefined cell and a position outside the buffer's window look the same: neither has
+    /// ever been written, so there is nothing to distinguish them by.
+    #[must_use]
+    pub fn cell(&self, at: Pos) -> Option<&Cell> {
+        self.cells.get(&(at.x, at.y))
+    }
+
+    /// The identity of whoever decided the cell at the offset `at`, counted from this window's own
+    /// top-left corner, or `None` when nobody holds that position.
+    ///
+    /// **The answer is a value rather than a borrow of one.** An identity is two bytes and `Copy`,
+    /// so a caller holds what it is given and may go on drawing into this buffer and ask again,
+    /// which is what a front end deciding what to do with a cell it was handed has to be able to
+    /// do. Nothing is owed by holding it and nothing is spent by copying it.
+    ///
+    /// **`None` covers three cases and distinguishes none of them**, in the type or in the answer: a
+    /// position no shape wrote, a position inside the window whose cell no shape decided, and an
+    /// offset the window does not hold at all. Nothing was ever recorded at any of them, so there
+    /// is nothing to say which it was — and the last of the three is arithmetic this method performs
+    /// rather than one it is asked about, so no caller performs it either.
+    ///
+    /// The offset is the one a caller already holds. A click arrives as a column and a row of what
+    /// was rendered, and what was rendered is this window, so the two go straight in and nothing is
+    /// added to anything. The window's `origin` decides which cells the window holds and takes no
+    /// other part in the answer, so a caller that reads it, adds it to a click and asks with the sum
+    /// has asked about a different cell — and gets a truthful answer about that one.
+    #[must_use]
+    pub fn owner(&self, at: Offset) -> Option<ShapeId> {
+        let at = self.window.position(at)?;
+        self.owners.get(&(at.x, at.y)).copied()
+    }
+
+    /// Whether `at` falls inside this buffer's window.
+    fn contains(&self, at: Pos) -> bool {
+        self.window.contains(at)
+    }
+}
+
+impl StampSink for Buffer {
     /// Writes `cell` at the absolute position `at`, under `mode`.
     ///
     /// A position outside the window is left unchanged. Writing an undefined position defines it
@@ -84,7 +143,7 @@ impl Buffer {
     /// only when nobody holds it already. A shape behind therefore cannot take a cell from one in
     /// front of it however much it decides there, and since every stamp in front takes, the record
     /// comes out the same whichever order a diagram is drawn in.
-    pub fn stamp(&mut self, at: Pos, cell: Cell, mode: StampMode, owner: Option<ShapeId>) {
+    fn stamp(&mut self, at: Pos, cell: Cell, mode: StampMode, owner: Option<ShapeId>) {
         if !self.contains(at) {
             return;
         }
@@ -132,45 +191,6 @@ impl Buffer {
             self.owners.insert((at.x, at.y), owner);
         }
     }
-
-    /// Returns the cell at an absolute position, or `None` if it is undefined.
-    ///
-    /// An undefined cell and a position outside the buffer's window look the same: neither has
-    /// ever been written, so there is nothing to distinguish them by.
-    #[must_use]
-    pub fn cell(&self, at: Pos) -> Option<&Cell> {
-        self.cells.get(&(at.x, at.y))
-    }
-
-    /// The identity of whoever decided the cell at the offset `at`, counted from this window's own
-    /// top-left corner, or `None` when nobody holds that position.
-    ///
-    /// **The answer is a value rather than a borrow of one.** An identity is two bytes and `Copy`,
-    /// so a caller holds what it is given and may go on drawing into this buffer and ask again,
-    /// which is what a front end deciding what to do with a cell it was handed has to be able to
-    /// do. Nothing is owed by holding it and nothing is spent by copying it.
-    ///
-    /// **`None` covers three cases and distinguishes none of them**, in the type or in the answer: a
-    /// position no shape wrote, a position inside the window whose cell no shape decided, and an
-    /// offset the window does not hold at all. Nothing was ever recorded at any of them, so there
-    /// is nothing to say which it was — and the last of the three is arithmetic this method performs
-    /// rather than one it is asked about, so no caller performs it either.
-    ///
-    /// The offset is the one a caller already holds. A click arrives as a column and a row of what
-    /// was rendered, and what was rendered is this window, so the two go straight in and nothing is
-    /// added to anything. The window's `origin` decides which cells the window holds and takes no
-    /// other part in the answer, so a caller that reads it, adds it to a click and asks with the sum
-    /// has asked about a different cell — and gets a truthful answer about that one.
-    #[must_use]
-    pub fn owner(&self, at: Offset) -> Option<ShapeId> {
-        let at = self.window.position(at)?;
-        self.owners.get(&(at.x, at.y)).copied()
-    }
-
-    /// Whether `at` falls inside this buffer's window.
-    fn contains(&self, at: Pos) -> bool {
-        self.window.contains(at)
-    }
 }
 
 /// Builds the cell that results from merging `top` onto `bottom`, per _Stamping_ in
@@ -182,7 +202,7 @@ impl Buffer {
 /// arms, so [`merge_arm`] never sees one:
 ///
 /// - **A literal on top** always wins outright, whatever `bottom` is. Unreachable through
-///   [`Buffer::stamp`] today, because its two `is_decided` shortcuts catch
+///   [`StampSink::stamp`] today, because its two `is_decided` shortcuts catch
 ///   every decided cell first — written as a returning branch rather than `unreachable!()` so
 ///   those shortcuts stay deletable optimizations instead of becoming load-bearing.
 /// - **A stroke cell over a literal** wins as a stroke cell, with every side it left `Unset`
@@ -271,7 +291,7 @@ fn merge_arm(top: Arm, bottom: Arm) -> Arm {
 mod tests {
     use std::num::NonZeroU16;
 
-    use super::{Buffer, StampMode};
+    use super::{Buffer, StampMode, StampSink};
     use crate::{
         Arm, BoxShape, Cell, Glyph, Layer, Offset, Pos, Shape as _, ShapeId, Size, Stroke,
         StrokeCell, Window,

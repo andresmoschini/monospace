@@ -52,7 +52,8 @@ fn glyph_at<'a>(
 mod tests {
     use super::render;
     use crate::{
-        Arm, Buffer, Cell, Glyph, GlyphCatalog, Pos, Size, StampMode, Stroke, StrokeCell, Window,
+        Arm, Buffer, Cell, Glyph, GlyphCatalog, Pos, Size, StampMode, StampSink, Stroke,
+        StrokeCell, Window,
     };
 
     fn light() -> Stroke {

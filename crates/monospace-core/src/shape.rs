@@ -1,7 +1,7 @@
 //! What a shape draws into, and what a shape is. See _Shapes_ in
 //! [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Buffer, Cell, Pos, ShapeId, StampMode};
+use crate::{Buffer, Cell, Pos, ShapeId, StampMode, StampSink};
 
 mod box_shape;
 mod connector;
