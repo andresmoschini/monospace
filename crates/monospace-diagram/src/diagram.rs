@@ -1123,8 +1123,8 @@ mod tests {
         .draw(&mut Layer::new(&mut expected, StampMode::Above));
 
         assert_eq!(
-            render(&actual, &GlyphCatalog::light(), origin, size),
-            render(&expected, &GlyphCatalog::light(), origin, size)
+            render(&actual, &GlyphCatalog::light(), actual.window()),
+            render(&expected, &GlyphCatalog::light(), expected.window())
         );
     }
 
@@ -1158,8 +1158,8 @@ mod tests {
         .draw(&mut Layer::new(&mut expected, StampMode::Above));
 
         assert_eq!(
-            render(&actual, &GlyphCatalog::light(), origin, size),
-            render(&expected, &GlyphCatalog::light(), origin, size)
+            render(&actual, &GlyphCatalog::light(), actual.window()),
+            render(&expected, &GlyphCatalog::light(), expected.window())
         );
     }
 
@@ -1219,8 +1219,8 @@ mod tests {
         .draw(&mut Layer::new(&mut expected, StampMode::Above));
 
         assert_eq!(
-            render(&actual, &GlyphCatalog::light(), origin, size),
-            render(&expected, &GlyphCatalog::light(), origin, size)
+            render(&actual, &GlyphCatalog::light(), actual.window()),
+            render(&expected, &GlyphCatalog::light(), expected.window())
         );
     }
 
@@ -1723,7 +1723,11 @@ mod tests {
         let mut crossing_buffer = Buffer::new(Window { origin, size });
         crossing.draw(&mut crossing_buffer);
         assert_eq!(
-            render(&crossing_buffer, &GlyphCatalog::light(), origin, size),
+            render(
+                &crossing_buffer,
+                &GlyphCatalog::light(),
+                crossing_buffer.window()
+            ),
             "  │  \n  │  \n──┼──\n  │  \n  │  \n"
         );
 
@@ -1750,7 +1754,11 @@ mod tests {
         let mut occluding_buffer = Buffer::new(Window { origin, size });
         occluding.draw(&mut occluding_buffer);
         assert_eq!(
-            render(&occluding_buffer, &GlyphCatalog::light(), origin, size),
+            render(
+                &occluding_buffer,
+                &GlyphCatalog::light(),
+                occluding_buffer.window()
+            ),
             "  │  \n ┌┴┐ \n │░│ \n └┬┘ \n  │  \n"
         );
     }
@@ -2628,7 +2636,14 @@ mod tests {
     /// arm, and a run where an arm stands alone — are claims about glyphs, and a cell read as arms
     /// would state them in the substrate's own vocabulary instead.
     fn the_glyph_at(buffer: &Buffer, at: Pos, size: Size) -> char {
-        let picture = render(buffer, &GlyphCatalog::light(), Pos { x: 0, y: 0 }, size);
+        let picture = render(
+            buffer,
+            &GlyphCatalog::light(),
+            Window {
+                origin: Pos { x: 0, y: 0 },
+                size,
+            },
+        );
         picture
             .lines()
             .nth(at.y.cast_unsigned() as usize)

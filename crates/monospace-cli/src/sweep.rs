@@ -100,12 +100,7 @@ fn case(name: &str, shapes: &str) -> String {
         size: SIZE,
     });
     diagram.draw(&mut buffer);
-    let rendered = monospace_core::render(
-        &buffer,
-        &monospace_glyph_sets::all(),
-        Pos { x: 0, y: 0 },
-        SIZE,
-    );
+    let rendered = monospace_core::render(&buffer, &monospace_glyph_sets::all(), buffer.window());
 
     let mut out = String::new();
     let _ = writeln!(out, "{name}");

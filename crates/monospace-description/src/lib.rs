@@ -600,7 +600,7 @@ mod tests {
         let drawn = |origin: Pos, size: Size| {
             let mut buffer = Buffer::new(Window { origin, size });
             diagram.draw(&mut buffer);
-            monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
+            monospace_core::render(&buffer, &GlyphCatalog::light(), buffer.window())
         };
         let small = drawn(
             Pos { x: 0, y: 0 },
@@ -650,7 +650,7 @@ mod tests {
         diagram.draw(&mut buffer);
 
         assert_eq!(
-            monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size),
+            monospace_core::render(&buffer, &GlyphCatalog::light(), buffer.window()),
             "┌──┐  \n│  │  \n└──┘  \n      \n",
             "the `13x9` in the file has no say in it: the picture is the window the caller chose"
         );
@@ -672,7 +672,7 @@ mod tests {
 
         let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
-        monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
+        monospace_core::render(&buffer, &GlyphCatalog::light(), buffer.window())
     }
 
     /// An unrecognized `kind` fails to deserialize and names the unrecognized value.

@@ -71,7 +71,7 @@ fn draw(size: Size, body: impl FnOnce(&mut dyn Surface)) -> (String, String) {
     let origin = Pos { x: 0, y: 0 };
     let mut buffer = Buffer::new(Window { origin, size });
     body(&mut Layer::new(&mut buffer, StampMode::Above));
-    let picture = render(&buffer, &GlyphCatalog::light(), origin, size);
+    let picture = render(&buffer, &GlyphCatalog::light(), buffer.window());
     (picture, surface(&buffer, size))
 }
 

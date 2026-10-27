@@ -675,7 +675,7 @@ fn render_back_to_front_with_above(
     let mut buffer = Buffer::new(Window { origin, size });
     back.draw(&mut Layer::new(&mut buffer, StampMode::Above));
     front.draw(&mut Layer::new(&mut buffer, StampMode::Above));
-    render(&buffer, &GlyphCatalog::light(), origin, size)
+    render(&buffer, &GlyphCatalog::light(), buffer.window())
 }
 
 /// The same file with its shapes reordered changes which one is drawn on top where they overlap

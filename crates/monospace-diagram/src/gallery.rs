@@ -174,7 +174,7 @@ fn draw(size: Size, diagram: &Diagram) -> (String, String) {
     let origin = at(0, 0);
     let mut buffer = Buffer::new(Window { origin, size });
     diagram.draw(&mut buffer);
-    let picture = render(&buffer, &GlyphCatalog::light(), origin, size);
+    let picture = render(&buffer, &GlyphCatalog::light(), buffer.window());
     (picture, surface(&buffer, size))
 }
 

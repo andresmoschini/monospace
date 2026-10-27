@@ -777,7 +777,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let output = monospace_core::render(&buffer, &ascii(), origin, size);
+        let output = monospace_core::render(&buffer, &ascii(), buffer.window());
 
         for ch in output.chars() {
             assert!(
@@ -830,7 +830,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let output = monospace_core::render(&buffer, &double(), origin, size);
+        let output = monospace_core::render(&buffer, &double(), buffer.window());
 
         for ch in output.chars() {
             assert!(
@@ -897,7 +897,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let output = monospace_core::render(&buffer, &heavy(), origin, size);
+        let output = monospace_core::render(&buffer, &heavy(), buffer.window());
 
         for ch in output.chars() {
             assert!(
@@ -964,7 +964,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let output = monospace_core::render(&buffer, &light_round(), origin, size);
+        let output = monospace_core::render(&buffer, &light_round(), buffer.window());
 
         for ch in output.chars() {
             assert!(
@@ -1006,8 +1006,11 @@ mod tests {
             fill: None,
         }
         .draw(&mut Layer::new(&mut light_round_buffer, StampMode::Above));
-        let light_round_output =
-            monospace_core::render(&light_round_buffer, &light_round(), origin, size);
+        let light_round_output = monospace_core::render(
+            &light_round_buffer,
+            &light_round(),
+            light_round_buffer.window(),
+        );
 
         let mut light_buffer = Buffer::new(Window { origin, size });
         BoxShape {
@@ -1020,8 +1023,7 @@ mod tests {
         let light_output = monospace_core::render(
             &light_buffer,
             &monospace_core::GlyphCatalog::light(),
-            origin,
-            size,
+            light_buffer.window(),
         );
 
         for corner in ['╮', '╭', '╯', '╰'] {

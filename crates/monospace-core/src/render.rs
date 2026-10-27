@@ -1,6 +1,6 @@
 //! Turning a buffer into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Buffer, GlyphCatalog, Pos, Size};
+use crate::{Buffer, GlyphCatalog, Pos, Window};
 
 /// Renders a rectangle of `buffer` to a string of exactly `size.height` lines, each exactly
 /// `size.width` glyphs wide and ending in `\n`, the last line included. A glyph may be more than
@@ -9,21 +9,21 @@ use crate::{Buffer, GlyphCatalog, Pos, Size};
 /// Each position asks its own cell for the text it renders to — see [`Cell::glyph_str`] — and
 /// falls back to a space when there is no cell, or the cell has none to give. A position inside
 /// the rendered rectangle but outside the buffer's window renders as a space too, since it never
-/// holds a cell either — and so does a position that `origin` and an offset within `size` cannot
-/// even address as a `Pos`, since nothing could ever have been stamped there.
+/// holds a cell either — and so does a position that the rectangle's origin and an offset within
+/// its size cannot even address as a `Pos`, since nothing could ever have been stamped there.
 ///
-/// **The rectangle is passed rather than taken from the buffer's window.** A window is where the
-/// buffer was drawn, and a rendering asks for the same rectangle, a part of it, or one that reaches
-/// past it — the last of which is what the paragraph above is about, and a rendering that took the
-/// window instead could not ask for it.
+/// **The window is passed rather than taken from the buffer's.** A window is where the buffer was
+/// drawn, and a rendering asks for the same rectangle, a part of it, or one that reaches past it —
+/// the last of which is what the paragraph above is about, and a rendering that took the buffer's
+/// own window could not ask for it.
 ///
 /// [`Cell::glyph_str`]: crate::Cell::glyph_str
 #[must_use]
-pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -> String {
-    (0..size.height)
+pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, window: Window) -> String {
+    (0..window.size.height)
         .map(|dy| {
-            let row: String = (0..size.width)
-                .map(|dx| glyph_at(buffer, glyphs, origin, dx, dy))
+            let row: String = (0..window.size.width)
+                .map(|dx| glyph_at(buffer, glyphs, window.origin, dx, dy))
                 .collect();
             row + "\n"
         })
@@ -82,15 +82,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 1,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┼\n");
     }
@@ -178,15 +170,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 4,
-                height: 3,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌──┐\n│  │\n└──┘\n");
     }
@@ -229,15 +213,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 1,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┴\n");
     }
@@ -267,15 +243,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 1,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, " \n");
     }
@@ -306,15 +274,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 2,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "  \n");
     }
@@ -345,10 +305,12 @@ mod tests {
         let text = render(
             &buffer,
             &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 2,
-                height: 1,
+            Window {
+                origin: Pos { x: 0, y: 0 },
+                size: Size {
+                    width: 2,
+                    height: 1,
+                },
             },
         );
 
@@ -367,7 +329,7 @@ mod tests {
         };
         let buffer = Buffer::new(Window { origin, size });
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "   \n");
     }
@@ -398,10 +360,12 @@ mod tests {
         let text = render(
             &buffer,
             &GlyphCatalog::light(),
-            Pos { x: -1, y: 0 },
-            Size {
-                width: 4,
-                height: 1,
+            Window {
+                origin: Pos { x: -1, y: 0 },
+                size: Size {
+                    width: 4,
+                    height: 1,
+                },
             },
         );
 
@@ -426,15 +390,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 1,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "A\n");
     }

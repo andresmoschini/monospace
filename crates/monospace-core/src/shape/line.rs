@@ -121,7 +121,7 @@ mod tests {
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
         assert_eq!(
-            render(&buffer, &GlyphCatalog::light(), origin, size),
+            render(&buffer, &GlyphCatalog::light(), buffer.window()),
             "───── \n"
         );
         assert!(buffer.cell(Pos { x: 5, y: 0 }).is_none());
@@ -146,7 +146,7 @@ mod tests {
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
         assert_eq!(
-            render(&buffer, &GlyphCatalog::light(), origin, size),
+            render(&buffer, &GlyphCatalog::light(), buffer.window()),
             "│\n│\n│\n│\n \n"
         );
         assert!(buffer.cell(Pos { x: 0, y: 4 }).is_none());
@@ -202,7 +202,7 @@ mod tests {
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
         assert_eq!(
-            render(&buffer, &GlyphCatalog::light(), origin, size),
+            render(&buffer, &GlyphCatalog::light(), buffer.window()),
             "──\n"
         );
     }
@@ -312,7 +312,7 @@ mod tests {
                 ("vertical first", &vertical_first),
             ] {
                 assert_eq!(
-                    render(buffer, &GlyphCatalog::light(), origin, size),
+                    render(buffer, &GlyphCatalog::light(), buffer.window()),
                     "┌\n",
                     "{label}, second stamp under {mode:?}"
                 );

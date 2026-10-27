@@ -266,7 +266,7 @@ fn render_once(diagram: &Diagram, origin: Pos, size: Size) -> String {
 fn drawn(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> (Buffer, String) {
     let mut buffer = Buffer::new(Window { origin, size });
     diagram.draw(&mut buffer);
-    let text = monospace_core::render(&buffer, catalog, origin, size);
+    let text = monospace_core::render(&buffer, catalog, buffer.window());
     (buffer, text)
 }
 
@@ -620,7 +620,7 @@ mod tests {
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
-        let expected = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let expected = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(render_once(&diagram, origin, size), expected);
     }
@@ -760,7 +760,7 @@ mod tests {
         let mut buffer = Buffer::new(Window { origin, size });
         back.draw(&mut Layer::new(&mut buffer, StampMode::Above));
         front.draw(&mut Layer::new(&mut buffer, StampMode::Above));
-        render(&buffer, &GlyphCatalog::light(), origin, size)
+        render(&buffer, &GlyphCatalog::light(), buffer.window())
     }
 
     /// The tenth entry's far endpoint stops being a point and becomes a reference to `5`'s bottom

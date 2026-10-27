@@ -513,7 +513,7 @@ mod tests {
     }
 
     fn text_of(buffer: &Buffer) -> String {
-        render(buffer, &GlyphCatalog::light(), ORIGIN, WINDOW)
+        render(buffer, &GlyphCatalog::light(), buffer.window())
     }
 
     fn glyph_terminals() -> (Terminal, Terminal) {

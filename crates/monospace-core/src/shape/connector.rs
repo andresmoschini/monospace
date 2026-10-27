@@ -584,7 +584,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        render(&buffer, &GlyphCatalog::light(), origin, size)
+        render(&buffer, &GlyphCatalog::light(), buffer.window())
     }
 
     /// Perpendicular directions, one bend.

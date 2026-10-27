@@ -90,7 +90,7 @@ fn picture_in(diagram: &Diagram, size: Size) -> String {
         size,
     });
     diagram.draw(&mut buffer);
-    render(&buffer, &GlyphCatalog::light(), ORIGIN, size)
+    render(&buffer, &GlyphCatalog::light(), buffer.window())
 }
 
 /// The drawing of what `session` holds, in the window the specification's example is drawn in.
@@ -804,12 +804,12 @@ fn drawing_what_a_session_holds_needs_no_copy() {
     session.diagram().draw(&mut borrowed);
 
     assert_eq!(
-        render(&borrowed, &GlyphCatalog::light(), ORIGIN, EXAMPLE),
-        render(&as_created, &GlyphCatalog::light(), ORIGIN, EXAMPLE),
+        render(&borrowed, &GlyphCatalog::light(), borrowed.window()),
+        render(&as_created, &GlyphCatalog::light(), as_created.window()),
         "a drawing of what a session holds is a drawing of the diagram it was created over"
     );
     assert_eq!(
-        render(&borrowed, &GlyphCatalog::light(), ORIGIN, EXAMPLE),
+        render(&borrowed, &GlyphCatalog::light(), borrowed.window()),
         AS_WRITTEN,
         "and it is the picture that diagram draws"
     );

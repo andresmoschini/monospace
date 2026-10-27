@@ -582,7 +582,7 @@ mod tests {
         let origin = Pos { x: 0, y: 0 };
         let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
-        render(&buffer, &GlyphCatalog::light(), origin, size)
+        render(&buffer, &GlyphCatalog::light(), buffer.window())
     }
 
     /// A connector whose `from` is whatever `hanging_from` builds from the identity the box holds,

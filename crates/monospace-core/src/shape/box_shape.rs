@@ -151,7 +151,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌────┐\n│    │\n└────┘\n");
     }
@@ -174,7 +174,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌────┐\n│░░░░│\n└────┘\n");
     }
@@ -196,7 +196,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌┐\n└┘\n");
     }
@@ -233,7 +233,7 @@ mod tests {
             }
             .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-            let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+            let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
             assert_eq!(text, "  \n  \n", "size {degenerate:?}");
         }
@@ -314,7 +314,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(
             text,
@@ -354,7 +354,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(
             text,
@@ -396,7 +396,7 @@ mod tests {
         }
         .draw(&mut Layer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌─┬┬─┐\n│ ││ │\n└─┴┴─┘\n");
     }
