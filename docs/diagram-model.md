@@ -248,14 +248,16 @@ does to an attachment, and _Positions_ is where the rule it follows is stated.
 The direction the connector leaves in and the terminal it carries are not derived from the
 attachment. They are the caller's. Deriving a direction from which side of a shape was attached to
 is an open question below, and every anchor being a side is what keeps it answerable: a side has an
-outside to leave through. A style's glyph follows `leaving` rather than the anchor, so attaching an
-endpoint decides neither which glyph it writes nor which way that glyph points.
+outside to leave through. A style terminal's head points away from `leaving` rather than toward the
+anchor, so attaching an endpoint decides neither which glyph it writes nor which way that glyph
+points.
 
-A style terminal holds a **name**, and the drawing resolves it against the style catalog it is
-handed. The diagram therefore keeps what the file said, and an edit that renames a style is a change
-to one name rather than to four glyphs. Two builds with different tables draw the same description
-with different heads, which is the rule a glyph set already follows for every stroke cell; a name
-neither drawing holds draws `solid-pointer`.
+A style terminal writes a **head**, and the head keeps the style's **name** rather than a glyph: the
+rendering resolves it against the style catalog it is handed, as it resolves a cell of arms against
+the glyph sets. The diagram therefore keeps what the file said, and an edit that renames a style is
+a change to one name rather than to four glyphs. Two builds with different tables render the same
+description with different heads, which is the rule a glyph set already follows for every stroke
+cell; a name neither build holds renders as `solid-pointer`.
 
 A connector's `from` endpoint standing on the right border of a box, and its `to` endpoint out in
 the open. The cell at `(3, 1)` reads `├`, and neither figure wrote a junction there — the box's

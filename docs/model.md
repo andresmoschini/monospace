@@ -41,12 +41,13 @@ character matches.
 | `Window`        | An origin and a size: the rectangle a buffer holds                                        |
 | `Buffer`        | A window, the cells written into it, and who decided each of them                         |
 | `Footprint`     | The smallest and largest coordinate a drawing stamped                                     |
-| `Cell`          | Either a base stroke and four arms, or one literal glyph                                  |
+| `Cell`          | A base stroke and four arms, one literal glyph, or one head                               |
 | `Side`          | Top, right, bottom or left                                                                |
 | `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`                           |
 | `Stroke`        | A name, nothing more                                                                      |
 | `BaseStroke`    | The cell's own stroke: what every arm is drawn in unless it carries one                   |
 | `Glyph`         | What a cell renders to: one grapheme cluster                                              |
+| `Head`          | A cell that points: the direction it points, and the style it is written in               |
 | `GlyphKey`      | The four sides of a rule: a stroke name on each, or nothing                               |
 | `GlyphRule`     | One `GlyphKey` mapped to a glyph                                                          |
 | `GlyphSet`      | A group of rules as they are written or loaded: one table                                 |
@@ -154,8 +155,23 @@ can instead hold **a literal glyph**: the character it renders to, chosen rather
 needs that, and so does a fill that hides what it covers rather than letting it show through.
 
 A literal has no arms of its own. For composing, it behaves as a cell whose four arms are `Closed`:
-nothing connects into a character. Which of the two kinds a cell ends up being belongs to the figure
-in front, exactly as the base stroke does.
+nothing connects into a character. Which of the three kinds a cell ends up being belongs to the
+figure in front, exactly as the base stroke does.
+
+### A cell can be a head instead
+
+The third kind of cell is a **head**: a cell that says **which way it points** and **which style it
+is written in**, and holds no character at all. It is what a connector's style terminal writes.
+
+**A head is derived rather than chosen, so it keeps the name and the direction.** The style is a
+name, and the four glyphs it stands for are a table the rendering consults — the same table
+[`terminal-styles.md`](terminal-styles.md) lists. Resolving it when the cell is written would put
+the choice of appearances in the figure rather than in the build, so two builds that shipped
+different tables could not draw one buffer differently, which is what every stroke cell already
+does.
+
+**It composes as a literal does**, and for the same reason: nothing connects into a character. It is
+decided on all four sides, an `Above` stamp replaces it, and a `Below` stamp leaves it alone.
 
 ## 4. Stamping
 
@@ -192,6 +208,11 @@ The last three rows are one rule seen from four sides: a literal composes as a c
 base stroke does. The `Closed` arms are not decoration. Without them a literal would be opaque in
 one order and transparent in the other, and the equivalence below would stop holding the moment a
 literal sat between two figures.
+
+**Every row naming a literal is a row naming a head as well.** A head has no arms either, so it is
+decided on all four sides, an `Above` stamp replaces it, a `Below` stamp leaves it alone, and arms
+stamped over it come out with their `Unset` sides `Closed`. The two differ in when their character
+is decided and in nothing a stamp can see.
 
 ### The two orders are equivalent
 
@@ -247,15 +268,17 @@ the degradation rule below falls back on.
 
 ## 6. Rendering
 
-The renderer takes a reader of cells, a catalog and a window: an origin `(x, y)` and a size
-`(width, height)`.
+The renderer takes a reader of cells, a glyph catalog, a style catalog and a window: an origin
+`(x, y)` and a size `(width, height)`. **Both catalogs are handed over here and nowhere below**, so
+a buffer is a description of what the figures meant rather than of how it looks, and which
+appearances a build ships is decided where the binary is assembled.
 
 For each position in the rectangle:
 
 1. If there is no cell, it is a space.
 2. Otherwise build the key from the four arms. **When building the key, `Unset` and `Closed` are the
    same**: both mean no stroke on that side.
-3. Look the exact key up in the catalog.
+3. Look the exact key up in the glyph catalog.
 4. If it is not there, move **every connected arm to the cell's base stroke** and look up again.
    Arms with no stroke stay without one.
 5. If that is not there either, there is no glyph.
@@ -263,8 +286,17 @@ For each position in the rectangle:
 That list is for a cell of arms. A cell holding a literal glyph renders as that glyph: no key is
 built, no lookup happens, and degradation never applies to one.
 
-There are no further attempts and no special conventions: two lookups. When a combination does not
-exist, the whole cell is drawn with the stroke the topmost figure imposed.
+A cell holding a head renders through the **style catalog**: the style its name answers to, and out
+of that table the entry named for the direction the head points. A name the catalog does not hold
+renders through the core's own table, `solid-pointer`, in silence — a catalog is open the way a set
+is, so a description written against a later one stays readable, and a rendering has no channel a
+substitution could be reported on. No key is built and degradation never applies to a head either:
+it follows no stroke, which is what makes one description draw the same heads whatever sets a build
+shipped.
+
+There are no further attempts and no special conventions: two lookups, and a head is answered by
+one. When a combination does not exist, the whole cell is drawn with the stroke the topmost figure
+imposed.
 
 Degrading the whole cell rather than as much of the mixture as still resolves is what makes the
 answer to _why that character?_ a single sentence: the figure that owns the cell imposes its stroke
@@ -382,7 +414,7 @@ of every stroke cell the figure writes. The core holds no default for it. What a
 is the caller's to say, and a constant inside the core would be an appearance decision no glyph set
 could reach. The one appearance the core does hold is a `Style`'s default table, and it is not a
 default for anything a figure left unsaid: it answers a name nothing claims, which is a name the
-caller did say, and it answers it when the drawing looks the name up.
+caller did say, and it answers it when the rendering looks the name up.
 
 A **box** is a position, a size and a stroke, with a fill as an option: corners, border runs and an
 interior, placed correctly. Which pieces it has depends on its size rather than on its kind, so a
@@ -399,8 +431,7 @@ An **connector** is two **endpoints** and a stroke. An endpoint is a position, t
 connector leaves it in, and a **terminal**; `at` is the cell the terminal hangs from. What a
 terminal may write is vocabulary this document owns, so naming one more of them is a change here and
 in the figure, and to whatever states it as a rule. A glyph terminal's glyph points opposite to the
-direction that endpoint leaves in, and a style terminal writes the entry its table names for that
-same direction.
+direction that endpoint leaves in, and a style terminal writes a head pointing that same way.
 
 ### What a terminal writes
 
@@ -428,24 +459,25 @@ answer because a glyph points and no set holds a rule that points: `▲ ► ◄ 
 `╾ ╼` are claimed in both mixing sets that hold them by keys meaning heavy on one side and light on
 the other.
 
-A **style** writes one glyph out of a **table of four**, the entry named for the direction opposite
-the one `leaving` names, so the glyph points away from the route. It is a literal in every other
-respect: it covers the cell, nothing composes into it, and it follows no stroke and no glyph set.
-Each entry is named by the way its glyph points rather than by the direction the connector leaves
-in, which is why the table's `down` holds `▲` and the endpoint leaving down is the one that writes
-it. The terminal holds the style's **name** and the drawing resolves it, so `solid-pointer` — the
-table the core carries — and the rest, in [`terminal-styles.md`](terminal-styles.md), are in reach
-only of a build that loaded them. A style is not derived from the stroke, so one description draws
-the same heads whatever glyph sets a build shipped, and that is the whole of why it is a table of
-its own rather than a row in a set.
+A **style** writes a **head**, in the sense of _A cell can be a head instead_: a cell that says
+which way it points and which style it is written in, and holds no glyph. The entry drawn is the one
+named for the direction opposite `leaving`, so the head points away from the route; the table's
+`down` therefore holds `▲`, and the endpoint leaving down is the one that points up. Each entry is
+named by the way its glyph points rather than by the direction the connector leaves in, which is
+what keeps the table readable beside Unicode, where `BLACK DOWN-POINTING TRIANGLE` is `▼`.
 
-**A style's name is resolved where the drawing is drawn, against a `StyleCatalog` the drawing is
-handed**, exactly as a cell's glyph is resolved against the `GlyphCatalog` the rendering is handed.
-The core holds the type and one table, a data crate holds the others with the union named once, and
-which of them a build ships is decided where the binary is assembled. A terminal keeps the name the
-description wrote, so an editing layer reads a style back as it was written; and the same
-description drawn by a build with another catalog draws another head, which is what a table of its
-own already means for every glyph a set supplies.
+**The cell keeps the name, and the rendering resolves it**, exactly as a cell of arms keeps four
+strokes and the rendering resolves them against the glyph sets. The connector writes no glyph, so
+drawing needs no catalog and one buffer is the same whatever a build shipped; two builds with
+different tables render that buffer with different heads, and an editing layer reads a style back as
+it was written. `solid-pointer` — the table the core carries — and the rest, in
+[`terminal-styles.md`](terminal-styles.md), are in reach only of a build that rendered with them,
+and a name nothing holds renders as `solid-pointer`, in silence.
+
+A style is not derived from the stroke, so one description draws the same heads whatever glyph sets
+a build shipped, and that is the whole of why it is a table of its own rather than a row in a set. A
+head covers the cell and composes with nothing: one standing on a box's border interrupts it,
+exactly as a chosen glyph does.
 
 That asymmetry is a limit of the data rather than a preference. A style is the answer available now,
 and heads that follow the glyph set would be the better one: they are the open question below, which
@@ -539,7 +571,9 @@ not.
   key a cell of that stroke can produce.
 - Front to back with `Below` and back to front with `Above` produce the same buffer.
 - That equivalence survives a literal in the middle of the stack, which is what the literal's four
-  `Closed` arms are for.
+  `Closed` arms are for; a head in the middle of the stack is the same case.
+- One buffer of heads rendered with two style catalogs draws two texts and changes no cell, and a
+  name neither catalog holds renders as `solid-pointer`. The test is the pair of pictures.
 - Stamping outside the window changes nothing.
 - `Below` on a fully decided cell changes nothing.
 - The exact key wins over the degraded one; with neither, a space.
@@ -592,6 +626,7 @@ core expose mutable state for editing?_ has left: the core exposes none, and
   of them.
 - **Where does a set's head come from?** _What a terminal writes_ has the caller choose a glyph or a
   style, because no set holds a rule that points and the two characters that could have been keyed
-  are already claimed. A style is the answer available now: it gives the four directions a table
-  without touching a cell. What would settle the rest: a slice that gives a glyph set its own heads,
-  which also has to decide whether the caller's glyph and style then become overrides or go away.
+  are already claimed. A style is the answer available now: it gives the four directions a table and
+  a third kind of cell to carry them, which is what a set's own heads would not need. What would
+  settle the rest: a slice that gives a glyph set its own heads, which also has to decide whether
+  the caller's glyph and style then become overrides or go away.

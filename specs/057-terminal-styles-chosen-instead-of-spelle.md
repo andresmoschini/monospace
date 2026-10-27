@@ -16,9 +16,9 @@ that the two agree with the directions they leave in.
 
 _What a terminal writes_ calls that asymmetry a limit of the data and leaves it as the open question
 about where a terminal's glyph could come from, preferring heads that follow the glyph set. This is
-the answer that changes no existing cell: a table of four glyphs per style leaves the four
-single-arm keys `╶ ╴ ╵ ╷` untouched, so a set of heads stays a question for another slice. Neither
-open slice that touches this vocabulary reaches it:
+the answer that leaves every existing cell rendering as it did: a table of four glyphs per style
+leaves the four single-arm keys `╶ ╴ ╵ ╷` untouched, so a set of heads stays a question for another
+slice. Neither open slice that touches this vocabulary reaches it:
 [#63](https://github.com/andresmoschini/monospace/issues/63) loads a glyph set from a file, and a
 loaded set is still a table of arms, while
 [#206](https://github.com/andresmoschini/monospace/issues/206) re-spells the format, and a third
@@ -28,13 +28,14 @@ terminal is better settled here than invented there.
 
 ### In
 
-- `monospace-core`: a `Style` type, its `StyleCatalog`, one default style, and a third `Terminal`
-  variant, which carries a style's name. The design note in `connector.rs` saying the set is closed
-  at two says three, for the reason it gave.
+- `monospace-core`: a `Style` type, its `StyleCatalog`, one default style, a third `Terminal`
+  variant carrying a style's name, a third kind of `Cell` carrying a name and a direction, and a
+  second catalog on `render`. The design note in `connector.rs` saying the set is closed at two says
+  three, for the reason it gave.
 - `monospace-terminal-styles`: a crate holding the other ten styles, one function per table
   returning a catalog, and `all()`, their union. It joins the crates the `wasm` step compiles.
 - `monospace-description`: `{ "kind": "style", "style": "<name>" }` on the wire, carried as a name
-  and resolved only when the diagram is drawn.
+  and resolved only when the cells are rendered.
 - `docs/model.md`, a new `docs/terminal-styles.md`, `docs/diagram-demo.md`'s section on terminals,
   and `README.md`'s layout table.
 - Tests for the eleven tables, the orientation rule, the fallback, the refusal, and that `arm` and
@@ -42,8 +43,8 @@ terminal is better settled here than invented there.
 
 ### Out
 
-- **A style that composes, or an arm-like style.** A style covers the cell, so composition is the
-  glyph's; a style that joined the border would be a set of arm rules, and an arm cannot point.
+- **A style that composes, or an arm-like style.** A head covers the cell, so composition is the
+  head's; a style that joined the border would be a set of arm rules, and an arm cannot point.
 - **The four single-arm rules `╶ ╴ ╵ ╷`,** which would make an end derived from a glyph set. Those
   keys are claimed today, so adding them changes what existing cells render; the model leaves it as
   a slice of its own.
@@ -53,15 +54,16 @@ terminal is better settled here than invented there.
 
 ## The decision
 
-**D1 — each entry is named by the way its glyph points, and `glyph` inverts once.**
+**D1 — each entry is named by the way its glyph points, and a head names that direction.**
 
 **Answer:** the four entries are named by the direction their glyph points, so `solid-pointer` is
-`up: ▲, right: ►, down: ▼, left: ◄`, and `Style::glyph(leaving)` answers the entry named for the
-direction opposite `leaving`. **Why not** naming each entry by the direction the connector leaves
-in: `▼` would sit under `up`, which reads backwards in the struct, in the documented table and
-against Unicode, where `BLACK DOWN-POINTING TRIANGLE` is `▼`. **What it costs:** the inversion has
-moved into one function instead of one table, and a field name now says where its glyph points.
-**Answered by** the maintainer, who reversed the draft on reading it.
+`up: ▲, right: ►, down: ▼, left: ◄`, `Style::glyph(toward)` answers the entry for a head pointing
+`toward`, and the connector derives that direction as the opposite of `leaving`. **Why not** naming
+each entry by the direction the connector leaves in: `▼` would sit under `up`, which reads backwards
+in the struct, in the documented table and against Unicode, where `BLACK DOWN-POINTING TRIANGLE` is
+`▼`. **What it costs:** one reversal, in the figure that knows both directions, instead of a field
+name that reads backwards. **Answered by** the maintainer, who reversed the draft on reading it, and
+amended again below when the cell took the direction over.
 
 **D2 — the style is chosen per endpoint.**
 
@@ -72,30 +74,37 @@ ordinary (`◆──────►`), so the override would be the common case 
 only to save one word. **What it costs:** a symmetric arrow names the style twice. **Answered by**
 the maintainer.
 
-**D3 — a style writes a literal glyph, and it is not an arm.**
+**D3 — a style writes a head, and it is neither an arm nor a literal.**
 
-**Answer:** it writes one glyph from its table at `at`, covers the cell, and nothing composes into
-it — the behavior `glyph` already has. It does not follow `stroke` and does not degrade through the
-glyph catalog. **Why not** a style as a set of arm rules: an arm cannot point, which is why this
-exists, and a style that composed would turn a shared cell into a corner and lose the head. **Why
-not** deriving the style from the stroke, so `ascii` draws `> < ^ v`: one description would then
-draw differently depending on which glyph tables a build shipped. **What it costs:** a style over a
-box's border interrupts it, as a glyph does today, which is the caller's choice where the endpoint
-stands. **Answered by** the maintainer.
+**Answer:** it writes a **head** at `at`: a third kind of cell, which says which way it points and
+which style it is written in and holds no glyph. It covers the cell and nothing composes into it,
+and it does not follow `stroke` or degrade through the glyph catalog. **Why not** a style as a set
+of arm rules: an arm cannot point, which is why this exists, and a style that composed would turn a
+shared cell into a corner and lose the head. **Why not** a literal glyph, which the draft chose: a
+literal is chosen where a head is derived, and a chosen one would make the endpoint the place where
+the appearance is decided, so two builds could not draw one description differently. **Why not**
+deriving the style from the stroke, so `ascii` draws `> < ^ v`: one description would then draw
+differently depending on which glyph tables a build shipped. **What it costs:** a third kind of
+cell, and a style over a box's border interrupts it, as a glyph does today — which is the caller's
+choice where the endpoint stands. **Answered by** the maintainer.
 
-**D4 — the terminal holds the style's name, and the drawing resolves it.**
+**D4 — the terminal holds the style's name, the cell it writes carries it, and the rendering
+resolves it.**
 
-**Answer:** `Terminal::Style { name: StyleName }` carries the name the description wrote, and the
-glyph is looked up when the diagram is drawn, against the `StyleCatalog` the drawing is handed.
-**Why not** the resolved table, which the draft chose first: a reader that resolves a name has to
-own the tables, so the format depends on the eleven and a binary cannot read a description with a
-set of its own — the opposite of how a glyph set works. Holding a name in the core widens no
-vocabulary: `Stroke` is a name too, and the names that exist are the tables'. **Why not** resolving
-the name to a glyph in the reader and handing back `Terminal::Glyph`: nothing above the reader could
-tell a style from a literal, so an editing layer could show neither the name nor change it. **What
-it costs:** one more parameter on the drawing, and the same description drawn by two builds with
-different tables draws different heads — exactly what a glyph set already decides for every stroke
-cell. **Answered by** the maintainer, who reversed the draft on reading the build.
+**Answer:** `Terminal::Style { name: StyleName }` carries the name the description wrote; the
+connector writes a head, which is a cell holding that name and the direction it points; and `render`
+— the function that already turns cells into text — looks the name up in the `StyleCatalog` it is
+handed, exactly as it looks a cell of arms up in the `GlyphCatalog`. **Why not** the resolved table,
+which the draft chose first: a reader that resolves a name has to own the tables, so the format
+depends on the eleven and a binary cannot read a description with a set of its own — the opposite of
+how a glyph set works. **Why not** a catalog on the drawing, which the build tried second: every
+`Shape::draw` and every `Diagram::draw` would take a parameter for a glyph no shape decides, so a
+caller drawing into a buffer would pass a table that could not change one cell, while a cell of arms
+already waits for its glyph with no catalog in sight. **Why not** resolving the name to a glyph in
+the reader and handing back `Terminal::Glyph`: nothing above the reader could tell a style from a
+literal, so an editing layer could show neither the name nor change it. **What it costs:** a third
+kind of cell, and a rendering that draws a head must be handed a style catalog. **Answered by** the
+maintainer, who carried the decision down to the cell on reading the build.
 
 **D5 — the core owns one style and the catalog type; a new crate owns the other ten and the union.**
 
@@ -136,7 +145,7 @@ eleven names, their four glyphs, the fallback of D6 and every picture are what t
 two catalogs in different places: the glyph catalog is consulted where the drawing is drawn, and the
 style catalog was consulted where the file is read, so the reader needed a table and the application
 did not. **The reason for the reversal is the symmetry that D5 was amended for, taken one step
-further:** a catalog belongs to the drawing, so the terminal keeps the name and `Diagram::draw` is
+further:** a catalog belongs above the buffer, so the terminal keeps the name and `Diagram::draw` is
 handed the styles, exactly as `render` is handed the glyphs.
 
 **What moved with it.** `Terminal::Style` holds a `StyleName` rather than a `Style`; the fallback of
@@ -148,39 +157,67 @@ description drawn by a build with another set of tables draws other heads. **Not
 screen:** the sweep's 1856 renderings and the 42 tracked pictures are byte for byte what they were,
 which is what proves the reversal changed where a table is read and not what it draws.
 
+**Amended once more, and this one reverses the reversal: the lookup belongs in the cell.** Putting
+the catalog on the drawing made every caller pass one, and it made `Shape::draw` take a parameter
+for a glyph no shape decides — a box, a line and a fragment have nothing a table could name, and a
+caller that draws into a buffer passed a table that cannot change one cell. **The reason is the cell
+itself, which is where a stroke cell already waits**: a cell of arms holds four stroke names and the
+rendering resolves them against the glyph sets, so a head is the same case with one name and one
+direction. The connector therefore writes a **head** and draws with no catalog, `Diagram::draw`
+takes the sink alone again, and `render` takes the style catalog beside the glyph one — the one
+place in the stack where a cell's character is decided.
+
+**What moved with it, and what did not.** `Cell` gains a third kind; `Style::glyph` takes the
+direction the head points rather than the one the endpoint leaves in, since the cell names the first
+and the connector derives it; D6's fallback happens where the head is rendered; the name still
+travels through `Terminal::Style` and the reader still takes the text alone. **The cost is stated
+rather than hidden:** a third kind of cell, and every rendering now needs a second catalog.
+**Nothing moves on screen:** the sweep's 1856 renderings and the 42 tracked pictures are byte for
+byte what they were, and the move is a change of where a name is read and not what it draws.
+
 **D6 — an unknown name draws the default, in silence; a missing name is refused.**
 
-**Answer:** `"style": "nonsense"` draws the `solid-pointer` table when the diagram is drawn, and
-reports nothing, and `{ "kind": "style" }` without a name is refused by the message that names the
-missing field. **Why not** refusing an unknown name: a catalog is open the way glyph sets are, so a
-file written against a later one would stop being readable by an earlier build, where a glyph set
-degrades instead. **Why not** reporting the substitution: a diagram is drawn rather than answered,
-and a drawing has no channel a report could travel on — adding one is a change to every caller for a
+**Answer:** `"style": "nonsense"` renders as the `solid-pointer` table when the cells are rendered,
+and reports nothing, and `{ "kind": "style" }` without a name is refused by the message that names
+the missing field. **Why not** refusing an unknown name: a catalog is open the way glyph sets are,
+so a file written against a later one would stop being readable by an earlier build, where a glyph
+set degrades instead. **Why not** reporting the substitution: a rendering answers text, and it has
+no channel a report could travel on — adding one is a change to `render` and every caller for a
 misspelling. **What it costs:** a misspelled style is invisible. **Answered by** practice, in the
-session that wrote this.
+session that wrote this, and answered again where the rendering took the lookup over.
 
 ## Model slice
 
-- `docs/model.md` §1 _Vocabulary_: a `Style` row — four glyphs, one for each way a head may point —
-  a `StyleName` row, and a `StyleCatalog` row, as there is a `GlyphCatalog` one.
+- `docs/model.md` §1 _Vocabulary_: the `Cell` row names three kinds; a `Head` row — a cell that
+  points, with the direction it points and the style it is written in; a `Style` row — four glyphs,
+  one for each way a head may point — a `StyleName` row, and a `StyleCatalog` row, as there is a
+  `GlyphCatalog` one.
+- §3 _The cell_: a subsection after _A cell can be a literal instead_ naming the third kind, saying
+  it holds a name and a direction rather than a character, and that it composes as a literal does.
+- §4 _Stamping_: one paragraph saying every row naming a literal is a row naming a head as well, and
+  why. The table itself stands.
+- §6 _Rendering_: the intro says two catalogs, and a paragraph after the literal's says a head is
+  rendered through the style catalog, the entry for the direction it points, and that a name nothing
+  holds renders as `solid-pointer`.
 - §7 _The initial set_: the connector paragraph says a terminal is one of three, and the sentence
-  about a glyph terminal's glyph pointing opposite `leaving` extends to a style.
+  about a glyph terminal's glyph pointing opposite `leaving` extends to a style's head.
 - §7 _What a terminal writes_: a third paragraph after **arm** and **glyph**, saying a style writes
-  the glyph its table names for the direction opposite `leaving`, covers the cell, and follows no
-  stroke. The paragraph calling the asymmetry a limit of the data gains a clause: a style is the
-  answer available now, and heads that follow a glyph set stay the open question below. A closing
-  paragraph says a terminal keeps a style's name and the drawing resolves it against the catalog it
-  is handed — the shape a glyph is looked up in.
+  a head that points away from `leaving`, that the cell keeps the name and the rendering resolves
+  it, and that it follows no stroke. The paragraph calling the asymmetry a limit of the data gains a
+  clause: a style is the answer available now, and heads that follow a glyph set stay the open
+  question below.
 - §7 _The initial set_, the paragraph saying the core holds no default stroke: one clause separates
   the base stroke, which a figure always names, from the fallback style, which answers a name
-  nothing claims, when the drawing looks the name up. The core decides no appearance a figure left
+  nothing claims, when the rendering looks the name up. The core decides no appearance a figure left
   unsaid.
-- §11 _Open questions_: the question about a terminal's glyph narrows to a set of heads.
-- `docs/terminal-styles.md` (new): the eleven tables, each entry named for the way it points, with
-  `glyph`'s inversion stated beside them, in the shape of `docs/glyph-sets.md`, and above them the
-  catalog the drawing is handed.
-- `docs/diagram-model.md` §6 _Attachment_: one clause — a style's glyph follows `leaving`, which the
-  attachment does not decide — and a paragraph saying the terminal holds a name the drawing
+- §9 _Properties worth testing_: a head in the middle of the stack is the literal's case, and one
+  buffer rendered with two style catalogs draws two texts and changes no cell.
+- §11 _Open questions_: the question about a terminal's glyph narrows to a set of heads, and the
+  answer it names costs a third kind of cell.
+- `docs/terminal-styles.md` (new): the eleven tables, each entry named for the way it points, in the
+  shape of `docs/glyph-sets.md`, and above them the catalog the rendering is handed.
+- `docs/diagram-model.md` §6 _Attachment_: one clause — a head points away from `leaving`, which the
+  attachment does not decide — and a paragraph saying the terminal's head keeps a name the rendering
   resolves. The section's rule stands.
 - `docs/diagram-demo.md`: _Two terminals, and the one difference between them_ becomes three, with a
   style row in the picture already there, because that document owes one instance of each decision
@@ -200,10 +237,35 @@ pub struct Style {
 }
 
 impl Style {
-    /// The entry named for the direction opposite `leaving`.
+    /// The entry for a head pointing `toward`.
     #[must_use]
-    pub fn glyph(&self, leaving: Direction) -> &Glyph;
+    pub fn glyph(&self, toward: Direction) -> &Glyph;
 }
+
+pub enum Cell {
+    // `Strokes` and `Literal`, unchanged
+    /// A head: the direction it points, and the style it is written in.
+    Head { toward: Direction, style: StyleName },
+}
+
+impl Cell {
+    /// The text this cell renders to, resolving a head against `styles`.
+    #[must_use]
+    pub fn glyph_str<'a>(
+        &'a self,
+        glyphs: &'a GlyphCatalog,
+        styles: &'a StyleCatalog,
+    ) -> Option<&'a str>;
+}
+
+/// Renders `window` from `source`, resolving heads against `styles`.
+#[must_use]
+pub fn render(
+    source: &impl CellReader,
+    glyphs: &GlyphCatalog,
+    styles: &StyleCatalog,
+    window: Window,
+) -> String;
 
 /// The name a style is written under: a name, and nothing more.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -236,8 +298,9 @@ pub enum Terminal {
 
 // monospace-diagram
 impl Diagram {
-    /// Draws every shape into `sink`, resolving every style name against `styles`.
-    pub fn draw(&self, sink: &mut dyn StampSink, styles: &StyleCatalog);
+    /// Draws every shape into `sink`. The catalog a head answers to is not here: nothing is
+    /// resolved until the cells are rendered.
+    pub fn draw(&self, sink: &mut dyn StampSink);
 }
 
 // monospace-terminal-styles
@@ -251,30 +314,35 @@ pub fn solid_triangle() -> StyleCatalog; // and one per style, named after it:
 pub fn parse(json: &str) -> Result<Diagram, ParseError>;
 ```
 
-`Style::default()` is the `solid-pointer` table, and the drawing resolves a terminal's name as
-`styles.style(&name.0).cloned().unwrap_or_default()`. The name is a `String` inside `StyleName`
-rather than a closed `enum`: a closed enum would turn an unknown name into a deserialization error
-instead of D6's fallback, and it would put the vocabulary of names in the core where the tables
-belong.
+`Style::default()` is the `solid-pointer` table, and the rendering resolves a head's name as
+`styles.style(&name.0).cloned().unwrap_or_default().glyph(toward)`. The name is a `String` inside
+`StyleName` rather than a closed `enum`: a closed enum would turn an unknown name into a
+deserialization error instead of D6's fallback, and it would put the vocabulary of names in the core
+where the tables belong. `Cell::Head` carries the name rather than the table for the same reason,
+and because a buffer is the thing two builds may render differently.
 
 ## Behavior
 
-1. A style terminal writes the entry named for the direction opposite its endpoint's `leaving`, so
-   the glyph points away from the route.
-2. A style covers the cell and composes with nothing: it writes no arm and follows no stroke.
-3. `solid-pointer` is `up: ▲, right: ►, down: ▼, left: ◄`, and the other ten are the table in
+1. A style terminal writes a head pointing opposite its endpoint's `leaving`, so the glyph points
+   away from the route.
+2. A head is a cell holding a style name and a direction and no glyph; it covers the cell and
+   composes with nothing, writing no arm and following no stroke.
+3. A head renders through the style catalog the rendering is handed: the entry named for the
+   direction the head points.
+4. A name the rendering's catalog does not hold renders as `solid-pointer`, in silence.
+5. `solid-pointer` is `up: ▲, right: ►, down: ▼, left: ◄`, and the other ten are the table in
    _Examples_.
-4. Each endpoint chooses its own style, independently of the other endpoint and of the stroke.
-5. `{ "kind": "style", "style": "<name>" }` keeps the name, and the drawing resolves it against the
-   catalog it is handed; a name that catalog does not hold draws `solid-pointer`.
-6. `{ "kind": "style" }` with no `style` field is refused, naming the missing field.
-7. `arm` and `glyph` draw what they drew before, and every picture that used them is unchanged.
-8. `monospace-terminal-styles` compiles for `wasm32-unknown-unknown` and joins the `wasm` step.
+6. Each endpoint chooses its own style, independently of the other endpoint and of the stroke.
+7. `{ "kind": "style", "style": "<name>" }` keeps the name: drawing it needs no catalog, and
+   rendering it resolves the name against the catalog the rendering is handed.
+8. `{ "kind": "style" }` with no `style` field is refused, naming the missing field.
+9. `arm` and `glyph` draw what they drew before, and every picture that used them is unchanged.
+10. `monospace-terminal-styles` compiles for `wasm32-unknown-unknown` and joins the `wasm` step.
 
 ## Examples
 
-**The eleven**, each column the way its glyph points: the endpoint leaves the other way, and
-`Style::glyph` is what bridges the two.
+**The eleven**, each column the way its glyph points: the endpoint leaves the other way, a head
+carries that direction, and `Style::glyph` answers it.
 
 | name                     | `up` | `right` | `down` | `left` |
 | ------------------------ | ---- | ------- | ------ | ------ |
@@ -343,33 +411,36 @@ pointer at the end leaving leftward, `◆──────►`.
 
 <!-- /render -->
 
-**The fallback.** `"style": "no-such-style"` draws rule 5's default, so the first picture is what a
-name the drawing's catalog does not hold produces, and `{ "kind": "style" }` is refused for the
+**The fallback.** `"style": "no-such-style"` renders rule 4's default, so the first picture is what
+a name the rendering's catalog does not hold produces, and `{ "kind": "style" }` is refused for the
 missing field. Neither is observed: the pictures come from the glyphs each style resolves to, and
 _What proves it_ holds the resolution, the fallback and the refusal.
 
 ## What proves it
 
-Nothing exists yet: the deciding stage adds no code. The names and tables bind the building stage.
+The names bind the building stage, which is held to them literally.
 
-| Rule | Test                                                                                                        |
-| ---- | ----------------------------------------------------------------------------------------------------------- |
-| 1    | `a_style_writes_the_entry_for_the_direction_opposite_leaving`                                               |
-| 2    | `a_style_covers_the_cell_and_composes_with_nothing`                                                         |
-| 3    | `the_eleven_styles_are_the_tables_this_spec_lists`                                                          |
-| 4    | `the_two_endpoints_of_a_connector_choose_their_styles_independently`                                        |
-| 5    | `an_unknown_style_name_draws_the_default`, in the layer that draws, since that is where a name is looked up |
-| 6    | `a_style_terminal_without_a_name_is_refused_by_name`                                                        |
-| 7    | the characterization, and every picture in a tracked document, which the gate re-renders                    |
-| 8    | the `wasm` step, which names the crate                                                                      |
+| Rule | Test                                                                                                       |
+| ---- | ---------------------------------------------------------------------------------------------------------- |
+| 1    | `a_style_writes_the_entry_for_the_direction_opposite_leaving`                                              |
+| 2    | `a_head_holds_a_name_and_a_direction_and_no_glyph` and `a_style_covers_the_cell_and_composes_with_nothing` |
+| 3    | `a_head_renders_through_the_style_catalog_it_is_handed`                                                    |
+| 4    | `an_unknown_style_name_draws_the_default`, in the rendering, since that is where a name is looked up       |
+| 5    | `the_eleven_styles_are_the_tables_this_spec_lists`                                                         |
+| 6    | `the_two_endpoints_of_a_connector_choose_their_styles_independently`                                       |
+| 7    | `a_style_name_reaches_the_rendering_as_written`                                                            |
+| 8    | `a_style_terminal_without_a_name_is_refused_by_name`                                                       |
+| 9    | the characterization, and every picture in a tracked document, which the gate re-renders                   |
+| 10   | the `wasm` step, which names the crate                                                                     |
 
 The two pictures are held by their markers: `cargo xtask render` rewrites them and the gate fails if
-one is not what its description draws. **The characterization is what proves the reversal of D4
+one is not what its description draws. **The characterization is what proves the two reversals of D4
 moved nothing on screen**: 1856 renderings and 42 pictures are what they were before the name
-replaced the table, so the change is where a catalog is read and not what it draws.
+replaced the table and before the cell took the name over, so the change is where a catalog is read
+and not what it draws.
 
 ## Open questions
 
-- **Whether a misspelled style should be reported once a drawing can say more than what it wrote.**
-  D6 answers silence where there is no second channel, and adding one is a change to the drawing and
-  every caller.
+- **Whether a misspelled style should be reported once a rendering can say more than text.** D6
+  answers silence where there is no second channel, and adding one is a change to `render` and every
+  caller.

@@ -346,16 +346,18 @@ A terminal is an `arm`, a `glyph` or a `style`, and the choice decides what happ
 endpoint stands on. An **arm** composes into whatever is already there: the first row's left end
 sits on the box's border and the two figures make a junction, `├`. A **glyph** is one grapheme
 cluster written as a literal, and a literal **replaces** the cell it lands on: the second and third
-rows lose the border at that cell and show the head instead. A **style** is a literal too, and the
-difference from a glyph is where it came from: the fourth row names `ascii-arrow` at each end, and
-the table answers `<` for the end leaving rightward and `>` for the one leaving leftward — each
-pointing away from the route, and neither spelled out in the file.
+rows lose the border at that cell and show the head instead. A **style** replaces it too, and the
+difference from a glyph is where the character comes from: the fourth row names `ascii-arrow` at
+each end, and the table answers `<` for the end leaving rightward and `>` for the one leaving
+leftward — each pointing away from the route, and neither spelled out in the file. What the cell
+keeps is the name and the direction; the table is consulted when the cells are rendered, exactly as
+a stroke cell's arms are.
 
 The right-hand ends differ for a second reason worth keeping apart. A connector's `leaving` is its
 own and not the anchor's, so an `arm` arriving from the right writes its arm on the side it is
 leaving and leaves the other three unset — which is why the first row ends in a bare `─` and the
-third in one too, while the second row's `▶` and the fourth row's `>` are literals and close both
-ends.
+third in one too, while the second row's `▶` and the fourth row's `>`, a literal and a head, each
+cover their cell and close both ends.
 
 <!-- render: 16x16
 {
