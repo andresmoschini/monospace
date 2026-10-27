@@ -45,8 +45,8 @@ pub trait StampSink {
 pub trait CellReader {
     /// The cell at the absolute position `at`, or `None` if it is undefined.
     ///
-    /// An undefined cell and a position outside the window it was drawn in look the same: neither
-    /// has ever been written, so there is nothing to distinguish them by.
+    /// An undefined cell and a position nothing was ever written at look the same: there is no
+    /// cell there either way, so there is nothing to distinguish them by.
     #[must_use]
     fn cell(&self, at: Pos) -> Option<&Cell>;
 }
@@ -65,10 +65,10 @@ pub trait OwnerReader {
     /// which is what a front end deciding what to do with a cell it was handed has to be able to
     /// do. Nothing is owed by holding it and nothing is spent by copying it.
     ///
-    /// **`None` covers three cases and distinguishes none of them**, in the type or in the answer:
-    /// a position no shape wrote, a position inside the window whose cell no shape decided, and a
-    /// position the window does not hold at all. Nothing was ever recorded at any of them, so there
-    /// is nothing to say which it was.
+    /// **`None` covers two cases and distinguishes neither**, in the type or in the answer: a
+    /// position no shape wrote, and a position a shape wrote without deciding. Nothing was ever
+    /// recorded at either, so there is nothing to say which it was. A position outside the window is
+    /// the first of them: the record never holds one.
     ///
     /// **The position is one a caller already holds**, and reaching it from a click is
     /// [`Window::position`]'s job rather than this method's: an offset counted from the window's
