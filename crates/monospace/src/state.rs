@@ -338,7 +338,7 @@ impl DiagramState {
     /// this application's.
     ///
     /// **The origin is derived from the offset and clamped** (D1): `set_offset` puts the value it is
-    /// given there without limiting it, and the bar answers the end of its track with an offset past
+    /// given there without limiting it, and a drag that leaves the bar's track names an offset past
     /// the content's span, so the offset names an origin and the range decides where that lands.
     ///
     /// **A frame is owed only when the origin moved**: a turn the content refuses, and a press where
@@ -503,10 +503,12 @@ impl Axis {
 
     /// The origin the bar's `offset` names, put at the nearest value the range allows.
     ///
-    /// **The bar's answer is not clamped before it arrives**: a press on the last cell of the track
-    /// names an offset past the content's span, because the track spends its two ends on the arrows
-    /// and maps the rest of its cells over the whole reach. What the offset names is an origin, and
-    /// the origin's range is what says where a view of nothing can still stand.
+    /// **The bar's answer is not clamped before it arrives**: the helper maps the track's cells over
+    /// the content's reach — `pos = row - base - 1` over `span = length - 2` — so a press on the
+    /// track's last cell names the span itself, which is the furthest offset there is, and only a
+    /// drag that carries the pointer past the track names more: nothing stops it at the area the
+    /// drag began in. `set_offset` writes what it is given without limiting it, so the offset names
+    /// an origin and the origin's range is what says where a view of nothing can still stand.
     fn at(&self, offset: usize) -> i16 {
         let at = self
             .first

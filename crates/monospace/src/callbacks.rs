@@ -2057,6 +2057,32 @@ mod tests {
         );
     }
 
+    /// **A drag past the track stops at the content's end** (rule 2): the helper keeps reading a drag
+    /// once it began on the bar, so a pointer that leaves the track names an offset past the
+    /// content's span — `10` where the span is `8` — and the origin's range is what holds it.
+    ///
+    /// The track is rows `2` to `7` of the region's last column, so row `8` is the region's bottom
+    /// border: one cell past the track, and still a drag the helper answers.
+    #[test]
+    fn a_drag_past_the_track_is_clamped_to_the_content() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+
+        let outcome = send(&click(39, 3), &mut state);
+        assert!(
+            matches!(outcome, Control::Continue),
+            "the press moved the view: {outcome:?}"
+        );
+
+        let outcome = send(&drag(39, 8), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 8 },
+            "the drag past the track did not stop at the content's end"
+        );
+    }
+
     /// **A scroll changes no session and records no step** (rule 5): the view is the state's and the
     /// walk is the session's, so a turn of the wheel leaves the history and the drawing alone.
     #[test]
