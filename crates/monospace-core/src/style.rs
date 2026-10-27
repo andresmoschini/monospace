@@ -1,6 +1,6 @@
-//! A terminal style: four glyphs, one for each way a head may point. See _What a terminal writes_ in
-//! [`docs/model.md`](../../../docs/model.md), and the eleven tables in
-//! [`docs/terminal-styles.md`](../../../docs/terminal-styles.md).
+//! A terminal style: four glyphs, one for each way a head may point, and the catalog names are
+//! looked up in. See _What a terminal writes_ in [`docs/model.md`](../../../docs/model.md), and the
+//! eleven tables in [`docs/terminal-styles.md`](../../../docs/terminal-styles.md).
 //!
 //! # Design notes
 //!
@@ -15,6 +15,15 @@
 //! format, and every draw would need that catalog handed to it. Resolving the name to a glyph in
 //! the reader instead would leave nothing above it able to tell a style from a literal, so an
 //! editing layer could neither show the name nor change it.
+//!
+//! **The catalog is a map settled while it is built, and its names are the caller's.** A table
+//! claiming a name twice is decided by `union`'s order rather than by the order a lookup happens in,
+//! and nothing about a catalog says which table an entry came from — the same shape
+//! [`GlyphCatalog`](crate::GlyphCatalog) has, for the same reason. The core holds the type and one
+//! table, [`StyleCatalog::solid_pointer`], and the rest are the data crate's, so a build names
+//! whichever styles its caller loaded: the description format is handed a catalog and holds none.
+
+use std::collections::HashMap;
 
 use crate::{Direction, Glyph};
 
@@ -69,13 +78,72 @@ impl Default for Style {
     }
 }
 
+/// Every style a caller loaded, by the name a description writes. Answering a name is one lookup;
+/// nothing about a catalog says which table an entry came from.
+pub struct StyleCatalog {
+    styles: HashMap<String, Style>,
+}
+
+impl StyleCatalog {
+    /// Builds a catalog from an ordered group of tables. Where two claim the same name, the first
+    /// one in `styles` wins.
+    #[must_use]
+    pub fn from_styles<S: Into<String>>(styles: impl IntoIterator<Item = (S, Style)>) -> Self {
+        let mut map = HashMap::new();
+        for (name, style) in styles {
+            map.entry(name.into()).or_insert(style);
+        }
+
+        Self { styles: map }
+    }
+
+    /// Builds a catalog by merging other catalogs, in the order given. Where two claim the same
+    /// name, the earlier one in `catalogs` wins.
+    #[must_use]
+    pub fn union(catalogs: impl IntoIterator<Item = Self>) -> Self {
+        let mut map = HashMap::new();
+        for catalog in catalogs {
+            for (name, style) in catalog.styles {
+                map.entry(name).or_insert(style);
+            }
+        }
+
+        Self { styles: map }
+    }
+
+    /// Builds a catalog from the core's own table alone: `solid-pointer`.
+    ///
+    /// Named after what the catalog holds, not where it comes from, as
+    /// [`GlyphCatalog::light`](crate::GlyphCatalog::light) is.
+    #[must_use]
+    pub fn solid_pointer() -> Self {
+        Self::from_styles([("solid-pointer", Style::default())])
+    }
+
+    /// Returns the style `name` answers to, or `None` if the catalog holds no such name.
+    #[must_use]
+    pub fn style(&self, name: &str) -> Option<&Style> {
+        self.styles.get(name)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Style;
+    use super::{Style, StyleCatalog};
     use crate::{Direction, Glyph};
 
     fn glyph(text: &str) -> Glyph {
         Glyph::new(text).expect("one grapheme cluster")
+    }
+
+    /// One glyph in all four entries, so a catalog's answer is told apart by its text alone.
+    fn solid(text: &str) -> Style {
+        Style {
+            up: glyph(text),
+            right: glyph(text),
+            down: glyph(text),
+            left: glyph(text),
+        }
     }
 
     /// The four entries are named for the way their glyph points, so the endpoint leaving a
@@ -105,5 +173,41 @@ mod tests {
         assert_eq!(style.right, glyph("►"));
         assert_eq!(style.down, glyph("▼"));
         assert_eq!(style.left, glyph("◄"));
+    }
+
+    /// The core's one table is the catalog the core builds, under the name a description writes,
+    /// and nothing else — so a build that loaded no data crate still reads `solid-pointer`.
+    #[test]
+    fn the_cores_catalog_answers_solid_pointer_and_nothing_else() {
+        let catalog = StyleCatalog::solid_pointer();
+
+        assert_eq!(catalog.style("solid-pointer"), Some(&Style::default()));
+        assert_eq!(catalog.style("ascii-arrow"), None);
+    }
+
+    /// A name two catalogs both claim answers from whichever was given first to `union`, and
+    /// reversing the order reverses the answer: precedence is settled while a catalog is built.
+    #[test]
+    fn a_name_two_catalogs_both_claim_answers_from_whichever_came_first() {
+        let diamonds = StyleCatalog::from_styles([("same", solid("◆"))]);
+        let circles = StyleCatalog::from_styles([("same", solid("●"))]);
+
+        assert_eq!(
+            StyleCatalog::union([diamonds, circles]).style("same"),
+            Some(&solid("◆"))
+        );
+    }
+
+    /// A union answers every name its catalogs hold, under the names they were built with.
+    #[test]
+    fn a_union_answers_every_name_its_catalogs_hold() {
+        let catalog = StyleCatalog::union([
+            StyleCatalog::solid_pointer(),
+            StyleCatalog::from_styles([("diamond", solid("◆"))]),
+        ]);
+
+        assert_eq!(catalog.style("solid-pointer"), Some(&Style::default()));
+        assert_eq!(catalog.style("diamond"), Some(&solid("◆")));
+        assert_eq!(catalog.style("no-such-style"), None);
     }
 }

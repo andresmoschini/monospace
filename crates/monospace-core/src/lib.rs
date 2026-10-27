@@ -30,4 +30,4 @@ pub use identity::ShapeId;
 pub use render::render;
 pub use shape::{BoxShape, Connector, Endpoint, FigureLayer, Line, Shape, Surface, Terminal};
 pub use stroke::Stroke;
-pub use style::Style;
+pub use style::{Style, StyleCatalog};
