@@ -1,5 +1,6 @@
 ---
-status: draft
+status: agreed
+decided: "#239"
 date: 2026-10-27
 ---
 
@@ -68,6 +69,11 @@ how far a press moves is a rule this cut does not take.
   about how far an input moves or a change to how a cell is drawn; the wheel moves the page's tenth,
   as the helper suggests.
 
+**This spec runs past the 250-line ceiling, and lands that way.** The format's first answer is to
+split the change rather than compress the prose; the maintainer read the length and accepted it, so
+the cut stands as one change and no paragraph was shortened to fit. What it costs: a reviewer reads
+further than the ceiling asks, and the eight pictures are the part that has to be read twice.
+
 ## The decision
 
 **D1 — what the view is bounded by, and what survives a frame.**
@@ -103,22 +109,26 @@ would put the view's convenience on a surface below the application, which names
 not** a rectangle kept beside the session: the state has no cheap way to tell that the session
 changed, and a second copy of a fact the drawing answers is a second thing to keep true. **What it
 costs:** the diagram is traversed twice per frame, and the first traversal writes nothing. **This is
-the call #238's open question left unnamed**, answered here as the practice it points at.
+the call #238's open question left unnamed**, answered here as the practice it points at. **Answered
+by** the maintainer.
 
 **D3 — what moves the view.**
 
 **Answer:** the wheel and the bar, both the rat helper's: a wheel turn over the region moves the
 view by the helper's step — a tenth of the window, at least one cell — on the axis the wheel
 reports, and `Alt` with the wheel moves it across; a press on the bar takes the view to the position
-it names and a drag follows the pointer. **Why not** the keyboard here: which keys, how far a press
-moves, and whether a held key walks are a rule of its own, and
-[#237](https://github.com/andresmoschini/monospace/issues/237) decides it; this slice has no key for
-the view. **Why not** one cell per wheel turn: the helper's step is the page's tenth, a gesture's
-natural step, and overriding it would be a second rule about how far a turn moves. **Why not** a bar
-that only marks: the helper answers a press and a drag with a position, and a bar that looked live
-and was not would be worse than no bar. **What it costs:** the wheel moves a tenth of the window and
-the bar jumps, so a person who wants to move exactly one cell has no input for it until #237.
-**Answered by** the maintainer.
+it names and a drag follows the pointer. A terminal's `ScrollLeft` and `ScrollRight` are not
+answered, which is the helper's own reading of the wheel and is left as it is. **Why not** the
+keyboard here: which keys, how far a press moves, and whether a held key walks are a rule of its
+own, and [#237](https://github.com/andresmoschini/monospace/issues/237) decides it; this slice has
+no key for the view. **Why not** one cell per wheel turn: the helper's step is the page's tenth, a
+gesture's natural step, and overriding it would be a second rule about how far a turn moves. **Why
+not** a bar that only marks: the helper answers a press and a drag with a position, and a bar that
+looked live and was not would be worse than no bar. **Why not** answering the horizontal wheel's own
+events: it would be a second reading of one gesture, and the helper's `Alt` is the one the bar and
+the wheel already share. **What it costs:** the wheel moves a tenth of the window and the bar jumps,
+so a person who wants to move exactly one cell has no input for it until #237. **Answered by** the
+maintainer.
 
 **D4 — where the bar is drawn, and when it shows.**
 
@@ -130,9 +140,12 @@ inside the interior: it would cost a column or a row of the window, and the wind
 change when the bar appears, moving the bound with it. **Why not** always visible: a drawing inside
 the first screen — the empty screen at rest among them — would gain two bars that say nothing. **Why
 not** the helper's default `Minimize`: it keeps the bar's cells when there is nothing to scroll,
-which is the same cost with less to read. **What it costs:** a drawing larger than the interior
-stops having a plain border; the corners and the style stay the block's, and the bar's glyphs are
-the helper's. **Answered by** the maintainer.
+which is the same cost with less to read. **Why not** a style of its own: the default is what the
+helper's other scrollable widgets show, and nothing has yet been seen to mistake the track for a
+border. **What it costs:** a drawing larger than the interior stops having a plain border. The
+corners and the style stay the block's, and the bar is the helper's default — a `║` track with `▲`
+and `▼` at the ends and a solid thumb, `═`, `◄`, `►` across — so a scrolled drawing's border reads
+as a border drawn twice. **Answered by** the maintainer.
 
 ## Model slice
 
@@ -453,19 +466,9 @@ written. The measurement's own cost was #238's to report.
 
 ## Open questions
 
-**The horizontal wheel.** The helper answers `Alt` with the wheel as a scroll across, and does not
-answer the terminal's `ScrollLeft` and `ScrollRight` events. Whether those should be answered, and
-whether a terminal sends them at all, is a question for the first one seen to do it.
-
-**The bar's look.** The helper's default symbols are the double line — a `║` track with `▲` and `▼`
-at the ends and a solid thumb, and `═`, `◄`, `►` across — so the bar reads as a doubled border on a
-region whose own border is single. Whether the theme should give it a style of its own, and whether
-the track should be the border's glyph instead, is a question about a person who cannot tell the bar
-from a border drawn twice. What would settle it: the first screen whose border is mistaken for a
-bar.
-
 **The view following the selection.** A move can still take the selected figure past the window's
 edge (D2 of #179), and nothing brings it back. Whether the view should follow a figure that a
 command moves, rather than waiting for the person to scroll, is a relation between an action and the
-origin that this change does not have: the wheel and the bar are the only things that move it. What
-would settle it: a person who moves a figure out of sight and asks for it back.
+origin that this change does not have: the wheel and the bar are the only things that move it.
+**Left open deliberately:** nothing here depends on it, and what would settle it is a person who
+moves a figure out of sight and asks for it back.
