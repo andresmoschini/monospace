@@ -17,7 +17,7 @@
 use rat_theme4::StyleName;
 use rat_theme4::theme::SalsaTheme;
 use rat_widget::event::{HandleEvent, MouseOnly};
-use rat_widget::scrolled::{Scroll, ScrollArea, ScrollbarPolicy};
+use rat_widget::scrolled::{Scroll, ScrollbarPolicy};
 use ratatui_widgets::block::Block;
 
 use monospace_core::{GlyphCatalog, Offset};
@@ -207,28 +207,40 @@ fn draw_region(area: Rect, buf: &mut Buffer, theme: &SalsaTheme) {
 
 /// Lays the two bars on the region's border.
 ///
-/// **On the border and not inside it** (D4): the helper draws the vertical bar on the block's right
-/// column and the horizontal one on its bottom row, with a cell of margin at each end so that the
-/// four corners stay the block's. The window keeps every cell it had, so a bar that appears moves no
-/// bound. **Collapsed and not minimized**: an axis whose content fits shows no bar at all, which is
-/// what leaves the empty screen at rest a plain border.
+/// **On the border and not inside it** (D4): the vertical bar is drawn on the block's right column
+/// and the horizontal one on its bottom row, over the glyphs the block put there and between its
+/// four corners — which are the margin, so the run is the border's own from one corner to the next.
+/// The window keeps every cell it had, so a bar that appears moves no bound. **Collapsed and not
+/// minimized**: an axis whose content fits shows no bar at all, which is what leaves the empty
+/// screen at rest a plain border.
+///
+/// **Each bar is drawn into its own run rather than through `ScrollArea`**: the helper lays its bars
+/// inside an area it shrinks by one for every bar it shows, which is what a block of its own needs
+/// and not what a border of ours does — through it, the track stopped a cell short of the far corner
+/// and left a border glyph between its arrow and the corner. Drawing into the run keeps the two ends
+/// of the track symmetric.
 ///
 /// **The bar is the helper's own**, style and glyphs included: a `║` track with `▲` and `▼` at the
 /// ends and a solid thumb, and `═`, `◄`, `►` across.
 fn draw_bars(area: Rect, buf: &mut Buffer, state: &mut DiagramState) {
-    let across = Scroll::horizontal()
-        .policy(ScrollbarPolicy::Collapse)
-        .start_margin(1)
-        .end_margin(1);
-    let down = Scroll::vertical()
-        .policy(ScrollbarPolicy::Collapse)
-        .start_margin(1)
-        .end_margin(1);
+    if area.height < 2 || area.width < 2 {
+        return;
+    }
 
-    ScrollArea::new()
-        .v_scroll(Some(&down))
-        .h_scroll(Some(&across))
-        .render(area, buf, &mut state.scroll_area(area));
+    let across = Scroll::horizontal().policy(ScrollbarPolicy::Collapse);
+    let down = Scroll::vertical().policy(ScrollbarPolicy::Collapse);
+    let (hscroll, vscroll) = state.scroll_states();
+
+    across.render(
+        Rect::new(area.x + 1, area.bottom() - 1, area.width - 2, 1),
+        buf,
+        hscroll,
+    );
+    down.render(
+        Rect::new(area.right() - 1, area.y + 1, 1, area.height - 2),
+        buf,
+        vscroll,
+    );
 }
 
 fn inner_region(area: Rect) -> Rect {
@@ -318,6 +330,10 @@ mod tests {
     /// window is the interior it always was, `18×6` at `(1, 1)`, and the bar is drawn over the
     /// block's own column and row: the last column of the window is still the window's, and the one
     /// after it is the bar's.
+    ///
+    /// **The run is the border's own from corner to corner** — rows `1` to `6` of the right column
+    /// and columns `1` to `18` of the bottom row — so the arrows sit against the corners and no
+    /// glyph of the block's is left between an arrow and one.
     #[test]
     fn the_bar_is_on_the_border_and_takes_no_cell_from_the_window() {
         let mut state = a_state_over(A_BOX_TOO_BIG);
@@ -329,7 +345,7 @@ mod tests {
             "the vertical bar does not begin on the right border"
         );
         assert_eq!(
-            buffer[(19, 5)].symbol(),
+            buffer[(19, 6)].symbol(),
             "▼",
             "the vertical bar does not end on the right border"
         );
@@ -339,7 +355,7 @@ mod tests {
             "the horizontal bar does not begin on the bottom border"
         );
         assert_eq!(
-            buffer[(17, 7)].symbol(),
+            buffer[(18, 7)].symbol(),
             "►",
             "the horizontal bar does not end on the bottom border"
         );

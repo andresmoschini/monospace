@@ -323,6 +323,14 @@ impl DiagramState {
             .h_scroll(&mut self.hscroll)
     }
 
+    /// The same two states, for the widget that draws the bars into the border's run.
+    ///
+    /// **The area each bar is drawn into is the area a press is answered against**: the helper writes
+    /// it as it draws, so a press is read against the bar the last frame put on the screen.
+    pub(crate) fn scroll_states(&mut self) -> (&mut ScrollState, &mut ScrollState) {
+        (&mut self.hscroll, &mut self.vscroll)
+    }
+
     /// Applies what the bars answered, and says whether the view moved (D3).
     ///
     /// **The answer is the helper's, step and all**: a wheel turn is the delta it names and a press

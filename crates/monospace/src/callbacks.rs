@@ -2002,8 +2002,9 @@ mod tests {
     /// track's cells over the content's reach, so the middle of the track names the middle of the
     /// content.
     ///
-    /// The vertical track is the region's last column, rows `3` to `7`, and the content's span is
-    /// `8`: the row `5` the press lands on names offset `5`, so the view stands five rows down.
+    /// The vertical track is the region's last column, rows `2` to `7`, and the content's span is
+    /// `8`: the row `5` the press lands on is the third of the four cells the track maps, so the view
+    /// stands four rows down.
     #[test]
     fn a_press_on_the_bar_jumps_the_view() {
         let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
@@ -2013,22 +2014,22 @@ mod tests {
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
             state.diagram.origin(),
-            Pos { x: 0, y: 5 },
+            Pos { x: 0, y: 4 },
             "the press did not take the view to the position it named"
         );
     }
 
-    /// **A drag on the bar follows the pointer** (rule 4): the press starts the drag where the
-    /// thumb stands, and every position the pointer reaches names the offset under it.
+    /// **A drag on the bar follows the pointer** (rule 4): the press starts the drag where the thumb
+    /// stands, and every position the pointer reaches names the offset under it.
     ///
-    /// The pointer leaves the track and the view keeps following it, which is the helper's own
-    /// reading of a drag: what it tracks is where the drag began.
+    /// The track is rows `2` to `7` of the region's last column. The press is at row `3`, which maps
+    /// to the content's first row — where the view already stands, so it moves nothing and is only
+    /// what starts the drag — and the two drags walk the track to its last cell, which is the end of
+    /// the content.
     #[test]
     fn a_drag_on_the_bar_follows_the_pointer() {
         let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
 
-        // The track's first cell names the content's first row, which is where the view already
-        // stands: the press moves nothing and is only what starts the drag.
         let outcome = send(&click(39, 3), &mut state);
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert_eq!(
@@ -2042,11 +2043,11 @@ mod tests {
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
             state.diagram.origin(),
-            Pos { x: 0, y: 5 },
+            Pos { x: 0, y: 4 },
             "the drag did not follow the pointer down the track"
         );
 
-        let outcome = send(&drag(39, 6), &mut state);
+        let outcome = send(&drag(39, 7), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
@@ -2237,7 +2238,7 @@ mod tests {
         );
         assert_eq!(
             state.diagram.origin(),
-            Pos { x: 0, y: 5 },
+            Pos { x: 0, y: 4 },
             "the press on the bar did not move the view"
         );
     }

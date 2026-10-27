@@ -79,8 +79,8 @@ not move when a bar appears. An axis whose content does not fit gains a bar draw
 own column or row, between the four corners — which stay the block's, so a scrolled drawing's border
 reads as a border drawn twice — and an axis whose content fits shows none, which leaves the empty
 screen at rest a plain border. **The bar costs the window no cell** because it is laid on the border
-rather than inside it, and **the corners keep the block's glyphs** because the track spends a cell
-of margin at each end.
+rather than inside it, and **the corners keep the block's glyphs** because the run it is laid in is
+the border's own from one corner to the next.
 
 **The status bar says how far the drawing reaches.** The section is written from the footprint of
 the frame being drawn — measured by the sink on the way into the buffer, see _The buffer_ in
