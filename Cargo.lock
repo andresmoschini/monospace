@@ -669,6 +669,7 @@ version = "0.1.0"
 dependencies = [
  "monospace-core",
  "monospace-diagram",
+ "monospace-terminal-styles",
  "serde",
  "serde_json",
 ]

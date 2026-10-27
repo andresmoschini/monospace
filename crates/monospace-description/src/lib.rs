@@ -252,12 +252,19 @@ where
     ordinal("shape", deserializer)
 }
 
-/// What an endpoint's `terminal` is on the wire, tagged by `kind`: one chosen glyph or one arm.
-/// An unrecognized `kind` is reported by name, and the message names the two accepted.
+/// What an endpoint's `terminal` is on the wire, tagged by `kind`: one chosen glyph, one arm, or a
+/// style named against the eleven. An unrecognized `kind` is reported by name, and the message names
+/// the three accepted.
 ///
 /// Internally tagged rather than externally, because `deserialize_glyph` needs a _named_ field to
 /// sit on and the external form has none — `Glyph(Glyph)` does not compile, since `Glyph` derives
 /// no `Deserialize`. A field an `arm` does not know is ignored, as everywhere else in this format.
+///
+/// **A style's name is resolved here, as the file is read**, and a name the eleven do not hold draws
+/// `solid-pointer` in silence. The list is open the way glyph sets are, so a file written against a
+/// later catalog stays readable by an earlier build, and [`parse`] answers a `Diagram` or a
+/// [`ParseError`] with no third channel a substitution could be reported on. The cost is that a
+/// misspelled style is invisible, and that is accepted rather than overlooked.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum Terminal {
@@ -266,6 +273,11 @@ enum Terminal {
         glyph: Glyph,
     },
     Arm,
+    Style {
+        /// The style's name, which is a `String` rather than a closed enum: an enum would turn an
+        /// unknown name into a refusal instead of the fallback.
+        style: String,
+    },
 }
 
 impl From<Terminal> for monospace_core::Terminal {
@@ -273,6 +285,9 @@ impl From<Terminal> for monospace_core::Terminal {
         match terminal {
             Terminal::Glyph { glyph } => monospace_core::Terminal::Glyph { glyph },
             Terminal::Arm => monospace_core::Terminal::Arm,
+            Terminal::Style { style } => monospace_core::Terminal::Style {
+                style: monospace_terminal_styles::by_name(&style).unwrap_or_default(),
+            },
         }
     }
 }
@@ -579,6 +594,22 @@ mod tests {
             .expect("a description this format refuses must fail")
     }
 
+    /// The picture a description draws through [`parse`] — the whole of the public path — into the
+    /// window `description_of` writes for.
+    fn picture(json: &str) -> String {
+        let diagram = parse(json).expect("a description this format reads");
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 8,
+                height: 1,
+            },
+        });
+        diagram.draw(&mut buffer);
+
+        monospace_core::render(&buffer, &GlyphCatalog::light(), buffer.window())
+    }
+
     /// Rule 1 — `parse` reads a description and hands back the diagram it holds, and nothing else.
     ///
     /// **The test is the type.** A function that returns a `Diagram` cannot be handed a window, so
@@ -760,14 +791,14 @@ mod tests {
         refusal(&json).to_string()
     }
 
-    /// A `kind` the model has not named is refused by name, and the message names the two that are
+    /// A `kind` the model has not named is refused by name, and the message names the three that are
     /// accepted — so the value is never read as one of them.
     #[test]
-    fn an_unrecognized_terminal_kind_names_it_and_the_two_that_are_accepted() {
+    fn an_unrecognized_terminal_kind_names_it_and_the_three_that_are_accepted() {
         let error = error_for(r#"{ "kind": "dot" }"#);
 
         assert!(
-            error.starts_with("unknown variant `dot`, expected `glyph` or `arm`"),
+            error.starts_with("unknown variant `dot`, expected one of `glyph`, `arm`, `style`"),
             "{error}"
         );
     }
@@ -782,6 +813,35 @@ mod tests {
             error.starts_with("\"ab\" is not exactly one grapheme cluster"),
             "{error}"
         );
+    }
+
+    /// A style's name resolves against the eleven, and a name the list does not hold draws
+    /// `solid-pointer` in silence — the same picture a chosen `◄` draws, and a different one from a
+    /// name the list does hold.
+    #[test]
+    fn an_unknown_style_name_draws_the_default() {
+        let with = |terminal: &str| picture(&description_of(&ARROW.replace("TERMINAL", terminal)));
+
+        let unknown = with(r#"{ "kind": "style", "style": "no-such-style" }"#);
+        let pointer = with(r#"{ "kind": "style", "style": "solid-pointer" }"#);
+        let chosen = with(r#"{ "kind": "glyph", "glyph": "◄" }"#);
+
+        assert_eq!(unknown, pointer);
+        assert_eq!(unknown, chosen);
+        assert_ne!(
+            with(r#"{ "kind": "style", "style": "ascii-arrow" }"#),
+            unknown
+        );
+    }
+
+    /// A style terminal with no `style` field is refused **by name**, exactly as a missing
+    /// `terminal` is: a style is a name, and a nameless one is a field left out rather than a
+    /// default.
+    #[test]
+    fn a_style_terminal_without_a_name_is_refused_by_name() {
+        let error = error_for(r#"{ "kind": "style" }"#);
+
+        assert!(error.starts_with("missing field `style`"), "{error}");
     }
 
     /// The field is required for both values, so a file that omits it is refused rather than read
