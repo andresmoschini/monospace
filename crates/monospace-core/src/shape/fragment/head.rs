@@ -24,18 +24,20 @@ impl Shape for Head {
 #[cfg(test)]
 mod tests {
     use super::Head;
-    use crate::{Buffer, Cell, Glyph, Layer, Pos, Shape, Size, StampMode};
+    use crate::{
+        Buffer, Cell, CellReader, FigureLayer, Glyph, Pos, Shape, Size, StampMode, Window,
+    };
 
     #[test]
     fn a_head_writes_its_glyph_as_a_literal() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        });
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
         let glyph = Glyph::new("►").expect("\"►\" is one glyph");
 
         Head {

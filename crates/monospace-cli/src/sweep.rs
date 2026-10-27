@@ -56,7 +56,7 @@
 
 use std::fmt::Write as _;
 
-use monospace_core::{Buffer, Pos, Size};
+use monospace_core::{Buffer, Pos, Size, Window};
 use monospace_description::parse;
 
 /// The five tables a shape can be drawn in on its own. The four mixing tables are deliberately
@@ -95,14 +95,12 @@ fn case(name: &str, shapes: &str) -> String {
     let diagram =
         parse(&description).unwrap_or_else(|error| panic!("{name} is not readable: {error}"));
 
-    let mut buffer = Buffer::new(Pos { x: 0, y: 0 }, SIZE);
+    let mut buffer = Buffer::new(Window {
+        origin: Pos { x: 0, y: 0 },
+        size: SIZE,
+    });
     diagram.draw(&mut buffer);
-    let rendered = monospace_core::render(
-        &buffer,
-        &monospace_glyph_sets::all(),
-        Pos { x: 0, y: 0 },
-        SIZE,
-    );
+    let rendered = monospace_core::render(&buffer, &monospace_glyph_sets::all(), buffer.window());
 
     let mut out = String::new();
     let _ = writeln!(out, "{name}");

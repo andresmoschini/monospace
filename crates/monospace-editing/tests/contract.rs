@@ -14,7 +14,9 @@
 
 use std::num::NonZeroU16;
 
-use monospace_core::{Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, render};
+use monospace_core::{
+    Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, Window, render,
+};
 use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Shape, ShapeId};
 use monospace_editing::{Command, Session};
 
@@ -83,9 +85,12 @@ fn one_box(at: Pos) -> Diagram {
 /// A window of its own every time, because a caller repaints on every event and the claim under
 /// test is never about a buffer left over from an earlier one.
 fn picture_in(diagram: &Diagram, size: Size) -> String {
-    let mut buffer = Buffer::new(ORIGIN, size);
+    let mut buffer = Buffer::new(Window {
+        origin: ORIGIN,
+        size,
+    });
     diagram.draw(&mut buffer);
-    render(&buffer, &GlyphCatalog::light(), ORIGIN, size)
+    render(&buffer, &GlyphCatalog::light(), buffer.window())
 }
 
 /// The drawing of what `session` holds, in the window the specification's example is drawn in.
@@ -785,20 +790,26 @@ fn whether_undo_is_available_is_answerable_without_carrying_it_out() {
 fn drawing_what_a_session_holds_needs_no_copy() {
     let diagram = one_box(ORIGIN);
 
-    let mut as_created = Buffer::new(ORIGIN, EXAMPLE);
+    let mut as_created = Buffer::new(Window {
+        origin: ORIGIN,
+        size: EXAMPLE,
+    });
     diagram.draw(&mut as_created);
 
     let session = Session::new(diagram);
-    let mut borrowed = Buffer::new(ORIGIN, EXAMPLE);
+    let mut borrowed = Buffer::new(Window {
+        origin: ORIGIN,
+        size: EXAMPLE,
+    });
     session.diagram().draw(&mut borrowed);
 
     assert_eq!(
-        render(&borrowed, &GlyphCatalog::light(), ORIGIN, EXAMPLE),
-        render(&as_created, &GlyphCatalog::light(), ORIGIN, EXAMPLE),
+        render(&borrowed, &GlyphCatalog::light(), borrowed.window()),
+        render(&as_created, &GlyphCatalog::light(), as_created.window()),
         "a drawing of what a session holds is a drawing of the diagram it was created over"
     );
     assert_eq!(
-        render(&borrowed, &GlyphCatalog::light(), ORIGIN, EXAMPLE),
+        render(&borrowed, &GlyphCatalog::light(), borrowed.window()),
         AS_WRITTEN,
         "and it is the picture that diagram draws"
     );

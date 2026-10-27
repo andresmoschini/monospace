@@ -710,7 +710,7 @@ pub fn light_round_heavy() -> GlyphCatalog {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{BoxShape, Buffer, Layer, Pos, Shape, Size, StampMode};
+    use monospace_core::{BoxShape, Buffer, FigureLayer, Pos, Shape, Size, StampMode, Window};
 
     use super::{
         all, ascii, double, heavy, light_double, light_heavy, light_round, light_round_double,
@@ -768,16 +768,16 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: monospace_core::Stroke::from("ascii"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let output = monospace_core::render(&buffer, &ascii(), origin, size);
+        let output = monospace_core::render(&buffer, &ascii(), buffer.window());
 
         for ch in output.chars() {
             assert!(
@@ -821,16 +821,16 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: monospace_core::Stroke::from("double"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let output = monospace_core::render(&buffer, &double(), origin, size);
+        let output = monospace_core::render(&buffer, &double(), buffer.window());
 
         for ch in output.chars() {
             assert!(
@@ -888,16 +888,16 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: monospace_core::Stroke::from("heavy"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let output = monospace_core::render(&buffer, &heavy(), origin, size);
+        let output = monospace_core::render(&buffer, &heavy(), buffer.window());
 
         for ch in output.chars() {
             assert!(
@@ -955,16 +955,16 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: monospace_core::Stroke::from("light-round"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let output = monospace_core::render(&buffer, &light_round(), origin, size);
+        let output = monospace_core::render(&buffer, &light_round(), buffer.window());
 
         for ch in output.chars() {
             assert!(
@@ -998,30 +998,35 @@ mod tests {
             height: 3,
         };
 
-        let mut light_round_buffer = Buffer::new(origin, size);
+        let mut light_round_buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: monospace_core::Stroke::from("light-round"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut light_round_buffer, StampMode::Above));
-        let light_round_output =
-            monospace_core::render(&light_round_buffer, &light_round(), origin, size);
+        .draw(&mut FigureLayer::new(
+            &mut light_round_buffer,
+            StampMode::Above,
+        ));
+        let light_round_output = monospace_core::render(
+            &light_round_buffer,
+            &light_round(),
+            light_round_buffer.window(),
+        );
 
-        let mut light_buffer = Buffer::new(origin, size);
+        let mut light_buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: monospace_core::Stroke::from("light"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut light_buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut light_buffer, StampMode::Above));
         let light_output = monospace_core::render(
             &light_buffer,
             &monospace_core::GlyphCatalog::light(),
-            origin,
-            size,
+            light_buffer.window(),
         );
 
         for corner in ['╮', '╭', '╯', '╰'] {

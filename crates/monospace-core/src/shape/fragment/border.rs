@@ -69,20 +69,23 @@ impl Shape for Border {
 mod tests {
     use super::Border;
     use crate::cell::Side;
-    use crate::{Arm, Buffer, Cell, Layer, Pos, Shape, Size, StampMode, Stroke, StrokeCell};
+    use crate::{
+        Arm, Buffer, Cell, CellReader, FigureLayer, Pos, Shape, Size, StampMode, Stroke,
+        StrokeCell, Window,
+    };
 
     /// The example checked by hand: `(1, 0)` of `stamp_box`'s box is
     /// `(Unset, Set, Closed, Set)`, which is `Border { side: Top }`.
     #[test]
     fn a_top_border_closes_toward_the_interior_and_leaves_its_own_side_unset() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        });
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Border {
             from: Pos { x: 0, y: 0 },
@@ -109,14 +112,14 @@ mod tests {
     /// `Border { side: Left }`.
     #[test]
     fn a_left_border_closes_toward_the_interior_and_leaves_its_own_side_unset() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        });
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Border {
             from: Pos { x: 0, y: 0 },
@@ -142,14 +145,14 @@ mod tests {
     /// A run of more than one cell writes every position along it, identically.
     #[test]
     fn a_border_writes_every_position_of_its_run() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 3,
                 height: 1,
             },
-        );
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        });
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Border {
             from: Pos { x: 0, y: 0 },
@@ -179,14 +182,14 @@ mod tests {
     /// stroke crossing into it is free to connect instead of being refused.
     #[test]
     fn a_border_with_no_interior_to_close_leaves_that_side_unset() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        });
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Border {
             from: Pos { x: 0, y: 0 },

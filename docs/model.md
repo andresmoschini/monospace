@@ -38,7 +38,8 @@ character matches.
 
 | Term            | Meaning                                                                        |
 | --------------- | ------------------------------------------------------------------------------ |
-| `Buffer`        | A window of cells, with an origin and a size                                   |
+| `Window`        | An origin and a size: the rectangle a buffer holds                             |
+| `Buffer`        | A window, the cells written into it, and who decided each of them              |
 | `Cell`          | Either a base stroke and four arms, or one literal glyph                       |
 | `Side`          | Top, right, bottom or left                                                     |
 | `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`                |
@@ -50,9 +51,12 @@ character matches.
 | `GlyphSet`      | A group of rules as they are written or loaded: one table                      |
 | `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it  |
 | `stamp`         | The single write operation                                                     |
+| `StampSink`     | One write operation and no reader; what a figure layer writes through          |
 | `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided   |
 | `Offset`        | A position inside one window, counted from its corner                          |
 | `Surface`       | One write operation and no reader; what a shape draws into                     |
+| `CellReader`    | One read operation: the cell at an absolute position                           |
+| `OwnerReader`   | One read operation: the identity recorded at an absolute position              |
 | `Shape`         | A value describing a figure, which draws itself into a surface                 |
 | `ShapeId`       | The ordinal a figure is drawn under, and what a stamp records beside the cell  |
 | `Piece`         | A shape placed by another shape, given the positions it is to write            |
@@ -69,8 +73,8 @@ two meet.
 
 ## 2. The buffer
 
-A buffer is a window. It has an origin `(x, y)` and a size `(width, height)`, and those give the
-lowest and highest positions it answers for.
+A buffer holds a window. The window has an origin `(x, y)` and a size `(width, height)`, and those
+give the lowest and highest positions the buffer answers for.
 
 - Coordinates are absolute. `x` grows right, `y` grows down, and both may be negative. Sizes are
   never negative, and zero is allowed: a window with no width or no height simply has no positions,
@@ -85,9 +89,9 @@ lowest and highest positions it answers for.
 
 **The numbers are the terminal's.** A coordinate is an `i16` and an extent a `u16`, the widths a
 terminal counts its frame in, so a cell of a drawing goes into a frame without a cast and a click's
-column and row are the offset the buffer is asked with. **What that costs is range**: a coordinate
-that runs from −32 768 to 32 767 and an extent of at most 65 535 cells, which is past what any
-terminal draws and past what any description here comes near.
+column and row are an offset the window turns into a position. **What that costs is range**: a
+coordinate that runs from −32 768 to 32 767 and an extent of at most 65 535 cells, which is past
+what any terminal draws and past what any description here comes near.
 
 ## 3. The cell
 
@@ -148,14 +152,14 @@ decide" — so there is no state the stamp needs and the stored cell cannot hold
 A stamp also carries **who is stamping**, and the buffer keeps that **beside the cell rather than
 inside it**: the record is what decides which shape a position belongs to, and it is a note about a
 cell rather than part of one, so two cells that render alike stay one cell value whoever wrote them.
-A stamp by nobody records nothing rather than recording an absence. The record is asked for with a
-position **counted from the window's own corner** — an `Offset`, not a `Pos`, because a `Pos` is a
-point in the plane and may be negative while an `Offset` is a column and a row of what was rendered
-and never is. **The window's origin decides which cells the window holds and takes no other part in
-the answer**, so a caller that adds it to a click before asking has asked about a different cell and
-gets a truthful answer about that one. A caller keeping one buffer for a whole diagram and rendering
-a viewport out of it holds click offsets relative to the _viewport_, and has to know it is drawing a
-rectangle other than the window.
+A stamp by nobody records nothing rather than recording an absence. The record is asked for with an
+absolute **position**, a `Pos`, and never with the column and row a click arrives as: **the window
+is the one place an `Offset` becomes a `Pos`**, so a caller counts the click from the window's
+corner once and asks with what it got. **The window's origin decides which cells the window holds
+and where an offset lands**, so a caller that adds it to a click itself has asked about a different
+cell and gets a truthful answer about that one. A caller keeping one buffer for a whole diagram and
+rendering a viewport out of it holds click offsets relative to the _viewport_, and has to know it is
+drawing a rectangle other than the window.
 
 | Target                        | `Above`                                                                        | `Below`                                                                   |
 | ----------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
@@ -229,7 +233,7 @@ the degradation rule below falls back on.
 
 ## 6. Rendering
 
-The renderer takes a buffer, a catalog and an absolute rectangle: a position `(x, y)` and a size
+The renderer takes a reader of cells, a catalog and a window: an origin `(x, y)` and a size
 `(width, height)`.
 
 For each position in the rectangle:
@@ -269,7 +273,7 @@ that case only arises when a cell has no connected arm at all, or when the set f
 was never loaded.
 
 The text output is a rectangle of exactly `width` × `height`: trailing spaces are not trimmed, the
-last line ends with a newline, and positions falling outside the buffer's window are spaces.
+last line ends with a newline, and positions falling outside the window are spaces.
 
 ## 7. Shapes
 
@@ -281,13 +285,13 @@ the caller draws them, exactly as any two stamps at those positions would.
 Shapes are the layer directly above the buffer, and a shape draws into a **surface** rather than
 into the buffer itself: one write operation and no reader, so a fragment cannot inspect what lies
 beneath it even by accident. A surface is a trait carrying `stamp` and nothing else, and the one
-adapter the crate ships binds a buffer to a stamp mode for it. Both halves are there to keep
-opinions out. A surface with no reader makes "a fragment never inspects the buffer" something the
-compiler refuses rather than a rule a reviewer has to check on every fragment written after it, and
-binding the mode once at construction is what keeps `StampMode` out of every shape: a shape that
-named one would be taking an opinion on how it composes with figures behind it, which is the one
-thing a shape has no opinion about. The price is that the surface's `stamp` takes a `Cell`, so a
-shape defined outside the crate builds its cells by hand and passes through none of the rules
+adapter the crate ships binds a sink to a stamp mode and an identity for it. Both halves are there
+to keep opinions out. A surface with no reader makes "a fragment never inspects the buffer"
+something the compiler refuses rather than a rule a reviewer has to check on every fragment written
+after it, and binding the mode once at construction is what keeps `StampMode` out of every shape: a
+shape that named one would be taking an opinion on how it composes with figures behind it, which is
+the one thing a shape has no opinion about. The price is that the surface's `stamp` takes a `Cell`,
+so a shape defined outside the crate builds its cells by hand and passes through none of the rules
 _Complete and fragment_ below gives the fragments inside it.
 
 Shapes exist so that a caller describes a figure instead of computing positions and characters.

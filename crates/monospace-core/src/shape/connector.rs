@@ -546,8 +546,8 @@ mod tests {
     use super::{Connector, Endpoint, Lattice, RouteRectangle, Terminal, derive_path, offset};
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Line, Orientation, Pos, Shape,
-        Size, StampMode, Stroke, StrokeCell, render,
+        Arm, Buffer, Cell, CellReader, Direction, FigureLayer, Glyph, GlyphCatalog, Line,
+        Orientation, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window, render,
     };
 
     fn light() -> Stroke {
@@ -576,15 +576,15 @@ mod tests {
     }
 
     fn render_connector(origin: Pos, size: Size, from: Endpoint, to: Endpoint) -> String {
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Connector {
             from,
             to,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        render(&buffer, &GlyphCatalog::light(), origin, size)
+        render(&buffer, &GlyphCatalog::light(), buffer.window())
     }
 
     /// Perpendicular directions, one bend.
@@ -1123,7 +1123,7 @@ mod tests {
             height: 1,
         };
         let at = origin;
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
 
         Connector {
             from: Endpoint {
@@ -1136,7 +1136,7 @@ mod tests {
             to: endpoint(Pos { x: 6, y: 0 }, Direction::Left),
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         // A line's first cell is an end carrying one arm, so this writes an arm on the same
         // position the glyph terminal occupies and nothing else.
@@ -1146,7 +1146,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Below));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Below));
 
         assert_eq!(
             buffer.cell(at),
@@ -1189,13 +1189,13 @@ mod tests {
             // A one-by-one window on the endpoint's own position, so nothing but the terminal
             // writes there: the route starts one step away and the other endpoint is off-window.
             let at = Pos { x: 3, y: 3 };
-            let mut buffer = Buffer::new(
-                at,
-                Size {
+            let mut buffer = Buffer::new(Window {
+                origin: at,
+                size: Size {
                     width: 1,
                     height: 1,
                 },
-            );
+            });
             Connector {
                 from: Endpoint {
                     at,
@@ -1205,7 +1205,7 @@ mod tests {
                 to: endpoint(Pos { x: 9, y: 9 }, Direction::Up),
                 stroke: light(),
             }
-            .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+            .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
             assert_eq!(
                 buffer.cell(at),
@@ -1335,8 +1335,8 @@ mod tests {
                 stroke: light(),
             };
 
-            let mut buffer = Buffer::new(origin, size);
-            connector.draw(&mut Layer::new(&mut buffer, StampMode::Above));
+            let mut buffer = Buffer::new(Window { origin, size });
+            connector.draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
             for at in body.iter().copied().chain([from_at, to_at]) {
                 assert!(
                     buffer.cell(at).is_some(),
@@ -1642,13 +1642,16 @@ mod tests {
     fn sweep_every_endpoint_renders_its_own_head_and_no_position_is_written_twice() {
         for (a, da, b, db) in sweep_arrangements() {
             for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
-                let mut buffer = Buffer::new(SWEEP_ORIGIN, SWEEP_SIZE);
+                let mut buffer = Buffer::new(Window {
+                    origin: SWEEP_ORIGIN,
+                    size: SWEEP_SIZE,
+                });
                 Connector {
                     from: endpoint(from_at, from_dir),
                     to: endpoint(to_at, to_dir),
                     stroke: light(),
                 }
-                .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+                .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
                 assert_eq!(
                     buffer.cell(from_at),
                     Some(&Cell::Literal(head_for(from_dir))),

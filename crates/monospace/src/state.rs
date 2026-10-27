@@ -9,7 +9,9 @@
 //! `crate::callbacks`: **Delete** performs one removal, and **Undo** and **Redo** walk the history
 //! the removal recorded. The application keeps no history of its own: the session is the history.
 
-use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, ShapeId, Size};
+use monospace_core::{
+    Buffer, CellReader, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId, Size, Window,
+};
 use monospace_editing::{Command, Session};
 use rat_widget::menu::MenubarState;
 use rat_widget::msgdialog::MsgDialogState;
@@ -61,13 +63,13 @@ impl DiagramState {
 
         Self {
             origin,
-            buffer: Buffer::new(
+            buffer: Buffer::new(Window {
                 origin,
-                Size {
+                size: Size {
                     width: 0,
                     height: 0,
                 },
-            ),
+            }),
             interior: Rect::new(0, 0, 0, 0),
             region: Rect::new(0, 0, 0, 0),
             selected: None,
@@ -77,8 +79,13 @@ impl DiagramState {
 
     /// The glyph the last drawing put at `at`, or `None` where it put none: a position outside the
     /// window, a cell no shape wrote, or a cell this catalog does not answer.
+    ///
+    /// **The click's offset is the window's to translate**: `CellReader::cell` takes a position,
+    /// and the window turns the column and the row the terminal reports into one.
     pub(crate) fn glyph<'a>(&'a self, at: Offset, catalog: &'a GlyphCatalog) -> Option<&'a str> {
-        self.position(at)
+        self.buffer
+            .window()
+            .position(at)
             .and_then(|position| self.buffer.cell(position))
             .and_then(|cell| cell.glyph_str(catalog))
     }
@@ -108,14 +115,18 @@ impl DiagramState {
     /// The shape the drawing of the last frame records at `at`, or `None` where nobody holds the
     /// cell.
     ///
-    /// **The answer is `Buffer::owner`'s and its `None` is passed on whole**: the window may not
-    /// hold the offset, no shape may have written the cell, or no shape may have decided it.
+    /// **The answer is `OwnerReader::owner`'s and its `None` is passed on whole**: the window may
+    /// not hold the offset, no shape may have written the cell, or no shape may have decided it.
     ///
-    /// **`Buffer::owner` is asked with the click's own offset**, counted from the interior's
-    /// corner: the window's origin is the scroll origin, so nothing is added to the column and the
-    /// row the terminal reports.
+    /// **The window is asked first and the record second**: `OwnerReader::owner` takes a position,
+    /// and the click arrives as an offset from the interior's corner, so `Window::position` is what
+    /// turns one into the other. The window's origin is the scroll origin, so nothing is added to
+    /// the column and the row the terminal reports.
     pub(crate) fn owner(&self, at: Offset) -> Option<ShapeId> {
-        self.buffer.owner(at)
+        self.buffer
+            .window()
+            .position(at)
+            .and_then(|position| self.buffer.owner(position))
     }
 
     /// Takes the shape `id` out of the session, and drops the selection.
@@ -219,9 +230,10 @@ impl DiagramState {
     /// where the position is outside the interior.
     ///
     /// **The interior's corner is taken off, and the window's origin takes no part.** A click
-    /// arrives as a column and a row of the screen, and the offset `Buffer::owner` asks for is
-    /// counted from the corner of the window the person saw — the scroll origin belongs to the
-    /// plane rather than to the screen, and adding it here would ask about another cell (rule 1).
+    /// arrives as a column and a row of the screen, and the offset the window turns into the
+    /// position `OwnerReader::owner` asks about is counted from the corner of the window the person
+    /// saw — the scroll origin belongs to the plane rather than to the screen, and adding it here
+    /// would ask about another cell (rule 1).
     pub(crate) fn offset_of(&self, at: Position) -> Option<Offset> {
         if !self.interior.contains(at) {
             return None;
@@ -242,15 +254,6 @@ impl DiagramState {
         self.region
     }
 
-    /// The position `at` reaches, counted from the window's corner, or `None` where the origin
-    /// and the offset cannot be added.
-    fn position(&self, at: Offset) -> Option<Pos> {
-        Some(Pos {
-            x: self.origin.x.checked_add_unsigned(at.x)?,
-            y: self.origin.y.checked_add_unsigned(at.y)?,
-        })
-    }
-
     /// Draws the session's diagram into `interior` — the window, as the screen holds it — at the
     /// scroll origin, replacing whatever the frame before drew.
     ///
@@ -261,13 +264,13 @@ impl DiagramState {
     /// the keyboard without landing in the window, so the outer rectangle is a fact of the frame
     /// the region answered and not one the interior can be asked for.
     pub(crate) fn redraw(&mut self, region: Rect, interior: Rect) {
-        let mut buffer = Buffer::new(
-            self.origin,
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: self.origin,
+            size: Size {
                 width: interior.width,
                 height: interior.height,
             },
-        );
+        });
         self.session.diagram().draw(&mut buffer);
         self.buffer = buffer;
         self.interior = interior;

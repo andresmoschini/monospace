@@ -42,20 +42,23 @@ impl Shape for Corner {
 mod tests {
     use super::Corner;
     use crate::cell::Side;
-    use crate::{Arm, Buffer, Cell, Layer, Pos, Shape, Size, StampMode, Stroke, StrokeCell};
+    use crate::{
+        Arm, Buffer, Cell, CellReader, FigureLayer, Pos, Shape, Size, StampMode, Stroke,
+        StrokeCell, Window,
+    };
 
     /// The example checked by hand: `(0, 0)` of `stamp_box`'s box is
     /// `(Unset, Set, Set, Unset)`, which is a corner opening right and bottom.
     #[test]
     fn a_corner_sets_its_two_sides_and_leaves_the_other_two_unset() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        });
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Corner {
             at: Pos { x: 0, y: 0 },
@@ -80,14 +83,14 @@ mod tests {
     /// case.
     #[test]
     fn a_corner_opening_opposite_sides_is_a_straight_run() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        });
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Corner {
             at: Pos { x: 0, y: 0 },

@@ -1,4 +1,4 @@
-//! The diagram: an ordered set of shapes, drawable into a buffer the caller gives it. See
+//! The diagram: an ordered set of shapes, drawable into a sink the caller gives it. See
 //! [`docs/diagram-model.md`](../../../docs/diagram-model.md).
 //!
 //! **The window is the caller's and the order is this crate's.** A buffer is a window with an
@@ -16,7 +16,7 @@
 
 use std::num::NonZeroU16;
 
-use monospace_core::{Buffer, Layer, ShapeId, StampMode};
+use monospace_core::{FigureLayer, ShapeId, StampMode, StampSink};
 use rpds::{HashTrieMapSync, VectorSync};
 
 use crate::Shape;
@@ -338,9 +338,9 @@ impl Diagram {
         }
     }
 
-    /// Draws every shape into `buffer`, front to back, stamping every cell with
+    /// Draws every shape into `sink`, front to back, stamping every cell with
     /// [`StampMode::Below`] and **binding the shape's own identity** to each layer. Drawing changes
-    /// nothing about this diagram, so two drawings into equal windows produce equal buffers.
+    /// nothing about this diagram, so two drawings into equal windows produce equal drawings.
     ///
     /// The diagram is what a connector's endpoints resolve through, which is why it is the one that
     /// hands itself to each figure. A connector with an endpoint that does not resolve — an identity
@@ -349,13 +349,13 @@ impl Diagram {
     /// to ask which figures were dropped; see
     /// [#88](https://github.com/andresmoschini/monospace/issues/88).
     ///
-    /// **The signature does not change, and the identity is not a parameter of it.** Whoever draws a
-    /// diagram already holds every shape's identity and knows which is which, so asking for it again
-    /// would be asking a question this method is the only one able to answer — and a caller that
-    /// passed one in could pass one that disagrees with the diagram. The record is a property of the
-    /// drawing rather than of the diagram, which is why changing the diagram changes nothing about a
-    /// buffer already drawn.
-    pub fn draw(&self, buffer: &mut Buffer) {
+    /// **The identity is not a parameter of the signature.** Whoever draws a diagram already holds
+    /// every shape's identity and knows which is which, so asking for it again would be asking a
+    /// question this method is the only one able to answer — and a caller that passed one in could
+    /// pass one that disagrees with the diagram. The record is a property of the drawing rather than
+    /// of the diagram, which is why changing the diagram changes nothing about a buffer already
+    /// drawn.
+    pub fn draw(&self, sink: &mut dyn StampSink) {
         for id in self.order.iter().rev() {
             // **Every place in the order names a figure, and the guard is here rather than a panic
             // because the two are written together and nothing reaches into either.** It would not
@@ -364,7 +364,7 @@ impl Diagram {
             let Some(shape) = self.shapes.get(id) else {
                 continue;
             };
-            let mut layer = Layer::stamped_by(buffer, StampMode::Below, *id);
+            let mut layer = FigureLayer::stamped_by(&mut *sink, StampMode::Below, *id);
             shape.draw(&mut layer, self);
         }
     }
@@ -375,8 +375,9 @@ mod tests {
     use std::num::NonZeroU16;
 
     use monospace_core::{
-        BoxShape, Buffer, Cell, Connector, Direction, Glyph, GlyphCatalog, Layer, Line, Offset,
-        Orientation, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, render,
+        BoxShape, Buffer, Cell, CellReader, Connector, Direction, FigureLayer, Glyph, GlyphCatalog,
+        Line, Orientation, OwnerReader, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal,
+        Window, render,
     };
 
     use super::{Diagram, ShapeId};
@@ -396,9 +397,10 @@ mod tests {
         ShapeId::new(nz(ordinal))
     }
 
-    /// Collects every cell of `buffer` over the window `origin`/`size`, so two buffers can be
-    /// compared by value even though `Buffer` derives no `PartialEq`.
-    fn cells(buffer: &Buffer, origin: Pos, size: Size) -> Vec<Option<Cell>> {
+    /// Collects every cell of `buffer` over its window, so two buffers can be compared by value
+    /// even though `Buffer` derives no `PartialEq`.
+    fn cells(buffer: &Buffer) -> Vec<Option<Cell>> {
+        let Window { origin, size } = buffer.window();
         (0..size.height)
             .flat_map(|dy| (0..size.width).map(move |dx| (dx, dy)))
             .map(|(dx, dy)| {
@@ -441,20 +443,26 @@ mod tests {
             })
             .0;
 
-        let mut first = Buffer::new(origin, size);
+        let mut first = Buffer::new(Window { origin, size });
         diagram.draw(&mut first);
-        let mut second = Buffer::new(origin, size);
+        let mut second = Buffer::new(Window { origin, size });
         diagram.draw(&mut second);
 
-        assert_eq!(cells(&first, origin, size), cells(&second, origin, size));
+        assert_eq!(cells(&first), cells(&second));
     }
 
-    /// Every offset of a window `size` with the identity the record names there, so two records can
-    /// be compared by value even though `Buffer` derives no `PartialEq`.
-    fn owners(buffer: &Buffer, size: Size) -> Vec<Option<ShapeId>> {
+    /// Every position of `buffer`'s window with the identity the record names there, so two records
+    /// can be compared by value even though `Buffer` derives no `PartialEq`.
+    fn owners(buffer: &Buffer) -> Vec<Option<ShapeId>> {
+        let Window { origin, size } = buffer.window();
         (0..size.height)
             .flat_map(|dy| (0..size.width).map(move |dx| (dx, dy)))
-            .map(|(dx, dy)| buffer.owner(Offset { x: dx, y: dy }))
+            .map(|(dx, dy)| {
+                buffer.owner(Pos {
+                    x: origin.x + i16::try_from(dx).expect("width fits i16"),
+                    y: origin.y + i16::try_from(dy).expect("height fits i16"),
+                })
+            })
             .collect()
     }
 
@@ -506,10 +514,10 @@ mod tests {
     #[test]
     fn no_operation_changes_the_diagram_it_was_given() {
         let (diagram, back, front) = two_overlapping_boxes();
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let before = draw_of(&diagram, origin, size);
-        let cells_before = cells(&before, origin, size);
-        let owners_before = owners(&before, size);
+        let cells_before = cells(&before);
+        let owners_before = owners(&before);
         let figures_before = [diagram.get(back).cloned(), diagram.get(front).cloned()];
 
         drop(diagram.add(Shape::Line {
@@ -525,12 +533,12 @@ mod tests {
         drop(diagram.remove(back));
 
         assert_eq!(
-            cells(&draw_of(&diagram, origin, size), origin, size),
+            cells(&draw_of(&diagram, origin, size)),
             cells_before,
             "every operation was asked and the diagram draws what it drew"
         );
         assert_eq!(
-            owners(&draw_of(&diagram, origin, size), size),
+            owners(&draw_of(&diagram, origin, size)),
             owners_before,
             "and no cell changed which figure owns it"
         );
@@ -589,9 +597,9 @@ mod tests {
     #[test]
     fn an_identity_naming_no_figure_changes_no_cell_of_the_picture() {
         let (diagram, _back, _front) = two_overlapping_boxes();
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let absent = identity(9);
-        let before = cells(&draw_of(&diagram, origin, size), origin, size);
+        let before = cells(&draw_of(&diagram, origin, size));
 
         for named in [absent, a_foreign_identity()] {
             assert!(
@@ -612,7 +620,7 @@ mod tests {
                 ("`remove`", draw_of(&diagram.remove(named), origin, size)),
             ] {
                 assert_eq!(
-                    cells(&after, origin, size),
+                    cells(&after),
                     before,
                     "{what} on {named:?}, which this diagram holds nothing under, changed the picture"
                 );
@@ -634,8 +642,8 @@ mod tests {
     #[test]
     fn forward_and_backward_are_the_only_operations_that_search() {
         let (diagram, back, front) = two_overlapping_boxes();
-        let (origin, size) = the_window();
-        let crossing = Offset { x: 2, y: 1 };
+        let Window { origin, size } = the_window();
+        let crossing = Pos { x: 2, y: 1 };
         assert_eq!(
             draw_of(&diagram, origin, size).owner(crossing),
             Some(front),
@@ -717,8 +725,8 @@ mod tests {
     #[test]
     fn remove_leaves_the_order_closed_rather_than_gapped() {
         let (diagram, back, front) = two_overlapping_boxes();
-        let (origin, size) = the_window();
-        let crossing = Offset { x: 2, y: 1 };
+        let Window { origin, size } = the_window();
+        let crossing = Pos { x: 2, y: 1 };
         let without = diagram.remove(back);
 
         assert!(
@@ -726,24 +734,20 @@ mod tests {
             "the identity that was taken out names nothing"
         );
         assert_eq!(
-            cells(&draw_of(&without.remove(back), origin, size), origin, size),
-            cells(&draw_of(&without, origin, size), origin, size),
+            cells(&draw_of(&without.remove(back), origin, size)),
+            cells(&draw_of(&without, origin, size)),
             "taking out an identity that is already out changed the picture"
         );
         assert_eq!(
-            cells(&draw_of(&without, origin, size), origin, size),
-            cells(
-                &draw_of(
-                    &Diagram::new().add_under(
-                        front,
-                        diagram.get(front).cloned().expect("a figure it holds")
-                    ),
-                    origin,
-                    size
+            cells(&draw_of(&without, origin, size)),
+            cells(&draw_of(
+                &Diagram::new().add_under(
+                    front,
+                    diagram.get(front).cloned().expect("a figure it holds")
                 ),
                 origin,
                 size
-            ),
+            )),
             "what is left draws what the same figure draws with the other never there"
         );
 
@@ -777,7 +781,7 @@ mod tests {
     /// and only the endpoint can.
     #[test]
     fn what_hung_from_a_removed_figure_is_frozen_and_not_looked_for_afterwards() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let nothing = Delta { dx: 0, dy: 0 };
         let the_far_end = Pos { x: 8, y: 1 };
 
@@ -812,8 +816,8 @@ mod tests {
             .add(arm_connector(it_resolved_to.into(), the_far_end.into()))
             .0;
         assert_eq!(
-            cells(&draw_of(&removed, origin, size), origin, size),
-            cells(&draw_of(&written_out, origin, size), origin, size),
+            cells(&draw_of(&removed, origin, size)),
+            cells(&draw_of(&written_out, origin, size)),
             "and the picture is what the same figure with that point spelled out draws"
         );
 
@@ -856,43 +860,35 @@ mod tests {
             height: 4,
         };
 
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
-        for (offset, expected, what) in [
+        for (at, expected, what) in [
             (
-                Offset { x: 1, y: 1 },
+                Pos { x: 1, y: 1 },
                 back,
                 "a fill only the back-most shape wrote",
             ),
             (
-                Offset { x: 3, y: 2 },
+                Pos { x: 3, y: 2 },
                 front,
                 "a fill only the shape in front wrote",
             ),
             (
-                Offset { x: 2, y: 1 },
+                Pos { x: 2, y: 1 },
                 front,
                 "a cell the shape in front decided over the one behind's fill",
             ),
+            (Pos { x: 0, y: 0 }, back, "the back-most shape's own corner"),
             (
-                Offset { x: 0, y: 0 },
-                back,
-                "the back-most shape's own corner",
-            ),
-            (
-                Offset { x: 5, y: 3 },
+                Pos { x: 5, y: 3 },
                 front,
                 "the front-most shape's own corner",
             ),
         ] {
-            let at = Pos {
-                x: i16::try_from(offset.x).expect("six columns"),
-                y: i16::try_from(offset.y).expect("four rows"),
-            };
             assert!(buffer.cell(at).is_some(), "{at:?} holds a cell: {what}");
             assert_eq!(
-                buffer.owner(offset),
+                buffer.owner(at),
                 Some(expected),
                 "{what} belongs to {expected}"
             );
@@ -900,8 +896,8 @@ mod tests {
 
         // The two cells the arrangement leaves between and below the boxes, which is what makes the
         // four above a claim about ownership rather than about a buffer that records everything.
-        for offset in [Offset { x: 5, y: 0 }, Offset { x: 0, y: 3 }] {
-            assert_eq!(buffer.owner(offset), None);
+        for at in [Pos { x: 5, y: 0 }, Pos { x: 0, y: 3 }] {
+            assert_eq!(buffer.owner(at), None);
         }
     }
 
@@ -925,10 +921,10 @@ mod tests {
             height: 4,
         };
 
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
-        let cells_before = cells(&buffer, origin, size);
-        let owners_before = owners(&buffer, size);
+        let cells_before = cells(&buffer);
+        let owners_before = owners(&buffer);
         assert!(
             owners_before.contains(&Some(front)),
             "the first drawing recorded something, so there is a record to leave alone"
@@ -936,29 +932,29 @@ mod tests {
 
         diagram = diagram.remove(front);
         assert_eq!(
-            cells(&buffer, origin, size),
+            cells(&buffer),
             cells_before,
             "taking a shape out of the diagram changes nothing about what was drawn"
         );
         assert_eq!(
-            owners(&buffer, size),
+            owners(&buffer),
             owners_before,
             "and nothing about who owns it"
         );
 
         diagram.draw(&mut buffer);
         assert_eq!(
-            owners(&buffer, size),
+            owners(&buffer),
             owners_before,
             "drawing again into a buffer that already holds cells records nothing"
         );
 
         // And the change is real: the same diagram drawn into a window of its own is a different
         // picture, with the removed shape's fill gone from it.
-        let mut fresh = Buffer::new(origin, size);
+        let mut fresh = Buffer::new(Window { origin, size });
         diagram.draw(&mut fresh);
         assert_ne!(
-            cells(&fresh, origin, size),
+            cells(&fresh),
             cells_before,
             "the diagram changed, so a window of its own draws something else"
         );
@@ -1003,7 +999,7 @@ mod tests {
             width: 6,
             height: 2,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         // `get` answers with the second of the two, which is the one the diagram kept, and there is
@@ -1016,32 +1012,28 @@ mod tests {
         // What is on the screen is the one figure, where it stands, and nothing of the figure it
         // replaced: the left box is gone rather than hidden behind the right one.
         assert_eq!(
-            cells(&buffer, origin, size),
-            cells(&drawn(vec![a_box_at(4)], origin, size), origin, size),
+            cells(&buffer),
+            cells(&drawn(vec![a_box_at(4)], origin, size)),
             "the identity is drawn once, as the figure that replaced the first"
         );
 
-        for offset in [Offset { x: 4, y: 0 }, Offset { x: 5, y: 1 }] {
+        for at in [Pos { x: 4, y: 0 }, Pos { x: 5, y: 1 }] {
             assert_eq!(
-                buffer.owner(offset),
+                buffer.owner(at),
                 Some(shared),
                 "every cell the surviving figure wrote carries the one identity it is held under, at \
                  ({}, {})",
-                offset.x,
-                offset.y
+                at.x,
+                at.y
             );
         }
-        for offset in [
-            Offset { x: 0, y: 0 },
-            Offset { x: 1, y: 1 },
-            Offset { x: 2, y: 0 },
-        ] {
+        for at in [Pos { x: 0, y: 0 }, Pos { x: 1, y: 1 }, Pos { x: 2, y: 0 }] {
             assert_eq!(
-                buffer.owner(offset),
+                buffer.owner(at),
                 None,
                 "the figure that was replaced wrote nothing, at ({}, {})",
-                offset.x,
-                offset.y
+                at.x,
+                at.y
             );
         }
     }
@@ -1054,11 +1046,11 @@ mod tests {
             width: 3,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Diagram::new().draw(&mut buffer);
 
         assert_eq!(
-            cells(&buffer, origin, size),
+            cells(&buffer),
             vec![None; (size.width * size.height) as usize]
         );
     }
@@ -1085,7 +1077,7 @@ mod tests {
             })
             .0;
 
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         assert!(buffer.cell(Pos { x: 1, y: 1 }).is_some());
@@ -1110,21 +1102,21 @@ mod tests {
                 fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
             })
             .0;
-        let mut actual = Buffer::new(origin, size);
+        let mut actual = Buffer::new(Window { origin, size });
         diagram.draw(&mut actual);
 
-        let mut expected = Buffer::new(origin, size);
+        let mut expected = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         }
-        .draw(&mut Layer::new(&mut expected, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
         assert_eq!(
-            render(&actual, &GlyphCatalog::light(), origin, size),
-            render(&expected, &GlyphCatalog::light(), origin, size)
+            render(&actual, &GlyphCatalog::light(), actual.window()),
+            render(&expected, &GlyphCatalog::light(), expected.window())
         );
     }
 
@@ -1145,21 +1137,21 @@ mod tests {
                 stroke: light(),
             })
             .0;
-        let mut actual = Buffer::new(origin, size);
+        let mut actual = Buffer::new(Window { origin, size });
         diagram.draw(&mut actual);
 
-        let mut expected = Buffer::new(origin, size);
+        let mut expected = Buffer::new(Window { origin, size });
         Line {
             at: origin,
             len: 5,
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut expected, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
         assert_eq!(
-            render(&actual, &GlyphCatalog::light(), origin, size),
-            render(&expected, &GlyphCatalog::light(), origin, size)
+            render(&actual, &GlyphCatalog::light(), actual.window()),
+            render(&expected, &GlyphCatalog::light(), expected.window())
         );
     }
 
@@ -1195,10 +1187,10 @@ mod tests {
                 stroke: light(),
             })
             .0;
-        let mut actual = Buffer::new(origin, size);
+        let mut actual = Buffer::new(Window { origin, size });
         diagram.draw(&mut actual);
 
-        let mut expected = Buffer::new(origin, size);
+        let mut expected = Buffer::new(Window { origin, size });
         Connector {
             from: monospace_core::Endpoint {
                 at: Pos { x: 0, y: 0 },
@@ -1216,11 +1208,11 @@ mod tests {
             },
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut expected, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
         assert_eq!(
-            render(&actual, &GlyphCatalog::light(), origin, size),
-            render(&expected, &GlyphCatalog::light(), origin, size)
+            render(&actual, &GlyphCatalog::light(), actual.window()),
+            render(&expected, &GlyphCatalog::light(), expected.window())
         );
     }
 
@@ -1323,13 +1315,13 @@ mod tests {
         with_both = with_both.add_under(other, a_box_at_zero());
         assert!(matches!(with_both.get(other), Some(Shape::Box { .. })));
         assert!(with_both.get(absent).is_none());
-        let before_naming = cells(&draw_of(&with_both, origin, size), origin, size);
+        let before_naming = cells(&draw_of(&with_both, origin, size));
         with_both = with_both.forward(absent);
         with_both = with_both.backward(absent);
         with_both = with_both.remove(absent);
         with_both = with_both.replace(absent, a_box_at_zero());
         assert_eq!(
-            cells(&draw_of(&with_both, origin, size), origin, size),
+            cells(&draw_of(&with_both, origin, size)),
             before_naming,
             "an identity naming nothing must change no cell of the picture"
         );
@@ -1385,10 +1377,10 @@ mod tests {
         let mut to_move = Diagram::new();
         to_move = to_move.add_under(chosen, a_filled_box(0, "█"));
         to_move = to_move.add_under(other, a_filled_box(2, "░"));
-        let at_the_back = cells(&draw_of(&to_move, origin, size), origin, size);
+        let at_the_back = cells(&draw_of(&to_move, origin, size));
 
         to_move = to_move.forward(chosen);
-        let one_forward = cells(&draw_of(&to_move, origin, size), origin, size);
+        let one_forward = cells(&draw_of(&to_move, origin, size));
         assert_ne!(
             one_forward, at_the_back,
             "forward on a chosen identity must move that shape"
@@ -1401,13 +1393,13 @@ mod tests {
         with_it_in_front = with_it_in_front.add_under(chosen, a_filled_box(0, "█"));
         assert_eq!(
             one_forward,
-            cells(&draw_of(&with_it_in_front, origin, size), origin, size),
+            cells(&draw_of(&with_it_in_front, origin, size)),
             "one forward on a chosen identity moves it exactly one place"
         );
 
         to_move = to_move.backward(chosen);
         assert_eq!(
-            cells(&draw_of(&to_move, origin, size), origin, size),
+            cells(&draw_of(&to_move, origin, size)),
             at_the_back,
             "forward then backward restores the drawing"
         );
@@ -1415,7 +1407,7 @@ mod tests {
         // A `forward` on the front-most shape has nowhere to go, and changes no cell.
         to_move = to_move.forward(other);
         assert_eq!(
-            cells(&draw_of(&to_move, origin, size), origin, size),
+            cells(&draw_of(&to_move, origin, size)),
             at_the_back,
             "forward on the front-most shape changes nothing"
         );
@@ -1651,15 +1643,15 @@ mod tests {
         let mut diagram = Diagram::new();
         diagram = diagram.add(a).0;
         diagram = diagram.add(b).0;
-        let mut actual = Buffer::new(origin, size);
+        let mut actual = Buffer::new(Window { origin, size });
         diagram.draw(&mut actual);
 
         let (core_a, core_b) = overlapping_core_boxes();
-        let mut expected = Buffer::new(origin, size);
-        core_a.draw(&mut Layer::new(&mut expected, StampMode::Above));
-        core_b.draw(&mut Layer::new(&mut expected, StampMode::Above));
+        let mut expected = Buffer::new(Window { origin, size });
+        core_a.draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
+        core_b.draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
-        assert_eq!(cells(&actual, origin, size), cells(&expected, origin, size));
+        assert_eq!(cells(&actual), cells(&expected));
     }
 
     /// The same two overlapping boxes in opposite orders produce different buffers, and in each
@@ -1675,20 +1667,17 @@ mod tests {
         let mut a_then_b = Diagram::new();
         a_then_b = a_then_b.add(a).0;
         a_then_b = a_then_b.add(b).0;
-        let mut a_then_b_buffer = Buffer::new(origin, size);
+        let mut a_then_b_buffer = Buffer::new(Window { origin, size });
         a_then_b.draw(&mut a_then_b_buffer);
 
         let (a, b) = overlapping_boxes();
         let mut b_then_a = Diagram::new();
         b_then_a = b_then_a.add(b).0;
         b_then_a = b_then_a.add(a).0;
-        let mut b_then_a_buffer = Buffer::new(origin, size);
+        let mut b_then_a_buffer = Buffer::new(Window { origin, size });
         b_then_a.draw(&mut b_then_a_buffer);
 
-        assert_ne!(
-            cells(&a_then_b_buffer, origin, size),
-            cells(&b_then_a_buffer, origin, size)
-        );
+        assert_ne!(cells(&a_then_b_buffer), cells(&b_then_a_buffer));
     }
 
     /// Scenarios 3 and 4: a crossing is composition, not occlusion — a horizontal and a vertical
@@ -1720,10 +1709,14 @@ mod tests {
                 stroke: light(),
             })
             .0;
-        let mut crossing_buffer = Buffer::new(origin, size);
+        let mut crossing_buffer = Buffer::new(Window { origin, size });
         crossing.draw(&mut crossing_buffer);
         assert_eq!(
-            render(&crossing_buffer, &GlyphCatalog::light(), origin, size),
+            render(
+                &crossing_buffer,
+                &GlyphCatalog::light(),
+                crossing_buffer.window()
+            ),
             "  │  \n  │  \n──┼──\n  │  \n  │  \n"
         );
 
@@ -1747,10 +1740,14 @@ mod tests {
                 fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
             })
             .0;
-        let mut occluding_buffer = Buffer::new(origin, size);
+        let mut occluding_buffer = Buffer::new(Window { origin, size });
         occluding.draw(&mut occluding_buffer);
         assert_eq!(
-            render(&occluding_buffer, &GlyphCatalog::light(), origin, size),
+            render(
+                &occluding_buffer,
+                &GlyphCatalog::light(),
+                occluding_buffer.window()
+            ),
             "  │  \n ┌┴┐ \n │░│ \n └┬┘ \n  │  \n"
         );
     }
@@ -1769,26 +1766,23 @@ mod tests {
         let diagram = Diagram::new();
         let (mut diagram, back) = diagram.add(a);
         diagram = diagram.add(b).0;
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         diagram = diagram.forward(back);
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
-        assert_ne!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_ne!(cells(&before), cells(&after));
 
         let (a, b) = overlapping_boxes();
         let mut opposite = Diagram::new();
         opposite = opposite.add(b).0;
         opposite = opposite.add(a).0;
-        let mut opposite_buffer = Buffer::new(origin, size);
+        let mut opposite_buffer = Buffer::new(Window { origin, size });
         opposite.draw(&mut opposite_buffer);
 
-        assert_eq!(
-            cells(&after, origin, size),
-            cells(&opposite_buffer, origin, size)
-        );
+        assert_eq!(cells(&after), cells(&opposite_buffer));
     }
 
     /// The same expected buffer comes from moving the front one backward instead, against
@@ -1805,20 +1799,17 @@ mod tests {
         diagram = diagram.add(a).0;
         let (mut diagram, front) = diagram.add(b);
         diagram = diagram.backward(front);
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         let (a, b) = overlapping_boxes();
         let mut opposite = Diagram::new();
         opposite = opposite.add(b).0;
         opposite = opposite.add(a).0;
-        let mut opposite_buffer = Buffer::new(origin, size);
+        let mut opposite_buffer = Buffer::new(Window { origin, size });
         opposite.draw(&mut opposite_buffer);
 
-        assert_eq!(
-            cells(&buffer, origin, size),
-            cells(&opposite_buffer, origin, size)
-        );
+        assert_eq!(cells(&buffer), cells(&opposite_buffer));
     }
 
     /// Moving the front-most forward, and moving the back-most backward, each leave the
@@ -1834,24 +1825,18 @@ mod tests {
         let diagram = Diagram::new();
         let (diagram, back) = diagram.add(a);
         let (mut diagram, front) = diagram.add(b);
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         diagram = diagram.forward(front);
-        let mut after_forward = Buffer::new(origin, size);
+        let mut after_forward = Buffer::new(Window { origin, size });
         diagram.draw(&mut after_forward);
-        assert_eq!(
-            cells(&before, origin, size),
-            cells(&after_forward, origin, size)
-        );
+        assert_eq!(cells(&before), cells(&after_forward));
 
         diagram = diagram.backward(back);
-        let mut after_backward = Buffer::new(origin, size);
+        let mut after_backward = Buffer::new(Window { origin, size });
         diagram.draw(&mut after_backward);
-        assert_eq!(
-            cells(&before, origin, size),
-            cells(&after_backward, origin, size)
-        );
+        assert_eq!(cells(&before), cells(&after_backward));
     }
 
     /// A diagram holding one shape is unchanged by either move, since that
@@ -1873,15 +1858,15 @@ mod tests {
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         });
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         diagram = diagram.forward(only);
         diagram = diagram.backward(only);
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
-        assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_eq!(cells(&before), cells(&after));
     }
 
     /// An identity kept from another diagram changes nothing through either
@@ -1897,7 +1882,7 @@ mod tests {
         let mut diagram = Diagram::new();
         diagram = diagram.add(a).0;
         diagram = diagram.add(b).0;
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         let other = Diagram::new();
@@ -1910,10 +1895,10 @@ mod tests {
 
         diagram = diagram.forward(foreign);
         diagram = diagram.backward(foreign);
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
-        assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_eq!(cells(&before), cells(&after));
     }
 
     /// An empty diagram is unchanged by either method, with no panic.
@@ -1936,11 +1921,11 @@ mod tests {
             width: 3,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         assert_eq!(
-            cells(&buffer, origin, size),
+            cells(&buffer),
             vec![None; (size.width * size.height) as usize]
         );
     }
@@ -1958,15 +1943,15 @@ mod tests {
         let diagram = Diagram::new();
         let (mut diagram, back) = diagram.add(a);
         diagram = diagram.add(b).0;
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         diagram = diagram.forward(back);
         diagram = diagram.backward(back);
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
-        assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_eq!(cells(&before), cells(&after));
     }
 
     /// Edge case: two unfilled boxes with the same stroke whose shared cells every side leaves
@@ -2001,16 +1986,16 @@ mod tests {
         let mut outer_then_inner = Diagram::new();
         outer_then_inner = outer_then_inner.add(outer()).0;
         outer_then_inner = outer_then_inner.add(inner()).0;
-        let mut a = Buffer::new(origin, size);
+        let mut a = Buffer::new(Window { origin, size });
         outer_then_inner.draw(&mut a);
 
         let mut inner_then_outer = Diagram::new();
         inner_then_outer = inner_then_outer.add(inner()).0;
         inner_then_outer = inner_then_outer.add(outer()).0;
-        let mut b = Buffer::new(origin, size);
+        let mut b = Buffer::new(Window { origin, size });
         inner_then_outer.draw(&mut b);
 
-        assert_eq!(cells(&a, origin, size), cells(&b, origin, size));
+        assert_eq!(cells(&a), cells(&b));
     }
 
     // ------------------------------------------------------ a figure displaced by a delta
@@ -2028,14 +2013,15 @@ mod tests {
 
     /// Draws a diagram the caller already holds, for a claim about what a change to it did.
     fn draw_of(diagram: &Diagram, origin: Pos, size: Size) -> Buffer {
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
         buffer
     }
 
     /// The positions where two buffers of one window differ, so that a claim about which cells a
     /// change reached can be made by coordinates rather than by reading two pictures side by side.
-    fn differing(before: &Buffer, after: &Buffer, origin: Pos, size: Size) -> Vec<Pos> {
+    fn differing(before: &Buffer, after: &Buffer) -> Vec<Pos> {
+        let Window { origin, size } = before.window();
         (0..size.height)
             .flat_map(|dy| (0..size.width).map(move |dx| (dx, dy)))
             .map(|(dx, dy)| Pos {
@@ -2115,8 +2101,8 @@ mod tests {
         let moved = box_at(1).displaced_by(Delta { dx: 2, dy: 0 });
 
         assert_eq!(
-            cells(&drawn(vec![moved], origin, size), origin, size),
-            cells(&drawn(vec![box_at(3)], origin, size), origin, size)
+            cells(&drawn(vec![moved], origin, size)),
+            cells(&drawn(vec![box_at(3)], origin, size))
         );
     }
 
@@ -2157,16 +2143,12 @@ mod tests {
             connector(Pos { x: 1, y: 1 }, Pos { x: 5, y: 1 }).displaced_by(Delta { dx: 0, dy: 2 });
 
         assert_eq!(
-            cells(&drawn(vec![moved], origin, size), origin, size),
-            cells(
-                &drawn(
-                    vec![connector(Pos { x: 1, y: 3 }, Pos { x: 5, y: 3 })],
-                    origin,
-                    size
-                ),
+            cells(&drawn(vec![moved], origin, size)),
+            cells(&drawn(
+                vec![connector(Pos { x: 1, y: 3 }, Pos { x: 5, y: 3 })],
                 origin,
                 size
-            )
+            ))
         );
     }
 
@@ -2188,14 +2170,14 @@ mod tests {
         let mut diagram = Diagram::new();
         diagram = diagram.add(a.clone()).0;
         diagram = diagram.add(b).0;
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         let displaced = a.displaced_by(Delta { dx: 1, dy: 2 });
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
-        assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_eq!(cells(&before), cells(&after));
         assert_ne!(displaced, a);
     }
 
@@ -2234,10 +2216,7 @@ mod tests {
         let before = draw_of(&diagram, origin, size);
 
         assert_eq!(diagram.get(a_foreign_identity()), None);
-        assert_eq!(
-            cells(&before, origin, size),
-            cells(&draw_of(&diagram, origin, size), origin, size)
-        );
+        assert_eq!(cells(&before), cells(&draw_of(&diagram, origin, size)));
     }
 
     /// A diagram of several figures, drawn before and after one is taken out, produces different
@@ -2266,10 +2245,10 @@ mod tests {
         diagram = diagram.remove(taken_out);
         let after = draw_of(&diagram, origin, size);
 
-        assert_ne!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_ne!(cells(&before), cells(&after));
         assert_eq!(
-            cells(&after, origin, size),
-            cells(&drawn(vec![second, third], origin, size), origin, size)
+            cells(&after),
+            cells(&drawn(vec![second, third], origin, size))
         );
     }
 
@@ -2291,10 +2270,7 @@ mod tests {
 
         diagram = diagram.remove(a_foreign_identity());
 
-        assert_eq!(
-            cells(&before, origin, size),
-            cells(&draw_of(&diagram, origin, size), origin, size)
-        );
+        assert_eq!(cells(&before), cells(&draw_of(&diagram, origin, size)));
     }
 
     /// Take `1` out, add a figure, and the identity handed back is `3` rather than `1`.
@@ -2338,7 +2314,7 @@ mod tests {
         diagram = diagram.remove(only);
 
         assert_eq!(
-            cells(&draw_of(&diagram, origin, size), origin, size),
+            cells(&draw_of(&diagram, origin, size)),
             vec![None; (size.width * size.height) as usize]
         );
     }
@@ -2366,8 +2342,8 @@ mod tests {
         diagram = diagram.replace(id, box_of(7));
 
         assert_eq!(
-            cells(&draw_of(&diagram, origin, size), origin, size),
-            cells(&drawn(vec![box_of(7)], origin, size), origin, size)
+            cells(&draw_of(&diagram, origin, size)),
+            cells(&drawn(vec![box_of(7)], origin, size))
         );
     }
 
@@ -2405,8 +2381,8 @@ mod tests {
         diagram = diagram.replace(id, the_line());
 
         assert_eq!(
-            cells(&draw_of(&diagram, origin, size), origin, size),
-            cells(&drawn(vec![the_line()], origin, size), origin, size)
+            cells(&draw_of(&diagram, origin, size)),
+            cells(&drawn(vec![the_line()], origin, size))
         );
     }
 
@@ -2434,11 +2410,8 @@ mod tests {
         diagram = diagram.replace(middle, b.clone());
         let after = draw_of(&diagram, origin, size);
 
-        assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
-        assert_ne!(
-            cells(&after, origin, size),
-            cells(&drawn(vec![a, c, b], origin, size), origin, size)
-        );
+        assert_eq!(cells(&before), cells(&after));
+        assert_ne!(cells(&after), cells(&drawn(vec![a, c, b], origin, size)));
     }
 
     /// A shape put under an identity this diagram does not hold leaves the picture alone **and
@@ -2475,7 +2448,7 @@ mod tests {
         );
         let after = draw_of(&diagram, origin, size);
 
-        assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
+        assert_eq!(cells(&before), cells(&after));
         assert_eq!(diagram.get(identity(1)), Some(&a));
     }
 
@@ -2521,20 +2494,16 @@ mod tests {
         let after = draw_of(&diagram, origin, size);
 
         assert_eq!(
-            cells(&after, origin, size),
-            cells(
-                &drawn(
-                    vec![filled_box(0, "░"), moved, filled_box(8, "▓")],
-                    origin,
-                    size
-                ),
+            cells(&after),
+            cells(&drawn(
+                vec![filled_box(0, "░"), moved, filled_box(8, "▓")],
                 origin,
                 size
-            )
+            ))
         );
 
         let held_by_the_line = |at: Pos| at.y == 1 && (3..=9).contains(&at.x);
-        let reached = differing(&before, &after, origin, size);
+        let reached = differing(&before, &after);
         assert!(
             !reached.is_empty(),
             "the displacement reached nothing at all"
@@ -2611,14 +2580,14 @@ mod tests {
     }
 
     /// The window the cases below are drawn in.
-    fn the_window() -> (Pos, Size) {
-        (
-            Pos { x: 0, y: 0 },
-            Size {
+    fn the_window() -> Window {
+        Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 13,
                 height: 4,
             },
-        )
+        }
     }
 
     /// The glyph the picture of `buffer` shows at `at`, so that a claim about a cell's character is
@@ -2627,13 +2596,14 @@ mod tests {
     /// The two claims this crate's own pictures are made of — a junction where a border meets an
     /// arm, and a run where an arm stands alone — are claims about glyphs, and a cell read as arms
     /// would state them in the substrate's own vocabulary instead.
-    fn the_glyph_at(buffer: &Buffer, at: Pos, size: Size) -> char {
-        let picture = render(buffer, &GlyphCatalog::light(), Pos { x: 0, y: 0 }, size);
+    fn the_glyph_at(buffer: &Buffer, at: Pos) -> char {
+        let window = buffer.window();
+        let picture = render(buffer, &GlyphCatalog::light(), window);
         picture
             .lines()
             .nth(at.y.cast_unsigned() as usize)
             .and_then(|row| row.chars().nth(at.x.cast_unsigned() as usize))
-            .unwrap_or_else(|| panic!("{at:?} is inside the window {size:?}"))
+            .unwrap_or_else(|| panic!("{at:?} is inside the window {window:?}"))
     }
 
     /// The connector of _an endpoint hangs from a side_ with its `from` named as a **reference** to
@@ -2659,7 +2629,7 @@ mod tests {
     /// own account, and only then do the two drawings have to agree.
     #[test]
     fn a_hanging_endpoint_draws_what_the_point_it_resolves_to_draws() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
 
         let diagram = Diagram::new();
         let (mut diagram, box_id) = diagram.add(the_box());
@@ -2689,8 +2659,8 @@ mod tests {
             .0;
 
         assert_eq!(
-            cells(&draw_of(&diagram, origin, size), origin, size),
-            cells(&draw_of(&absolute, origin, size), origin, size)
+            cells(&draw_of(&diagram, origin, size)),
+            cells(&draw_of(&absolute, origin, size))
         );
     }
 
@@ -2707,7 +2677,7 @@ mod tests {
     /// reference that resolved to the wrong place cannot pass on a pair that is wrong together.
     #[test]
     fn an_offset_endpoint_draws_what_the_point_it_resolves_to_draws() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let the_far_end = Pos { x: 8, y: 1 };
 
         let diagram = Diagram::new();
@@ -2739,8 +2709,8 @@ mod tests {
             .0;
 
         assert_eq!(
-            cells(&draw_of(&diagram, origin, size), origin, size),
-            cells(&draw_of(&absolute, origin, size), origin, size)
+            cells(&draw_of(&diagram, origin, size)),
+            cells(&draw_of(&absolute, origin, size))
         );
     }
 
@@ -2759,7 +2729,7 @@ mod tests {
     /// still a cell a route can start from — the picture alone would let it pass.
     #[test]
     fn a_displaced_box_carries_an_offset_endpoint_with_it_and_the_gap_does_not_change() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let the_far_end = Pos { x: 11, y: 1 };
         let offset = Delta { dx: 2, dy: 0 };
 
@@ -2803,17 +2773,14 @@ mod tests {
             .add(arm_connector(Pos { x: 9, y: 1 }.into(), the_far_end.into()))
             .0;
 
-        assert_eq!(
-            cells(&after, origin, size),
-            cells(&draw_of(&expected, origin, size), origin, size)
-        );
+        assert_eq!(cells(&after), cells(&draw_of(&expected, origin, size)));
 
         // The gap, pinned by coordinate rather than by eye: the endpoint moved by the same four
         // cells the box did, and it is not where the side centre alone would leave it.
         assert_eq!(the_hanging_end(&diagram), Some(Pos { x: 9, y: 1 }));
         assert_ne!(the_hanging_end(&diagram), Some(Pos { x: 7, y: 1 }));
 
-        let reached = differing(&before, &after, origin, size);
+        let reached = differing(&before, &after);
         assert!(
             !reached.is_empty(),
             "the displacement reached nothing at all"
@@ -2835,7 +2802,7 @@ mod tests {
     /// other, and the assertion cannot pass on a pair that is wrong together.
     #[test]
     fn an_offset_on_a_line_is_added_to_the_lines_own_middle_not_where_the_box_stood() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let the_far_end = Pos { x: 8, y: 2 };
         let offset = Delta { dx: 0, dy: 1 };
         let the_box_s_own_bottom = Pos { x: 1, y: 2 };
@@ -2897,13 +2864,13 @@ mod tests {
         replaced = replaced.replace(identity, the_line.clone());
 
         assert_eq!(
-            cells(&draw_of(&with_the_reference(), origin, size), origin, size),
-            cells(&draw_of(&with_the_point, origin, size), origin, size),
+            cells(&draw_of(&with_the_reference(), origin, size)),
+            cells(&draw_of(&with_the_point, origin, size)),
             "a reference on a line drew something other than the point it resolves to"
         );
         assert_eq!(
-            cells(&draw_of(&replaced, origin, size), origin, size),
-            cells(&draw_of(&with_the_point, origin, size), origin, size),
+            cells(&draw_of(&replaced, origin, size)),
+            cells(&draw_of(&with_the_point, origin, size)),
             "a replaced box left the offset on the box's old side middle"
         );
     }
@@ -2923,7 +2890,7 @@ mod tests {
     /// a connector drawn partly passes the first alone.
     #[test]
     fn a_large_offset_on_a_reference_that_resolves_to_nothing_draws_nothing_either() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let large = Delta { dx: 6, dy: 2 };
         let the_other_end: Position = Pos { x: 8, y: 1 }.into();
         let unrelated = the_unrelated_box();
@@ -2971,8 +2938,8 @@ mod tests {
                 .0;
 
             assert_eq!(
-                cells(&draw_of(&with_it, origin, size), origin, size),
-                cells(&draw_of(&without_it, origin, size), origin, size),
+                cells(&draw_of(&with_it, origin, size)),
+                cells(&draw_of(&without_it, origin, size)),
                 "{what} drew something, or drew something else"
             );
         }
@@ -3028,7 +2995,7 @@ mod tests {
     /// offset against the side it is named for would find two sides and no way to tell them apart.
     #[test]
     fn a_box_one_cell_wide_takes_the_offset_once_and_the_offset_separates_its_two_sides() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let the_far_end = Pos { x: 8, y: 2 };
         let offset = Delta { dx: 3, dy: 1 };
         let one_wide = Shape::Box {
@@ -3075,8 +3042,8 @@ mod tests {
                 .0;
 
             assert_eq!(
-                cells(&draw_of(&diagram, origin, size), origin, size),
-                cells(&draw_of(&absolute, origin, size), origin, size),
+                cells(&draw_of(&diagram, origin, size)),
+                cells(&draw_of(&absolute, origin, size)),
                 "the {what} side drew something else"
             );
         }
@@ -3092,7 +3059,7 @@ mod tests {
     /// rather than asked when it is drawn passes the first comparison and fails both of these.
     #[test]
     fn a_displaced_box_takes_the_endpoint_hanging_from_it_along() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let the_far_end = Pos { x: 11, y: 1 };
 
         let diagram = Diagram::new();
@@ -3131,12 +3098,9 @@ mod tests {
             .add(arm_connector(Pos { x: 7, y: 1 }.into(), the_far_end.into()))
             .0;
 
-        assert_eq!(
-            cells(&after, origin, size),
-            cells(&draw_of(&expected, origin, size), origin, size)
-        );
+        assert_eq!(cells(&after), cells(&draw_of(&expected, origin, size)));
 
-        let reached = differing(&before, &after, origin, size);
+        let reached = differing(&before, &after);
         assert!(
             !reached.is_empty(),
             "the displacement reached nothing at all"
@@ -3159,7 +3123,7 @@ mod tests {
     /// the other arrangement: each is pinned against the same connector with both points absolute.
     #[test]
     fn a_connector_places_each_of_its_ends_by_its_own_rule() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         // A box whose **bottom** side center is `{7, 2}`, so the two ends of the route below are
         // `{0, 2}` and `{7, 2}` and neither is the other.
         let the_held_box = || Shape::Box {
@@ -3183,7 +3147,7 @@ mod tests {
             diagram = diagram
                 .add(arm_connector(the_far_end.into(), the_hanging_end.into()))
                 .0;
-            cells(&draw_of(&diagram, origin, size), origin, size)
+            cells(&draw_of(&diagram, origin, size))
         };
         let expected_reversed = |origin: Pos, size: Size| {
             let mut diagram = Diagram::new();
@@ -3191,7 +3155,7 @@ mod tests {
             diagram = diagram
                 .add(arm_connector(the_hanging_end.into(), the_far_end.into()))
                 .0;
-            cells(&draw_of(&diagram, origin, size), origin, size)
+            cells(&draw_of(&diagram, origin, size))
         };
 
         let hanging_to = Diagram::new();
@@ -3221,11 +3185,11 @@ mod tests {
             .0;
 
         assert_eq!(
-            cells(&draw_of(&hanging_to, origin, size), origin, size),
+            cells(&draw_of(&hanging_to, origin, size)),
             expected(origin, size)
         );
         assert_eq!(
-            cells(&draw_of(&hanging_from, origin, size), origin, size),
+            cells(&draw_of(&hanging_from, origin, size)),
             expected_reversed(origin, size)
         );
     }
@@ -3261,7 +3225,7 @@ mod tests {
 
     #[test]
     fn a_connector_with_an_endpoint_that_does_not_resolve_is_not_drawn_at_all() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let unresolvable = Position::Reference(Reference {
             id: a_foreign_identity(),
             anchor: Anchor::Right,
@@ -3294,8 +3258,8 @@ mod tests {
             let without_it = a_diagram_of_three_figures_and_maybe_a_fourth(None);
 
             assert_eq!(
-                cells(&draw_of(&with_it, origin, size), origin, size),
-                cells(&draw_of(&without_it, origin, size), origin, size),
+                cells(&draw_of(&with_it, origin, size)),
+                cells(&draw_of(&without_it, origin, size)),
                 "{what} drew something, or drew something else"
             );
         }
@@ -3315,7 +3279,7 @@ mod tests {
     /// which is the same picture as a reference to a shape that was never there.
     #[test]
     fn a_figure_added_under_a_spelled_identity_is_what_a_hanging_endpoint_finds() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let spelled = identity(2);
         let the_far_end: Position = Pos { x: 11, y: 1 }.into();
         let the_filler = || arm_connector(Pos { x: 0, y: 0 }.into(), Pos { x: 1, y: 0 }.into());
@@ -3339,8 +3303,8 @@ mod tests {
         let mut just_the_filler = Diagram::new();
         just_the_filler = just_the_filler.add(the_filler()).0;
         assert_eq!(
-            cells(&draw_of(&nothing_under_it, origin, size), origin, size),
-            cells(&draw_of(&just_the_filler, origin, size), origin, size),
+            cells(&draw_of(&nothing_under_it, origin, size)),
+            cells(&draw_of(&just_the_filler, origin, size)),
             "a reference to nothing drew something"
         );
 
@@ -3357,8 +3321,8 @@ mod tests {
             .add(arm_connector(THE_SIDE_CENTRE.into(), the_far_end))
             .0;
         assert_eq!(
-            cells(&draw_of(&with_a_box, origin, size), origin, size),
-            cells(&draw_of(&absolute_after_a_box, origin, size), origin, size),
+            cells(&draw_of(&with_a_box, origin, size)),
+            cells(&draw_of(&absolute_after_a_box, origin, size)),
             "a box under a spelled identity is not where a reference finds it"
         );
 
@@ -3382,8 +3346,8 @@ mod tests {
             .add(arm_connector(Pos { x: 4, y: 0 }.into(), the_far_end))
             .0;
         assert_eq!(
-            cells(&draw_of(&with_a_line, origin, size), origin, size),
-            cells(&draw_of(&absolute_after_a_line, origin, size), origin, size),
+            cells(&draw_of(&with_a_line, origin, size)),
+            cells(&draw_of(&absolute_after_a_line, origin, size)),
             "a line under a spelled identity is not where a reference finds it"
         );
 
@@ -3394,8 +3358,8 @@ mod tests {
         with_a_connector = with_a_connector.add(the_filler()).0;
 
         assert_eq!(
-            cells(&draw_of(&with_a_connector, origin, size), origin, size),
-            cells(&draw_of(&just_the_filler, origin, size), origin, size),
+            cells(&draw_of(&with_a_connector, origin, size)),
+            cells(&draw_of(&just_the_filler, origin, size)),
             "a connector under a spelled identity still answered an anchor"
         );
     }
@@ -3437,10 +3401,10 @@ mod tests {
                     stroke: light(),
                 })
                 .0;
-            let mut actual = Buffer::new(origin, size);
+            let mut actual = Buffer::new(Window { origin, size });
             diagram.draw(&mut actual);
 
-            let mut expected = Buffer::new(origin, size);
+            let mut expected = Buffer::new(Window { origin, size });
             Connector {
                 from: monospace_core::Endpoint {
                     at: Pos { x: 0, y: 0 },
@@ -3454,9 +3418,9 @@ mod tests {
                 },
                 stroke: light(),
             }
-            .draw(&mut Layer::new(&mut expected, StampMode::Above));
+            .draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
-            assert_eq!(cells(&actual, origin, size), cells(&expected, origin, size));
+            assert_eq!(cells(&actual), cells(&expected));
         }
     }
 
@@ -3493,7 +3457,7 @@ mod tests {
     #[test]
     fn taking_the_referenced_figure_out_leaves_the_connector_where_it_was_and_changes_nothing_else()
     {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
 
         let diagram = Diagram::new();
         let (mut diagram, box_id) = diagram.add(the_box());
@@ -3507,7 +3471,7 @@ mod tests {
         diagram = diagram.add(the_unrelated_box()).0;
         let before = draw_of(&diagram, origin, size);
         assert_eq!(
-            the_glyph_at(&before, THE_SIDE_CENTRE, size),
+            the_glyph_at(&before, THE_SIDE_CENTRE),
             '├',
             "the box's border and the arrow's arm did not compose where they met"
         );
@@ -3518,7 +3482,7 @@ mod tests {
         // The route is byte for byte what it was, and the ten cells the box held are the whole
         // difference — nine of them blank and `{3, 1}` a different glyph.
         assert_eq!(
-            differing(&before, &after, origin, size),
+            differing(&before, &after),
             vec![
                 Pos { x: 0, y: 0 },
                 Pos { x: 1, y: 0 },
@@ -3542,7 +3506,7 @@ mod tests {
             );
         }
         assert_eq!(
-            the_glyph_at(&after, THE_SIDE_CENTRE, size),
+            the_glyph_at(&after, THE_SIDE_CENTRE),
             '─',
             "the arm still standing on its own did not render as the run through it"
         );
@@ -3553,19 +3517,15 @@ mod tests {
         // at the point the reference resolved to rather than as a reference — which is the claim in
         // one comparison, and is what this test could not say before the rule landed.
         assert_eq!(
-            cells(&after, origin, size),
-            cells(
-                &drawn(
-                    vec![
-                        the_unrelated_box(),
-                        arm_connector(THE_SIDE_CENTRE.into(), Pos { x: 8, y: 1 }.into()),
-                    ],
-                    origin,
-                    size
-                ),
+            cells(&after),
+            cells(&drawn(
+                vec![
+                    the_unrelated_box(),
+                    arm_connector(THE_SIDE_CENTRE.into(), Pos { x: 8, y: 1 }.into()),
+                ],
                 origin,
                 size
-            )
+            ))
         );
     }
 
@@ -3602,7 +3562,7 @@ mod tests {
     /// going blank, which is why the glyph is asserted rather than left to be counted.
     #[test]
     fn a_removal_freezes_what_hung_from_the_removed_shape() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let nothing = Delta { dx: 0, dy: 0 };
 
         let diagram = Diagram::new();
@@ -3644,15 +3604,10 @@ mod tests {
         // By picture. What the box held is discovered rather than quoted, and what the arrow writes
         // is discovered against a diagram holding no connector at all.
         let in_the_box = |at: &Pos| (0..4).contains(&at.x) && (0..3).contains(&at.y);
-        let the_box_held: Vec<Pos> = differing(
-            &before,
-            &draw_of(&Diagram::new(), origin, size),
-            origin,
-            size,
-        )
-        .into_iter()
-        .filter(in_the_box)
-        .collect();
+        let the_box_held: Vec<Pos> = differing(&before, &draw_of(&Diagram::new(), origin, size))
+            .into_iter()
+            .filter(in_the_box)
+            .collect();
         assert!(
             !the_box_held.is_empty(),
             "the box held no cell, so nothing here is a claim about a removal"
@@ -3665,17 +3620,12 @@ mod tests {
             );
         }
         assert_eq!(
-            the_glyph_at(&after, THE_SIDE_CENTRE, size),
+            the_glyph_at(&after, THE_SIDE_CENTRE),
             '─',
             "the arm standing on its own did not render as the run through it"
         );
 
-        let the_arrow_wrote = differing(
-            &after,
-            &drawn(vec![the_unrelated_box()], origin, size),
-            origin,
-            size,
-        );
+        let the_arrow_wrote = differing(&after, &drawn(vec![the_unrelated_box()], origin, size));
         assert!(
             !the_arrow_wrote.is_empty(),
             "the arrow draws nothing at all, so this is not looking at a freeze"
@@ -3690,7 +3640,7 @@ mod tests {
 
         // And nothing else moved at all: the cells that differ are the box's own, and no others.
         assert_eq!(
-            differing(&before, &after, origin, size),
+            differing(&before, &after),
             the_box_held,
             "the removal reached a cell the removed box did not hold, or left one of its own holding"
         );
@@ -3713,7 +3663,7 @@ mod tests {
     /// by construction rather than by a decision.
     #[test]
     fn a_shape_put_back_under_the_removed_identity_is_not_re_attached() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let the_far_end = Pos { x: 8, y: 1 };
 
         let diagram = Diagram::new();
@@ -3733,8 +3683,8 @@ mod tests {
         let put_back = draw_of(&diagram, origin, size);
 
         assert_eq!(
-            cells(&before, origin, size),
-            cells(&put_back, origin, size),
+            cells(&before),
+            cells(&put_back),
             "putting the box back in place did not give back the whole picture"
         );
         assert_eq!(
@@ -3858,14 +3808,10 @@ mod tests {
 
         // The picture is the one a diagram holding both figures draws, which is the "rather than
         // nothing at all" half of the rule said about cells rather than about identities.
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         assert_eq!(
-            cells(&draw_of(&one_taken, origin, size), origin, size),
-            cells(
-                &drawn(vec![the_box(), the_line()], origin, size),
-                origin,
-                size
-            ),
+            cells(&draw_of(&one_taken, origin, size)),
+            cells(&drawn(vec![the_box(), the_line()], origin, size)),
             "both figures are drawn, each under the identity it was added with"
         );
 
@@ -3899,7 +3845,7 @@ mod tests {
     /// once and that is the whole of it.
     #[test]
     fn two_connectors_from_one_figure_both_freeze_at_their_own_points() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let nothing = Delta { dx: 0, dy: 0 };
         let (at_the_top, at_the_bottom) = (Pos { x: 8, y: 1 }, Pos { x: 8, y: 2 });
 
@@ -3970,12 +3916,12 @@ mod tests {
             .0;
         expected = expected.add(the_unrelated_box()).0;
         assert_eq!(
-            cells(&after, origin, size),
-            cells(&draw_of(&expected, origin, size), origin, size),
+            cells(&after),
+            cells(&draw_of(&expected, origin, size)),
             "the two arrows did not both stand where they stood"
         );
         assert_ne!(
-            differing(&before, &after, origin, size),
+            differing(&before, &after),
             Vec::new(),
             "the removal changed nothing at all, so no arrow was standing there to freeze"
         );
@@ -4139,7 +4085,7 @@ mod tests {
     /// neither where the removed box answered nor the connector's own far end.
     #[test]
     fn a_figure_put_back_under_the_referenced_identity_draws_the_connector_again() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let the_far_end = Pos { x: 11, y: 1 };
 
         let diagram = Diagram::new();
@@ -4171,13 +4117,10 @@ mod tests {
             .add(arm_connector(Pos { x: 4, y: 0 }.into(), the_far_end.into()))
             .0;
 
-        assert_eq!(
-            cells(&after, origin, size),
-            cells(&draw_of(&expected, origin, size), origin, size)
-        );
+        assert_eq!(cells(&after), cells(&draw_of(&expected, origin, size)));
         assert_ne!(
-            cells(&before, origin, size),
-            cells(&after, origin, size),
+            cells(&before),
+            cells(&after),
             "the replacement did not reach the picture at all"
         );
     }
@@ -4205,7 +4148,7 @@ mod tests {
     /// what the old rule did.
     #[test]
     fn a_displaced_connector_moves_its_absolute_end_and_its_hanging_one_too() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
 
         let diagram = Diagram::new();
         let (mut diagram, box_id) = diagram.add(the_box());
@@ -4259,10 +4202,7 @@ mod tests {
             ))
             .0;
 
-        assert_eq!(
-            cells(&after, origin, size),
-            cells(&draw_of(&expected, origin, size), origin, size)
-        );
+        assert_eq!(cells(&after), cells(&draw_of(&expected, origin, size)));
 
         // The gap grew by the delta, and the figure the gap is measured from is exactly where it
         // was: the two are separate claims, and only the pair says the endpoint slid rather than
@@ -4364,8 +4304,8 @@ mod tests {
                     .0;
             }
             assert_eq!(
-                cells(&before, origin, size),
-                cells(&draw_of(&expected_before, origin, size), origin, size),
+                cells(&before),
+                cells(&draw_of(&expected_before, origin, size)),
                 "{what} before"
             );
 
@@ -4383,8 +4323,8 @@ mod tests {
                     .0;
             }
             assert_eq!(
-                cells(&after, origin, size),
-                cells(&draw_of(&expected_after, origin, size), origin, size),
+                cells(&after),
+                cells(&draw_of(&expected_after, origin, size)),
                 "{what} after"
             );
         }
@@ -4484,7 +4424,7 @@ mod tests {
     /// to agree about is the rule and not itself.
     #[test]
     fn a_displacement_grows_a_references_offsets() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let (mut diagram, box_id, connector_id) = the_arrangement();
         let as_written = diagram
             .get(connector_id)
@@ -4547,20 +4487,15 @@ mod tests {
             .0;
 
         assert_eq!(
-            cells(&after, origin, size),
-            cells(&draw_of(&expected, origin, size), origin, size),
+            cells(&after),
+            cells(&draw_of(&expected, origin, size)),
             "the displaced connector drew something other than a translation of itself"
         );
 
         // The displacement reached cells, which is the half that says the two pictures above are two
         // pictures rather than one drawn twice.
         let as_written_diagram = the_arrangement().0;
-        let reached = differing(
-            &draw_of(&as_written_diagram, origin, size),
-            &after,
-            origin,
-            size,
-        );
+        let reached = differing(&draw_of(&as_written_diagram, origin, size), &after);
         assert!(
             !reached.is_empty(),
             "the displacement reached nothing at all"
@@ -4581,7 +4516,7 @@ mod tests {
     /// anything, so the comparison is against the values rather than against the value under test.
     #[test]
     fn a_displacement_grows_both_offsets_of_one_connector() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let by = Delta { dx: 3, dy: 2 };
 
         // Box A's right side center is `{3, 1}` and box B's left side center is `{9, 1}`, so the two
@@ -4664,16 +4599,12 @@ mod tests {
         );
 
         assert_eq!(
-            cells(&after, origin, size),
-            cells(
-                &draw_of(
-                    &hanging_from_both(Delta { dx: 4, dy: 2 }, Delta { dx: 2, dy: 2 }),
-                    origin,
-                    size
-                ),
+            cells(&after),
+            cells(&draw_of(
+                &hanging_from_both(Delta { dx: 4, dy: 2 }, Delta { dx: 2, dy: 2 }),
                 origin,
                 size
-            ),
+            )),
             "the connector was not translated rigidly: both offsets did not grow together"
         );
 
@@ -4686,7 +4617,7 @@ mod tests {
             let in_the_second = (9..=11).contains(&at.x) && (0..=2).contains(&at.y);
             in_the_first || in_the_second
         };
-        let reached = differing(&before, &after, origin, size);
+        let reached = differing(&before, &after);
         assert!(
             !reached.is_empty(),
             "the displacement reached nothing at all"
@@ -4710,7 +4641,7 @@ mod tests {
     /// takes the whole figure out of the output, and that is the assertion this test holds.
     #[test]
     fn an_offset_that_saturated_stays_saturated() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let the_other_end: Position = Pos { x: 8, y: 1 }.into();
         let at_the_end = Delta {
             dx: i16::MAX,
@@ -4802,8 +4733,8 @@ mod tests {
             .0;
 
         assert_eq!(
-            cells(&with_the_offset, origin, size),
-            cells(&draw_of(&with_the_point, origin, size), origin, size),
+            cells(&with_the_offset),
+            cells(&draw_of(&with_the_point, origin, size)),
             "a saturated offset drew something other than the same connector with an absolute \
              endpoint at the saturated point"
         );
@@ -4814,8 +4745,8 @@ mod tests {
         without_the_connector = without_the_connector.add(the_box()).0;
         without_the_connector = without_the_connector.add(the_unrelated_box()).0;
         assert_ne!(
-            cells(&with_the_offset, origin, size),
-            cells(&draw_of(&without_the_connector, origin, size), origin, size),
+            cells(&with_the_offset),
+            cells(&draw_of(&without_the_connector, origin, size)),
             "a saturated offset took the connector out of the output, which is what an unresolved \
              reference does and not what a saturated coordinate does"
         );
@@ -4838,7 +4769,7 @@ mod tests {
     /// and not what was between them and the border.
     #[test]
     fn both_directions_move_the_endpoint_differently() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let gap = Delta { dx: 2, dy: 0 };
         let far_end = Pos { x: 11, y: 1 };
         let the_arrangement = || the_arrangement_with_a_gap(gap, far_end);
@@ -4880,8 +4811,8 @@ mod tests {
             .add(arm_connector(Pos { x: 9, y: 1 }.into(), far_end.into()))
             .0;
         assert_eq!(
-            cells(&after_box, origin, size),
-            cells(&draw_of(&expected_box, origin, size), origin, size)
+            cells(&after_box),
+            cells(&draw_of(&expected_box, origin, size))
         );
 
         // ---- the figure that holds the reference: the endpoint slides and the box stands still
@@ -4929,8 +4860,8 @@ mod tests {
             ))
             .0;
         assert_eq!(
-            cells(&after_connector, origin, size),
-            cells(&draw_of(&expected_connector, origin, size), origin, size)
+            cells(&after_connector),
+            cells(&draw_of(&expected_connector, origin, size))
         );
 
         // ---- and the contrast, across the two halves rather than inside either. **The two gaps
@@ -4949,8 +4880,8 @@ mod tests {
             "the endpoint landed in the same cell whichever figure was displaced"
         );
         assert!(
-            !differing(&before_box, &after_box, origin, size).is_empty()
-                && !differing(&before_connector, &after_connector, origin, size).is_empty(),
+            !differing(&before_box, &after_box).is_empty()
+                && !differing(&before_connector, &after_connector).is_empty(),
             "one of the two displacements reached nothing at all"
         );
     }
@@ -4980,7 +4911,7 @@ mod tests {
     /// own rule for any figure and nothing this slice adds, and it is left where §4 and §9 state it.
     #[test]
     fn a_reference_that_resolves_to_nothing_still_does() {
-        let (origin, size) = the_window();
+        let Window { origin, size } = the_window();
         let large = Delta { dx: 6, dy: 2 };
         let by = Delta { dx: 1, dy: 1 };
         let the_other_end: Position = Pos { x: 8, y: 1 }.into();
@@ -5044,13 +4975,13 @@ mod tests {
                 "{what} resolved after the displacement"
             );
             assert_eq!(
-                cells(&after, origin, size),
-                cells(&draw_of(&without_it, origin, size), origin, size),
+                cells(&after),
+                cells(&draw_of(&without_it, origin, size)),
                 "{what} drew something, or drew something else"
             );
             assert_eq!(
-                cells(&before, origin, size),
-                cells(&draw_of(&without_it, origin, size), origin, size),
+                cells(&before),
+                cells(&draw_of(&without_it, origin, size)),
                 "{what} drew something before the displacement either"
             );
             // The three figures the connector did not name are still in the output, cell by cell —
@@ -5058,7 +4989,7 @@ mod tests {
             // nothing means. Without this the two assertions above would also be satisfied by a
             // drawing that stopped halfway, so it is what makes them mean what they say.
             assert_eq!(
-                differing(&before, &after, origin, size),
+                differing(&before, &after),
                 Vec::new(),
                 "a figure that draws nothing changed the drawing, so something else did"
             );

@@ -564,7 +564,7 @@ impl Description {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{Buffer, GlyphCatalog, Pos, Size};
+    use monospace_core::{Buffer, GlyphCatalog, Pos, Size, Window};
 
     use super::{Description, Diagram, ParseError, parse};
 
@@ -598,9 +598,9 @@ mod tests {
 
         // And the window is the caller's: the same diagram drawn into two different ones.
         let drawn = |origin: Pos, size: Size| {
-            let mut buffer = Buffer::new(origin, size);
+            let mut buffer = Buffer::new(Window { origin, size });
             diagram.draw(&mut buffer);
-            monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
+            monospace_core::render(&buffer, &GlyphCatalog::light(), buffer.window())
         };
         let small = drawn(
             Pos { x: 0, y: 0 },
@@ -646,11 +646,11 @@ mod tests {
             width: 6,
             height: 4,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         assert_eq!(
-            monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size),
+            monospace_core::render(&buffer, &GlyphCatalog::light(), buffer.window()),
             "┌──┐  \n│  │  \n└──┘  \n      \n",
             "the `13x9` in the file has no say in it: the picture is the window the caller chose"
         );
@@ -670,9 +670,9 @@ mod tests {
     fn render_once(description: Description, origin: Pos, size: Size) -> String {
         let diagram = description.into_diagram();
 
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
-        monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
+        monospace_core::render(&buffer, &GlyphCatalog::light(), buffer.window())
     }
 
     /// An unrecognized `kind` fails to deserialize and names the unrecognized value.

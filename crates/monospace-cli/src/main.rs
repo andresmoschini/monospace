@@ -33,8 +33,9 @@
 //!
 //! **The demonstration reads its shapes out of the drawing rather than naming them, and there is
 //! nothing written in beside the lookup to catch a wrong answer.** Every shape it acts on comes from
-//! `Buffer::owner` at one of [`THE_BACK_MOST_AT`], [`THE_HUNG_FROM_AT`], [`THE_ARROW_AT`] and
-//! [`THE_CROSSING_AT`], and where the record names none the step skips itself. An earlier version took
+//! `OwnerReader::owner` at the position one of [`THE_BACK_MOST_AT`], [`THE_HUNG_FROM_AT`],
+//! [`THE_ARROW_AT`] and [`THE_CROSSING_AT`] reaches, and where the record names none the step skips
+//! itself. An earlier version took
 //! a written name and used it wherever the record came back empty, and **that makes a wrong offset
 //! indistinguishable from a right one**: measured with `THE_BACK_MOST_AT` moved onto a cell no shape
 //! wrote, the demonstration still printed eight pictures that read like a demonstration and **no test
@@ -58,7 +59,7 @@
 
 use std::process::ExitCode;
 
-use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, Size};
+use monospace_core::{Buffer, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId, Size, Window};
 use monospace_description::parse;
 use monospace_diagram::{Anchor, Delta, Diagram};
 use monospace_editing::{Command, Session};
@@ -94,14 +95,6 @@ mod sweep;
 /// The usage line, printed for anything [`parse_args`] refuses.
 const USAGE: &str = "usage: monospace-cli [--size <width>x<height>] [--origin <x>,<y>] [path]";
 
-/// The window a picture is drawn into, as the pair the two flags name.
-///
-/// **A name for the pair rather than the pair in a signature**, because the pair is what `render`
-/// takes and what the flags build, and `parse_args` has to say both. It is private to this binary
-/// and it is not the format crate's `Window` — that one is the type leaving the description, and
-/// this is the caller's own.
-type Window = (Pos, Size);
-
 /// The window the demonstration draws into, and the one a path is drawn into when the command line
 /// names none.
 ///
@@ -111,13 +104,13 @@ type Window = (Pos, Size);
 /// only a human reaches for can be wrong without consequence. **It is not the terminal's own size
 /// either**: a picture whose width depends on the machine that rendered it is a picture
 /// `cargo xtask render --check` fails on for every reader but the one who wrote it.
-const DEMO_WINDOW: Window = (
-    Pos { x: 0, y: 0 },
-    Size {
+const DEMO_WINDOW: Window = Window {
+    origin: Pos { x: 0, y: 0 },
+    size: Size {
         width: 50,
         height: 13,
     },
-);
+};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -153,7 +146,7 @@ fn main() -> ExitCode {
     // callers are not the same caller. `cargo xtask render` always passes a size, because every
     // marker states one, so the default is never what a generated picture uses; and a bare run
     // serves a person watching it, who gets the demonstration's own window whatever they typed.
-    let (origin, size) = match asked {
+    let window = match asked {
         Some(asked) if path.is_some() => asked,
         _ => DEMO_WINDOW,
     };
@@ -161,9 +154,9 @@ fn main() -> ExitCode {
     print!(
         "{}",
         if path.is_none() {
-            demonstrate(diagram, origin, size)
+            demonstrate(diagram, window)
         } else {
-            render_once(&diagram, origin, size)
+            render_once(&diagram, window)
         }
     );
     ExitCode::SUCCESS
@@ -221,7 +214,10 @@ fn parse_args(args: &[String]) -> Result<(Option<String>, Option<Window>), Strin
         }
     }
 
-    let window = size.map(|size| (origin.unwrap_or(Pos { x: 0, y: 0 }), size));
+    let window = size.map(|size| Window {
+        origin: origin.unwrap_or(Pos { x: 0, y: 0 }),
+        size,
+    });
     Ok((path, window))
 }
 
@@ -255,12 +251,12 @@ fn parse_origin(text: &str) -> Result<Pos, String> {
     })
 }
 
-/// Renders `diagram` into `size` at `origin`, as one picture and nothing else.
-fn render_once(diagram: &Diagram, origin: Pos, size: Size) -> String {
-    picture(diagram, &monospace_glyph_sets::all(), origin, size)
+/// Renders `diagram` into `window`, as one picture and nothing else.
+fn render_once(diagram: &Diagram, window: Window) -> String {
+    picture(diagram, &monospace_glyph_sets::all(), window)
 }
 
-/// Draws `diagram` into a fresh window of `size` and hands back the buffer beside its rendering.
+/// Draws `diagram` into `window` and hands back the buffer beside its rendering.
 /// Drawing changes nothing about the diagram, which is what lets the demonstration draw one diagram
 /// many times and change it between two of them.
 ///
@@ -268,11 +264,19 @@ fn render_once(diagram: &Diagram, origin: Pos, size: Size) -> String {
 /// drawing a question: which shape decided the position it later takes out. Rendering alone cannot
 /// answer that, and drawing the diagram a second time to ask would be a second drawing rather than
 /// the first one.
-fn drawn(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> (Buffer, String) {
-    let mut buffer = Buffer::new(origin, size);
+fn drawn(diagram: &Diagram, catalog: &GlyphCatalog, window: Window) -> (Buffer, String) {
+    let mut buffer = Buffer::new(window);
     diagram.draw(&mut buffer);
-    let text = monospace_core::render(&buffer, catalog, origin, size);
+    let text = monospace_core::render(&buffer, catalog, buffer.window());
     (buffer, text)
+}
+
+/// The identity the drawing records at the offset `at`, counted from the window's corner.
+///
+/// **The window is the one place an offset becomes a position**: `OwnerReader::owner` is asked by
+/// position, and every offset this binary names is one a reader counts from the picture's corner.
+fn owner_at(buffer: &Buffer, at: Offset) -> Option<ShapeId> {
+    buffer.window().position(at).and_then(|at| buffer.owner(at))
 }
 
 /// The rendering of `diagram` drawn into a fresh window, for the steps that only need the picture.
@@ -280,8 +284,8 @@ fn drawn(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> 
 /// A `&Diagram` rather than a `&Session`, because the session hands its diagram out borrowed and
 /// nothing here needs the session itself: this is the whole of what the demonstration asks of the
 /// editing layer, and it is the question a caller repainting on every event actually has.
-fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> String {
-    drawn(diagram, catalog, origin, size).1
+fn picture(diagram: &Diagram, catalog: &GlyphCatalog, window: Window) -> String {
+    drawn(diagram, catalog, window).1
 }
 
 /// Renders `diagram` as written, then again with its first entry moved one place toward the
@@ -316,7 +320,7 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -
 /// replaces a written assumption about this description with the record, which is what an interactive
 /// front end would have to do and what the first seven steps have no way to check. A figure added
 /// before any of the three would move the answer, and the pictures below it are what catch that.
-fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
+fn demonstrate(diagram: Diagram, window: Window) -> String {
     let catalog = monospace_glyph_sets::all();
     let mut session = Session::new(diagram);
 
@@ -331,10 +335,10 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     //
     // The diagram is read through the session from here on, and it is a borrow that outlives nothing:
     // every step below is a command, and a command is handed the session rather than the diagram.
-    let (as_written, first_picture) = drawn(session.diagram(), &catalog, origin, size);
-    let the_back_most = as_written.owner(THE_BACK_MOST_AT);
-    let the_hung_from = as_written.owner(THE_HUNG_FROM_AT);
-    let the_arrow = as_written.owner(THE_ARROW_AT);
+    let (as_written, first_picture) = drawn(session.diagram(), &catalog, window);
+    let the_back_most = owner_at(&as_written, THE_BACK_MOST_AT);
+    let the_hung_from = owner_at(&as_written, THE_HUNG_FROM_AT);
+    let the_arrow = owner_at(&as_written, THE_ARROW_AT);
 
     // The caption names the offsets and not the answers, because the answers are whatever the record
     // holds and a line of text cannot know.
@@ -389,7 +393,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
         session = session.perform(Command::Forward { id: the_back_most });
     }
     out.push_str("\nWith the back-most shape moved one place forward:\n");
-    out.push_str(&picture(session.diagram(), &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, window));
 
     if let Some(the_back_most) = the_back_most {
         session = session.perform(Command::Move {
@@ -398,13 +402,13 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
         });
     }
     out.push_str("\nWith that same shape displaced:\n");
-    out.push_str(&picture(session.diagram(), &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, window));
 
     if let Some(the_back_most) = the_back_most {
         session = session.perform(Command::Remove { id: the_back_most });
     }
     out.push_str("\nWith that same shape taken out:\n");
-    out.push_str(&picture(session.diagram(), &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, window));
 
     // The arrow's `from` is rehung from the box's right side — the point the description already
     // spells for it, so the fifth picture opens on the same picture the fourth does and the only
@@ -442,7 +446,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
         });
     }
     out.push_str("\nWith the arrow now hanging from that box, and the box displaced:\n");
-    out.push_str(&picture(session.diagram(), &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, window));
 
     // And now the arrow itself moves, which is the sixth picture and the reason the fifth exists:
     // at this point **both** of the arrow's endpoints are references — its `from` rehung above and
@@ -458,7 +462,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
         });
     }
     out.push_str("\nWith the arrow displaced as well:\n");
-    out.push_str(&picture(session.diagram(), &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, window));
 
     // And the seventh takes the figure the arrow hangs from **away**, which is the sixth picture with
     // the box gone and **the arrow exactly where it stood**. `Remove` freezes the end that named the
@@ -476,7 +480,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
         session = session.perform(Command::Remove { id: the_hung_from });
     }
     out.push_str("\nWith the box the arrow hangs from taken out:\n");
-    out.push_str(&picture(session.diagram(), &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, window));
 
     // And the eighth asks the picture which shape decided one position, and takes that shape out.
     //
@@ -496,7 +500,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     // holding it and a drawing taken now would answer about something else. `6` is not one of the
     // three shapes the earlier steps touch, so what is removed here is the record's answer and not a
     // side effect of them.
-    if let Some(named) = as_written.owner(THE_CROSSING_AT) {
+    if let Some(named) = owner_at(&as_written, THE_CROSSING_AT) {
         session = session.perform(Command::Remove { id: named });
     }
     let crossing_caption = format!(
@@ -504,7 +508,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
         THE_CROSSING_AT.x, THE_CROSSING_AT.y
     );
     out.push_str(&crossing_caption);
-    out.push_str(&picture(session.diagram(), &catalog, origin, size));
+    out.push_str(&picture(session.diagram(), &catalog, window));
 
     // And then the whole run is walked back, one picture per step, until there is nothing behind
     // the position left to give.
@@ -528,7 +532,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
             "\nGiven back every step, which is the picture this run began with:\n"
         };
         out.push_str(caption);
-        out.push_str(&picture(session.diagram(), &catalog, origin, size));
+        out.push_str(&picture(session.diagram(), &catalog, window));
     }
 
     out
@@ -540,56 +544,56 @@ mod tests {
     use std::ops::Range;
 
     use monospace_core::{
-        BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Offset, Pos, Shape, Size, StampMode, Stroke,
-        render,
+        BoxShape, Buffer, FigureLayer, Glyph, GlyphCatalog, Offset, OwnerReader, Pos, Shape, Size,
+        StampMode, Stroke, Window, render,
     };
     use monospace_diagram::ShapeId;
 
-    use super::{Window, demonstrate, drawn, parse_args, render_once};
+    use super::{demonstrate, drawn, parse_args, render_once};
     use crate::parse;
 
-    /// The window the shipped demonstration is drawn at, as the pair the flags name.
-    fn in_the_demo_window() -> (Pos, Size) {
+    /// The window the shipped demonstration is drawn at, as the flags name it.
+    fn in_the_demo_window() -> Window {
         super::DEMO_WINDOW
     }
 
     /// The window a one-box description is drawn at in the tests that are about a small window
     /// rather than about the demonstration.
     fn a_four_by_three_window() -> Window {
-        (
-            Pos { x: 0, y: 0 },
-            Size {
+        Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 4,
                 height: 3,
             },
-        )
+        }
     }
 
     /// The window the two overlapping boxes below are drawn at, which is the smallest one that
     /// holds both.
     fn a_six_by_four_window() -> Window {
-        (
-            Pos { x: 0, y: 0 },
-            Size {
+        Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 6,
                 height: 4,
             },
-        )
+        }
     }
 
     /// The picture `json` renders to, parsed first, drawn into `window`.
     ///
-    /// Two helpers rather than one that takes the pair, because every caller here has text and
-    /// wants a `String` and none of them is about the window on its own.
+    /// Two helpers rather than one with a flag for which picture to draw, because every caller here
+    /// has text and wants a `String` and none of them is about the window on its own.
     fn render_json(json: &str, window: Window) -> String {
         let diagram = parse(json).expect("well-formed description");
-        render_once(&diagram, window.0, window.1)
+        render_once(&diagram, window)
     }
 
     /// The demonstration over `json`, parsed first, drawn into `window`.
     fn demonstrate_json(json: &str, window: Window) -> String {
         let diagram = parse(json).expect("well-formed description");
-        demonstrate(diagram, window.0, window.1)
+        demonstrate(diagram, window)
     }
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
     fn identity(ordinal: u16) -> ShapeId {
@@ -617,17 +621,18 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let window = Window { origin, size };
+        let mut buffer = Buffer::new(window);
         BoxShape {
             at: origin,
             size,
             stroke: Stroke::from("light"),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
-        let expected = render(&buffer, &GlyphCatalog::light(), origin, size);
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+        let expected = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
-        assert_eq!(render_once(&diagram, origin, size), expected);
+        assert_eq!(render_once(&diagram, window), expected);
     }
 
     /// A file's picture is the demonstration's first picture with nothing around it: no caption
@@ -636,11 +641,11 @@ mod tests {
     /// This is what lets `cargo xtask render` paste the output straight into a Markdown fence.
     #[test]
     fn rendering_once_is_the_demonstrations_first_picture_and_nothing_else() {
-        let (first, ..) = demonstrated_pictures(one_box_json(), a_four_by_three_window());
+        let window = a_four_by_three_window();
+        let (first, ..) = demonstrated_pictures(one_box_json(), window);
 
         let diagram = parse(one_box_json()).expect("well-formed description");
-        let (origin, size) = a_four_by_three_window();
-        assert_eq!(render_once(&diagram, origin, size), first);
+        assert_eq!(render_once(&diagram, window), first);
     }
 
     /// Every captioned block of a demonstration's output, as a picture without its caption.
@@ -762,10 +767,10 @@ mod tests {
             width: 6,
             height: 4,
         };
-        let mut buffer = Buffer::new(origin, size);
-        back.draw(&mut Layer::new(&mut buffer, StampMode::Above));
-        front.draw(&mut Layer::new(&mut buffer, StampMode::Above));
-        render(&buffer, &GlyphCatalog::light(), origin, size)
+        let mut buffer = Buffer::new(Window { origin, size });
+        back.draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+        front.draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+        render(&buffer, &GlyphCatalog::light(), buffer.window())
     }
 
     /// The tenth entry's far endpoint stops being a point and becomes a reference to `5`'s bottom
@@ -1465,8 +1470,8 @@ mod tests {
     fn the_shape_a_position_resolves_to_is_the_front_most_of_the_two_that_wrote_it() {
         let diagram = parse(super::DEMO).expect("the shipped description reads");
         let catalog = monospace_glyph_sets::all();
-        let (origin, size) = in_the_demo_window();
-        let (buffer, picture) = drawn(&diagram, &catalog, origin, size);
+        let window = in_the_demo_window();
+        let (buffer, picture) = drawn(&diagram, &catalog, window);
 
         for (x, y, glyph, expected) in THE_CROSSING_CELLS {
             let at = Pos {
@@ -1475,10 +1480,7 @@ mod tests {
             };
             assert_eq!(the_glyph_at(&picture, (x, y)), glyph, "the cell at {at:?}");
             assert_eq!(
-                buffer.owner(Offset {
-                    x: u16::try_from(x).expect("a fifty-column window"),
-                    y: u16::try_from(y).expect("a thirteen-row window"),
-                }),
+                buffer.owner(at),
                 Some(identity(expected)),
                 "{at:?} is written by two shapes and resolves to the one in front"
             );
@@ -1487,9 +1489,12 @@ mod tests {
         // And the first two cells resolve to `4` while the third does not, which is what makes the
         // first two a crossing and the third the shape behind: `4` is listed after `3` and is
         // therefore in front of it.
-        assert_eq!(buffer.owner(Offset { x: 9, y: 2 }), Some(identity(4)));
         assert_eq!(
-            buffer.owner(Offset { x: 11, y: 3 }),
+            super::owner_at(&buffer, Offset { x: 9, y: 2 }),
+            Some(identity(4))
+        );
+        assert_eq!(
+            super::owner_at(&buffer, Offset { x: 11, y: 3 }),
             Some(identity(3)),
             "a cell only 3 wrote is 3's, whichever way the order runs"
         );
@@ -1542,8 +1547,8 @@ mod tests {
     #[test]
     fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
         let diagram = parse(super::DEMO).expect("the shipped description reads");
-        let (origin, size) = in_the_demo_window();
-        let (buffer, _) = drawn(&diagram, &monospace_glyph_sets::all(), origin, size);
+        let window = in_the_demo_window();
+        let (buffer, _) = drawn(&diagram, &monospace_glyph_sets::all(), window);
 
         for (at, expected, what) in [
             (
@@ -1568,7 +1573,7 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                buffer.owner(at),
+                super::owner_at(&buffer, at),
                 Some(identity(expected)),
                 "the offset ({}, {}) is {what}, and the record names {expected}",
                 at.x,
@@ -1658,13 +1663,13 @@ mod tests {
             parse_args(&args(&["--size", "20x7", "x.json"])).expect("a size is a window"),
             (
                 Some("x.json".to_owned()),
-                Some((
-                    Pos { x: 0, y: 0 },
-                    Size {
+                Some(Window {
+                    origin: Pos { x: 0, y: 0 },
+                    size: Size {
                         width: 20,
                         height: 7
                     }
-                ))
+                })
             ),
             "a size alone is a window at the origin every marker but four uses"
         );
@@ -1673,13 +1678,13 @@ mod tests {
                 .expect("both halves are a window"),
             (
                 Some("x.json".to_owned()),
-                Some((
-                    Pos { x: -3, y: -2 },
-                    Size {
+                Some(Window {
+                    origin: Pos { x: -3, y: -2 },
+                    size: Size {
                         width: 7,
                         height: 5
                     }
-                ))
+                })
             ),
             "an origin may be negative, which is what `specs/086` draws at"
         );
@@ -1798,7 +1803,11 @@ mod tests {
             width: 7,
             height: 5,
         };
-        let (buffer, picture) = drawn(&diagram, &monospace_glyph_sets::all(), origin, size);
+        let (buffer, picture) = drawn(
+            &diagram,
+            &monospace_glyph_sets::all(),
+            Window { origin, size },
+        );
 
         for (asked, offset, cell, owner) in [
             ((-3, -2), (0, 0), ' ', None),
@@ -1814,7 +1823,7 @@ mod tests {
                 y: offset.1,
             };
             assert_eq!(
-                buffer.owner(at),
+                super::owner_at(&buffer, at),
                 owner.map(identity),
                 "the offset {at:?}, asked for ({}, {}), is {owner:?}",
                 asked.0,
@@ -1828,7 +1837,7 @@ mod tests {
         }
 
         assert_eq!(
-            buffer.owner(Offset { x: 7, y: 0 }),
+            super::owner_at(&buffer, Offset { x: 7, y: 0 }),
             None,
             "the offset past the window's right edge reaches a cell nothing holds"
         );

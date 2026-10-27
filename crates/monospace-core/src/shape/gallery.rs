@@ -36,8 +36,8 @@ use crate::shape::fragment::segment::Segment;
 use crate::shape::route::Route;
 use crate::stroke::Stroke;
 use crate::{
-    Arm, BoxShape, Buffer, Cell, Connector, Direction, Endpoint, Glyph, GlyphCatalog, Layer, Line,
-    Orientation, Pos, Size, StampMode, Surface, Terminal, render,
+    Arm, BoxShape, Buffer, Cell, Connector, Direction, Endpoint, FigureLayer, Glyph, GlyphCatalog,
+    Line, Orientation, Pos, Size, StampMode, Surface, Terminal, Window, render,
 };
 
 /// One description for every file, so the prose is written once rather than per level — and
@@ -69,9 +69,9 @@ fn arm_text(arm: &Arm) -> String {
 
 fn draw(size: Size, body: impl FnOnce(&mut dyn Surface)) -> (String, String) {
     let origin = Pos { x: 0, y: 0 };
-    let mut buffer = Buffer::new(origin, size);
-    body(&mut Layer::new(&mut buffer, StampMode::Above));
-    let picture = render(&buffer, &GlyphCatalog::light(), origin, size);
+    let mut buffer = Buffer::new(Window { origin, size });
+    body(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+    let picture = render(&buffer, &GlyphCatalog::light(), buffer.window());
     (picture, surface(&buffer, size))
 }
 

@@ -663,17 +663,19 @@ fn render_back_to_front_with_above(
     back: &monospace_core::BoxShape,
     front: &monospace_core::BoxShape,
 ) -> String {
-    use monospace_core::{Buffer, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, render};
+    use monospace_core::{
+        Buffer, FigureLayer, GlyphCatalog, Pos, Shape, Size, StampMode, Window, render,
+    };
 
     let origin = Pos { x: 0, y: 0 };
     let size = Size {
         width: 6,
         height: 4,
     };
-    let mut buffer = Buffer::new(origin, size);
-    back.draw(&mut Layer::new(&mut buffer, StampMode::Above));
-    front.draw(&mut Layer::new(&mut buffer, StampMode::Above));
-    render(&buffer, &GlyphCatalog::light(), origin, size)
+    let mut buffer = Buffer::new(Window { origin, size });
+    back.draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+    front.draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+    render(&buffer, &GlyphCatalog::light(), buffer.window())
 }
 
 /// The same file with its shapes reordered changes which one is drawn on top where they overlap

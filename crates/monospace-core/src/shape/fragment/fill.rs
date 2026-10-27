@@ -27,18 +27,20 @@ impl Shape for Fill {
 #[cfg(test)]
 mod tests {
     use super::Fill;
-    use crate::{Buffer, Cell, Glyph, Layer, Pos, Shape, Size, StampMode};
+    use crate::{
+        Buffer, Cell, CellReader, FigureLayer, Glyph, Pos, Shape, Size, StampMode, Window,
+    };
 
     #[test]
     fn a_fill_writes_the_glyph_at_every_position_of_its_rectangle() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 2,
                 height: 2,
             },
-        );
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        });
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
         let glyph = Glyph::new("░").expect("\"░\" is one glyph");
 
         Fill {

@@ -94,7 +94,8 @@ mod tests {
     use super::Line;
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Arm, Buffer, GlyphCatalog, Layer, Orientation, Pos, Shape, Size, StampMode, Stroke, render,
+        Arm, Buffer, CellReader, FigureLayer, GlyphCatalog, Orientation, Pos, Shape, Size,
+        StampMode, Stroke, Window, render,
     };
 
     fn light() -> Stroke {
@@ -110,17 +111,17 @@ mod tests {
             width: 6,
             height: 1,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Line {
             at: origin,
             len: 5,
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert_eq!(
-            render(&buffer, &GlyphCatalog::light(), origin, size),
+            render(&buffer, &GlyphCatalog::light(), buffer.window()),
             "───── \n"
         );
         assert!(buffer.cell(Pos { x: 5, y: 0 }).is_none());
@@ -135,17 +136,17 @@ mod tests {
             width: 1,
             height: 5,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Line {
             at: origin,
             len: 4,
             orientation: Orientation::Vertical,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert_eq!(
-            render(&buffer, &GlyphCatalog::light(), origin, size),
+            render(&buffer, &GlyphCatalog::light(), buffer.window()),
             "│\n│\n│\n│\n \n"
         );
         assert!(buffer.cell(Pos { x: 0, y: 4 }).is_none());
@@ -158,20 +159,20 @@ mod tests {
     #[test]
     fn a_horizontal_lines_first_cell_carries_only_its_forward_arm() {
         let origin = Pos { x: 0, y: 0 };
-        let mut buffer = Buffer::new(
+        let mut buffer = Buffer::new(Window {
             origin,
-            Size {
+            size: Size {
                 width: 5,
                 height: 1,
             },
-        );
+        });
         Line {
             at: origin,
             len: 5,
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let Some(crate::Cell::Strokes(cell)) = buffer.cell(origin) else {
             panic!("expected a stroke cell at the line's first position");
@@ -191,17 +192,17 @@ mod tests {
             width: 2,
             height: 1,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Line {
             at: origin,
             len: 2,
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert_eq!(
-            render(&buffer, &GlyphCatalog::light(), origin, size),
+            render(&buffer, &GlyphCatalog::light(), buffer.window()),
             "──\n"
         );
     }
@@ -211,20 +212,20 @@ mod tests {
     #[test]
     fn a_line_of_length_1_writes_exactly_one_position() {
         let origin = Pos { x: 0, y: 0 };
-        let mut buffer = Buffer::new(
+        let mut buffer = Buffer::new(Window {
             origin,
-            Size {
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         Line {
             at: origin,
             len: 1,
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert!(buffer.cell(origin).is_some());
     }
@@ -233,20 +234,20 @@ mod tests {
     #[test]
     fn a_line_of_length_0_draws_nothing() {
         let origin = Pos { x: 0, y: 0 };
-        let mut buffer = Buffer::new(
+        let mut buffer = Buffer::new(Window {
             origin,
-            Size {
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         Line {
             at: origin,
             len: 0,
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert!(buffer.cell(origin).is_none());
     }
@@ -298,20 +299,23 @@ mod tests {
         };
 
         for mode in [StampMode::Above, StampMode::Below] {
-            let mut horizontal_first = Buffer::new(origin, size);
-            horizontal().draw(&mut Layer::new(&mut horizontal_first, StampMode::Above));
-            vertical().draw(&mut Layer::new(&mut horizontal_first, mode));
+            let mut horizontal_first = Buffer::new(Window { origin, size });
+            horizontal().draw(&mut FigureLayer::new(
+                &mut horizontal_first,
+                StampMode::Above,
+            ));
+            vertical().draw(&mut FigureLayer::new(&mut horizontal_first, mode));
 
-            let mut vertical_first = Buffer::new(origin, size);
-            vertical().draw(&mut Layer::new(&mut vertical_first, StampMode::Above));
-            horizontal().draw(&mut Layer::new(&mut vertical_first, mode));
+            let mut vertical_first = Buffer::new(Window { origin, size });
+            vertical().draw(&mut FigureLayer::new(&mut vertical_first, StampMode::Above));
+            horizontal().draw(&mut FigureLayer::new(&mut vertical_first, mode));
 
             for (label, buffer) in [
                 ("horizontal first", &horizontal_first),
                 ("vertical first", &vertical_first),
             ] {
                 assert_eq!(
-                    render(buffer, &GlyphCatalog::light(), origin, size),
+                    render(buffer, &GlyphCatalog::light(), buffer.window()),
                     "┌\n",
                     "{label}, second stamp under {mode:?}"
                 );

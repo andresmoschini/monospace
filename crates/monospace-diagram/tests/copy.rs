@@ -20,7 +20,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::num::NonZeroU16;
 use std::sync::atomic::{AtomicIsize, Ordering};
 
-use monospace_core::{Buffer, Glyph, Offset, Pos, Size, Stroke};
+use monospace_core::{Buffer, Glyph, OwnerReader, Pos, Size, Stroke, Window};
 use monospace_diagram::{Diagram, Shape, ShapeId};
 
 /// How many bytes are live right now.
@@ -125,7 +125,7 @@ fn a_diagram_of(count: u16) -> Diagram {
 /// The drawing of `diagram` in the window above.
 fn drawn_by(diagram: &Diagram) -> Buffer {
     let (origin, size) = WINDOW;
-    let mut buffer = Buffer::new(origin, size);
+    let mut buffer = Buffer::new(Window { origin, size });
     diagram.draw(&mut buffer);
     buffer
 }
@@ -166,8 +166,8 @@ fn a_copy_of_a_diagram_is_not_a_second_copy_of_its_shapes() {
     // It draws the same and answers for every figure, which is what a reader of this crate can
     // actually observe about a copy.
     assert_eq!(
-        drawn_by(&copy).owner(Offset { x: 0, y: 0 }),
-        drawn_by(&diagram).owner(Offset { x: 0, y: 0 }),
+        drawn_by(&copy).owner(Pos { x: 0, y: 0 }),
+        drawn_by(&diagram).owner(Pos { x: 0, y: 0 }),
         "the copy draws the same picture"
     );
     for n in 1..=300 {

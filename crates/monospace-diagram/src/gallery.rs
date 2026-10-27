@@ -31,7 +31,8 @@
 use std::fmt::Write as _;
 
 use monospace_core::{
-    Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, render,
+    Arm, Buffer, Cell, CellReader, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Window,
+    render,
 };
 
 use std::num::NonZeroU16;
@@ -172,9 +173,9 @@ fn small_box(at_: Pos, fill: Option<&str>) -> Shape {
 /// Draws `diagram` into a fresh window of `size` and returns the picture and the surface.
 fn draw(size: Size, diagram: &Diagram) -> (String, String) {
     let origin = at(0, 0);
-    let mut buffer = Buffer::new(origin, size);
+    let mut buffer = Buffer::new(Window { origin, size });
     diagram.draw(&mut buffer);
-    let picture = render(&buffer, &GlyphCatalog::light(), origin, size);
+    let picture = render(&buffer, &GlyphCatalog::light(), buffer.window());
     (picture, surface(&buffer, size))
 }
 

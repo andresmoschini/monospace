@@ -1,29 +1,33 @@
-//! Turning a buffer into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
+//! Turning cells into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Buffer, GlyphCatalog, Pos, Size};
+use crate::{CellReader, GlyphCatalog, Pos, Window};
 
-/// Renders a rectangle of `buffer` to a string of exactly `size.height` lines, each exactly
-/// `size.width` glyphs wide and ending in `\n`, the last line included. A glyph may be more than
-/// one character, so the line is the same rectangle without being the same character count.
+/// Renders the rectangle of `window` from `source` to a string of exactly `window.size.height`
+/// lines, each exactly `window.size.width` glyphs wide and ending in `\n`, the last line included.
+/// A glyph may be more than one character, so the line is the same rectangle without being the
+/// same character count.
 ///
 /// Each position asks its own cell for the text it renders to — see [`Cell::glyph_str`] — and
 /// falls back to a space when there is no cell, or the cell has none to give. A position inside
-/// the rendered rectangle but outside the buffer's window renders as a space too, since it never
-/// holds a cell either — and so does a position that `origin` and an offset within `size` cannot
-/// even address as a `Pos`, since nothing could ever have been stamped there.
+/// the rendered rectangle that the reader holds no cell for renders as a space too, since it never
+/// held one — and so does a position that the rectangle's origin and an offset within its size
+/// cannot even address as a `Pos`, since nothing could ever have been stamped there.
 ///
-/// **The rectangle is passed rather than taken from the buffer's window.** A window is where the
-/// buffer was drawn, and a rendering asks for the same rectangle, a part of it, or one that reaches
-/// past it — the last of which is what the paragraph above is about, and a rendering that took the
-/// window instead could not ask for it.
+/// **A reader rather than a buffer**: rendering asks for a cell and has no way to ask who owns
+/// one, or to reach anything else a [`Buffer`] keeps.
 ///
+/// **The window is passed rather than taken from the reader**, and a reader need not have one: a
+/// rendering asks for the rectangle the cells were drawn in, a part of it, or one that reaches
+/// past it — the last of which is what the paragraph above is about.
+///
+/// [`Buffer`]: crate::Buffer
 /// [`Cell::glyph_str`]: crate::Cell::glyph_str
 #[must_use]
-pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -> String {
-    (0..size.height)
+pub fn render(source: &impl CellReader, glyphs: &GlyphCatalog, window: Window) -> String {
+    (0..window.size.height)
         .map(|dy| {
-            let row: String = (0..size.width)
-                .map(|dx| glyph_at(buffer, glyphs, origin, dx, dy))
+            let row: String = (0..window.size.width)
+                .map(|dx| glyph_at(source, glyphs, window.origin, dx, dy))
                 .collect();
             row + "\n"
         })
@@ -33,7 +37,7 @@ pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, origin: Pos, size: Size) -
 /// The glyph at the absolute position `origin` plus `(dx, dy)`, or a space if that position
 /// cannot be addressed as a `Pos`, holds no cell, or the cell there has no text to give.
 fn glyph_at<'a>(
-    buffer: &'a Buffer,
+    source: &'a impl CellReader,
     glyphs: &'a GlyphCatalog,
     origin: Pos,
     dx: u16,
@@ -43,7 +47,7 @@ fn glyph_at<'a>(
         .x
         .checked_add_unsigned(dx)
         .zip(origin.y.checked_add_unsigned(dy))
-        .and_then(|(x, y)| buffer.cell(Pos { x, y }))
+        .and_then(|(x, y)| source.cell(Pos { x, y }))
         .and_then(|cell| cell.glyph_str(glyphs))
         .unwrap_or(" ")
 }
@@ -51,7 +55,10 @@ fn glyph_at<'a>(
 #[cfg(test)]
 mod tests {
     use super::render;
-    use crate::{Arm, Buffer, Cell, Glyph, GlyphCatalog, Pos, Size, StampMode, Stroke, StrokeCell};
+    use crate::{
+        Arm, Buffer, Cell, Glyph, GlyphCatalog, Pos, Size, StampMode, StampSink, Stroke,
+        StrokeCell, Window,
+    };
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -59,13 +66,13 @@ mod tests {
 
     #[test]
     fn a_single_junction_renders_as_a_cross() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -80,28 +87,20 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 1,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┼\n");
     }
 
     #[test]
     fn a_box_renders_from_eight_stamps() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 4,
                 height: 3,
             },
-        );
+        });
         let corner = |top, right, bottom, left| -> Cell {
             StrokeCell {
                 base: light(),
@@ -176,15 +175,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 4,
-                height: 3,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌──┐\n│  │\n└──┘\n");
     }
@@ -193,13 +184,13 @@ mod tests {
     /// overwrote everything else, so the cell renders as a T rather than a cross.
     #[test]
     fn an_abstaining_stamp_renders_the_surviving_arm() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -227,15 +218,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 1,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┴\n");
     }
@@ -244,13 +227,13 @@ mod tests {
     /// `double`, so the whole output is a space.
     #[test]
     fn a_key_the_catalog_does_not_answer_renders_as_a_space() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -265,15 +248,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 1,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, " \n");
     }
@@ -283,13 +258,13 @@ mod tests {
     /// a space for different reasons — rule 9 for the first, rule 8 for the second.
     #[test]
     fn an_undefined_cell_and_a_fully_closed_one_both_render_as_a_space() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 2,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -304,28 +279,20 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 2,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "  \n");
     }
 
     #[test]
     fn a_buffer_with_no_positions_renders_as_spaces() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 0,
                 height: 0,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -343,10 +310,12 @@ mod tests {
         let text = render(
             &buffer,
             &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 2,
-                height: 1,
+            Window {
+                origin: Pos { x: 0, y: 0 },
+                size: Size {
+                    width: 2,
+                    height: 1,
+                },
             },
         );
 
@@ -363,22 +332,22 @@ mod tests {
             width: 3,
             height: 1,
         };
-        let buffer = Buffer::new(origin, size);
+        let buffer = Buffer::new(Window { origin, size });
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "   \n");
     }
 
     #[test]
     fn rendering_outside_the_window_fills_it_with_spaces() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 2,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -396,10 +365,12 @@ mod tests {
         let text = render(
             &buffer,
             &GlyphCatalog::light(),
-            Pos { x: -1, y: 0 },
-            Size {
-                width: 4,
-                height: 1,
+            Window {
+                origin: Pos { x: -1, y: 0 },
+                size: Size {
+                    width: 4,
+                    height: 1,
+                },
             },
         );
 
@@ -410,13 +381,13 @@ mod tests {
     /// and no lookup — a catalog with no rule at all still answers it.
     #[test]
     fn a_literal_renders_as_itself_with_a_catalog_that_has_no_rule_for_it() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             Cell::Literal(Glyph::new("A").expect("\"A\" is one glyph")),
@@ -424,15 +395,7 @@ mod tests {
             None,
         );
 
-        let text = render(
-            &buffer,
-            &GlyphCatalog::light(),
-            Pos { x: 0, y: 0 },
-            Size {
-                width: 1,
-                height: 1,
-            },
-        );
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "A\n");
     }

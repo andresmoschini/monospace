@@ -127,8 +127,8 @@ impl Shape for BoxShape {
 mod tests {
     use super::BoxShape;
     use crate::shape::counting::CountingSurface;
-    use crate::{Buffer, GlyphCatalog};
-    use crate::{Glyph, Layer, Pos, Shape, Size, StampMode, Stroke, render};
+    use crate::{Buffer, GlyphCatalog, Window};
+    use crate::{FigureLayer, Glyph, Pos, Shape, Size, StampMode, Stroke, render};
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -142,16 +142,16 @@ mod tests {
             width: 6,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌────┐\n│    │\n└────┘\n");
     }
@@ -165,16 +165,16 @@ mod tests {
             width: 6,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌────┐\n│░░░░│\n└────┘\n");
     }
@@ -187,16 +187,16 @@ mod tests {
             width: 2,
             height: 2,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌┐\n└┘\n");
     }
@@ -224,16 +224,16 @@ mod tests {
                 height: 2,
             },
         ] {
-            let mut buffer = Buffer::new(origin, size);
+            let mut buffer = Buffer::new(Window { origin, size });
             BoxShape {
                 at: origin,
                 size: degenerate,
                 stroke: light(),
                 fill: None,
             }
-            .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+            .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-            let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+            let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
             assert_eq!(text, "  \n  \n", "size {degenerate:?}");
         }
@@ -291,7 +291,7 @@ mod tests {
             width: 9,
             height: 5,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
 
         BoxShape {
             at: Pos { x: 0, y: 0 },
@@ -302,7 +302,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
         BoxShape {
             at: Pos { x: 4, y: 2 },
             size: Size {
@@ -312,9 +312,9 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(
             text,
@@ -331,7 +331,7 @@ mod tests {
             width: 9,
             height: 5,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
 
         BoxShape {
             at: Pos { x: 0, y: 0 },
@@ -342,7 +342,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
         BoxShape {
             at: Pos { x: 4, y: 2 },
             size: Size {
@@ -352,9 +352,9 @@ mod tests {
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(
             text,
@@ -373,7 +373,7 @@ mod tests {
             width: 6,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
 
         BoxShape {
             at: Pos { x: 0, y: 0 },
@@ -384,7 +384,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
         BoxShape {
             at: Pos { x: 2, y: 0 },
             size: Size {
@@ -394,9 +394,9 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        let text = render(&buffer, &GlyphCatalog::light(), origin, size);
+        let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(text, "┌─┬┬─┐\n│ ││ │\n└─┴┴─┘\n");
     }

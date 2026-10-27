@@ -51,20 +51,21 @@ impl Shape for Segment {
 mod tests {
     use super::Segment;
     use crate::{
-        Arm, Buffer, Cell, Layer, Orientation, Pos, Shape, Size, StampMode, Stroke, StrokeCell,
+        Arm, Buffer, Cell, CellReader, FigureLayer, Orientation, Pos, Shape, Size, StampMode,
+        Stroke, StrokeCell, Window,
     };
 
     /// A horizontal segment sets its left and right arms and leaves top and bottom `Unset`.
     #[test]
     fn a_horizontal_segment_sets_left_and_right() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 3,
                 height: 1,
             },
-        );
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        });
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Segment {
             from: Pos { x: 0, y: 0 },
