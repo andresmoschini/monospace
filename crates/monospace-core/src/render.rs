@@ -1,6 +1,6 @@
 //! Turning a buffer into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Buffer, GlyphCatalog, Pos, Window};
+use crate::{Buffer, CellReader, GlyphCatalog, Pos, Window};
 
 /// Renders a rectangle of `buffer` to a string of exactly `size.height` lines, each exactly
 /// `size.width` glyphs wide and ending in `\n`, the last line included. A glyph may be more than

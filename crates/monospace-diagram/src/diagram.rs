@@ -375,9 +375,9 @@ mod tests {
     use std::num::NonZeroU16;
 
     use monospace_core::{
-        BoxShape, Buffer, Cell, Connector, Direction, FigureLayer, Glyph, GlyphCatalog, Line,
-        Offset, Orientation, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, Window,
-        render,
+        BoxShape, Buffer, Cell, CellReader, Connector, Direction, FigureLayer, Glyph, GlyphCatalog,
+        Line, Orientation, OwnerReader, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal,
+        Window, render,
     };
 
     use super::{Diagram, ShapeId};
@@ -450,12 +450,17 @@ mod tests {
         assert_eq!(cells(&first, origin, size), cells(&second, origin, size));
     }
 
-    /// Every offset of a window `size` with the identity the record names there, so two records can
-    /// be compared by value even though `Buffer` derives no `PartialEq`.
-    fn owners(buffer: &Buffer, size: Size) -> Vec<Option<ShapeId>> {
+    /// Every position of the window `origin`/`size` with the identity the record names there, so two
+    /// records can be compared by value even though `Buffer` derives no `PartialEq`.
+    fn owners(buffer: &Buffer, origin: Pos, size: Size) -> Vec<Option<ShapeId>> {
         (0..size.height)
             .flat_map(|dy| (0..size.width).map(move |dx| (dx, dy)))
-            .map(|(dx, dy)| buffer.owner(Offset { x: dx, y: dy }))
+            .map(|(dx, dy)| {
+                buffer.owner(Pos {
+                    x: origin.x + i16::try_from(dx).expect("width fits i16"),
+                    y: origin.y + i16::try_from(dy).expect("height fits i16"),
+                })
+            })
             .collect()
     }
 
@@ -510,7 +515,7 @@ mod tests {
         let (origin, size) = the_window();
         let before = draw_of(&diagram, origin, size);
         let cells_before = cells(&before, origin, size);
-        let owners_before = owners(&before, size);
+        let owners_before = owners(&before, origin, size);
         let figures_before = [diagram.get(back).cloned(), diagram.get(front).cloned()];
 
         drop(diagram.add(Shape::Line {
@@ -531,7 +536,7 @@ mod tests {
             "every operation was asked and the diagram draws what it drew"
         );
         assert_eq!(
-            owners(&draw_of(&diagram, origin, size), size),
+            owners(&draw_of(&diagram, origin, size), origin, size),
             owners_before,
             "and no cell changed which figure owns it"
         );
@@ -636,7 +641,7 @@ mod tests {
     fn forward_and_backward_are_the_only_operations_that_search() {
         let (diagram, back, front) = two_overlapping_boxes();
         let (origin, size) = the_window();
-        let crossing = Offset { x: 2, y: 1 };
+        let crossing = Pos { x: 2, y: 1 };
         assert_eq!(
             draw_of(&diagram, origin, size).owner(crossing),
             Some(front),
@@ -719,7 +724,7 @@ mod tests {
     fn remove_leaves_the_order_closed_rather_than_gapped() {
         let (diagram, back, front) = two_overlapping_boxes();
         let (origin, size) = the_window();
-        let crossing = Offset { x: 2, y: 1 };
+        let crossing = Pos { x: 2, y: 1 };
         let without = diagram.remove(back);
 
         assert!(
@@ -860,40 +865,32 @@ mod tests {
         let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
-        for (offset, expected, what) in [
+        for (at, expected, what) in [
             (
-                Offset { x: 1, y: 1 },
+                Pos { x: 1, y: 1 },
                 back,
                 "a fill only the back-most shape wrote",
             ),
             (
-                Offset { x: 3, y: 2 },
+                Pos { x: 3, y: 2 },
                 front,
                 "a fill only the shape in front wrote",
             ),
             (
-                Offset { x: 2, y: 1 },
+                Pos { x: 2, y: 1 },
                 front,
                 "a cell the shape in front decided over the one behind's fill",
             ),
+            (Pos { x: 0, y: 0 }, back, "the back-most shape's own corner"),
             (
-                Offset { x: 0, y: 0 },
-                back,
-                "the back-most shape's own corner",
-            ),
-            (
-                Offset { x: 5, y: 3 },
+                Pos { x: 5, y: 3 },
                 front,
                 "the front-most shape's own corner",
             ),
         ] {
-            let at = Pos {
-                x: i16::try_from(offset.x).expect("six columns"),
-                y: i16::try_from(offset.y).expect("four rows"),
-            };
             assert!(buffer.cell(at).is_some(), "{at:?} holds a cell: {what}");
             assert_eq!(
-                buffer.owner(offset),
+                buffer.owner(at),
                 Some(expected),
                 "{what} belongs to {expected}"
             );
@@ -901,8 +898,8 @@ mod tests {
 
         // The two cells the arrangement leaves between and below the boxes, which is what makes the
         // four above a claim about ownership rather than about a buffer that records everything.
-        for offset in [Offset { x: 5, y: 0 }, Offset { x: 0, y: 3 }] {
-            assert_eq!(buffer.owner(offset), None);
+        for at in [Pos { x: 5, y: 0 }, Pos { x: 0, y: 3 }] {
+            assert_eq!(buffer.owner(at), None);
         }
     }
 
@@ -929,7 +926,7 @@ mod tests {
         let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
         let cells_before = cells(&buffer, origin, size);
-        let owners_before = owners(&buffer, size);
+        let owners_before = owners(&buffer, origin, size);
         assert!(
             owners_before.contains(&Some(front)),
             "the first drawing recorded something, so there is a record to leave alone"
@@ -942,14 +939,14 @@ mod tests {
             "taking a shape out of the diagram changes nothing about what was drawn"
         );
         assert_eq!(
-            owners(&buffer, size),
+            owners(&buffer, origin, size),
             owners_before,
             "and nothing about who owns it"
         );
 
         diagram.draw(&mut buffer);
         assert_eq!(
-            owners(&buffer, size),
+            owners(&buffer, origin, size),
             owners_before,
             "drawing again into a buffer that already holds cells records nothing"
         );
@@ -1022,27 +1019,23 @@ mod tests {
             "the identity is drawn once, as the figure that replaced the first"
         );
 
-        for offset in [Offset { x: 4, y: 0 }, Offset { x: 5, y: 1 }] {
+        for at in [Pos { x: 4, y: 0 }, Pos { x: 5, y: 1 }] {
             assert_eq!(
-                buffer.owner(offset),
+                buffer.owner(at),
                 Some(shared),
                 "every cell the surviving figure wrote carries the one identity it is held under, at \
                  ({}, {})",
-                offset.x,
-                offset.y
+                at.x,
+                at.y
             );
         }
-        for offset in [
-            Offset { x: 0, y: 0 },
-            Offset { x: 1, y: 1 },
-            Offset { x: 2, y: 0 },
-        ] {
+        for at in [Pos { x: 0, y: 0 }, Pos { x: 1, y: 1 }, Pos { x: 2, y: 0 }] {
             assert_eq!(
-                buffer.owner(offset),
+                buffer.owner(at),
                 None,
                 "the figure that was replaced wrote nothing, at ({}, {})",
-                offset.x,
-                offset.y
+                at.x,
+                at.y
             );
         }
     }

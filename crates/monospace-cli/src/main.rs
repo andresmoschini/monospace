@@ -33,8 +33,9 @@
 //!
 //! **The demonstration reads its shapes out of the drawing rather than naming them, and there is
 //! nothing written in beside the lookup to catch a wrong answer.** Every shape it acts on comes from
-//! `Buffer::owner` at one of [`THE_BACK_MOST_AT`], [`THE_HUNG_FROM_AT`], [`THE_ARROW_AT`] and
-//! [`THE_CROSSING_AT`], and where the record names none the step skips itself. An earlier version took
+//! `OwnerReader::owner` at the position one of [`THE_BACK_MOST_AT`], [`THE_HUNG_FROM_AT`],
+//! [`THE_ARROW_AT`] and [`THE_CROSSING_AT`] reaches, and where the record names none the step skips
+//! itself. An earlier version took
 //! a written name and used it wherever the record came back empty, and **that makes a wrong offset
 //! indistinguishable from a right one**: measured with `THE_BACK_MOST_AT` moved onto a cell no shape
 //! wrote, the demonstration still printed eight pictures that read like a demonstration and **no test
@@ -58,7 +59,7 @@
 
 use std::process::ExitCode;
 
-use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, Size, Window};
+use monospace_core::{Buffer, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId, Size, Window};
 use monospace_description::parse;
 use monospace_diagram::{Anchor, Delta, Diagram};
 use monospace_editing::{Command, Session};
@@ -270,6 +271,14 @@ fn drawn(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> 
     (buffer, text)
 }
 
+/// The identity the drawing records at the offset `at`, counted from the window's corner.
+///
+/// **The window is the one place an offset becomes a position**: `OwnerReader::owner` is asked by
+/// position, and every offset this binary names is one a reader counts from the picture's corner.
+fn owner_at(buffer: &Buffer, at: Offset) -> Option<ShapeId> {
+    buffer.window().position(at).and_then(|at| buffer.owner(at))
+}
+
 /// The rendering of `diagram` drawn into a fresh window, for the steps that only need the picture.
 ///
 /// A `&Diagram` rather than a `&Session`, because the session hands its diagram out borrowed and
@@ -327,9 +336,9 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     // The diagram is read through the session from here on, and it is a borrow that outlives nothing:
     // every step below is a command, and a command is handed the session rather than the diagram.
     let (as_written, first_picture) = drawn(session.diagram(), &catalog, origin, size);
-    let the_back_most = as_written.owner(THE_BACK_MOST_AT);
-    let the_hung_from = as_written.owner(THE_HUNG_FROM_AT);
-    let the_arrow = as_written.owner(THE_ARROW_AT);
+    let the_back_most = owner_at(&as_written, THE_BACK_MOST_AT);
+    let the_hung_from = owner_at(&as_written, THE_HUNG_FROM_AT);
+    let the_arrow = owner_at(&as_written, THE_ARROW_AT);
 
     // The caption names the offsets and not the answers, because the answers are whatever the record
     // holds and a line of text cannot know.
@@ -491,7 +500,7 @@ fn demonstrate(diagram: Diagram, origin: Pos, size: Size) -> String {
     // holding it and a drawing taken now would answer about something else. `6` is not one of the
     // three shapes the earlier steps touch, so what is removed here is the record's answer and not a
     // side effect of them.
-    if let Some(named) = as_written.owner(THE_CROSSING_AT) {
+    if let Some(named) = owner_at(&as_written, THE_CROSSING_AT) {
         session = session.perform(Command::Remove { id: named });
     }
     let crossing_caption = format!(
@@ -535,8 +544,8 @@ mod tests {
     use std::ops::Range;
 
     use monospace_core::{
-        BoxShape, Buffer, FigureLayer, Glyph, GlyphCatalog, Offset, Pos, Shape, Size, StampMode,
-        Stroke, Window, render,
+        BoxShape, Buffer, FigureLayer, Glyph, GlyphCatalog, Offset, OwnerReader, Pos, Shape, Size,
+        StampMode, Stroke, Window, render,
     };
     use monospace_diagram::ShapeId;
 
@@ -1470,10 +1479,7 @@ mod tests {
             };
             assert_eq!(the_glyph_at(&picture, (x, y)), glyph, "the cell at {at:?}");
             assert_eq!(
-                buffer.owner(Offset {
-                    x: u16::try_from(x).expect("a fifty-column window"),
-                    y: u16::try_from(y).expect("a thirteen-row window"),
-                }),
+                buffer.owner(at),
                 Some(identity(expected)),
                 "{at:?} is written by two shapes and resolves to the one in front"
             );
@@ -1482,9 +1488,12 @@ mod tests {
         // And the first two cells resolve to `4` while the third does not, which is what makes the
         // first two a crossing and the third the shape behind: `4` is listed after `3` and is
         // therefore in front of it.
-        assert_eq!(buffer.owner(Offset { x: 9, y: 2 }), Some(identity(4)));
         assert_eq!(
-            buffer.owner(Offset { x: 11, y: 3 }),
+            super::owner_at(&buffer, Offset { x: 9, y: 2 }),
+            Some(identity(4))
+        );
+        assert_eq!(
+            super::owner_at(&buffer, Offset { x: 11, y: 3 }),
             Some(identity(3)),
             "a cell only 3 wrote is 3's, whichever way the order runs"
         );
@@ -1563,7 +1572,7 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                buffer.owner(at),
+                super::owner_at(&buffer, at),
                 Some(identity(expected)),
                 "the offset ({}, {}) is {what}, and the record names {expected}",
                 at.x,
@@ -1809,7 +1818,7 @@ mod tests {
                 y: offset.1,
             };
             assert_eq!(
-                buffer.owner(at),
+                super::owner_at(&buffer, at),
                 owner.map(identity),
                 "the offset {at:?}, asked for ({}, {}), is {owner:?}",
                 asked.0,
@@ -1823,7 +1832,7 @@ mod tests {
         }
 
         assert_eq!(
-            buffer.owner(Offset { x: 7, y: 0 }),
+            super::owner_at(&buffer, Offset { x: 7, y: 0 }),
             None,
             "the offset past the window's right edge reaches a cell nothing holds"
         );

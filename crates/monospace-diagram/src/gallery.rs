@@ -31,7 +31,8 @@
 use std::fmt::Write as _;
 
 use monospace_core::{
-    Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Window, render,
+    Arm, Buffer, Cell, CellReader, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Window,
+    render,
 };
 
 use std::num::NonZeroU16;

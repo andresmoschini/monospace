@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::{Arm, Cell, Offset, Pos, ShapeId, StrokeCell, Window};
+use crate::{Arm, Cell, Pos, ShapeId, StrokeCell, Window};
 
 /// Which side of an already-defined cell decides when a stamp lands on it. See _Stamping_ in
 /// [`docs/model.md`](../../../docs/model.md).
@@ -35,6 +35,49 @@ pub trait StampSink {
     fn stamp(&mut self, at: Pos, cell: Cell, mode: StampMode, owner: Option<ShapeId>);
 }
 
+/// What a caller reads a cell through: one position, answered from the store behind it.
+///
+/// **Reading a cell is the whole of what rendering needs**, which is what lets [`render`] ask a
+/// value for its cells without being handed a [`Buffer`] and without being able to ask who owns
+/// one. [`Buffer`] is the reader this crate ships.
+///
+/// [`render`]: crate::render
+pub trait CellReader {
+    /// The cell at the absolute position `at`, or `None` if it is undefined.
+    ///
+    /// An undefined cell and a position outside the window it was drawn in look the same: neither
+    /// has ever been written, so there is nothing to distinguish them by.
+    #[must_use]
+    fn cell(&self, at: Pos) -> Option<&Cell>;
+}
+
+/// What a caller reads an owner through: one position, answered from the record behind it.
+///
+/// **Who wrote a cell is a question of its own**, asked by a front end deciding what a click
+/// landed on and by nothing that renders, so it rides on an interface separate from
+/// [`CellReader`]. [`Buffer`] answers both.
+pub trait OwnerReader {
+    /// The identity of whoever decided the cell at the position `at`, or `None` when nobody holds
+    /// that position.
+    ///
+    /// **The answer is a value rather than a borrow of one.** An identity is two bytes and `Copy`,
+    /// so a caller holds what it is given and may go on drawing into the buffer and ask again,
+    /// which is what a front end deciding what to do with a cell it was handed has to be able to
+    /// do. Nothing is owed by holding it and nothing is spent by copying it.
+    ///
+    /// **`None` covers three cases and distinguishes none of them**, in the type or in the answer:
+    /// a position no shape wrote, a position inside the window whose cell no shape decided, and a
+    /// position the window does not hold at all. Nothing was ever recorded at any of them, so there
+    /// is nothing to say which it was.
+    ///
+    /// **The position is one a caller already holds**, and reaching it from a click is
+    /// [`Window::position`]'s job rather than this method's: an offset counted from the window's
+    /// corner is the one position that offset reaches, and a caller that added the origin itself
+    /// would be asking about another cell.
+    #[must_use]
+    fn owner(&self, at: Pos) -> Option<ShapeId>;
+}
+
 /// A window of cells, and a record of which shape decided each of them.
 ///
 /// Every position in a freshly created buffer is undefined: it holds no cell until [`stamp`] is
@@ -45,7 +88,8 @@ pub trait StampSink {
 /// part of the cell rather than a note about who wrote it, and every equality, every render and
 /// every catalog lookup would then depend on it. [`owner`] reads the record back.
 ///
-/// [`owner`]: Buffer::owner
+/// [`owner`]: OwnerReader::owner
+/// [`cell`]: CellReader::cell
 /// [`stamp`]: StampSink::stamp
 pub struct Buffer {
     window: Window,
@@ -79,43 +123,21 @@ impl Buffer {
         self.window
     }
 
-    /// Returns the cell at an absolute position, or `None` if it is undefined.
-    ///
-    /// An undefined cell and a position outside the buffer's window look the same: neither has
-    /// ever been written, so there is nothing to distinguish them by.
-    #[must_use]
-    pub fn cell(&self, at: Pos) -> Option<&Cell> {
-        self.cells.get(&(at.x, at.y))
-    }
-
-    /// The identity of whoever decided the cell at the offset `at`, counted from this window's own
-    /// top-left corner, or `None` when nobody holds that position.
-    ///
-    /// **The answer is a value rather than a borrow of one.** An identity is two bytes and `Copy`,
-    /// so a caller holds what it is given and may go on drawing into this buffer and ask again,
-    /// which is what a front end deciding what to do with a cell it was handed has to be able to
-    /// do. Nothing is owed by holding it and nothing is spent by copying it.
-    ///
-    /// **`None` covers three cases and distinguishes none of them**, in the type or in the answer: a
-    /// position no shape wrote, a position inside the window whose cell no shape decided, and an
-    /// offset the window does not hold at all. Nothing was ever recorded at any of them, so there
-    /// is nothing to say which it was — and the last of the three is arithmetic this method performs
-    /// rather than one it is asked about, so no caller performs it either.
-    ///
-    /// The offset is the one a caller already holds. A click arrives as a column and a row of what
-    /// was rendered, and what was rendered is this window, so the two go straight in and nothing is
-    /// added to anything. The window's `origin` decides which cells the window holds and takes no
-    /// other part in the answer, so a caller that reads it, adds it to a click and asks with the sum
-    /// has asked about a different cell — and gets a truthful answer about that one.
-    #[must_use]
-    pub fn owner(&self, at: Offset) -> Option<ShapeId> {
-        let at = self.window.position(at)?;
-        self.owners.get(&(at.x, at.y)).copied()
-    }
-
     /// Whether `at` falls inside this buffer's window.
     fn contains(&self, at: Pos) -> bool {
         self.window.contains(at)
+    }
+}
+
+impl CellReader for Buffer {
+    fn cell(&self, at: Pos) -> Option<&Cell> {
+        self.cells.get(&(at.x, at.y))
+    }
+}
+
+impl OwnerReader for Buffer {
+    fn owner(&self, at: Pos) -> Option<ShapeId> {
+        self.owners.get(&(at.x, at.y)).copied()
     }
 }
 
@@ -291,7 +313,7 @@ fn merge_arm(top: Arm, bottom: Arm) -> Arm {
 mod tests {
     use std::num::NonZeroU16;
 
-    use super::{Buffer, StampMode, StampSink};
+    use super::{Buffer, CellReader, OwnerReader, StampMode, StampSink};
     use crate::{
         Arm, BoxShape, Cell, FigureLayer, Glyph, Offset, Pos, Shape as _, ShapeId, Size, Stroke,
         StrokeCell, Window,
@@ -389,20 +411,16 @@ mod tests {
         }
     }
 
-    /// Every offset of a window `width` by `height` at `origin`, each beside the position it
-    /// reaches — the two numbers a caller holds, written out once so that a test can ask about a
-    /// cell and about the offset that names it without either one standing for the other.
-    ///
-    /// **Both, rather than whichever the assertion needs**, because the difference between them is
-    /// what the rule about the window's origin is about, and a test that only ever used the pair
-    /// correctly would not notice a buffer that read them the other way round.
-    fn every_offset(origin: Pos, width: u16, height: u16) -> Vec<(Offset, Pos)> {
-        let as_position = |x: u16, y: u16| Pos {
-            x: origin.x + i16::try_from(x).expect("a window this narrow"),
-            y: origin.y + i16::try_from(y).expect("a window this short"),
-        };
+    /// Every position of a window `width` by `height` at `origin`, written out once so that a test
+    /// can walk a whole window rather than one position somebody chose.
+    fn every_position(origin: Pos, width: u16, height: u16) -> Vec<Pos> {
         (0..height)
-            .flat_map(|y| (0..width).map(move |x| (Offset { x, y }, as_position(x, y))))
+            .flat_map(|y| {
+                (0..width).map(move |x| Pos {
+                    x: origin.x + i16::try_from(x).expect("a window this narrow"),
+                    y: origin.y + i16::try_from(y).expect("a window this short"),
+                })
+            })
             .collect()
     }
 
@@ -1061,9 +1079,9 @@ mod tests {
             "the same cell value written by two identities is one cell value"
         );
         assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&fill));
-        assert_eq!(buffer.owner(Offset { x: 0, y: 0 }), Some(first));
+        assert_eq!(buffer.owner(Pos { x: 0, y: 0 }), Some(first));
         assert_eq!(
-            buffer.owner(Offset { x: 1, y: 0 }),
+            buffer.owner(Pos { x: 1, y: 0 }),
             Some(second),
             "the record tells the two apart where the cell cannot"
         );
@@ -1118,7 +1136,7 @@ mod tests {
                 && (at.x == 0 || at.x == 3 || at.y == 0 || at.y == 2)
         };
 
-        for (offset, at) in every_offset(origin, 7, 5) {
+        for at in every_position(origin, 7, 5) {
             let expected = if decided_by_front(at) {
                 Some(front)
             } else if decided_by_back(at) {
@@ -1127,11 +1145,9 @@ mod tests {
                 None
             };
             assert_eq!(
-                buffer.owner(offset),
+                buffer.owner(at),
                 expected,
-                "the offset ({}, {}) is {at:?} in the plane",
-                offset.x,
-                offset.y
+                "the record names {expected:?} at {at:?}"
             );
         }
     }
@@ -1179,7 +1195,7 @@ mod tests {
             "a stamp below a decided cell reproduces it exactly, so the cell cannot have moved"
         );
         assert_eq!(
-            buffer.owner(Offset { x: 0, y: 0 }),
+            buffer.owner(Pos { x: 0, y: 0 }),
             Some(first),
             "the stamp behind changed nothing there, so it owns nothing there"
         );
@@ -1207,7 +1223,7 @@ mod tests {
             Some(nobody),
         );
         assert_eq!(
-            buffer.owner(Offset { x: 0, y: 0 }),
+            buffer.owner(Pos { x: 0, y: 0 }),
             None,
             "a cell deciding no side is written like any other and owns nothing"
         );
@@ -1241,7 +1257,7 @@ mod tests {
             "a stamp deciding no side changes nothing whatever it lands on"
         );
         assert_eq!(
-            held.owner(Offset { x: 0, y: 0 }),
+            held.owner(Pos { x: 0, y: 0 }),
             Some(holder),
             "the owner it found is the owner it leaves"
         );
@@ -1278,7 +1294,7 @@ mod tests {
             "the shape behind decided the two sides the one in front left open"
         );
         assert_eq!(
-            buffer.owner(Offset { x: 0, y: 0 }),
+            buffer.owner(Pos { x: 0, y: 0 }),
             Some(front),
             "and the record names the one in front, because it reached the cell first"
         );
@@ -1324,43 +1340,38 @@ mod tests {
             front,
         ));
 
-        for (offset, at) in every_offset(origin, 6, 4) {
+        for at in every_position(origin, 6, 4) {
             assert_eq!(
                 front_to_back.cell(at),
                 back_to_front.cell(at),
-                "the two orders disagree about the cell at the offset ({}, {})",
-                offset.x,
-                offset.y
+                "the two orders disagree about the cell at {at:?}"
             );
             assert_eq!(
-                front_to_back.owner(offset),
-                back_to_front.owner(offset),
-                "the two orders disagree about who owns the offset ({}, {})",
-                offset.x,
-                offset.y
+                front_to_back.owner(at),
+                back_to_front.owner(at),
+                "the two orders disagree about who owns the position {at:?}"
             );
         }
 
         // And the two cells the boxes share are `2`'s in both, which is what "the same record"
         // has to mean rather than merely agreeing.
-        for offset in [Offset { x: 2, y: 1 }, Offset { x: 3, y: 2 }] {
+        for at in [Pos { x: 2, y: 1 }, Pos { x: 3, y: 2 }] {
             assert_eq!(
-                front_to_back.owner(offset),
+                front_to_back.owner(at),
                 Some(front),
                 "the shape in front owns the cell it decided"
             );
         }
     }
 
-    /// `owner` answers for an offset counted from the window's corner, and `None` for one the window
-    /// does not hold.
+    /// `owner` answers for a position, and `None` where nobody holds one.
     ///
-    /// **Every offset of a window and the run past each of its two edges**, which is what makes the
-    /// `None` a claim about the window's size rather than about one position somebody happened to
-    /// leave blank. The window's origin is `(-1, -1)` rather than `(0, 0)` so that an offset and
-    /// the position it reaches are visibly different numbers.
+    /// **Every position of a window and the run past each of its two edges**, which is what makes
+    /// the `None` a claim about the record rather than about one position somebody happened to
+    /// leave blank. The window's origin is `(-1, -1)`, so a position and the offset that reaches it
+    /// are visibly different numbers — and this asks by position, as the interface does.
     #[test]
-    fn owner_answers_for_an_offset_into_the_window_and_none_for_one_it_does_not_hold() {
+    fn owner_answers_for_a_position_and_none_for_one_nobody_holds() {
         let origin = Pos { x: -1, y: -1 };
         let mut buffer = a_buffer(origin, 2, 2);
         let writer = id(1);
@@ -1372,45 +1383,42 @@ mod tests {
             Some(writer),
         );
 
-        for (offset, at) in every_offset(origin, 2, 2) {
-            let written = offset == Offset { x: 1, y: 1 };
+        for at in every_position(origin, 2, 2) {
+            let written = at == (Pos { x: 0, y: 0 });
             assert_eq!(
-                buffer.owner(offset),
+                buffer.owner(at),
                 written.then_some(writer),
-                "the offset ({}, {}) reaches {at:?}, and only one of them is written",
-                offset.x,
-                offset.y
+                "{at:?} is the one position written, and only it is owned"
             );
         }
 
         // And the run past each of the two edges, which is what makes the `None` above a claim
-        // about the window's size rather than about one position somebody left blank.
-        for offset in [
-            Offset { x: 2, y: 0 },
-            Offset { x: 0, y: 2 },
-            Offset { x: 2, y: 2 },
-            Offset {
-                x: u16::MAX,
-                y: u16::MAX,
+        // about the record rather than about one position somebody left blank.
+        for at in [
+            Pos { x: 1, y: 0 },
+            Pos { x: -1, y: 1 },
+            Pos { x: 1, y: 1 },
+            Pos {
+                x: i16::MAX,
+                y: i16::MAX,
             },
         ] {
             assert_eq!(
-                buffer.owner(offset),
+                buffer.owner(at),
                 None,
-                "the offset ({}, {}) is outside a two-by-two window",
-                offset.x,
-                offset.y
+                "{at:?} is outside a two-by-two window"
             );
         }
     }
 
-    /// A caller that adds the window's origin to a click asks about another cell.
+    /// A caller that adds the window's origin to the position it already has asks about another
+    /// cell.
     ///
     /// **The window's origin is `(-2, -1)` and exactly one position in it is owned**, so the sum
-    /// and the offset land on different cells and the wrong one is asked about. The window's origin
-    /// takes no part in an answer beyond which cells the window holds: it is already a field of the
-    /// buffer the caller built, and adding it to a click before asking produces a truthful answer
-    /// about a cell nobody clicked.
+    /// and the position land on different cells and the wrong one is asked about. The position
+    /// [`Window::position`](crate::Window::position) hands back already carries the origin; adding
+    /// it a second time reaches a cell nobody clicked, and `owner` answers truthfully about that
+    /// one.
     #[test]
     fn a_caller_that_adds_the_windows_origin_to_a_click_asks_about_another_cell() {
         let origin = Pos { x: -2, y: -1 };
@@ -1425,33 +1433,34 @@ mod tests {
             Some(writer),
         );
 
+        let at = buffer
+            .window()
+            .position(clicked)
+            .expect("the click reaches a position");
         assert_eq!(
-            buffer.owner(clicked),
+            buffer.owner(at),
             Some(writer),
             "the click reaches the cell as written"
         );
         assert_eq!(
-            buffer.owner(Offset {
-                x: u16::try_from(origin.x + i16::try_from(clicked.x).expect("two columns"))
-                    .expect("negative"),
-                y: u16::try_from(origin.y + i16::try_from(clicked.y).expect("three rows"))
-                    .expect("negative"),
+            buffer.owner(Pos {
+                x: at.x + origin.x,
+                y: at.y + origin.y,
             }),
             None,
-            "adding the origin lands outside this window, so the sum is not a cell of it"
+            "adding the origin a second time asks about a cell nobody clicked"
         );
     }
 
-    /// An offset a window's own origin cannot carry is owned by nobody, and so is every cell it
-    /// stands on.
+    /// A window whose origin is `i16::MIN` carries every offset, and none of the positions they
+    /// reach is owned when the drawing never landed inside it.
     ///
     /// **`i16::MIN` is a real origin rather than a theoretical one**, and it is the ordinary shape
-    /// of the question: a window far enough to the left that the columns to its right cannot be
-    /// added to it. `checked_add_unsigned` is what answers, so no caller performs the arithmetic
-    /// and none of it overflows — the whole window is asked, in both directions, and every answer
-    /// is `None` because the window holds no cell to own.
+    /// of the question: a window far enough to the left that the whole plane to its right is a run
+    /// of offsets. `checked_add_unsigned` is what answers, and adding an offset that far left never
+    /// overflows — the largest offset there is a position too.
     #[test]
-    fn an_offset_a_windows_own_origin_cannot_carry_is_owned_by_nobody() {
+    fn a_window_at_i16_min_carries_every_offset_and_owns_nothing_outside_it() {
         let mut buffer = a_buffer(Pos { x: i16::MIN, y: 0 }, 4, 3);
 
         a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut FigureLayer::stamped_by(
@@ -1460,20 +1469,25 @@ mod tests {
             id(1),
         ));
 
+        let window = buffer.window();
         for y in 0..3 {
             for x in 0..5 {
+                let at = window
+                    .position(Offset { x, y })
+                    .expect("a window at i16::MIN carries every offset");
                 assert_eq!(
-                    buffer.owner(Offset { x, y }),
+                    buffer.owner(at),
                     None,
-                    "the offset ({x}, {y}) cannot be a position in a window at i16::MIN"
+                    "{at:?} is not a cell the box wrote, which was drawn far from this window"
                 );
             }
         }
-        // And the run past the window's width, where the offset is representable and the sum is
-        // not: this is the arithmetic `checked_add_unsigned` performs, so no caller performs it.
-        for offset in [Offset { x: 4, y: 0 }, Offset { x: u16::MAX, y: 0 }] {
-            assert_eq!(buffer.owner(offset), None);
-        }
+        // And the run past the window's width: the offset is representable and so is the position
+        // it reaches, and the answer is still nobody.
+        let past = window
+            .position(Offset { x: u16::MAX, y: 0 })
+            .expect("a window at i16::MIN carries every offset");
+        assert_eq!(buffer.owner(past), None);
         assert_eq!(
             buffer.cell(Pos { x: 0, y: 0 }),
             None,
@@ -1503,18 +1517,16 @@ mod tests {
         ));
 
         let mut wrote_something = false;
-        for (offset, at) in every_offset(Pos { x: 0, y: 0 }, 4, 3) {
+        for at in every_position(Pos { x: 0, y: 0 }, 4, 3) {
             assert!(by_nobody.cell(at).is_some(), "the box wrote {at:?}");
             wrote_something = true;
             assert_eq!(
-                by_nobody.owner(offset),
+                by_nobody.owner(at),
                 None,
-                "a shape drawn by nobody owns nothing at the offset ({}, {})",
-                offset.x,
-                offset.y
+                "a shape drawn by nobody owns nothing at {at:?}"
             );
             assert_eq!(
-                by_somebody.owner(offset),
+                by_somebody.owner(at),
                 Some(writer),
                 "the same box under an identity owns every cell it decided"
             );

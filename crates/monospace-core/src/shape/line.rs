@@ -94,8 +94,8 @@ mod tests {
     use super::Line;
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Arm, Buffer, FigureLayer, GlyphCatalog, Orientation, Pos, Shape, Size, StampMode, Stroke,
-        Window, render,
+        Arm, Buffer, CellReader, FigureLayer, GlyphCatalog, Orientation, Pos, Shape, Size,
+        StampMode, Stroke, Window, render,
     };
 
     fn light() -> Stroke {

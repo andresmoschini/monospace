@@ -546,8 +546,8 @@ mod tests {
     use super::{Connector, Endpoint, Lattice, RouteRectangle, Terminal, derive_path, offset};
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Arm, Buffer, Cell, Direction, FigureLayer, Glyph, GlyphCatalog, Line, Orientation, Pos,
-        Shape, Size, StampMode, Stroke, StrokeCell, Window, render,
+        Arm, Buffer, Cell, CellReader, Direction, FigureLayer, Glyph, GlyphCatalog, Line,
+        Orientation, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window, render,
     };
 
     fn light() -> Stroke {

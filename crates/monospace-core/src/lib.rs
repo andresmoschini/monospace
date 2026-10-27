@@ -19,7 +19,7 @@ mod render;
 mod shape;
 mod stroke;
 
-pub use buffer::{Buffer, StampMode, StampSink};
+pub use buffer::{Buffer, CellReader, OwnerReader, StampMode, StampSink};
 pub use cell::{Arm, Cell, StrokeCell};
 pub use geometry::{Direction, Offset, Orientation, Pos, Size, Window};
 pub use glyph::{Glyph, GlyphCatalog, GlyphKey};

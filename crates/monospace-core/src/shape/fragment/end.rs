@@ -44,7 +44,8 @@ mod tests {
     use super::End;
     use crate::cell::Side;
     use crate::{
-        Arm, Buffer, Cell, FigureLayer, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window,
+        Arm, Buffer, Cell, CellReader, FigureLayer, Pos, Shape, Size, StampMode, Stroke,
+        StrokeCell, Window,
     };
 
     /// An end toward `Right` carries `Set` there and `Unset` on the

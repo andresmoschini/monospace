@@ -51,8 +51,8 @@ impl Shape for Segment {
 mod tests {
     use super::Segment;
     use crate::{
-        Arm, Buffer, Cell, FigureLayer, Orientation, Pos, Shape, Size, StampMode, Stroke,
-        StrokeCell, Window,
+        Arm, Buffer, Cell, CellReader, FigureLayer, Orientation, Pos, Shape, Size, StampMode,
+        Stroke, StrokeCell, Window,
     };
 
     /// A horizontal segment sets its left and right arms and leaves top and bottom `Unset`.

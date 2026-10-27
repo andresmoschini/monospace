@@ -43,7 +43,8 @@ mod tests {
     use super::Corner;
     use crate::cell::Side;
     use crate::{
-        Arm, Buffer, Cell, FigureLayer, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window,
+        Arm, Buffer, Cell, CellReader, FigureLayer, Pos, Shape, Size, StampMode, Stroke,
+        StrokeCell, Window,
     };
 
     /// The example checked by hand: `(0, 0)` of `stamp_box`'s box is

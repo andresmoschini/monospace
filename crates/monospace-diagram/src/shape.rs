@@ -325,8 +325,8 @@ mod tests {
     use super::{Delta, Endpoint, Shape};
     use crate::{Anchor, Diagram, Position, Reference, ShapeId};
     use monospace_core::{
-        Buffer, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, Window,
-        render,
+        Buffer, CellReader, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke,
+        Terminal, Window, render,
     };
 
     /// The window the arrangement below is drawn in: two 3×3 boxes on an 11×3 canvas, which is the

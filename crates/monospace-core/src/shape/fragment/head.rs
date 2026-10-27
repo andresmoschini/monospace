@@ -24,7 +24,9 @@ impl Shape for Head {
 #[cfg(test)]
 mod tests {
     use super::Head;
-    use crate::{Buffer, Cell, FigureLayer, Glyph, Pos, Shape, Size, StampMode, Window};
+    use crate::{
+        Buffer, Cell, CellReader, FigureLayer, Glyph, Pos, Shape, Size, StampMode, Window,
+    };
 
     #[test]
     fn a_head_writes_its_glyph_as_a_literal() {
