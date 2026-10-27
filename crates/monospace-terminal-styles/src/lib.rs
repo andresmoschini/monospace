@@ -2,14 +2,14 @@
 //! writes_ in [`docs/model.md`](../../../docs/model.md) and the eleven tables in
 //! [`docs/terminal-styles.md`](../../../docs/terminal-styles.md).
 //!
-//! The core holds `Style` and one table, `solid-pointer`; the other ten live here, and [`all`] is
-//! the union. That is the split `monospace-core` and `monospace-glyph-sets` already make: the core
-//! ships one, a crate ships the rest, and the union is named once — so a style added here is read by
-//! every caller without a second list to change.
+//! The core holds the type, the catalog and one table, `solid-pointer`; the other ten live here,
+//! and [`all`] is the union. That is the split `monospace-core` and `monospace-glyph-sets` already
+//! make: the core ships one, a crate ships the rest, and the union is named once — so a style added
+//! here is read by every caller without a second list to change.
 
-use monospace_core::{Glyph, Style};
+use monospace_core::{Glyph, Style, StyleCatalog};
 
-/// Builds a `Style` from its four glyphs written as text, in the table's own order.
+/// The four glyphs of one style, named for the way each points.
 ///
 /// # Panics
 ///
@@ -29,115 +29,114 @@ fn style(up: &str, right: &str, down: &str, left: &str) -> Style {
     }
 }
 
-/// Every style this crate and the core ship, each with the name a description writes, in the order
-/// [`docs/terminal-styles.md`](../../../docs/terminal-styles.md) lists them.
+/// A catalog holding one table, under the name a description writes.
+fn catalog(name: &'static str, style: Style) -> StyleCatalog {
+    StyleCatalog::from_styles([(name, style)])
+}
+
+/// Every style this crate and the core ship, each under the name a description writes.
 ///
-/// `solid-pointer` is included, and it is [`Style::default`]: the union is the eleven, not the ten
-/// this crate owns. A caller that wants to resolve a name is [`by_name`], which reads this list.
+/// **The union is here rather than in each caller**, so that a table added to this crate is read by
+/// every binary without a second list to change — the two callers today are `monospace-cli` and the
+/// interactive application, and a list kept in each would let one read a style the other did not.
+/// `solid-pointer` is included and comes first, as the core's Light does in the glyph catalog: where
+/// two tables claim the same name, the earlier one wins, and a name the core answers is never taken
+/// from it by a table here.
 #[must_use]
-pub fn all() -> Vec<(&'static str, Style)> {
-    vec![
-        ("solid-triangle", solid_triangle()),
-        ("small-solid-triangle", small_solid_triangle()),
-        ("outline-triangle", outline_triangle()),
-        ("small-outline-triangle", small_outline_triangle()),
-        ("solid-pointer", solid_pointer()),
-        ("unicode-arrow", unicode_arrow()),
-        ("ascii-arrow", ascii_arrow()),
-        ("white-diamond", white_diamond()),
-        ("black-diamond", black_diamond()),
-        ("white-circle", white_circle()),
-        ("black-circle", black_circle()),
-    ]
+pub fn all() -> StyleCatalog {
+    StyleCatalog::union([
+        StyleCatalog::solid_pointer(),
+        solid_triangle(),
+        small_solid_triangle(),
+        outline_triangle(),
+        small_outline_triangle(),
+        unicode_arrow(),
+        ascii_arrow(),
+        white_diamond(),
+        black_diamond(),
+        white_circle(),
+        black_circle(),
+    ])
 }
 
-/// The style a description names, or `None` when the list holds no such name.
+/// Builds a catalog from the `solid-triangle` table alone: `▲ ▶ ▼ ◀`.
+#[must_use]
+pub fn solid_triangle() -> StyleCatalog {
+    catalog("solid-triangle", style("▲", "▶", "▼", "◀"))
+}
+
+/// Builds a catalog from the `small-solid-triangle` table alone: `▴ ▸ ▾ ◂`.
+#[must_use]
+pub fn small_solid_triangle() -> StyleCatalog {
+    catalog("small-solid-triangle", style("▴", "▸", "▾", "◂"))
+}
+
+/// Builds a catalog from the `outline-triangle` table alone: `△ ▷ ▽ ◁`.
+#[must_use]
+pub fn outline_triangle() -> StyleCatalog {
+    catalog("outline-triangle", style("△", "▷", "▽", "◁"))
+}
+
+/// Builds a catalog from the `small-outline-triangle` table alone: `▵ ▹ ▿ ◃`.
+#[must_use]
+pub fn small_outline_triangle() -> StyleCatalog {
+    catalog("small-outline-triangle", style("▵", "▹", "▿", "◃"))
+}
+
+/// Builds a catalog from the core's own table alone: `▲ ► ▼ ◄`.
 ///
-/// The name is a `&str` rather than an enum because the list is open: a closed enum would turn an
-/// unknown name into a refusal, and the format answers one with [`Style::default`] instead — a file
-/// written against a later catalog stays readable by this build.
+/// The same table the core names, rather than a copy of it here: a change to `Style::default` cannot
+/// leave the two disagreeing.
 #[must_use]
-pub fn by_name(name: &str) -> Option<Style> {
-    all()
-        .into_iter()
-        .find(|(candidate, _)| *candidate == name)
-        .map(|(_, style)| style)
+pub fn solid_pointer() -> StyleCatalog {
+    StyleCatalog::solid_pointer()
 }
 
-/// `▲ ▶ ▼ ◀`, the solid triangles.
+/// Builds a catalog from the `unicode-arrow` table alone: `↑ → ↓ ←`.
 #[must_use]
-pub fn solid_triangle() -> Style {
-    style("▲", "▶", "▼", "◀")
+pub fn unicode_arrow() -> StyleCatalog {
+    catalog("unicode-arrow", style("↑", "→", "↓", "←"))
 }
 
-/// `▴ ▸ ▾ ◂`, the small solid triangles.
+/// Builds a catalog from the `ascii-arrow` table alone: `^ > v <` — one glyph each, because ASCII
+/// holds no pointing triangle.
 #[must_use]
-pub fn small_solid_triangle() -> Style {
-    style("▴", "▸", "▾", "◂")
+pub fn ascii_arrow() -> StyleCatalog {
+    catalog("ascii-arrow", style("^", ">", "v", "<"))
 }
 
-/// `△ ▷ ▽ ◁`, the outline triangles.
+/// Builds a catalog from the `white-diamond` table alone: `◇` in all four entries.
 #[must_use]
-pub fn outline_triangle() -> Style {
-    style("△", "▷", "▽", "◁")
+pub fn white_diamond() -> StyleCatalog {
+    catalog("white-diamond", style("◇", "◇", "◇", "◇"))
 }
 
-/// `▵ ▹ ▿ ◃`, the small outline triangles.
+/// Builds a catalog from the `black-diamond` table alone: `◆` in all four entries.
 #[must_use]
-pub fn small_outline_triangle() -> Style {
-    style("▵", "▹", "▿", "◃")
+pub fn black_diamond() -> StyleCatalog {
+    catalog("black-diamond", style("◆", "◆", "◆", "◆"))
 }
 
-/// `▲ ► ▼ ◄`, the core's own table and the answer to a name nothing claims.
+/// Builds a catalog from the `white-circle` table alone: `○` in all four entries.
 #[must_use]
-pub fn solid_pointer() -> Style {
-    Style::default()
+pub fn white_circle() -> StyleCatalog {
+    catalog("white-circle", style("○", "○", "○", "○"))
 }
 
-/// `↑ → ↓ ←`, the Unicode arrows.
+/// Builds a catalog from the `black-circle` table alone: `●` in all four entries.
 #[must_use]
-pub fn unicode_arrow() -> Style {
-    style("↑", "→", "↓", "←")
-}
-
-/// `^ > v <`, the ASCII arrows — one glyph each, because ASCII holds no pointing triangle.
-#[must_use]
-pub fn ascii_arrow() -> Style {
-    style("^", ">", "v", "<")
-}
-
-/// `◇` in all four entries, the white diamond that points nowhere.
-#[must_use]
-pub fn white_diamond() -> Style {
-    style("◇", "◇", "◇", "◇")
-}
-
-/// `◆` in all four entries, the black diamond that points nowhere.
-#[must_use]
-pub fn black_diamond() -> Style {
-    style("◆", "◆", "◆", "◆")
-}
-
-/// `○` in all four entries, the white circle that points nowhere.
-#[must_use]
-pub fn white_circle() -> Style {
-    style("○", "○", "○", "○")
-}
-
-/// `●` in all four entries, the black circle that points nowhere.
-#[must_use]
-pub fn black_circle() -> Style {
-    style("●", "●", "●", "●")
+pub fn black_circle() -> StyleCatalog {
+    catalog("black-circle", style("●", "●", "●", "●"))
 }
 
 #[cfg(test)]
 mod tests {
     use monospace_core::{Glyph, Style};
 
-    use super::{all, by_name};
+    use super::all;
 
-    /// The eleven tables [`docs/terminal-styles.md`](../../../docs/terminal-styles.md) publishes, in
-    /// its order: name, then the four entries named for the way each glyph points.
+    /// The eleven tables [`docs/terminal-styles.md`](../../../docs/terminal-styles.md) publishes:
+    /// name, then the four entries named for the way each glyph points.
     const TABLES: &[(&str, &str, &str, &str, &str)] = &[
         ("solid-triangle", "▲", "▶", "▼", "◀"),
         ("small-solid-triangle", "▴", "▸", "▾", "◂"),
@@ -157,18 +156,17 @@ mod tests {
     }
 
     /// Every style, whole: the eleven names, the four entries under each, and nothing else. The
-    /// list is checked against the documented table rather than against itself, so a changed glyph
-    /// or a missing style fails here.
+    /// catalog is checked against the documented table rather than against itself, so a changed
+    /// glyph or a missing style fails here.
     #[test]
     fn the_eleven_styles_are_the_tables_this_spec_lists() {
         let listed = all();
-        assert_eq!(listed.len(), TABLES.len());
 
-        for ((name, style), (expected_name, up, right, down, left)) in listed.iter().zip(TABLES) {
-            assert_eq!(
-                name, expected_name,
-                "the names are listed in the table's order"
-            );
+        for (name, up, right, down, left) in TABLES {
+            let style = listed
+                .style(name)
+                .unwrap_or_else(|| panic!("the catalog holds no `{name}`"));
+
             assert_eq!(style.up, glyph(up), "{name} up");
             assert_eq!(style.right, glyph(right), "{name} right");
             assert_eq!(style.down, glyph(down), "{name} down");
@@ -176,21 +174,23 @@ mod tests {
         }
     }
 
-    /// The lookup answers each of the eleven names and refuses one the list does not hold, which is
+    /// The catalog answers each of the eleven names and refuses one the tables do not hold, which is
     /// what lets the reader fall back rather than report.
     #[test]
-    fn by_name_answers_each_of_the_eleven_and_nothing_else() {
-        for (name, style) in all() {
-            assert_eq!(by_name(name), Some(style), "{name}");
+    fn the_catalog_answers_each_of_the_eleven_and_nothing_else() {
+        let listed = all();
+
+        for (name, ..) in TABLES {
+            assert!(listed.style(name).is_some(), "{name}");
         }
 
-        assert_eq!(by_name("no-such-style"), None);
+        assert_eq!(listed.style("no-such-style"), None);
     }
 
     /// `solid-pointer` is the core's own table rather than an eleventh written here, so a change to
     /// the default cannot leave the two disagreeing.
     #[test]
     fn solid_pointer_is_the_cores_default_table() {
-        assert_eq!(by_name("solid-pointer"), Some(Style::default()));
+        assert_eq!(all().style("solid-pointer"), Some(&Style::default()));
     }
 }

@@ -45,7 +45,7 @@
 
 use std::num::NonZeroU16;
 
-use monospace_core::{Direction, Glyph, Orientation as CoreOrientation};
+use monospace_core::{Direction, Glyph, Orientation as CoreOrientation, Style, StyleCatalog};
 use monospace_diagram::{
     Anchor, Delta, Diagram, Endpoint as DiagramEndpoint, Position, Reference,
     Shape as DiagramShape, ShapeId,
@@ -111,8 +111,17 @@ impl std::error::Error for ParseError {
 ///     .is_some());
 /// ```
 pub fn parse(json: &str) -> Result<Diagram, ParseError> {
+    let styles = monospace_terminal_styles::all();
+    parse_with(json, &styles)
+}
+
+/// Reads a description, resolving each style name against `styles`.
+///
+/// The one place a style name becomes four glyphs, so that the catalog a style is resolved against
+/// is a parameter of a single function rather than something read wherever a terminal is converted.
+fn parse_with(json: &str, styles: &StyleCatalog) -> Result<Diagram, ParseError> {
     let description: Description = serde_json::from_str(json).map_err(ParseError)?;
-    Ok(description.into_diagram())
+    Ok(description.into_diagram(styles))
 }
 
 /// A position, mirroring `monospace_core::Pos` for deserialization.
@@ -280,16 +289,32 @@ enum Terminal {
     },
 }
 
-impl From<Terminal> for monospace_core::Terminal {
-    fn from(terminal: Terminal) -> Self {
-        match terminal {
-            Terminal::Glyph { glyph } => monospace_core::Terminal::Glyph { glyph },
-            Terminal::Arm => monospace_core::Terminal::Arm,
-            Terminal::Style { style } => monospace_core::Terminal::Style {
-                style: monospace_terminal_styles::by_name(&style).unwrap_or_default(),
+impl Terminal {
+    /// The terminal this description names, with a style resolved against `styles`.
+    ///
+    /// A method rather than `From`, unlike the rest of the conversions here: `From` is handed the
+    /// value it converts and nothing else, and a style needs the catalog as well. Threading it as a
+    /// parameter keeps the catalog out of the wire type, where it would be a field a description
+    /// could write.
+    fn into_terminal(self, styles: &StyleCatalog) -> monospace_core::Terminal {
+        match self {
+            Self::Glyph { glyph } => monospace_core::Terminal::Glyph { glyph },
+            Self::Arm => monospace_core::Terminal::Arm,
+            Self::Style { style } => monospace_core::Terminal::Style {
+                style: style_named(styles, &style),
             },
         }
     }
+}
+
+/// The style `name` resolves to: the catalog's entry, or `Style::default()` when it holds none.
+///
+/// **A miss is silent, and `solid-pointer` is what it draws.** A catalog is open the way a glyph
+/// catalog is, so a file written against a later one stays readable by an earlier build, and
+/// [`parse`] answers a diagram or a [`ParseError`] with no third channel a substitution could be
+/// reported on. That cost is accepted rather than overlooked.
+fn style_named(styles: &StyleCatalog, name: &str) -> Style {
+    styles.style(name).cloned().unwrap_or_default()
 }
 
 /// Which of a figure's four sides an endpoint hangs from, mirroring `monospace_diagram::Anchor`.
@@ -404,10 +429,11 @@ struct Endpoint {
     terminal: Terminal,
 }
 
-impl From<Endpoint> for DiagramEndpoint {
-    fn from(endpoint: Endpoint) -> Self {
+impl Endpoint {
+    /// This endpoint as the diagram holds it, with its terminal resolved against `styles`.
+    fn into_endpoint(self, styles: &StyleCatalog) -> DiagramEndpoint {
         DiagramEndpoint {
-            at: match endpoint.at {
+            at: match self.at {
                 At::Point(at) => Position::Absolute(at.into()),
                 At::Reference {
                     shape,
@@ -421,8 +447,8 @@ impl From<Endpoint> for DiagramEndpoint {
                     out,
                 )),
             },
-            leaving: endpoint.leaving.into(),
-            terminal: endpoint.terminal.into(),
+            leaving: self.leaving.into(),
+            terminal: self.terminal.into_terminal(styles),
         }
     }
 }
@@ -488,12 +514,15 @@ impl ShapeDescription {
     }
 }
 
-impl From<ShapeDescription> for DiagramShape {
+impl ShapeDescription {
     /// Converts this description into the matching `monospace_diagram` shape, dropping no
     /// parameter. The `id` goes with the diagram rather than with the figure: nothing about a
     /// returned shape says where it sits, which is the arrangement here and stays it.
-    fn from(description: ShapeDescription) -> Self {
-        match description {
+    ///
+    /// A method rather than `From` for the reason [`Terminal::into_terminal`] is one: a connector's
+    /// terminals resolve styles against `styles`, and `From` is handed nothing but the value.
+    fn into_shape(self, styles: &StyleCatalog) -> DiagramShape {
+        match self {
             ShapeDescription::Box {
                 at,
                 size,
@@ -521,8 +550,8 @@ impl From<ShapeDescription> for DiagramShape {
             ShapeDescription::Connector {
                 from, to, stroke, ..
             } => DiagramShape::Connector {
-                from: from.into(),
-                to: to.into(),
+                from: from.into_endpoint(styles),
+                to: to.into_endpoint(styles),
                 stroke: stroke.as_str().into(),
             },
         }
@@ -568,10 +597,10 @@ impl Description {
     /// A shape a connector names before the entry carrying it is written still resolves, because
     /// resolution happens at draw time and the whole diagram exists by then. That edge case needs
     /// no code here; it is what a whole diagram exists by then means.
-    fn into_diagram(self) -> Diagram {
+    fn into_diagram(self, styles: &StyleCatalog) -> Diagram {
         let mut diagram = Diagram::numbered_from(self.next_id);
         for shape in self.shapes {
-            diagram = diagram.add_under(shape.id(), shape.into());
+            diagram = diagram.add_under(shape.id(), shape.into_shape(styles));
         }
         diagram
     }
@@ -699,7 +728,7 @@ mod tests {
     /// dependency to answer nothing they ask. Measured rather than argued: the same three shapes
     /// drawn in `double` come out of this catalog as an empty buffer.
     fn render_once(description: Description, origin: Pos, size: Size) -> String {
-        let diagram = description.into_diagram();
+        let diagram = description.into_diagram(&monospace_terminal_styles::all());
 
         let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
