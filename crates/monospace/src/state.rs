@@ -24,7 +24,11 @@ use crate::status;
 /// The drawing the last frame produced, and the session it was drawn from.
 pub(crate) struct DiagramState {
     /// The scroll origin: the position in the plane the interior's top-left corner reaches.
-    /// `(0, 0)` until #176 moves it.
+    ///
+    /// **What survives a frame** (D1): each axis's scroll offset is derived from it and the content
+    /// rather than kept beside it, so a content change that moves the drawing's first cell does not
+    /// carry the view with it — a person's place is a place in the plane. It starts at `(0, 0)`,
+    /// which is the first screen, and every frame puts it at the nearest value the content allows.
     origin: Pos,
 
     /// The window the last frame drew into, kept so that a click is answered from the picture
@@ -104,8 +108,8 @@ impl DiagramState {
     /// **The drawing's and not the window's**: the sink measures every stamp before the buffer
     /// consults its window, so a diagram larger than the interior reaches past it and one drawn at
     /// a scroll origin away from `(0, 0)` is measured where it stands. `min` is the top-left corner
-    /// in the plane, which is what a later slice needs to bound the origin; the click paths above
-    /// stay in offsets and are unaffected.
+    /// in the plane, which is what bounds the origin; the click paths above stay in offsets and are
+    /// unaffected.
     ///
     /// **The last frame's, measured when that frame was drawn**: it is re-measured by [`redraw`],
     /// and it changes when the session does rather than when the screen does. Its reader is the
@@ -115,6 +119,16 @@ impl DiagramState {
     /// [`redraw`]: Self::redraw
     pub(crate) fn footprint(&self) -> Option<Footprint> {
         self.footprint
+    }
+
+    /// The scroll origin the last frame drew at.
+    ///
+    /// **This read exists for the tests**: no frame asks where the origin is, because the frame
+    /// draws at it and the click counts its offset from the window's corner rather than from the
+    /// plane.
+    #[cfg(test)]
+    pub(crate) fn origin(&self) -> Pos {
+        self.origin
     }
 
     /// The shape a click selected, or `None` while no shape is selected.
@@ -287,10 +301,21 @@ impl DiagramState {
     /// **The window is kept whole rather than as a size**, because the two questions later frames
     /// ask of it are both about the whole: how large it is, and where its corner is on the screen.
     ///
+    /// **The origin is put where the content allows before anything is drawn** (D1): the measurement
+    /// is [taken first](Self::measure) because the window a frame draws through depends on the
+    /// drawing rather than the other way round, and a content change that no longer holds the origin
+    /// is clamped by the frame that follows it rather than by the scroll that follows that.
+    ///
     /// **The region is kept beside it** (rule 2 of #189): a press on the border gives the region
     /// the keyboard without landing in the window, so the outer rectangle is a fact of the frame
     /// the region answered and not one the interior can be asked for.
     pub(crate) fn redraw(&mut self, region: Rect, interior: Rect) {
+        let (across, down) = axes(self.measure(), interior);
+        self.origin = Pos {
+            x: across.clamp(self.origin.x),
+            y: down.clamp(self.origin.y),
+        };
+
         let mut buffer = Buffer::new(Window {
             origin: self.origin,
             size: Size {
@@ -308,6 +333,85 @@ impl DiagramState {
         self.interior = interior;
         self.region = region;
     }
+
+    /// How far the session's diagram reaches, measured on a drawing that keeps nothing (D2).
+    ///
+    /// **The window is empty, so no cell of the traversal survives it**: what the answer holds is
+    /// the stamps themselves, which is what lets the origin be chosen before the frame is drawn.
+    /// What it costs is a second traversal of the shapes per frame, and the first one writes
+    /// nothing.
+    fn measure(&self) -> Option<Footprint> {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 0,
+                height: 0,
+            },
+        });
+        let mut sink = FootprintSink::new(&mut buffer);
+        self.session.diagram().draw(&mut sink);
+
+        sink.footprint()
+    }
+}
+
+/// One axis of the content the view may show: the first and last cell it reaches in the plane, and
+/// the window it is shown through (D1).
+///
+/// **The content is the drawing's footprint union the first screen** — the window at `(0, 0)`,
+/// which is where the view opens. So the content reaches left of or above the origin only where the
+/// drawing does, and its last cell is never before the first screen's: a drawing away from `(0, 0)`
+/// still opens on the first screen, and one that stamped nothing leaves the content as that screen,
+/// which does not scroll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Axis {
+    /// The content's first cell in the plane.
+    first: i32,
+
+    /// The content's last cell in the plane.
+    last: i32,
+
+    /// The interior's size along this axis.
+    window: i32,
+}
+
+impl Axis {
+    /// The content `footprint` and the first screen make on one axis, `reach` being the footprint's
+    /// first and last cell there and `None` while nothing has been drawn.
+    fn of(reach: Option<(i16, i16)>, window: u16) -> Self {
+        let (first, last) = reach.unwrap_or((0, 0));
+        let window = i32::from(window);
+
+        Self {
+            first: i32::from(first).min(0),
+            last: i32::from(last).max(window - 1),
+            window,
+        }
+    }
+
+    /// The first and last origin D1 allows, both included.
+    ///
+    /// **Computed in `i32`**, because `last - window + 1` leaves an `i16` at the plane's own corner,
+    /// and the `max` is what keeps a content smaller than the window still opening at `(0, 0)`.
+    fn origins(&self) -> (i32, i32) {
+        (self.first, (self.last - self.window + 1).max(0))
+    }
+
+    /// `origin` put at the nearest value of that range, which is what every frame does with it.
+    fn clamp(&self, origin: i16) -> i16 {
+        let (first, last) = self.origins();
+        let at = i32::from(origin).clamp(first, last);
+
+        i16::try_from(at).expect("a cell of the content fits the plane it was measured in")
+    }
+}
+
+/// The two axes of the content, from a footprint and the window it is shown through.
+fn axes(footprint: Option<Footprint>, interior: Rect) -> (Axis, Axis) {
+    (
+        Axis::of(footprint.map(|it| (it.min.x, it.max.x)), interior.width),
+        Axis::of(footprint.map(|it| (it.min.y, it.max.y)), interior.height),
+    )
 }
 
 /// Which leaf of the chrome holds the keyboard.
@@ -408,6 +512,57 @@ mod tests {
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
     }"#;
 
+    /// The description #176's examples argue D1 with: a light `4×3` box at `(0, 0)`, a double `2×2`
+    /// box at `(10, 1)` and a seven-cell line at `(2, 4)`, so the drawing reaches `(11, 4)`.
+    ///
+    /// **A window of `5×3` is the interior of a small region**, which is the size the examples use:
+    /// the drawing is larger than it on both axes, so the origin has room to move and the far end of
+    /// that room is `(7, 2)`.
+    const THE_EXAMPLE: &str = r#"{
+        "next_id": 4,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 10, "y": 1 },
+              "size": { "width": 2, "height": 2 }, "stroke": "double" },
+            { "kind": "line", "id": 3, "at": { "x": 2, "y": 4 },
+              "len": 7, "orientation": "horizontal", "stroke": "light" }
+        ]
+    }"#;
+
+    /// The region the example is shown through, and its interior: `5×3` at `(1, 1)` of the screen.
+    const EXAMPLE_REGION: Rect = Rect::new(0, 0, 7, 5);
+    const EXAMPLE_INTERIOR: Rect = Rect::new(1, 1, 5, 3);
+
+    /// The state of an application over the diagram `json` describes.
+    fn a_state_over(json: &str) -> AppState {
+        let diagram =
+            monospace_description::parse(json).expect("the test's description is readable");
+
+        AppState::new(Session::new(diagram))
+    }
+
+    /// The glyph the last frame drew at `(x, y)` of its window, or `" "` where it drew none.
+    fn at(state: &DiagramState, x: u16, y: u16) -> String {
+        let catalog = monospace_glyph_sets::all();
+
+        state
+            .glyph(Offset { x, y }, &catalog)
+            .unwrap_or(" ")
+            .to_string()
+    }
+
+    /// Every glyph of the last frame's window, row by row.
+    fn window_of(state: &DiagramState) -> Vec<String> {
+        (0..EXAMPLE_INTERIOR.height)
+            .map(|y| {
+                (0..EXAMPLE_INTERIOR.width)
+                    .map(|x| at(state, x, y))
+                    .collect()
+            })
+            .collect()
+    }
+
     #[test]
     fn the_bar_and_the_status_start_inert() {
         let state = AppState::new(empty_session());
@@ -488,6 +643,112 @@ mod tests {
                 max: Pos { x: 5, y: 3 },
             }),
             "a larger interior changed the diagram's footprint"
+        );
+    }
+
+    /// **The view opens at `(0, 0)`, whatever the drawing reaches** (rule 1). The example's content
+    /// runs from `0` to `11` across and from `0` to `4` down, so the origin may lie between `0` and
+    /// `7` and between `0` and `2` — and the first frame puts it at the near end of both.
+    #[test]
+    fn a_frame_opens_at_the_origin() {
+        let mut state = a_state_over(THE_EXAMPLE);
+
+        state.diagram.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 0 },
+            "the first frame did not open on the first screen"
+        );
+        assert_eq!(
+            at(&state.diagram, 0, 0),
+            "┌",
+            "the drawing's own corner is not in the window"
+        );
+    }
+
+    /// **The frame draws at the origin the content allows** (rule 2). At `(7, 2)`, the last value
+    /// D1 allows for a `5×3` window, the window's right edge is the drawing's and its bottom edge is
+    /// the drawing's: the double box's last row and the line's last two cells are all that is left.
+    #[test]
+    fn a_frame_draws_at_the_origin_the_content_allows() {
+        let mut state = a_state_over(THE_EXAMPLE);
+        state.diagram.origin = Pos { x: 7, y: 2 };
+
+        state.diagram.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 7, y: 2 },
+            "the frame moved an origin the content holds"
+        );
+        assert_eq!(
+            window_of(&state.diagram).join("\n"),
+            "   ╚╝\n     \n──   ",
+            "the window does not hold what the drawing reaches at that origin"
+        );
+    }
+
+    /// **A frame at the end of the content owes no frame** (rule 2). An origin the content does not
+    /// hold is put at the nearest value it does by the frame that draws it, and the frame after it
+    /// draws the same picture: the clamp is not a change the next frame has to be owed for.
+    #[test]
+    fn a_frame_at_the_end_of_the_content_owes_no_frame() {
+        let mut state = a_state_over(THE_EXAMPLE);
+        state.diagram.origin = Pos { x: 20, y: 20 };
+
+        state.diagram.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+        let clamped = window_of(&state.diagram);
+
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 7, y: 2 },
+            "the frame did not put the origin at the furthest the content allows"
+        );
+
+        state.diagram.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 7, y: 2 },
+            "the frame that followed moved the view"
+        );
+        assert_eq!(
+            window_of(&state.diagram),
+            clamped,
+            "the frame that followed drew another picture"
+        );
+    }
+
+    /// **The origin is what survives a frame, and not the offset** (rule 2). The finding box is
+    /// moved two cells further out and the content still holds the origin, so the view stays where
+    /// the person left it. The figures away from the origin are then taken out, and the origin the
+    /// content no longer holds is put at the nearest value it does.
+    #[test]
+    fn a_content_change_keeps_the_origin() {
+        let mut state = a_state_over(THE_EXAMPLE);
+        let finding = ShapeId::new(NonZeroU16::new(2).expect("2 is not zero"));
+        let line = ShapeId::new(NonZeroU16::new(3).expect("3 is not zero"));
+        state.diagram.origin = Pos { x: 7, y: 2 };
+        state.diagram.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+
+        state.diagram.move_shape(finding, 2, 0);
+        state.diagram.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 7, y: 2 },
+            "a change to the drawing carried the view with it"
+        );
+
+        state.diagram.remove(finding);
+        state.diagram.remove(line);
+        state.diagram.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 0 },
+            "an origin the content no longer holds was kept"
         );
     }
 
