@@ -36,34 +36,35 @@ character matches.
 
 ## 1. Vocabulary
 
-| Term            | Meaning                                                                        |
-| --------------- | ------------------------------------------------------------------------------ |
-| `Window`        | An origin and a size: the rectangle a buffer holds                             |
-| `Buffer`        | A window, the cells written into it, and who decided each of them              |
-| `Footprint`     | The smallest and largest coordinate a drawing stamped                          |
-| `Cell`          | Either a base stroke and four arms, or one literal glyph                       |
-| `Side`          | Top, right, bottom or left                                                     |
-| `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`                |
-| `Stroke`        | A name, nothing more                                                           |
-| `BaseStroke`    | The cell's own stroke: what every arm is drawn in unless it carries one        |
-| `Glyph`         | What a cell renders to: one grapheme cluster                                   |
-| `GlyphKey`      | The four sides of a rule: a stroke name on each, or nothing                    |
-| `GlyphRule`     | One `GlyphKey` mapped to a glyph                                               |
-| `GlyphSet`      | A group of rules as they are written or loaded: one table                      |
-| `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it  |
-| `Style`         | Four glyphs, one for each way a head may point                                 |
-| `stamp`         | The single write operation                                                     |
-| `StampSink`     | One write operation and no reader; what a figure layer writes through          |
-| `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided   |
-| `Offset`        | A position inside one window, counted from its corner                          |
-| `Surface`       | One write operation and no reader; what a shape draws into                     |
-| `CellReader`    | One read operation: the cell at an absolute position                           |
-| `OwnerReader`   | One read operation: the identity recorded at an absolute position              |
-| `Shape`         | A value describing a figure, which draws itself into a surface                 |
-| `ShapeId`       | The ordinal a figure is drawn under, and what a stamp records beside the cell  |
-| `Piece`         | A shape placed by another shape, given the positions it is to write            |
-| `Direction`     | Up, right, down or left: a way to move in the plane                            |
-| `Endpoint`      | Where a connector ends: a position, the direction it leaves in, and a terminal |
+| Term            | Meaning                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| `Window`        | An origin and a size: the rectangle a buffer holds                                        |
+| `Buffer`        | A window, the cells written into it, and who decided each of them                         |
+| `Footprint`     | The smallest and largest coordinate a drawing stamped                                     |
+| `Cell`          | Either a base stroke and four arms, or one literal glyph                                  |
+| `Side`          | Top, right, bottom or left                                                                |
+| `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`                           |
+| `Stroke`        | A name, nothing more                                                                      |
+| `BaseStroke`    | The cell's own stroke: what every arm is drawn in unless it carries one                   |
+| `Glyph`         | What a cell renders to: one grapheme cluster                                              |
+| `GlyphKey`      | The four sides of a rule: a stroke name on each, or nothing                               |
+| `GlyphRule`     | One `GlyphKey` mapped to a glyph                                                          |
+| `GlyphSet`      | A group of rules as they are written or loaded: one table                                 |
+| `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it             |
+| `Style`         | Four glyphs, one for each way a head may point                                            |
+| `StyleCatalog`  | Every style in play, by the name a description writes; the first to claim a name keeps it |
+| `stamp`         | The single write operation                                                                |
+| `StampSink`     | One write operation and no reader; what a figure layer writes through                     |
+| `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided              |
+| `Offset`        | A position inside one window, counted from its corner                                     |
+| `Surface`       | One write operation and no reader; what a shape draws into                                |
+| `CellReader`    | One read operation: the cell at an absolute position                                      |
+| `OwnerReader`   | One read operation: the identity recorded at an absolute position                         |
+| `Shape`         | A value describing a figure, which draws itself into a surface                            |
+| `ShapeId`       | The ordinal a figure is drawn under, and what a stamp records beside the cell             |
+| `Piece`         | A shape placed by another shape, given the positions it is to write                       |
+| `Direction`     | Up, right, down or left: a way to move in the plane                                       |
+| `Endpoint`      | Where a connector ends: a position, the direction it leaves in, and a terminal            |
 
 `Arm` names both the concept and its three-state value. `Side` names the four positions. If
 implementing shows they need separating, `ArmState` is the obvious name for the value.
@@ -435,6 +436,12 @@ it. `solid-pointer` is the table the core carries, and the rest are in
 [`terminal-styles.md`](terminal-styles.md). A style is not derived from the stroke, so one
 description draws the same heads whatever glyph sets a build shipped, and that is the whole of why
 it is a table of its own rather than a row in a set.
+
+**A style is looked up in a catalog the reader is handed**, as a glyph is looked up in a
+`GlyphCatalog` the drawing is handed. The core holds the `StyleCatalog` type and one style, and a
+data crate holds the others with the union named once; which of them a build ships is decided where
+the binary is assembled, and nothing below that names a table. A reader that held the tables itself
+would put the choice of appearances inside the format, where a caller could not make it.
 
 That asymmetry is a limit of the data rather than a preference. A style is the answer available now,
 and heads that follow the glyph set would be the better one: they are the open question below, which

@@ -12,6 +12,12 @@ names no up- or down-pointing pointer; they differ on left and right. The four s
 point carry one glyph in all four columns, which is no special case: nothing says a style's four
 entries differ.
 
+The tables are a **catalog**, not a list a reader consults: `monospace-terminal-styles::all()` is
+their union, and it is what a binary hands to `monospace_description::parse`. The choice of which
+styles a build ships is made there, in the composition root, as the glyph sets are — so a caller
+that loads fewer tables reads a name they lack as `solid-pointer`, and a style added here reaches
+every caller without a second list to change.
+
 | Name                     | `up` | `right` | `down` | `left` |
 | ------------------------ | ---- | ------- | ------ | ------ |
 | `solid-triangle`         | ▲    | ▶       | ▼      | ◀      |

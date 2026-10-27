@@ -28,12 +28,13 @@ terminal is better settled here than invented there.
 
 ### In
 
-- `monospace-core`: a `Style` type, one default style, and a third `Terminal` variant. The design
-  note in `connector.rs` saying the set is closed at two says three, for the reason it gave.
-- `monospace-terminal-styles`: a crate holding the other ten styles and the lookup a name goes
-  through. It joins the crates the `wasm` step compiles.
+- `monospace-core`: a `Style` type, its `StyleCatalog`, one default style, and a third `Terminal`
+  variant. The design note in `connector.rs` saying the set is closed at two says three, for the
+  reason it gave.
+- `monospace-terminal-styles`: a crate holding the other ten styles, one function per table
+  returning a catalog, and `all()`, their union. It joins the crates the `wasm` step compiles.
 - `monospace-description`: `{ "kind": "style", "style": "<name>" }` on the wire, resolved against
-  the eleven.
+  the `StyleCatalog` the caller hands `parse`.
 - `docs/model.md`, a new `docs/terminal-styles.md`, `docs/diagram-demo.md`'s section on terminals,
   and `README.md`'s layout table.
 - Tests for the eleven tables, the orientation rule, the fallback, the refusal, and that `arm` and
@@ -85,23 +86,46 @@ stands. **Answered by** the maintainer.
 **D4 — the terminal holds the resolved table, not the name.**
 
 **Answer:** `Terminal::Style { style: Style }` carries the four glyphs, and the description format
-resolves the name once, as it reads the file. **Why not** `Style { name: String }` looked up at draw
-time: the core would hold the vocabulary of names, which is the new crate's and which #63 wants to
-make a file's, and every draw would need the catalog handed to it. **Why not** resolving the name to
-a glyph in the reader and handing back `Terminal::Glyph`: nothing above the reader could tell a
-style from a literal, so an editing layer could show neither the name nor change it. **Answered by**
-practice, in the session that wrote this.
+resolves the name once, as it reads the file, against the `StyleCatalog` it is handed. **Why not**
+`Style { name: String }` looked up at draw time: the core would hold the vocabulary of names, which
+is the new crate's and which #63 wants to make a file's, and every draw would need the catalog
+handed to it. **Why not** resolving the name to a glyph in the reader and handing back
+`Terminal::Glyph`: nothing above the reader could tell a style from a literal, so an editing layer
+could show neither the name nor change it. **Answered by** practice, in the session that wrote this.
 
-**D5 — the core owns one style and the type; a new crate owns the other ten and the lookup.**
+**D5 — the core owns one style and the catalog type; a new crate owns the other ten and the union.**
 
-**Answer:** `monospace-core` holds `Style`, `Style::default()` — the `solid-pointer` table — and the
-third variant; `monospace-terminal-styles` holds the other ten, `by_name`, and `all()`, which
-includes the core's default. It is the split `monospace-core` and `monospace-glyph-sets` already
-make: the core ships one, the crate ships the rest, and the union is named once. **Why not** all
-eleven in the core: every appearance the project ships would be a core table, which is what the
-glyph-set split exists to avoid. **Why not** the lookup in the core beside `GlyphCatalog`: the core
-never looks a style up, so that catalog would hold names nothing reads, while the one default it
-needs is a value. **Answered by** practice, in the session that wrote this.
+**Answer:** `monospace-core` holds `Style`, `Style::default()` — the `solid-pointer` table — the
+`StyleCatalog` type with `from_styles`, `union`, `solid_pointer` and `style`, and the third variant;
+`monospace-terminal-styles` holds the other ten, one function per table returning a catalog, and
+`all()`, their union, which includes the core's default. It is the split `monospace-core` and
+`monospace-glyph-sets` already make: the core ships one, the crate ships the rest, and the union is
+named once. **Why not** all eleven in the core: every appearance the project ships would be a core
+table, which is what the glyph-set split exists to avoid. **Why not** the reader importing the data
+crate and resolving names itself: which styles a build ships is then decided inside the format, and
+a binary that meant to load fewer tables could not, while the one thing a reader needs — a name
+answered — does not require it to own the tables. **What it costs:** one more type in the core, and
+a caller that wants a style name read must hand a catalog over. **Answered by** practice, in the
+session that wrote this, and amended below where the build first put the lookup in the data crate.
+
+### Amended while building
+
+**Amended on 2026-10-27 in #246, and the amendment is here rather than a silent rewrite so that what
+was agreed and what is being built can both be read.**
+
+**The decision that changed is D5, and the reason is the shape the glyph sets already have.**
+`monospace-description` was built resolving every style through
+`monospace-terminal-styles::by_name`, which made the format depend on the eleven tables and gave
+`all()` a second caller. Nothing above the reader could then read a description with a different set
+of styles, which is exactly what the glyph sets avoid: the drawing is handed a `GlyphCatalog`, and
+the crate that reads a description knows no table. `StyleCatalog` is that same shape for names a
+description writes, and `parse` takes one.
+
+**The rules that changed follow from it.** The style lookups are the catalog's own, so `by_name` is
+gone; a table is a catalog rather than a `Style`, so `all()` is a union of catalogs rather than a
+`Vec` of pairs; and the CLI and the application name `monospace_terminal_styles::all()` where they
+are assembled, as they already name `monospace_glyph_sets::all()`. **Nothing else moves:** the
+eleven names, their four glyphs, the fallback of D6 and every picture are what they were.
 
 **D6 — an unknown name draws the default, in silence; a missing name is refused.**
 
@@ -115,13 +139,16 @@ misspelled style is invisible. **Answered by** practice, in the session that wro
 
 ## Model slice
 
-- `docs/model.md` §1 _Vocabulary_: a `Style` row — four glyphs, one for each way a head may point.
+- `docs/model.md` §1 _Vocabulary_: a `Style` row — four glyphs, one for each way a head may point —
+  and a `StyleCatalog` row, as there is a `GlyphCatalog` one.
 - §7 _The initial set_: the connector paragraph says a terminal is one of three, and the sentence
   about a glyph terminal's glyph pointing opposite `leaving` extends to a style.
 - §7 _What a terminal writes_: a third paragraph after **arm** and **glyph**, saying a style writes
   the glyph its table names for the direction opposite `leaving`, covers the cell, and follows no
   stroke. The paragraph calling the asymmetry a limit of the data gains a clause: a style is the
-  answer available now, and heads that follow a glyph set stay the open question below.
+  answer available now, and heads that follow a glyph set stay the open question below. A closing
+  paragraph says a style is looked up in a catalog the reader is handed, the core holding the type
+  and one style and a data crate the rest — the shape a glyph is looked up in.
 - §7 _The initial set_, the paragraph saying the core holds no default stroke: one clause separates
   the base stroke, which a figure always names, from the fallback style, which answers a name
   nothing claims. The core decides no appearance a figure left unsaid.
@@ -153,6 +180,26 @@ impl Style {
     pub fn glyph(&self, leaving: Direction) -> &Glyph;
 }
 
+/// Every style in play, by the name a description writes.
+pub struct StyleCatalog {
+    // no field is public
+}
+
+impl StyleCatalog {
+    /// A catalog from an ordered group of tables; the first to claim a name keeps it.
+    #[must_use]
+    pub fn from_styles<S: Into<String>>(styles: impl IntoIterator<Item = (S, Style)>) -> Self;
+    /// A catalog from other catalogs, in the order given; the earlier one wins a name.
+    #[must_use]
+    pub fn union(catalogs: impl IntoIterator<Item = Self>) -> Self;
+    /// The core's own table: `solid-pointer`.
+    #[must_use]
+    pub fn solid_pointer() -> Self;
+    /// The style `name` answers to, or `None`.
+    #[must_use]
+    pub fn style(&self, name: &str) -> Option<&Style>;
+}
+
 pub enum Terminal {
     // `Glyph` and `Arm`, unchanged
     Style { style: Style },
@@ -160,18 +207,19 @@ pub enum Terminal {
 
 // monospace-terminal-styles
 #[must_use]
-pub fn by_name(name: &str) -> Option<Style>;
-#[must_use]
-pub fn all() -> Vec<(&'static str, Style)>; // the eleven, `solid-pointer` included
-pub fn solid_triangle() -> Style; // and one per style, named after it:
+pub fn all() -> StyleCatalog; // the eleven, `solid-pointer` included
+pub fn solid_triangle() -> StyleCatalog; // and one per style, named after it:
 // small_solid_triangle, outline_triangle, small_outline_triangle, solid_pointer, unicode_arrow,
 // ascii_arrow, white_diamond, black_diamond, white_circle, black_circle
+
+// monospace-description
+pub fn parse(json: &str, styles: &StyleCatalog) -> Result<Diagram, ParseError>;
 ```
 
 `Style::default()` is the `solid-pointer` table, and `monospace-description` resolves a wire name as
-`monospace_terminal_styles::by_name(&name).unwrap_or_default()`. The lookup takes a `String` rather
-than a closed `enum`: a closed enum would turn an unknown name into a deserialization error instead
-of D6's fallback.
+`styles.style(&name).cloned().unwrap_or_default()`, where `styles` is the catalog `parse` was handed
+and the crate holds no table of its own. The name is a `String` rather than a closed `enum`: a
+closed enum would turn an unknown name into a deserialization error instead of D6's fallback.
 
 ## Behavior
 
@@ -181,8 +229,8 @@ of D6's fallback.
 3. `solid-pointer` is `up: ▲, right: ►, down: ▼, left: ◄`, and the other ten are the table in
    _Examples_.
 4. Each endpoint chooses its own style, independently of the other endpoint and of the stroke.
-5. `{ "kind": "style", "style": "<name>" }` resolves against the eleven, and a name it does not hold
-   draws `solid-pointer`.
+5. `{ "kind": "style", "style": "<name>" }` resolves against the catalog `parse` is handed, and a
+   name that catalog does not hold draws `solid-pointer`.
 6. `{ "kind": "style" }` with no `style` field is refused, naming the missing field.
 7. `arm` and `glyph` draw what they drew before, and every picture that used them is unchanged.
 8. `monospace-terminal-styles` compiles for `wasm32-unknown-unknown` and joins the `wasm` step.
