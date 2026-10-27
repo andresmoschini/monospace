@@ -14,9 +14,9 @@ that the two agree with the directions they leave in.
 
 _What a terminal writes_ calls that asymmetry a limit of the data and leaves it as the open question
 about where a terminal's glyph could come from, preferring heads that follow the glyph set. This is
-the answer that changes no existing cell: a table of four glyphs per style, indexed by `leaving`,
-leaves the four single-arm keys `╶ ╴ ╵ ╷` untouched, so a set of heads stays a question for another
-slice. Neither open slice that touches this vocabulary reaches it:
+the answer that changes no existing cell: a table of four glyphs per style leaves the four
+single-arm keys `╶ ╴ ╵ ╷` untouched, so a set of heads stays a question for another slice. Neither
+open slice that touches this vocabulary reaches it:
 [#63](https://github.com/andresmoschini/monospace/issues/63) loads a glyph set from a file, and a
 loaded set is still a table of arms, while
 [#206](https://github.com/andresmoschini/monospace/issues/206) re-spells the format, and a third
@@ -50,15 +50,15 @@ terminal is better settled here than invented there.
 
 ## The decision
 
-**D1 — the table is indexed by `leaving`, and the glyph points opposite it.**
+**D1 — each entry is named by the way its glyph points, and `glyph` inverts once.**
 
-**Answer:** the four entries are indexed by the direction the connector leaves the endpoint in, and
-each holds the glyph that points the other way, so `solid-pointer` is
-`up: ▼, right: ◄, down: ▲, left: ►`. **Why not** indexing by the direction the glyph points: the
-endpoint holds no such value, so every lookup would complement `leaving` first and the inversion
-would live in the code rather than in the table that states it. **What it costs:** the table reads
-backwards against Unicode's names, where `BLACK RIGHT-POINTING POINTER` sits under `left`.
-**Answered by** the maintainer.
+**Answer:** the four entries are named by the direction their glyph points, so `solid-pointer` is
+`up: ▲, right: ►, down: ▼, left: ◄`, and `Style::glyph(leaving)` answers the entry named for the
+direction opposite `leaving`. **Why not** naming each entry by the direction the connector leaves
+in: `▼` would sit under `up`, which reads backwards in the struct, in the documented table and
+against Unicode, where `BLACK DOWN-POINTING TRIANGLE` is `▼`. **What it costs:** the inversion has
+moved into one function instead of one table, and a field name now says where its glyph points.
+**Answered by** the maintainer, who reversed the draft on reading it.
 
 **D2 — the style is chosen per endpoint.**
 
@@ -113,19 +113,19 @@ misspelled style is invisible. **Answered by** practice, in the session that wro
 
 ## Model slice
 
-- `docs/model.md` §1 _Vocabulary_: a `Style` row — the four glyphs an endpoint may choose from.
+- `docs/model.md` §1 _Vocabulary_: a `Style` row — four glyphs, one for each way a head may point.
 - §7 _The initial set_: the connector paragraph says a terminal is one of three, and the sentence
   about a glyph terminal's glyph pointing opposite `leaving` extends to a style.
 - §7 _What a terminal writes_: a third paragraph after **arm** and **glyph**, saying a style writes
-  one glyph chosen by its table from `leaving`, covers the cell, and follows no stroke. The
-  paragraph calling the asymmetry a limit of the data gains a clause: a style is the answer
-  available now, and heads that follow a glyph set stay the open question below.
+  the glyph its table names for the direction opposite `leaving`, covers the cell, and follows no
+  stroke. The paragraph calling the asymmetry a limit of the data gains a clause: a style is the
+  answer available now, and heads that follow a glyph set stay the open question below.
 - §7 _The initial set_, the paragraph saying the core holds no default stroke: one clause separates
   the base stroke, which a figure always names, from the fallback style, which answers a name
   nothing claims. The core decides no appearance a figure left unsaid.
 - §11 _Open questions_: the question about a terminal's glyph narrows to a set of heads.
-- `docs/terminal-styles.md` (new): the eleven tables indexed by `leaving`, the inversion stated
-  beside them, in the shape of `docs/glyph-sets.md`; `README.md`'s layout table names it.
+- `docs/terminal-styles.md` (new): the eleven tables, each entry named for the way it points, with
+  `glyph`'s inversion stated beside them, in the shape of `docs/glyph-sets.md`.
 - `docs/diagram-model.md` §6 _Attachment_: one clause — a style's glyph follows `leaving`, which the
   attachment does not decide. The section's rule stands.
 - `docs/diagram-demo.md`: _Two terminals, and the one difference between them_ becomes three, with a
@@ -138,7 +138,7 @@ misspelled style is invisible. **Answered by** practice, in the session that wro
 // monospace-core
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Style {
-    /// What an endpoint leaving upward writes: `▼`.
+    /// The glyph that points up: `▲`.
     pub up: Glyph,
     pub right: Glyph,
     pub down: Glyph,
@@ -146,6 +146,7 @@ pub struct Style {
 }
 
 impl Style {
+    /// The entry named for the direction opposite `leaving`.
     #[must_use]
     pub fn glyph(&self, leaving: Direction) -> &Glyph;
 }
@@ -172,10 +173,10 @@ of D6's fallback.
 
 ## Behavior
 
-1. A style terminal writes the glyph its table holds for the endpoint's `leaving`, and that glyph
-   points opposite `leaving`.
+1. A style terminal writes the entry named for the direction opposite its endpoint's `leaving`, so
+   the glyph points away from the route.
 2. A style covers the cell and composes with nothing: it writes no arm and follows no stroke.
-3. `solid-pointer` is `up: ▼, right: ◄, down: ▲, left: ►`, and the other ten are the table in
+3. `solid-pointer` is `up: ▲, right: ►, down: ▼, left: ◄`, and the other ten are the table in
    _Examples_.
 4. Each endpoint chooses its own style, independently of the other endpoint and of the stroke.
 5. `{ "kind": "style", "style": "<name>" }` resolves against the eleven, and a name it does not hold
@@ -186,31 +187,30 @@ of D6's fallback.
 
 ## Examples
 
-**The eleven**, indexed by `leaving`: the column says which way the connector leaves, not which way
-the glyph points.
+**The eleven**, each column the way its glyph points: the endpoint leaves the other way, and
+`Style::glyph` is what bridges the two.
 
-| name                     | leaves `up` | leaves `right` | leaves `down` | leaves `left` |
-| ------------------------ | ----------- | -------------- | ------------- | ------------- |
-| `solid-triangle`         | ▼           | ◀              | ▲             | ▶             |
-| `small-solid-triangle`   | ▾           | ◂              | ▴             | ▸             |
-| `outline-triangle`       | ▽           | ◁              | △             | ▷             |
-| `small-outline-triangle` | ▿           | ◃              | ▵             | ▹             |
-| `solid-pointer`          | ▼           | ◄              | ▲             | ►             |
-| `unicode-arrow`          | ↓           | ←              | ↑             | →             |
-| `ascii-arrow`            | v           | <              | ^             | >             |
-| `white-diamond`          | ◇           | ◇              | ◇             | ◇             |
-| `black-diamond`          | ◆           | ◆              | ◆             | ◆             |
-| `white-circle`           | ○           | ○              | ○             | ○             |
-| `black-circle`           | ●           | ●              | ●             | ●             |
+| name                     | `up` | `right` | `down` | `left` |
+| ------------------------ | ---- | ------- | ------ | ------ |
+| `solid-triangle`         | ▲    | ▶       | ▼      | ◀      |
+| `small-solid-triangle`   | ▴    | ▸       | ▾      | ◂      |
+| `outline-triangle`       | △    | ▷       | ▽      | ◁      |
+| `small-outline-triangle` | ▵    | ▹       | ▿      | ◃      |
+| `solid-pointer`          | ▲    | ►       | ▼      | ◄      |
+| `unicode-arrow`          | ↑    | →       | ↓      | ←      |
+| `ascii-arrow`            | ^    | >       | v      | <      |
+| `white-diamond`          | ◇    | ◇       | ◇      | ◇      |
+| `black-diamond`          | ◆    | ◆       | ◆      | ◆      |
+| `white-circle`           | ○    | ○       | ○      | ○      |
+| `black-circle`           | ●    | ●       | ●      | ●      |
 
 `solid-triangle` and `solid-pointer` share `▲` and `▼`, because Unicode names no up- or
 down-pointing pointer; they differ on left and right. The four shapes that do not point carry one
-glyph in all four columns, which is not a special case: a style is a table of four, and nothing says
-the four differ.
+glyph in all four columns, which is no special case: nothing says a style's four entries differ.
 
 **The case that fixes the key.** An endpoint at `(0, 0)` leaving `down` and one at `(1, 1)` leaving
-`left`, both with `solid-pointer`. The `▲` belongs to `leaving: "down"` and the `►` to
-`leaving: "left"`:
+`left`, both with `solid-pointer`. The `▲` is the `up` entry, written by the endpoint leaving
+`down`, and the `►` is the `right` entry, written by the one leaving `left`:
 
 <!-- render: 2x2
 {
@@ -268,7 +268,7 @@ Nothing exists yet: the deciding stage adds no code. The names and tables bind t
 
 | Rule | Test                                                                                     |
 | ---- | ---------------------------------------------------------------------------------------- |
-| 1    | `a_style_writes_the_glyph_its_table_holds_for_the_leaving_direction`                     |
+| 1    | `a_style_writes_the_entry_for_the_direction_opposite_leaving`                            |
 | 2    | `a_style_covers_the_cell_and_composes_with_nothing`                                      |
 | 3    | `the_eleven_styles_are_the_tables_this_spec_lists`                                       |
 | 4    | `the_two_endpoints_of_a_connector_choose_their_styles_independently`                     |
