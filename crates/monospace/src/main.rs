@@ -101,7 +101,10 @@ fn start(path: Option<&str>) -> Result<Session, AppError> {
         Some(path) => std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?,
     };
 
-    Ok(Session::new(monospace_description::parse(&text)?))
+    Ok(Session::new(monospace_description::parse(
+        &text,
+        &monospace_terminal_styles::all(),
+    )?))
 }
 
 #[cfg(test)]

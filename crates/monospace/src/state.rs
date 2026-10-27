@@ -667,8 +667,8 @@ mod tests {
 
     /// The state of an application over the diagram `json` describes.
     fn a_state_over(json: &str) -> AppState {
-        let diagram =
-            monospace_description::parse(json).expect("the test's description is readable");
+        let diagram = monospace_description::parse(json, &monospace_terminal_styles::all())
+            .expect("the test's description is readable");
 
         AppState::new(Session::new(diagram))
     }
@@ -713,8 +713,8 @@ mod tests {
     /// measures the drawing: the box of `A_BOX` reaches `(5, 3)` from `(2, 1)`.
     #[test]
     fn a_state_that_has_not_drawn_a_frame_has_no_footprint() {
-        let diagram =
-            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let diagram = monospace_description::parse(A_BOX, &monospace_terminal_styles::all())
+            .expect("the test's description is readable");
         let mut state = AppState::new(Session::new(diagram));
 
         assert_eq!(
@@ -746,8 +746,8 @@ mod tests {
     /// in the first, because the one cell the window holds is the box's corner.
     #[test]
     fn the_last_frames_footprint_is_the_diagrams() {
-        let diagram =
-            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let diagram = monospace_description::parse(A_BOX, &monospace_terminal_styles::all())
+            .expect("the test's description is readable");
         let mut state = AppState::new(Session::new(diagram));
 
         state
@@ -933,8 +933,8 @@ mod tests {
     /// one step: there is something behind the position and nothing ahead of it.
     #[test]
     fn a_removal_leaves_the_session_one_step_further_on() {
-        let diagram =
-            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let diagram = monospace_description::parse(A_BOX, &monospace_terminal_styles::all())
+            .expect("the test's description is readable");
         let mut state = AppState::new(Session::new(diagram));
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
@@ -968,8 +968,8 @@ mod tests {
     /// identity and there is a step behind the position, which is what `Undo` gives back.
     #[test]
     fn a_move_leaves_the_session_one_step_further_on() {
-        let diagram =
-            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let diagram = monospace_description::parse(A_BOX, &monospace_terminal_styles::all())
+            .expect("the test's description is readable");
         let mut state = AppState::new(Session::new(diagram));
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
@@ -993,8 +993,8 @@ mod tests {
     /// the newest give nothing back, and the step between them is the one the removal recorded.
     #[test]
     fn undo_and_redo_stop_at_the_ends_of_the_history() {
-        let diagram =
-            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let diagram = monospace_description::parse(A_BOX, &monospace_terminal_styles::all())
+            .expect("the test's description is readable");
         let mut state = AppState::new(Session::new(diagram));
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 

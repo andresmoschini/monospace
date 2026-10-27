@@ -36,6 +36,7 @@ monospace-description.workspace = true
 monospace-core.workspace = true
 # The nine glyph tables the drawing is rendered with, shared with the command line.
 monospace-glyph-sets.workspace = true
+monospace-terminal-styles.workspace = true
 # The event loop, the terminal and its restoration.
 rat-salsa = "=4.0.3"
 # The palette and the styles the chrome is drawn in.

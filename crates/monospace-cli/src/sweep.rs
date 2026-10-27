@@ -92,8 +92,8 @@ fn description_of(shapes: &str) -> String {
 /// beside the code that uses it rather than a field in the description.
 fn case(name: &str, shapes: &str) -> String {
     let description = description_of(shapes);
-    let diagram =
-        parse(&description).unwrap_or_else(|error| panic!("{name} is not readable: {error}"));
+    let diagram = parse(&description, &monospace_terminal_styles::all())
+        .unwrap_or_else(|error| panic!("{name} is not readable: {error}"));
 
     let mut buffer = Buffer::new(Window {
         origin: Pos { x: 0, y: 0 },

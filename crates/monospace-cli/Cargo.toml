@@ -15,6 +15,7 @@ monospace-diagram.workspace = true
 # of its own: `render_once` draws one for a file it is given, and that path walks nowhere.
 monospace-editing.workspace = true
 monospace-glyph-sets.workspace = true
+monospace-terminal-styles.workspace = true
 
 [dev-dependencies]
 # The characterization in `src/sweep.rs`, at the same version the other two crates pin for theirs.

@@ -634,6 +634,7 @@ dependencies = [
  "monospace-description",
  "monospace-editing",
  "monospace-glyph-sets",
+ "monospace-terminal-styles",
  "rat-salsa",
  "rat-theme4",
  "rat-widget",
@@ -652,6 +653,7 @@ dependencies = [
  "monospace-diagram",
  "monospace-editing",
  "monospace-glyph-sets",
+ "monospace-terminal-styles",
  "serde_json",
 ]
 
@@ -669,7 +671,6 @@ version = "0.1.0"
 dependencies = [
  "monospace-core",
  "monospace-diagram",
- "monospace-terminal-styles",
  "serde",
  "serde_json",
 ]

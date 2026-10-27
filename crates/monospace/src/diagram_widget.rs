@@ -285,8 +285,8 @@ mod tests {
 
     /// The state of a region that has not drawn a frame yet, over the diagram `json` describes.
     fn a_state_over(json: &str) -> DiagramState {
-        let diagram =
-            monospace_description::parse(json).expect("the test's description is readable");
+        let diagram = monospace_description::parse(json, &monospace_terminal_styles::all())
+            .expect("the test's description is readable");
 
         DiagramState::new(monospace_editing::Session::new(diagram))
     }

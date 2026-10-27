@@ -171,8 +171,8 @@ mod tests {
 
     /// The state of an application over the diagram `json` describes.
     fn a_state_over(json: &str) -> AppState {
-        let diagram =
-            monospace_description::parse(json).expect("the test's description is readable");
+        let diagram = monospace_description::parse(json, &monospace_terminal_styles::all())
+            .expect("the test's description is readable");
 
         AppState::new(monospace_editing::Session::new(diagram))
     }

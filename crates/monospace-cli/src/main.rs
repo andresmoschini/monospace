@@ -134,7 +134,7 @@ fn main() -> ExitCode {
         },
     };
 
-    let diagram = match parse(&text) {
+    let diagram = match parse(&text, &monospace_terminal_styles::all()) {
         Ok(diagram) => diagram,
         Err(error) => {
             eprintln!("{error}");
@@ -586,13 +586,15 @@ mod tests {
     /// Two helpers rather than one with a flag for which picture to draw, because every caller here
     /// has text and wants a `String` and none of them is about the window on its own.
     fn render_json(json: &str, window: Window) -> String {
-        let diagram = parse(json).expect("well-formed description");
+        let diagram =
+            parse(json, &monospace_terminal_styles::all()).expect("well-formed description");
         render_once(&diagram, window)
     }
 
     /// The demonstration over `json`, parsed first, drawn into `window`.
     fn demonstrate_json(json: &str, window: Window) -> String {
-        let diagram = parse(json).expect("well-formed description");
+        let diagram =
+            parse(json, &monospace_terminal_styles::all()).expect("well-formed description");
         demonstrate(diagram, window)
     }
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
@@ -614,7 +616,8 @@ mod tests {
     /// parameters.
     #[test]
     fn a_one_box_description_renders_the_same_as_a_box_shape_drawn_directly() {
-        let diagram = parse(one_box_json()).expect("well-formed description");
+        let diagram = parse(one_box_json(), &monospace_terminal_styles::all())
+            .expect("well-formed description");
 
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
@@ -644,7 +647,8 @@ mod tests {
         let window = a_four_by_three_window();
         let (first, ..) = demonstrated_pictures(one_box_json(), window);
 
-        let diagram = parse(one_box_json()).expect("well-formed description");
+        let diagram = parse(one_box_json(), &monospace_terminal_styles::all())
+            .expect("well-formed description");
         assert_eq!(render_once(&diagram, window), first);
     }
 
@@ -1468,7 +1472,8 @@ mod tests {
     /// says at a position, not what `demonstrate` decided to write in a caption.
     #[test]
     fn the_shape_a_position_resolves_to_is_the_front_most_of_the_two_that_wrote_it() {
-        let diagram = parse(super::DEMO).expect("the shipped description reads");
+        let diagram = parse(super::DEMO, &monospace_terminal_styles::all())
+            .expect("the shipped description reads");
         let catalog = monospace_glyph_sets::all();
         let window = in_the_demo_window();
         let (buffer, picture) = drawn(&diagram, &catalog, window);
@@ -1546,7 +1551,8 @@ mod tests {
     /// **behind**. `5` is listed after `6` and so is in front, which is why the record names `6`.
     #[test]
     fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
-        let diagram = parse(super::DEMO).expect("the shipped description reads");
+        let diagram = parse(super::DEMO, &monospace_terminal_styles::all())
+            .expect("the shipped description reads");
         let window = in_the_demo_window();
         let (buffer, _) = drawn(&diagram, &monospace_glyph_sets::all(), window);
 
@@ -1797,7 +1803,8 @@ mod tests {
                 { "kind": "box", "id": 3, "at": { "x": 6, "y": 3 }, "size": { "width": 4, "height": 3 },
                   "stroke": "heavy" } ]
         }"#;
-        let diagram = parse(json).expect("the description reads");
+        let diagram =
+            parse(json, &monospace_terminal_styles::all()).expect("the description reads");
         let origin = Pos { x: -3, y: -2 };
         let size = Size {
             width: 7,

@@ -1,10 +1,11 @@
 //! The diagram description format: JSON deserialized into a `monospace_diagram::Diagram`.
 //!
-//! One call does the whole of it — [`parse`] takes the text and hands back the diagram — and every
-//! type behind that call is private to this crate. The public surface is two things: [`parse`] and
-//! [`ParseError`]. Nothing here reaches a file, a terminal or a screen: a caller that wants to read
-//! from disk reads the disk itself and hands the text over. **Nothing here names a window either**,
-//! because which part of a diagram to draw is the caller's question and the window is the caller's.
+//! One call does the whole of it — [`parse`] takes the text and the style tables and hands back the
+//! diagram — and every type behind that call is private to this crate. The public surface is two
+//! things: [`parse`] and [`ParseError`]. Nothing here reaches a file, a terminal or a screen: a
+//! caller that wants to read from disk reads the disk itself and hands the text over. **Nothing
+//! here names a window either**, because which part of a diagram to draw is the caller's question
+//! and the window is the caller's.
 //!
 //! **This crate is a layer above the diagram, and it knows nothing of the editing layer.** Both
 //! hang off `monospace-diagram` and neither depends on the other; what would join them is a
@@ -42,6 +43,12 @@
 //! writer would owe a reader. **No file.** [`parse`] takes text rather than a path, so nothing in
 //! this crate reaches a filesystem — which is also what keeps it portable by naming rather than by
 //! anything it avoids.
+//!
+//! **No style table.** A description names a style, and which tables that name can resolve against
+//! is the caller's, exactly as a drawing is handed a glyph catalog: `parse` takes a
+//! [`StyleCatalog`] rather than reaching for one, so a binary ships the styles it means to and this
+//! crate depends on no table at all. Which tables those are is decided where the binary is
+//! assembled, and `docs/terminal-styles.md` lists the ones this project ships.
 
 use std::num::NonZeroU16;
 
@@ -87,6 +94,11 @@ impl std::error::Error for ParseError {
 /// caller's question, and a caller that wants one names it on the command line or on the line that
 /// opens a render marker.
 ///
+/// **`styles` is the tables a style name resolves against**, and it is a parameter for the same
+/// reason the window is the caller's: which styles a build means to draw is decided where the
+/// binary is assembled, not here. A name the catalog does not hold draws `Style::default`, in
+/// silence — `style_named` says what that costs and why it is accepted.
+///
 /// # Errors
 ///
 /// [`ParseError`] when the text is not a description this crate reads — a field left out, a `kind`
@@ -96,6 +108,7 @@ impl std::error::Error for ParseError {
 /// # Examples
 ///
 /// ```
+/// # use monospace_core::StyleCatalog;
 /// # use monospace_description::parse;
 /// let diagram = parse(
 ///     r#"{
@@ -103,6 +116,7 @@ impl std::error::Error for ParseError {
 ///         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
 ///                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
 ///     }"#,
+///     &StyleCatalog::solid_pointer(),
 /// )
 /// .expect("a well-formed description");
 ///
@@ -110,16 +124,7 @@ impl std::error::Error for ParseError {
 ///     .get(monospace_diagram::ShapeId::new(std::num::NonZeroU16::new(1).expect("one is nonzero")))
 ///     .is_some());
 /// ```
-pub fn parse(json: &str) -> Result<Diagram, ParseError> {
-    let styles = monospace_terminal_styles::all();
-    parse_with(json, &styles)
-}
-
-/// Reads a description, resolving each style name against `styles`.
-///
-/// The one place a style name becomes four glyphs, so that the catalog a style is resolved against
-/// is a parameter of a single function rather than something read wherever a terminal is converted.
-fn parse_with(json: &str, styles: &StyleCatalog) -> Result<Diagram, ParseError> {
+pub fn parse(json: &str, styles: &StyleCatalog) -> Result<Diagram, ParseError> {
     let description: Description = serde_json::from_str(json).map_err(ParseError)?;
     Ok(description.into_diagram(styles))
 }
@@ -262,18 +267,19 @@ where
 }
 
 /// What an endpoint's `terminal` is on the wire, tagged by `kind`: one chosen glyph, one arm, or a
-/// style named against the eleven. An unrecognized `kind` is reported by name, and the message names
-/// the three accepted.
+/// style named against the tables the caller handed over. An unrecognized `kind` is reported by
+/// name, and the message names the three accepted.
 ///
 /// Internally tagged rather than externally, because `deserialize_glyph` needs a _named_ field to
 /// sit on and the external form has none — `Glyph(Glyph)` does not compile, since `Glyph` derives
 /// no `Deserialize`. A field an `arm` does not know is ignored, as everywhere else in this format.
 ///
-/// **A style's name is resolved here, as the file is read**, and a name the eleven do not hold draws
-/// `solid-pointer` in silence. The list is open the way glyph sets are, so a file written against a
-/// later catalog stays readable by an earlier build, and [`parse`] answers a `Diagram` or a
-/// [`ParseError`] with no third channel a substitution could be reported on. The cost is that a
-/// misspelled style is invisible, and that is accepted rather than overlooked.
+/// **A style's name is resolved here, as the file is read, against the catalog [`parse`] is given**,
+/// and a name that catalog does not hold draws `solid-pointer` in silence. A catalog is open the way
+/// a glyph catalog is, so a file written against a later one stays readable by an earlier build, and
+/// [`parse`] answers a `Diagram` or a [`ParseError`] with no third channel a substitution could be
+/// reported on. The cost is that a misspelled style is invisible, and that is accepted rather than
+/// overlooked.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum Terminal {
@@ -608,9 +614,28 @@ impl Description {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{Buffer, GlyphCatalog, Pos, Size, Window};
+    use monospace_core::{Buffer, Glyph, GlyphCatalog, Pos, Size, Style, StyleCatalog, Window};
 
     use super::{Description, Diagram, ParseError, parse};
+
+    /// The tables these tests hand the reader.
+    ///
+    /// **Built here rather than imported**, which is the claim this crate's public surface makes:
+    /// a test that imported the project's eleven would pass against a reader that held a table of
+    /// its own, and this crate holds none. `diamond` points nowhere, so a `◆` in a picture can only
+    /// have come from the catalog this function built.
+    fn styles() -> StyleCatalog {
+        let diamond = Glyph::new("◆").expect("◆ is one glyph");
+        StyleCatalog::from_styles([(
+            "diamond",
+            Style {
+                up: diamond.clone(),
+                right: diamond.clone(),
+                down: diamond.clone(),
+                left: diamond,
+            },
+        )])
+    }
 
     /// The error a description that must not read hands back.
     ///
@@ -618,7 +643,7 @@ mod tests {
     /// `Diagram` derives none, and deriving it here would mean the diagram crate grew a `Debug`
     /// every consumer inherits for the sake of one test module. `Result::err` does not.
     fn refusal(json: &str) -> ParseError {
-        parse(json)
+        parse(json, &styles())
             .err()
             .expect("a description this format refuses must fail")
     }
@@ -626,7 +651,7 @@ mod tests {
     /// The picture a description draws through [`parse`] — the whole of the public path — into the
     /// window `description_of` writes for.
     fn picture(json: &str) -> String {
-        let diagram = parse(json).expect("a description this format reads");
+        let diagram = parse(json, &styles()).expect("a description this format reads");
         let mut buffer = Buffer::new(Window {
             origin: Pos { x: 0, y: 0 },
             size: Size {
@@ -653,6 +678,7 @@ mod tests {
             "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
         }"#,
+            &styles(),
         )
         .expect("a well-formed description");
 
@@ -700,7 +726,8 @@ mod tests {
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
         }"#;
 
-        let diagram: Diagram = parse(json).expect("a description carrying a canvas still reads");
+        let diagram: Diagram =
+            parse(json, &styles()).expect("a description carrying a canvas still reads");
         let origin = Pos { x: 0, y: 0 };
         let size = Size {
             width: 6,
@@ -728,7 +755,7 @@ mod tests {
     /// dependency to answer nothing they ask. Measured rather than argued: the same three shapes
     /// drawn in `double` come out of this catalog as an empty buffer.
     fn render_once(description: Description, origin: Pos, size: Size) -> String {
-        let diagram = description.into_diagram(&monospace_terminal_styles::all());
+        let diagram = description.into_diagram(&styles());
 
         let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
@@ -761,7 +788,7 @@ mod tests {
             ]
         }"#;
 
-        assert!(parse(json).is_err());
+        assert!(parse(json, &styles()).is_err());
     }
 
     /// A `terminal`'s glyph of more than one grapheme cluster fails to deserialize. The grapheme
@@ -782,7 +809,7 @@ mod tests {
             ]
         }"#;
 
-        assert!(parse(json).is_err());
+        assert!(parse(json, &styles()).is_err());
     }
 
     /// One connector, with `TERMINAL` standing where the `from` endpoint's terminal goes. The three
@@ -844,22 +871,30 @@ mod tests {
         );
     }
 
-    /// A style's name resolves against the eleven, and a name the list does not hold draws
-    /// `solid-pointer` in silence — the same picture a chosen `◄` draws, and a different one from a
-    /// name the list does hold.
+    /// A style's name resolves against the catalog the caller handed over, and a name that catalog
+    /// does not hold draws `solid-pointer` in silence — the same picture a chosen `◄` draws.
+    ///
+    /// **Both halves are here, and the second is the one this crate's surface is judged on.** A name
+    /// the catalog holds draws that table, so a reader that fell back for everything fails; a name
+    /// the *project* ships but this catalog does not draws the default, so a table of the project's
+    /// own leaking into this crate fails.
     #[test]
     fn an_unknown_style_name_draws_the_default() {
         let with = |terminal: &str| picture(&description_of(&ARROW.replace("TERMINAL", terminal)));
 
         let unknown = with(r#"{ "kind": "style", "style": "no-such-style" }"#);
-        let pointer = with(r#"{ "kind": "style", "style": "solid-pointer" }"#);
         let chosen = with(r#"{ "kind": "glyph", "glyph": "◄" }"#);
 
-        assert_eq!(unknown, pointer);
         assert_eq!(unknown, chosen);
-        assert_ne!(
+        assert_eq!(
             with(r#"{ "kind": "style", "style": "ascii-arrow" }"#),
-            unknown
+            unknown,
+            "a name the project ships and this catalog does not draws the default"
+        );
+        assert_ne!(
+            with(r#"{ "kind": "style", "style": "diamond" }"#),
+            unknown,
+            "a name the catalog holds draws its own table"
         );
     }
 
@@ -956,7 +991,7 @@ mod tests {
         );
 
         assert!(
-            parse(&json).is_ok(),
+            parse(&json, &styles()).is_ok(),
             "a stray field beside a tagged `at` must not refuse the file"
         );
     }
@@ -975,7 +1010,7 @@ mod tests {
         ));
 
         assert!(
-            parse(&json).is_ok(),
+            parse(&json, &styles()).is_ok(),
             "a reference without an `offset` must read"
         );
     }
@@ -997,7 +1032,7 @@ mod tests {
         ));
 
         assert!(
-            parse(&json).is_ok(),
+            parse(&json, &styles()).is_ok(),
             "an unknown key beside a reference's own fields must not refuse the file"
         );
     }
