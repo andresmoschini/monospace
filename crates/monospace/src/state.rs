@@ -10,7 +10,8 @@
 //! the removal recorded. The application keeps no history of its own: the session is the history.
 
 use monospace_core::{
-    Buffer, CellReader, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId, Size, Window,
+    Buffer, CellReader, Footprint, FootprintSink, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId,
+    Size, Window,
 };
 use monospace_editing::{Command, Session};
 use rat_widget::menu::MenubarState;
@@ -30,6 +31,13 @@ pub(crate) struct DiagramState {
     /// the person saw rather than from a drawing made when the click arrives (D4). Empty until
     /// the first frame is drawn.
     buffer: Buffer,
+
+    /// The footprint the last frame's drawing left, measured on its way into `buffer`.
+    ///
+    /// **Measured while the stamps pass rather than asked of the cells afterwards**: a stamp the
+    /// window discarded and a stamp the composition found already decided both count, and the
+    /// buffer cannot answer for either. `None` until the first frame is drawn.
+    footprint: Option<Footprint>,
 
     /// The interior the last frame drew the diagram into, as the screen holds it. A click arrives
     /// as a column and a row of the screen, and this is what says whether it landed inside the
@@ -70,6 +78,7 @@ impl DiagramState {
                     height: 0,
                 },
             }),
+            footprint: None,
             interior: Rect::new(0, 0, 0, 0),
             region: Rect::new(0, 0, 0, 0),
             selected: None,
@@ -88,6 +97,24 @@ impl DiagramState {
             .position(at)
             .and_then(|position| self.buffer.cell(position))
             .and_then(|cell| cell.glyph_str(catalog))
+    }
+
+    /// The footprint the last frame's drawing reaches, or `None` before the first [`redraw`].
+    ///
+    /// **The drawing's and not the window's**: the sink measures every stamp before the buffer
+    /// consults its window, so a diagram larger than the interior reaches past it and one drawn at
+    /// a scroll origin away from `(0, 0)` is measured where it stands. `min` is the top-left corner
+    /// in the plane, which is what a later slice needs to bound the origin; the click paths above
+    /// stay in offsets and are unaffected.
+    ///
+    /// **The last frame's, measured when that frame was drawn**: it is re-measured by [`redraw`],
+    /// and it changes when the session does rather than when the screen does. Its reader is the
+    /// status bar, which is why it is read once the region is drawn and not while the state is
+    /// built.
+    ///
+    /// [`redraw`]: Self::redraw
+    pub(crate) fn footprint(&self) -> Option<Footprint> {
+        self.footprint
     }
 
     /// The shape a click selected, or `None` while no shape is selected.
@@ -271,8 +298,13 @@ impl DiagramState {
                 height: interior.height,
             },
         });
-        self.session.diagram().draw(&mut buffer);
+        let footprint = {
+            let mut sink = FootprintSink::new(&mut buffer);
+            self.session.diagram().draw(&mut sink);
+            sink.footprint()
+        };
         self.buffer = buffer;
+        self.footprint = footprint;
         self.interior = interior;
         self.region = region;
     }
@@ -384,7 +416,79 @@ mod tests {
             !state.menu.popup_active(),
             "a drop-down is open on the first frame"
         );
-        assert_eq!(state.status.status.len(), 2, "the status bar says nothing");
+        assert_eq!(
+            state.status.status.len(),
+            3,
+            "the status bar does not have one section per row of its table"
+        );
+    }
+
+    /// **A state that has not drawn a frame has measured nothing**, and the first `redraw` is what
+    /// measures the drawing: the box of `A_BOX` reaches `(5, 3)` from `(2, 1)`.
+    #[test]
+    fn a_state_that_has_not_drawn_a_frame_has_no_footprint() {
+        let diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let mut state = AppState::new(Session::new(diagram));
+
+        assert_eq!(
+            state.diagram.footprint(),
+            None,
+            "a state that has drawn no frame reached somewhere"
+        );
+
+        state
+            .diagram
+            .redraw(Rect::new(0, 0, 20, 10), Rect::new(0, 0, 20, 10));
+
+        assert_eq!(
+            state.diagram.footprint(),
+            Some(Footprint {
+                min: Pos { x: 2, y: 1 },
+                max: Pos { x: 5, y: 3 },
+            }),
+            "the first frame did not measure the drawing"
+        );
+    }
+
+    /// The footprint of the last frame is the drawing's and not the interior's: the box of
+    /// `A_BOX` stands at `(2, 1)` and is four by three, so it reaches `(5, 3)` whether the interior
+    /// holds it or not.
+    ///
+    /// **The two interiors are the case**: one holds a single cell of the box and the other holds
+    /// all of it, and the answer does not move. A record taken from the cells would give `(2, 1)`
+    /// in the first, because the one cell the window holds is the box's corner.
+    #[test]
+    fn the_last_frames_footprint_is_the_diagrams() {
+        let diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let mut state = AppState::new(Session::new(diagram));
+
+        state
+            .diagram
+            .redraw(Rect::new(0, 0, 3, 2), Rect::new(0, 0, 1, 1));
+
+        assert_eq!(
+            state.diagram.footprint(),
+            Some(Footprint {
+                min: Pos { x: 2, y: 1 },
+                max: Pos { x: 5, y: 3 },
+            }),
+            "the interior decided how far the drawing reaches"
+        );
+
+        state
+            .diagram
+            .redraw(Rect::new(0, 0, 20, 10), Rect::new(0, 0, 20, 10));
+
+        assert_eq!(
+            state.diagram.footprint(),
+            Some(Footprint {
+                min: Pos { x: 2, y: 1 },
+                max: Pos { x: 5, y: 3 },
+            }),
+            "a larger interior changed the diagram's footprint"
+        );
     }
 
     /// **The removal is the session's, and it records the step #181 gives back.** One command is
