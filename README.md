@@ -91,7 +91,7 @@ it, so the same box draws in ASCII, Double, Heavy and their combinations without
 
 Behind that, and all of it enforced rather than merely intended:
 
-- **126** tests in `monospace-core`, **553** across the workspace.
+- **136** tests in `monospace-core`, **610** across the workspace.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
@@ -102,8 +102,12 @@ Behind that, and all of it enforced rather than merely intended:
 Still missing, and named here rather than implied: the editing **surface** — the interactive
 application's frame, its menu, its way out, the diagram it was given, selecting one of its shapes
 with a click, deleting the selected shape, moving it with the arrow keys, giving that change back,
-the keyboard moving between the bar and the diagram, `Alt` or `F10` reaching a menu, and the About
-dialog are here, and editing one beyond that is not — and persistence.
+the keyboard moving between the bar and the diagram, `Alt` or `F10` reaching a menu, the About
+dialog, and a view that the wheel and the bars move are here, and editing one beyond that is not —
+and persistence. The view moves with the wheel and with the bars on the region's border; no key
+moves it yet, which is [#237](https://github.com/andresmoschini/monospace/issues/237)'s, and what
+the status bar says about where it stands is
+[#226](https://github.com/andresmoschini/monospace/issues/226)'s.
 
 ## Getting started
 

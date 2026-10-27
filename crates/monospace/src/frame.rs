@@ -943,6 +943,48 @@ mod tests {
         );
     }
 
+    /// **The demonstration's cells inside the region are the ones they were** (rule 8): its drawing
+    /// is larger than the interior on both axes and was already clipped, so the two bars that now
+    /// appear move the border and nothing else.
+    ///
+    /// **What the region holds is what the drawing puts there**, cell for cell, through the window
+    /// the frame drew at — and the landmarks the picture is read by are where the one before this
+    /// change had them.
+    #[test]
+    fn the_demonstrations_picture_keeps_its_cells() {
+        let session = crate::start(None).expect("the shipped demonstration is readable");
+        let mut state = AppState::new(session);
+        let buffer = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+        let region = regions(Rect::new(0, 0, WIDTH, HEIGHT)).region;
+        let catalog = monospace_glyph_sets::all();
+
+        for line in region.top() + 1..region.bottom() - 1 {
+            for column in region.left() + 1..region.right() - 1 {
+                let at = Offset {
+                    x: column - region.left() - 1,
+                    y: line - region.top() - 1,
+                };
+                let drawn = state.diagram.glyph(at, &catalog).unwrap_or(" ");
+
+                assert_eq!(
+                    buffer[(column, line)].symbol(),
+                    drawn,
+                    "({column}, {line}) is not the cell the drawing holds there"
+                );
+            }
+        }
+
+        let first = row_of(&buffer, region.top() + 1);
+        assert!(
+            first.starts_with("│┌──┐"),
+            "the demonstration's first row moved: {first:?}"
+        );
+        assert!(
+            first.contains("+--+"),
+            "the demonstration's ASCII box moved: {first:?}"
+        );
+    }
+
     #[test]
     fn the_screen_with_the_demo() {
         let session = crate::start(None).expect("the shipped demonstration is readable");

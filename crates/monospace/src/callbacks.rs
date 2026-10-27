@@ -246,7 +246,7 @@ mod tests {
     use crate::config::Config;
     use crate::status;
     use crate::vocabulary::AppError;
-    use monospace_core::Offset;
+    use monospace_core::{Offset, Pos};
     use ratatui_core::layout::Rect;
     use ratatui_core::style::Modifier;
     use ratatui_crossterm::crossterm::event::{
@@ -308,6 +308,36 @@ mod tests {
         ]
     }"#;
 
+    /// A description whose only shape is a light `60×14` box at `(0, 0)`: larger than the window on
+    /// both axes, so the view has room to travel.
+    ///
+    /// The window is `38×6`, so the content's span is `22` cells across and `8` down. The helper's
+    /// step is a tenth of the window — `3` across, and `1` down because a tenth of six cells is
+    /// nothing and the helper answers at least one.
+    const A_BOX_TOO_BIG: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                      "size": { "width": 60, "height": 14 }, "stroke": "light" } ]
+    }"#;
+
+    /// Three boxes, at `(0, 0)`, `(27, 0)` and `(50, 0)`, the last two `3×3` and the first `4×3`.
+    ///
+    /// **The third gives the content its width**, so the view has `16` columns to travel, and the
+    /// second is what a click after a scroll has to find: three columns across puts its corner at
+    /// the window's `(24, 0)`, and the window's `(27, 0)` — what a click that added the origin would
+    /// ask about — is a cell no shape wrote.
+    const BOXES_APART: &str = r#"{
+        "next_id": 4,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 27, "y": 0 },
+              "size": { "width": 3, "height": 3 }, "stroke": "light" },
+            { "kind": "box", "id": 3, "at": { "x": 50, "y": 0 },
+              "size": { "width": 3, "height": 3 }, "stroke": "light" }
+        ]
+    }"#;
+
     /// The state of an application over the diagram `json` describes.
     fn a_state_over(json: &str) -> AppState {
         let diagram =
@@ -325,8 +355,40 @@ mod tests {
 
     /// The event the terminal reports for a left press at the screen position `(column, row)`.
     fn click(column: u16, row: u16) -> Event {
+        press(MouseButton::Left, column, row)
+    }
+
+    /// The event the terminal reports for a press of `button` at the screen position
+    /// `(column, row)`.
+    fn press(button: MouseButton, column: u16, row: u16) -> Event {
         Event::Mouse(MouseEvent {
-            kind: MouseEventKind::Down(MouseButton::Left),
+            kind: MouseEventKind::Down(button),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        })
+    }
+
+    /// The event the terminal reports for a turn of the wheel at the screen position
+    /// `(column, row)`.
+    fn wheel(kind: MouseEventKind, column: u16, row: u16) -> Event {
+        wheel_with(kind, KeyModifiers::NONE, column, row)
+    }
+
+    /// The event the terminal reports for a turn of the wheel with `modifiers` held.
+    fn wheel_with(kind: MouseEventKind, modifiers: KeyModifiers, column: u16, row: u16) -> Event {
+        Event::Mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers,
+        })
+    }
+
+    /// The event the terminal reports for the pointer moving with the left button down.
+    fn drag(column: u16, row: u16) -> Event {
+        Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Drag(MouseButton::Left),
             column,
             row,
             modifiers: KeyModifiers::NONE,
@@ -1866,6 +1928,344 @@ mod tests {
             buffer[(20, 3)].symbol(),
             "┐",
             "the right box is not four cells wide"
+        );
+    }
+
+    /// **A turn of the wheel over the region moves the view by the helper's step** (rule 3): a
+    /// tenth of the window on the axis the wheel reports, and at least one cell where the tenth is
+    /// less. The step is the helper's rather than a rule of ours, so the numbers are its
+    /// arithmetic: `38/10 = 3` across and `6/10 = 0`, which it answers as one cell down.
+    ///
+    /// **`Alt` is the wheel's across**: the helper reads a turn with `Alt` held as the horizontal
+    /// axis, which is the one gesture the wheel and the bar share.
+    #[test]
+    fn the_wheel_moves_the_view_by_the_helpers_step() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+
+        let outcome = send(&wheel(MouseEventKind::ScrollDown, 5, 4), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 1 },
+            "a turn down did not move the view by a tenth of the window, at least one cell"
+        );
+
+        let outcome = send(
+            &wheel_with(MouseEventKind::ScrollDown, KeyModifiers::ALT, 5, 4),
+            &mut state,
+        );
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 3, y: 1 },
+            "Alt and a turn down did not move the view across by a tenth of the window"
+        );
+    }
+
+    /// **A turn the content refuses changes nothing and owes no frame** (rule 3): at the far end of
+    /// the content there is nowhere left to go, so the region does not claim the event.
+    #[test]
+    fn a_wheel_at_the_end_moves_nothing_and_owes_no_frame() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+
+        for _ in 0..8 {
+            let _ = send(
+                &wheel_with(MouseEventKind::ScrollDown, KeyModifiers::ALT, 5, 4),
+                &mut state,
+            );
+        }
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 22, y: 0 },
+            "eight turns did not reach the content's far end, so the test proves nothing"
+        );
+
+        let outcome = send(
+            &wheel_with(MouseEventKind::ScrollDown, KeyModifiers::ALT, 5, 4),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Continue),
+            "the end of the content owed a frame: {outcome:?}"
+        );
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 22, y: 0 },
+            "the view moved past the content"
+        );
+    }
+
+    /// **A press on the bar takes the view to the position it names** (rule 4): the helper maps the
+    /// track's cells over the content's reach, so the middle of the track names the middle of the
+    /// content.
+    ///
+    /// The vertical track is the region's last column, rows `2` to `7`, and the content's span is
+    /// `8`: the row `5` the press lands on is the third of the four cells the track maps, so the view
+    /// stands four rows down.
+    #[test]
+    fn a_press_on_the_bar_jumps_the_view() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+
+        let outcome = send(&click(39, 5), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 4 },
+            "the press did not take the view to the position it named"
+        );
+    }
+
+    /// **A drag on the bar follows the pointer** (rule 4): the press starts the drag where the thumb
+    /// stands, and every position the pointer reaches names the offset under it.
+    ///
+    /// The track is rows `2` to `7` of the region's last column. The press is at row `3`, which maps
+    /// to the content's first row — where the view already stands, so it moves nothing and is only
+    /// what starts the drag — and the two drags walk the track to its last cell, which is the end of
+    /// the content.
+    #[test]
+    fn a_drag_on_the_bar_follows_the_pointer() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+
+        let outcome = send(&click(39, 3), &mut state);
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 0 },
+            "the press where the thumb stands moved the view"
+        );
+
+        let outcome = send(&drag(39, 5), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 4 },
+            "the drag did not follow the pointer down the track"
+        );
+
+        let outcome = send(&drag(39, 7), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 8 },
+            "the drag across the track's last cell did not reach the content's end"
+        );
+    }
+
+    /// **A drag past the track stops at the content's end** (rule 2): the helper keeps reading a drag
+    /// once it began on the bar, so a pointer that leaves the track names an offset past the
+    /// content's span — `10` where the span is `8` — and the origin's range is what holds it.
+    ///
+    /// The track is rows `2` to `7` of the region's last column, so row `8` is the region's bottom
+    /// border: one cell past the track, and still a drag the helper answers.
+    #[test]
+    fn a_drag_past_the_track_is_clamped_to_the_content() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+
+        let outcome = send(&click(39, 3), &mut state);
+        assert!(
+            matches!(outcome, Control::Continue),
+            "the press moved the view: {outcome:?}"
+        );
+
+        let outcome = send(&drag(39, 8), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 8 },
+            "the drag past the track did not stop at the content's end"
+        );
+    }
+
+    /// **A scroll changes no session and records no step** (rule 5): the view is the state's and the
+    /// walk is the session's, so a turn of the wheel leaves the history and the drawing alone.
+    #[test]
+    fn a_scroll_records_no_step() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+        let reach = state.diagram.footprint();
+        assert!(reach.is_some(), "the drawing reached nothing");
+
+        let outcome = send(&wheel(MouseEventKind::ScrollDown, 5, 4), &mut state);
+
+        assert!(
+            matches!(outcome, Control::Changed),
+            "the view did not move, so the test proves nothing: {outcome:?}"
+        );
+        assert!(!state.diagram.can_undo(), "the scroll recorded a step");
+        assert!(!state.diagram.can_redo(), "the scroll left a step ahead");
+        assert_eq!(
+            state.diagram.footprint(),
+            reach,
+            "the scroll changed what the drawing reaches"
+        );
+    }
+
+    /// **Neither an undo nor a redo restores a view** (rule 5): the moves are the session's and the
+    /// view is the state's, so walking the history changes what is drawn without changing where it
+    /// is drawn from.
+    #[test]
+    fn neither_an_undo_nor_a_redo_restores_a_view() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+        let _ = send(&click(2, 2), &mut state);
+        assert!(
+            state.diagram.selected().is_some(),
+            "the box was not selected"
+        );
+        let _ = send(&key(KeyCode::Right), &mut state);
+        assert!(state.diagram.can_undo(), "the move recorded no step");
+        let _ = send(&wheel(MouseEventKind::ScrollDown, 5, 4), &mut state);
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 1 },
+            "the wheel did not move the view, so the test proves nothing"
+        );
+
+        let outcome = send(&undo_key(), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.diagram.can_redo(),
+            "the undo did not walk the history"
+        );
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 1 },
+            "the undo restored a view"
+        );
+
+        let outcome = send(&redo_key(), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.diagram.can_undo(),
+            "the redo did not walk the history"
+        );
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 1 },
+            "the redo restored a view"
+        );
+    }
+
+    /// **A scroll keeps the selection** (rule 6): the identity is the drawing's rather than a
+    /// cell's, so the frame after the scroll inverts the cells the drawing records for it inside the
+    /// new window, and no others.
+    #[test]
+    fn a_scroll_keeps_the_selection() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+        let _ = send(&click(2, 2), &mut state);
+        let selected = state.diagram.selected();
+        assert!(selected.is_some(), "the box was not selected");
+        assert!(
+            reversed(&draw(&mut state), 2, 2),
+            "the selection is not inverted before the scroll"
+        );
+
+        let outcome = send(&wheel(MouseEventKind::ScrollDown, 5, 4), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 1 },
+            "the wheel did not move the view, so the test proves nothing"
+        );
+
+        let buffer = draw(&mut state);
+        let region = frame::regions(Rect::new(0, 0, WIDTH, HEIGHT)).region;
+
+        assert_eq!(
+            state.diagram.selected(),
+            selected,
+            "the scroll dropped the selection"
+        );
+        for y in 0..region.height - 2 {
+            for x in 0..region.width - 2 {
+                let at = Offset { x, y };
+
+                assert_eq!(
+                    reversed(&buffer, region.left() + 1 + x, region.top() + 1 + y),
+                    state.diagram.is_cell_selected(at),
+                    "the cell at {at:?} is not the inversion the drawing records"
+                );
+            }
+        }
+    }
+
+    /// **A click after a scroll is answered at the offset from the window's corner** (rule 7): the
+    /// origin belongs to the plane and takes no part in the click's arithmetic, so the cell under
+    /// the pointer is the cell the person saw.
+    ///
+    /// `Alt` and a turn of the wheel move the view three columns across, which puts the middle box's
+    /// corner at the window's `(24, 0)` — the screen's `(25, 2)`. A click that added the origin to
+    /// the offset would ask about the window's `(27, 0)`, which no shape wrote.
+    #[test]
+    fn a_click_after_a_scroll_selects_the_cell_under_the_pointer() {
+        let mut state = a_drawn_state_over(BOXES_APART);
+
+        let outcome = send(
+            &wheel_with(MouseEventKind::ScrollDown, KeyModifiers::ALT, 20, 4),
+            &mut state,
+        );
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 3, y: 0 },
+            "the view did not move across, so the test proves nothing"
+        );
+
+        // **The frame comes before the click**, as it does in the loop: `ScreenChanged` repaints, and
+        // a click is answered from the picture the person saw.
+        let _ = draw(&mut state);
+        let outcome = send(&click(25, 2), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        let under = state.diagram.owner(Offset { x: 24, y: 0 });
+        assert!(
+            under.is_some(),
+            "the cell under the pointer is not the middle box's corner"
+        );
+        assert_eq!(
+            state.diagram.selected(),
+            under,
+            "the click selected another shape"
+        );
+    }
+
+    /// **A press on the bar is the bar's and not the diagram's** (rule 7): it moves the view and
+    /// keeps a selection that a press on a cell of the drawing would have dropped, and it still
+    /// gives the region the keyboard, because a press on the border is the region's.
+    #[test]
+    fn a_press_on_the_bar_gives_the_region_the_keyboard() {
+        let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
+        let _ = send(&click(2, 2), &mut state);
+        let selected = state.diagram.selected();
+        assert!(selected.is_some(), "the box was not selected");
+        state.focus = Focus::Bar;
+        let _ = draw(&mut state);
+
+        let outcome = send(&click(39, 5), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.focus,
+            Focus::Region,
+            "the press on the bar left the keyboard on the bar"
+        );
+        assert_eq!(
+            state.diagram.selected(),
+            selected,
+            "the press on the bar changed the selection"
+        );
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 4 },
+            "the press on the bar did not move the view"
         );
     }
 

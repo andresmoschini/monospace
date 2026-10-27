@@ -16,6 +16,8 @@
 
 use rat_theme4::StyleName;
 use rat_theme4::theme::SalsaTheme;
+use rat_widget::event::{HandleEvent, MouseOnly};
+use rat_widget::scrolled::{Scroll, ScrollbarPolicy};
 use ratatui_widgets::block::Block;
 
 use monospace_core::{GlyphCatalog, Offset};
@@ -23,7 +25,7 @@ use ratatui_core::{
     buffer::Buffer,
     layout::{Position, Rect},
     style::Style,
-    widgets::Widget,
+    widgets::{StatefulWidget, Widget},
 };
 use ratatui_crossterm::crossterm::event::{
     Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -44,9 +46,14 @@ pub(crate) fn draw(
     let interior = inner_region(area);
     state.redraw(area, interior);
     draw_diagram(interior, buf, state, catalog);
+    draw_bars(area, buf, state);
 }
 
 /// What an event means to the region.
+///
+/// **The bars are asked first, and the region after them** (D3): a wheel turn over the region and a
+/// press or a drag on either bar are the bars' own answers, and only what they leave alone is a
+/// question about the drawing.
 ///
 /// **The region answers a click and the four arrows.** A click is the region's whatever leaf holds
 /// the keyboard (D1), and a key is the region's only while it does: the arrows are what the region
@@ -55,11 +62,31 @@ pub(crate) fn draw(
 /// **Everything else is answered with nothing** so that the event goes on to the next handler
 /// (rule 3).
 pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus) -> Option<Action> {
+    if let Some(action) = scroll(raw, state) {
+        return Some(action);
+    }
+
     match raw {
         Event::Mouse(mouse) => click(*mouse, state),
         Event::Key(_) if focus == Focus::Region => key(raw),
         _ => None,
     }
+}
+
+/// What the bars make of the event, and the frame that owes when the view moved.
+///
+/// **The helper is asked once for both bars** (D3): the wheel over the region, a press on a track
+/// and a drag that follows the pointer are one call, and the answer already names the axis it spoke
+/// for. **A press is the bar's only where the bar is drawn**: a track the content collapsed answers
+/// nothing, so the interior's press reaches [`click`] as it always did.
+///
+/// **Only a view that moved owes a frame** (rules 3 and 4): a turn the content refuses and a press
+/// where the view already stands leave the screen as it was, and the event is not claimed.
+fn scroll(raw: &Event, state: &mut DiagramState) -> Option<Action> {
+    let area = state.region();
+    let answer = state.scroll_area(area).handle(raw, MouseOnly);
+
+    state.scrolled(answer).then_some(Action::ScreenChanged)
 }
 
 /// What a key means to the region.
@@ -178,6 +205,44 @@ fn draw_region(area: Rect, buf: &mut Buffer, theme: &SalsaTheme) {
     Block::bordered().style(border).render(area, buf);
 }
 
+/// Lays the two bars on the region's border.
+///
+/// **On the border and not inside it** (D4): the vertical bar is drawn on the block's right column
+/// and the horizontal one on its bottom row, over the glyphs the block put there and between its
+/// four corners — which are the margin, so the run is the border's own from one corner to the next.
+/// The window keeps every cell it had, so a bar that appears moves no bound. **Collapsed and not
+/// minimized**: an axis whose content fits shows no bar at all, which is what leaves the empty
+/// screen at rest a plain border.
+///
+/// **Each bar is drawn into its own run rather than through `ScrollArea`**: the helper lays its bars
+/// inside an area it shrinks by one for every bar it shows, which is what a block of its own needs
+/// and not what a border of ours does — through it, the track stopped a cell short of the far corner
+/// and left a border glyph between its arrow and the corner. Drawing into the run keeps the two ends
+/// of the track symmetric.
+///
+/// **The bar is the helper's own**, style and glyphs included: a `║` track with `▲` and `▼` at the
+/// ends and a solid thumb, and `═`, `◄`, `►` across.
+fn draw_bars(area: Rect, buf: &mut Buffer, state: &mut DiagramState) {
+    if area.height < 2 || area.width < 2 {
+        return;
+    }
+
+    let across = Scroll::horizontal().policy(ScrollbarPolicy::Collapse);
+    let down = Scroll::vertical().policy(ScrollbarPolicy::Collapse);
+    let (hscroll, vscroll) = state.scroll_states();
+
+    across.render(
+        Rect::new(area.x + 1, area.bottom() - 1, area.width - 2, 1),
+        buf,
+        hscroll,
+    );
+    down.render(
+        Rect::new(area.right() - 1, area.y + 1, 1, area.height - 2),
+        buf,
+        vscroll,
+    );
+}
+
 fn inner_region(area: Rect) -> Rect {
     let Rect {
         x,
@@ -208,6 +273,14 @@ mod tests {
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light 30×9 box at `(0, 0)`: larger than the region's
+    /// `18×6` interior on both axes, so both bars appear and the view has room to travel.
+    const A_BOX_TOO_BIG: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                      "size": { "width": 30, "height": 9 }, "stroke": "light" } ]
     }"#;
 
     /// The state of a region that has not drawn a frame yet, over the diagram `json` describes.
@@ -251,6 +324,89 @@ mod tests {
     /// in each direction.
     fn screen(x: u16, y: u16) -> Position {
         Position { x: x + 1, y: y + 1 }
+    }
+
+    /// **The bar sits on the region's border and takes no cell from the window** (rule 4). The
+    /// window is the interior it always was, `18×6` at `(1, 1)`, and the bar is drawn over the
+    /// block's own column and row: the last column of the window is still the window's, and the one
+    /// after it is the bar's.
+    ///
+    /// **The run is the border's own from corner to corner** — rows `1` to `6` of the right column
+    /// and columns `1` to `18` of the bottom row — so the arrows sit against the corners and no
+    /// glyph of the block's is left between an arrow and one.
+    #[test]
+    fn the_bar_is_on_the_border_and_takes_no_cell_from_the_window() {
+        let mut state = a_state_over(A_BOX_TOO_BIG);
+        let buffer = paint(&mut state);
+
+        assert_eq!(
+            buffer[(19, 1)].symbol(),
+            "▲",
+            "the vertical bar does not begin on the right border"
+        );
+        assert_eq!(
+            buffer[(19, 6)].symbol(),
+            "▼",
+            "the vertical bar does not end on the right border"
+        );
+        assert_eq!(
+            buffer[(1, 7)].symbol(),
+            "◄",
+            "the horizontal bar does not begin on the bottom border"
+        );
+        assert_eq!(
+            buffer[(18, 7)].symbol(),
+            "►",
+            "the horizontal bar does not end on the bottom border"
+        );
+
+        // The window's own last column and row are the window's: a press there is a press on the
+        // drawing, and the bar's column and row are outside it.
+        assert!(
+            state.offset_of(screen(17, 5)).is_some(),
+            "the bar took the window's last column"
+        );
+        assert_eq!(
+            state.offset_of(screen(18, 5)),
+            None,
+            "the bar's column answered as the window"
+        );
+    }
+
+    /// **A bar shows only where the content does not fit** (rule 4): a box inside the first screen
+    /// leaves the region's border exactly as the block drew it, on both axes.
+    #[test]
+    fn the_bar_is_hidden_when_the_content_fits() {
+        let mut state = a_state_over(A_BOX);
+        let buffer = paint(&mut state);
+
+        assert_eq!(
+            buffer[(19, 1)].symbol(),
+            "│",
+            "the empty right border carries a bar"
+        );
+        assert_eq!(
+            buffer[(1, 7)].symbol(),
+            "─",
+            "the empty bottom border carries a bar"
+        );
+    }
+
+    /// **The four corners stay the block's** (rule 4): the bars are laid between them with a cell of
+    /// margin at each end, so a scrolled drawing's border reads as a border drawn twice rather than
+    /// as a bar that took the corners.
+    #[test]
+    fn the_corners_are_the_blocks() {
+        let mut state = a_state_over(A_BOX_TOO_BIG);
+        let buffer = paint(&mut state);
+
+        for (at, glyph) in [((0, 0), "┌"), ((19, 0), "┐"), ((0, 7), "└"), ((19, 7), "┘")] {
+            assert_eq!(
+                buffer[at].symbol(),
+                glyph,
+                "the corner at {at:?} is not the block's"
+            );
+        }
     }
 
     /// **The window is one cell in from the region's corner, and a click is a position of the
