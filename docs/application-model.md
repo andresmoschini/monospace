@@ -1,14 +1,19 @@
 # The application model
 
-**Status:** Design intent, with three slices implemented. What §1 through §5 describe is
-[`monospace`](../crates/monospace), and
-[`specs/174-a-full-screen-application-whose-menu-hol.md`](../specs/174-a-full-screen-application-whose-menu-hol.md),
-[`specs/175-draw-the-demo-description-or-one-given-b.md`](../specs/175-draw-the-demo-description-or-one-given-b.md)
-and
-[`specs/177-select-a-shape-with-a-click-and-say-in-a.md`](../specs/177-select-a-shape-with-a-click-and-say-in-a.md)
-are the specifications those slices were built against. §6 _Deliberately unresolved_ and §8 _Open
-questions_ are what a later change answers. Amend this document when reality contradicts it, and say
-so in the commit.
+**Status:** Design intent, and what §1 through §5 describe is implemented. It is
+[`monospace`](../crates/monospace), built against
+[#174](../specs/174-a-full-screen-application-whose-menu-hol.md),
+[#175](../specs/175-draw-the-demo-description-or-one-given-b.md),
+[#176](../specs/176-scroll-bounded-by-what-the-diagram-occup.md),
+[#177](../specs/177-select-a-shape-with-a-click-and-say-in-a.md),
+[#178](../specs/178-delete-the-selected-shape-with-the-delet.md),
+[#179](../specs/179-move-the-selected-shape-with-the-arrow-k.md),
+[#181](../specs/181-undo-and-redo.md),
+[#189](../specs/189-the-chrome-is-a-real-interface-the-pop-u.md) and
+[#238](../specs/238-show-the-origin-and-size-of-the-diagram.md) — every specification that names
+this document in its _Model slice_, and the one that created it. §6 _Deliberately unresolved_ and §8
+_Open questions_ are what a later change answers. Amend this document when reality contradicts it,
+and say so in the commit.
 
 **Created:** 2026-10-20
 
