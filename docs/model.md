@@ -40,6 +40,7 @@ character matches.
 | --------------- | ------------------------------------------------------------------------------ |
 | `Window`        | An origin and a size: the rectangle a buffer holds                             |
 | `Buffer`        | A window, the cells written into it, and who decided each of them              |
+| `Footprint`     | The smallest and largest coordinate a drawing stamped                          |
 | `Cell`          | Either a base stroke and four arms, or one literal glyph                       |
 | `Side`          | Top, right, bottom or left                                                     |
 | `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`                |

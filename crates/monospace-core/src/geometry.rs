@@ -31,7 +31,7 @@ pub struct Offset {
     pub y: u16,
 }
 
-/// The extent of a window or a rendered area, in cells.
+/// The size of a window or a rendered area, in cells.
 ///
 /// A width or height of zero is allowed: it describes an area with no positions, rather than
 /// being rejected.
@@ -45,10 +45,11 @@ pub struct Size {
 
 /// A rectangle in the plane: where it starts and how large it is.
 ///
-/// **An origin and a [`Size`], and not two loose arguments**, because a window is chosen before
-/// anything is drawn and is what both the buffer and the renderer are given: the same rectangle
-/// travels through both without being taken apart, and the arithmetic that asks whether a position
-/// is inside it is written once.
+/// **An origin and a [`Size`], and not a [`Footprint`]**, because the two answer different questions:
+/// a window is chosen before anything is drawn and may hold no position at all, while a footprint
+/// exists only once a stamp has reached somewhere. A [`Buffer`](crate::Buffer) is given one of
+/// these, and `render` is asked for one, so the same rectangle travels through both without being
+/// taken apart into two arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Window {
     /// The top-left corner, in the plane.
@@ -91,6 +92,42 @@ impl Window {
             x: self.origin.x.checked_add_unsigned(at.x)?,
             y: self.origin.y.checked_add_unsigned(at.y)?,
         })
+    }
+}
+
+/// The rectangle a drawing reaches: the smallest and largest coordinates stamped into it.
+///
+/// **Two positions rather than an origin and a [`Size`]**, because `min` is a point in the plane and
+/// may be negative while the distance between the two is a magnitude: a span of `u16::MAX + 1` cells
+/// exists and no `Size` holds it, and a caller that wants the distance can derive it and decide what
+/// to do about the one span that does not fit. A drawing that stamped nothing reaches nothing, which
+/// is a state of its own rather than a rectangle at the origin.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Footprint {
+    /// The smallest coordinate stamped, on both axes: the top-left corner, since `y` grows down.
+    pub min: Pos,
+    /// The largest coordinate stamped, on both axes.
+    pub max: Pos,
+}
+
+impl Footprint {
+    /// This footprint grown to hold `at`.
+    ///
+    /// The fold a [`FootprintSink`](crate::FootprintSink) performs once per stamp, kept here so
+    /// that "smallest" and "largest" are written once rather than at every caller that grows a
+    /// footprint.
+    #[must_use]
+    pub(crate) fn including(self, at: Pos) -> Self {
+        Self {
+            min: Pos {
+                x: self.min.x.min(at.x),
+                y: self.min.y.min(at.y),
+            },
+            max: Pos {
+                x: self.max.x.max(at.x),
+                y: self.max.y.max(at.y),
+            },
+        }
     }
 }
 
