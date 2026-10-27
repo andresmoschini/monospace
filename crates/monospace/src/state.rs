@@ -14,6 +14,7 @@ use monospace_core::{
     Size, Window,
 };
 use monospace_editing::{Command, Session};
+use rat_widget::event::ScrollOutcome;
 use rat_widget::menu::MenubarState;
 use rat_widget::msgdialog::MsgDialogState;
 use rat_widget::scrolled::{ScrollAreaState, ScrollState};
@@ -322,6 +323,44 @@ impl DiagramState {
             .h_scroll(&mut self.hscroll)
     }
 
+    /// Applies what the bars answered, and says whether the view moved (D3).
+    ///
+    /// **The answer is the helper's, step and all**: a wheel turn is the delta it names and a press
+    /// on the bar is the offset it names, so the step is a tenth of the window rather than a rule of
+    /// this application's.
+    ///
+    /// **The origin is derived from the offset and clamped** (D1): `set_offset` puts the value it is
+    /// given there without limiting it, and the bar answers the end of its track with an offset past
+    /// the content's span, so the offset names an origin and the range decides where that lands.
+    ///
+    /// **A frame is owed only when the origin moved**: a turn the content refuses, and a press where
+    /// the view already stands, changed nothing.
+    pub(crate) fn scrolled(&mut self, answer: ScrollOutcome) -> bool {
+        let changed = match answer {
+            ScrollOutcome::Up(n) => self.vscroll.scroll_up(n),
+            ScrollOutcome::Down(n) => self.vscroll.scroll_down(n),
+            ScrollOutcome::Left(n) => self.hscroll.scroll_left(n),
+            ScrollOutcome::Right(n) => self.hscroll.scroll_right(n),
+            ScrollOutcome::VPos(at) => self.vscroll.set_offset(at),
+            ScrollOutcome::HPos(at) => self.hscroll.set_offset(at),
+            ScrollOutcome::Changed | ScrollOutcome::Unchanged | ScrollOutcome::Continue => false,
+        };
+
+        if !changed {
+            return false;
+        }
+
+        let (across, down) = axes(self.measure(), self.interior);
+        let origin = Pos {
+            x: across.at(self.hscroll.offset()),
+            y: down.at(self.vscroll.offset()),
+        };
+        let moved = origin != self.origin;
+        self.origin = origin;
+
+        moved
+    }
+
     /// Draws the session's diagram into `interior` — the window, as the screen holds it — at the
     /// scroll origin, replacing whatever the frame before drew.
     ///
@@ -452,6 +491,22 @@ impl Axis {
         state.set_page_len(usize::try_from(self.window).expect("a window's size is a length"));
         state.set_max_offset(self.span());
         state.set_offset(self.offset(origin));
+    }
+
+    /// The origin the bar's `offset` names, put at the nearest value the range allows.
+    ///
+    /// **The bar's answer is not clamped before it arrives**: a press on the last cell of the track
+    /// names an offset past the content's span, because the track spends its two ends on the arrows
+    /// and maps the rest of its cells over the whole reach. What the offset names is an origin, and
+    /// the origin's range is what says where a view of nothing can still stand.
+    fn at(&self, offset: usize) -> i16 {
+        let at = self
+            .first
+            .saturating_add(i32::try_from(offset).unwrap_or(i32::MAX));
+        let (first, last) = self.origins();
+        let at = at.clamp(first, last);
+
+        i16::try_from(at).expect("a cell of the content fits the plane it was measured in")
     }
 }
 

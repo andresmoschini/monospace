@@ -16,6 +16,7 @@
 
 use rat_theme4::StyleName;
 use rat_theme4::theme::SalsaTheme;
+use rat_widget::event::{HandleEvent, MouseOnly};
 use rat_widget::scrolled::{Scroll, ScrollArea, ScrollbarPolicy};
 use ratatui_widgets::block::Block;
 
@@ -50,6 +51,10 @@ pub(crate) fn draw(
 
 /// What an event means to the region.
 ///
+/// **The bars are asked first, and the region after them** (D3): a wheel turn over the region and a
+/// press or a drag on either bar are the bars' own answers, and only what they leave alone is a
+/// question about the drawing.
+///
 /// **The region answers a click and the four arrows.** A click is the region's whatever leaf holds
 /// the keyboard (D1), and a key is the region's only while it does: the arrows are what the region
 /// does with the keyboard it is given.
@@ -57,11 +62,31 @@ pub(crate) fn draw(
 /// **Everything else is answered with nothing** so that the event goes on to the next handler
 /// (rule 3).
 pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus) -> Option<Action> {
+    if let Some(action) = scroll(raw, state) {
+        return Some(action);
+    }
+
     match raw {
         Event::Mouse(mouse) => click(*mouse, state),
         Event::Key(_) if focus == Focus::Region => key(raw),
         _ => None,
     }
+}
+
+/// What the bars make of the event, and the frame that owes when the view moved.
+///
+/// **The helper is asked once for both bars** (D3): the wheel over the region, a press on a track
+/// and a drag that follows the pointer are one call, and the answer already names the axis it spoke
+/// for. **A press is the bar's only where the bar is drawn**: a track the content collapsed answers
+/// nothing, so the interior's press reaches [`click`] as it always did.
+///
+/// **Only a view that moved owes a frame** (rules 3 and 4): a turn the content refuses and a press
+/// where the view already stands leave the screen as it was, and the event is not claimed.
+fn scroll(raw: &Event, state: &mut DiagramState) -> Option<Action> {
+    let area = state.region();
+    let answer = state.scroll_area(area).handle(raw, MouseOnly);
+
+    state.scrolled(answer).then_some(Action::ScreenChanged)
 }
 
 /// What a key means to the region.
