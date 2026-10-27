@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use crate::{Arm, Cell, Offset, Pos, ShapeId, Size, StrokeCell};
+use crate::{Arm, Cell, Offset, Pos, ShapeId, StrokeCell, Window};
 
 /// Which side of an already-defined cell decides when a stamp lands on it. See _Stamping_ in
 /// [`docs/model.md`](../../../docs/model.md).
@@ -17,7 +17,7 @@ pub enum StampMode {
     Below,
 }
 
-/// A window of cells, with an origin and a size, and a record of which shape decided each of them.
+/// A window of cells, and a record of which shape decided each of them.
 ///
 /// Every position in a freshly created buffer is undefined: it holds no cell until [`stamp`] is
 /// called for it. The buffer is a temporary working surface, not the document; there is no erase.
@@ -30,8 +30,7 @@ pub enum StampMode {
 /// [`owner`]: Buffer::owner
 /// [`stamp`]: Buffer::stamp
 pub struct Buffer {
-    origin: Pos,
-    size: Size,
+    window: Window,
     cells: HashMap<(i16, i16), Cell>,
     /// Who decided each position, for the positions somebody decided. A position absent here is
     /// owned by nobody: either no shape wrote it, or the shape that did wrote nothing there.
@@ -39,18 +38,27 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    /// Creates a buffer with no positions defined.
+    /// Creates a buffer with no positions defined, holding `window`.
     ///
     /// A width or height of zero is allowed and gives a buffer with no positions; construction
     /// cannot fail.
     #[must_use]
-    pub fn new(origin: Pos, size: Size) -> Self {
+    pub fn new(window: Window) -> Self {
         Self {
-            origin,
-            size,
+            window,
             cells: HashMap::new(),
             owners: HashMap::new(),
         }
+    }
+
+    /// The window this buffer was created with.
+    ///
+    /// **A value rather than a borrow**: a window is two small `Copy` values, and a caller that
+    /// reads it while holding the buffer needs nothing back. What it is for is the translation an
+    /// offset into the window needs and the size a rendering asks for.
+    #[must_use]
+    pub fn window(&self) -> Window {
+        self.window
     }
 
     /// Writes `cell` at the absolute position `at`, under `mode`.
@@ -155,26 +163,13 @@ impl Buffer {
     /// has asked about a different cell — and gets a truthful answer about that one.
     #[must_use]
     pub fn owner(&self, at: Offset) -> Option<ShapeId> {
-        let x = self.origin.x.checked_add_unsigned(at.x)?;
-        let y = self.origin.y.checked_add_unsigned(at.y)?;
-        self.owners.get(&(x, y)).copied()
+        let at = self.window.position(at)?;
+        self.owners.get(&(at.x, at.y)).copied()
     }
 
     /// Whether `at` falls inside this buffer's window.
     fn contains(&self, at: Pos) -> bool {
-        let Some(dx) =
-            at.x.checked_sub(self.origin.x)
-                .and_then(|d| u16::try_from(d).ok())
-        else {
-            return false;
-        };
-        let Some(dy) =
-            at.y.checked_sub(self.origin.y)
-                .and_then(|d| u16::try_from(d).ok())
-        else {
-            return false;
-        };
-        dx < self.size.width && dy < self.size.height
+        self.window.contains(at)
     }
 }
 
@@ -279,7 +274,7 @@ mod tests {
     use super::{Buffer, StampMode};
     use crate::{
         Arm, BoxShape, Cell, Glyph, Layer, Offset, Pos, Shape as _, ShapeId, Size, Stroke,
-        StrokeCell,
+        StrokeCell, Window,
     };
 
     fn light() -> Stroke {
@@ -303,10 +298,13 @@ mod tests {
         ShapeId::new(NonZeroU16::new(ordinal).expect("no test asks for zero"))
     }
 
-    /// A window `width` by `height` at `origin`, which is how every test below states where the
+    /// A buffer `width` by `height` at `origin`, which is how every test below states where the
     /// positions it asks about are.
-    fn window(origin: Pos, width: u16, height: u16) -> Buffer {
-        Buffer::new(origin, Size { width, height })
+    fn a_buffer(origin: Pos, width: u16, height: u16) -> Buffer {
+        Buffer::new(Window {
+            origin,
+            size: Size { width, height },
+        })
     }
 
     /// A cell deciding all four sides, which is what makes it immutable under `Below`.
@@ -390,13 +388,13 @@ mod tests {
 
     #[test]
     fn a_new_buffer_has_no_cell_anywhere() {
-        let buffer = Buffer::new(
-            Pos { x: -1, y: -1 },
-            Size {
+        let buffer = Buffer::new(Window {
+            origin: Pos { x: -1, y: -1 },
+            size: Size {
                 width: 3,
                 height: 3,
             },
-        );
+        });
 
         for x in -2..3 {
             for y in -2..3 {
@@ -407,13 +405,13 @@ mod tests {
 
     #[test]
     fn stamping_outside_the_window_changes_nothing() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 2,
                 height: 1,
             },
-        );
+        });
 
         buffer.stamp(
             Pos { x: 2, y: 0 },
@@ -434,13 +432,13 @@ mod tests {
 
     #[test]
     fn stamping_an_undefined_position_defines_it_entirely() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         let cell: Cell = StrokeCell {
             base: light(),
             top: Arm::Unset,
@@ -459,13 +457,13 @@ mod tests {
     /// on the top, so the cell's top arm survives even though everything else was overwritten.
     #[test]
     fn an_unset_arm_on_a_stamp_leaves_the_target_arm_alone() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -508,13 +506,13 @@ mod tests {
 
     #[test]
     fn stamping_outside_the_window_changes_nothing_under_below() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 2,
                 height: 1,
             },
-        );
+        });
 
         buffer.stamp(
             Pos { x: 2, y: 0 },
@@ -535,13 +533,13 @@ mod tests {
 
     #[test]
     fn stamping_an_undefined_position_with_below_defines_it_entirely() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         let cell: Cell = StrokeCell {
             base: light(),
             top: Arm::Unset,
@@ -560,13 +558,13 @@ mod tests {
     /// stroke and already-decided arms win, and only the side it left `Unset` is written.
     #[test]
     fn below_writes_only_the_targets_unset_sides_and_leaves_the_base_stroke_alone() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -611,13 +609,13 @@ mod tests {
     /// this cell is skipped, and the cell is the same as if it had run.
     #[test]
     fn below_onto_a_decided_cell_changes_nothing() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         let decided: Cell = StrokeCell {
             base: light(),
             top: Arm::Set(light()),
@@ -650,13 +648,13 @@ mod tests {
     /// skipped, and the cell is the same as if it had run.
     #[test]
     fn above_with_a_decided_stamp_wins_outright() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -718,24 +716,24 @@ mod tests {
             })
         };
 
-        let mut front_to_back = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut front_to_back = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         front_to_back.stamp(pos, a(), StampMode::Below, None);
         front_to_back.stamp(pos, b(), StampMode::Below, None);
         front_to_back.stamp(pos, c(), StampMode::Below, None);
 
-        let mut back_to_front = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut back_to_front = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         back_to_front.stamp(pos, c(), StampMode::Above, None);
         back_to_front.stamp(pos, b(), StampMode::Above, None);
         back_to_front.stamp(pos, a(), StampMode::Above, None);
@@ -754,13 +752,13 @@ mod tests {
     /// _Stamping_'s row "Arms, stamping a literal" under `Above`: the literal wins outright.
     #[test]
     fn a_literal_stamped_above_a_stroke_cell_replaces_it() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -785,13 +783,13 @@ mod tests {
     /// and the sides it left `Unset` come out `Closed`, inherited from the literal.
     #[test]
     fn a_literal_stamped_below_a_stroke_cell_closes_its_unset_sides() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -830,13 +828,13 @@ mod tests {
     /// it replaced.
     #[test]
     fn a_stroke_cell_stamped_above_a_literal_inherits_its_closed_sides_where_it_abstains() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             Cell::Literal(glyph("A")),
@@ -874,13 +872,13 @@ mod tests {
     /// so it is left alone.
     #[test]
     fn a_stroke_cell_stamped_below_a_literal_changes_nothing() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         let literal = Cell::Literal(glyph("A"));
         buffer.stamp(Pos { x: 0, y: 0 }, literal.clone(), StampMode::Above, None);
 
@@ -905,13 +903,13 @@ mod tests {
     /// outright.
     #[test]
     fn a_literal_stamped_above_a_literal_replaces_it() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             Cell::Literal(glyph("A")),
@@ -929,13 +927,13 @@ mod tests {
     /// it is left alone.
     #[test]
     fn a_literal_stamped_below_a_literal_changes_nothing() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         let original = Cell::Literal(glyph("A"));
         buffer.stamp(Pos { x: 0, y: 0 }, original.clone(), StampMode::Above, None);
 
@@ -975,24 +973,24 @@ mod tests {
             })
         };
 
-        let mut front_to_back = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut front_to_back = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         front_to_back.stamp(pos, s1(), StampMode::Below, None);
         front_to_back.stamp(pos, literal(), StampMode::Below, None);
         front_to_back.stamp(pos, s2(), StampMode::Below, None);
 
-        let mut back_to_front = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut back_to_front = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         back_to_front.stamp(pos, s2(), StampMode::Above, None);
         back_to_front.stamp(pos, literal(), StampMode::Above, None);
         back_to_front.stamp(pos, s1(), StampMode::Above, None);
@@ -1019,7 +1017,7 @@ mod tests {
     /// that equality false, which is the whole reason the record is a second map.
     #[test]
     fn two_cells_that_render_the_same_are_the_same_cell_and_the_record_does_not_change_that() {
-        let mut buffer = window(Pos { x: 0, y: 0 }, 2, 1);
+        let mut buffer = a_buffer(Pos { x: 0, y: 0 }, 2, 1);
         let first = id(1);
         let second = id(2);
         let fill = Cell::Literal(glyph("░"));
@@ -1067,7 +1065,7 @@ mod tests {
     #[test]
     fn in_an_overlap_every_position_resolves_to_the_front_most_shape_that_decided_it() {
         let origin = Pos { x: -3, y: -2 };
-        let mut buffer = window(origin, 7, 5);
+        let mut buffer = a_buffer(origin, 7, 5);
         let back = id(1);
         let front = id(2);
         let outside = id(3);
@@ -1131,7 +1129,7 @@ mod tests {
     /// also wrote. See `the_record_is_the_same_whether_a_diagram_is_drawn_front_to_back_or_back_to_front`.
     #[test]
     fn a_shape_that_stamps_a_position_without_changing_anything_there_does_not_take_it() {
-        let mut buffer = window(Pos { x: 0, y: 0 }, 1, 1);
+        let mut buffer = a_buffer(Pos { x: 0, y: 0 }, 1, 1);
         let first = id(1);
         let second = id(2);
 
@@ -1176,7 +1174,7 @@ mod tests {
     /// stamped last" rather than "whoever decided".
     #[test]
     fn a_stamp_that_decides_no_side_takes_nothing_and_leaves_the_owner_it_found() {
-        let mut buffer = window(Pos { x: 0, y: 0 }, 1, 1);
+        let mut buffer = a_buffer(Pos { x: 0, y: 0 }, 1, 1);
         let nobody = id(1);
         let second = id(2);
 
@@ -1202,7 +1200,7 @@ mod tests {
         );
 
         // And the same stamp onto a position somebody *does* hold leaves that owner standing.
-        let mut held = window(Pos { x: 0, y: 0 }, 1, 1);
+        let mut held = a_buffer(Pos { x: 0, y: 0 }, 1, 1);
         let holder = id(3);
         held.stamp(
             Pos { x: 0, y: 0 },
@@ -1237,7 +1235,7 @@ mod tests {
     /// joined, and nothing about it says that one shape wrote two of them and the other two.
     #[test]
     fn a_shape_behind_cannot_take_a_cell_from_one_in_front_of_it_however_much_it_decides() {
-        let mut buffer = window(Pos { x: 0, y: 0 }, 1, 1);
+        let mut buffer = a_buffer(Pos { x: 0, y: 0 }, 1, 1);
         let front = id(1);
         let behind = id(2);
 
@@ -1282,7 +1280,7 @@ mod tests {
         let back = id(1);
         let front = id(2);
 
-        let mut front_to_back = window(origin, 6, 4);
+        let mut front_to_back = a_buffer(origin, 6, 4);
         a_box(Pos { x: 2, y: 1 }, double(), Some("▓")).draw(&mut Layer::stamped_by(
             &mut front_to_back,
             StampMode::Below,
@@ -1294,7 +1292,7 @@ mod tests {
             back,
         ));
 
-        let mut back_to_front = window(origin, 6, 4);
+        let mut back_to_front = a_buffer(origin, 6, 4);
         a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
             &mut back_to_front,
             StampMode::Above,
@@ -1344,7 +1342,7 @@ mod tests {
     #[test]
     fn owner_answers_for_an_offset_into_the_window_and_none_for_one_it_does_not_hold() {
         let origin = Pos { x: -1, y: -1 };
-        let mut buffer = window(origin, 2, 2);
+        let mut buffer = a_buffer(origin, 2, 2);
         let writer = id(1);
 
         buffer.stamp(
@@ -1396,7 +1394,7 @@ mod tests {
     #[test]
     fn a_caller_that_adds_the_windows_origin_to_a_click_asks_about_another_cell() {
         let origin = Pos { x: -2, y: -1 };
-        let mut buffer = window(origin, 4, 4);
+        let mut buffer = a_buffer(origin, 4, 4);
         let writer = id(1);
         let clicked = Offset { x: 2, y: 3 };
 
@@ -1434,7 +1432,7 @@ mod tests {
     /// is `None` because the window holds no cell to own.
     #[test]
     fn an_offset_a_windows_own_origin_cannot_carry_is_owned_by_nobody() {
-        let mut buffer = window(Pos { x: i16::MIN, y: 0 }, 4, 3);
+        let mut buffer = a_buffer(Pos { x: i16::MIN, y: 0 }, 4, 3);
 
         a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
             &mut buffer,
@@ -1472,11 +1470,11 @@ mod tests {
     /// the `None` above about the door rather than about a box that writes nothing.
     #[test]
     fn a_shape_drawn_by_nobody_owns_nothing_even_where_it_writes() {
-        let mut by_nobody = window(Pos { x: 0, y: 0 }, 4, 3);
+        let mut by_nobody = a_buffer(Pos { x: 0, y: 0 }, 4, 3);
         a_box(Pos { x: 0, y: 0 }, light(), Some("░"))
             .draw(&mut Layer::new(&mut by_nobody, StampMode::Above));
 
-        let mut by_somebody = window(Pos { x: 0, y: 0 }, 4, 3);
+        let mut by_somebody = a_buffer(Pos { x: 0, y: 0 }, 4, 3);
         let writer = id(1);
         a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
             &mut by_somebody,

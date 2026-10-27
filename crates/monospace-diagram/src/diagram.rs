@@ -376,7 +376,7 @@ mod tests {
 
     use monospace_core::{
         BoxShape, Buffer, Cell, Connector, Direction, Glyph, GlyphCatalog, Layer, Line, Offset,
-        Orientation, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, render,
+        Orientation, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, Window, render,
     };
 
     use super::{Diagram, ShapeId};
@@ -441,9 +441,9 @@ mod tests {
             })
             .0;
 
-        let mut first = Buffer::new(origin, size);
+        let mut first = Buffer::new(Window { origin, size });
         diagram.draw(&mut first);
-        let mut second = Buffer::new(origin, size);
+        let mut second = Buffer::new(Window { origin, size });
         diagram.draw(&mut second);
 
         assert_eq!(cells(&first, origin, size), cells(&second, origin, size));
@@ -856,7 +856,7 @@ mod tests {
             height: 4,
         };
 
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         for (offset, expected, what) in [
@@ -925,7 +925,7 @@ mod tests {
             height: 4,
         };
 
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
         let cells_before = cells(&buffer, origin, size);
         let owners_before = owners(&buffer, size);
@@ -955,7 +955,7 @@ mod tests {
 
         // And the change is real: the same diagram drawn into a window of its own is a different
         // picture, with the removed shape's fill gone from it.
-        let mut fresh = Buffer::new(origin, size);
+        let mut fresh = Buffer::new(Window { origin, size });
         diagram.draw(&mut fresh);
         assert_ne!(
             cells(&fresh, origin, size),
@@ -1003,7 +1003,7 @@ mod tests {
             width: 6,
             height: 2,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         // `get` answers with the second of the two, which is the one the diagram kept, and there is
@@ -1054,7 +1054,7 @@ mod tests {
             width: 3,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Diagram::new().draw(&mut buffer);
 
         assert_eq!(
@@ -1085,7 +1085,7 @@ mod tests {
             })
             .0;
 
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         assert!(buffer.cell(Pos { x: 1, y: 1 }).is_some());
@@ -1110,10 +1110,10 @@ mod tests {
                 fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
             })
             .0;
-        let mut actual = Buffer::new(origin, size);
+        let mut actual = Buffer::new(Window { origin, size });
         diagram.draw(&mut actual);
 
-        let mut expected = Buffer::new(origin, size);
+        let mut expected = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -1145,10 +1145,10 @@ mod tests {
                 stroke: light(),
             })
             .0;
-        let mut actual = Buffer::new(origin, size);
+        let mut actual = Buffer::new(Window { origin, size });
         diagram.draw(&mut actual);
 
-        let mut expected = Buffer::new(origin, size);
+        let mut expected = Buffer::new(Window { origin, size });
         Line {
             at: origin,
             len: 5,
@@ -1195,10 +1195,10 @@ mod tests {
                 stroke: light(),
             })
             .0;
-        let mut actual = Buffer::new(origin, size);
+        let mut actual = Buffer::new(Window { origin, size });
         diagram.draw(&mut actual);
 
-        let mut expected = Buffer::new(origin, size);
+        let mut expected = Buffer::new(Window { origin, size });
         Connector {
             from: monospace_core::Endpoint {
                 at: Pos { x: 0, y: 0 },
@@ -1651,11 +1651,11 @@ mod tests {
         let mut diagram = Diagram::new();
         diagram = diagram.add(a).0;
         diagram = diagram.add(b).0;
-        let mut actual = Buffer::new(origin, size);
+        let mut actual = Buffer::new(Window { origin, size });
         diagram.draw(&mut actual);
 
         let (core_a, core_b) = overlapping_core_boxes();
-        let mut expected = Buffer::new(origin, size);
+        let mut expected = Buffer::new(Window { origin, size });
         core_a.draw(&mut Layer::new(&mut expected, StampMode::Above));
         core_b.draw(&mut Layer::new(&mut expected, StampMode::Above));
 
@@ -1675,14 +1675,14 @@ mod tests {
         let mut a_then_b = Diagram::new();
         a_then_b = a_then_b.add(a).0;
         a_then_b = a_then_b.add(b).0;
-        let mut a_then_b_buffer = Buffer::new(origin, size);
+        let mut a_then_b_buffer = Buffer::new(Window { origin, size });
         a_then_b.draw(&mut a_then_b_buffer);
 
         let (a, b) = overlapping_boxes();
         let mut b_then_a = Diagram::new();
         b_then_a = b_then_a.add(b).0;
         b_then_a = b_then_a.add(a).0;
-        let mut b_then_a_buffer = Buffer::new(origin, size);
+        let mut b_then_a_buffer = Buffer::new(Window { origin, size });
         b_then_a.draw(&mut b_then_a_buffer);
 
         assert_ne!(
@@ -1720,7 +1720,7 @@ mod tests {
                 stroke: light(),
             })
             .0;
-        let mut crossing_buffer = Buffer::new(origin, size);
+        let mut crossing_buffer = Buffer::new(Window { origin, size });
         crossing.draw(&mut crossing_buffer);
         assert_eq!(
             render(&crossing_buffer, &GlyphCatalog::light(), origin, size),
@@ -1747,7 +1747,7 @@ mod tests {
                 fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
             })
             .0;
-        let mut occluding_buffer = Buffer::new(origin, size);
+        let mut occluding_buffer = Buffer::new(Window { origin, size });
         occluding.draw(&mut occluding_buffer);
         assert_eq!(
             render(&occluding_buffer, &GlyphCatalog::light(), origin, size),
@@ -1769,11 +1769,11 @@ mod tests {
         let diagram = Diagram::new();
         let (mut diagram, back) = diagram.add(a);
         diagram = diagram.add(b).0;
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         diagram = diagram.forward(back);
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
         assert_ne!(cells(&before, origin, size), cells(&after, origin, size));
@@ -1782,7 +1782,7 @@ mod tests {
         let mut opposite = Diagram::new();
         opposite = opposite.add(b).0;
         opposite = opposite.add(a).0;
-        let mut opposite_buffer = Buffer::new(origin, size);
+        let mut opposite_buffer = Buffer::new(Window { origin, size });
         opposite.draw(&mut opposite_buffer);
 
         assert_eq!(
@@ -1805,14 +1805,14 @@ mod tests {
         diagram = diagram.add(a).0;
         let (mut diagram, front) = diagram.add(b);
         diagram = diagram.backward(front);
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         let (a, b) = overlapping_boxes();
         let mut opposite = Diagram::new();
         opposite = opposite.add(b).0;
         opposite = opposite.add(a).0;
-        let mut opposite_buffer = Buffer::new(origin, size);
+        let mut opposite_buffer = Buffer::new(Window { origin, size });
         opposite.draw(&mut opposite_buffer);
 
         assert_eq!(
@@ -1834,11 +1834,11 @@ mod tests {
         let diagram = Diagram::new();
         let (diagram, back) = diagram.add(a);
         let (mut diagram, front) = diagram.add(b);
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         diagram = diagram.forward(front);
-        let mut after_forward = Buffer::new(origin, size);
+        let mut after_forward = Buffer::new(Window { origin, size });
         diagram.draw(&mut after_forward);
         assert_eq!(
             cells(&before, origin, size),
@@ -1846,7 +1846,7 @@ mod tests {
         );
 
         diagram = diagram.backward(back);
-        let mut after_backward = Buffer::new(origin, size);
+        let mut after_backward = Buffer::new(Window { origin, size });
         diagram.draw(&mut after_backward);
         assert_eq!(
             cells(&before, origin, size),
@@ -1873,12 +1873,12 @@ mod tests {
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         });
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         diagram = diagram.forward(only);
         diagram = diagram.backward(only);
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
         assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
@@ -1897,7 +1897,7 @@ mod tests {
         let mut diagram = Diagram::new();
         diagram = diagram.add(a).0;
         diagram = diagram.add(b).0;
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         let other = Diagram::new();
@@ -1910,7 +1910,7 @@ mod tests {
 
         diagram = diagram.forward(foreign);
         diagram = diagram.backward(foreign);
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
         assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
@@ -1936,7 +1936,7 @@ mod tests {
             width: 3,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         assert_eq!(
@@ -1958,12 +1958,12 @@ mod tests {
         let diagram = Diagram::new();
         let (mut diagram, back) = diagram.add(a);
         diagram = diagram.add(b).0;
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         diagram = diagram.forward(back);
         diagram = diagram.backward(back);
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
         assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
@@ -2001,13 +2001,13 @@ mod tests {
         let mut outer_then_inner = Diagram::new();
         outer_then_inner = outer_then_inner.add(outer()).0;
         outer_then_inner = outer_then_inner.add(inner()).0;
-        let mut a = Buffer::new(origin, size);
+        let mut a = Buffer::new(Window { origin, size });
         outer_then_inner.draw(&mut a);
 
         let mut inner_then_outer = Diagram::new();
         inner_then_outer = inner_then_outer.add(inner()).0;
         inner_then_outer = inner_then_outer.add(outer()).0;
-        let mut b = Buffer::new(origin, size);
+        let mut b = Buffer::new(Window { origin, size });
         inner_then_outer.draw(&mut b);
 
         assert_eq!(cells(&a, origin, size), cells(&b, origin, size));
@@ -2028,7 +2028,7 @@ mod tests {
 
     /// Draws a diagram the caller already holds, for a claim about what a change to it did.
     fn draw_of(diagram: &Diagram, origin: Pos, size: Size) -> Buffer {
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
         buffer
     }
@@ -2188,11 +2188,11 @@ mod tests {
         let mut diagram = Diagram::new();
         diagram = diagram.add(a.clone()).0;
         diagram = diagram.add(b).0;
-        let mut before = Buffer::new(origin, size);
+        let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
 
         let displaced = a.displaced_by(Delta { dx: 1, dy: 2 });
-        let mut after = Buffer::new(origin, size);
+        let mut after = Buffer::new(Window { origin, size });
         diagram.draw(&mut after);
 
         assert_eq!(cells(&before, origin, size), cells(&after, origin, size));
@@ -3437,10 +3437,10 @@ mod tests {
                     stroke: light(),
                 })
                 .0;
-            let mut actual = Buffer::new(origin, size);
+            let mut actual = Buffer::new(Window { origin, size });
             diagram.draw(&mut actual);
 
-            let mut expected = Buffer::new(origin, size);
+            let mut expected = Buffer::new(Window { origin, size });
             Connector {
                 from: monospace_core::Endpoint {
                     at: Pos { x: 0, y: 0 },

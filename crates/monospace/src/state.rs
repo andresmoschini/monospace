@@ -9,7 +9,7 @@
 //! `crate::callbacks`: **Delete** performs one removal, and **Undo** and **Redo** walk the history
 //! the removal recorded. The application keeps no history of its own: the session is the history.
 
-use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, ShapeId, Size};
+use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, ShapeId, Size, Window};
 use monospace_editing::{Command, Session};
 use rat_widget::menu::MenubarState;
 use rat_widget::msgdialog::MsgDialogState;
@@ -61,13 +61,13 @@ impl DiagramState {
 
         Self {
             origin,
-            buffer: Buffer::new(
+            buffer: Buffer::new(Window {
                 origin,
-                Size {
+                size: Size {
                     width: 0,
                     height: 0,
                 },
-            ),
+            }),
             interior: Rect::new(0, 0, 0, 0),
             region: Rect::new(0, 0, 0, 0),
             selected: None,
@@ -78,7 +78,9 @@ impl DiagramState {
     /// The glyph the last drawing put at `at`, or `None` where it put none: a position outside the
     /// window, a cell no shape wrote, or a cell this catalog does not answer.
     pub(crate) fn glyph<'a>(&'a self, at: Offset, catalog: &'a GlyphCatalog) -> Option<&'a str> {
-        self.position(at)
+        self.buffer
+            .window()
+            .position(at)
             .and_then(|position| self.buffer.cell(position))
             .and_then(|cell| cell.glyph_str(catalog))
     }
@@ -242,15 +244,6 @@ impl DiagramState {
         self.region
     }
 
-    /// The position `at` reaches, counted from the window's corner, or `None` where the origin
-    /// and the offset cannot be added.
-    fn position(&self, at: Offset) -> Option<Pos> {
-        Some(Pos {
-            x: self.origin.x.checked_add_unsigned(at.x)?,
-            y: self.origin.y.checked_add_unsigned(at.y)?,
-        })
-    }
-
     /// Draws the session's diagram into `interior` — the window, as the screen holds it — at the
     /// scroll origin, replacing whatever the frame before drew.
     ///
@@ -261,13 +254,13 @@ impl DiagramState {
     /// the keyboard without landing in the window, so the outer rectangle is a fact of the frame
     /// the region answered and not one the interior can be asked for.
     pub(crate) fn redraw(&mut self, region: Rect, interior: Rect) {
-        let mut buffer = Buffer::new(
-            self.origin,
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: self.origin,
+            size: Size {
                 width: interior.width,
                 height: interior.height,
             },
-        );
+        });
         self.session.diagram().draw(&mut buffer);
         self.buffer = buffer;
         self.interior = interior;

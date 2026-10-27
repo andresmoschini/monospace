@@ -58,7 +58,7 @@
 
 use std::process::ExitCode;
 
-use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, Size};
+use monospace_core::{Buffer, GlyphCatalog, Offset, Pos, Size, Window};
 use monospace_description::parse;
 use monospace_diagram::{Anchor, Delta, Diagram};
 use monospace_editing::{Command, Session};
@@ -94,14 +94,6 @@ mod sweep;
 /// The usage line, printed for anything [`parse_args`] refuses.
 const USAGE: &str = "usage: monospace-cli [--size <width>x<height>] [--origin <x>,<y>] [path]";
 
-/// The window a picture is drawn into, as the pair the two flags name.
-///
-/// **A name for the pair rather than the pair in a signature**, because the pair is what `render`
-/// takes and what the flags build, and `parse_args` has to say both. It is private to this binary
-/// and it is not the format crate's `Window` — that one is the type leaving the description, and
-/// this is the caller's own.
-type Window = (Pos, Size);
-
 /// The window the demonstration draws into, and the one a path is drawn into when the command line
 /// names none.
 ///
@@ -111,13 +103,13 @@ type Window = (Pos, Size);
 /// only a human reaches for can be wrong without consequence. **It is not the terminal's own size
 /// either**: a picture whose width depends on the machine that rendered it is a picture
 /// `cargo xtask render --check` fails on for every reader but the one who wrote it.
-const DEMO_WINDOW: Window = (
-    Pos { x: 0, y: 0 },
-    Size {
+const DEMO_WINDOW: Window = Window {
+    origin: Pos { x: 0, y: 0 },
+    size: Size {
         width: 50,
         height: 13,
     },
-);
+};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -153,7 +145,7 @@ fn main() -> ExitCode {
     // callers are not the same caller. `cargo xtask render` always passes a size, because every
     // marker states one, so the default is never what a generated picture uses; and a bare run
     // serves a person watching it, who gets the demonstration's own window whatever they typed.
-    let (origin, size) = match asked {
+    let Window { origin, size } = match asked {
         Some(asked) if path.is_some() => asked,
         _ => DEMO_WINDOW,
     };
@@ -221,7 +213,10 @@ fn parse_args(args: &[String]) -> Result<(Option<String>, Option<Window>), Strin
         }
     }
 
-    let window = size.map(|size| (origin.unwrap_or(Pos { x: 0, y: 0 }), size));
+    let window = size.map(|size| Window {
+        origin: origin.unwrap_or(Pos { x: 0, y: 0 }),
+        size,
+    });
     Ok((path, window))
 }
 
@@ -269,7 +264,7 @@ fn render_once(diagram: &Diagram, origin: Pos, size: Size) -> String {
 /// answer that, and drawing the diagram a second time to ask would be a second drawing rather than
 /// the first one.
 fn drawn(diagram: &Diagram, catalog: &GlyphCatalog, origin: Pos, size: Size) -> (Buffer, String) {
-    let mut buffer = Buffer::new(origin, size);
+    let mut buffer = Buffer::new(Window { origin, size });
     diagram.draw(&mut buffer);
     let text = monospace_core::render(&buffer, catalog, origin, size);
     (buffer, text)
@@ -541,40 +536,40 @@ mod tests {
 
     use monospace_core::{
         BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Offset, Pos, Shape, Size, StampMode, Stroke,
-        render,
+        Window, render,
     };
     use monospace_diagram::ShapeId;
 
-    use super::{Window, demonstrate, drawn, parse_args, render_once};
+    use super::{demonstrate, drawn, parse_args, render_once};
     use crate::parse;
 
-    /// The window the shipped demonstration is drawn at, as the pair the flags name.
-    fn in_the_demo_window() -> (Pos, Size) {
+    /// The window the shipped demonstration is drawn at, as the flags name it.
+    fn in_the_demo_window() -> Window {
         super::DEMO_WINDOW
     }
 
     /// The window a one-box description is drawn at in the tests that are about a small window
     /// rather than about the demonstration.
     fn a_four_by_three_window() -> Window {
-        (
-            Pos { x: 0, y: 0 },
-            Size {
+        Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 4,
                 height: 3,
             },
-        )
+        }
     }
 
     /// The window the two overlapping boxes below are drawn at, which is the smallest one that
     /// holds both.
     fn a_six_by_four_window() -> Window {
-        (
-            Pos { x: 0, y: 0 },
-            Size {
+        Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 6,
                 height: 4,
             },
-        )
+        }
     }
 
     /// The picture `json` renders to, parsed first, drawn into `window`.
@@ -583,13 +578,13 @@ mod tests {
     /// wants a `String` and none of them is about the window on its own.
     fn render_json(json: &str, window: Window) -> String {
         let diagram = parse(json).expect("well-formed description");
-        render_once(&diagram, window.0, window.1)
+        render_once(&diagram, window.origin, window.size)
     }
 
     /// The demonstration over `json`, parsed first, drawn into `window`.
     fn demonstrate_json(json: &str, window: Window) -> String {
         let diagram = parse(json).expect("well-formed description");
-        demonstrate(diagram, window.0, window.1)
+        demonstrate(diagram, window.origin, window.size)
     }
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
     fn identity(ordinal: u16) -> ShapeId {
@@ -617,7 +612,7 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -639,7 +634,7 @@ mod tests {
         let (first, ..) = demonstrated_pictures(one_box_json(), a_four_by_three_window());
 
         let diagram = parse(one_box_json()).expect("well-formed description");
-        let (origin, size) = a_four_by_three_window();
+        let Window { origin, size } = a_four_by_three_window();
         assert_eq!(render_once(&diagram, origin, size), first);
     }
 
@@ -762,7 +757,7 @@ mod tests {
             width: 6,
             height: 4,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         back.draw(&mut Layer::new(&mut buffer, StampMode::Above));
         front.draw(&mut Layer::new(&mut buffer, StampMode::Above));
         render(&buffer, &GlyphCatalog::light(), origin, size)
@@ -1465,7 +1460,7 @@ mod tests {
     fn the_shape_a_position_resolves_to_is_the_front_most_of_the_two_that_wrote_it() {
         let diagram = parse(super::DEMO).expect("the shipped description reads");
         let catalog = monospace_glyph_sets::all();
-        let (origin, size) = in_the_demo_window();
+        let Window { origin, size } = in_the_demo_window();
         let (buffer, picture) = drawn(&diagram, &catalog, origin, size);
 
         for (x, y, glyph, expected) in THE_CROSSING_CELLS {
@@ -1542,7 +1537,7 @@ mod tests {
     #[test]
     fn the_four_offsets_answer_the_shapes_the_demonstration_acts_on() {
         let diagram = parse(super::DEMO).expect("the shipped description reads");
-        let (origin, size) = in_the_demo_window();
+        let Window { origin, size } = in_the_demo_window();
         let (buffer, _) = drawn(&diagram, &monospace_glyph_sets::all(), origin, size);
 
         for (at, expected, what) in [
@@ -1658,13 +1653,13 @@ mod tests {
             parse_args(&args(&["--size", "20x7", "x.json"])).expect("a size is a window"),
             (
                 Some("x.json".to_owned()),
-                Some((
-                    Pos { x: 0, y: 0 },
-                    Size {
+                Some(Window {
+                    origin: Pos { x: 0, y: 0 },
+                    size: Size {
                         width: 20,
                         height: 7
                     }
-                ))
+                })
             ),
             "a size alone is a window at the origin every marker but four uses"
         );
@@ -1673,13 +1668,13 @@ mod tests {
                 .expect("both halves are a window"),
             (
                 Some("x.json".to_owned()),
-                Some((
-                    Pos { x: -3, y: -2 },
-                    Size {
+                Some(Window {
+                    origin: Pos { x: -3, y: -2 },
+                    size: Size {
                         width: 7,
                         height: 5
                     }
-                ))
+                })
             ),
             "an origin may be negative, which is what `specs/086` draws at"
         );

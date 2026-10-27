@@ -65,12 +65,15 @@ use crate::{Command, Step};
 /// last line is a method this crate does not have.
 ///
 /// ```compile_fail
-/// use monospace_core::{Buffer, Pos, Size};
+/// use monospace_core::{Buffer, Pos, Size, Window};
 /// use monospace_diagram::Diagram;
 /// use monospace_editing::Session;
 ///
 /// let session = Session::new(Diagram::new());
-/// session.diagram().draw(&mut Buffer::new(Pos { x: 0, y: 0 }, Size { width: 1, height: 1 }));
+/// session.diagram().draw(&mut Buffer::new(Window {
+///     origin: Pos { x: 0, y: 0 },
+///     size: Size { width: 1, height: 1 },
+/// }));
 ///
 /// session.diagram_mut();
 /// ```

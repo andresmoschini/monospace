@@ -43,19 +43,21 @@ impl Shape for End {
 mod tests {
     use super::End;
     use crate::cell::Side;
-    use crate::{Arm, Buffer, Cell, Layer, Pos, Shape, Size, StampMode, Stroke, StrokeCell};
+    use crate::{
+        Arm, Buffer, Cell, Layer, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window,
+    };
 
     /// An end toward `Right` carries `Set` there and `Unset` on the
     /// other three sides — decided nothing about what lies beyond it.
     #[test]
     fn an_end_carries_one_arm_and_leaves_the_other_three_unset() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         let mut layer = Layer::new(&mut buffer, StampMode::Above);
 
         End {

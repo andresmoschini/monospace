@@ -663,14 +663,16 @@ fn render_back_to_front_with_above(
     back: &monospace_core::BoxShape,
     front: &monospace_core::BoxShape,
 ) -> String {
-    use monospace_core::{Buffer, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, render};
+    use monospace_core::{
+        Buffer, GlyphCatalog, Layer, Pos, Shape, Size, StampMode, Window, render,
+    };
 
     let origin = Pos { x: 0, y: 0 };
     let size = Size {
         width: 6,
         height: 4,
     };
-    let mut buffer = Buffer::new(origin, size);
+    let mut buffer = Buffer::new(Window { origin, size });
     back.draw(&mut Layer::new(&mut buffer, StampMode::Above));
     front.draw(&mut Layer::new(&mut buffer, StampMode::Above));
     render(&buffer, &GlyphCatalog::light(), origin, size)

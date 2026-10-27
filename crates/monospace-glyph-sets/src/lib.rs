@@ -710,7 +710,7 @@ pub fn light_round_heavy() -> GlyphCatalog {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{BoxShape, Buffer, Layer, Pos, Shape, Size, StampMode};
+    use monospace_core::{BoxShape, Buffer, Layer, Pos, Shape, Size, StampMode, Window};
 
     use super::{
         all, ascii, double, heavy, light_double, light_heavy, light_round, light_round_double,
@@ -768,7 +768,7 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -821,7 +821,7 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -888,7 +888,7 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -955,7 +955,7 @@ mod tests {
             width: 4,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -998,7 +998,7 @@ mod tests {
             height: 3,
         };
 
-        let mut light_round_buffer = Buffer::new(origin, size);
+        let mut light_round_buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -1009,7 +1009,7 @@ mod tests {
         let light_round_output =
             monospace_core::render(&light_round_buffer, &light_round(), origin, size);
 
-        let mut light_buffer = Buffer::new(origin, size);
+        let mut light_buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,

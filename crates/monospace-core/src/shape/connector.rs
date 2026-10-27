@@ -547,7 +547,7 @@ mod tests {
     use crate::shape::counting::CountingSurface;
     use crate::{
         Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Line, Orientation, Pos, Shape,
-        Size, StampMode, Stroke, StrokeCell, render,
+        Size, StampMode, Stroke, StrokeCell, Window, render,
     };
 
     fn light() -> Stroke {
@@ -576,7 +576,7 @@ mod tests {
     }
 
     fn render_connector(origin: Pos, size: Size, from: Endpoint, to: Endpoint) -> String {
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Connector {
             from,
             to,
@@ -1123,7 +1123,7 @@ mod tests {
             height: 1,
         };
         let at = origin;
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
 
         Connector {
             from: Endpoint {
@@ -1189,13 +1189,13 @@ mod tests {
             // A one-by-one window on the endpoint's own position, so nothing but the terminal
             // writes there: the route starts one step away and the other endpoint is off-window.
             let at = Pos { x: 3, y: 3 };
-            let mut buffer = Buffer::new(
-                at,
-                Size {
+            let mut buffer = Buffer::new(Window {
+                origin: at,
+                size: Size {
                     width: 1,
                     height: 1,
                 },
-            );
+            });
             Connector {
                 from: Endpoint {
                     at,
@@ -1335,7 +1335,7 @@ mod tests {
                 stroke: light(),
             };
 
-            let mut buffer = Buffer::new(origin, size);
+            let mut buffer = Buffer::new(Window { origin, size });
             connector.draw(&mut Layer::new(&mut buffer, StampMode::Above));
             for at in body.iter().copied().chain([from_at, to_at]) {
                 assert!(
@@ -1642,7 +1642,10 @@ mod tests {
     fn sweep_every_endpoint_renders_its_own_head_and_no_position_is_written_twice() {
         for (a, da, b, db) in sweep_arrangements() {
             for (from_at, from_dir, to_at, to_dir) in [(a, da, b, db), (b, db, a, da)] {
-                let mut buffer = Buffer::new(SWEEP_ORIGIN, SWEEP_SIZE);
+                let mut buffer = Buffer::new(Window {
+                    origin: SWEEP_ORIGIN,
+                    size: SWEEP_SIZE,
+                });
                 Connector {
                     from: endpoint(from_at, from_dir),
                     to: endpoint(to_at, to_dir),

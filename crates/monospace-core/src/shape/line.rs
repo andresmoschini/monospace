@@ -94,7 +94,8 @@ mod tests {
     use super::Line;
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Arm, Buffer, GlyphCatalog, Layer, Orientation, Pos, Shape, Size, StampMode, Stroke, render,
+        Arm, Buffer, GlyphCatalog, Layer, Orientation, Pos, Shape, Size, StampMode, Stroke, Window,
+        render,
     };
 
     fn light() -> Stroke {
@@ -110,7 +111,7 @@ mod tests {
             width: 6,
             height: 1,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Line {
             at: origin,
             len: 5,
@@ -135,7 +136,7 @@ mod tests {
             width: 1,
             height: 5,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Line {
             at: origin,
             len: 4,
@@ -158,13 +159,13 @@ mod tests {
     #[test]
     fn a_horizontal_lines_first_cell_carries_only_its_forward_arm() {
         let origin = Pos { x: 0, y: 0 };
-        let mut buffer = Buffer::new(
+        let mut buffer = Buffer::new(Window {
             origin,
-            Size {
+            size: Size {
                 width: 5,
                 height: 1,
             },
-        );
+        });
         Line {
             at: origin,
             len: 5,
@@ -191,7 +192,7 @@ mod tests {
             width: 2,
             height: 1,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         Line {
             at: origin,
             len: 2,
@@ -211,13 +212,13 @@ mod tests {
     #[test]
     fn a_line_of_length_1_writes_exactly_one_position() {
         let origin = Pos { x: 0, y: 0 };
-        let mut buffer = Buffer::new(
+        let mut buffer = Buffer::new(Window {
             origin,
-            Size {
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         Line {
             at: origin,
             len: 1,
@@ -233,13 +234,13 @@ mod tests {
     #[test]
     fn a_line_of_length_0_draws_nothing() {
         let origin = Pos { x: 0, y: 0 };
-        let mut buffer = Buffer::new(
+        let mut buffer = Buffer::new(Window {
             origin,
-            Size {
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         Line {
             at: origin,
             len: 0,
@@ -298,11 +299,11 @@ mod tests {
         };
 
         for mode in [StampMode::Above, StampMode::Below] {
-            let mut horizontal_first = Buffer::new(origin, size);
+            let mut horizontal_first = Buffer::new(Window { origin, size });
             horizontal().draw(&mut Layer::new(&mut horizontal_first, StampMode::Above));
             vertical().draw(&mut Layer::new(&mut horizontal_first, mode));
 
-            let mut vertical_first = Buffer::new(origin, size);
+            let mut vertical_first = Buffer::new(Window { origin, size });
             vertical().draw(&mut Layer::new(&mut vertical_first, StampMode::Above));
             horizontal().draw(&mut Layer::new(&mut vertical_first, mode));
 

@@ -564,7 +564,7 @@ impl Description {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{Buffer, GlyphCatalog, Pos, Size};
+    use monospace_core::{Buffer, GlyphCatalog, Pos, Size, Window};
 
     use super::{Description, Diagram, ParseError, parse};
 
@@ -598,7 +598,7 @@ mod tests {
 
         // And the window is the caller's: the same diagram drawn into two different ones.
         let drawn = |origin: Pos, size: Size| {
-            let mut buffer = Buffer::new(origin, size);
+            let mut buffer = Buffer::new(Window { origin, size });
             diagram.draw(&mut buffer);
             monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
         };
@@ -646,7 +646,7 @@ mod tests {
             width: 6,
             height: 4,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
 
         assert_eq!(
@@ -670,7 +670,7 @@ mod tests {
     fn render_once(description: Description, origin: Pos, size: Size) -> String {
         let diagram = description.into_diagram();
 
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
         monospace_core::render(&buffer, &GlyphCatalog::light(), origin, size)
     }

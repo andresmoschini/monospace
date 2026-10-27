@@ -325,7 +325,8 @@ mod tests {
     use super::{Delta, Endpoint, Shape};
     use crate::{Anchor, Diagram, Position, Reference, ShapeId};
     use monospace_core::{
-        Buffer, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, render,
+        Buffer, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, Window,
+        render,
     };
 
     /// The window the arrangement below is drawn in: two 3×3 boxes on an 11×3 canvas, which is the
@@ -488,7 +489,10 @@ mod tests {
         for shape in shapes {
             diagram = diagram.add(shape).0;
         }
-        let mut buffer = Buffer::new(ORIGIN, WINDOW);
+        let mut buffer = Buffer::new(Window {
+            origin: ORIGIN,
+            size: WINDOW,
+        });
         diagram.draw(&mut buffer);
         buffer
     }

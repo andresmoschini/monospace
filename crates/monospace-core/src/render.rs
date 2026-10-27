@@ -51,7 +51,9 @@ fn glyph_at<'a>(
 #[cfg(test)]
 mod tests {
     use super::render;
-    use crate::{Arm, Buffer, Cell, Glyph, GlyphCatalog, Pos, Size, StampMode, Stroke, StrokeCell};
+    use crate::{
+        Arm, Buffer, Cell, Glyph, GlyphCatalog, Pos, Size, StampMode, Stroke, StrokeCell, Window,
+    };
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -59,13 +61,13 @@ mod tests {
 
     #[test]
     fn a_single_junction_renders_as_a_cross() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -95,13 +97,13 @@ mod tests {
 
     #[test]
     fn a_box_renders_from_eight_stamps() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 4,
                 height: 3,
             },
-        );
+        });
         let corner = |top, right, bottom, left| -> Cell {
             StrokeCell {
                 base: light(),
@@ -193,13 +195,13 @@ mod tests {
     /// overwrote everything else, so the cell renders as a T rather than a cross.
     #[test]
     fn an_abstaining_stamp_renders_the_surviving_arm() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -244,13 +246,13 @@ mod tests {
     /// `double`, so the whole output is a space.
     #[test]
     fn a_key_the_catalog_does_not_answer_renders_as_a_space() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -283,13 +285,13 @@ mod tests {
     /// a space for different reasons — rule 9 for the first, rule 8 for the second.
     #[test]
     fn an_undefined_cell_and_a_fully_closed_one_both_render_as_a_space() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 2,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -319,13 +321,13 @@ mod tests {
 
     #[test]
     fn a_buffer_with_no_positions_renders_as_spaces() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 0,
                 height: 0,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -363,7 +365,7 @@ mod tests {
             width: 3,
             height: 1,
         };
-        let buffer = Buffer::new(origin, size);
+        let buffer = Buffer::new(Window { origin, size });
 
         let text = render(&buffer, &GlyphCatalog::light(), origin, size);
 
@@ -372,13 +374,13 @@ mod tests {
 
     #[test]
     fn rendering_outside_the_window_fills_it_with_spaces() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 2,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             StrokeCell {
@@ -410,13 +412,13 @@ mod tests {
     /// and no lookup — a catalog with no rule at all still answers it.
     #[test]
     fn a_literal_renders_as_itself_with_a_catalog_that_has_no_rule_for_it() {
-        let mut buffer = Buffer::new(
-            Pos { x: 0, y: 0 },
-            Size {
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
                 width: 1,
                 height: 1,
             },
-        );
+        });
         buffer.stamp(
             Pos { x: 0, y: 0 },
             Cell::Literal(Glyph::new("A").expect("\"A\" is one glyph")),

@@ -127,7 +127,7 @@ impl Shape for BoxShape {
 mod tests {
     use super::BoxShape;
     use crate::shape::counting::CountingSurface;
-    use crate::{Buffer, GlyphCatalog};
+    use crate::{Buffer, GlyphCatalog, Window};
     use crate::{Glyph, Layer, Pos, Shape, Size, StampMode, Stroke, render};
 
     fn light() -> Stroke {
@@ -142,7 +142,7 @@ mod tests {
             width: 6,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -165,7 +165,7 @@ mod tests {
             width: 6,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -187,7 +187,7 @@ mod tests {
             width: 2,
             height: 2,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         BoxShape {
             at: origin,
             size,
@@ -224,7 +224,7 @@ mod tests {
                 height: 2,
             },
         ] {
-            let mut buffer = Buffer::new(origin, size);
+            let mut buffer = Buffer::new(Window { origin, size });
             BoxShape {
                 at: origin,
                 size: degenerate,
@@ -291,7 +291,7 @@ mod tests {
             width: 9,
             height: 5,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
 
         BoxShape {
             at: Pos { x: 0, y: 0 },
@@ -331,7 +331,7 @@ mod tests {
             width: 9,
             height: 5,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
 
         BoxShape {
             at: Pos { x: 0, y: 0 },
@@ -373,7 +373,7 @@ mod tests {
             width: 6,
             height: 3,
         };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
 
         BoxShape {
             at: Pos { x: 0, y: 0 },

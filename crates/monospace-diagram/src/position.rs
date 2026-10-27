@@ -299,7 +299,7 @@ mod tests {
     use std::num::NonZeroU16;
 
     use monospace_core::{
-        Buffer, Direction, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, render,
+        Buffer, Direction, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, Window, render,
     };
 
     use super::Anchor;
@@ -580,7 +580,7 @@ mod tests {
     /// comparison below.
     fn picture_of(diagram: &Diagram, size: Size) -> String {
         let origin = Pos { x: 0, y: 0 };
-        let mut buffer = Buffer::new(origin, size);
+        let mut buffer = Buffer::new(Window { origin, size });
         diagram.draw(&mut buffer);
         render(&buffer, &GlyphCatalog::light(), origin, size)
     }
