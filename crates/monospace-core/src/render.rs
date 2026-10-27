@@ -1,29 +1,33 @@
-//! Turning a buffer into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
+//! Turning cells into text. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Buffer, CellReader, GlyphCatalog, Pos, Window};
+use crate::{CellReader, GlyphCatalog, Pos, Window};
 
-/// Renders a rectangle of `buffer` to a string of exactly `size.height` lines, each exactly
-/// `size.width` glyphs wide and ending in `\n`, the last line included. A glyph may be more than
-/// one character, so the line is the same rectangle without being the same character count.
+/// Renders the rectangle of `window` from `source` to a string of exactly `window.size.height`
+/// lines, each exactly `window.size.width` glyphs wide and ending in `\n`, the last line included.
+/// A glyph may be more than one character, so the line is the same rectangle without being the
+/// same character count.
 ///
 /// Each position asks its own cell for the text it renders to — see [`Cell::glyph_str`] — and
 /// falls back to a space when there is no cell, or the cell has none to give. A position inside
-/// the rendered rectangle but outside the buffer's window renders as a space too, since it never
-/// holds a cell either — and so does a position that the rectangle's origin and an offset within
-/// its size cannot even address as a `Pos`, since nothing could ever have been stamped there.
+/// the rendered rectangle that the reader holds no cell for renders as a space too, since it never
+/// held one — and so does a position that the rectangle's origin and an offset within its size
+/// cannot even address as a `Pos`, since nothing could ever have been stamped there.
 ///
-/// **The window is passed rather than taken from the buffer's.** A window is where the buffer was
-/// drawn, and a rendering asks for the same rectangle, a part of it, or one that reaches past it —
-/// the last of which is what the paragraph above is about, and a rendering that took the buffer's
-/// own window could not ask for it.
+/// **A reader rather than a buffer**: rendering asks for a cell and has no way to ask who owns
+/// one, or to reach anything else a [`Buffer`] keeps.
 ///
+/// **The window is passed rather than taken from the reader**, and a reader need not have one: a
+/// rendering asks for the rectangle the cells were drawn in, a part of it, or one that reaches
+/// past it — the last of which is what the paragraph above is about.
+///
+/// [`Buffer`]: crate::Buffer
 /// [`Cell::glyph_str`]: crate::Cell::glyph_str
 #[must_use]
-pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, window: Window) -> String {
+pub fn render(source: &impl CellReader, glyphs: &GlyphCatalog, window: Window) -> String {
     (0..window.size.height)
         .map(|dy| {
             let row: String = (0..window.size.width)
-                .map(|dx| glyph_at(buffer, glyphs, window.origin, dx, dy))
+                .map(|dx| glyph_at(source, glyphs, window.origin, dx, dy))
                 .collect();
             row + "\n"
         })
@@ -33,7 +37,7 @@ pub fn render(buffer: &Buffer, glyphs: &GlyphCatalog, window: Window) -> String 
 /// The glyph at the absolute position `origin` plus `(dx, dy)`, or a space if that position
 /// cannot be addressed as a `Pos`, holds no cell, or the cell there has no text to give.
 fn glyph_at<'a>(
-    buffer: &'a Buffer,
+    source: &'a impl CellReader,
     glyphs: &'a GlyphCatalog,
     origin: Pos,
     dx: u16,
@@ -43,7 +47,7 @@ fn glyph_at<'a>(
         .x
         .checked_add_unsigned(dx)
         .zip(origin.y.checked_add_unsigned(dy))
-        .and_then(|(x, y)| buffer.cell(Pos { x, y }))
+        .and_then(|(x, y)| source.cell(Pos { x, y }))
         .and_then(|cell| cell.glyph_str(glyphs))
         .unwrap_or(" ")
 }
