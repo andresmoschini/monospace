@@ -106,6 +106,25 @@ pub struct Endpoint {
     pub terminal: Terminal,
 }
 
+impl Endpoint {
+    /// The head this endpoint writes, when its terminal writes a literal glyph — and `None` when it
+    /// writes an arm instead.
+    ///
+    /// One function rather than a match inside [`Connector::draw`] because the two questions a
+    /// terminal answers are separate: **which glyph is written**, decided here, and **which side an
+    /// arm goes on**, decided by [`arm_side`]. A terminal added later writes one or the other, and
+    /// this is where it says which.
+    fn head(&self) -> Option<Head> {
+        match &self.terminal {
+            Terminal::Glyph { glyph } => Some(Head {
+                at: self.at,
+                glyph: glyph.clone(),
+            }),
+            Terminal::Arm => None,
+        }
+    }
+}
+
 /// What an endpoint contributes to the cell at its own position. A caller builds either variant as
 /// a literal, and reads one back by matching this public field.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,13 +179,9 @@ impl Shape for Connector {
     /// called exactly as it always was and a terminal cannot reach it.
     fn draw(&self, surface: &mut dyn Surface) {
         for endpoint in [&self.from, &self.to] {
-            match &endpoint.terminal {
-                Terminal::Glyph { glyph } => Head {
-                    at: endpoint.at,
-                    glyph: glyph.clone(),
-                }
-                .draw(surface),
-                Terminal::Arm => End {
+            match endpoint.head() {
+                Some(head) => head.draw(surface),
+                None => End {
                     at: endpoint.at,
                     side: arm_side(endpoint.leaving),
                     stroke: self.stroke.clone(),
