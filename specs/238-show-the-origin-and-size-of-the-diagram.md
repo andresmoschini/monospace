@@ -1,6 +1,7 @@
 ---
-status: agreed
+status: implemented
 decided: "#242"
+implemented: "#243"
 date: 2026-10-27
 ---
 
