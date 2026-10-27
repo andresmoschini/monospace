@@ -1,0 +1,13 @@
+[package]
+name = "monospace-terminal-styles"
+description = "Terminal styles that monospace-core does not ship, such as ASCII arrows"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+monospace-core.workspace = true
+
+[lints]
+workspace = true

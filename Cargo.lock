@@ -699,6 +699,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "monospace-terminal-styles"
+version = "0.1.0"
+dependencies = [
+ "monospace-core",
+]
+
+[[package]]
 name = "num-conv"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

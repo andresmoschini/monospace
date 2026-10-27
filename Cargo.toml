@@ -7,6 +7,7 @@ members = [
     "crates/monospace-diagram",
     "crates/monospace-editing",
     "crates/monospace-glyph-sets",
+    "crates/monospace-terminal-styles",
     "xtask",
 ]
 resolver = "3"
@@ -23,6 +24,7 @@ monospace-description = { path = "crates/monospace-description" }
 monospace-diagram = { path = "crates/monospace-diagram" }
 monospace-editing = { path = "crates/monospace-editing" }
 monospace-glyph-sets = { path = "crates/monospace-glyph-sets" }
+monospace-terminal-styles = { path = "crates/monospace-terminal-styles" }
 
 # Lints are declared here rather than passed on the command line so that rust-analyzer shows them
 # while editing, and so that a crate added later inherits them instead of quietly opting out.

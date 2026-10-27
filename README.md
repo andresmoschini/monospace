@@ -133,26 +133,27 @@ rule any file depends on.
 
 ### Layout
 
-| Path                           | What it is                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------ |
-| `crates/monospace-core`        | The library. All domain logic lives here, and nothing else.                    |
-| `crates/monospace-diagram`     | The model: a diagram as an ordered set of shapes, drawable.                    |
-| `crates/monospace-editing`     | A diagram being edited, and the steps behind and ahead of it.                  |
-| `crates/monospace-glyph-sets`  | The glyph tables the core does not ship as built-in data.                      |
-| `crates/monospace-description` | The JSON file format, read into a `Diagram`.                                   |
-| `crates/monospace-cli`         | The command-line application. Holds no logic of its own.                       |
-| `crates/monospace`             | The interactive application: the frame, the menu, the diagram and the way out. |
-| `xtask/`                       | Repository automation. `cargo xtask check` is the gate.                        |
-| `docs/model.md`                | The domain's design, its provenance, and its open questions.                   |
-| `docs/diagram-model.md`        | The diagram model's rules: shapes, order, positions.                           |
-| `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.                      |
-| `docs/application-model.md`    | The layer above that one: the frame, the state, the actions.                   |
-| `docs/glyph-sets.md`           | The glyph tables and how they degrade.                                         |
-| `docs/terminal-styles.md`      | The eleven terminal styles, as tables indexed by the way each glyph points.    |
-| `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.                   |
-| `docs/memory-cost.md`          | What a diagram and a session cost, measured. Decides nothing.                  |
-| `docs/workflow.md`             | Why the process works the way it does, written at length.                      |
-| `specs/`                       | One spec per change that had a decision to agree first.                        |
+| Path                               | What it is                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| `crates/monospace-core`            | The library. All domain logic lives here, and nothing else.                    |
+| `crates/monospace-diagram`         | The model: a diagram as an ordered set of shapes, drawable.                    |
+| `crates/monospace-editing`         | A diagram being edited, and the steps behind and ahead of it.                  |
+| `crates/monospace-glyph-sets`      | The glyph tables the core does not ship as built-in data.                      |
+| `crates/monospace-terminal-styles` | The terminal styles the core does not ship as built-in data.                   |
+| `crates/monospace-description`     | The JSON file format, read into a `Diagram`.                                   |
+| `crates/monospace-cli`             | The command-line application. Holds no logic of its own.                       |
+| `crates/monospace`                 | The interactive application: the frame, the menu, the diagram and the way out. |
+| `xtask/`                           | Repository automation. `cargo xtask check` is the gate.                        |
+| `docs/model.md`                    | The domain's design, its provenance, and its open questions.                   |
+| `docs/diagram-model.md`            | The diagram model's rules: shapes, order, positions.                           |
+| `docs/editing-model.md`            | The editing layer above it: commands, steps, giving back.                      |
+| `docs/application-model.md`        | The layer above that one: the frame, the state, the actions.                   |
+| `docs/glyph-sets.md`               | The glyph tables and how they degrade.                                         |
+| `docs/terminal-styles.md`          | The eleven terminal styles, as tables indexed by the way each glyph points.    |
+| `docs/tui-conventions.md`          | A survey of terminal interface conventions. Decides nothing.                   |
+| `docs/memory-cost.md`              | What a diagram and a session cost, measured. Decides nothing.                  |
+| `docs/workflow.md`                 | Why the process works the way it does, written at length.                      |
+| `specs/`                           | One spec per change that had a decision to agree first.                        |
 
 ## Guiding principles
 
