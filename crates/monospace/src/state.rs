@@ -16,6 +16,7 @@ use monospace_core::{
 use monospace_editing::{Command, Session};
 use rat_widget::menu::MenubarState;
 use rat_widget::msgdialog::MsgDialogState;
+use rat_widget::scrolled::{ScrollAreaState, ScrollState};
 use rat_widget::statusline::StatusLineState;
 use ratatui_core::layout::{Position, Rect};
 
@@ -42,6 +43,17 @@ pub(crate) struct DiagramState {
     /// window discarded and a stamp the composition found already decided both count, and the
     /// buffer cannot answer for either. `None` until the first frame is drawn.
     footprint: Option<Footprint>,
+
+    /// The vertical bar's own state: where its thumb stands, and how far the content lets it travel.
+    ///
+    /// **Kept beside the origin and derived from it** (D1): `redraw` writes the page, the reach and
+    /// the offset of every frame, so a content change moves the thumb with the drawing rather than
+    /// leaving it where the frame before it stood. The state is the helper's because the bar that
+    /// draws it and the press it answers are the helper's too.
+    vscroll: ScrollState,
+
+    /// The horizontal bar's own state, derived from the origin as [`Self::vscroll`] is.
+    hscroll: ScrollState,
 
     /// The interior the last frame drew the diagram into, as the screen holds it. A click arrives
     /// as a column and a row of the screen, and this is what says whether it landed inside the
@@ -83,6 +95,8 @@ impl DiagramState {
                 },
             }),
             footprint: None,
+            vscroll: ScrollState::new(),
+            hscroll: ScrollState::new(),
             interior: Rect::new(0, 0, 0, 0),
             region: Rect::new(0, 0, 0, 0),
             selected: None,
@@ -295,6 +309,19 @@ impl DiagramState {
         self.region
     }
 
+    /// The two bars' own state over `area`, for the widget that draws them and the one that reads a
+    /// press on them.
+    ///
+    /// **The region is the area, because the bars sit on its border** (D4): the helper lays each of
+    /// them on the block's own row or column, between the corners, so what it answers a press
+    /// against is the rectangle the region drew rather than the window.
+    pub(crate) fn scroll_area(&mut self, area: Rect) -> ScrollAreaState<'_> {
+        ScrollAreaState::new()
+            .area(area)
+            .v_scroll(&mut self.vscroll)
+            .h_scroll(&mut self.hscroll)
+    }
+
     /// Draws the session's diagram into `interior` — the window, as the screen holds it — at the
     /// scroll origin, replacing whatever the frame before drew.
     ///
@@ -315,6 +342,8 @@ impl DiagramState {
             x: across.clamp(self.origin.x),
             y: down.clamp(self.origin.y),
         };
+        across.place(&mut self.hscroll, self.origin.x);
+        down.place(&mut self.vscroll, self.origin.y);
 
         let mut buffer = Buffer::new(Window {
             origin: self.origin,
@@ -403,6 +432,26 @@ impl Axis {
         let at = i32::from(origin).clamp(first, last);
 
         i16::try_from(at).expect("a cell of the content fits the plane it was measured in")
+    }
+
+    /// How far past the window the content reaches, which is how far the view can travel.
+    fn span(&self) -> usize {
+        usize::try_from((self.last - self.first + 1 - self.window).max(0))
+            .expect("a count of cells is a length")
+    }
+
+    /// Where `origin` stands, counted from the content's first cell.
+    fn offset(&self, origin: i16) -> usize {
+        usize::try_from(i32::from(origin) - self.first)
+            .expect("the origin lies in the content, so it is never before it")
+    }
+
+    /// Writes `origin` and the content into a bar's own state, which is what the bar draws and what
+    /// a press on it is answered against.
+    fn place(&self, state: &mut ScrollState, origin: i16) {
+        state.set_page_len(usize::try_from(self.window).expect("a window's size is a length"));
+        state.set_max_offset(self.span());
+        state.set_offset(self.offset(origin));
     }
 }
 
@@ -664,6 +713,34 @@ mod tests {
             at(&state.diagram, 0, 0),
             "┌",
             "the drawing's own corner is not in the window"
+        );
+    }
+
+    /// **A drawing inside the first screen does not scroll** (rule 1). The content is the union of
+    /// the drawing and the window at `(0, 0)`, so a box that fits leaves neither axis any room to
+    /// travel and the frame opens where the drawing is.
+    #[test]
+    fn a_drawing_inside_the_first_screen_does_not_scroll() {
+        let mut state = a_state_over(A_BOX);
+
+        state
+            .diagram
+            .redraw(Rect::new(0, 0, 20, 10), Rect::new(1, 1, 18, 6));
+
+        assert_eq!(
+            state.diagram.origin(),
+            Pos { x: 0, y: 0 },
+            "a drawing inside the first screen opened somewhere else"
+        );
+        assert_eq!(
+            state.diagram.hscroll.max_offset(),
+            0,
+            "the content is wider than the window it fits"
+        );
+        assert_eq!(
+            state.diagram.vscroll.max_offset(),
+            0,
+            "the content is taller than the window it fits"
         );
     }
 
