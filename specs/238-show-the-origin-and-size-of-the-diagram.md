@@ -231,9 +231,8 @@ and `frame.rs`.
 | 7    | `the_last_frames_footprint_is_the_diagrams`                                                                                                                                                                                                                                                                                                                       |
 | 8    | the five snapshots that carry the bar, and `the_demonstration_is_drawn_when_no_path_is_given` unchanged                                                                                                                                                                                                                                                           |
 
-**Measured in the building stage.** Five snapshots moved, each on its status row alone: the four
-frames with no drawing say `nothing drawn` and gain 12 cells, the demonstration says `46×13 at 0,0`
-and gains 10, and all 13 gate checks pass.
+**Measured in the building stage.** Five snapshots moved, each on its status row alone: four gain
+twelve non-blank cells and `nothing drawn`; the demonstration gains ten and `46×13 at 0,0`.
 
 ## Open questions
 
