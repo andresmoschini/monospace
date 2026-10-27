@@ -82,7 +82,18 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
         &global.cfg.theme,
     );
 
-    status::draw(regions.status, buf, &mut state.status, &global.cfg.theme);
+    // **Read after the region is drawn**, because the footprint is a fact of the drawing rather than
+    // of the session: the buffer this frame measured is the one the click paths will be answered
+    // from, so the bar and the pointer agree about what is on screen.
+    let footprint = state.diagram.footprint();
+
+    status::draw(
+        regions.status,
+        buf,
+        &mut state.status,
+        footprint,
+        &global.cfg.theme,
+    );
 
     // The drop-down is drawn after the region: it hangs from the bar and covers the region, and
     // a region painted after it would erase it.
@@ -871,6 +882,29 @@ mod tests {
         assert!(
             state.diagram.owner(Offset { x: 0, y: 0 }).is_none(),
             "a window with no cells owns one"
+        );
+    }
+
+    #[test]
+    fn the_status_bar_says_how_far_the_drawing_reaches() {
+        let mut state = a_state_over(A_BOX);
+
+        let whole = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+
+        // A screen whose interior is two rows tall: the box's third row is outside the window, and
+        // the bar still says the box's own size. What the picture lost to the window is not what
+        // the drawing reached.
+        let clipped = paint(&mut state, &a_global(), WIDTH, 6);
+
+        assert!(
+            row_of(&whole, HEIGHT - 1).contains("4×3 at 2,1"),
+            "the bar does not say where the box of A_BOX reaches: {:?}",
+            row_of(&whole, HEIGHT - 1)
+        );
+        assert!(
+            row_of(&clipped, 5).contains("4×3 at 2,1"),
+            "a window too small to hold the box changed how far it reaches: {:?}",
+            row_of(&clipped, 5)
         );
     }
 

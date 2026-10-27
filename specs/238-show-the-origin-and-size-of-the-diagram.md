@@ -1,6 +1,7 @@
 ---
-status: agreed
+status: implemented
 decided: "#242"
+implemented: "#243"
 date: 2026-10-27
 ---
 
@@ -180,8 +181,7 @@ parameter of `status::draw`.
 
 The bar is chrome, not a diagram: `cargo xtask render` draws a description and never a status bar,
 so these are strings the section produces rather than generated pictures. The demonstration's
-numbers are observed in the building stage's snapshot; the rest is arithmetic, not run until the
-tests below.
+numbers are the snapshot's; the rest is arithmetic, and every row is held by a test below.
 
 | Drawing                                                 | Window it was drawn into            | Footprint                    | The bar says    |
 | ------------------------------------------------------- | ----------------------------------- | ---------------------------- | --------------- |
@@ -226,14 +226,14 @@ and `frame.rs`.
 | 2, 3 | `the_footprint_starts_at_the_top_left_of_a_figure_at_negative_coordinates`                                                                                                                                                                                                                                                                                        |
 | 3    | `every_stamp_reaches_the_sink_it_wraps`                                                                                                                                                                                                                                                                                                                           |
 | 4    | `the_bar_says_how_far_the_drawing_reaches`, `the_bar_says_a_corner_before_the_origin_as_it_is`, `a_single_stamped_cell_is_one_by_one`, `the_status_bar_says_how_far_the_drawing_reaches`                                                                                                                                                                          |
-| 5    | `nothing_drawn_is_said_in_words`, `the_state_has_one_section_per_row_of_the_table`                                                                                                                                                                                                                                                                                |
+| 5    | `nothing_drawn_is_said_in_words`, `the_state_has_one_section_per_row_of_the_table`, `a_text_longer_than_the_section_is_clipped`                                                                                                                                                                                                                                   |
 | 6    | `the_status_bar_says_how_far_the_drawing_reaches` — the bar is read from the frame the region was drawn in                                                                                                                                                                                                                                                        |
 | 7    | `the_last_frames_footprint_is_the_diagrams`                                                                                                                                                                                                                                                                                                                       |
 | 8    | the five snapshots that carry the bar, and `the_demonstration_is_drawn_when_no_path_is_given` unchanged                                                                                                                                                                                                                                                           |
 
-**Measured in the building stage and reported there.** Which snapshots moved and by how many cells,
-the bar the shipped demonstration reads, and the gate's result. None of it is claimed here: the
-tables are arithmetic, and the string rows are what the tests are written to produce.
+**Measured in the building stage.** Five snapshots moved, each on its status row alone: the four
+frames with no drawing say `nothing drawn` and gain 12 cells, the demonstration says `46×13 at 0,0`
+and gains 10, and all 13 gate checks pass.
 
 ## Open questions
 

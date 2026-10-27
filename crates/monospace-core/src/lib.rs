@@ -12,6 +12,7 @@
 
 mod buffer;
 mod cell;
+mod footprint;
 mod geometry;
 mod glyph;
 mod identity;
@@ -21,7 +22,8 @@ mod stroke;
 
 pub use buffer::{Buffer, CellReader, OwnerReader, StampMode, StampSink};
 pub use cell::{Arm, Cell, StrokeCell};
-pub use geometry::{Direction, Offset, Orientation, Pos, Size, Window};
+pub use footprint::FootprintSink;
+pub use geometry::{Direction, Footprint, Offset, Orientation, Pos, Size, Window};
 pub use glyph::{Glyph, GlyphCatalog, GlyphKey};
 pub use identity::ShapeId;
 pub use render::render;

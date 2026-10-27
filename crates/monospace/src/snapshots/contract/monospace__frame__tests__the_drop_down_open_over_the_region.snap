@@ -13,6 +13,6 @@ File Edit Help
 │                                      │
 │                                      │
 └──────────────────────────────────────┘
-monospace                          0.1.0
+monospace        nothing drawn     0.1.0
 the bar is 1 row, the region is 8 rows and the status is 1 row
-144 of 400 cells are not blank
+156 of 400 cells are not blank

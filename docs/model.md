@@ -40,6 +40,7 @@ character matches.
 | --------------- | ------------------------------------------------------------------------------ |
 | `Window`        | An origin and a size: the rectangle a buffer holds                             |
 | `Buffer`        | A window, the cells written into it, and who decided each of them              |
+| `Footprint`     | The smallest and largest coordinate a drawing stamped                          |
 | `Cell`          | Either a base stroke and four arms, or one literal glyph                       |
 | `Side`          | Top, right, bottom or left                                                     |
 | `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`                |
@@ -92,6 +93,16 @@ terminal counts its frame in, so a cell of a drawing goes into a frame without a
 column and row are an offset the window turns into a position. **What that costs is range**: a
 coordinate that runs from −32 768 to 32 767 and an extent of at most 65 535 cells, which is past
 what any terminal draws and past what any description here comes near.
+
+**A buffer holds what it was given, and a drawing can reach past it.** The window decides what is
+written and what is read back; it does not decide how far the stamps went, so measuring a drawing
+happens on the way in rather than by reading the cells afterwards. A stamp outside the window writes
+nothing and still counts, and so does a stamp the picture never shows because another figure decided
+the cell first. `FootprintSink` performs that measurement — it accumulates each stamp's position and
+then hands the stamp on — and `Footprint` is the answer: the smallest and largest coordinate
+reached, or `None` when nothing was stamped at all. **Two positions rather than an origin and a
+size**, because the span can be one cell wider than a size holds and only a caller that wants a
+width can decide what to do about it.
 
 ## 3. The cell
 
@@ -322,6 +333,12 @@ than once" property under _Properties worth testing_. A bounding rectangle was d
 test, and what brings one back in its place is a caller that needs to know what another shape
 occupies — routing around an obstacle, or sizing a canvas to its content — which is also the first
 layer to have to decide what a bound means for a figure whose written positions are sparse.
+
+**The first such caller has arrived, and it reads the stamps rather than the shapes.** The status
+bar says how far a drawing reaches, and the answer is the `Footprint` of _The buffer_ — measured by
+the sink as the stamps pass. No shape gained a method: a sparse figure, a compositor and a route
+computed while drawing all answer with the positions they wrote, and the layer that decides where
+figures go still asks nothing of a shape.
 
 Composition goes to arbitrary depth and no shape depends on knowing how deep it sits: one placed as
 a piece is drawable the same way at the top level. Defining a new kind of shape touches no existing
