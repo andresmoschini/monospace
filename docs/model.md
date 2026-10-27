@@ -94,6 +94,16 @@ column and row are an offset the window turns into a position. **What that costs
 coordinate that runs from −32 768 to 32 767 and an extent of at most 65 535 cells, which is past
 what any terminal draws and past what any description here comes near.
 
+**A buffer holds what it was given, and a drawing can reach past it.** The window decides what is
+written and what is read back; it does not decide how far the stamps went, so measuring a drawing
+happens on the way in rather than by reading the cells afterwards. A stamp outside the window writes
+nothing and still counts, and so does a stamp the picture never shows because another figure decided
+the cell first. `FootprintSink` performs that measurement — it accumulates each stamp's position and
+then hands the stamp on — and `Footprint` is the answer: the smallest and largest coordinate
+reached, or `None` when nothing was stamped at all. **Two positions rather than an origin and a
+size**, because the span can be one cell wider than a size holds and only a caller that wants a
+width can decide what to do about it.
+
 ## 3. The cell
 
 A defined cell holds a base stroke, always present, and four arms — and not a character. Merging two
