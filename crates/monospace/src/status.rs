@@ -220,6 +220,36 @@ mod tests {
         assert_eq!(footprint_text(None), NOTHING_DRAWN);
     }
 
+    /// **The section's width is fixed, so a text too long for it is clipped rather than paid for by
+    /// the rest of the bar.** The plane's own corner is the longest text there is, and the version
+    /// keeps its room while it is drawn: a width that followed the text would move the name's
+    /// boundary whenever the drawing did.
+    #[test]
+    fn a_text_longer_than_the_section_is_clipped() {
+        let row = row_with(
+            40,
+            Some(Footprint {
+                min: Pos {
+                    x: i16::MIN,
+                    y: i16::MIN,
+                },
+                max: Pos {
+                    x: i16::MAX,
+                    y: i16::MAX,
+                },
+            }),
+        );
+
+        assert!(
+            row.contains(VERSION),
+            "a long footprint text pushed the version off the bar: {row:?}"
+        );
+        assert!(
+            !row.contains("65536×65536 at -32768,-32768"),
+            "the bar drew a text longer than the section that holds it: {row:?}"
+        );
+    }
+
     #[test]
     fn the_state_has_one_section_per_row_of_the_table() {
         assert_eq!(state().status.len(), sections().len());
