@@ -375,9 +375,9 @@ mod tests {
     use std::num::NonZeroU16;
 
     use monospace_core::{
-        BoxShape, Buffer, Cell, CellReader, Connector, Direction, FigureLayer, Glyph, GlyphCatalog,
-        Line, Orientation, OwnerReader, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal,
-        Window, render,
+        BoxShape, Buffer, Cell, CellReader, Connector, Direction, FigureLayer, Footprint,
+        FootprintSink, Glyph, GlyphCatalog, Line, Orientation, OwnerReader, Pos,
+        Shape as CoreShape, Size, StampMode, Stroke, Terminal, Window, render,
     };
 
     use super::{Diagram, ShapeId};
@@ -5061,5 +5061,189 @@ mod tests {
         // The two displacements belonged to two figures, so each was applied once: the gap is the
         // one that grew and not the two that would have come from a cascading displacement.
         assert_ne!(the_ends(&diagram, connector_id), ends_before);
+    }
+
+    // ------------------------------------------------------------ how far a drawing reaches
+
+    /// The footprint a diagram reaches when drawn into the window the cases below share, so a claim
+    /// about a footprint is written the way the claims about pictures are.
+    ///
+    /// The window is deliberately **not** fitted to the diagram: every diagram below is measured
+    /// through the same window, and the point of the cases is that the window takes no part.
+    fn footprint_of(diagram: &Diagram) -> Option<Footprint> {
+        let Window { origin, size } = the_window();
+        let mut buffer = Buffer::new(Window { origin, size });
+        let mut sink = FootprintSink::new(&mut buffer);
+        diagram.draw(&mut sink);
+        sink.footprint()
+    }
+
+    /// The same diagram drawn into three windows — one that holds nothing, one that holds a corner,
+    /// one that holds all of it — reaches the same rectangle, **in the plane and not in the
+    /// window**.
+    ///
+    /// This is the case the measurement exists for: a minimum and maximum taken from the cells
+    /// would be the intersection with the window, and the three answers below would be three
+    /// different rectangles.
+    #[test]
+    fn the_footprint_is_the_same_whatever_window_the_diagram_is_drawn_into() {
+        let (diagram, _back, _front) = two_overlapping_boxes();
+        let windows = [
+            (
+                Pos { x: 0, y: 0 },
+                Size {
+                    width: 0,
+                    height: 0,
+                },
+            ),
+            (
+                Pos { x: 4, y: 2 },
+                Size {
+                    width: 1,
+                    height: 1,
+                },
+            ),
+            (
+                Pos { x: -9, y: -7 },
+                Size {
+                    width: 30,
+                    height: 20,
+                },
+            ),
+        ];
+
+        let footprints: Vec<_> = windows
+            .into_iter()
+            .map(|(origin, size)| {
+                let mut buffer = Buffer::new(Window { origin, size });
+                let mut sink = FootprintSink::new(&mut buffer);
+                diagram.draw(&mut sink);
+                sink.footprint()
+            })
+            .collect();
+
+        assert_eq!(
+            footprints,
+            vec![
+                Some(Footprint {
+                    min: Pos { x: 0, y: 0 },
+                    max: Pos { x: 5, y: 3 },
+                });
+                3
+            ],
+            "the window decided how far the drawing reaches"
+        );
+    }
+
+    /// A diagram at negative coordinates starts at its top-left corner, which is a `Pos` and not an
+    /// offset: `min` is signed and `y` grows down.
+    ///
+    /// The window the case draws into holds none of the figure, so this is the same rule as the case
+    /// above seen from the other side: the record is taken before the window is consulted.
+    #[test]
+    fn the_footprint_starts_at_the_top_left_of_a_figure_at_negative_coordinates() {
+        let diagram = Diagram::new()
+            .add(Shape::Box {
+                at: Pos { x: -4, y: -3 },
+                size: Size {
+                    width: 4,
+                    height: 3,
+                },
+                stroke: light(),
+                fill: None,
+            })
+            .0;
+
+        assert_eq!(
+            footprint_of(&diagram),
+            Some(Footprint {
+                min: Pos { x: -4, y: -3 },
+                max: Pos { x: -1, y: -1 },
+            })
+        );
+    }
+
+    /// A figure wholly behind another **still counts**, which is what makes the footprint the
+    /// drawing's footprint rather than its picture: the back box owns no cell at all and is
+    /// measured anyway.
+    ///
+    /// The arrangement is the one that would make a record taken from `owners` shrink: the front box
+    /// is filled and covers the back one exactly, so the back one writes nothing under `Below` and
+    /// owns nothing. A footprint that followed the cells would report the front box alone.
+    #[test]
+    fn a_figure_wholly_behind_another_still_counts() {
+        let diagram = Diagram::new();
+        let (diagram, back) = diagram.add(Shape::Box {
+            at: Pos { x: 1, y: 1 },
+            size: Size {
+                width: 2,
+                height: 2,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("░").expect("one glyph")),
+        });
+        let (diagram, front) = diagram.add(Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 6,
+                height: 4,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("▓").expect("one glyph")),
+        });
+        let Window { origin, size } = the_window();
+
+        let mut buffer = Buffer::new(Window { origin, size });
+        let footprint = {
+            let mut sink = FootprintSink::new(&mut buffer);
+            diagram.draw(&mut sink);
+            sink.footprint()
+        };
+
+        assert_eq!(
+            buffer.owner(Pos { x: 1, y: 1 }),
+            Some(front),
+            "the box in front did not cover the one behind"
+        );
+        assert!(
+            !owners(&buffer).contains(&Some(back)),
+            "the box behind owns a cell, so it is not hidden and this is not the case"
+        );
+        assert_eq!(
+            footprint,
+            Some(Footprint {
+                min: Pos { x: 0, y: 0 },
+                max: Pos { x: 5, y: 3 },
+            })
+        );
+    }
+
+    /// Sending a figure behind another changes the picture and **does not move the footprint**,
+    /// which is the claim the footprint is chosen for: where the drawing reaches is a fact about
+    /// the figures, not about which of them won a cell.
+    #[test]
+    fn moving_a_figure_through_the_order_does_not_move_the_footprint() {
+        let (diagram, back, _front) = two_overlapping_boxes();
+        let before = footprint_of(&diagram);
+        assert_eq!(
+            before,
+            Some(Footprint {
+                min: Pos { x: 0, y: 0 },
+                max: Pos { x: 5, y: 3 },
+            })
+        );
+
+        assert_eq!(
+            footprint_of(&diagram.forward(back)),
+            before,
+            "the order decided how far the drawing reaches"
+        );
+    }
+
+    /// An empty diagram reaches nothing: `None` rather than a rectangle at the origin, because
+    /// "stamped nothing" and "stamped one cell at `(0, 0)`" are different drawings.
+    #[test]
+    fn an_empty_diagram_has_no_footprint() {
+        assert_eq!(footprint_of(&Diagram::new()), None);
     }
 }
