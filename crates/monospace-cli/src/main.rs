@@ -535,8 +535,8 @@ mod tests {
     use std::ops::Range;
 
     use monospace_core::{
-        BoxShape, Buffer, Glyph, GlyphCatalog, Layer, Offset, Pos, Shape, Size, StampMode, Stroke,
-        Window, render,
+        BoxShape, Buffer, FigureLayer, Glyph, GlyphCatalog, Offset, Pos, Shape, Size, StampMode,
+        Stroke, Window, render,
     };
     use monospace_diagram::ShapeId;
 
@@ -619,7 +619,7 @@ mod tests {
             stroke: Stroke::from("light"),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
         let expected = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
         assert_eq!(render_once(&diagram, origin, size), expected);
@@ -758,8 +758,8 @@ mod tests {
             height: 4,
         };
         let mut buffer = Buffer::new(Window { origin, size });
-        back.draw(&mut Layer::new(&mut buffer, StampMode::Above));
-        front.draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        back.draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+        front.draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
         render(&buffer, &GlyphCatalog::light(), buffer.window())
     }
 

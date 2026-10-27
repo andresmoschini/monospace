@@ -44,7 +44,7 @@ mod tests {
     use super::End;
     use crate::cell::Side;
     use crate::{
-        Arm, Buffer, Cell, Layer, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window,
+        Arm, Buffer, Cell, FigureLayer, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window,
     };
 
     /// An end toward `Right` carries `Set` there and `Unset` on the
@@ -58,7 +58,7 @@ mod tests {
                 height: 1,
             },
         });
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         End {
             at: Pos { x: 0, y: 0 },

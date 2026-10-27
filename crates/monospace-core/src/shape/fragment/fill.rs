@@ -27,7 +27,7 @@ impl Shape for Fill {
 #[cfg(test)]
 mod tests {
     use super::Fill;
-    use crate::{Buffer, Cell, Glyph, Layer, Pos, Shape, Size, StampMode, Window};
+    use crate::{Buffer, Cell, FigureLayer, Glyph, Pos, Shape, Size, StampMode, Window};
 
     #[test]
     fn a_fill_writes_the_glyph_at_every_position_of_its_rectangle() {
@@ -38,7 +38,7 @@ mod tests {
                 height: 2,
             },
         });
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
         let glyph = Glyph::new("░").expect("\"░\" is one glyph");
 
         Fill {

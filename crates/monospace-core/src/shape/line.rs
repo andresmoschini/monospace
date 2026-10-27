@@ -94,8 +94,8 @@ mod tests {
     use super::Line;
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Arm, Buffer, GlyphCatalog, Layer, Orientation, Pos, Shape, Size, StampMode, Stroke, Window,
-        render,
+        Arm, Buffer, FigureLayer, GlyphCatalog, Orientation, Pos, Shape, Size, StampMode, Stroke,
+        Window, render,
     };
 
     fn light() -> Stroke {
@@ -118,7 +118,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert_eq!(
             render(&buffer, &GlyphCatalog::light(), buffer.window()),
@@ -143,7 +143,7 @@ mod tests {
             orientation: Orientation::Vertical,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert_eq!(
             render(&buffer, &GlyphCatalog::light(), buffer.window()),
@@ -172,7 +172,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let Some(crate::Cell::Strokes(cell)) = buffer.cell(origin) else {
             panic!("expected a stroke cell at the line's first position");
@@ -199,7 +199,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert_eq!(
             render(&buffer, &GlyphCatalog::light(), buffer.window()),
@@ -225,7 +225,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert!(buffer.cell(origin).is_some());
     }
@@ -247,7 +247,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         assert!(buffer.cell(origin).is_none());
     }
@@ -300,12 +300,15 @@ mod tests {
 
         for mode in [StampMode::Above, StampMode::Below] {
             let mut horizontal_first = Buffer::new(Window { origin, size });
-            horizontal().draw(&mut Layer::new(&mut horizontal_first, StampMode::Above));
-            vertical().draw(&mut Layer::new(&mut horizontal_first, mode));
+            horizontal().draw(&mut FigureLayer::new(
+                &mut horizontal_first,
+                StampMode::Above,
+            ));
+            vertical().draw(&mut FigureLayer::new(&mut horizontal_first, mode));
 
             let mut vertical_first = Buffer::new(Window { origin, size });
-            vertical().draw(&mut Layer::new(&mut vertical_first, StampMode::Above));
-            horizontal().draw(&mut Layer::new(&mut vertical_first, mode));
+            vertical().draw(&mut FigureLayer::new(&mut vertical_first, StampMode::Above));
+            horizontal().draw(&mut FigureLayer::new(&mut vertical_first, mode));
 
             for (label, buffer) in [
                 ("horizontal first", &horizontal_first),

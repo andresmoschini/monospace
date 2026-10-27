@@ -70,7 +70,7 @@ mod tests {
     use super::Border;
     use crate::cell::Side;
     use crate::{
-        Arm, Buffer, Cell, Layer, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window,
+        Arm, Buffer, Cell, FigureLayer, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window,
     };
 
     /// The example checked by hand: `(1, 0)` of `stamp_box`'s box is
@@ -84,7 +84,7 @@ mod tests {
                 height: 1,
             },
         });
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Border {
             from: Pos { x: 0, y: 0 },
@@ -118,7 +118,7 @@ mod tests {
                 height: 1,
             },
         });
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Border {
             from: Pos { x: 0, y: 0 },
@@ -151,7 +151,7 @@ mod tests {
                 height: 1,
             },
         });
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Border {
             from: Pos { x: 0, y: 0 },
@@ -188,7 +188,7 @@ mod tests {
                 height: 1,
             },
         });
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Border {
             from: Pos { x: 0, y: 0 },

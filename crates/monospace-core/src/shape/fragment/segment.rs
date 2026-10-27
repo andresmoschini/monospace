@@ -51,8 +51,8 @@ impl Shape for Segment {
 mod tests {
     use super::Segment;
     use crate::{
-        Arm, Buffer, Cell, Layer, Orientation, Pos, Shape, Size, StampMode, Stroke, StrokeCell,
-        Window,
+        Arm, Buffer, Cell, FigureLayer, Orientation, Pos, Shape, Size, StampMode, Stroke,
+        StrokeCell, Window,
     };
 
     /// A horizontal segment sets its left and right arms and leaves top and bottom `Unset`.
@@ -65,7 +65,7 @@ mod tests {
                 height: 1,
             },
         });
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
 
         Segment {
             from: Pos { x: 0, y: 0 },

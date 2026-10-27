@@ -128,7 +128,7 @@ mod tests {
     use super::BoxShape;
     use crate::shape::counting::CountingSurface;
     use crate::{Buffer, GlyphCatalog, Window};
-    use crate::{Glyph, Layer, Pos, Shape, Size, StampMode, Stroke, render};
+    use crate::{FigureLayer, Glyph, Pos, Shape, Size, StampMode, Stroke, render};
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -149,7 +149,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
@@ -172,7 +172,7 @@ mod tests {
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
@@ -194,7 +194,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
@@ -231,7 +231,7 @@ mod tests {
                 stroke: light(),
                 fill: None,
             }
-            .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+            .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
             let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
@@ -302,7 +302,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
         BoxShape {
             at: Pos { x: 4, y: 2 },
             size: Size {
@@ -312,7 +312,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
@@ -342,7 +342,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
         BoxShape {
             at: Pos { x: 4, y: 2 },
             size: Size {
@@ -352,7 +352,7 @@ mod tests {
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 
@@ -384,7 +384,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
         BoxShape {
             at: Pos { x: 2, y: 0 },
             size: Size {
@@ -394,7 +394,7 @@ mod tests {
             stroke: light(),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let text = render(&buffer, &GlyphCatalog::light(), buffer.window());
 

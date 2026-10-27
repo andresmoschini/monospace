@@ -25,5 +25,5 @@ pub use geometry::{Direction, Offset, Orientation, Pos, Size, Window};
 pub use glyph::{Glyph, GlyphCatalog, GlyphKey};
 pub use identity::ShapeId;
 pub use render::render;
-pub use shape::{BoxShape, Connector, Endpoint, Layer, Line, Shape, Surface, Terminal};
+pub use shape::{BoxShape, Connector, Endpoint, FigureLayer, Line, Shape, Surface, Terminal};
 pub use stroke::Stroke;

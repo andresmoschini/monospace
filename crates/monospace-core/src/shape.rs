@@ -30,17 +30,17 @@ pub trait Surface {
 /// it composes with the figures it draws alongside — see _Shapes_ in
 /// [`docs/model.md`](../../../docs/model.md). The same holds for the identity: **ownership is per
 /// shape, not per cell**, so it rides here rather than on [`Surface::stamp`], and a shape is never
-/// told which identity it draws under. `Layer` is the only [`Surface`] this crate ships.
+/// told which identity it draws under. `FigureLayer` is the only [`Surface`] this crate ships.
 ///
 /// A layer bound by [`new`](Self::new) is bound to nobody and owns nothing, which is what the
 /// core's own figures ask for — they are values that draw and nothing more.
-pub struct Layer<'a> {
+pub struct FigureLayer<'a> {
     sink: &'a mut dyn StampSink,
     mode: StampMode,
     owner: Option<ShapeId>,
 }
 
-impl<'a> Layer<'a> {
+impl<'a> FigureLayer<'a> {
     /// Binds `sink` to `mode` for every stamp drawn through this layer, under no identity.
     #[must_use]
     pub fn new(sink: &'a mut dyn StampSink, mode: StampMode) -> Self {
@@ -71,7 +71,7 @@ impl<'a> Layer<'a> {
     }
 }
 
-impl Surface for Layer<'_> {
+impl Surface for FigureLayer<'_> {
     fn stamp(&mut self, at: Pos, cell: Cell) {
         self.sink.stamp(at, cell, self.mode, self.owner);
     }
@@ -90,7 +90,7 @@ pub trait Shape {
 }
 
 /// A [`Surface`] that counts writes per position, so a test can observe that no shape writes
-/// any position more than once in one drawing. Second only to [`Layer`] as an implementation of
+/// any position more than once in one drawing. Second only to [`FigureLayer`] as an implementation of
 /// this trait, and it exists only in tests: a shape's own report of what it wrote would be a claim
 /// rather than an observation, so a second implementation is what checks the claim.
 #[cfg(test)]

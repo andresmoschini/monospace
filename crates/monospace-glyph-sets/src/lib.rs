@@ -710,7 +710,7 @@ pub fn light_round_heavy() -> GlyphCatalog {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{BoxShape, Buffer, Layer, Pos, Shape, Size, StampMode, Window};
+    use monospace_core::{BoxShape, Buffer, FigureLayer, Pos, Shape, Size, StampMode, Window};
 
     use super::{
         all, ascii, double, heavy, light_double, light_heavy, light_round, light_round_double,
@@ -775,7 +775,7 @@ mod tests {
             stroke: monospace_core::Stroke::from("ascii"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let output = monospace_core::render(&buffer, &ascii(), buffer.window());
 
@@ -828,7 +828,7 @@ mod tests {
             stroke: monospace_core::Stroke::from("double"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let output = monospace_core::render(&buffer, &double(), buffer.window());
 
@@ -895,7 +895,7 @@ mod tests {
             stroke: monospace_core::Stroke::from("heavy"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let output = monospace_core::render(&buffer, &heavy(), buffer.window());
 
@@ -962,7 +962,7 @@ mod tests {
             stroke: monospace_core::Stroke::from("light-round"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         let output = monospace_core::render(&buffer, &light_round(), buffer.window());
 
@@ -1005,7 +1005,10 @@ mod tests {
             stroke: monospace_core::Stroke::from("light-round"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut light_round_buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(
+            &mut light_round_buffer,
+            StampMode::Above,
+        ));
         let light_round_output = monospace_core::render(
             &light_round_buffer,
             &light_round(),
@@ -1019,7 +1022,7 @@ mod tests {
             stroke: monospace_core::Stroke::from("light"),
             fill: None,
         }
-        .draw(&mut Layer::new(&mut light_buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut light_buffer, StampMode::Above));
         let light_output = monospace_core::render(
             &light_buffer,
             &monospace_core::GlyphCatalog::light(),

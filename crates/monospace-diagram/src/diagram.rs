@@ -16,7 +16,7 @@
 
 use std::num::NonZeroU16;
 
-use monospace_core::{Buffer, Layer, ShapeId, StampMode};
+use monospace_core::{Buffer, FigureLayer, ShapeId, StampMode};
 use rpds::{HashTrieMapSync, VectorSync};
 
 use crate::Shape;
@@ -364,7 +364,7 @@ impl Diagram {
             let Some(shape) = self.shapes.get(id) else {
                 continue;
             };
-            let mut layer = Layer::stamped_by(buffer, StampMode::Below, *id);
+            let mut layer = FigureLayer::stamped_by(buffer, StampMode::Below, *id);
             shape.draw(&mut layer, self);
         }
     }
@@ -375,8 +375,9 @@ mod tests {
     use std::num::NonZeroU16;
 
     use monospace_core::{
-        BoxShape, Buffer, Cell, Connector, Direction, Glyph, GlyphCatalog, Layer, Line, Offset,
-        Orientation, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, Window, render,
+        BoxShape, Buffer, Cell, Connector, Direction, FigureLayer, Glyph, GlyphCatalog, Line,
+        Offset, Orientation, Pos, Shape as CoreShape, Size, StampMode, Stroke, Terminal, Window,
+        render,
     };
 
     use super::{Diagram, ShapeId};
@@ -1120,7 +1121,7 @@ mod tests {
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
         }
-        .draw(&mut Layer::new(&mut expected, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
         assert_eq!(
             render(&actual, &GlyphCatalog::light(), actual.window()),
@@ -1155,7 +1156,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut expected, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
         assert_eq!(
             render(&actual, &GlyphCatalog::light(), actual.window()),
@@ -1216,7 +1217,7 @@ mod tests {
             },
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut expected, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
         assert_eq!(
             render(&actual, &GlyphCatalog::light(), actual.window()),
@@ -1656,8 +1657,8 @@ mod tests {
 
         let (core_a, core_b) = overlapping_core_boxes();
         let mut expected = Buffer::new(Window { origin, size });
-        core_a.draw(&mut Layer::new(&mut expected, StampMode::Above));
-        core_b.draw(&mut Layer::new(&mut expected, StampMode::Above));
+        core_a.draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
+        core_b.draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
         assert_eq!(cells(&actual, origin, size), cells(&expected, origin, size));
     }
@@ -3469,7 +3470,7 @@ mod tests {
                 },
                 stroke: light(),
             }
-            .draw(&mut Layer::new(&mut expected, StampMode::Above));
+            .draw(&mut FigureLayer::new(&mut expected, StampMode::Above));
 
             assert_eq!(cells(&actual, origin, size), cells(&expected, origin, size));
         }

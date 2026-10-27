@@ -24,7 +24,7 @@ impl Shape for Head {
 #[cfg(test)]
 mod tests {
     use super::Head;
-    use crate::{Buffer, Cell, Glyph, Layer, Pos, Shape, Size, StampMode, Window};
+    use crate::{Buffer, Cell, FigureLayer, Glyph, Pos, Shape, Size, StampMode, Window};
 
     #[test]
     fn a_head_writes_its_glyph_as_a_literal() {
@@ -35,7 +35,7 @@ mod tests {
                 height: 1,
             },
         });
-        let mut layer = Layer::new(&mut buffer, StampMode::Above);
+        let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
         let glyph = Glyph::new("►").expect("\"►\" is one glyph");
 
         Head {

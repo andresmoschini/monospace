@@ -546,8 +546,8 @@ mod tests {
     use super::{Connector, Endpoint, Lattice, RouteRectangle, Terminal, derive_path, offset};
     use crate::shape::counting::CountingSurface;
     use crate::{
-        Arm, Buffer, Cell, Direction, Glyph, GlyphCatalog, Layer, Line, Orientation, Pos, Shape,
-        Size, StampMode, Stroke, StrokeCell, Window, render,
+        Arm, Buffer, Cell, Direction, FigureLayer, Glyph, GlyphCatalog, Line, Orientation, Pos,
+        Shape, Size, StampMode, Stroke, StrokeCell, Window, render,
     };
 
     fn light() -> Stroke {
@@ -582,7 +582,7 @@ mod tests {
             to,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         render(&buffer, &GlyphCatalog::light(), buffer.window())
     }
@@ -1136,7 +1136,7 @@ mod tests {
             to: endpoint(Pos { x: 6, y: 0 }, Direction::Left),
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
         // A line's first cell is an end carrying one arm, so this writes an arm on the same
         // position the glyph terminal occupies and nothing else.
@@ -1146,7 +1146,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             stroke: light(),
         }
-        .draw(&mut Layer::new(&mut buffer, StampMode::Below));
+        .draw(&mut FigureLayer::new(&mut buffer, StampMode::Below));
 
         assert_eq!(
             buffer.cell(at),
@@ -1205,7 +1205,7 @@ mod tests {
                 to: endpoint(Pos { x: 9, y: 9 }, Direction::Up),
                 stroke: light(),
             }
-            .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+            .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
             assert_eq!(
                 buffer.cell(at),
@@ -1336,7 +1336,7 @@ mod tests {
             };
 
             let mut buffer = Buffer::new(Window { origin, size });
-            connector.draw(&mut Layer::new(&mut buffer, StampMode::Above));
+            connector.draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
             for at in body.iter().copied().chain([from_at, to_at]) {
                 assert!(
                     buffer.cell(at).is_some(),
@@ -1651,7 +1651,7 @@ mod tests {
                     to: endpoint(to_at, to_dir),
                     stroke: light(),
                 }
-                .draw(&mut Layer::new(&mut buffer, StampMode::Above));
+                .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
                 assert_eq!(
                     buffer.cell(from_at),
                     Some(&Cell::Literal(head_for(from_dir))),

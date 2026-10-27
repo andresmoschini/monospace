@@ -293,7 +293,7 @@ mod tests {
 
     use super::{Buffer, StampMode, StampSink};
     use crate::{
-        Arm, BoxShape, Cell, Glyph, Layer, Offset, Pos, Shape as _, ShapeId, Size, Stroke,
+        Arm, BoxShape, Cell, FigureLayer, Glyph, Offset, Pos, Shape as _, ShapeId, Size, Stroke,
         StrokeCell, Window,
     };
 
@@ -1093,17 +1093,17 @@ mod tests {
         // Front to back, which is the order `Diagram::draw` uses: the front-most shape stamps
         // first and decides a shared cell before anything behind it. `3` is drawn last of the three
         // because it is the back-most of the three, and it writes nothing either way.
-        a_box(Pos { x: -2, y: -1 }, double(), Some("░")).draw(&mut Layer::stamped_by(
+        a_box(Pos { x: -2, y: -1 }, double(), Some("░")).draw(&mut FigureLayer::stamped_by(
             &mut buffer,
             StampMode::Below,
             front,
         ));
-        a_box(Pos { x: 0, y: 0 }, light(), None).draw(&mut Layer::stamped_by(
+        a_box(Pos { x: 0, y: 0 }, light(), None).draw(&mut FigureLayer::stamped_by(
             &mut buffer,
             StampMode::Below,
             back,
         ));
-        a_box(Pos { x: 6, y: 3 }, heavy(), None).draw(&mut Layer::stamped_by(
+        a_box(Pos { x: 6, y: 3 }, heavy(), None).draw(&mut FigureLayer::stamped_by(
             &mut buffer,
             StampMode::Below,
             outside,
@@ -1301,24 +1301,24 @@ mod tests {
         let front = id(2);
 
         let mut front_to_back = a_buffer(origin, 6, 4);
-        a_box(Pos { x: 2, y: 1 }, double(), Some("▓")).draw(&mut Layer::stamped_by(
+        a_box(Pos { x: 2, y: 1 }, double(), Some("▓")).draw(&mut FigureLayer::stamped_by(
             &mut front_to_back,
             StampMode::Below,
             front,
         ));
-        a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
+        a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut FigureLayer::stamped_by(
             &mut front_to_back,
             StampMode::Below,
             back,
         ));
 
         let mut back_to_front = a_buffer(origin, 6, 4);
-        a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
+        a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut FigureLayer::stamped_by(
             &mut back_to_front,
             StampMode::Above,
             back,
         ));
-        a_box(Pos { x: 2, y: 1 }, double(), Some("▓")).draw(&mut Layer::stamped_by(
+        a_box(Pos { x: 2, y: 1 }, double(), Some("▓")).draw(&mut FigureLayer::stamped_by(
             &mut back_to_front,
             StampMode::Above,
             front,
@@ -1454,7 +1454,7 @@ mod tests {
     fn an_offset_a_windows_own_origin_cannot_carry_is_owned_by_nobody() {
         let mut buffer = a_buffer(Pos { x: i16::MIN, y: 0 }, 4, 3);
 
-        a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
+        a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut FigureLayer::stamped_by(
             &mut buffer,
             StampMode::Below,
             id(1),
@@ -1484,7 +1484,7 @@ mod tests {
     /// A shape drawn by nobody owns nothing, even where it writes.
     ///
     /// **A whole box rather than one cell**, so that the twenty cells of its border and interior
-    /// are all asked and a record that appeared on any of them fails: `Layer::new` is the door the
+    /// are all asked and a record that appeared on any of them fails: `FigureLayer::new` is the door the
     /// core's own gallery and every caller's own drawing go through, and it records nothing at all.
     /// The second half draws the same box through a layer bound to an identity, which is what makes
     /// the `None` above about the door rather than about a box that writes nothing.
@@ -1492,11 +1492,11 @@ mod tests {
     fn a_shape_drawn_by_nobody_owns_nothing_even_where_it_writes() {
         let mut by_nobody = a_buffer(Pos { x: 0, y: 0 }, 4, 3);
         a_box(Pos { x: 0, y: 0 }, light(), Some("░"))
-            .draw(&mut Layer::new(&mut by_nobody, StampMode::Above));
+            .draw(&mut FigureLayer::new(&mut by_nobody, StampMode::Above));
 
         let mut by_somebody = a_buffer(Pos { x: 0, y: 0 }, 4, 3);
         let writer = id(1);
-        a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut Layer::stamped_by(
+        a_box(Pos { x: 0, y: 0 }, light(), Some("░")).draw(&mut FigureLayer::stamped_by(
             &mut by_somebody,
             StampMode::Above,
             writer,
