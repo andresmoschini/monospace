@@ -251,6 +251,12 @@ is an open question below, and every anchor being a side is what keeps it answer
 outside to leave through. A style's glyph follows `leaving` rather than the anchor, so attaching an
 endpoint decides neither which glyph it writes nor which way that glyph points.
 
+A style terminal holds a **name**, and the drawing resolves it against the style catalog it is
+handed. The diagram therefore keeps what the file said, and an edit that renames a style is a change
+to one name rather than to four glyphs. Two builds with different tables draw the same description
+with different heads, which is the rule a glyph set already follows for every stroke cell; a name
+neither drawing holds draws `solid-pointer`.
+
 A connector's `from` endpoint standing on the right border of a box, and its `to` endpoint out in
 the open. The cell at `(3, 1)` reads `├`, and neither figure wrote a junction there — the box's
 border and the connector's arm terminal composed into one, which is the whole point of a side being

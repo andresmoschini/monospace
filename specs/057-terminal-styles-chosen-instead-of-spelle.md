@@ -29,12 +29,12 @@ terminal is better settled here than invented there.
 ### In
 
 - `monospace-core`: a `Style` type, its `StyleCatalog`, one default style, and a third `Terminal`
-  variant. The design note in `connector.rs` saying the set is closed at two says three, for the
-  reason it gave.
+  variant, which carries a style's name. The design note in `connector.rs` saying the set is closed
+  at two says three, for the reason it gave.
 - `monospace-terminal-styles`: a crate holding the other ten styles, one function per table
   returning a catalog, and `all()`, their union. It joins the crates the `wasm` step compiles.
-- `monospace-description`: `{ "kind": "style", "style": "<name>" }` on the wire, resolved against
-  the `StyleCatalog` the caller hands `parse`.
+- `monospace-description`: `{ "kind": "style", "style": "<name>" }` on the wire, carried as a name
+  and resolved only when the diagram is drawn.
 - `docs/model.md`, a new `docs/terminal-styles.md`, `docs/diagram-demo.md`'s section on terminals,
   and `README.md`'s layout table.
 - Tests for the eleven tables, the orientation rule, the fallback, the refusal, and that `arm` and
@@ -83,15 +83,19 @@ draw differently depending on which glyph tables a build shipped. **What it cost
 box's border interrupts it, as a glyph does today, which is the caller's choice where the endpoint
 stands. **Answered by** the maintainer.
 
-**D4 — the terminal holds the resolved table, not the name.**
+**D4 — the terminal holds the style's name, and the drawing resolves it.**
 
-**Answer:** `Terminal::Style { style: Style }` carries the four glyphs, and the description format
-resolves the name once, as it reads the file, against the `StyleCatalog` it is handed. **Why not**
-`Style { name: String }` looked up at draw time: the core would hold the vocabulary of names, which
-is the new crate's and which #63 wants to make a file's, and every draw would need the catalog
-handed to it. **Why not** resolving the name to a glyph in the reader and handing back
-`Terminal::Glyph`: nothing above the reader could tell a style from a literal, so an editing layer
-could show neither the name nor change it. **Answered by** practice, in the session that wrote this.
+**Answer:** `Terminal::Style { name: StyleName }` carries the name the description wrote, and the
+glyph is looked up when the diagram is drawn, against the `StyleCatalog` the drawing is handed.
+**Why not** the resolved table, which the draft chose first: a reader that resolves a name has to
+own the tables, so the format depends on the eleven and a binary cannot read a description with a
+set of its own — the opposite of how a glyph set works. Holding a name in the core widens no
+vocabulary: `Stroke` is a name too, and the names that exist are the tables'. **Why not** resolving
+the name to a glyph in the reader and handing back `Terminal::Glyph`: nothing above the reader could
+tell a style from a literal, so an editing layer could show neither the name nor change it. **What
+it costs:** one more parameter on the drawing, and the same description drawn by two builds with
+different tables draws different heads — exactly what a glyph set already decides for every stroke
+cell. **Answered by** the maintainer, who reversed the draft on reading the build.
 
 **D5 — the core owns one style and the catalog type; a new crate owns the other ten and the union.**
 
@@ -105,7 +109,7 @@ table, which is what the glyph-set split exists to avoid. **Why not** the reader
 crate and resolving names itself: which styles a build ships is then decided inside the format, and
 a binary that meant to load fewer tables could not, while the one thing a reader needs — a name
 answered — does not require it to own the tables. **What it costs:** one more type in the core, and
-a caller that wants a style name read must hand a catalog over. **Answered by** practice, in the
+a drawing that carries a style name must be handed a catalog. **Answered by** practice, in the
 session that wrote this, and amended below where the build first put the lookup in the data crate.
 
 ### Amended while building
@@ -119,7 +123,8 @@ was agreed and what is being built can both be read.**
 `all()` a second caller. Nothing above the reader could then read a description with a different set
 of styles, which is exactly what the glyph sets avoid: the drawing is handed a `GlyphCatalog`, and
 the crate that reads a description knows no table. `StyleCatalog` is that same shape for names a
-description writes, and `parse` takes one.
+description writes, and the first amendment handed one to `parse`; the second carries it to the
+drawing instead.
 
 **The rules that changed follow from it.** The style lookups are the catalog's own, so `by_name` is
 gone; a table is a catalog rather than a `Style`, so `all()` is a union of catalogs rather than a
@@ -127,36 +132,56 @@ gone; a table is a catalog rather than a `Style`, so `all()` is a union of catal
 are assembled, as they already name `monospace_glyph_sets::all()`. **Nothing else moves:** the
 eleven names, their four glyphs, the fallback of D6 and every picture are what they were.
 
+**Amended again the same day, and this one reverses D4.** Resolving the name in the reader left the
+two catalogs in different places: the glyph catalog is consulted where the drawing is drawn, and the
+style catalog was consulted where the file is read, so the reader needed a table and the application
+did not. **The reason for the reversal is the symmetry that D5 was amended for, taken one step
+further:** a catalog belongs to the drawing, so the terminal keeps the name and `Diagram::draw` is
+handed the styles, exactly as `render` is handed the glyphs.
+
+**What moved with it.** `Terminal::Style` holds a `StyleName` rather than a `Style`; the fallback of
+D6 happens where the name is looked up instead of where the file is read; `parse` takes the text
+alone and this crate depends on no catalog at all; and the CLI and the application hand the style
+catalog to the drawing, the application keeping it beside the glyph catalog for every frame. **The
+cost is stated rather than hidden:** `Shape::draw` and `Diagram::draw` gain a parameter, and a
+description drawn by a build with another set of tables draws other heads. **Nothing moves on
+screen:** the sweep's 1856 renderings and the 42 tracked pictures are byte for byte what they were,
+which is what proves the reversal changed where a table is read and not what it draws.
+
 **D6 — an unknown name draws the default, in silence; a missing name is refused.**
 
-**Answer:** `"style": "nonsense"` draws the `solid-pointer` table and reports nothing, and
-`{ "kind": "style" }` without a name is refused by the message that names the missing field. **Why
-not** refusing an unknown name: the list is open the way glyph sets are, so a file written against a
-later catalog would stop being readable by an earlier build, where a glyph set degrades instead.
-**Why not** reporting the substitution: `parse` answers a `Diagram` or a `ParseError` and has no
-third channel, and adding one is a change to every caller for a misspelling. **What it costs:** a
-misspelled style is invisible. **Answered by** practice, in the session that wrote this.
+**Answer:** `"style": "nonsense"` draws the `solid-pointer` table when the diagram is drawn, and
+reports nothing, and `{ "kind": "style" }` without a name is refused by the message that names the
+missing field. **Why not** refusing an unknown name: a catalog is open the way glyph sets are, so a
+file written against a later one would stop being readable by an earlier build, where a glyph set
+degrades instead. **Why not** reporting the substitution: a diagram is drawn rather than answered,
+and a drawing has no channel a report could travel on — adding one is a change to every caller for a
+misspelling. **What it costs:** a misspelled style is invisible. **Answered by** practice, in the
+session that wrote this.
 
 ## Model slice
 
 - `docs/model.md` §1 _Vocabulary_: a `Style` row — four glyphs, one for each way a head may point —
-  and a `StyleCatalog` row, as there is a `GlyphCatalog` one.
+  a `StyleName` row, and a `StyleCatalog` row, as there is a `GlyphCatalog` one.
 - §7 _The initial set_: the connector paragraph says a terminal is one of three, and the sentence
   about a glyph terminal's glyph pointing opposite `leaving` extends to a style.
 - §7 _What a terminal writes_: a third paragraph after **arm** and **glyph**, saying a style writes
   the glyph its table names for the direction opposite `leaving`, covers the cell, and follows no
   stroke. The paragraph calling the asymmetry a limit of the data gains a clause: a style is the
   answer available now, and heads that follow a glyph set stay the open question below. A closing
-  paragraph says a style is looked up in a catalog the reader is handed, the core holding the type
-  and one style and a data crate the rest — the shape a glyph is looked up in.
+  paragraph says a terminal keeps a style's name and the drawing resolves it against the catalog it
+  is handed — the shape a glyph is looked up in.
 - §7 _The initial set_, the paragraph saying the core holds no default stroke: one clause separates
   the base stroke, which a figure always names, from the fallback style, which answers a name
-  nothing claims. The core decides no appearance a figure left unsaid.
+  nothing claims, when the drawing looks the name up. The core decides no appearance a figure left
+  unsaid.
 - §11 _Open questions_: the question about a terminal's glyph narrows to a set of heads.
 - `docs/terminal-styles.md` (new): the eleven tables, each entry named for the way it points, with
-  `glyph`'s inversion stated beside them, in the shape of `docs/glyph-sets.md`.
+  `glyph`'s inversion stated beside them, in the shape of `docs/glyph-sets.md`, and above them the
+  catalog the drawing is handed.
 - `docs/diagram-model.md` §6 _Attachment_: one clause — a style's glyph follows `leaving`, which the
-  attachment does not decide. The section's rule stands.
+  attachment does not decide — and a paragraph saying the terminal holds a name the drawing
+  resolves. The section's rule stands.
 - `docs/diagram-demo.md`: _Two terminals, and the one difference between them_ becomes three, with a
   style row in the picture already there, because that document owes one instance of each decision
   the format makes.
@@ -180,6 +205,10 @@ impl Style {
     pub fn glyph(&self, leaving: Direction) -> &Glyph;
 }
 
+/// The name a style is written under: a name, and nothing more.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StyleName(pub String);
+
 /// Every style in play, by the name a description writes.
 pub struct StyleCatalog {
     // no field is public
@@ -202,7 +231,13 @@ impl StyleCatalog {
 
 pub enum Terminal {
     // `Glyph` and `Arm`, unchanged
-    Style { style: Style },
+    Style { name: StyleName },
+}
+
+// monospace-diagram
+impl Diagram {
+    /// Draws every shape into `sink`, resolving every style name against `styles`.
+    pub fn draw(&self, sink: &mut dyn StampSink, styles: &StyleCatalog);
 }
 
 // monospace-terminal-styles
@@ -213,13 +248,14 @@ pub fn solid_triangle() -> StyleCatalog; // and one per style, named after it:
 // ascii_arrow, white_diamond, black_diamond, white_circle, black_circle
 
 // monospace-description
-pub fn parse(json: &str, styles: &StyleCatalog) -> Result<Diagram, ParseError>;
+pub fn parse(json: &str) -> Result<Diagram, ParseError>;
 ```
 
-`Style::default()` is the `solid-pointer` table, and `monospace-description` resolves a wire name as
-`styles.style(&name).cloned().unwrap_or_default()`, where `styles` is the catalog `parse` was handed
-and the crate holds no table of its own. The name is a `String` rather than a closed `enum`: a
-closed enum would turn an unknown name into a deserialization error instead of D6's fallback.
+`Style::default()` is the `solid-pointer` table, and the drawing resolves a terminal's name as
+`styles.style(&name.0).cloned().unwrap_or_default()`. The name is a `String` inside `StyleName`
+rather than a closed `enum`: a closed enum would turn an unknown name into a deserialization error
+instead of D6's fallback, and it would put the vocabulary of names in the core where the tables
+belong.
 
 ## Behavior
 
@@ -229,8 +265,8 @@ closed enum would turn an unknown name into a deserialization error instead of D
 3. `solid-pointer` is `up: ▲, right: ►, down: ▼, left: ◄`, and the other ten are the table in
    _Examples_.
 4. Each endpoint chooses its own style, independently of the other endpoint and of the stroke.
-5. `{ "kind": "style", "style": "<name>" }` resolves against the catalog `parse` is handed, and a
-   name that catalog does not hold draws `solid-pointer`.
+5. `{ "kind": "style", "style": "<name>" }` keeps the name, and the drawing resolves it against the
+   catalog it is handed; a name that catalog does not hold draws `solid-pointer`.
 6. `{ "kind": "style" }` with no `style` field is refused, naming the missing field.
 7. `arm` and `glyph` draw what they drew before, and every picture that used them is unchanged.
 8. `monospace-terminal-styles` compiles for `wasm32-unknown-unknown` and joins the `wasm` step.
@@ -308,30 +344,32 @@ pointer at the end leaving leftward, `◆──────►`.
 <!-- /render -->
 
 **The fallback.** `"style": "no-such-style"` draws rule 5's default, so the first picture is what a
-name the catalog does not hold produces, and `{ "kind": "style" }` is refused for the missing field.
-Neither is observed: the pictures come from the glyphs each style resolves to, and _What proves it_
-holds the resolution, the fallback and the refusal.
+name the drawing's catalog does not hold produces, and `{ "kind": "style" }` is refused for the
+missing field. Neither is observed: the pictures come from the glyphs each style resolves to, and
+_What proves it_ holds the resolution, the fallback and the refusal.
 
 ## What proves it
 
 Nothing exists yet: the deciding stage adds no code. The names and tables bind the building stage.
 
-| Rule | Test                                                                                     |
-| ---- | ---------------------------------------------------------------------------------------- |
-| 1    | `a_style_writes_the_entry_for_the_direction_opposite_leaving`                            |
-| 2    | `a_style_covers_the_cell_and_composes_with_nothing`                                      |
-| 3    | `the_eleven_styles_are_the_tables_this_spec_lists`                                       |
-| 4    | `the_two_endpoints_of_a_connector_choose_their_styles_independently`                     |
-| 5    | `an_unknown_style_name_draws_the_default`                                                |
-| 6    | `a_style_terminal_without_a_name_is_refused_by_name`                                     |
-| 7    | the characterization, and every picture in a tracked document, which the gate re-renders |
-| 8    | the `wasm` step, which names the crate                                                   |
+| Rule | Test                                                                                                        |
+| ---- | ----------------------------------------------------------------------------------------------------------- |
+| 1    | `a_style_writes_the_entry_for_the_direction_opposite_leaving`                                               |
+| 2    | `a_style_covers_the_cell_and_composes_with_nothing`                                                         |
+| 3    | `the_eleven_styles_are_the_tables_this_spec_lists`                                                          |
+| 4    | `the_two_endpoints_of_a_connector_choose_their_styles_independently`                                        |
+| 5    | `an_unknown_style_name_draws_the_default`, in the layer that draws, since that is where a name is looked up |
+| 6    | `a_style_terminal_without_a_name_is_refused_by_name`                                                        |
+| 7    | the characterization, and every picture in a tracked document, which the gate re-renders                    |
+| 8    | the `wasm` step, which names the crate                                                                      |
 
 The two pictures are held by their markers: `cargo xtask render` rewrites them and the gate fails if
-one is not what its description draws.
+one is not what its description draws. **The characterization is what proves the reversal of D4
+moved nothing on screen**: 1856 renderings and 42 pictures are what they were before the name
+replaced the table, so the change is where a catalog is read and not what it draws.
 
 ## Open questions
 
-- **Whether a misspelled style should be reported once the format can say more than a refusal.** D6
-  answers silence where there is no second channel, and adding one is a change to `parse` and every
-  caller.
+- **Whether a misspelled style should be reported once a drawing can say more than what it wrote.**
+  D6 answers silence where there is no second channel, and adding one is a change to the drawing and
+  every caller.

@@ -52,6 +52,7 @@ character matches.
 | `GlyphSet`      | A group of rules as they are written or loaded: one table                                 |
 | `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it             |
 | `Style`         | Four glyphs, one for each way a head may point                                            |
+| `StyleName`     | The name a style is written under: a name, and nothing more                               |
 | `StyleCatalog`  | Every style in play, by the name a description writes; the first to claim a name keeps it |
 | `stamp`         | The single write operation                                                                |
 | `StampSink`     | One write operation and no reader; what a figure layer writes through                     |
@@ -381,7 +382,7 @@ of every stroke cell the figure writes. The core holds no default for it. What a
 is the caller's to say, and a constant inside the core would be an appearance decision no glyph set
 could reach. The one appearance the core does hold is a `Style`'s default table, and it is not a
 default for anything a figure left unsaid: it answers a name nothing claims, which is a name the
-caller did say.
+caller did say, and it answers it when the drawing looks the name up.
 
 A **box** is a position, a size and a stroke, with a fill as an option: corners, border runs and an
 interior, placed correctly. Which pieces it has depends on its size rather than on its kind, so a
@@ -432,16 +433,19 @@ the one `leaving` names, so the glyph points away from the route. It is a litera
 respect: it covers the cell, nothing composes into it, and it follows no stroke and no glyph set.
 Each entry is named by the way its glyph points rather than by the direction the connector leaves
 in, which is why the table's `down` holds `▲` and the endpoint leaving down is the one that writes
-it. `solid-pointer` is the table the core carries, and the rest are in
-[`terminal-styles.md`](terminal-styles.md). A style is not derived from the stroke, so one
-description draws the same heads whatever glyph sets a build shipped, and that is the whole of why
-it is a table of its own rather than a row in a set.
+it. The terminal holds the style's **name** and the drawing resolves it, so `solid-pointer` — the
+table the core carries — and the rest, in [`terminal-styles.md`](terminal-styles.md), are in reach
+only of a build that loaded them. A style is not derived from the stroke, so one description draws
+the same heads whatever glyph sets a build shipped, and that is the whole of why it is a table of
+its own rather than a row in a set.
 
-**A style is looked up in a catalog the reader is handed**, as a glyph is looked up in a
-`GlyphCatalog` the drawing is handed. The core holds the `StyleCatalog` type and one style, and a
-data crate holds the others with the union named once; which of them a build ships is decided where
-the binary is assembled, and nothing below that names a table. A reader that held the tables itself
-would put the choice of appearances inside the format, where a caller could not make it.
+**A style's name is resolved where the drawing is drawn, against a `StyleCatalog` the drawing is
+handed**, exactly as a cell's glyph is resolved against the `GlyphCatalog` the rendering is handed.
+The core holds the type and one table, a data crate holds the others with the union named once, and
+which of them a build ships is decided where the binary is assembled. A terminal keeps the name the
+description wrote, so an editing layer reads a style back as it was written; and the same
+description drawn by a build with another catalog draws another head, which is what a table of its
+own already means for every glyph a set supplies.
 
 That asymmetry is a limit of the data rather than a preference. A style is the answer available now,
 and heads that follow the glyph set would be the better one: they are the open question below, which
