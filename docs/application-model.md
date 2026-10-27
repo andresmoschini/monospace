@@ -72,6 +72,16 @@ not answer, keeps the space the frame's clear painted; the copy writes only what
 **`monospace_core::render` is not the way**: the string it returns is the picture and nothing else,
 and the buffer behind it is what answers a click.
 
+**The window is the interior at the scroll origin, and the bars are the region's border.** The
+origin is the position in the plane the interior's top-left corner reaches, so the view moves and
+the region does not: the interior keeps every cell it had, and the bound the content is held to does
+not move when a bar appears. An axis whose content does not fit gains a bar drawn over the block's
+own column or row, between the four corners — which stay the block's, so a scrolled drawing's border
+reads as a border drawn twice — and an axis whose content fits shows none, which leaves the empty
+screen at rest a plain border. **The bar costs the window no cell** because it is laid on the border
+rather than inside it, and **the corners keep the block's glyphs** because the track spends a cell
+of margin at each end.
+
 **The status bar says how far the drawing reaches.** The section is written from the footprint of
 the frame being drawn — measured by the sink on the way into the buffer, see _The buffer_ in
 [`model.md`](model.md) — so the bar and the region speak about the same drawing rather than about
@@ -80,12 +90,13 @@ the drawing's extent, not the interior's, and a drawing that stamped nothing say
 
 ## 3. The state
 
-**The state is a session, the drawing of the last frame, the shape a click selected, and the
-chrome's own.** The session is what the person is working on, the drawing is what the last frame put
-on the screen, the selection is the shape that drawing answered with, and the chrome's own is what
-the widgets of the screen hold between frames — which label of the bar is selected, whether a
-drop-down is open, which of the two leaves holds the keyboard, what the status bar says. The four
-are one thing because they change together: a frame that changes one of them changes the others.
+**The state is a session, the drawing of the last frame, the scroll origin, the shape a click
+selected, and the chrome's own.** The session is what the person is working on, the drawing is what
+the last frame put on the screen, the origin is where in the plane that drawing was seen from, the
+selection is the shape that drawing answered with, and the chrome's own is what the widgets of the
+screen hold between frames — which label of the bar is selected, whether a drop-down is open, which
+of the two leaves holds the keyboard, what the status bar says. They are one thing because they
+change together: a frame that changes one of them changes the others.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
@@ -95,6 +106,19 @@ the last frame produced is therefore kept and replaced on every frame, and the f
 is kept beside it because the status bar is drawn after the region and speaks about the same
 drawing. **It is not the document** — the diagram is the document, the drawing is one rendering of
 it, and keeping it changes nothing about what a person can undo.
+
+**The scroll origin is what survives a frame, and each bar's offset is derived from it.** The
+content is the smallest rectangle holding the drawing's footprint and the window at `(0, 0)` — the
+first screen, which is where the view opens — so on each axis the origin lies in
+`[min(0, first), max(0, last − window + 1)]`, and every frame puts it at the nearest value of that
+range. A drawing inside the first screen does not scroll, one away from the origin still opens
+there, and a content change does not carry the view unless the content no longer holds it. **The
+offset a bar shows is derived rather than kept** — the origin counted from the content's first cell
+— because a person's place is a place in the plane rather than a distance from a figure: a content
+change that moved the drawing's first cell would otherwise carry the view with it. **The measurement
+comes first**: the window a frame draws through depends on the drawing rather than the other way
+round, so the frame measures the session into a window of no size, clamps the origin, and draws at
+it.
 
 **The selection is an identity and not a rectangle.** What a click selects is the identity the
 drawing records beside the cell under it, and what the frame inverts is recomputed from the drawing
@@ -176,6 +200,19 @@ not a command**: the session is read and never changed, no step is recorded, and
 is not reached. A press anywhere else — the bar, the region's border, the status bar, or any button
 but the left — is nobody's and the event goes on to the next handler. The drop-down is asked before
 the region, so a click it answers never reaches the diagram.
+
+**A scroll changes the view and not the session.** A wheel turn over the region moves the view by
+the helper's step — a tenth of the window, at least one cell — on the axis it reports, and `Alt`
+with the wheel moves it across; a press on either bar takes the view to the position it names, and a
+drag follows the pointer. What both mint is `ScreenChanged`, and **only when the origin moved**: a
+turn the content refuses and a press where the view already stands leave the screen as it was, and
+the event is not the region's either. **It is not a command**: the session is read and never changed
+and no step is recorded, so an undo or a redo walks the drawing without restoring a view, and the
+selection survives the scroll because it is an identity rather than a cell. **The bars are asked
+before the region**, so a press on the border is the bar's and not a click on the drawing, and it
+still gives the region the keyboard, because a press on the border is the region's. **No key moves
+the view**: [#237](https://github.com/andresmoschini/monospace/issues/237) decides which keys do and
+how far a press moves, and the plain arrows stay what #179 made them.
 
 **`Delete` is the first action that changes the session, and it carries a meaning rather than a
 shape.** It is reached by the key and by the Edit menu's entry, and both apply that same action
@@ -287,6 +324,12 @@ and which keys they answer to are theirs. So is the rectangle a click is tested 
 knows where its labels are only once it has been drawn, and a click is tested against the areas of
 the frame before it.
 
+**The scrollbar is the framework's.** The bar is the helper's, with its own symbols, style and
+thumb, its own mapping from a cell of the track to an offset, and its own reading of the wheel and
+of a drag. The application says which axes carry one, where it sits and that it collapses where the
+content fits, and derives the offset it shows from the origin; what the bar looks like and what a
+press on it means are not this layer's.
+
 **`Alt` reaches the menu's own navigation character**, and it is not a second menu: the application
 translates `Alt` plus a label's character into the press the widget answers, and the keyboard moves
 to the bar with the same press, so the labels remain the only table of names. A combination that
@@ -370,6 +413,20 @@ framework's buffer one at a time.
 - A move with a modifier, a release and a repeat move nothing.
 - A carried-out move leaves the keyboard on the region.
 - A figure moved past the window's edge is not drawn.
+- The view opens at `(0, 0)`, and a drawing inside the first screen does not scroll.
+- On each axis the origin lies in the content's range, and every frame puts it at the nearest value;
+  a content change does not move the view unless the content no longer holds it.
+- The wheel moves the view by a tenth of the window, at least one cell, and `Alt` moves it across; a
+  turn the content refuses changes nothing and owes no frame.
+- A bar sits on the region's border, takes no cell from the window, keeps the block's corners, and
+  shows only where the content does not fit.
+- A press on a bar takes the view to the position it names and a drag follows the pointer; a press
+  where the view already stands owes no frame.
+- A scroll records no step and keeps the selection, and neither an undo nor a redo restores a view.
+- A click after a scroll selects the cell under the pointer, and a press on a bar is the bar's while
+  it still gives the region the keyboard.
+- A drawing larger than the window gains a bar on each axis without losing a cell of the window it
+  had.
 - `Ctrl+Z` gives the step behind back and `Ctrl+Shift+Z` the step ahead, each with no other
   modifier, and both stop at the ends of the history.
 - The Edit menu's Undo and Redo entries carry the same actions as the keys, and they are offered at
