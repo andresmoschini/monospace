@@ -446,7 +446,7 @@ a test reaches them through the state and the frame; the measurement's own tests
 
 | Rule | Test                                                                                                                                                                                                                |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `a_frame_opens_at_the_origin`, `a_drawing_inside_the_first_screen_does_not_scroll`                                                                                                                                  |
+| 1    | `a_frame_opens_at_the_origin`, `a_drawing_inside_the_first_screen_does_not_scroll`, `a_window_of_no_size_has_nothing_to_scroll`                                                                                     |
 | 2    | `a_frame_draws_at_the_origin_the_content_allows`, `a_frame_at_the_end_of_the_content_owes_no_frame`, `a_content_change_keeps_the_origin`, `a_drag_past_the_track_is_clamped_to_the_content`                         |
 | 3    | `the_wheel_moves_the_view_by_the_helpers_step`, `a_wheel_at_the_end_moves_nothing_and_owes_no_frame`                                                                                                                |
 | 4    | `the_bar_is_on_the_border_and_takes_no_cell_from_the_window`, `the_bar_is_hidden_when_the_content_fits`, `the_corners_are_the_blocks`, `a_press_on_the_bar_jumps_the_view`, `a_drag_on_the_bar_follows_the_pointer` |

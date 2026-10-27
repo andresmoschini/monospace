@@ -439,7 +439,7 @@ impl DiagramState {
 /// drawing does, and its last cell is never before the first screen's: a drawing away from `(0, 0)`
 /// still opens on the first screen, and one that stamped nothing leaves the content as that screen,
 /// which does not scroll.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 struct Axis {
     /// The content's first cell in the plane.
     first: i32,
@@ -454,13 +454,20 @@ struct Axis {
 impl Axis {
     /// The content `footprint` and the first screen make on one axis, `reach` being the footprint's
     /// first and last cell there and `None` while nothing has been drawn.
+    ///
+    /// **A window of no size is no screen, and so no content**: the first screen's last cell is the
+    /// window's own minus one, which is before `(0, 0)` when there is no window, and that is what
+    /// leaves the span at zero rather than at the one cell the corner alone would make.
     fn of(reach: Option<(i16, i16)>, window: u16) -> Self {
-        let (first, last) = reach.unwrap_or((0, 0));
         let window = i32::from(window);
+        let (first, last) = match reach {
+            Some((first, last)) => (i32::from(first), i32::from(last)),
+            None => (0, window - 1),
+        };
 
         Self {
-            first: i32::from(first).min(0),
-            last: i32::from(last).max(window - 1),
+            first: first.min(0),
+            last: last.max(window - 1),
             window,
         }
     }
@@ -806,6 +813,24 @@ mod tests {
             state.diagram.vscroll.max_offset(),
             0,
             "the content is taller than the window it fits"
+        );
+    }
+
+    /// **A window of no size has nothing to scroll** (D1). The content is the first screen, and a
+    /// screen of no cells is no content at all: the region of a terminal too small to hold one draws
+    /// no border and answers no click, so a bar claiming a reach of one there would be a bar that
+    /// cannot be drawn and cannot be moved.
+    #[test]
+    fn a_window_of_no_size_has_nothing_to_scroll() {
+        assert_eq!(
+            Axis::of(None, 0).span(),
+            0,
+            "a window of no size claims a cell the view can travel"
+        );
+        assert_eq!(
+            Axis::of(None, 18).span(),
+            0,
+            "a screen with nothing drawn claims a cell to travel"
         );
     }
 
