@@ -152,14 +152,14 @@ decide" — so there is no state the stamp needs and the stored cell cannot hold
 A stamp also carries **who is stamping**, and the buffer keeps that **beside the cell rather than
 inside it**: the record is what decides which shape a position belongs to, and it is a note about a
 cell rather than part of one, so two cells that render alike stay one cell value whoever wrote them.
-A stamp by nobody records nothing rather than recording an absence. The record is asked for with a
-position **counted from the window's own corner** — an `Offset`, not a `Pos`, because a `Pos` is a
-point in the plane and may be negative while an `Offset` is a column and a row of what was rendered
-and never is. **The window's origin decides which cells the window holds and takes no other part in
-the answer**, so a caller that adds it to a click before asking has asked about a different cell and
-gets a truthful answer about that one. A caller keeping one buffer for a whole diagram and rendering
-a viewport out of it holds click offsets relative to the _viewport_, and has to know it is drawing a
-rectangle other than the window.
+A stamp by nobody records nothing rather than recording an absence. The record is asked for with an
+absolute **position**, a `Pos`, and never with the column and row a click arrives as: **the window
+is the one place an `Offset` becomes a `Pos`**, so a caller counts the click from the window's
+corner once and asks with what it got. **The window's origin decides which cells the window holds
+and where an offset lands**, so a caller that adds it to a click itself has asked about a different
+cell and gets a truthful answer about that one. A caller keeping one buffer for a whole diagram and
+rendering a viewport out of it holds click offsets relative to the _viewport_, and has to know it is
+drawing a rectangle other than the window.
 
 | Target                        | `Above`                                                                        | `Below`                                                                   |
 | ----------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
@@ -233,7 +233,7 @@ the degradation rule below falls back on.
 
 ## 6. Rendering
 
-The renderer takes a buffer, a catalog and an absolute rectangle: a position `(x, y)` and a size
+The renderer takes a reader of cells, a catalog and a window: an origin `(x, y)` and a size
 `(width, height)`.
 
 For each position in the rectangle:
