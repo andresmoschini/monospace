@@ -351,7 +351,17 @@ impl DiagramState {
             ScrollOutcome::Right(n) => self.hscroll.scroll_right(n),
             ScrollOutcome::VPos(at) => self.vscroll.set_offset(at),
             ScrollOutcome::HPos(at) => self.hscroll.set_offset(at),
-            ScrollOutcome::Changed | ScrollOutcome::Unchanged | ScrollOutcome::Continue => false,
+            // **`Changed` is the helper's own repaint signal and the application does not take it**:
+            // it carries no offset, and what this application owes a frame for is an origin that
+            // moved (D3), so there is nothing here to apply. Neither `ScrollAreaState` nor
+            // `ScrollState` answers it today — a step, an offset or nothing at all is all they say —
+            // and the assertion is what makes a helper that starts saying it a failing test rather
+            // than a frame lost in silence.
+            ScrollOutcome::Changed => {
+                debug_assert!(false, "the bars answered with a repaint and no offset");
+                false
+            }
+            ScrollOutcome::Unchanged | ScrollOutcome::Continue => false,
         };
 
         if !changed {
