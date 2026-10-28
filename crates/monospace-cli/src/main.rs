@@ -95,6 +95,25 @@ mod sweep;
 /// The usage line, printed for anything [`parse_args`] refuses.
 const USAGE: &str = "usage: monospace-cli [--size <width>x<height>] [--origin <x>,<y>] [path]";
 
+/// What the command line asked this binary to do.
+///
+/// **A mode rather than a pair of options**, because the two runs are not a path with settings: a
+/// bare run demonstrates and a path renders once, and which of the two it is decides what the flags
+/// even mean. Naming the mode is what lets a third one arrive without every caller testing the
+/// path for `None`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Mode {
+    /// No path: print the shipped demonstration.
+    Demonstration,
+    /// A description to draw once, and the window the command line named for it, if any.
+    Description {
+        /// The path to read the description from.
+        path: String,
+        /// The window `--size` and `--origin` named, or `None` when they named none.
+        window: Option<Window>,
+    },
+}
+
 /// The window the demonstration draws into, and the one a path is drawn into when the command line
 /// names none.
 ///
@@ -115,23 +134,30 @@ const DEMO_WINDOW: Window = Window {
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    let (path, asked) = match parse_args(&args) {
-        Ok(parsed) => parsed,
+    let mode = match parse_args(&args) {
+        Ok(mode) => mode,
         Err(message) => {
             eprintln!("{message}");
             return ExitCode::FAILURE;
         }
     };
 
-    let text = match &path {
-        None => DEMO.to_owned(),
-        Some(path) => match std::fs::read_to_string(path) {
-            Ok(text) => text,
-            Err(error) => {
-                eprintln!("{path}: {error}");
-                return ExitCode::FAILURE;
-            }
-        },
+    // **The flags name the window a path is drawn into, and a demonstration has its own.** The two
+    // modes are not the same caller. `cargo xtask render` always passes a size, because every
+    // marker states one, so the default is never what a generated picture uses; and a bare run
+    // serves a person watching it, who gets the demonstration's own window whatever they typed.
+    let (text, window, demonstrates) = match mode {
+        Mode::Demonstration => (DEMO.to_owned(), DEMO_WINDOW, true),
+        Mode::Description { path, window } => {
+            let text = match std::fs::read_to_string(&path) {
+                Ok(text) => text,
+                Err(error) => {
+                    eprintln!("{path}: {error}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            (text, window.unwrap_or(DEMO_WINDOW), false)
+        }
     };
 
     let diagram = match parse(&text) {
@@ -142,18 +168,9 @@ fn main() -> ExitCode {
         }
     };
 
-    // **The flags name the window a path is drawn into, and a demonstration has its own.** The two
-    // callers are not the same caller. `cargo xtask render` always passes a size, because every
-    // marker states one, so the default is never what a generated picture uses; and a bare run
-    // serves a person watching it, who gets the demonstration's own window whatever they typed.
-    let window = match asked {
-        Some(asked) if path.is_some() => asked,
-        _ => DEMO_WINDOW,
-    };
-
     print!(
         "{}",
-        if path.is_none() {
+        if demonstrates {
             demonstrate(diagram, window)
         } else {
             render_once(&diagram, window)
@@ -162,7 +179,7 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Reads the arguments into the path to draw and the window to draw it into, in either order.
+/// Reads the arguments into the [`Mode`] they name and the window that belongs to it.
 ///
 /// **Two flags and a path, parsed by hand.** `xtask` takes no dependencies because it guards the
 /// dependency policy, and this binary is what `cargo xtask render` runs once per generated picture
@@ -178,7 +195,7 @@ fn main() -> ExitCode {
 /// **A value that is not the shape the flag takes is refused and quoted.** `--size 20-7` names
 /// nothing this binary can draw into, and answering it with half the window would be a picture
 /// rather than an error.
-fn parse_args(args: &[String]) -> Result<(Option<String>, Option<Window>), String> {
+fn parse_args(args: &[String]) -> Result<Mode, String> {
     let mut path: Option<String> = None;
     let mut origin: Option<Pos> = None;
     let mut size: Option<Size> = None;
@@ -218,7 +235,10 @@ fn parse_args(args: &[String]) -> Result<(Option<String>, Option<Window>), Strin
         origin: origin.unwrap_or(Pos { x: 0, y: 0 }),
         size,
     });
-    Ok((path, window))
+    Ok(match path {
+        Some(path) => Mode::Description { path, window },
+        None => Mode::Demonstration,
+    })
 }
 
 /// The `20x7` of `--size`, as the pair of numbers a window is drawn into.
@@ -549,7 +569,7 @@ mod tests {
     };
     use monospace_diagram::ShapeId;
 
-    use super::{demonstrate, drawn, parse_args, render_once};
+    use super::{Mode, demonstrate, drawn, parse_args, render_once};
     use crate::parse;
 
     /// The window the shipped demonstration is drawn at, as the flags name it.
@@ -1651,41 +1671,44 @@ mod tests {
 
         assert_eq!(
             parse_args(&args(&[])).expect("a bare run is a run"),
-            (None, None),
+            Mode::Demonstration,
             "no argument at all is the demonstration"
         );
         assert_eq!(
             parse_args(&args(&["x.json"])).expect("a path is a path"),
-            (Some("x.json".to_owned()), None),
+            Mode::Description {
+                path: "x.json".to_owned(),
+                window: None,
+            },
             "a path alone names no window"
         );
         assert_eq!(
             parse_args(&args(&["--size", "20x7", "x.json"])).expect("a size is a window"),
-            (
-                Some("x.json".to_owned()),
-                Some(Window {
+            Mode::Description {
+                path: "x.json".to_owned(),
+                window: Some(Window {
                     origin: Pos { x: 0, y: 0 },
                     size: Size {
                         width: 20,
                         height: 7
                     }
-                })
-            ),
+                }),
+            },
             "a size alone is a window at the origin every marker but four uses"
         );
         assert_eq!(
             parse_args(&args(&["--size", "7x5", "--origin", "-3,-2", "x.json"]))
                 .expect("both halves are a window"),
-            (
-                Some("x.json".to_owned()),
-                Some(Window {
+            Mode::Description {
+                path: "x.json".to_owned(),
+                window: Some(Window {
                     origin: Pos { x: -3, y: -2 },
                     size: Size {
                         width: 7,
                         height: 5
                     }
-                })
-            ),
+                }),
+            },
             "an origin may be negative, which is what `specs/086` draws at"
         );
         assert_eq!(
