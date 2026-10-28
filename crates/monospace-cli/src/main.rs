@@ -1,7 +1,8 @@
 //! Minimal non-interactive command-line front end for Monospace.
 //!
 //! It holds no domain logic of its own: it reads a description with `monospace-description`, which
-//! turns the format's JSON into a `monospace_diagram::Diagram`, and draws it.
+//! turns the format's JSON into a `monospace_diagram::Diagram`, and draws it — or prints the style
+//! sheet the glyph catalog holds, when that is what was asked for.
 //!
 //! # Design notes
 //!

@@ -50,8 +50,8 @@ beside its arm table. `all()` unions every arm table and every style.
 else, because a pointer points; `ascii` adds the circle to the four arrow characters it draws, and
 leaves the diamond and the hexagon to the space.
 
-**A blank cell in that table is the space the picture draws.** The row of a style keeps its gap, so
-an incomplete style reads as incomplete rather than as a shorter row.
+**A blank cell in that table is the space the picture draws.** A sheet row keeps the gap, so an
+incomplete style reads as incomplete rather than as a shorter row.
 
 ## The sheet
 
