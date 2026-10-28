@@ -51,10 +51,10 @@ const WHAT: &str = concat!(
     "then a row for each of them, saying what that position renders, what each of its four arms ",
     "holds, and the base stroke every Set arm is drawn in. A Set arm names the stroke; Unset and ",
     "Closed are the model's own two words for the other two. A position left unwritten is a hole ",
-    "in the picture rather than a row here, and the count is how many there are. A literal has no ",
-    "arms, so its arm columns are empty. A block moving means a figure or an order changed, and ",
-    "what moved is the thing to look at — the same acceptance a characterization gets, without its ",
-    "claim of covering a range.",
+    "in the picture rather than a row here, and the count is how many there are. A literal or a ",
+    "symbol has no arms, so its arm columns are empty. A block moving means a figure or an order ",
+    "changed, and what moved is the thing to look at — the same acceptance a characterization ",
+    "gets, without its claim of covering a range.",
 );
 
 const COLUMNS: [&str; 7] = ["at", "glyph", "top", "right", "bottom", "left", "base"];
@@ -191,6 +191,16 @@ fn surface(buffer: &Buffer, size: Size) -> String {
                 None => continue,
                 Some(Cell::Literal(g)) => (
                     g.as_str().to_string(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                ),
+                Some(Cell::Symbol(s)) => (
+                    catalog
+                        .symbol(s)
+                        .map_or("?".to_string(), |g| g.as_str().to_string()),
                     String::new(),
                     String::new(),
                     String::new(),

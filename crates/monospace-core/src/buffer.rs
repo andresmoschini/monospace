@@ -150,9 +150,9 @@ impl StampSink for Buffer {
     /// stroke and reads the *stamp's* arms, leaving alone whichever ones `cell` itself leaves
     /// `Unset`; [`StampMode::Below`] leaves the base stroke alone and reads the *target's* arms
     /// instead, writing only the sides the cell already stored has left `Unset`. A cell holding a
-    /// literal glyph is decided on every side either way, so it behaves as the fully decided case
-    /// throughout — see _A cell can be a literal instead_ in
-    /// [`docs/model.md`](../../../docs/model.md).
+    /// literal glyph or a named symbol is decided on every side either way, so it behaves as the
+    /// fully decided case throughout — see _A cell can be a literal instead_ and _A cell can name
+    /// a symbol instead_ in [`docs/model.md`](../../../docs/model.md).
     /// `owner` is the identity of whoever is stamping, or `None` for a stamp by nobody: a figure
     /// this crate draws on its own gallery carries no identity, and neither does a caller with no
     /// diagram to draw from. **`None` records nothing rather than recording an absence** — it is
@@ -185,14 +185,14 @@ impl StampSink for Buffer {
                     // it names wins outright, so the merge that would compute the same thing is
                     // skipped. Mirrors the Below branch below it: the rule that the topmost
                     // figure owns each side it decides names no stamp mode, so implementing it in
-                    // one direction only would read as a deliberate asymmetry. A literal is
-                    // decided by definition, so this is also where it wins outright.
+                    // one direction only would read as a deliberate asymmetry. A literal or a
+                    // symbol is decided by definition, so this is also where it wins outright.
                     StampMode::Above if cell.is_decided() => cell,
                     StampMode::Above => merge(cell, target),
                     // Below never changes a decided target: merging would reproduce it exactly,
                     // so this returns instead of rebuilding and storing an identical cell. No
                     // test can fail for this arm either way — deleting the guard
-                    // leaves every buffer byte-identical. A literal target is decided too, so
+                    // leaves every buffer byte-identical. An opaque target is decided too, so
                     // this is also where it is left alone.
                     //
                     // The early return leaves the record alone too, and that is the point of it
@@ -220,22 +220,25 @@ impl StampSink for Buffer {
 /// this function's: an `Above` stamp is `top` over the target, and a `Below` stamp puts the target
 /// itself in that role.
 ///
-/// Three cases, matched explicitly rather than folded into one arm-by-arm loop — a literal has no
-/// arms, so [`merge_arm`] never sees one:
+/// Three cases, matched explicitly rather than folded into one arm-by-arm loop — an opaque cell
+/// has no arms, so [`merge_arm`] never sees one:
 ///
-/// - **A literal on top** always wins outright, whatever `bottom` is. Unreachable through
-///   [`StampSink::stamp`] today, because its two `is_decided` shortcuts catch
-///   every decided cell first — written as a returning branch rather than `unreachable!()` so
-///   those shortcuts stay deletable optimizations instead of becoming load-bearing.
-/// - **A stroke cell over a literal** wins as a stroke cell, with every side it left `Unset`
-///   closed: a literal has no arms to fall through to, only a refusal on every side, per _A cell
-///   can be a literal instead_ in [`docs/model.md`](../../../docs/model.md).
+/// - **An opaque cell on top** — a literal or a symbol — always wins outright, whatever `bottom`
+///   is. Unreachable through [`StampSink::stamp`] today, because its two `is_decided` shortcuts
+///   catch every decided cell first — written as a returning branch rather than `unreachable!()`
+///   so those shortcuts stay deletable optimizations instead of becoming load-bearing.
+/// - **A stroke cell over an opaque cell** wins as a stroke cell, with every side it left `Unset`
+///   closed: an opaque cell has no arms to fall through to, only a refusal on every side, per _A
+///   cell can be a literal instead_ and _A cell can name a symbol instead_ in
+///   [`docs/model.md`](../../../docs/model.md).
 /// - **Two stroke cells** merge arm by arm: `top`'s base stroke, and each arm `top` decides, with
 ///   an arm `top` leaves `Unset` falling through to `bottom`'s side.
 fn merge(top: Cell, bottom: &Cell) -> Cell {
     match (top, bottom) {
-        (literal @ Cell::Literal(_), _) => literal,
-        (Cell::Strokes(stroke), Cell::Literal(_)) => close_unset_sides(stroke).into(),
+        (opaque @ (Cell::Literal(_) | Cell::Symbol(_)), _) => opaque,
+        (Cell::Strokes(stroke), Cell::Literal(_) | Cell::Symbol(_)) => {
+            close_unset_sides(stroke).into()
+        }
         (Cell::Strokes(top), Cell::Strokes(bottom)) => merge_strokes(top, bottom).into(),
     }
 }
@@ -250,10 +253,10 @@ fn merge(top: Cell, bottom: &Cell) -> Cell {
 /// question the merge cannot answer, because a stamp that decides no side still writes its base
 /// stroke over an undefined position and changes what is stored.
 ///
-/// A literal is decided on every side by definition, so it always passes.
+/// A literal or a symbol is decided on every side by definition, so it always passes.
 fn decides_a_side(cell: &Cell) -> bool {
     match cell {
-        Cell::Literal(_) => true,
+        Cell::Literal(_) | Cell::Symbol(_) => true,
         Cell::Strokes(cell) => {
             !matches!(cell.top, Arm::Unset)
                 || !matches!(cell.right, Arm::Unset)
@@ -263,9 +266,9 @@ fn decides_a_side(cell: &Cell) -> bool {
     }
 }
 
-/// `cell`, with every `Unset` arm closed. A literal refuses every side it meets rather than
-/// leaving any open, per _A cell can be a literal instead_ in
-/// [`docs/model.md`](../../../docs/model.md) — there is no arm of its own to fall through to.
+/// `cell`, with every `Unset` arm closed. An opaque cell refuses every side it meets rather than
+/// leaving any open, per _A cell can be a literal instead_ and _A cell can name a symbol instead_
+/// in [`docs/model.md`](../../../docs/model.md) — there is no arm of its own to fall through to.
 fn close_unset_sides(cell: StrokeCell) -> StrokeCell {
     let close = |arm| {
         if matches!(arm, Arm::Unset) {
@@ -316,7 +319,7 @@ mod tests {
     use super::{Buffer, CellReader, OwnerReader, StampMode, StampSink};
     use crate::{
         Arm, BoxShape, Cell, FigureLayer, Glyph, Offset, Pos, Shape as _, ShapeId, Size, Stroke,
-        StrokeCell, Window,
+        StrokeCell, Symbol, SymbolCell, SymbolStyleName, Window,
     };
 
     fn light() -> Stroke {
@@ -333,6 +336,15 @@ mod tests {
 
     fn glyph(text: &str) -> Glyph {
         Glyph::new(text).unwrap_or_else(|| panic!("{text:?} is one glyph"))
+    }
+
+    /// The Solid `DirectionUp` symbol as a cell, which is what the composition tests below put
+    /// where a literal would otherwise sit.
+    fn a_symbol_cell() -> Cell {
+        Cell::Symbol(SymbolCell {
+            symbol: Symbol::DirectionUp,
+            style: SymbolStyleName::from("solid"),
+        })
     }
 
     /// An identity of the ordinal `ordinal`, which is how every test below states who stamped.
@@ -983,6 +995,51 @@ mod tests {
         );
 
         assert_eq!(buffer.cell(Pos { x: 0, y: 0 }), Some(&original));
+    }
+
+    /// Rule 3 — a symbol cell composes exactly as a literal does. Above, it replaces what it
+    /// meets; below, a stroke stamp leaves it alone; two of them compose as two literals, with the
+    /// top one winning.
+    #[test]
+    fn a_symbol_cell_composes_as_a_literal_does() {
+        let pos = Pos { x: 0, y: 0 };
+
+        let mut named = a_buffer(pos, 1, 1);
+        named.stamp(pos, vertical_run(), StampMode::Above, None);
+        named.stamp(pos, a_symbol_cell(), StampMode::Above, None);
+
+        let mut spelled = a_buffer(pos, 1, 1);
+        spelled.stamp(pos, vertical_run(), StampMode::Above, None);
+        spelled.stamp(pos, Cell::Literal(glyph("▲")), StampMode::Above, None);
+
+        assert_eq!(
+            named.cell(pos),
+            Some(&a_symbol_cell()),
+            "the symbol replaces the stroke cell it was stamped over"
+        );
+        assert_eq!(spelled.cell(pos), Some(&Cell::Literal(glyph("▲"))));
+
+        named.stamp(pos, horizontal_run(), StampMode::Below, None);
+        spelled.stamp(pos, horizontal_run(), StampMode::Below, None);
+
+        assert_eq!(
+            named.cell(pos),
+            Some(&a_symbol_cell()),
+            "a stamp behind changes neither opaque kind"
+        );
+        assert_eq!(spelled.cell(pos), Some(&Cell::Literal(glyph("▲"))));
+
+        let incoming = Cell::Symbol(SymbolCell {
+            symbol: Symbol::Circle,
+            style: SymbolStyleName::from("solid"),
+        });
+        named.stamp(pos, incoming.clone(), StampMode::Above, None);
+
+        assert_eq!(
+            named.cell(pos),
+            Some(&incoming),
+            "two symbol cells compose as two literals do, the top one winning"
+        );
     }
 
     /// The example named "Why the closed sides matter": a literal between two stroke figures in a
