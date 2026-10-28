@@ -67,7 +67,8 @@ pub struct GlyphKey {
 /// Every glyph rule in play. Answering a key is one lookup; nothing about a catalog says which
 /// set a rule came from.
 pub struct GlyphCatalog {
-    rules: HashMap<GlyphKey, Glyph>,
+    /// The rules filed under a combination of arms.
+    arms: HashMap<GlyphKey, Glyph>,
 }
 
 /// A row of a glyph table: a stroke name or nothing on each side, and the glyph it draws.
@@ -118,7 +119,7 @@ impl GlyphCatalog {
             map.entry(key).or_insert(glyph);
         }
 
-        Self { rules: map }
+        Self { arms: map }
     }
 
     /// Builds a catalog by merging other catalogs, in the order given. Where two claim the same
@@ -127,12 +128,12 @@ impl GlyphCatalog {
     pub fn union(catalogs: impl IntoIterator<Item = Self>) -> Self {
         let mut map = HashMap::new();
         for catalog in catalogs {
-            for (key, glyph) in catalog.rules {
+            for (key, glyph) in catalog.arms {
                 map.entry(key).or_insert(glyph);
             }
         }
 
-        Self { rules: map }
+        Self { arms: map }
     }
 
     /// Builds a catalog from the Light table alone.
@@ -162,7 +163,7 @@ impl GlyphCatalog {
     /// Returns the glyph `key` answers to, or `None` if the catalog has no rule for it.
     #[must_use]
     pub fn glyph(&self, key: &GlyphKey) -> Option<&Glyph> {
-        self.rules.get(key)
+        self.arms.get(key)
     }
 }
 
