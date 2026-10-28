@@ -130,9 +130,16 @@ pub struct GlyphKey {
 
 /// Every glyph rule in play. Answering a key is one lookup; nothing about a catalog says which
 /// set a rule came from.
+///
+/// **Two maps, because there are two kinds of key.** An arm rule is filed under four strokes, a
+/// symbol rule under a symbol and a style, and the two answer different questions about a miss:
+/// an arm cell degrades to its base stroke, while a symbol cell answers nothing. Folding them into
+/// one map over one key would make the answers collide.
 pub struct GlyphCatalog {
     /// The rules filed under a combination of arms.
     arms: HashMap<GlyphKey, Glyph>,
+    /// The rules filed under a symbol and the style it is drawn in.
+    symbols: HashMap<SymbolCell, Glyph>,
 }
 
 /// A row of a glyph table: a stroke name or nothing on each side, and the glyph it draws.
@@ -173,6 +180,18 @@ const LIGHT: &[Row] = &[
     (Some("light"), None, None, None, "│"),
 ];
 
+/// The seven rules of the Solid style, held as data rather than parsed at run time. The style is
+/// the core's the way Light is: `solid` is what a cell draws when nothing has said otherwise.
+const SOLID: &[(Symbol, &str)] = &[
+    (Symbol::DirectionUp, "▲"),
+    (Symbol::DirectionRight, "▶"),
+    (Symbol::DirectionDown, "▼"),
+    (Symbol::DirectionLeft, "◀"),
+    (Symbol::Diamond, "◆"),
+    (Symbol::Hexagon, "⬢"),
+    (Symbol::Circle, "●"),
+];
+
 impl GlyphCatalog {
     /// Builds a catalog from an ordered group of rules. Where two rules claim the same key, the
     /// first one in `rules` wins.
@@ -183,21 +202,43 @@ impl GlyphCatalog {
             map.entry(key).or_insert(glyph);
         }
 
-        Self { arms: map }
+        Self {
+            arms: map,
+            symbols: HashMap::new(),
+        }
+    }
+
+    /// Builds a catalog from an ordered group of symbol rules. Where two rules claim the same
+    /// pair, the first one in `rules` wins.
+    #[must_use]
+    pub fn from_symbol_rules(rules: impl IntoIterator<Item = (SymbolCell, Glyph)>) -> Self {
+        let mut map = HashMap::new();
+        for (key, glyph) in rules {
+            map.entry(key).or_insert(glyph);
+        }
+
+        Self {
+            arms: HashMap::new(),
+            symbols: map,
+        }
     }
 
     /// Builds a catalog by merging other catalogs, in the order given. Where two claim the same
-    /// key, the earlier one in `catalogs` wins.
+    /// key, the earlier one in `catalogs` wins, and each of the two maps keeps its own claims.
     #[must_use]
     pub fn union(catalogs: impl IntoIterator<Item = Self>) -> Self {
-        let mut map = HashMap::new();
+        let mut arms = HashMap::new();
+        let mut symbols = HashMap::new();
         for catalog in catalogs {
             for (key, glyph) in catalog.arms {
-                map.entry(key).or_insert(glyph);
+                arms.entry(key).or_insert(glyph);
+            }
+            for (key, glyph) in catalog.symbols {
+                symbols.entry(key).or_insert(glyph);
             }
         }
 
-        Self { arms: map }
+        Self { arms, symbols }
     }
 
     /// Builds a catalog from the Light table alone.
@@ -224,16 +265,61 @@ impl GlyphCatalog {
         }))
     }
 
+    /// Builds a catalog from the Solid style alone: one glyph per [`Symbol`].
+    ///
+    /// Named after what it holds, as [`light`](Self::light) is, and it stays accurate once another
+    /// style ships beside it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a row of the Solid table is not a valid glyph. That is a bug in data this
+    /// library ships, never a condition a caller can trigger.
+    #[must_use]
+    pub fn solid() -> Self {
+        Self::from_symbol_rules(SOLID.iter().map(|&(symbol, glyph)| {
+            let key = SymbolCell {
+                symbol,
+                style: SymbolStyleName::from("solid"),
+            };
+            let glyph = Glyph::new(glyph)
+                .unwrap_or_else(|| panic!("Solid table row {key:?} is not a valid glyph"));
+            (key, glyph)
+        }))
+    }
+
     /// Returns the glyph `key` answers to, or `None` if the catalog has no rule for it.
     #[must_use]
     pub fn glyph(&self, key: &GlyphKey) -> Option<&Glyph> {
         self.arms.get(key)
     }
+
+    /// Returns the glyph the pair `key` answers to, or `None` if the catalog has no rule for it.
+    ///
+    /// **A miss is final.** An arm cell falls back to its base stroke; a symbol cell does not fall
+    /// back to another style, because a fallback would replace the look the cell named with one it
+    /// did not.
+    #[must_use]
+    pub fn symbol(&self, key: &SymbolCell) -> Option<&Glyph> {
+        self.symbols.get(key)
+    }
+
+    /// Every style the catalog holds a symbol rule for, each once, in name order.
+    ///
+    /// **Read off the rules rather than off a list**, so a style added to a table is reported
+    /// without a second place to change and a style with no rules is not reported at all.
+    #[must_use]
+    pub fn symbol_styles(&self) -> Vec<&SymbolStyleName> {
+        let mut styles: Vec<&SymbolStyleName> = self.symbols.keys().map(|key| &key.style).collect();
+        styles.sort();
+        styles.dedup();
+
+        styles
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Glyph, GlyphCatalog, GlyphKey};
+    use super::{Glyph, GlyphCatalog, GlyphKey, Symbol, SymbolCell, SymbolStyleName};
     use crate::Stroke;
 
     /// `"│"` is one cluster and one character, so it is accepted and reads back
@@ -435,5 +521,111 @@ mod tests {
 
         assert_eq!(alone.glyph(&key), merged.glyph(&key));
         assert_eq!(merged.glyph(&key), Some(&glyph));
+    }
+
+    /// A pair with `symbol` drawn in `style`, so a test can name one without the whole struct
+    /// spelled at every call.
+    fn a_symbol(symbol: Symbol, style: &str) -> SymbolCell {
+        SymbolCell {
+            symbol,
+            style: SymbolStyleName::from(style),
+        }
+    }
+
+    /// Rule 5: `union` merges both maps by the same first-claim rule within each, and neither
+    /// answers for the other. Two styles of one symbol are two pairs, so both survive.
+    #[test]
+    fn union_merges_both_maps_and_holds_two_styles_of_one_symbol() {
+        let arm_key = key_with_top("shared-arm");
+        let arm = Glyph::new("│").expect("\"│\" is one glyph");
+        let solid = a_symbol(Symbol::DirectionUp, "solid");
+        let outline = a_symbol(Symbol::DirectionUp, "outline");
+        let solid_glyph = Glyph::new("▲").expect("\"▲\" is one glyph");
+        let outline_glyph = Glyph::new("△").expect("\"△\" is one glyph");
+
+        let arms_only = GlyphCatalog::from_rules([(arm_key.clone(), arm.clone())]);
+        let symbols_only = GlyphCatalog::from_symbol_rules([
+            (solid.clone(), solid_glyph.clone()),
+            (outline.clone(), outline_glyph.clone()),
+        ]);
+        assert_eq!(arms_only.symbol(&solid), None, "an arm rule is not a pair");
+        assert_eq!(
+            symbols_only.glyph(&arm_key),
+            None,
+            "a symbol rule is not a key of arms"
+        );
+
+        let merged = GlyphCatalog::union([arms_only, symbols_only]);
+
+        assert_eq!(merged.glyph(&arm_key), Some(&arm));
+        assert_eq!(merged.symbol(&solid), Some(&solid_glyph));
+        assert_eq!(merged.symbol(&outline), Some(&outline_glyph));
+    }
+
+    /// The first-claim rule is per map: a pair two catalogs both claim answers from whichever came
+    /// first, and reversing the order reverses the answer.
+    #[test]
+    fn a_pair_two_catalogs_both_claim_answers_from_whichever_came_first() {
+        let key = a_symbol(Symbol::Diamond, "shared");
+        let first = Glyph::new("1").expect("\"1\" is one glyph");
+        let second = Glyph::new("2").expect("\"2\" is one glyph");
+
+        let first_wins = GlyphCatalog::union([
+            GlyphCatalog::from_symbol_rules([(key.clone(), first.clone())]),
+            GlyphCatalog::from_symbol_rules([(key.clone(), second.clone())]),
+        ]);
+        let second_wins = GlyphCatalog::union([
+            GlyphCatalog::from_symbol_rules([(key.clone(), second.clone())]),
+            GlyphCatalog::from_symbol_rules([(key.clone(), first.clone())]),
+        ]);
+
+        assert_eq!(first_wins.symbol(&key), Some(&first));
+        assert_eq!(second_wins.symbol(&key), Some(&second));
+    }
+
+    /// Rule 6: the core's Solid style answers every symbol, and draws the characters it names.
+    #[test]
+    fn solid_answers_all_seven_symbols() {
+        let catalog = GlyphCatalog::solid();
+
+        let drawn: String = Symbol::ALL
+            .iter()
+            .filter_map(|symbol| catalog.symbol(&a_symbol(*symbol, "solid")))
+            .map(Glyph::as_str)
+            .collect();
+
+        assert_eq!(drawn, "▲▶▼◀◆⬢●");
+    }
+
+    /// Rule 7: a style is reported once however many rules carry it, and the names come back in
+    /// name order rather than in the order the rules were built.
+    #[test]
+    fn symbol_styles_reports_each_style_once_in_name_order() {
+        let catalog = GlyphCatalog::from_symbol_rules([
+            (
+                a_symbol(Symbol::Diamond, "zulu"),
+                Glyph::new("z").expect("\"z\" is one glyph"),
+            ),
+            (
+                a_symbol(Symbol::Diamond, "alpha"),
+                Glyph::new("a").expect("\"a\" is one glyph"),
+            ),
+            (
+                a_symbol(Symbol::Circle, "alpha"),
+                Glyph::new("A").expect("\"A\" is one glyph"),
+            ),
+            (
+                a_symbol(Symbol::Circle, "mike"),
+                Glyph::new("m").expect("\"m\" is one glyph"),
+            ),
+        ]);
+
+        let styles: Vec<&str> = catalog
+            .symbol_styles()
+            .iter()
+            .map(|style| style.0.as_str())
+            .collect();
+
+        assert_eq!(styles, ["alpha", "mike", "zulu"]);
     }
 }
