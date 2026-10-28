@@ -12,6 +12,9 @@ The five single-stroke sets are complete. Each holds 15 rows, which is every com
 sides except the empty one. That completeness is what the degradation rule in [`model.md`](model.md)
 leans on: it degrades a cell to its base stroke, and needs the answer to be there.
 
+The styles that draw a symbol rather than a combination of arms are not tables of arms and are in
+[`symbols.md`](symbols.md).
+
 The mixing sets cannot be complete, because they hold what Unicode provides. Light with heavy
 happens to cover all 50 mixed combinations; light with double covers 18 of them, and the other 32
 degrade.
