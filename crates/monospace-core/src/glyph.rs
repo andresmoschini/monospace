@@ -51,6 +51,70 @@ impl Glyph {
     }
 }
 
+/// A symbol a cell can name: a direction an arrow points in, or a shape a terminal stands on.
+///
+/// Closed rather than a name, so that a symbol the core does not know cannot arrive and be
+/// rendered as a space: a misspelled style and a missing pair answer alike, and this is the half
+/// that must not. [`Self::ALL`] is the order a sheet prints the vocabulary in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Symbol {
+    /// An arrow pointing up.
+    DirectionUp,
+    /// An arrow pointing right.
+    DirectionRight,
+    /// An arrow pointing down.
+    DirectionDown,
+    /// An arrow pointing left.
+    DirectionLeft,
+    /// A diamond, which points nowhere.
+    Diamond,
+    /// A hexagon, which points nowhere.
+    Hexagon,
+    /// A circle, which points nowhere.
+    Circle,
+}
+
+impl Symbol {
+    /// Every symbol, in the order a sheet prints them: the four directions, then the shapes.
+    pub const ALL: [Symbol; 7] = [
+        Symbol::DirectionUp,
+        Symbol::DirectionRight,
+        Symbol::DirectionDown,
+        Symbol::DirectionLeft,
+        Symbol::Diamond,
+        Symbol::Hexagon,
+        Symbol::Circle,
+    ];
+}
+
+/// The name of the style a symbol is drawn in — `solid`, `outline`, `arrow`.
+///
+/// Open, as [`Stroke`] is: the catalog decides which styles exist, so a style someone loads is a
+/// style like any other. A style is not a table: a table may hold rules of more than one, and one
+/// style may be spread over several.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SymbolStyleName(pub String);
+
+impl From<&str> for SymbolStyleName {
+    fn from(name: &str) -> Self {
+        Self(name.to_owned())
+    }
+}
+
+/// A symbol and the style it is drawn in: the value a cell holds and the key its rule is filed
+/// under.
+///
+/// **The two are one value on purpose**, so writing a cell and looking one up are the same
+/// spelling: a second key carrying the same two fields would be a second way to say one thing,
+/// with a conversion at every write and every lookup.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SymbolCell {
+    /// Which symbol is drawn.
+    pub symbol: Symbol,
+    /// Which style it is drawn in.
+    pub style: SymbolStyleName,
+}
+
 /// The four sides of a glyph rule: a stroke name on each side, or nothing.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GlyphKey {
