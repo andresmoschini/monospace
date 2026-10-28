@@ -25,11 +25,11 @@ a head as an arrow.
 ### In
 
 - `monospace-core`: `Symbol`, `SymbolStyleName`, `SymbolCell`, `Cell::Symbol`; a second map in
-  `GlyphCatalog`, `from_symbol_rules` and `symbol`; `union` over both; `solid`; and the matches a
-  third kind breaks — `is_decided`, `glyph_str`, `merge`, `decides_a_side` and the two galleries,
-  which resolve a symbol cell through the catalog they render with.
-- `monospace-glyph-sets`: the other six styles, `style_catalogs()` (the seven names in name order,
-  the core's `solid` included), and `all()` widened to union them.
+  `GlyphCatalog`, `from_symbol_rules`, `symbol` and `symbol_styles`; `union` over both; `solid`; and
+  the matches a third kind breaks — `is_decided`, `glyph_str`, `merge`, `decides_a_side` and the two
+  galleries, which resolve a symbol cell through the catalog they render with.
+- `monospace-glyph-sets`: the other six styles, each a table whose rows name it, and `all()` widened
+  to union them.
 - `monospace-cli`: `--symbols`, the usage line, and the refusals beside it.
 - Docs: `docs/model.md` §1, §3–§6 and §9; a new `docs/symbols.md`; one line in `docs/glyph-sets.md`;
   `README.md`'s usage and layout; and `AGENTS.md`'s sentence giving the CLI two modes.
@@ -103,31 +103,39 @@ literals do, and the top one wins. Equality is by the pair, so a symbol cell and
 the same character are two cells. **Why not** normalizing one into the other on the first stamp: the
 names are what an editing layer could rewrite, and the first figure to land would throw them away.
 
-**D6 — a style is one look over the vocabulary, and its table is a catalog.**
+**D6 — a style is a column of a symbol rule, and a table may hold more than one.**
 
-**Answer:** each style is a `GlyphCatalog` built from symbol rules and named by a function. `solid`
-is `▲▶▼◀◆⬢●` and `outline` is `△▷▽◁◇⬡○`, both complete over seven; `solid-pointer` (`▲►▼◄`),
-`small-solid` (`▴▸▾◂`), `small-outline` (`▵▹▿◃`) and `arrow` (`↑→↓←`) answer the four directions and
-nothing else, while `ascii` (`^>v<`) answers them and the circle, as `o`. `solid` is the core's, as
-Light is; the other six and the one list are the sets crate's. **Why not** a `TerminalStyle` of four
-glyphs: a style over seven symbols is not four fields — `ascii` answers five of the seven — and the
-catalog already holds a pair-to-glyph rule. **Why not** requiring every style to answer every
-symbol: a pointer has no diamond, and repeating its triangle would draw a shape nobody chose. **Why
-not** one name per glyph, as the draft's eleven had: a style is a look, and `◆` and `◇` are its
-diamond, not styles. **What it costs:** `solid-pointer`/`Circle` draws a blank, and the list spans
-two crates. **Answered by** the maintainer, who asked for one name per look.
+**Answer:** a symbol rule is a `(SymbolCell, Glyph)`, so the style travels in the key and a catalog
+answers only the look each cell names. The tables are data: `solid` is seven rows in the core —
+`▲▶▼◀◆⬢●` — and `outline` (`△▷▽◁◇⬡○`), `solid-pointer` (`▲►▼◄`), `small-solid` (`▴▸▾◂`),
+`small-outline` (`▵▹▿◃`) and `arrow` (`↑→↓←`) are the sets crate's, with `ascii` (`^>v<`) adding `o`
+for the circle. `solid` is the core's, as Light is; the rest and `all()` are the sets crate's, and
+nothing pairs a name with a table. **Why not** the style in the value and the symbol alone as the
+key: a catalog could hold one look per symbol, so `all()` could not hold solid's `▲` beside ascii's
+`^`. **Why not** a table per style, named by the function that builds it: the name would then live
+where the tables are listed rather than in the table — `solid`'s in the sets crate while its rows
+sit in the core — and a theme that wanted two looks in one table could not say so. **Why not** a
+`TerminalStyle` of four glyphs: a style over seven symbols is not four fields — `ascii` answers five
+of the seven — and the catalog already holds a pair-to-glyph rule. **Why not** requiring every style
+to answer every symbol: a pointer has no diamond, and repeating its triangle would draw a shape
+nobody chose. **Why not** one name per glyph, as the draft's eleven had: a style is a look, and `◆`
+and `◇` are its diamond, not styles. **What it costs:** `solid-pointer`/`Circle` draws a blank, and
+a style name repeats on every row that carries it, as a stroke name does. **Answered by** the
+maintainer, who asked for one name per look.
 
 **D7 — the sheet is a mode of the command line, and it takes nothing else.**
 
-**Answer:** `monospace-cli --symbols` prints one row per style in name order, the name and one cell
-per symbol in `Symbol::ALL` order, rendered through `render` with that style's own catalog. A pair
-the style lacks is the space it renders to. A path, `--size` or `--origin` beside it is refused by
-name, because the sheet is the catalog's own. **Why not** only `docs/symbols.md`: a document drifts,
-and the sheet is the same data rendered by the code. **Why not** a `render` marker: the marker
-machinery renders a description, and no figure writes a symbol cell yet. **Why not** accepting a
-path or window: each names a diagram the sheet has nowhere to put. **What it costs:** a third mode
-in a binary whose comment says two, a usage line with three forms, and a test that is the only check
-the sheet gets.
+**Answer:** `monospace-cli --symbols` prints one row per style the catalog reports, in the order it
+reports them, the name and one cell per symbol in `Symbol::ALL` order, each cell naming that style,
+rendered through `render` with the one catalog — `all()`. A pair the style lacks is the space it
+renders to. A path, `--size` or `--origin` beside it is refused by name, because the sheet is the
+catalog's own. **Why not** a catalog per row: the cells already name their style, and a narrowed
+copy of the same data would be the second source D1 refused. **Why not** only `docs/symbols.md`: a
+document drifts, and the sheet is the same data rendered by the code. **Why not** a `render` marker:
+the marker machinery renders a description, and no figure writes a symbol cell yet. **Why not**
+accepting a path or window: each names a diagram the sheet has nowhere to put. **What it costs:** a
+third mode in a binary whose comment says two, a usage line with three forms, and a test that is the
+only check the sheet gets.
 
 ## Model slice
 
@@ -137,8 +145,8 @@ the sheet gets.
   names, that it covers the cell and composes as a literal, and that a missing pair is a space.
 - §4 _Stamping_: a symbol cell sits wherever a literal sits; the two opaque kinds compose alike.
 - §5 _Strokes, glyph sets and the catalog_: a symbol rule maps a `SymbolCell` to one glyph and never
-  degrades; a glyph set stays a table of arms and a style table is where symbol rules are written;
-  `union`'s first claim covers each map.
+  degrades, so a style is a column of the rule; a glyph set stays a table of arms, and a table may
+  hold rules of more than one style; `union`'s first claim covers each map.
 - §6 _Rendering_ and §9 _Properties worth testing_: the third branch — one lookup of the pair, a
   miss is no glyph — and the property that a complete style answers every symbol.
 
@@ -149,7 +157,7 @@ the sheet gets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Symbol { DirectionUp, DirectionRight, DirectionDown, DirectionLeft, Diamond, Hexagon, Circle }
 impl Symbol { pub const ALL: [Symbol; 7]; }
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SymbolStyleName(pub String); // From<&str>
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SymbolCell { pub symbol: Symbol, pub style: SymbolStyleName }
@@ -157,16 +165,17 @@ pub enum Cell { Strokes(StrokeCell), Literal(Glyph), Symbol(SymbolCell) }
 impl GlyphCatalog {
     pub fn from_symbol_rules(rules: impl IntoIterator<Item = (SymbolCell, Glyph)>) -> Self;
     pub fn symbol(&self, key: &SymbolCell) -> Option<&Glyph>;
+    pub fn symbol_styles(&self) -> Vec<&SymbolStyleName>;
     pub fn solid() -> Self;
 }
 // monospace-glyph-sets
 pub fn outline() -> GlyphCatalog; // and one per style
-pub fn style_catalogs() -> Vec<(&'static str, GlyphCatalog)>;
 pub fn all() -> GlyphCatalog; // the nine arm tables and the seven styles
 ```
 
-`style_catalogs()` includes the core's `solid`, so the one list is here while one table is not.
-`Cell::glyph_str` keeps its single `&GlyphCatalog`; a pair the catalog does not hold is `None`.
+`solid` is the core's, as `light` is, and `symbol_styles()` reads the names off the rules rather
+than off a list, so the sheet asks a catalog which styles it holds. `Cell::glyph_str` keeps its
+single `&GlyphCatalog`; a pair the catalog does not hold is `None`.
 
 ## Behavior
 
@@ -179,15 +188,16 @@ pub fn all() -> GlyphCatalog; // the nine arm tables and the seven styles
 4. A symbol cell and the literal drawing the same character render alike and stay different cells:
    equality is by the pair.
 5. `union` merges both maps by the same first-claim rule within each, and neither answers for the
-   other. A catalog with no symbol rules answers no pair.
+   other. Two styles of one symbol are two pairs, so a catalog holds both and `union` keeps both.
 6. `solid` and `outline` answer all seven; the four pointer styles answer the four directions and
    `ascii` adds the circle; `Diamond` and `Hexagon` render as spaces under `ascii`, and so does
    `Circle` under the four.
-7. `style_catalogs()` lists the seven in name order — `arrow`, `ascii`, `outline`, `small-outline`,
-   `small-solid`, `solid`, `solid-pointer` — and `all()` holds every one.
-8. `--symbols` prints one row per style in name order, the name padded to the longest and one space,
-   then one cell per symbol in `Symbol::ALL` order, through `render` and that style's catalog. A
-   miss is a space and the row keeps it.
+7. `symbol_styles()` reports each style the symbol rules name, once, in name order; `all()` reports
+   the seven — `arrow`, `ascii`, `outline`, `small-outline`, `small-solid`, `solid`,
+   `solid-pointer`.
+8. `--symbols` prints one row per style `all()` reports, in that order, the name padded to the
+   longest and one space, then one cell per symbol in `Symbol::ALL` order, each naming the row's
+   style, through `render` and `all()` itself. A miss is a space and the row keeps it.
 9. `--symbols` with a path, `--size`, `--origin`, or twice, is refused by name; the usage line lists
    the flag as a form of its own. A bare run, a path run, and every tracked picture are unchanged.
 
@@ -233,10 +243,11 @@ Nothing exists yet: the deciding stage adds no code, and nothing here has been o
 | 2    | `a_symbol_cell_writes_no_arm_and_is_decided_on_every_side`                                | `cell.rs`                    |
 | 3    | `a_symbol_cell_composes_as_a_literal_does`                                                | `buffer.rs`                  |
 | 4    | `a_symbol_cell_and_the_literal_that_draws_it_render_alike_and_differ`                     | `cell.rs`                    |
-| 5    | `union_merges_both_maps_and_the_two_never_answer_for_each_other`                          | `glyph.rs`                   |
+| 5    | `union_merges_both_maps_and_holds_two_styles_of_one_symbol`                               | `glyph.rs`                   |
 | 6    | `solid_answers_all_seven_symbols`                                                         | `glyph.rs`                   |
 | 6    | `outline_is_complete_the_four_pointer_styles_answer_directions_and_ascii_adds_the_circle` | `glyph-sets/src/lib.rs`      |
-| 7    | `style_catalogs_lists_the_seven_in_name_order_and_all_holds_every_one`                    | `glyph-sets/src/lib.rs`      |
+| 7    | `symbol_styles_reports_each_style_once_in_name_order`                                     | `glyph.rs`                   |
+| 7    | `all_holds_every_style_and_reports_the_seven_in_name_order`                               | `glyph-sets/src/lib.rs`      |
 | 8    | `symbols_prints_a_row_per_style_in_name_order_with_a_space_for_a_miss`                    | `monospace-cli/tests/cli.rs` |
 | 9    | `symbols_refuses_a_path_and_a_window_and_the_usage_line_names_it`                         | `monospace-cli/tests/cli.rs` |
 | 9    | the characterization, and every picture a tracked document carries                        | the gate                     |
