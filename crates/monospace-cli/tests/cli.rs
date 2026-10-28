@@ -942,3 +942,66 @@ fn crossings_between_the_new_tables_mix_or_degrade_depending_on_table_coverage()
         assert_eq!(ch, expected, "{label}: expected {expected:?} at ({x}, {y})");
     }
 }
+
+/// Rule 8 — `--symbols` prints one row per style `all()` reports, in name order, each name padded
+/// to the longest and one space, then one cell per symbol.
+///
+/// **A miss is a space and the row keeps it**, which is what makes the four pointer styles' rows end
+/// in three spaces while `ascii`'s two gaps sit before its circle.
+#[test]
+fn symbols_prints_a_row_per_style_in_name_order_with_a_space_for_a_miss() {
+    let output = run(&["--symbols"]);
+
+    assert!(output.status.success(), "the sheet is a run");
+    assert!(output.stderr.is_empty(), "wrote to stderr");
+
+    let expected = concat!(
+        "arrow         ↑→↓←   \n",
+        "ascii         ^>v<  o\n",
+        "outline       △▷▽◁◇⬡○\n",
+        "small-outline ▵▹▿◃   \n",
+        "small-solid   ▴▸▾◂   \n",
+        "solid         ▲▶▼◀◆⬢●\n",
+        "solid-pointer ▲►▼◄   \n",
+    );
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+}
+
+/// Rule 9 — the sheet takes nothing else, so a path or a window beside it is refused by name, and
+/// the usage line lists `--symbols` as a form of its own.
+#[test]
+fn symbols_refuses_a_path_and_a_window_and_the_usage_line_names_it() {
+    for (args, said) in [
+        (
+            &["--symbols", "x.json"][..],
+            "`x.json` cannot be given beside `--symbols`",
+        ),
+        (
+            &["--size", "4x3", "--symbols"][..],
+            "`--size` cannot be given beside `--symbols`",
+        ),
+        (
+            &["--origin", "0,0", "--symbols"][..],
+            "`--origin` cannot be given beside `--symbols`",
+        ),
+        (
+            &["--symbols", "--symbols"][..],
+            "`--symbols` was given twice",
+        ),
+    ] {
+        let output = run(args);
+
+        assert!(
+            !output.status.success(),
+            "{args:?} should have been refused"
+        );
+        assert!(output.stdout.is_empty(), "{args:?} printed to stdout");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(said), "{args:?}: {stderr}");
+        assert!(
+            stderr.contains("monospace-cli --symbols"),
+            "{args:?}: the usage line names the sheet: {stderr}"
+        );
+    }
+}

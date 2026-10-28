@@ -5,9 +5,10 @@
 //!
 //! # Design notes
 //!
-//! **A file is rendered once; only the bare run demonstrates.** Given a path this prints one
-//! picture and nothing else — no caption, no shape moved forward, and nothing walked back. Given
-//! no argument it prints the shipped demonstration: **eight** captioned pictures — as written,
+//! **A file is rendered once, only the bare run demonstrates, and the sheet draws nothing.** Given
+//! a path this prints one picture and nothing else — no caption, no shape moved forward, and
+//! nothing walked back. Given no argument it prints the shipped demonstration: **eight** captioned
+//! pictures — as written,
 //! with the back-most shape moved one place toward the front, with that same shape displaced,
 //! with that same shape taken out, with the arrow rehung from the box it already pointed at and
 //! that box displaced, with the arrow itself displaced as well, with the box the arrow hangs from
@@ -20,6 +21,13 @@
 //! Applied to a file someone hands the binary they are a demonstration's assumptions imposed on
 //! their description. It is also what lets `cargo xtask render` embed this output in a document: a
 //! picture that goes into a Markdown fence cannot arrive wrapped in prose.
+//!
+//! **The sheet is the catalog's own and draws no description.** `--symbols` names no path and no
+//! window, because there is nothing of the caller's to draw: it asks the catalog which styles it
+//! holds and prints one row per style, one cell per symbol, through [`render`] with that same
+//! catalog — so the sheet cannot disagree with what a picture would draw, and a style added to a
+//! table appears without a second list. A style that does not answer a symbol draws a space, and
+//! the row keeps it.
 //!
 //! **The whole demonstration runs on a `Session`, and this is the one caller in the repository
 //! that fits without anything invented.** Every change below is a `Command` performed against it
@@ -59,7 +67,10 @@
 
 use std::process::ExitCode;
 
-use monospace_core::{Buffer, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId, Size, Window};
+use monospace_core::{
+    Buffer, Cell, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId, Size, StampMode, StampSink,
+    Symbol, SymbolCell, SymbolStyleName, Window, render,
+};
 use monospace_description::parse;
 use monospace_diagram::{Anchor, Delta, Diagram};
 use monospace_editing::{Command, Session};
@@ -93,14 +104,17 @@ const THE_CROSSING_AT: Offset = Offset { x: 20, y: 2 };
 mod sweep;
 
 /// The usage line, printed for anything [`parse_args`] refuses.
-const USAGE: &str = "usage: monospace-cli [--size <width>x<height>] [--origin <x>,<y>] [path]";
+///
+/// **The sheet is a form of its own** rather than a flag beside a path: it takes no path and no
+/// window, so listing it inside the first form would say it took both.
+const USAGE: &str = "usage: monospace-cli [--size <width>x<height>] [--origin <x>,<y>] [path]\n       monospace-cli --symbols";
 
 /// What the command line asked this binary to do.
 ///
-/// **A mode rather than a pair of options**, because the two runs are not a path with settings: a
-/// bare run demonstrates and a path renders once, and which of the two it is decides what the flags
-/// even mean. Naming the mode is what lets a third one arrive without every caller testing the
-/// path for `None`.
+/// **A mode rather than a pair of options**, because the runs are not a path with settings: a bare
+/// run demonstrates, a path renders once, and `--symbols` prints the sheet, and which of the three
+/// it is decides what the flags even mean. Naming the mode is what lets a third one arrive without
+/// every caller testing the path for `None`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Mode {
     /// No path: print the shipped demonstration.
@@ -112,6 +126,8 @@ enum Mode {
         /// The window `--size` and `--origin` named, or `None` when they named none.
         window: Option<Window>,
     },
+    /// No path and no window: print one row per symbol style the catalog holds.
+    Symbols,
 }
 
 /// The window the demonstration draws into, and the one a path is drawn into when the command line
@@ -147,6 +163,10 @@ fn main() -> ExitCode {
     // marker states one, so the default is never what a generated picture uses; and a bare run
     // serves a person watching it, who gets the demonstration's own window whatever they typed.
     let (text, window, demonstrates) = match mode {
+        Mode::Symbols => {
+            print!("{}", sheet());
+            return ExitCode::SUCCESS;
+        }
         Mode::Demonstration => (DEMO.to_owned(), DEMO_WINDOW, true),
         Mode::Description { path, window } => {
             let text = match std::fs::read_to_string(&path) {
@@ -199,11 +219,38 @@ fn parse_args(args: &[String]) -> Result<Mode, String> {
     let mut path: Option<String> = None;
     let mut origin: Option<Pos> = None;
     let mut size: Option<Size> = None;
+    let mut symbols = false;
     let mut rest = args.iter();
 
     while let Some(argument) = rest.next() {
         match argument.as_str() {
+            "--symbols" => {
+                if symbols {
+                    return Err(format!("`--symbols` was given twice\n{USAGE}"));
+                }
+                if let Some(path) = &path {
+                    return Err(format!(
+                        "`{path}` cannot be given beside `--symbols`\n{USAGE}"
+                    ));
+                }
+                if size.is_some() {
+                    return Err(format!(
+                        "`--size` cannot be given beside `--symbols`\n{USAGE}"
+                    ));
+                }
+                if origin.is_some() {
+                    return Err(format!(
+                        "`--origin` cannot be given beside `--symbols`\n{USAGE}"
+                    ));
+                }
+                symbols = true;
+            }
             "--size" => {
+                if symbols {
+                    return Err(format!(
+                        "`--size` cannot be given beside `--symbols`\n{USAGE}"
+                    ));
+                }
                 let Some(value) = rest.next() else {
                     return Err(format!("`--size` was given no size\n{USAGE}"));
                 };
@@ -213,6 +260,11 @@ fn parse_args(args: &[String]) -> Result<Mode, String> {
                 size = Some(parse_size(value)?);
             }
             "--origin" => {
+                if symbols {
+                    return Err(format!(
+                        "`--origin` cannot be given beside `--symbols`\n{USAGE}"
+                    ));
+                }
                 let Some(value) = rest.next() else {
                     return Err(format!("`--origin` was given no origin\n{USAGE}"));
                 };
@@ -224,11 +276,20 @@ fn parse_args(args: &[String]) -> Result<Mode, String> {
             _ if argument.starts_with('-') => {
                 return Err(format!("`{argument}` is not an option\n{USAGE}"));
             }
+            _ if symbols => {
+                return Err(format!(
+                    "`{argument}` cannot be given beside `--symbols`\n{USAGE}"
+                ));
+            }
             _ if path.is_some() => {
                 return Err(format!("`{argument}` is a second path\n{USAGE}"));
             }
             _ => path = Some(argument.clone()),
         }
+    }
+
+    if symbols {
+        return Ok(Mode::Symbols);
     }
 
     let window = size.map(|size| Window {
@@ -274,6 +335,65 @@ fn parse_origin(text: &str) -> Result<Pos, String> {
 /// Renders `diagram` into `window`, as one picture and nothing else.
 fn render_once(diagram: &Diagram, window: Window) -> String {
     picture(diagram, &monospace_glyph_sets::all(), window)
+}
+
+/// The sheet `--symbols` prints: one row per style the catalog reports, in the order it reports
+/// them.
+///
+/// **The catalog is asked which styles it holds**, so a style added to a table appears here without
+/// a second list to change. **A pair the row's style lacks is the space `render` draws for it**, and
+/// the row keeps it: the gaps are part of what the sheet says about a style, and trimming them
+/// would let an incomplete row read as a complete one.
+fn sheet() -> String {
+    let catalog = monospace_glyph_sets::all();
+    let styles = catalog.symbol_styles();
+    let name_width = styles
+        .iter()
+        .map(|style| style.0.chars().count())
+        .max()
+        .unwrap_or(0);
+
+    let mut out = String::new();
+    for style in styles {
+        out.push_str(&style.0);
+        for _ in 0..=name_width - style.0.chars().count() {
+            out.push(' ');
+        }
+        out.push_str(&symbol_row(&catalog, style));
+    }
+
+    out
+}
+
+/// One row of the sheet: every [`Symbol::ALL`] entry, in that order, drawn in `style`.
+///
+/// **The row goes through `render` rather than reading the catalog directly**, so a miss comes out
+/// as the space a picture would draw and the sheet cannot disagree with a rendering.
+fn symbol_row(catalog: &GlyphCatalog, style: &SymbolStyleName) -> String {
+    let window = Window {
+        origin: Pos { x: 0, y: 0 },
+        size: Size {
+            width: u16::try_from(Symbol::ALL.len()).expect("seven symbols fit a row"),
+            height: 1,
+        },
+    };
+    let mut buffer = Buffer::new(window);
+    for (x, &symbol) in Symbol::ALL.iter().enumerate() {
+        buffer.stamp(
+            Pos {
+                x: i16::try_from(x).expect("seven symbols fit a row"),
+                y: 0,
+            },
+            Cell::Symbol(SymbolCell {
+                symbol,
+                style: style.clone(),
+            }),
+            StampMode::Above,
+            None,
+        );
+    }
+
+    render(&buffer, catalog, window)
 }
 
 /// Draws `diagram` into `window` and hands back the buffer beside its rendering.
@@ -569,7 +689,7 @@ mod tests {
     };
     use monospace_diagram::ShapeId;
 
-    use super::{Mode, demonstrate, drawn, parse_args, render_once};
+    use super::{Mode, demonstrate, drawn, parse_args, render_once, sheet};
     use crate::parse;
 
     /// The window the shipped demonstration is drawn at, as the flags name it.
@@ -1718,6 +1838,27 @@ mod tests {
                 .expect("the same window either way"),
             "a flag after the path is a flag, not a second path"
         );
+        assert_eq!(
+            parse_args(&args(&["--symbols"])).expect("the sheet names nothing else"),
+            Mode::Symbols,
+            "the sheet is a mode of its own and wants neither a path nor a window"
+        );
+    }
+
+    /// Rule 8 at the one place it can be seen without a subprocess: seven rows, each name padded to
+    /// the longest plus one space, and a miss kept as the space it draws.
+    #[test]
+    fn the_sheet_pads_each_name_and_keeps_the_space_a_miss_draws() {
+        let printed = sheet();
+        let lines: Vec<&str> = printed.lines().collect();
+
+        assert_eq!(lines.len(), 7, "one row per style");
+        assert_eq!(lines[0], "arrow         ↑→↓←   ");
+        assert_eq!(lines[3], "small-outline ▵▹▿◃   ");
+        assert!(
+            lines.iter().all(|line| line.chars().count() == 21),
+            "every row is the padded name and seven cells: {printed:?}"
+        );
     }
 
     /// Anything the parser cannot read into a window or a path is refused with the usage beside it,
@@ -1757,6 +1898,26 @@ mod tests {
                 "`--origin` was given twice",
             ),
             (&["a.json", "b.json"][..], "`b.json` is a second path"),
+            (
+                &["--symbols", "--symbols"][..],
+                "`--symbols` was given twice",
+            ),
+            (
+                &["--symbols", "x.json"][..],
+                "`x.json` cannot be given beside `--symbols`",
+            ),
+            (
+                &["x.json", "--symbols"][..],
+                "`x.json` cannot be given beside `--symbols`",
+            ),
+            (
+                &["--size", "4x3", "--symbols"][..],
+                "`--size` cannot be given beside `--symbols`",
+            ),
+            (
+                &["--symbols", "--origin", "0,0"][..],
+                "`--origin` cannot be given beside `--symbols`",
+            ),
         ] {
             let error = parse_args(&args(words))
                 .err()
