@@ -1,7 +1,7 @@
 //! Glyph sets that `monospace-core` does not ship as built-in data. See _Strokes, glyph sets and
 //! the catalog_ in [`docs/model.md`](../../../docs/model.md).
 
-use monospace_core::{Glyph, GlyphCatalog, GlyphKey, Stroke};
+use monospace_core::{Glyph, GlyphCatalog, GlyphKey, Stroke, Symbol, SymbolCell, SymbolStyleName};
 
 /// A row of a glyph table: a stroke name or nothing on each side, and the glyph it draws.
 ///
@@ -14,6 +14,13 @@ type Row = (
     Option<&'static str>,
     &'static str,
 );
+
+/// A row of a symbol table: the symbol it draws, and the glyph.
+///
+/// **The style is not a column**, because a table holds one style: the style is the name it is
+/// built under, and the row carries only the half that varies. A table that wanted two looks
+/// would be two tables, and `union` already holds both.
+type SymbolRow = (Symbol, &'static str);
 
 /// The 15 rules of the ASCII table in [`docs/glyph-sets.md`](../../../docs/glyph-sets.md), held as
 /// data rather than parsed at run time.
@@ -39,6 +46,64 @@ const ASCII: &[Row] = &[
     (None, Some("ascii"), None, None, "-"),
     (Some("ascii"), Some("ascii"), None, None, "+"),
     (Some("ascii"), None, None, None, "|"),
+];
+
+/// The five symbol rules the ASCII table adds beside its arms. **It is incomplete on purpose:**
+/// `Diamond` and `Hexagon` have no ASCII answer, and a miss is a space rather than a repeated
+/// character nobody chose.
+const ASCII_SYMBOLS: &[SymbolRow] = &[
+    (Symbol::DirectionUp, "^"),
+    (Symbol::DirectionRight, ">"),
+    (Symbol::DirectionDown, "v"),
+    (Symbol::DirectionLeft, "<"),
+    (Symbol::Circle, "o"),
+];
+
+/// The seven rules of the Outline style in [`docs/symbols.md`](../../../docs/symbols.md): the
+/// hollow look, which answers every symbol.
+const OUTLINE: &[SymbolRow] = &[
+    (Symbol::DirectionUp, "△"),
+    (Symbol::DirectionRight, "▷"),
+    (Symbol::DirectionDown, "▽"),
+    (Symbol::DirectionLeft, "◁"),
+    (Symbol::Diamond, "◇"),
+    (Symbol::Hexagon, "⬡"),
+    (Symbol::Circle, "○"),
+];
+
+/// The four rules of the Solid Pointer style: the solid look's triangles and none of its shapes.
+///
+/// This is the style that shows why a style may be incomplete — a pointer points, so it has no
+/// diamond, and repeating a triangle for one would draw a shape nobody chose.
+const SOLID_POINTER: &[SymbolRow] = &[
+    (Symbol::DirectionUp, "▲"),
+    (Symbol::DirectionRight, "►"),
+    (Symbol::DirectionDown, "▼"),
+    (Symbol::DirectionLeft, "◄"),
+];
+
+/// The four rules of the Small Solid style: half-height triangles, pointing the same four ways.
+const SMALL_SOLID: &[SymbolRow] = &[
+    (Symbol::DirectionUp, "▴"),
+    (Symbol::DirectionRight, "▸"),
+    (Symbol::DirectionDown, "▾"),
+    (Symbol::DirectionLeft, "◂"),
+];
+
+/// The four rules of the Small Outline style: the half-height hollow triangles.
+const SMALL_OUTLINE: &[SymbolRow] = &[
+    (Symbol::DirectionUp, "▵"),
+    (Symbol::DirectionRight, "▹"),
+    (Symbol::DirectionDown, "▿"),
+    (Symbol::DirectionLeft, "◃"),
+];
+
+/// The four rules of the Arrow style: arrows rather than triangles, pointing the same four ways.
+const ARROW: &[SymbolRow] = &[
+    (Symbol::DirectionUp, "↑"),
+    (Symbol::DirectionRight, "→"),
+    (Symbol::DirectionDown, "↓"),
+    (Symbol::DirectionLeft, "←"),
 ];
 
 /// The 15 rules of the Double table in [`docs/glyph-sets.md`](../../../docs/glyph-sets.md), held
@@ -637,7 +702,27 @@ fn build(table: &str, rows: &[Row]) -> GlyphCatalog {
     }))
 }
 
-/// Builds a catalog from every table in reach: the core's Light and the eight this crate ships.
+/// Converts one symbol table into a catalog: each row's symbol and the style it is built under
+/// become a `SymbolCell`, and its character a `Glyph`.
+///
+/// # Panics
+///
+/// Panics if a row's character is not a valid glyph. That is a bug in data this library ships,
+/// never a condition a caller can trigger.
+fn build_symbols(style: &str, rows: &[SymbolRow]) -> GlyphCatalog {
+    GlyphCatalog::from_symbol_rules(rows.iter().map(|&(symbol, glyph)| {
+        let key = SymbolCell {
+            symbol,
+            style: SymbolStyleName::from(style),
+        };
+        let glyph = Glyph::new(glyph)
+            .unwrap_or_else(|| panic!("{style} style row {key:?} is not a valid glyph"));
+        (key, glyph)
+    }))
+}
+
+/// Builds a catalog from every table in reach: the core's Light and Solid, and the eight arm
+/// tables and six styles this crate ships.
 ///
 /// **The union is here rather than in each caller**, so that a table added to this crate is drawn
 /// by every binary without a second list to change — the two callers today are `monospace-cli` and
@@ -645,10 +730,15 @@ fn build(table: &str, rows: &[Row]) -> GlyphCatalog {
 /// not. The order is the order the tables are documented in, and the core's Light comes first:
 /// where two catalogs claim the same key, the earlier one wins, and a cell the core can draw is
 /// never taken from it by a table that reuses a stroke name.
+///
+/// The two maps are merged independently, so the arm order says nothing about the style order: a
+/// style is claimed by whichever catalog holds its pair, and the core's Solid comes first there
+/// because it is the core's, as Light does.
 #[must_use]
 pub fn all() -> GlyphCatalog {
     GlyphCatalog::union([
         GlyphCatalog::light(),
+        GlyphCatalog::solid(),
         ascii(),
         double(),
         heavy(),
@@ -657,13 +747,48 @@ pub fn all() -> GlyphCatalog {
         light_heavy(),
         light_round_double(),
         light_round_heavy(),
+        outline(),
+        solid_pointer(),
+        small_solid(),
+        small_outline(),
+        arrow(),
     ])
 }
 
-/// Builds a catalog from the ASCII table alone.
+/// Builds a catalog from the ASCII table alone, arms and the five symbols it answers.
 #[must_use]
 pub fn ascii() -> GlyphCatalog {
-    build("ASCII", ASCII)
+    GlyphCatalog::union([build("ASCII", ASCII), build_symbols("ascii", ASCII_SYMBOLS)])
+}
+
+/// Builds a catalog from the Outline style alone.
+#[must_use]
+pub fn outline() -> GlyphCatalog {
+    build_symbols("outline", OUTLINE)
+}
+
+/// Builds a catalog from the Solid Pointer style alone.
+#[must_use]
+pub fn solid_pointer() -> GlyphCatalog {
+    build_symbols("solid-pointer", SOLID_POINTER)
+}
+
+/// Builds a catalog from the Small Solid style alone.
+#[must_use]
+pub fn small_solid() -> GlyphCatalog {
+    build_symbols("small-solid", SMALL_SOLID)
+}
+
+/// Builds a catalog from the Small Outline style alone.
+#[must_use]
+pub fn small_outline() -> GlyphCatalog {
+    build_symbols("small-outline", SMALL_OUTLINE)
+}
+
+/// Builds a catalog from the Arrow style alone.
+#[must_use]
+pub fn arrow() -> GlyphCatalog {
+    build_symbols("arrow", ARROW)
 }
 
 /// Builds a catalog from the Double table alone.
@@ -710,11 +835,13 @@ pub fn light_round_heavy() -> GlyphCatalog {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{BoxShape, Buffer, FigureLayer, Pos, Shape, Size, StampMode, Window};
+    use monospace_core::{
+        BoxShape, Buffer, FigureLayer, GlyphCatalog, Pos, Shape, Size, StampMode, Window,
+    };
 
     use super::{
-        all, ascii, double, heavy, light_double, light_heavy, light_round, light_round_double,
-        light_round_heavy,
+        all, arrow, ascii, double, heavy, light_double, light_heavy, light_round,
+        light_round_double, light_round_heavy, outline, small_outline, small_solid, solid_pointer,
     };
 
     /// Builds a `GlyphKey` from plain stroke names, `None` where no arm runs — a shorter spelling
@@ -1313,5 +1440,68 @@ mod tests {
             cell_value.glyph_str(&with_mixing_table)
         );
         assert!(cell_value.glyph_str(&without_mixing_table).is_some());
+    }
+
+    /// Builds a `SymbolCell` for `symbol` drawn in `style`, so a test names a pair without the
+    /// struct spelled at every call.
+    fn a_symbol(symbol: monospace_core::Symbol, style: &str) -> monospace_core::SymbolCell {
+        monospace_core::SymbolCell {
+            symbol,
+            style: monospace_core::SymbolStyleName::from(style),
+        }
+    }
+
+    /// Every glyph `catalog` answers for `style`, in [`Symbol::ALL`](monospace_core::Symbol::ALL)
+    /// order, with a space where it answers nothing — the row a sheet would print without its name.
+    fn drawn(catalog: &GlyphCatalog, style: &str) -> String {
+        monospace_core::Symbol::ALL
+            .iter()
+            .map(|&symbol| {
+                catalog
+                    .symbol(&a_symbol(symbol, style))
+                    .map_or(" ", monospace_core::Glyph::as_str)
+            })
+            .collect()
+    }
+
+    /// Rule 6: `outline` is complete, the four pointer styles answer the four directions and
+    /// nothing else, and `ascii` adds the circle to the arrow characters it already draws.
+    ///
+    /// **A miss is a space and the row keeps it**, so the pointer styles' rows are their four
+    /// glyphs followed by three spaces rather than four glyphs and a truncated row.
+    #[test]
+    fn outline_is_complete_the_four_pointer_styles_answer_directions_and_ascii_adds_the_circle() {
+        assert_eq!(drawn(&outline(), "outline"), "△▷▽◁◇⬡○");
+        assert_eq!(drawn(&solid_pointer(), "solid-pointer"), "▲►▼◄   ");
+        assert_eq!(drawn(&small_solid(), "small-solid"), "▴▸▾◂   ");
+        assert_eq!(drawn(&small_outline(), "small-outline"), "▵▹▿◃   ");
+        assert_eq!(drawn(&arrow(), "arrow"), "↑→↓←   ");
+        assert_eq!(drawn(&ascii(), "ascii"), "^>v<  o");
+    }
+
+    /// Rule 7: `all()` holds every style and reports the seven in name order, which is the order
+    /// the sheet prints them in.
+    #[test]
+    fn all_holds_every_style_and_reports_the_seven_in_name_order() {
+        let catalog = all();
+
+        let styles: Vec<&str> = catalog
+            .symbol_styles()
+            .iter()
+            .map(|style| style.0.as_str())
+            .collect();
+
+        assert_eq!(
+            styles,
+            [
+                "arrow",
+                "ascii",
+                "outline",
+                "small-outline",
+                "small-solid",
+                "solid",
+                "solid-pointer",
+            ]
+        );
     }
 }
