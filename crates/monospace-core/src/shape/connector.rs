@@ -88,7 +88,7 @@ use std::collections::{BinaryHeap, HashMap};
 
 use crate::cell::Side;
 use crate::shape::fragment::end::End;
-use crate::shape::fragment::head::Head;
+use crate::shape::fragment::literal::Literal;
 use crate::shape::route::Route;
 use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
 
@@ -162,7 +162,7 @@ impl Shape for Connector {
     fn draw(&self, surface: &mut dyn Surface) {
         for endpoint in [&self.from, &self.to] {
             match &endpoint.terminal {
-                Terminal::Glyph { glyph } => Head {
+                Terminal::Glyph { glyph } => Literal {
                     at: endpoint.at,
                     glyph: glyph.clone(),
                 }

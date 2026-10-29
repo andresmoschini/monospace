@@ -1,23 +1,19 @@
-//! The head fragment: a connector's head, one chosen glyph. See _What a terminal writes_ in
-//! [`docs/model.md`](../../../../../docs/model.md).
+//! The literal fragment: one chosen glyph, spelled out and answered by no set. See _A cell can be
+//! a literal instead_ in [`docs/model.md`](../../../../../docs/model.md).
 
 use crate::{Cell, Glyph, Pos, Shape, Surface};
 
-/// A head: one cell written as a chosen glyph, supplied by the caller because a terminal names a
-/// literal rather than a symbol. Pointer glyphs are not missing from the catalog — `solid-pointer`
-/// answers the four directions with `▲`, `►`, `▼` and `◄` — but no terminal names one yet. An arm
-/// rule cannot point, and `╾` and `╼` are already claimed by keys that mean heavy on one side and
-/// light on the other.
+/// A literal: one cell written as a glyph the caller spelled out.
 ///
 /// A fragment in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../../../docs/model.md).
 #[derive(Debug)]
-pub(crate) struct Head {
+pub(crate) struct Literal {
     pub(crate) at: Pos,
     pub(crate) glyph: Glyph,
 }
 
-impl Shape for Head {
+impl Shape for Literal {
     fn draw(&self, surface: &mut dyn Surface) {
         surface.stamp(self.at, Cell::Literal(self.glyph.clone()));
     }
@@ -25,13 +21,13 @@ impl Shape for Head {
 
 #[cfg(test)]
 mod tests {
-    use super::Head;
+    use super::Literal;
     use crate::{
         Buffer, Cell, CellReader, FigureLayer, Glyph, Pos, Shape, Size, StampMode, Window,
     };
 
     #[test]
-    fn a_head_writes_its_glyph_as_a_literal() {
+    fn a_literal_writes_its_glyph_as_a_literal_cell() {
         let mut buffer = Buffer::new(Window {
             origin: Pos { x: 0, y: 0 },
             size: Size {
@@ -42,7 +38,7 @@ mod tests {
         let mut layer = FigureLayer::new(&mut buffer, StampMode::Above);
         let glyph = Glyph::new("►").expect("\"►\" is one glyph");
 
-        Head {
+        Literal {
             at: Pos { x: 0, y: 0 },
             glyph: glyph.clone(),
         }

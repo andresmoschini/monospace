@@ -31,7 +31,7 @@ use crate::shape::fragment::border::Border;
 use crate::shape::fragment::corner::Corner;
 use crate::shape::fragment::end::End;
 use crate::shape::fragment::fill::Fill;
-use crate::shape::fragment::head::Head;
+use crate::shape::fragment::literal::Literal;
 use crate::shape::fragment::segment::Segment;
 use crate::shape::route::Route;
 use crate::stroke::Stroke;
@@ -470,7 +470,7 @@ fn level_2_fragments() {
             window(3, 1),
         ),
         one(
-            Head {
+            Literal {
                 at: Pos { x: 1, y: 0 },
                 glyph: glyph(">"),
             },
