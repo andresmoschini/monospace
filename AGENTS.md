@@ -112,11 +112,12 @@ the first thing to bend it. Orchestrating subprocesses and propagating exit code
   they exist in the wasm std and fail at runtime instead. So the step keeps a crate free of
   OS-specific APIs and of dependencies that will not build for wasm; it does not keep one from
   reaching for the filesystem.
-- **`monospace-cli` has two modes, and `render` depends on the split.** Bare, it prints the
+- **`monospace-cli` has three modes, and `render` depends on the split.** Bare, it prints the
   demonstration — eight pictures as it changes the diagram, then one per step as it walks the
   session back; given a path, it prints one picture and nothing else and walks nowhere, because a
-  rendering that goes into a Markdown fence cannot arrive wrapped in prose. Do not add output to the
-  path form.
+  rendering that goes into a Markdown fence cannot arrive wrapped in prose. `--symbols` is the
+  third: it prints one row per style the catalog holds and takes no path and no window. Do not add
+  output to the path form.
 
 ### Two plugins, and what a harness needs to know
 

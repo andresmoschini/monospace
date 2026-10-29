@@ -117,6 +117,7 @@ cargo xtask setup          # installs the Node tooling the gate needs
 
 cargo run -p monospace-cli                      # a demonstration: eight pictures, then the walk back
 cargo run -p monospace-cli -- path/to.json      # one picture, for the description you give it
+cargo run -p monospace-cli -- --symbols         # the sheet: one row per style, one cell per symbol
 cargo run -p monospace                          # the interactive application: the frame, the menu, the diagram and the way out
 cargo run -p monospace -- path/to.json          # the same screen, drawing the description you give it
 cargo xtask check                               # the whole quality gate
@@ -129,7 +130,9 @@ description and draws the `Diagram` it gets back.
 **The window is the caller's**, and this binary names it with two flags: `--size <width>x<height>`
 and, beside it, `--origin <x>,<y>`. A path given neither is drawn into `50x13` at `(0, 0)`, which is
 the demonstration's own window — a convenience for a person running the binary by hand rather than a
-rule any file depends on.
+rule any file depends on. **The sheet takes neither**, because it draws no description: `--symbols`
+prints every style the catalog holds and the seven symbols each draws, which is
+[`docs/symbols.md`](docs/symbols.md).
 
 ### Layout
 
@@ -148,6 +151,7 @@ rule any file depends on.
 | `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.                      |
 | `docs/application-model.md`    | The layer above that one: the frame, the state, the actions.                   |
 | `docs/glyph-sets.md`           | The glyph tables and how they degrade.                                         |
+| `docs/symbols.md`              | The seven symbols, the styles that draw them, and the sheet.                   |
 | `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.                   |
 | `docs/memory-cost.md`          | What a diagram and a session cost, measured. Decides nothing.                  |
 | `docs/workflow.md`             | Why the process works the way it does, written at length.                      |

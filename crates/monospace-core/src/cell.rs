@@ -1,7 +1,7 @@
-//! A cell: either a base stroke and four arms, or one chosen glyph. See _The cell_ in
-//! [`docs/model.md`](../../../docs/model.md).
+//! A cell: either a base stroke and four arms, one chosen glyph, or a symbol and the style it is
+//! drawn in. See _The cell_ in [`docs/model.md`](../../../docs/model.md).
 
-use crate::{Glyph, GlyphCatalog, GlyphKey, Stroke};
+use crate::{Glyph, GlyphCatalog, GlyphKey, Stroke, SymbolCell};
 
 /// A place on a cell: one of its four sides.
 ///
@@ -105,10 +105,9 @@ impl StrokeCell {
     }
 }
 
-/// A cell: either a base stroke with four arms, or one chosen glyph, rendered as itself rather
-/// than derived from arms. The two kinds are mutually exclusive — no cell is both and none is
-/// neither — per _A cell can be a literal instead_ in
-/// [`docs/model.md`](../../../docs/model.md).
+/// A cell: either a base stroke with four arms, one chosen glyph, or a named symbol rendered
+/// through the catalog. The three kinds are mutually exclusive — no cell is two and none is
+/// neither — per _The cell_ in [`docs/model.md`](../../../docs/model.md).
 ///
 /// Where a figure in front stamps over one behind, **the kind on top decides which kind the
 /// position ends up being**, exactly as it decides the base stroke of a [`StrokeCell`]: see
@@ -120,6 +119,9 @@ pub enum Cell {
     /// One chosen glyph. Nothing connects into it, and it renders as itself without consulting
     /// any catalog.
     Literal(Glyph),
+    /// A symbol and the style it is drawn in. Nothing connects into it, and the catalog the
+    /// renderer was handed answers the pair — or does not, which is a space.
+    Symbol(SymbolCell),
 }
 
 impl From<StrokeCell> for Cell {
@@ -130,24 +132,26 @@ impl From<StrokeCell> for Cell {
 
 impl Cell {
     /// Whether the cell is already decided. For [`Cell::Strokes`] this is
-    /// [`StrokeCell::is_decided`]; a [`Cell::Literal`] is decided on all four sides by
-    /// definition, since it has no arms to leave undecided.
+    /// [`StrokeCell::is_decided`]; a [`Cell::Literal`] and a [`Cell::Symbol`] are decided on all
+    /// four sides by definition, since neither has an arm to leave undecided.
     #[must_use]
     pub fn is_decided(&self) -> bool {
         match self {
             Cell::Strokes(cell) => cell.is_decided(),
-            Cell::Literal(_) => true,
+            Cell::Literal(_) | Cell::Symbol(_) => true,
         }
     }
 
     /// The text this cell renders to. A literal answers with its own text directly, without
-    /// consulting `glyphs`; a stroke cell is looked up by [`StrokeCell::key`] first and
-    /// [`StrokeCell::degraded_key`] second, answering `None` if `glyphs` has no rule for either.
-    /// See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
+    /// consulting `glyphs`; a symbol answers with the glyph filed under its pair, and nothing if
+    /// the catalog holds no such pair; a stroke cell is looked up by [`StrokeCell::key`] first
+    /// and [`StrokeCell::degraded_key`] second, answering `None` if `glyphs` has no rule for
+    /// either. See _Rendering_ in [`docs/model.md`](../../../docs/model.md).
     #[must_use]
     pub fn glyph_str<'a>(&'a self, glyphs: &'a GlyphCatalog) -> Option<&'a str> {
         match self {
             Cell::Literal(glyph) => Some(glyph.as_str()),
+            Cell::Symbol(symbol) => glyphs.symbol(symbol).map(Glyph::as_str),
             Cell::Strokes(cell) => glyphs
                 .glyph(&cell.key())
                 .or_else(|| glyphs.glyph(&cell.degraded_key()))
@@ -159,7 +163,7 @@ impl Cell {
 #[cfg(test)]
 mod tests {
     use super::{Cell, StrokeCell};
-    use crate::{Arm, Glyph, GlyphCatalog, Stroke};
+    use crate::{Arm, Glyph, GlyphCatalog, Stroke, Symbol, SymbolCell, SymbolStyleName};
 
     fn cell(top: Arm, right: Arm, bottom: Arm, left: Arm) -> StrokeCell {
         StrokeCell {
@@ -187,6 +191,62 @@ mod tests {
         let literal = Cell::Literal(Glyph::new("A").expect("\"A\" is one glyph"));
 
         assert!(literal.is_decided());
+    }
+
+    /// A pair with `symbol` drawn in `style`, so a test can name one without the whole struct
+    /// spelled at every call.
+    fn a_symbol(symbol: Symbol, style: &str) -> SymbolCell {
+        SymbolCell {
+            symbol,
+            style: SymbolStyleName::from(style),
+        }
+    }
+
+    /// Rule 1 — a symbol cell renders as the glyph filed under its exact pair, and a pair the
+    /// catalog does not hold answers nothing: no second lookup and no degradation.
+    #[test]
+    fn a_symbol_cell_answers_its_exact_pair_and_a_missing_pair_is_nothing() {
+        let solid_up = a_symbol(Symbol::DirectionUp, "solid");
+        let cell = Cell::Symbol(solid_up.clone());
+        let catalog = GlyphCatalog::solid();
+
+        assert_eq!(cell.glyph_str(&catalog), Some("▲"));
+        assert_eq!(
+            Cell::Symbol(a_symbol(Symbol::DirectionUp, "outline")).glyph_str(&catalog),
+            None,
+            "a style the catalog does not hold is not answered from another one"
+        );
+        assert_eq!(
+            Cell::Symbol(a_symbol(Symbol::Diamond, "nonsense")).glyph_str(&catalog),
+            None,
+            "a misspelled style and a missing shape answer alike"
+        );
+        assert_eq!(
+            Cell::Symbol(solid_up).glyph_str(&GlyphCatalog::light()),
+            None,
+            "a catalog with no symbol rule answers no pair at all"
+        );
+    }
+
+    /// Rule 2 — a symbol cell is decided on every side: it has no arm to leave `Unset`, and the
+    /// renderer reads no stroke from it.
+    #[test]
+    fn a_symbol_cell_writes_no_arm_and_is_decided_on_every_side() {
+        let cell = Cell::Symbol(a_symbol(Symbol::Circle, "solid"));
+
+        assert!(cell.is_decided());
+    }
+
+    /// Rule 4 — a symbol cell and the literal drawing the same character render alike and are
+    /// still two cells, because equality is by the pair rather than by what it draws.
+    #[test]
+    fn a_symbol_cell_and_the_literal_that_draws_it_render_alike_and_differ() {
+        let named = Cell::Symbol(a_symbol(Symbol::DirectionUp, "solid"));
+        let spelling = Cell::Literal(Glyph::new("▲").expect("\"▲\" is one glyph"));
+        let catalog = GlyphCatalog::solid();
+
+        assert_eq!(named.glyph_str(&catalog), spelling.glyph_str(&catalog));
+        assert_ne!(named, spelling);
     }
 
     fn mixed_cell() -> StrokeCell {

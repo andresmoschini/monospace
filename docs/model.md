@@ -36,33 +36,37 @@ character matches.
 
 ## 1. Vocabulary
 
-| Term            | Meaning                                                                        |
-| --------------- | ------------------------------------------------------------------------------ |
-| `Window`        | An origin and a size: the rectangle a buffer holds                             |
-| `Buffer`        | A window, the cells written into it, and who decided each of them              |
-| `Footprint`     | The smallest and largest coordinate a drawing stamped                          |
-| `Cell`          | Either a base stroke and four arms, or one literal glyph                       |
-| `Side`          | Top, right, bottom or left                                                     |
-| `Arm`           | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`                |
-| `Stroke`        | A name, nothing more                                                           |
-| `BaseStroke`    | The cell's own stroke: what every arm is drawn in unless it carries one        |
-| `Glyph`         | What a cell renders to: one grapheme cluster                                   |
-| `GlyphKey`      | The four sides of a rule: a stroke name on each, or nothing                    |
-| `GlyphRule`     | One `GlyphKey` mapped to a glyph                                               |
-| `GlyphSet`      | A group of rules as they are written or loaded: one table                      |
-| `GlyphCatalog`  | Every rule in play; sets go in in order and the first to claim a key keeps it  |
-| `stamp`         | The single write operation                                                     |
-| `StampSink`     | One write operation and no reader; what a figure layer writes through          |
-| `Above`/`Below` | The two stamp modes: overwrite what is there, or only fill what is undecided   |
-| `Offset`        | A position inside one window, counted from its corner                          |
-| `Surface`       | One write operation and no reader; what a shape draws into                     |
-| `CellReader`    | One read operation: the cell at an absolute position                           |
-| `OwnerReader`   | One read operation: the identity recorded at an absolute position              |
-| `Shape`         | A value describing a figure, which draws itself into a surface                 |
-| `ShapeId`       | The ordinal a figure is drawn under, and what a stamp records beside the cell  |
-| `Piece`         | A shape placed by another shape, given the positions it is to write            |
-| `Direction`     | Up, right, down or left: a way to move in the plane                            |
-| `Endpoint`      | Where a connector ends: a position, the direction it leaves in, and a terminal |
+| Term              | Meaning                                                                        |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `Window`          | An origin and a size: the rectangle a buffer holds                             |
+| `Buffer`          | A window, the cells written into it, and who decided each of them              |
+| `Footprint`       | The smallest and largest coordinate a drawing stamped                          |
+| `Cell`            | A base stroke and four arms, one literal glyph, or a named symbol              |
+| `Side`            | Top, right, bottom or left                                                     |
+| `Arm`             | What a cell has on one side: `Set(stroke)`, `Closed` or `Unset`                |
+| `Stroke`          | A name, nothing more                                                           |
+| `BaseStroke`      | The cell's own stroke: what every arm is drawn in unless it carries one        |
+| `Glyph`           | What a cell renders to: one grapheme cluster                                   |
+| `GlyphKey`        | The four sides of an arm rule: a stroke name on each, or nothing               |
+| `GlyphRule`       | One `GlyphKey` mapped to a glyph                                               |
+| `Symbol`          | A closed vocabulary of seven: four directions, a diamond, a hexagon, a circle  |
+| `SymbolStyleName` | The name of the look a symbol is drawn in, nothing more                        |
+| `SymbolCell`      | A `Symbol` and the `SymbolStyleName` it is drawn in                            |
+| `SymbolRule`      | One `SymbolCell` mapped to a glyph                                             |
+| `GlyphSet`        | A group of rules as they are written or loaded: one table                      |
+| `GlyphCatalog`    | Every rule in play, arm rules and symbol rules; sets go in in order            |
+| `stamp`           | The single write operation                                                     |
+| `StampSink`       | One write operation and no reader; what a figure layer writes through          |
+| `Above`/`Below`   | The two stamp modes: overwrite what is there, or only fill what is undecided   |
+| `Offset`          | A position inside one window, counted from its corner                          |
+| `Surface`         | One write operation and no reader; what a shape draws into                     |
+| `CellReader`      | One read operation: the cell at an absolute position                           |
+| `OwnerReader`     | One read operation: the identity recorded at an absolute position              |
+| `Shape`           | A value describing a figure, which draws itself into a surface                 |
+| `ShapeId`         | The ordinal a figure is drawn under, and what a stamp records beside the cell  |
+| `Piece`           | A shape placed by another shape, given the positions it is to write            |
+| `Direction`       | Up, right, down or left: a way to move in the plane                            |
+| `Endpoint`        | Where a connector ends: a position, the direction it leaves in, and a terminal |
 
 `Arm` names both the concept and its three-state value. `Side` names the four positions. If
 implementing shows they need separating, `ArmState` is the obvious name for the value.
@@ -71,6 +75,10 @@ implementing shows they need separating, `ArmState` is the obvious name for the 
 direction is a way to move across the plane. A figure reasons in directions — a connector leaves an
 endpoint in one — and a piece is told sides. They stay apart, and the translation happens where the
 two meet.
+
+`Symbol` is a third vocabulary, and not a fourth spelling of `Direction`: three of its seven values
+point nowhere, because a style draws a look and a diamond or a circle is as much a head as an arrow.
+A symbol says what a cell is drawn as; a direction says where something leaves.
 
 ## 2. The buffer
 
@@ -151,8 +159,32 @@ can instead hold **a literal glyph**: the character it renders to, chosen rather
 needs that, and so does a fill that hides what it covers rather than letting it show through.
 
 A literal has no arms of its own. For composing, it behaves as a cell whose four arms are `Closed`:
-nothing connects into a character. Which of the two kinds a cell ends up being belongs to the figure
-in front, exactly as the base stroke does.
+nothing connects into a character. Which of the three kinds a cell ends up being belongs to the
+figure in front, exactly as the base stroke does.
+
+### A cell can name a symbol instead
+
+A cell can hold **a symbol and the style it is drawn in** instead of spelling a character, and the
+catalog answers the pair at render. The symbol is closed and has seven values — the four directions
+and a diamond, a hexagon and a circle — while the style is an open name, as a stroke is: the catalog
+decides which styles exist, so a style someone loads is a style like any other.
+
+**The names survive, and that is the point.** A literal is whatever the caller typed; a symbol cell
+is a question the catalog answers, so a table can redraw every cell that named it, and a reader that
+can see the diagram later can see "solid, pointing up" rather than a character someone chose. A
+symbol cell covers the cell, and it has no arms: it composes exactly as a literal does, and the
+figure in front decides which of the three kinds the position ends up being.
+
+The lookup is **one exact pair and nothing else**. A pair the catalog does not hold is a space, with
+no fallback to another style: a stroke cell degrades inside its own strokes, while a fallback style
+would replace the look the cell named with one it did not. A misspelled style and a style that does
+not draw the shape therefore answer alike, and neither says anything.
+
+A symbol cell and the literal that draws the same character render alike and stay different values:
+equality is by the pair. The two are not interchangeable, because the names are what an editing
+layer could rewrite and a literal has none.
+
+The styles and what each draws are in [`symbols.md`](symbols.md).
 
 ## 4. Stamping
 
@@ -176,19 +208,19 @@ drawing a rectangle other than the window.
 | ----------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
 | Undefined cell                | Defines it entirely                                                            | Defines it entirely                                                       |
 | Arms, stamping arms           | Writes the base stroke and every arm, except the arms the stamp leaves `Unset` | Leaves the base stroke alone; writes only the arms the target has `Unset` |
-| Arms, stamping a literal      | Becomes the literal                                                            | Stays arms, and its `Unset` sides close                                   |
-| A literal, stamping arms      | Becomes arms; the sides the stamp leaves `Unset` come out `Closed`             | Unchanged                                                                 |
-| A literal, stamping a literal | Becomes the incoming literal                                                   | Unchanged                                                                 |
+| Arms, stamping an opaque cell | Becomes it                                                                     | Stays arms, and its `Unset` sides close                                   |
+| An opaque cell, stamping arms | Becomes arms; the sides the stamp leaves `Unset` come out `Closed`             | Unchanged                                                                 |
+| An opaque cell, stamping one  | Becomes the incoming one                                                       | Unchanged                                                                 |
 
 An `Unset` arm on the stamp never writes anything, in either mode. A `Closed` arm does write:
 closing is a decision, and it is what lets a filled shape stamped below stop a later one from
 connecting into it.
 
-The last three rows are one rule seen from four sides: a literal composes as a cell with four
-`Closed` arms, and which kind the cell ends up being belongs to the figure in front, exactly as the
-base stroke does. The `Closed` arms are not decoration. Without them a literal would be opaque in
-one order and transparent in the other, and the equivalence below would stop holding the moment a
-literal sat between two figures.
+**An opaque cell is a literal or a symbol**, and the last three rows are one rule seen from four
+sides: an opaque cell composes as a cell with four `Closed` arms, and which kind the cell ends up
+being belongs to the figure in front, exactly as the base stroke does. The `Closed` arms are not
+decoration. Without them an opaque cell would be opaque in one order and transparent in the other,
+and the equivalence below would stop holding the moment one sat between two figures.
 
 ### The two orders are equivalent
 
@@ -220,27 +252,40 @@ and rules mention it.
 A rule maps a combination of four arms to a glyph. Each side of the key carries a stroke name or is
 empty.
 
+**A symbol rule maps a symbol and the style it is drawn in to one glyph.** The style travels in the
+key, so a catalog answers only the look each cell named and can hold several styles of one symbol —
+`solid`'s `▲` beside `ascii`'s `^` is two pairs, not two maps. A symbol rule never degrades: a pair
+the catalog lacks has no glyph, because the fallback an arm rule has would replace the look whole.
+
 A glyph set is a group of rules as they are written: one of the tables in
-[`glyph-sets.md`](glyph-sets.md), or a file someone loads. A set may cover a single stroke or a
-mixture of them, and the system gives neither any special behavior. They are direct mappings, which
-is precisely why someone can write one by hand.
+[`glyph-sets.md`](glyph-sets.md) or [`symbols.md`](symbols.md), or a file someone loads. A set may
+cover a single stroke or a mixture of them, and the system gives neither any special behavior. They
+are direct mappings, which is precisely why someone can write one by hand.
+
+**A table does not name a style per row.** The style travels in the key, so a set of rules may hold
+as many looks as it likes; the sets this project ships are built from one table per look, and the
+style is the name the table is built under rather than a column of it. `union` keeps every pair, so
+two looks of one symbol survive side by side.
 
 Sets reach a catalog two ways. The common ones ship with whichever library holds them, built in as
-data rather than parsed at startup — `monospace-core` ships Light, `monospace-glyph-sets` ships
-ASCII, Double, Heavy, Light Round and the four sets that mix two strokes. A set someone writes for
-their own diagrams is the other way: loaded from a file when they ask for it. That difference is
-about where a set comes from, not about how its rules behave: once a set is in a catalog, nothing
-tells a built-in rule from a loaded one, and nothing tells which library a built-in rule shipped
-from either.
+data rather than parsed at startup — `monospace-core` ships Light and Solid, `monospace-glyph-sets`
+ships ASCII, Double, Heavy, Light Round, the four sets that mix two strokes and the other six symbol
+styles. A set someone writes for their own diagrams is the other way: loaded from a file when they
+ask for it. That difference is about where a set comes from, not about how its rules behave: once a
+set is in a catalog, nothing tells a built-in rule from a loaded one, and nothing tells which
+library a built-in rule shipped from either.
 
-The catalog is where rules end up. Sets go into it in order, the first rule to claim a key keeps it,
-and answering a key afterwards is one lookup. The grouping does not survive that: once a catalog is
-built, nothing can tell which set a rule came from, and no result would change if it could. Order is
-a property of how a catalog is built, not of what it holds — which is also how "render this in ASCII
-alone" is expressed, by building a catalog from that set and no other.
+The catalog is where rules end up. Sets go into it in order, and **within each of its two maps** the
+first rule to claim a key keeps it; an arm rule and a symbol rule never claim the same key, so the
+two orders are independent. Answering a key afterwards is one lookup. The grouping does not survive
+that: once a catalog is built, nothing can tell which set a rule came from, and no result would
+change if it could. Order is a property of how a catalog is built, not of what it holds — which is
+also how "render this in ASCII alone" is expressed, by building a catalog from that set and no
+other.
 
 Incomplete sets are allowed. Each stroke's single-stroke set should be complete, since that is what
-the degradation rule below falls back on.
+the degradation rule below falls back on. A style may be incomplete too, and `solid-pointer` is: a
+pointer points, so it has no diamond, and repeating a triangle would draw a shape nobody chose.
 
 ## 6. Rendering
 
@@ -260,8 +305,13 @@ For each position in the rectangle:
 That list is for a cell of arms. A cell holding a literal glyph renders as that glyph: no key is
 built, no lookup happens, and degradation never applies to one.
 
-There are no further attempts and no special conventions: two lookups. When a combination does not
-exist, the whole cell is drawn with the stroke the topmost figure imposed.
+A cell holding a symbol renders by **one lookup of its pair**: the glyph filed under that symbol and
+style, and nothing else. A pair the catalog does not hold is no glyph, which is the space below.
+There is no second lookup and no degradation, because the arm fallback stays inside the cell's own
+strokes while a style fallback would replace the look the cell named.
+
+For a cell of arms there are no further attempts and no special conventions: two lookups. When a
+combination does not exist, the whole cell is drawn with the stroke the topmost figure imposed.
 
 Degrading the whole cell rather than as much of the mixture as still resolves is what makes the
 answer to _why that character?_ a single sentence: the figure that owns the cell imposes its stroke
@@ -280,8 +330,8 @@ buffer, the cell or the tables changes to adopt either.
 
 "No glyph" and "no cell" produce the same thing: a space in the text output and, in the coordinate
 output that may come later, a position simply not emitted. With the single-stroke sets complete,
-that case only arises when a cell has no connected arm at all, or when the set for its base stroke
-was never loaded.
+that case only arises when a cell has no connected arm at all, when the set for its base stroke was
+never loaded, or when a symbol cell names a pair the catalog does not hold.
 
 The text output is a rectangle of exactly `width` × `height`: trailing spaces are not trimmed, the
 last line ends with a newline, and positions falling outside the window are spaces.
@@ -512,11 +562,17 @@ not.
 - A single-stroke set covers all 15 of its combinations, so a catalog built from one answers every
   key a cell of that stroke can produce.
 - Front to back with `Below` and back to front with `Above` produce the same buffer.
-- That equivalence survives a literal in the middle of the stack, which is what the literal's four
-  `Closed` arms are for.
+- That equivalence survives an opaque cell in the middle of the stack, which is what the literal's
+  and the symbol's four `Closed` arms are for.
 - Stamping outside the window changes nothing.
 - `Below` on a fully decided cell changes nothing.
 - The exact key wins over the degraded one; with neither, a space.
+- A symbol cell renders as the glyph its exact pair answers, and a pair the catalog lacks is
+  nothing: no second lookup and no degradation.
+- A complete style answers every symbol, and an incomplete one answers only the pairs it holds:
+  `solid-pointer`/`Circle` and `ascii`/`Diamond` are the spaces the sheet keeps.
+- `union` merges both maps by the same first-claim rule within each, and a catalog holds two styles
+  of one symbol as two pairs.
 - An undefined cell and a cell with four `Closed` arms render the same unless a set defines the
   empty key. The test records the behavior; the question of whether that is wanted is deliberately
   left open.

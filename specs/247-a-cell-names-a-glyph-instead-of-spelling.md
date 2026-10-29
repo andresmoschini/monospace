@@ -1,5 +1,7 @@
 ---
-status: draft
+status: implemented
+decided: "#250"
+implemented: "#251"
 date: 2026-10-28
 ---
 
@@ -235,7 +237,9 @@ Cell::Literal(Glyph::new("▲").expect("▲ is one glyph"))
 
 ## What proves it
 
-Nothing exists yet: the deciding stage adds no code, and nothing here has been observed.
+The names bind the building stage, and the run below is what was observed. The cell's render, its
+composition and the two maps are `monospace-core`'s; the styles and `all()` are
+`monospace-glyph-sets`'s; the sheet and its refusals are `monospace-cli`'s subprocess tests.
 
 | Rule | Test                                                                                      | Where                        |
 | ---- | ----------------------------------------------------------------------------------------- | ---------------------------- |

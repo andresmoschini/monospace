@@ -24,7 +24,7 @@ pub use buffer::{Buffer, CellReader, OwnerReader, StampMode, StampSink};
 pub use cell::{Arm, Cell, StrokeCell};
 pub use footprint::FootprintSink;
 pub use geometry::{Direction, Footprint, Offset, Orientation, Pos, Size, Window};
-pub use glyph::{Glyph, GlyphCatalog, GlyphKey};
+pub use glyph::{Glyph, GlyphCatalog, GlyphKey, Symbol, SymbolCell, SymbolStyleName};
 pub use identity::ShapeId;
 pub use render::render;
 pub use shape::{BoxShape, Connector, Endpoint, FigureLayer, Line, Shape, Surface, Terminal};
