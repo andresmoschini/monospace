@@ -112,8 +112,9 @@ pub struct Endpoint {
 pub enum Terminal {
     /// One chosen glyph, written as a literal: decided on every side, so nothing composes into it.
     Glyph {
-        /// The caller's glyph. No glyph set is consulted for it: no set in the
-        /// repository holds a rule that points.
+        /// The caller's glyph. No glyph set is consulted for it, and no terminal
+        /// names a symbol: `solid-pointer` holds the four pointer glyphs, but reaching
+        /// one would take a terminal variant that names it.
         glyph: Glyph,
     },
     /// One arm, in the connector's own stroke, on the side `leaving` names, leaving the other three

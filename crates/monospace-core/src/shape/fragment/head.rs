@@ -3,9 +3,11 @@
 
 use crate::{Cell, Glyph, Pos, Shape, Surface};
 
-/// A head: one cell written as a chosen glyph, supplied by the caller because no glyph set in the
-/// repository holds a rule that points — `▲`, `►`, `◄` and `▼` are in no set, and `╾` and `╼` are
-/// already claimed by keys that mean heavy on one side and light on the other.
+/// A head: one cell written as a chosen glyph, supplied by the caller because a terminal names a
+/// literal rather than a symbol. Pointer glyphs are not missing from the catalog — `solid-pointer`
+/// answers the four directions with `▲`, `►`, `▼` and `◄` — but no terminal names one yet. An arm
+/// rule cannot point, and `╾` and `╼` are already claimed by keys that mean heavy on one side and
+/// light on the other.
 ///
 /// A fragment in the sense of _Complete and fragment_ in
 /// [`docs/model.md`](../../../../../docs/model.md).

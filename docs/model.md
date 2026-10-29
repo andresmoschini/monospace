@@ -467,17 +467,19 @@ conclusion drawn from it went the other way: an end really is indistinguishable 
 the text, and what makes it an end is the sides it leaves undecided.
 
 A **glyph** writes one chosen glyph, in the sense of _A cell can be a literal instead_, supplied by
-the caller — and nothing connects into one, because a literal is decided on every side. It is that
-answer because a glyph points and no set holds a rule that points: `▲ ► ◄ ▼` are in no set, and
-`╾ ╼` are claimed in both mixing sets that hold them by keys meaning heavy on one side and light on
-the other.
+the caller — and nothing connects into one, because a literal is decided on every side. It is not an
+arm: an arm rule cannot point, and `╾ ╼` are claimed in both mixing sets that hold them by keys
+meaning heavy on one side and light on the other. A symbol rule can point — `solid-pointer` answers
+the four directions with `▲ ► ▼ ◄` — but a terminal names none of them yet, so the caller supplies
+the literal.
 
-That asymmetry is a limit of the data rather than a preference. Heads that follow the glyph set
-would be the better answer, and they are an open question below. One change would reverse the half
-above as well, and it stays available rather than settled: four new single-arm rules rendering
-`╶ ╴ ╵ ╷` would make an end both derived and visibly an end. Those four keys are claimed today, so
-adding them is not a tweak but a change to what existing cells render, which is why it is a question
-for a slice of its own rather than a line to add.
+The asymmetry is in what a terminal names rather than in the data: a symbol rule can point, and a
+terminal that named a style would follow it. Heads that follow a named style would be the better
+answer, and they are an open question below. One change would reverse the half above as well, and it
+stays available rather than settled: four new single-arm rules rendering `╶ ╴ ╵ ╷` would make an end
+both derived and visibly an end. Those four keys are claimed today, so adding them is not a tweak
+but a change to what existing cells render, which is why it is a question for a slice of its own
+rather than a line to add.
 
 ### The route of a connector
 
@@ -620,8 +622,7 @@ core expose mutable state for editing?_ has left: the core exposes none, and
   of them: a rounded corner, a double line. Each needs either its rule keyed like the rest or a
   chosen glyph, which is the route a head took. What would settle it: the first slice that needs one
   of them.
-- **Where does a terminal's glyph come from, once a glyph set can hold one?** _What a terminal
-  writes_ has the caller supply it, because no set holds a rule that points and the two characters
-  that could have been keyed are already claimed. What would settle it: a slice that gives a set its
-  own heads, which also has to decide whether the caller's glyph then becomes an override or goes
-  away.
+- **Where does a terminal's glyph come from, now that a symbol rule can point?** _What a terminal
+  writes_ has the caller supply a literal, and `solid-pointer` shows a rule that points, but no
+  terminal names a symbol. What would settle it: a slice that gives a terminal a symbol and a style,
+  which also has to decide whether the caller's glyph then becomes an override or goes away.
