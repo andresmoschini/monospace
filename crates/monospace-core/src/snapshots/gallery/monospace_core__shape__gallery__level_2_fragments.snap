@@ -73,3 +73,10 @@ Literal { at: Pos { x: 1, y: 0 }, glyph: Glyph(">") }
   | at  | glyph | top | right | bottom | left | base |
   | --- | ----- | --- | ----- | ------ | ---- | ---- |
   | 1,0 | >     |     |       |        |      |      |
+
+NamedSymbol { at: Pos { x: 1, y: 0 }, cell: SymbolCell { symbol: DirectionUp, style: SymbolStyleName("solid") } }
+   ▲
+  wrote 1 of 3 positions
+  | at  | glyph | top | right | bottom | left | base |
+  | --- | ----- | --- | ----- | ------ | ---- | ---- |
+  | 1,0 | ▲     |     |       |        |      |      |

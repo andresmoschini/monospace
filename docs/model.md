@@ -444,12 +444,12 @@ An **connector** is two **endpoints** and a stroke. An endpoint is a position, t
 connector leaves it in, and a **terminal**; `at` is the cell the terminal hangs from. What a
 terminal may write is vocabulary this document owns, so naming one more of them is a change here and
 in the figure, and to whatever states it as a rule. A glyph terminal's glyph points opposite to the
-direction that endpoint leaves in.
+direction that endpoint leaves in, and a symbol terminal's symbol does the same.
 
 ### What a terminal writes
 
-A **terminal** is what an endpoint contributes to the cell at `at`, and it is a **glyph** or an
-**arm**. It writes that cell and nothing else.
+A **terminal** is what an endpoint contributes to the cell at `at`, and it is a **glyph**, a
+**symbol** or an **arm**. It writes that cell and nothing else.
 
 An **arm** writes one arm — the one the connector arrives on — in the connector's own stroke, and
 leaves its other three sides `Unset`, so it renders through the glyph set like every other stroke
@@ -467,14 +467,21 @@ conclusion drawn from it went the other way: an end really is indistinguishable 
 the text, and what makes it an end is the sides it leaves undecided.
 
 A **glyph** writes one chosen glyph, in the sense of _A cell can be a literal instead_, supplied by
-the caller — and nothing connects into one, because a literal is decided on every side. It is not an
-arm: an arm rule cannot point, and `╾ ╼` are claimed in both mixing sets that hold them by keys
-meaning heavy on one side and light on the other. A symbol rule can point — `solid-pointer` answers
-the four directions with `▲ ► ▼ ◄` — but a terminal names none of them yet, so the caller supplies
-the literal.
+the caller — and nothing connects into one, because a literal is decided on every side. It is the
+head no style draws: a glyph is whatever the caller typed, so no set answers it and no style can
+re-spell it. The symbol below is the head a style does draw.
 
-The asymmetry is in what a terminal names rather than in the data: a symbol rule can point, and a
-terminal that named a style would follow it. Heads that follow a named style would be the better
+A **symbol** writes one named symbol, in the sense of _A cell can name a symbol instead_, in a style
+the caller names — and nothing connects into one, for the same reason nothing connects into a
+literal. Which symbol it is, the figure derives from the direction the endpoint leaves in, and it is
+the one pointing opposite to it, exactly as a glyph terminal's glyph does: the caller names the look
+and not the direction, so an endpoint cannot spell a head that disagrees with the way it leaves. A
+style the catalog does not hold draws a space there, because a symbol cell's miss is final.
+
+That asymmetry is a limit of the literal rather than of the terminal. A symbol terminal is the head
+that follows the set, and it is available now wherever a catalog holds the four directions; what
+stays a limit of the data is a head no set draws, which a caller still has to spell. Heads that
+follow the glyph set, where a set is a table of arms rather than of symbols, would be the better
 answer, and they are an open question below. One change would reverse the half above as well, and it
 stays available rather than settled: four new single-arm rules rendering `╶ ╴ ╵ ╷` would make an end
 both derived and visibly an end. Those four keys are claimed today, so adding them is not a tweak
@@ -622,7 +629,8 @@ core expose mutable state for editing?_ has left: the core exposes none, and
   of them: a rounded corner, a double line. Each needs either its rule keyed like the rest or a
   chosen glyph, which is the route a head took. What would settle it: the first slice that needs one
   of them.
-- **Where does a terminal's glyph come from, now that a symbol rule can point?** _What a terminal
-  writes_ has the caller supply a literal, and `solid-pointer` shows a rule that points, but no
-  terminal names a symbol. What would settle it: a slice that gives a terminal a symbol and a style,
-  which also has to decide whether the caller's glyph then becomes an override or goes away.
+- **Where does an arm terminal's head come from?** _What a terminal writes_ gives a symbol terminal
+  its head: the caller names a style and the symbol follows from the direction the endpoint leaves
+  in. An arm terminal still draws a bare end, because no arm rule points — `╾ ╼` are claimed by keys
+  meaning heavy on one side and light on the other. What would settle it: four single-arm rules that
+  render `╶ ╴ ╵ ╷`, which is a change to what existing cells render rather than a terminal variant.

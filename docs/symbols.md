@@ -85,3 +85,7 @@ Cell::Symbol(SymbolCell {
 That value renders `▲` and is not equal to
 `Cell::Literal(Glyph::new("▲").expect("▲ is one glyph"))`, which renders the same character. The
 names are what an editing layer can rewrite; a literal has none.
+
+A connector's terminal reaches the same vocabulary: `{ "kind": "symbol", "style": "solid" }` names a
+style, and the figure writes the symbol pointing against the endpoint's `leaving`, so no file spells
+a head that disagrees with its direction.
