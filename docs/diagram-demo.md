@@ -46,7 +46,7 @@ leaving and a terminal.
       "stroke": "light" },
     { "kind": "connector", "id": 3,
       "from": { "at": { "kind": "point", "x": 12, "y": 1 }, "leaving": "right",
-                "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 16, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" } ] }
@@ -177,7 +177,7 @@ one from an ordinary box. The left arrow is on a border that is not there.
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 3, "dy": -1 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 7, "y": 0 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
@@ -186,7 +186,7 @@ one from an ordinary box. The left arrow is on a border that is not there.
     { "kind": "connector", "id": 4,
       "from": { "at": { "kind": "reference", "shape": 3, "anchor": "right",
                         "offset": { "dx": 3, "dy": 1 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 15, "y": 2 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" } ] }
@@ -226,7 +226,7 @@ arriving head replaces the border's own glyph and a leaving arm composes with it
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "top",
                         "out": 0 },
-                "leaving": "up", "terminal": { "kind": "glyph", "glyph": "▼" } },
+                "leaving": "up", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 0 }, "leaving": "down",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
@@ -235,12 +235,12 @@ arriving head replaces the border's own glyph and a leaving arm composes with it
                         "out": 0 },
                 "leaving": "right", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 21, "y": 4 }, "leaving": "left",
-                "terminal": { "kind": "glyph", "glyph": "▶" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "stroke": "light" },
     { "kind": "connector", "id": 4,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "bottom",
                         "out": 1 },
-                "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
+                "leaving": "down", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 8 }, "leaving": "up",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
@@ -249,7 +249,7 @@ arriving head replaces the border's own glyph and a leaving arm composes with it
                         "out": 1 },
                 "leaving": "left", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 0, "y": 4 }, "leaving": "right",
-                "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "stroke": "light" } ] }
 -->
 
@@ -282,10 +282,9 @@ positions a bare `arm` out in the open, which is why that row ends in a plain `�
 end in a head. Nothing in the description said where the side is; the offset is a gap from wherever
 it turns out to be, and it positions the endpoint rather than the arrow.
 
-That is a `glyph` terminal, which is a literal and therefore **replaces** the cell it lands on. An
-`arm` terminal instead composes with what is already there and turns the border into a junction —
-which is the rule [§6 _Attachment_](diagram-model.md#6-attachment) states, and the two are worth
-telling apart.
+That is a `symbol` terminal, whose cell covers what it lands on as a literal does. An `arm` terminal
+instead composes with what is already there and turns the border into a junction — which is the rule
+[§6 _Attachment_](diagram-model.md#6-attachment) states, and the two are worth telling apart.
 
 The two axes are independent and neither is checked against the side it is measured from, so a
 negative amount is simply a point on the far side of the anchor.
@@ -299,21 +298,21 @@ negative amount is simply a point on the far side of the anchor.
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 0, "dy": -3 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 10, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
     { "kind": "connector", "id": 3,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 3, "dy": -1 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 3 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
     { "kind": "connector", "id": 4,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 0, "dy": 1 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 10, "y": 5 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
@@ -322,7 +321,7 @@ negative amount is simply a point on the far side of the anchor.
                         "offset": { "dx": 3, "dy": 3 } },
                 "leaving": "right", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 7 }, "leaving": "left",
-                "terminal": { "kind": "glyph", "glyph": "▶" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "stroke": "light" } ] }
 -->
 
@@ -466,7 +465,7 @@ the run succeeds. `7` names nothing in a two-shape file. Asking which shapes cou
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 7, "anchor": "right",
                         "offset": { "dx": 2, "dy": 0 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 10, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" } ] }
