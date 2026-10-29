@@ -4,11 +4,11 @@ Every picture below is **generated**: a `<!-- render: … -->` marker carries a 
 `cargo xtask render` draws it, and a step of `cargo xtask check` re-draws it and fails if the block
 in this file is not what the description produces. None of them is written by hand.
 
-**This is a demonstration, not an inventory.** What a description can say is unbounded in two
-directions — a `fill` and a terminal's `glyph` are any single grapheme cluster — so no document can
-enumerate the space. What this file does is give **one instance of each decision the format makes**,
-so that a reader who has never opened `contracts/description-format.md` has seen every shape of
-thing the JSON can say.
+**This is a demonstration, not an inventory.** What a description can say is unbounded in three
+directions — a `fill` and a terminal's `glyph` are any single grapheme cluster, and a terminal's
+`style` is any name — so no document can enumerate the space. What this file does is give **one
+instance of each decision the format makes**, so that a reader who has never opened
+`contracts/description-format.md` has seen every shape of thing the JSON can say.
 
 That leaves a finite remainder, and it is deliberately not enumerated here either. A document that
 tried would either grow without end or claim a coverage it does not have. The remainder is the
@@ -25,7 +25,7 @@ canvas.
 Two carriers exist and they are not interchangeable. They split by **reach rather than by
 preference**: a marker owns a picture in a document, and the gallery inside `monospace-diagram` owns
 a picture of a figure. A marker is a description a subprocess reads, so whatever the crate keeps
-private is outside its reach by construction — what a `Border` or a `Head` stamps, and a surface
+private is outside its reach by construction — what a `Border` or a `Literal` stamps, and a surface
 table of every cell's arms — while a gallery draws those values themselves, which is the only way to
 see what a fragment stamps. What is in this file is exactly what a description _can_ reach, which is
 the other half of the split and the reason it exists at all.
