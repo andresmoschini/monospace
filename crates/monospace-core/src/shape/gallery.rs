@@ -36,8 +36,8 @@ use crate::shape::fragment::segment::Segment;
 use crate::shape::route::Route;
 use crate::stroke::Stroke;
 use crate::{
-    Arm, BoxShape, Buffer, Cell, Connector, Direction, Endpoint, FigureLayer, Glyph, GlyphCatalog,
-    Line, Orientation, Pos, Size, StampMode, Surface, Terminal, Window, render,
+    Arm, BoxShape, Buffer, Cell, CellReader, Connector, Direction, Endpoint, FigureLayer, Glyph,
+    GlyphCatalog, Line, Orientation, Pos, Size, StampMode, Surface, Terminal, Window, render,
 };
 
 /// One description for every file, so the prose is written once rather than per level — and
