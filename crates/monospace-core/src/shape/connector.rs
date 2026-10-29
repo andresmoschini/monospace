@@ -1,5 +1,5 @@
-//! The connector: two endpoints, two heads and a derived route between them. See _The initial set_
-//! and _The route of a connector_ in [`docs/model.md`](../../../docs/model.md).
+//! The connector: two endpoints, two terminals and a derived route between them. See _The initial
+//! set_ and _The route of a connector_ in [`docs/model.md`](../../../docs/model.md).
 //!
 //! # Design notes
 //!
@@ -61,36 +61,50 @@
 //! _What a terminal writes_ in [`docs/model.md`](../../../docs/model.md) — this section says only
 //! what this module does with it.
 //!
-//! **Two values of one field, and not a field and its absence.** That is what the tag is for. An
-//! endpoint always carries a terminal, so a third one arrives as a new variant, a new tag, and one
+//! **Three values of one field, and not a field and its absence.** That is what the tag is for. An
+//! endpoint always carries a terminal, so a fourth one arrives as a new variant, a new tag, and one
 //! line in the model's vocabulary — the shape of a description does not change and no record
-//! reopens. A field and its absence would instead make "no terminal" a third spelling, and a
+//! reopens. A field and its absence would instead make "no terminal" a fourth spelling, and a
 //! caller who left the field out would get a connector that draws nothing at either end rather than a
-//! refusal naming the two values that were expected.
+//! refusal naming the values that were expected.
 //!
-//! **A glyph decides every side; an arm leaves three undecided.** That difference is the whole of
-//! what the two write, and it is not this module's rule to state: _Stamping_ in
+//! **A glyph and a symbol decide every side; an arm leaves three undecided.** That difference is
+//! the whole of what the three write, and it is not this module's rule to state: _Stamping_ in
 //! [`docs/model.md`](../../../docs/model.md) already decides what two figures sharing a cell
-//! leave there, and these two land in it as two rows of that table. What this module owns is
-//! narrower — which side an arm goes on, and in whose stroke. The side is the leaving direction's
-//! own, because the arm faces the route, and the stroke is the connector's own because a terminal
-//! choosing its stroke would be a second thing to keep consistent with the route it joins, while
-//! the model's arm is a stroke cell of the figure.
+//! leave there, and these three land in it as rows of that table. What this module owns is
+//! narrower — which side an arm goes on, in whose stroke, and which symbol a symbol terminal names.
+//! The side is the leaving direction's own, because the arm faces the route, and the stroke is the
+//! connector's own because a terminal choosing its stroke would be a second thing to keep
+//! consistent with the route it joins, while the model's arm is a stroke cell of the figure. The
+//! symbol points against the leaving direction for the reason the model gives a glyph's glyph the
+//! same rule: a terminal faces the connector it ends, so the two cannot disagree.
 //!
-//! **The set is closed at two, and is not `#[non_exhaustive]`.** A third terminal is a new variant
-//! in a later slice, which is a change to this enum and to the model rather than an invisible one.
-//! Marking it non-exhaustive would let a caller match on it exhaustively today and go on compiling
-//! after a third member exists, which is the one outcome the model's sentence about naming one more
-//! of them is written to prevent.
+//! **A symbol terminal is the head that follows the set.** Its direction is derived and only its
+//! look is the caller's, so a catalog that holds the style redraws every head that named it, and a
+//! set a build adds a style to reaches a picture nobody edited. A style the catalog does not hold
+//! draws a space, because a symbol cell's miss is final and never falls back to another style — the
+//! rule _A cell can name a symbol instead_ states, and not a choice this module makes. Only the
+//! four `Direction*` symbols are reachable from here: the other three name a shape with no
+//! direction to point from, and a terminal that wanted one would be a fourth variant rather than
+//! this one.
+//!
+//! **The set is closed at three, and is not `#[non_exhaustive]`.** A fourth terminal is a new
+//! variant in a later slice, which is a change to this enum and to the model rather than an
+//! invisible one. Marking it non-exhaustive would let a caller match on it exhaustively today and
+//! go on compiling after a fourth member exists, which is the one outcome the model's sentence
+//! about naming one more of them is written to prevent.
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
 use crate::cell::Side;
 use crate::shape::fragment::end::End;
-use crate::shape::fragment::head::Head;
+use crate::shape::fragment::literal::Literal;
+use crate::shape::fragment::symbol::NamedSymbol;
 use crate::shape::route::Route;
-use crate::{Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface};
+use crate::{
+    Direction, Glyph, Orientation, Pos, Shape, Stroke, Surface, Symbol, SymbolCell, SymbolStyleName,
+};
 
 /// Where a connector ends: a position, the direction it leaves in, and a terminal. See _The initial
 /// set_ and _What a terminal writes_ in
@@ -106,16 +120,49 @@ pub struct Endpoint {
     pub terminal: Terminal,
 }
 
-/// What an endpoint contributes to the cell at its own position. A caller builds either variant as
-/// a literal, and reads one back by matching this public field.
+impl Endpoint {
+    fn draw(&self, stroke: &Stroke, surface: &mut dyn Surface) {
+        match &self.terminal {
+            Terminal::Glyph { glyph } => Literal {
+                at: self.at,
+                glyph: glyph.clone(),
+            }
+            .draw(surface),
+            Terminal::Symbol { style } => NamedSymbol {
+                at: self.at,
+                cell: SymbolCell {
+                    symbol: symbol_for(self.leaving),
+                    style: style.clone(),
+                },
+            }
+            .draw(surface),
+            Terminal::Arm => End {
+                at: self.at,
+                side: arm_side(self.leaving),
+                stroke: stroke.clone(),
+            }
+            .draw(surface),
+        }
+    }
+}
+
+/// What an endpoint contributes to the cell at its own position. A caller builds a variant as a
+/// literal, and reads one back by matching this public field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Terminal {
     /// One chosen glyph, written as a literal: decided on every side, so nothing composes into it.
     Glyph {
-        /// The caller's glyph. No glyph set is consulted for it, and no terminal
-        /// names a symbol: `solid-pointer` holds the four pointer glyphs, but reaching
-        /// one would take a terminal variant that names it.
+        /// The caller's glyph, spelled out rather than named. No set answers it and no style can
+        /// re-spell it, which is what a symbol terminal is for.
         glyph: Glyph,
+    },
+    /// One named symbol, in a style the caller names: decided on every side, so nothing composes
+    /// into it. The symbol points against `leaving`, so the caller names the look and not the
+    /// direction.
+    Symbol {
+        /// The style the symbol is drawn in. The catalog answers the pair at render, and a pair it
+        /// does not hold draws a space.
+        style: SymbolStyleName,
     },
     /// One arm, in the connector's own stroke, on the side `leaving` names, leaving the other three
     /// sides undecided.
@@ -136,6 +183,30 @@ fn arm_side(leaving: Direction) -> Side {
     }
 }
 
+/// The symbol pointing in `dir`: the bridge between the four directions and the four [`Symbol`]
+/// values that point, which is a bijection.
+fn pointing(dir: Direction) -> Symbol {
+    match dir {
+        Direction::Up => Symbol::DirectionUp,
+        Direction::Right => Symbol::DirectionRight,
+        Direction::Down => Symbol::DirectionDown,
+        Direction::Left => Symbol::DirectionLeft,
+    }
+}
+
+/// The symbol a symbol terminal writes: the one pointing against `leaving`, because a terminal
+/// faces the connector it ends — the same rule _What a terminal writes_ states for a glyph
+/// terminal's glyph.
+///
+/// Only the four `Direction*` members of [`Symbol`] are reachable from here: a diamond, a hexagon
+/// and a circle point nowhere, and a terminal always has a leaving direction to point against.
+///
+/// Like [`arm_side`], a function rather than a field on [`Terminal`]: the caller names the style
+/// and cannot name a symbol disagreeing with the direction the endpoint leaves in.
+fn symbol_for(leaving: Direction) -> Symbol {
+    pointing(opposite(leaving))
+}
+
 /// A connector: two endpoints and a stroke.
 ///
 /// A **complete** shape in the sense of _Complete and fragment_ in
@@ -148,7 +219,7 @@ pub struct Connector {
     /// The other endpoint of the connector.
     pub to: Endpoint,
     /// The stroke the route between the two endpoints is drawn in, and the stroke an arm terminal
-    /// is written in. A glyph terminal is drawn as its own glyph, not in this stroke.
+    /// is written in. A glyph or symbol terminal is drawn as its own cell, not in this stroke.
     pub stroke: Stroke,
 }
 
@@ -161,19 +232,7 @@ impl Shape for Connector {
     /// called exactly as it always was and a terminal cannot reach it.
     fn draw(&self, surface: &mut dyn Surface) {
         for endpoint in [&self.from, &self.to] {
-            match &endpoint.terminal {
-                Terminal::Glyph { glyph } => Head {
-                    at: endpoint.at,
-                    glyph: glyph.clone(),
-                }
-                .draw(surface),
-                Terminal::Arm => End {
-                    at: endpoint.at,
-                    side: arm_side(endpoint.leaving),
-                    stroke: self.stroke.clone(),
-                }
-                .draw(surface),
-            }
+            endpoint.draw(&self.stroke, surface);
         }
 
         if let Some(positions) =
@@ -548,7 +607,8 @@ mod tests {
     use crate::shape::counting::CountingSurface;
     use crate::{
         Arm, Buffer, Cell, CellReader, Direction, FigureLayer, Glyph, GlyphCatalog, Line,
-        Orientation, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Window, render,
+        Orientation, Pos, Shape, Size, StampMode, Stroke, StrokeCell, Symbol, SymbolCell,
+        SymbolStyleName, Window, render,
     };
 
     fn light() -> Stroke {
@@ -577,6 +637,16 @@ mod tests {
     }
 
     fn render_connector(origin: Pos, size: Size, from: Endpoint, to: Endpoint) -> String {
+        render_connector_with(&GlyphCatalog::light(), origin, size, from, to)
+    }
+
+    fn render_connector_with(
+        glyphs: &GlyphCatalog,
+        origin: Pos,
+        size: Size,
+        from: Endpoint,
+        to: Endpoint,
+    ) -> String {
         let mut buffer = Buffer::new(Window { origin, size });
         Connector {
             from,
@@ -585,7 +655,7 @@ mod tests {
         }
         .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
 
-        render(&buffer, &GlyphCatalog::light(), buffer.window())
+        render(&buffer, glyphs, buffer.window())
     }
 
     /// Perpendicular directions, one bend.
@@ -1216,6 +1286,167 @@ mod tests {
         }
     }
 
+    /// A symbol terminal writes one named symbol — the one pointing against `leaving` — in the
+    /// style the caller named. All four leaving directions, because the direction is derived from
+    /// `leaving` and a mapping that happens to be right for three of the four is wrong. The pair
+    /// is written as it was named: the buffer holds a `Cell::Symbol`, and the catalog answers it
+    /// later, at render.
+    #[test]
+    fn a_symbol_terminal_writes_the_symbol_pointing_against_leaving() {
+        let style = SymbolStyleName::from("solid");
+        let expected = |leaving: Direction| match leaving {
+            Direction::Up => Symbol::DirectionDown,
+            Direction::Right => Symbol::DirectionLeft,
+            Direction::Down => Symbol::DirectionUp,
+            Direction::Left => Symbol::DirectionRight,
+        };
+
+        for leaving in [
+            Direction::Up,
+            Direction::Right,
+            Direction::Down,
+            Direction::Left,
+        ] {
+            // A one-by-one window on the endpoint's own position, so nothing but the terminal
+            // writes there: the route starts one step away and the other endpoint is off-window.
+            let at = Pos { x: 3, y: 3 };
+            let mut buffer = Buffer::new(Window {
+                origin: at,
+                size: Size {
+                    width: 1,
+                    height: 1,
+                },
+            });
+            Connector {
+                from: Endpoint {
+                    at,
+                    leaving,
+                    terminal: Terminal::Symbol {
+                        style: style.clone(),
+                    },
+                },
+                to: endpoint(Pos { x: 9, y: 9 }, Direction::Up),
+                stroke: light(),
+            }
+            .draw(&mut FigureLayer::new(&mut buffer, StampMode::Above));
+
+            assert_eq!(
+                buffer.cell(at),
+                Some(&Cell::Symbol(SymbolCell {
+                    symbol: expected(leaving),
+                    style: style.clone(),
+                })),
+                "leaving {leaving:?}"
+            );
+        }
+    }
+
+    /// The symbol terminal draws the head the model's convention prescribes without the caller
+    /// spelling it, so a connector whose terminals name `solid` renders what one whose terminals
+    /// carry the heads by hand renders — the routes are the same cells either way, and only the
+    /// endpoint cells are written by the set rather than by the caller. The catalog holds both
+    /// tables, which is the point: the head comes from the style and the body from the connector's
+    /// stroke. `solid` draws triangles, so the spelled side uses `◀` and `▶` where [`head_for`] —
+    /// the pointer style the other pictures fix — would use `◄` and `►`.
+    #[test]
+    fn a_symbol_terminal_draws_the_head_a_glyph_terminal_spells_out() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 7,
+            height: 3,
+        };
+        let glyphs = GlyphCatalog::union([GlyphCatalog::light(), GlyphCatalog::solid()]);
+        let solid_head = |leaving: Direction| {
+            Glyph::new(match leaving {
+                Direction::Up => "▼",
+                Direction::Right => "◀",
+                Direction::Down => "▲",
+                Direction::Left => "▶",
+            })
+            .expect("one of the four solid heads is one glyph each")
+        };
+        let spelled = render_connector_with(
+            &glyphs,
+            origin,
+            size,
+            Endpoint {
+                at: Pos { x: 0, y: 0 },
+                leaving: Direction::Right,
+                terminal: Terminal::Glyph {
+                    glyph: solid_head(Direction::Right),
+                },
+            },
+            Endpoint {
+                at: Pos { x: 6, y: 2 },
+                leaving: Direction::Left,
+                terminal: Terminal::Glyph {
+                    glyph: solid_head(Direction::Left),
+                },
+            },
+        );
+        let named = render_connector_with(
+            &glyphs,
+            origin,
+            size,
+            Endpoint {
+                at: Pos { x: 0, y: 0 },
+                leaving: Direction::Right,
+                terminal: Terminal::Symbol {
+                    style: SymbolStyleName::from("solid"),
+                },
+            },
+            Endpoint {
+                at: Pos { x: 6, y: 2 },
+                leaving: Direction::Left,
+                terminal: Terminal::Symbol {
+                    style: SymbolStyleName::from("solid"),
+                },
+            },
+        );
+
+        assert_eq!(named, spelled);
+        assert_eq!(named, "◀──┐   \n   │   \n   └──▶\n");
+    }
+
+    /// D2's case: the terminal is a field of the endpoint, so one connector may carry two styles —
+    /// the `from` end names `solid` and the `to` end `arrow`, and each head comes from its own
+    /// table. A style at one end and a glyph or an arm at the other follows from the same field.
+    #[test]
+    fn the_two_endpoints_of_a_connector_name_their_own_styles() {
+        let arrow = GlyphCatalog::from_symbol_rules([(
+            SymbolCell {
+                symbol: Symbol::DirectionRight,
+                style: SymbolStyleName::from("arrow"),
+            },
+            Glyph::new("→").expect("one glyph"),
+        )]);
+        let glyphs = GlyphCatalog::union([GlyphCatalog::light(), GlyphCatalog::solid(), arrow]);
+        let text = render_connector_with(
+            &glyphs,
+            Pos { x: 0, y: 0 },
+            Size {
+                width: 7,
+                height: 1,
+            },
+            Endpoint {
+                at: Pos { x: 0, y: 0 },
+                leaving: Direction::Right,
+                terminal: Terminal::Symbol {
+                    style: SymbolStyleName::from("solid"),
+                },
+            },
+            Endpoint {
+                at: Pos { x: 6, y: 0 },
+                leaving: Direction::Left,
+                terminal: Terminal::Symbol {
+                    style: SymbolStyleName::from("arrow"),
+                },
+            },
+        );
+
+        assert_eq!(text, "◀─────→\n");
+    }
+
     /// The route is derived from the two positions and
     /// the two leaving directions alone, so a terminal cannot reach it and the body is the same
     /// cells either way. Checked position by position rather than by looking at two pictures,
@@ -1301,10 +1532,10 @@ mod tests {
     /// whatever the terminal is, so the terminal is the only thing an endpoint contributes to the
     /// cell it names.
     ///
-    /// Both terminals are run over the same arrangement in turn, and the route is not empty — the
-    /// five cells between the endpoints are asserted written — so a largest write count of one is
-    /// not vacuous. Were the path to write an endpoint cell, that cell would carry the terminal's
-    /// write and the path's, and the count there would be two.
+    /// All three terminals are run over the same arrangement in turn, and the route is not empty —
+    /// the five cells between the endpoints are asserted written — so a largest write count of one
+    /// is not vacuous. Were the path to write an endpoint cell, that cell would carry the
+    /// terminal's write and the path's, and the count there would be two.
     #[test]
     fn the_path_writes_no_endpoint_cell_whichever_terminal_is_used() {
         let origin = Pos { x: 0, y: 0 };
@@ -1319,6 +1550,9 @@ mod tests {
         for terminal in [
             Terminal::Glyph {
                 glyph: Glyph::new("◄").expect("one glyph"),
+            },
+            Terminal::Symbol {
+                style: SymbolStyleName::from("solid"),
             },
             Terminal::Arm,
         ] {

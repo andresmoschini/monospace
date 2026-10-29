@@ -1,6 +1,6 @@
 ---
 source: crates/monospace-core/src/shape/gallery.rs
-description: "A gallery: a chosen set of examples, one block each, for reading rather than for coverage. Each label is derived from the value that drew the block, so it cannot disagree with it. Under each picture is the surface that picture came from: a count of the positions the figure wrote, then a row for each of them, saying what that position renders, what each of its four arms holds, and the base stroke every Set arm is drawn in. A Set arm names the stroke; Unset and Closed are the model's own two words for the other two. A position the figure left unwritten is a hole in the picture rather than a row here, and the count is how many there are. A literal has no arms, so its arm columns are empty. A block moving means a figure changed, and what moved is the thing to look at — the same acceptance a characterization gets, without its claim of covering a range."
+description: "A gallery: a chosen set of examples, one block each, for reading rather than for coverage. Each label is derived from the value that drew the block, so it cannot disagree with it. Under each picture is the surface that picture came from: a count of the positions the figure wrote, then a row for each of them, saying what that position renders, what each of its four arms holds, and the base stroke every Set arm is drawn in. A Set arm names the stroke; Unset and Closed are the model's own two words for the other two. A position the figure left unwritten is a hole in the picture rather than a row here, and the count is how many there are. A literal or a symbol has no arms, so its arm columns are empty. A block moving means a figure changed, and what moved is the thing to look at — the same acceptance a characterization gets, without its claim of covering a range."
 expression: body
 ---
 Border { from: Pos { x: 0, y: 0 }, len: 3, side: Top, stroke: Stroke("light"), closes_interior: true }
@@ -67,9 +67,16 @@ Fill { at: Pos { x: 0, y: 0 }, size: Size { width: 3, height: 1 }, glyph: Glyph(
   | 1,0 | .     |     |       |        |      |      |
   | 2,0 | .     |     |       |        |      |      |
 
-Head { at: Pos { x: 1, y: 0 }, glyph: Glyph(">") }
+Literal { at: Pos { x: 1, y: 0 }, glyph: Glyph(">") }
    >
   wrote 1 of 3 positions
   | at  | glyph | top | right | bottom | left | base |
   | --- | ----- | --- | ----- | ------ | ---- | ---- |
   | 1,0 | >     |     |       |        |      |      |
+
+NamedSymbol { at: Pos { x: 1, y: 0 }, cell: SymbolCell { symbol: DirectionUp, style: SymbolStyleName("solid") } }
+   ▲
+  wrote 1 of 3 positions
+  | at  | glyph | top | right | bottom | left | base |
+  | --- | ----- | --- | ----- | ------ | ---- | ---- |
+  | 1,0 | ▲     |     |       |        |      |      |

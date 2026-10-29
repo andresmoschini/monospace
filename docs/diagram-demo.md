@@ -4,11 +4,11 @@ Every picture below is **generated**: a `<!-- render: … -->` marker carries a 
 `cargo xtask render` draws it, and a step of `cargo xtask check` re-draws it and fails if the block
 in this file is not what the description produces. None of them is written by hand.
 
-**This is a demonstration, not an inventory.** What a description can say is unbounded in two
-directions — a `fill` and a terminal's `glyph` are any single grapheme cluster — so no document can
-enumerate the space. What this file does is give **one instance of each decision the format makes**,
-so that a reader who has never opened `contracts/description-format.md` has seen every shape of
-thing the JSON can say.
+**This is a demonstration, not an inventory.** What a description can say is unbounded in three
+directions — a `fill` and a terminal's `glyph` are any single grapheme cluster, and a terminal's
+`style` is any name — so no document can enumerate the space. What this file does is give **one
+instance of each decision the format makes**, so that a reader who has never opened
+`contracts/description-format.md` has seen every shape of thing the JSON can say.
 
 That leaves a finite remainder, and it is deliberately not enumerated here either. A document that
 tried would either grow without end or claim a coverage it does not have. The remainder is the
@@ -25,7 +25,7 @@ canvas.
 Two carriers exist and they are not interchangeable. They split by **reach rather than by
 preference**: a marker owns a picture in a document, and the gallery inside `monospace-diagram` owns
 a picture of a figure. A marker is a description a subprocess reads, so whatever the crate keeps
-private is outside its reach by construction — what a `Border` or a `Head` stamps, and a surface
+private is outside its reach by construction — what a `Border` or a `Literal` stamps, and a surface
 table of every cell's arms — while a gallery draws those values themselves, which is the only way to
 see what a fragment stamps. What is in this file is exactly what a description _can_ reach, which is
 the other half of the split and the reason it exists at all.
@@ -46,7 +46,7 @@ leaving and a terminal.
       "stroke": "light" },
     { "kind": "connector", "id": 3,
       "from": { "at": { "kind": "point", "x": 12, "y": 1 }, "leaving": "right",
-                "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 16, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" } ] }
@@ -177,7 +177,7 @@ one from an ordinary box. The left arrow is on a border that is not there.
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 3, "dy": -1 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 7, "y": 0 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
@@ -186,7 +186,7 @@ one from an ordinary box. The left arrow is on a border that is not there.
     { "kind": "connector", "id": 4,
       "from": { "at": { "kind": "reference", "shape": 3, "anchor": "right",
                         "offset": { "dx": 3, "dy": 1 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 15, "y": 2 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" } ] }
@@ -226,7 +226,7 @@ arriving head replaces the border's own glyph and a leaving arm composes with it
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "top",
                         "out": 0 },
-                "leaving": "up", "terminal": { "kind": "glyph", "glyph": "▼" } },
+                "leaving": "up", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 0 }, "leaving": "down",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
@@ -235,12 +235,12 @@ arriving head replaces the border's own glyph and a leaving arm composes with it
                         "out": 0 },
                 "leaving": "right", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 21, "y": 4 }, "leaving": "left",
-                "terminal": { "kind": "glyph", "glyph": "▶" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "stroke": "light" },
     { "kind": "connector", "id": 4,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "bottom",
                         "out": 1 },
-                "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
+                "leaving": "down", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 8 }, "leaving": "up",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
@@ -249,7 +249,7 @@ arriving head replaces the border's own glyph and a leaving arm composes with it
                         "out": 1 },
                 "leaving": "left", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 0, "y": 4 }, "leaving": "right",
-                "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "stroke": "light" } ] }
 -->
 
@@ -282,10 +282,9 @@ positions a bare `arm` out in the open, which is why that row ends in a plain `�
 end in a head. Nothing in the description said where the side is; the offset is a gap from wherever
 it turns out to be, and it positions the endpoint rather than the arrow.
 
-That is a `glyph` terminal, which is a literal and therefore **replaces** the cell it lands on. An
-`arm` terminal instead composes with what is already there and turns the border into a junction —
-which is the rule [§6 _Attachment_](diagram-model.md#6-attachment) states, and the two are worth
-telling apart.
+That is a `symbol` terminal, whose cell covers what it lands on as a literal does. An `arm` terminal
+instead composes with what is already there and turns the border into a junction — which is the rule
+[§6 _Attachment_](diagram-model.md#6-attachment) states, and the two are worth telling apart.
 
 The two axes are independent and neither is checked against the side it is measured from, so a
 negative amount is simply a point on the far side of the anchor.
@@ -299,21 +298,21 @@ negative amount is simply a point on the far side of the anchor.
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 0, "dy": -3 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 10, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
     { "kind": "connector", "id": 3,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 3, "dy": -1 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 3 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
     { "kind": "connector", "id": 4,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 0, "dy": 1 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 10, "y": 5 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" },
@@ -322,7 +321,7 @@ negative amount is simply a point on the far side of the anchor.
                         "offset": { "dx": 3, "dy": 3 } },
                 "leaving": "right", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 11, "y": 7 }, "leaving": "left",
-                "terminal": { "kind": "glyph", "glyph": "▶" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "stroke": "light" } ] }
 -->
 
@@ -340,22 +339,25 @@ negative amount is simply a point on the far side of the anchor.
 
 <!-- /render -->
 
-## Two terminals, and the one difference between them
+## Three terminals, and the one difference between them
 
-A terminal is an `arm` or a `glyph`, and the choice decides what happens at the cell the endpoint
-stands on. An **arm** composes into whatever is already there: the first row's left end sits on the
-box's border and the two figures make a junction, `├`. A **glyph** is one grapheme cluster written
-as a literal, and a literal **replaces** the cell it lands on: the second and third rows lose the
-border at that cell and show the head instead.
+A terminal is an `arm`, a `glyph` or a `symbol`, and the choice decides what happens at the cell the
+endpoint stands on. An **arm** composes into whatever is already there: the first row's left end
+sits on the box's border and the two figures make a junction, `├`. A **glyph** is one grapheme
+cluster written as a literal, and a literal **replaces** the cell it lands on. A **symbol** names a
+style rather than a character, and the figure writes the symbol pointing against the endpoint's
+`leaving`; a symbol cell replaces the cell too. The second and third rows lose the border at that
+cell and show the head instead, and the fourth row is the same head the second row spells, arrived
+at by naming `solid`.
 
 The right-hand ends differ for a second reason worth keeping apart. A connector's `leaving` is its
 own and not the anchor's, so an `arm` arriving from the right writes its arm on the side it is
-leaving and leaves the other three unset — which is why the first row ends in a bare `─` and the
-third in one too, while the second row's `▶` is a literal and closes both ends.
+leaving and leaves the other three unset — which is why the first and third rows end in a bare `─`,
+while the second and fourth rows close both ends with `▶`.
 
-<!-- render: 16x12
+<!-- render: 16x14
 {
-  "next_id": 5,
+  "next_id": 6,
   "shapes": [
     { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 },
       "stroke": "light" },
@@ -376,6 +378,12 @@ third in one too, while the second row's `▶` is a literal and closes both ends
                 "terminal": { "kind": "glyph", "glyph": "◀" } },
       "to":   { "at": { "kind": "point", "x": 13, "y": 9 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
+      "stroke": "light" },
+    { "kind": "connector", "id": 5,
+      "from": { "at": { "kind": "point", "x": 3, "y": 13 }, "leaving": "right",
+                "terminal": { "kind": "symbol", "style": "solid" } },
+      "to":   { "at": { "kind": "point", "x": 13, "y": 13 }, "leaving": "left",
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "stroke": "light" } ] }
 -->
 
@@ -392,6 +400,8 @@ third in one too, while the second row's `▶` is a literal and closes both ends
    ◀──────────
 
 
+
+   ◀─────────▶
 ```
 
 <!-- /render -->
@@ -455,7 +465,7 @@ the run succeeds. `7` names nothing in a two-shape file. Asking which shapes cou
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 7, "anchor": "right",
                         "offset": { "dx": 2, "dy": 0 } },
-                "leaving": "right", "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "leaving": "right", "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 10, "y": 1 }, "leaving": "left",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" } ] }

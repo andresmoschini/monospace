@@ -246,8 +246,9 @@ is no side for it to name and no figure to name one against. That is the whole o
 does to an attachment, and _Positions_ is where the rule it follows is stated.
 
 The direction the connector leaves in and the terminal it carries are not derived from the
-attachment. They are the caller's. Deriving a direction from which side of a shape was attached to
-is an open question below, and every anchor being a side is what keeps it answerable: a side has an
+attachment. They are the caller's. What a symbol terminal writes follows from `leaving`, and the
+attachment decides neither. Deriving a direction from which side of a shape was attached to is an
+open question below, and every anchor being a side is what keeps it answerable: a side has an
 outside to leave through.
 
 A connector's `from` endpoint standing on the right border of a box, and its `to` endpoint out in

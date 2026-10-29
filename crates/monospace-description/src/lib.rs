@@ -45,7 +45,7 @@
 
 use std::num::NonZeroU16;
 
-use monospace_core::{Direction, Glyph, Orientation as CoreOrientation};
+use monospace_core::{Direction, Glyph, Orientation as CoreOrientation, SymbolStyleName};
 use monospace_diagram::{
     Anchor, Delta, Diagram, Endpoint as DiagramEndpoint, Position, Reference,
     Shape as DiagramShape, ShapeId,
@@ -252,18 +252,27 @@ where
     ordinal("shape", deserializer)
 }
 
-/// What an endpoint's `terminal` is on the wire, tagged by `kind`: one chosen glyph or one arm.
-/// An unrecognized `kind` is reported by name, and the message names the two accepted.
+/// What an endpoint's `terminal` is on the wire, tagged by `kind`: one chosen glyph, one symbol in a
+/// named style, or one arm. An unrecognized `kind` is reported by name, and the message names the
+/// three accepted.
 ///
 /// Internally tagged rather than externally, because `deserialize_glyph` needs a _named_ field to
 /// sit on and the external form has none — `Glyph(Glyph)` does not compile, since `Glyph` derives
 /// no `Deserialize`. A field an `arm` does not know is ignored, as everywhere else in this format.
+///
+/// **The `symbol` variant carries a style name and not a symbol.** Which symbol it writes follows
+/// from the endpoint's `leaving`, decided by the core so no file can spell a head that disagrees
+/// with the direction it leaves in. The name is not checked here: the catalog the caller renders
+/// with answers it, and a name it does not hold draws a space.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum Terminal {
     Glyph {
         #[serde(deserialize_with = "deserialize_glyph")]
         glyph: Glyph,
+    },
+    Symbol {
+        style: String,
     },
     Arm,
 }
@@ -272,6 +281,9 @@ impl From<Terminal> for monospace_core::Terminal {
     fn from(terminal: Terminal) -> Self {
         match terminal {
             Terminal::Glyph { glyph } => monospace_core::Terminal::Glyph { glyph },
+            Terminal::Symbol { style } => monospace_core::Terminal::Symbol {
+                style: SymbolStyleName::from(style.as_str()),
+            },
             Terminal::Arm => monospace_core::Terminal::Arm,
         }
     }
@@ -760,15 +772,54 @@ mod tests {
         refusal(&json).to_string()
     }
 
-    /// A `kind` the model has not named is refused by name, and the message names the two that are
-    /// accepted — so the value is never read as one of them.
+    /// A `kind` the model has not named is refused by name, and the message names the three that
+    /// are accepted — so the value is never read as one of them.
     #[test]
-    fn an_unrecognized_terminal_kind_names_it_and_the_two_that_are_accepted() {
+    fn an_unrecognized_terminal_kind_names_it_and_the_three_that_are_accepted() {
         let error = error_for(r#"{ "kind": "dot" }"#);
 
         assert!(
-            error.starts_with("unknown variant `dot`, expected `glyph` or `arm`"),
+            error.starts_with("unknown variant `dot`, expected one of `glyph`, `symbol`, `arm`"),
             "{error}"
+        );
+    }
+
+    /// A symbol terminal names a style, and a file that leaves the field out is refused **by
+    /// name** rather than read as an arm or as a default style. The fallback #245 proposed was for
+    /// an unknown name; a missing one is not a name at all.
+    #[test]
+    fn a_symbol_terminal_without_a_style_is_refused_by_name() {
+        let error = error_for(r#"{ "kind": "symbol" }"#);
+
+        assert!(error.starts_with("missing field `style`"), "{error}");
+    }
+
+    /// D6's other half: a style name the catalog does not hold is accepted by `parse` and draws a
+    /// space, because the name is resolved at render rather than where the file is read. The
+    /// catalog here holds `solid`, so the space is the misspelled name's and not a missing table's.
+    #[test]
+    fn an_unknown_style_name_draws_a_space() {
+        let json = description_of(
+            r#""from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right",
+                         "terminal": { "kind": "symbol", "style": "nope" } },
+               "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
+                       "terminal": { "kind": "symbol", "style": "solid" } }"#,
+        );
+        let diagram = parse(&json).expect("an unknown style is read, not refused");
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 7,
+                height: 1,
+            },
+        });
+        diagram.draw(&mut buffer);
+        let catalog = GlyphCatalog::union([GlyphCatalog::light(), GlyphCatalog::solid()]);
+
+        assert_eq!(
+            monospace_core::render(&buffer, &catalog, buffer.window()),
+            " ─────▶\n",
+            "the unknown name is a space and the held one draws its glyph"
         );
     }
 

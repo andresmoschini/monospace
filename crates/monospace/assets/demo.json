@@ -93,7 +93,7 @@
           "out": 1
         },
         "leaving": "down",
-        "terminal": { "kind": "glyph", "glyph": "▲" }
+        "terminal": { "kind": "symbol", "style": "solid" }
       },
       "stroke": "light"
     },

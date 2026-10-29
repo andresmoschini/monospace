@@ -31,13 +31,15 @@ use crate::shape::fragment::border::Border;
 use crate::shape::fragment::corner::Corner;
 use crate::shape::fragment::end::End;
 use crate::shape::fragment::fill::Fill;
-use crate::shape::fragment::head::Head;
+use crate::shape::fragment::literal::Literal;
 use crate::shape::fragment::segment::Segment;
+use crate::shape::fragment::symbol::NamedSymbol;
 use crate::shape::route::Route;
 use crate::stroke::Stroke;
 use crate::{
     Arm, BoxShape, Buffer, Cell, CellReader, Connector, Direction, Endpoint, FigureLayer, Glyph,
-    GlyphCatalog, Line, Orientation, Pos, Size, StampMode, Surface, Terminal, Window, render,
+    GlyphCatalog, Line, Orientation, Pos, Size, StampMode, Surface, Symbol, SymbolCell,
+    SymbolStyleName, Terminal, Window, render,
 };
 
 /// One description for every file, so the prose is written once rather than per level — and
@@ -71,15 +73,22 @@ fn draw(size: Size, body: impl FnOnce(&mut dyn Surface)) -> (String, String) {
     let origin = Pos { x: 0, y: 0 };
     let mut buffer = Buffer::new(Window { origin, size });
     body(&mut FigureLayer::new(&mut buffer, StampMode::Above));
-    let picture = render(&buffer, &GlyphCatalog::light(), buffer.window());
+    let picture = render(&buffer, &catalog(), buffer.window());
     (picture, surface(&buffer, size))
+}
+
+/// The catalog the gallery reads and renders with: the core's arm table and its symbol table, so
+/// a cell naming a symbol reads as the glyph it draws rather than as a hole. A miss is still a
+/// miss — `?` in the table and a space in the picture — because that is what the catalog answers.
+fn catalog() -> GlyphCatalog {
+    GlyphCatalog::union([GlyphCatalog::light(), GlyphCatalog::solid()])
 }
 
 /// The surface as a Markdown table: one row per position the figure wrote, padded to the widest
 /// cell in each column so the file reads as a table. A position it left unwritten is a hole in
 /// the picture above, and the count says how many there were.
 fn surface(buffer: &Buffer, size: Size) -> String {
-    let catalog = GlyphCatalog::light();
+    let catalog = catalog();
     let mut rows: Vec<[String; 7]> = Vec::new();
     let total = size.width as usize * size.height as usize;
 
@@ -240,6 +249,18 @@ fn arm_end(x: i16, y: i16, leaving: Direction) -> Endpoint {
     }
 }
 
+/// A terminal naming a style instead of spelling a head: the symbol follows from `leaving`, so
+/// the picture shows which head that style draws for that direction.
+fn symbol_end(x: i16, y: i16, leaving: Direction) -> Endpoint {
+    Endpoint {
+        at: at(x, y),
+        leaving,
+        terminal: Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        },
+    }
+}
+
 fn connector(from: Endpoint, to: Endpoint) -> Connector {
     Connector {
         from,
@@ -345,6 +366,13 @@ fn level_1_connector() {
                 glyph_end(2, 1, Direction::Left),
             ),
             window(5, 3),
+        ),
+        one(
+            connector(
+                symbol_end(0, 0, Direction::Down),
+                symbol_end(4, 3, Direction::Left),
+            ),
+            window(5, 4),
         ),
     ];
     snap("level_1_connector", &gallery(entries));
@@ -470,9 +498,19 @@ fn level_2_fragments() {
             window(3, 1),
         ),
         one(
-            Head {
+            Literal {
                 at: Pos { x: 1, y: 0 },
                 glyph: glyph(">"),
+            },
+            window(3, 1),
+        ),
+        one(
+            NamedSymbol {
+                at: Pos { x: 1, y: 0 },
+                cell: SymbolCell {
+                    symbol: Symbol::DirectionUp,
+                    style: SymbolStyleName::from("solid"),
+                },
             },
             window(3, 1),
         ),

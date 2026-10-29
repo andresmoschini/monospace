@@ -10,8 +10,9 @@ pub(crate) mod border;
 pub(crate) mod corner;
 pub(crate) mod end;
 pub(crate) mod fill;
-pub(crate) mod head;
+pub(crate) mod literal;
 pub(crate) mod segment;
+pub(crate) mod symbol;
 
 /// The `len` positions of a run starting at `from` and continuing in `orientation`.
 ///
