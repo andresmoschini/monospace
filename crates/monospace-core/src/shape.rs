@@ -9,6 +9,9 @@ pub(crate) mod fragment;
 mod line;
 mod route;
 
+#[cfg(test)]
+mod gallery;
+
 pub use box_shape::BoxShape;
 pub use connector::{Connector, Endpoint, Terminal};
 pub use line::Line;
