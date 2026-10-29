@@ -106,6 +106,24 @@ pub struct Endpoint {
     pub terminal: Terminal,
 }
 
+impl Endpoint {
+    fn draw(&self, stroke: &Stroke, surface: &mut dyn Surface) {
+        match &self.terminal {
+            Terminal::Glyph { glyph } => Literal {
+                at: self.at,
+                glyph: glyph.clone(),
+            }
+            .draw(surface),
+            Terminal::Arm => End {
+                at: self.at,
+                side: arm_side(self.leaving),
+                stroke: stroke.clone(),
+            }
+            .draw(surface),
+        }
+    }
+}
+
 /// What an endpoint contributes to the cell at its own position. A caller builds either variant as
 /// a literal, and reads one back by matching this public field.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,19 +179,7 @@ impl Shape for Connector {
     /// called exactly as it always was and a terminal cannot reach it.
     fn draw(&self, surface: &mut dyn Surface) {
         for endpoint in [&self.from, &self.to] {
-            match &endpoint.terminal {
-                Terminal::Glyph { glyph } => Literal {
-                    at: endpoint.at,
-                    glyph: glyph.clone(),
-                }
-                .draw(surface),
-                Terminal::Arm => End {
-                    at: endpoint.at,
-                    side: arm_side(endpoint.leaving),
-                    stroke: self.stroke.clone(),
-                }
-                .draw(surface),
-            }
+            endpoint.draw(&self.stroke, surface);
         }
 
         if let Some(positions) =
