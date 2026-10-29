@@ -42,7 +42,8 @@ loaded style stays that slice's question, and this wire extends the same format.
   `NamedSymbol` block; the gallery's catalog gains `solid` so a symbol cell reads as the glyph it
   draws rather than as a hole.
 - Docs: `docs/model.md` §7 and §11; `docs/diagram-model.md` §6; `docs/diagram-demo.md`'s section on
-  terminals; one sentence in `docs/symbols.md`.
+  terminals; one sentence in `docs/symbols.md`. D8 extends it to every tracked picture whose head is
+  decoration: the marker names `solid` and the drawing does not move.
 - Tests: the orientation rule over the four directions, the terminal that draws what a spelled head
   draws, two endpoints naming two styles, the space an unknown name draws, the refusal of a missing
   field, and that `glyph` and `arm` still draw what they drew.
@@ -136,6 +137,20 @@ symbol cell; the style is the attribute that fills it, exactly as it is the `sty
 `Symbol`. **Why not** a `symbol` field the caller spells: D1. **What it costs:** the JSON in #57's
 wish and #245's wire are superseded. **Answered by** the maintainer.
 
+**D8 — a tracked picture names a style wherever the head is not the point.**
+
+**Answer:** every marker whose head is decoration — the demonstration's pictures outside its
+terminal section, the model's route, both shipped demonstrations and this spec's own two examples —
+writes `{ "kind": "symbol", "style": "solid" }`, and each redraws byte-identically. The spelled head
+survives where the picture is about spelling, which is the demonstration's terminal section. **Why
+not** leave them spelled: the demonstration's charter is _one instance of each decision the format
+makes_, and it already has that instance in its terminal section, so a dozen repeats of `◀` teach
+nothing and show a form nobody would write now that the head can be derived. **Why not** switch the
+terminal section's glyph row too: that row is what makes the symbol row legible as another way to
+the same head. **What it costs:** rule 7 no longer freezes the rest of the pictures; the diffs are
+markers and the gate proves the drawings did not move. **Answered by** the maintainer, after reading
+the built demonstration.
+
 ## Model slice
 
 - `docs/model.md` §7 _The initial set_: the sentence about a glyph terminal gains a symbol terminal,
@@ -195,9 +210,9 @@ resolved where the file is read, and the render's catalog decides it.
 6. `{ "kind": "symbol", "style": "<name>" }` is the wire form. An unknown name draws a space;
    `{ "kind": "symbol" }` is refused by the message naming the missing `style`, and the three kinds
    are `glyph`, `symbol` and `arm`.
-7. `glyph` and `arm` draw what they drew. Every tracked picture but the demonstration document's
-   terminal section is unchanged; that section gains a row, and the build may switch its marker to
-   `kind: symbol`.
+7. `glyph` and `arm` draw what they drew. A marker whose head is decoration names `solid` and
+   redraws byte-identically; the demonstration's terminal section gains a symbol row and keeps its
+   glyph row, so both forms are still shown. The characterization does not move.
 
 ## Examples
 
@@ -211,9 +226,9 @@ both naming `solid`. The `▲` is `DirectionUp`, written by the endpoint leaving
   "shapes": [
     { "kind": "connector", "id": 1,
       "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "down",
-                "terminal": { "kind": "glyph", "glyph": "▲" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 1, "y": 1 }, "leaving": "left",
-                "terminal": { "kind": "glyph", "glyph": "▶" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "stroke": "light" }
   ] }
 -->
@@ -225,8 +240,8 @@ both naming `solid`. The `▲` is `DirectionUp`, written by the endpoint leaving
 
 <!-- /render -->
 
-The marker spells the glyphs, because the gate renders with the code that exists;
-`{ "kind": "symbol", "style": "solid" }` at each end draws the same picture.
+The marker names `solid` at each end and the figure derives the glyph; the two cells are the head a
+spelled `▲` and `▶` would have written.
 
 **Two styles in one connector,** which is D2's case: `solid` at the end leaving rightward and
 `arrow` at the end leaving leftward draw `◀──────→`.
@@ -237,9 +252,9 @@ The marker spells the glyphs, because the gate renders with the code that exists
   "shapes": [
     { "kind": "connector", "id": 1,
       "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right",
-                "terminal": { "kind": "glyph", "glyph": "◀" } },
+                "terminal": { "kind": "symbol", "style": "solid" } },
       "to":   { "at": { "kind": "point", "x": 7, "y": 0 }, "leaving": "left",
-                "terminal": { "kind": "glyph", "glyph": "→" } },
+                "terminal": { "kind": "symbol", "style": "arrow" } },
       "stroke": "light" }
   ] }
 -->
@@ -250,7 +265,8 @@ The marker spells the glyphs, because the gate renders with the code that exists
 
 <!-- /render -->
 
-The marker again spells the heads; the build may name them.
+The marker names both styles, and the catalog answers each: `solid` draws `◀` leaving rightward and
+`arrow` draws `→` leaving leftward.
 
 **A name the catalog does not hold** draws a space, and `{ "kind": "symbol" }` is refused for the
 missing field. Neither is observed here: the pictures come from the glyphs each style resolves to,
