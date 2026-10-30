@@ -21,6 +21,7 @@ mod state;
 mod status;
 mod vocabulary;
 
+use std::path::Path;
 use std::process::ExitCode;
 
 use monospace_editing::Session;
@@ -99,7 +100,7 @@ fn run() -> Result<(), AppError> {
 fn start(path: Option<&str>) -> Result<Session, AppError> {
     match path {
         None => Ok(Session::new(monospace_description::parse(DEMO)?)),
-        Some(path) => load(path),
+        Some(path) => load(Path::new(path)),
     }
 }
 
@@ -110,10 +111,11 @@ fn start(path: Option<&str>) -> Result<Session, AppError> {
 /// disagree about what a description is. **The path is part of both failures**: a file that
 /// cannot be read and a text that does not parse both name it, so the dialog can show the reason
 /// without knowing which of the two went wrong.
-pub(crate) fn load(path: &str) -> Result<Session, AppError> {
-    let text = std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?;
-    let diagram =
-        monospace_description::parse(&text).map_err(|error| format!("{path}: {error}"))?;
+pub(crate) fn load(path: &Path) -> Result<Session, AppError> {
+    let text =
+        std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let diagram = monospace_description::parse(&text)
+        .map_err(|error| format!("{}: {error}", path.display()))?;
 
     Ok(Session::new(diagram))
 }

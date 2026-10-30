@@ -1,59 +1,58 @@
-//! The open dialog: a path typed by hand, an `Ok` and a `Cancel`.
+//! The open dialog: the framework's file browser.
 //!
-//! **The framework's frame and buttons, and the application's field.** `rat-widget`'s
-//! `DialogFrame` draws the box, the two buttons and the row they sit in, and its `TextInput` is the
-//! one field: the application says what the dialog is called and what the field holds. The dialog
-//! is the second overlay, after the About one, and it takes every key and every control while it is
-//! up, the same way (D6 of #189).
+//! **This is the spike's version of the dialog.** The slice before it typed a path into one field;
+//! this one hands the choice to `rat-widget`'s `FileDialog`, which brings the roots, the directory
+//! and file lists, a path field and a `New` button. What the application keeps is the one thing the
+//! framework does not know: what to do with the chosen path, and how to say why it failed.
 //!
-//! **The dialog says a path and nothing else.** Reading and parsing are `crate::load`'s, and the
+//! **The dialog chooses a path and nothing else.** Reading and parsing are `crate::load`'s, and the
 //! action that carries them out is `callbacks::apply`'s, so the dialog does not know what a
-//! description is and a later slice can replace the field with the framework's `FileDialog`
-//! without touching either.
+//! description is. The chosen path is held in `pending` until the action takes it, because
+//! `Action::Load` stays a meaning with no payload, as `Action::Delete` is.
 //!
-//! **The focus runs inside the dialog.** The field starts focused, `Tab` moves to the buttons, and
-//! the focused button is drawn in reverse video, which is the cue the About dialog and the menu bar
-//! already use (D3 of #189).
+//! **The roots are the application's.** The framework would derive them from the platform, which
+//! is neither deterministic nor testable; the dialog is given one `Start` root at the directory it
+//! opens in, and the path field still reaches anywhere. A later slice can decide whether the
+//! default roots belong in the product.
+//!
+//! **A failure keeps the browser up.** The reason is drawn on one row below it, so the person can
+//! correct the choice without opening the menu again. The framework's dialog has no error slot, so
+//! the row is the application's.
+
+use std::path::{Path, PathBuf};
 
 use rat_theme4::WidgetStyle;
 use rat_theme4::theme::SalsaTheme;
-use rat_widget::dialog_frame::{DialogFrame, DialogFrameState, DialogFrameStyle};
-use rat_widget::event::{ButtonOutcome, HandleEvent, Outcome, Regular};
-use rat_widget::focus::{Focus, FocusBuilder};
+use rat_widget::event::{Dialog, FileOutcome, HandleEvent};
+use rat_widget::file_dialog::{FileDialog, FileDialogState};
 use rat_widget::text::HasScreenCursor;
-use rat_widget::text_input::{TextInput, TextInputState};
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::{Constraint, Layout, Rect};
-use ratatui_core::style::Style;
 use ratatui_core::widgets::{StatefulWidget, Widget};
-use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui_crossterm::crossterm::event::Event;
 use ratatui_widgets::block::Block;
 use ratatui_widgets::paragraph::{Paragraph, Wrap};
 
-/// The largest the dialog grows: wide enough for a path, short enough to leave the chrome around
-/// it visible.
-const MAX_WIDTH: u16 = 44;
+use crate::vocabulary::AppError;
+
+/// The largest the dialog grows: enough for the three lists and the buttons, and no more than the
+/// region leaves around it.
+const MAX_WIDTH: u16 = 72;
 
 /// The largest the dialog grows, in rows.
-const MAX_HEIGHT: u16 = 10;
-
-/// The label above the field.
-const LABEL: &str = "File name";
+const MAX_HEIGHT: u16 = 20;
 
 /// The title of the dialog.
 const TITLE: &str = "Open a description";
 
-/// The state of the open dialog: whether it is up, what has been typed, and what went wrong.
-#[derive(Debug, Default)]
+/// The state of the open dialog: the framework's browser, the path it chose, and what went wrong.
+#[derive(Default)]
 pub(crate) struct OpenDialogState {
-    /// Whether the dialog is up. The overlay holds the keyboard only while this is true.
-    active: bool,
+    /// The framework's browser: the roots, the two lists, the path field and the buttons.
+    files: FileDialogState,
 
-    /// The frame and its two buttons.
-    frame: DialogFrameState,
-
-    /// The path being typed.
-    input: TextInputState,
+    /// The path the browser chose, waiting for `Action::Load` to take it.
+    pending: Option<PathBuf>,
 
     /// Why the last attempt failed, or `None` before one failed.
     error: Option<String>,
@@ -68,32 +67,46 @@ pub(crate) enum OpenOutcome {
     /// The dialog changed, and the frame is owed.
     Changed,
 
-    /// `Ok` was pressed, and the path is to be read.
+    /// A file was chosen, and the path is to be read.
     Ok,
 }
 
 impl OpenDialogState {
-    /// Opens the dialog with an empty field and no error.
+    /// Opens the dialog at the directory the application was started in.
     ///
-    /// **The field holds the focus when the dialog opens** (D4 of #189): a person opens it to type,
-    /// so the first key is the first character of the path rather than a `Tab`.
+    /// **A directory that cannot be read is the dialog's own failure**, not the load's: the browser
+    /// opens anyway, with the reason on the row below it, so the path field is still reachable.
     pub(crate) fn open(&mut self) {
-        self.active = true;
         self.error = None;
-        self.input.set_value("");
-        self.input.focus.set(true);
-        self.frame.ok.focus.set(false);
-        self.frame.cancel.focus.set(false);
+        self.pending = None;
+
+        let start = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        if let Err(error) = self.open_at(&start) {
+            self.error = Some(format!("{}: {error}", start.display()));
+        }
+    }
+
+    /// Opens the dialog at `dir`, with `dir` as its only root.
+    ///
+    /// **The roots are cleared and rebuilt every time** so a second open does not accumulate them,
+    /// and so the root is the directory the person is looking at rather than a platform guess.
+    fn open_at(&mut self, dir: &Path) -> Result<(), AppError> {
+        self.files.no_default_roots();
+        self.files.clear_roots();
+        self.files.add_root("Start", dir);
+        self.files.open_dialog(dir)?;
+
+        Ok(())
     }
 
     /// Whether the dialog is up.
     pub(crate) fn active(&self) -> bool {
-        self.active
+        self.files.active()
     }
 
-    /// The path as it was typed, without the spaces around it.
-    pub(crate) fn path(&self) -> &str {
-        self.input.text().trim()
+    /// The path the browser chose, if one was chosen and the action has not taken it yet.
+    pub(crate) fn take_pending(&mut self) -> Option<PathBuf> {
+        self.pending.take()
     }
 
     /// Why the last attempt failed, or `None` before one failed.
@@ -102,136 +115,86 @@ impl OpenDialogState {
         self.error.as_deref()
     }
 
-    /// Says why the attempt failed, and gives the field back the focus so it can be corrected.
+    /// Says why the attempt failed.
+    ///
+    /// **The browser keeps the keyboard**, because a failure reopens it at the path's directory;
+    /// the row below the browser is the only thing the error changes.
     pub(crate) fn set_error(&mut self, error: String) {
         self.error = Some(error);
-        self.input.focus.set(true);
-        self.frame.ok.focus.set(false);
-        self.frame.cancel.focus.set(false);
     }
 
-    /// Closes the dialog and forgets what was typed.
-    fn close(&mut self) {
-        self.active = false;
-        self.error = None;
-        self.input.set_value("");
-        self.input.focus.set(false);
-        self.frame.ok.focus.set(false);
-        self.frame.cancel.focus.set(false);
-    }
-
-    /// The focus order: the field, then `Ok`, then `Cancel`.
+    /// Reopens the browser at `dir`, keeping the reason the last attempt failed.
     ///
-    /// **It is rebuilt on every event rather than kept** because that is what the framework's
-    /// dialog does: the flags live in the states, and the builder only says the order.
-    fn build_focus(&self) -> Focus {
-        let mut builder = FocusBuilder::default();
-        builder
-            .widget(&self.input)
-            .widget(&self.frame.ok)
-            .widget(&self.frame.cancel);
-        builder.build()
+    /// **The error is not cleared here**: the caller has just set it, and reopening is what makes
+    /// the corrected choice possible.
+    pub(crate) fn reopen_at(&mut self, dir: &Path) {
+        if let Err(error) = self.open_at(dir) {
+            self.error = Some(format!("{}: {error}", dir.display()));
+        }
     }
 
-    /// Types `path` into the field, for the tests that would otherwise walk it one key at a time.
+    /// Chooses `path` without walking the browser, for the tests that prove the load.
     #[cfg(test)]
-    pub(crate) fn set_path(&mut self, path: &str) {
-        self.input.set_value(path);
+    pub(crate) fn choose(&mut self, path: PathBuf) {
+        self.files.active = false;
+        self.pending = Some(path);
     }
 }
 
 /// What an event means to the dialog.
 ///
-/// **The dialog consumes everything while it is up**: a key it does not use returns
-/// [`OpenOutcome::Continue`], and `callbacks` answers that with nothing, so nothing behind the
-/// overlay is asked. `Ok` does not close the dialog: the path is read first, and a failure leaves
-/// the dialog up with the reason in it.
+/// **The browser consumes everything while it is up**, as the About dialog does: an event it does
+/// not use returns [`OpenOutcome::Continue`], and `callbacks` answers that with nothing, so nothing
+/// behind the overlay is asked. `Ok` does not load by itself: the chosen path waits in `pending`,
+/// and a failure reopens the browser with the reason below it.
 pub(crate) fn handle(event: &Event, state: &mut OpenDialogState) -> OpenOutcome {
-    if !state.active {
+    if !state.active() {
         return OpenOutcome::Continue;
     }
 
-    let mut changed = false;
-
-    // **The focus is asked first** (rule 11 of #189): `Tab` moves between the field and the
-    // buttons before any of them is handed the key, and a press moves the focus to the control
-    // under the pointer.
-    if state.build_focus().handle(event, Regular) == Outcome::Changed {
-        changed = true;
-    }
-
-    let input: Outcome = state.input.handle(event, Regular).into();
-    if input == Outcome::Changed {
-        changed = true;
-    }
-
-    if state.frame.cancel.handle(event, Regular) == ButtonOutcome::Pressed {
-        state.close();
-        return OpenOutcome::Changed;
-    }
-
-    if state.frame.ok.handle(event, Regular) == ButtonOutcome::Pressed {
-        return OpenOutcome::Ok;
-    }
-
-    if is_escape(event) {
-        state.close();
-        return OpenOutcome::Changed;
-    }
-
-    // **`Enter` accepts from the field as well as from `Ok`**: a path typed and entered is the
-    // shortest way through, and the field is where the dialog opens. A focused `Cancel` answered
-    // above, so `Enter` on it still cancels.
-    if is_enter(event) {
-        return OpenOutcome::Ok;
-    }
-
-    if changed {
-        OpenOutcome::Changed
-    } else {
-        OpenOutcome::Continue
+    match state.files.handle(event, Dialog) {
+        Ok(FileOutcome::Ok(path)) => {
+            state.pending = Some(path);
+            state.error = None;
+            OpenOutcome::Ok
+        }
+        Ok(FileOutcome::Cancel) => {
+            state.pending = None;
+            state.error = None;
+            OpenOutcome::Changed
+        }
+        Ok(FileOutcome::Changed) => OpenOutcome::Changed,
+        Ok(_) => OpenOutcome::Continue,
+        Err(error) => {
+            state.error = Some(error.to_string());
+            OpenOutcome::Changed
+        }
     }
 }
 
-/// Paints the dialog, centered in `area`, and says where the terminal's cursor goes.
+/// Paints the browser, centered in `area`, and says where the terminal's cursor goes.
 ///
-/// **The rectangle is the layout's**, as the About dialog's is: `centered` clamps the maximum to
-/// the area it is given, so a region smaller than the maximum shrinks the pop-up rather than the
-/// frame around it.
+/// **The error row is taken out of the pop-up's height**, so the browser and the reason never
+/// overlap, and a dialog with nothing to report is exactly the height it would have been.
 pub(crate) fn draw(
     area: Rect,
     buf: &mut Buffer,
     state: &mut OpenDialogState,
     theme: &SalsaTheme,
 ) -> Option<(u16, u16)> {
-    if !state.active {
+    if !state.active() {
         return None;
     }
 
     let pop_up = area.centered(Constraint::Max(MAX_WIDTH), Constraint::Max(MAX_HEIGHT));
+    let reason_height = u16::from(state.error.is_some());
+    let [dialog, reason] =
+        Layout::vertical([Constraint::Fill(1), Constraint::Length(reason_height)]).areas(pop_up);
 
-    DialogFrame::new()
+    FileDialog::new()
+        .styles(theme.style(WidgetStyle::FILE_DIALOG))
         .block(Block::bordered().title(TITLE))
-        .styles(dialog_style(theme))
-        .left(Constraint::Length(2))
-        .right(Constraint::Length(2))
-        .top(Constraint::Length(0))
-        .bottom(Constraint::Length(0))
-        .render(pop_up, buf, &mut state.frame);
-
-    let content = state.frame.widget_area;
-    let [label, input, reason] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Fill(1),
-    ])
-    .areas(content);
-
-    Paragraph::new(LABEL).render(label, buf);
-
-    TextInput::new()
-        .styles(theme.style(WidgetStyle::TEXT))
-        .render(input, buf, &mut state.input);
+        .render(dialog, buf, &mut state.files);
 
     if let Some(error) = &state.error {
         Paragraph::new(error.as_str())
@@ -240,71 +203,52 @@ pub(crate) fn draw(
             .render(reason, buf);
     }
 
-    state.input.screen_cursor()
-}
-
-/// The dialog's styles, with the buttons' focus cue replaced by reverse video.
-///
-/// **Every state that is not the pointer is a state** (D3 of #189): the focused button and the
-/// pressed one are both reversed, so pressing an `Ok` the keyboard is not on cannot look like a
-/// second kind of focus. `hover` is cleared because a control under the pointer is not a state.
-fn dialog_style(theme: &SalsaTheme) -> DialogFrameStyle {
-    let mut style: DialogFrameStyle = theme.style(WidgetStyle::DIALOG_FRAME);
-
-    if let Some(button) = style.button_style.as_mut() {
-        button.focus = Some(Style::new().reversed());
-        button.armed = Some(Style::new().reversed());
-        button.hover = None;
-    }
-
-    style
-}
-
-/// Whether the event is an `Esc` press, with no modifier on it and no kind but a press.
-fn is_escape(event: &Event) -> bool {
-    matches!(
-        event,
-        Event::Key(KeyEvent {
-            code: KeyCode::Esc,
-            modifiers: KeyModifiers::NONE,
-            kind: KeyEventKind::Press,
-            ..
-        })
-    )
-}
-
-/// Whether the event is an `Enter` press, with no modifier on it and no kind but a press.
-fn is_enter(event: &Event) -> bool {
-    matches!(
-        event,
-        Event::Key(KeyEvent {
-            code: KeyCode::Enter,
-            modifiers: KeyModifiers::NONE,
-            kind: KeyEventKind::Press,
-            ..
-        })
-    )
+    state.files.screen_cursor()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::Config;
-    use rat_widget::focus::HasFocus;
-    use ratatui_core::style::Modifier;
+    use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-    /// The region the dialog is drawn into: the same size the frame gives it on a 40x10 screen.
-    const REGION: Rect = Rect::new(0, 1, 40, 8);
+    /// The region the dialog is drawn into: larger than the smallest terminal, so the three lists
+    /// and the buttons all fit.
+    const REGION: Rect = Rect::new(0, 0, 70, 20);
 
     /// The theme the dialog is drawn in.
     fn theme() -> SalsaTheme {
         Config::default().theme
     }
 
-    /// The dialog, opened and painted once.
-    fn drawn() -> (OpenDialogState, Buffer) {
+    /// A fresh directory under the system temp directory, holding one `demo.json` with `contents`.
+    ///
+    /// **The directory is the test's own**, named after it, so a parallel test's files are never
+    /// in the list the browser reads.
+    fn a_directory_with(name: &str, contents: &str) -> (PathBuf, PathBuf) {
+        use std::io::Write as _;
+
+        let dir = std::env::temp_dir().join(format!(
+            "monospace-open-dialog-{name}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("the test's directory should be writable");
+
+        let path = dir.join("demo.json");
+        std::fs::File::create(&path)
+            .and_then(|mut file| file.write_all(contents.as_bytes()))
+            .expect("the test's description should be writable");
+
+        (dir, path)
+    }
+
+    /// The dialog, opened at `dir` and painted once.
+    fn drawn_at(dir: &Path) -> (OpenDialogState, Buffer) {
         let mut state = OpenDialogState::default();
-        state.open();
+        state
+            .open_at(dir)
+            .expect("the test's directory should be readable");
 
         let mut buffer = Buffer::empty(REGION);
         let _ = draw(REGION, &mut buffer, &mut state, &theme());
@@ -326,110 +270,69 @@ mod tests {
             .join("\n")
     }
 
-    /// Whether the cell at a frame position is painted in reverse video.
-    fn reversed(buffer: &Buffer, column: u16, line: u16) -> bool {
-        buffer[(column, line)]
-            .style()
-            .add_modifier
-            .contains(Modifier::REVERSED)
-    }
-
     /// The event the terminal reports for a key.
     fn key(code: KeyCode) -> Event {
         Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
     }
 
-    /// **The dialog is a title, a field, an `Ok` and a `Cancel`**, and nothing else.
+    /// **The browser is a title, the file list, and `New`, `Ok` and `Cancel`**, and the file the
+    /// directory holds is listed.
     #[test]
-    fn the_open_dialog_holds_a_field_and_two_buttons() {
-        let (_, buffer) = drawn();
+    fn the_open_dialog_lists_the_directory_it_was_given() {
+        let (dir, _) = a_directory_with("listed", "{}");
+        let (_, buffer) = drawn_at(&dir);
         let frame = picture(&buffer);
 
         assert!(frame.contains(TITLE), "the dialog has no title: {frame:?}");
-        assert!(
-            frame.contains(LABEL),
-            "the dialog has no field label: {frame:?}"
-        );
         assert!(frame.contains("Ok"), "the dialog has no Ok: {frame:?}");
         assert!(
             frame.contains("Cancel"),
             "the dialog has no Cancel: {frame:?}"
         );
-    }
-
-    /// **The field holds the focus when the dialog opens**, and `Tab` moves it to `Ok`.
-    #[test]
-    fn tab_moves_from_the_field_to_the_ok() {
-        let (mut state, _) = drawn();
-
+        assert!(frame.contains("New"), "the dialog has no New: {frame:?}");
         assert!(
-            state.input.is_focused(),
-            "the field did not start focused, so the test proves nothing"
-        );
-
-        let outcome = handle(&key(KeyCode::Tab), &mut state);
-
-        assert_eq!(outcome, OpenOutcome::Changed, "Tab changed nothing");
-        assert!(!state.input.is_focused(), "Tab left the focus in the field");
-        assert!(state.frame.ok.is_focused(), "Tab did not reach the Ok");
-    }
-
-    /// **The focused button is reverse video**, so the cue is the one the menu bar and the About
-    /// dialog already use.
-    #[test]
-    fn the_focused_ok_is_reversed() {
-        let (mut state, _) = drawn();
-        let _ = handle(&key(KeyCode::Tab), &mut state);
-
-        let mut buffer = Buffer::empty(REGION);
-        let _ = draw(REGION, &mut buffer, &mut state, &theme());
-
-        let (column, line) = crate::frame::cell_of(&buffer, "Ok");
-        assert!(
-            reversed(&buffer, column, line),
-            "the focused Ok is not reversed"
+            frame.contains("demo.json"),
+            "the directory's file is not listed: {frame:?}"
         );
     }
 
-    /// **Typing reaches the field**, and the path is what was typed.
+    /// **`Enter` on the file list chooses the selected file**, and the path waits for the load
+    /// action rather than being read here.
     #[test]
-    fn typing_reaches_the_field() {
-        let (mut state, _) = drawn();
+    fn enter_chooses_the_selected_file() {
+        let (dir, path) = a_directory_with("chosen", "{}");
+        let mut state = OpenDialogState::default();
+        state
+            .open_at(&dir)
+            .expect("the test's directory should be readable");
 
-        for character in "demo.json".chars() {
-            let _ = handle(&key(KeyCode::Char(character)), &mut state);
-        }
+        let outcome = handle(&key(KeyCode::Enter), &mut state);
 
-        assert_eq!(state.path(), "demo.json", "the field did not take the keys");
-    }
-
-    /// **`Enter` accepts from the field**, which is where the dialog opens.
-    #[test]
-    fn enter_accepts_from_the_field() {
-        let (mut state, _) = drawn();
-        state.set_path("demo.json");
-
+        assert_eq!(outcome, OpenOutcome::Ok, "Enter did not choose the file");
         assert_eq!(
-            handle(&key(KeyCode::Enter), &mut state),
-            OpenOutcome::Ok,
-            "Enter in the field did not accept"
+            state.take_pending(),
+            Some(path),
+            "the chosen path is not the file's"
         );
-        assert!(state.active(), "the dialog closed before the path was read");
+        assert!(!state.active(), "the dialog stayed up after choosing");
     }
 
     /// **`Esc` closes the dialog**, and the dialog is not left holding the keyboard.
     #[test]
     fn escape_closes_the_dialog() {
-        let (mut state, _) = drawn();
+        let (dir, _) = a_directory_with("escape", "{}");
+        let (mut state, _) = drawn_at(&dir);
 
         assert_eq!(handle(&key(KeyCode::Esc), &mut state), OpenOutcome::Changed);
         assert!(!state.active(), "escape did not close the dialog");
     }
 
-    /// **An error is shown in the dialog**, and the dialog stays up so the path can be corrected.
+    /// **An error is shown below the browser**, and the dialog stays up so another file can be
+    /// chosen.
     #[test]
     fn an_error_is_shown_and_the_dialog_stays_up() {
-        let (mut state, _) = drawn();
+        let (dir, _) = a_directory_with("error", "{}");
+        let (mut state, _) = drawn_at(&dir);
         state.set_error("missing.json: the file was not found".to_owned());
 
         let mut buffer = Buffer::empty(REGION);
@@ -441,25 +344,44 @@ mod tests {
             "the error is not on the frame: {frame:?}"
         );
         assert!(state.active(), "the error closed the dialog");
-        assert!(
-            state.input.is_focused(),
-            "the error did not give the field the focus"
-        );
     }
 
-    /// **`Ok` and `Cancel` are the framework's buttons**, and the dialog's cursor is the field's.
+    /// **`F4` reaches the path field**, and the browser says where the terminal's cursor goes.
     #[test]
-    fn the_field_says_where_the_cursor_goes() {
-        let (mut state, _) = drawn();
-        state.set_path("demo.json");
+    fn the_path_field_says_where_the_cursor_goes() {
+        let (dir, _) = a_directory_with("cursor", "{}");
+        let (mut state, _) = drawn_at(&dir);
+
+        let _ = handle(&key(KeyCode::F(4)), &mut state);
 
         let mut buffer = Buffer::empty(REGION);
         let cursor = draw(REGION, &mut buffer, &mut state, &theme());
 
-        assert!(cursor.is_some(), "the field has no cursor");
+        assert!(cursor.is_some(), "the path field has no cursor");
         assert!(
             REGION.contains(cursor.expect("the cursor is set").into()),
             "the cursor is outside the region"
+        );
+    }
+
+    /// **A small region still draws the browser**, because the frame clamps the pop-up to the
+    /// region it is given rather than to its preferred size.
+    #[test]
+    fn a_small_region_still_draws_the_dialog() {
+        let (dir, _) = a_directory_with("small", "{}");
+        let mut state = OpenDialogState::default();
+        state
+            .open_at(&dir)
+            .expect("the test's directory should be readable");
+
+        let small = Rect::new(0, 0, 40, 8);
+        let mut buffer = Buffer::empty(small);
+        let _ = draw(small, &mut buffer, &mut state, &theme());
+
+        let frame = picture(&buffer);
+        assert!(
+            frame.contains("Ok"),
+            "the small dialog has no Ok: {frame:?}"
         );
     }
 }

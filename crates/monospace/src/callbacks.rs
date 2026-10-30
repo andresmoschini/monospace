@@ -13,6 +13,8 @@
 //! which keys the application answers to, and whether a key has to be answered before the chrome,
 //! is `shortcuts`' table. This module only says when each layer is asked.
 
+use std::path::Path;
+
 use rat_salsa::Control;
 use rat_widget::event::Outcome;
 use ratatui_core::buffer::Buffer;
@@ -228,20 +230,24 @@ fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
 
         // **The path is read and parsed before anything is replaced** (the issue's decision): a
         // file that is missing or a text that does not parse leaves the session exactly where it
-        // was, and the dialog stays up with the reason in it. **A file that succeeds starts a new
-        // session**, so the diagram, the selection and the history of the one before it are
-        // discarded and no confirmation asks first.
+        // was, and the browser reopens at the path's directory with the reason below it. **A file
+        // that succeeds starts a new session**, so the diagram, the selection and the history of
+        // the one before it are discarded and no confirmation asks first.
         Action::Load => {
-            let path = state.open.path().to_owned();
-
-            if path.is_empty() {
-                state.open.set_error("a file name is needed".to_owned());
-                return Control::Changed;
-            }
+            let Some(path) = state.open.take_pending() else {
+                return Control::Continue;
+            };
 
             match crate::load(&path) {
                 Ok(session) => *state = AppState::new(session),
-                Err(error) => state.open.set_error(error.to_string()),
+                Err(error) => {
+                    state.open.set_error(error.to_string());
+                    let dir = path
+                        .parent()
+                        .filter(|dir| !dir.as_os_str().is_empty())
+                        .unwrap_or_else(|| Path::new("."));
+                    state.open.reopen_at(dir);
+                }
             }
 
             return Control::Changed;
@@ -804,7 +810,6 @@ mod tests {
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram.selected();
         open_the_open_dialog(&mut state);
-        state.open.set_path("not-read.json");
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
@@ -839,17 +844,17 @@ mod tests {
             "monospace-open-missing-{}.json",
             std::process::id()
         ));
+        let name = missing.to_string_lossy().into_owned();
         let _ = std::fs::remove_file(&missing);
-        let missing = missing.to_str().expect("the temp path is UTF-8");
-        state.open.set_path(missing);
+        state.open.choose(missing);
 
-        let outcome = send(&key(KeyCode::Enter), &mut state);
+        let outcome = apply(Some(Action::Load), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(state.open.active(), "the failure closed the dialog");
         let error = state.open.error().expect("the failure was not reported");
         assert!(
-            error.contains(missing),
+            error.contains(&name),
             "the reason does not name the path: {error:?}"
         );
         assert_eq!(
@@ -873,11 +878,9 @@ mod tests {
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram.selected();
         open_the_open_dialog(&mut state);
-        state
-            .open
-            .set_path(path.to_str().expect("the temp path is UTF-8"));
+        state.open.choose(path);
 
-        let outcome = send(&key(KeyCode::Enter), &mut state);
+        let outcome = apply(Some(Action::Load), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(state.open.active(), "the failure closed the dialog");
@@ -921,11 +924,9 @@ mod tests {
         );
 
         open_the_open_dialog(&mut state);
-        state
-            .open
-            .set_path(path.to_str().expect("the temp path is UTF-8"));
+        state.open.choose(path);
 
-        let outcome = send(&key(KeyCode::Enter), &mut state);
+        let outcome = apply(Some(Action::Load), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.open.active(), "the load left the dialog up");
