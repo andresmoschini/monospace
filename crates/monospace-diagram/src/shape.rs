@@ -657,6 +657,36 @@ mod tests {
         assert_eq!(drawn_in(size, &box_with_text(size, "x")), "┌┐\n└x\n");
     }
 
+    /// Rule 6 - two lines in an 8x5 box: the interior is 6x3, `dy` is zero and both lines start
+    /// at `(2, 1)` and `(2, 2)`.
+    #[test]
+    fn a_box_centres_two_lines_in_the_interior() {
+        let size = Size {
+            width: 8,
+            height: 5,
+        };
+
+        assert_eq!(
+            drawn_in(size, &box_with_text(size, "one\ntwo")),
+            "┌──────┐\n│ one  │\n│ two  │\n│      │\n└──────┘\n"
+        );
+    }
+
+    /// Rule 6 - a label wider than the interior is not clipped to it: in a 5x3 box the 3x1
+    /// interior puts `hello` at `x` 0, so it covers the border on both sides.
+    #[test]
+    fn a_box_draws_text_wider_than_its_interior() {
+        let size = Size {
+            width: 5,
+            height: 3,
+        };
+
+        assert_eq!(
+            drawn_in(size, &box_with_text(size, "hello")),
+            "┌───┐\nhello\n└───┘\n"
+        );
+    }
+
     /// Rule 7 - a box without text draws exactly what it drew before the field existed.
     #[test]
     fn a_box_without_text_draws_what_it_drew_before() {
