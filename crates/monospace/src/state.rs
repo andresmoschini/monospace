@@ -21,6 +21,7 @@ use rat_widget::scrolled::{ScrollAreaState, ScrollState};
 use rat_widget::statusline::StatusLineState;
 use ratatui_core::layout::{Position, Rect};
 
+use crate::open::OpenDialogState;
 use crate::status;
 
 /// The drawing the last frame produced, and the session it was drawn from.
@@ -578,6 +579,12 @@ pub(crate) struct AppState {
     /// **The dialog runs its own focus** while it is up, and the application's leaf is left where
     /// it was, so closing the dialog gives the keyboard back unchanged.
     pub about: MsgDialogState,
+
+    /// The open dialog's own state: the path being typed, its two buttons, and whether it is up.
+    ///
+    /// **The dialog runs its own focus** while it is up, as the About dialog does, so closing it
+    /// gives the keyboard back unchanged. It is the second overlay and the last one drawn.
+    pub open: OpenDialogState,
 }
 
 impl AppState {
@@ -595,6 +602,7 @@ impl AppState {
             status: status::state(),
             focus: Focus::Region,
             about: MsgDialogState::default(),
+            open: OpenDialogState::default(),
         }
     }
 

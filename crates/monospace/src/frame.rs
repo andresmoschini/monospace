@@ -11,6 +11,7 @@
 //! frame is not using — because the screen is too short to hold it — is cleared rather than
 //! left alone.
 
+use rat_salsa::SalsaContext;
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::{Constraint, Layout, Rect};
 use ratatui_core::widgets::Widget;
@@ -18,7 +19,7 @@ use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
 use crate::state::{AppState, Focus};
-use crate::{about, diagram_widget, menu, status};
+use crate::{about, diagram_widget, menu, open, status};
 
 /// The height of the bar across the top.
 pub(crate) const BAR_HEIGHT: u16 = 1;
@@ -102,6 +103,11 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // **The dialog is drawn last of all** (D6): it is the overlay, so it covers the drop-down
     // and everything else, and a control behind it is not there to be seen or clicked.
     about::draw(regions.region, buf, &mut state.about, &global.cfg.theme);
+
+    // **The open dialog is the second overlay and the last thing painted.** Only one of the two is
+    // ever up, and the frame says where the field's cursor goes when this one is.
+    let cursor = open::draw(regions.region, buf, &mut state.open, &global.cfg.theme);
+    global.set_screen_cursor(cursor);
 }
 
 /// Where a piece of text is on a frame, found in the frame itself so that a growing label

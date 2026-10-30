@@ -48,7 +48,7 @@ use crate::vocabulary::Action;
 /// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
 static MENU: StaticMenu = StaticMenu {
     menu: &[
-        ("_File", &["_Quit|Ctrl+Q"]),
+        ("_File", &["_Open|Ctrl+O", "_Quit|Ctrl+Q"]),
         (
             "_Edit",
             &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z", "_Delete|Del"],
@@ -60,8 +60,11 @@ static MENU: StaticMenu = StaticMenu {
 /// The label of the way out.
 const FILE: usize = 0;
 
+/// The entry that asks for a description by name.
+const OPEN: usize = 0;
+
 /// The entry of the way out.
-const QUIT: usize = 0;
+const QUIT: usize = 1;
 
 /// The label of the editing commands.
 const EDIT: usize = 1;
@@ -247,6 +250,7 @@ fn navigation(label: &str) -> Option<char> {
 /// **The bar carries text and nothing else**: an entry means what its position says.
 fn meaning(label: usize, entry: usize) -> Action {
     match (label, entry) {
+        (FILE, OPEN) => Action::Open,
         (FILE, QUIT) => Action::Quit,
         (EDIT, UNDO) => Action::Undo,
         (EDIT, REDO) => Action::Redo,
@@ -611,11 +615,27 @@ mod tests {
         let mut state = drawn();
         open(&mut state);
 
-        let outcome = on_the_bar(&key(KeyCode::Enter), &mut state);
+        let outcome = take(&mut state, "Quit");
 
         assert!(
             matches!(outcome, Some(Action::Quit)),
             "the entry did not become the action of the way out: {outcome:?}"
+        );
+        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+    }
+
+    /// **The File menu's first entry asks for a description by name**, and taking it mints the
+    /// action that opens the dialog rather than a second spelling of the load.
+    #[test]
+    fn taking_the_open_entry_becomes_the_action_of_the_open_dialog() {
+        let mut state = drawn();
+        open(&mut state);
+
+        let outcome = take(&mut state, "Open");
+
+        assert!(
+            matches!(outcome, Some(Action::Open)),
+            "the entry did not become the action of the open dialog: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
     }
@@ -791,10 +811,8 @@ mod tests {
     fn a_click_on_the_entry_becomes_the_same_action() {
         let mut state = drawn();
         open(&mut state);
-        let buffer = draw(&mut state);
-        let (column, row) = cell_of(&buffer, "Quit");
 
-        let outcome = on_the_bar(&click(column, row), &mut state);
+        let outcome = take(&mut state, "Quit");
 
         assert!(
             matches!(outcome, Some(Action::Quit)),

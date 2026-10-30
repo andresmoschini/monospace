@@ -56,8 +56,8 @@ struct Shortcut {
 /// The shortcuts the application answers to.
 ///
 /// **The rows differ in one column, and that column is the whole of the precedence.** The forced
-/// exit is answered before anything, and the other four after everything: they are the same
-/// mechanism with a different scope, rather than one mechanism per row and an `if` somewhere else.
+/// exit is answered before anything, and the others after everything: they are the same mechanism
+/// with a different scope, rather than one mechanism per row and an `if` somewhere else.
 /// The deletion, the undo and the redo are `Unclaimed` because they are not the chrome's to
 /// swallow: which keys the chrome keeps is the focus rule #189 owns, and none of the three is one
 /// of the bar's own (D3 of #178, D3 of #181).
@@ -71,6 +71,12 @@ const SHORTCUTS: &[Shortcut] = &[
         modifiers: KeyModifiers::CONTROL,
         action: Action::ForceQuit,
         reach: Reach::Always,
+    },
+    Shortcut {
+        key: KeyCode::Char('o'),
+        modifiers: KeyModifiers::CONTROL,
+        action: Action::Open,
+        reach: Reach::Unclaimed,
     },
     Shortcut {
         key: KeyCode::Char('q'),

@@ -85,6 +85,21 @@ pub(crate) enum Action {
     /// so the drawing and its history are untouched.
     About,
 
+    /// The open dialog is opened, and the frame is owed.
+    ///
+    /// **The chrome's own and no session**, as [`Self::About`] is: opening the dialog records no
+    /// step, and the path it is given is read only when [`Self::Load`] is taken.
+    Open,
+
+    /// The path in the open dialog is read and parsed, and a new session replaces the old one.
+    ///
+    /// **The path is read from the state where the action is carried out**, so the dialog says a
+    /// path and the action carries the meaning. **A failure changes no session**: the dialog stays
+    /// up with the reason in it, and the diagram, its selection and its history are what they
+    /// were. **A success starts a new session**, and the one before it is discarded without a
+    /// confirmation.
+    Load,
+
     /// The way out: the application ends and the terminal comes back.
     Quit,
 

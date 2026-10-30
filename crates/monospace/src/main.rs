@@ -15,6 +15,7 @@ mod diagram_widget;
 mod event;
 mod frame;
 mod menu;
+mod open;
 mod shortcuts;
 mod state;
 mod status;
@@ -96,12 +97,25 @@ fn run() -> Result<(), AppError> {
 /// back goes straight into the session and is never named: the editing layer takes it, and the
 /// application asks the session for it when it draws.
 fn start(path: Option<&str>) -> Result<Session, AppError> {
-    let text = match path {
-        None => DEMO.to_owned(),
-        Some(path) => std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?,
-    };
+    match path {
+        None => Ok(Session::new(monospace_description::parse(DEMO)?)),
+        Some(path) => load(path),
+    }
+}
 
-    Ok(Session::new(monospace_description::parse(&text)?))
+/// The session a description at `path` describes.
+///
+/// **The same reader the path argument and the demonstration use**, and the one the open dialog
+/// asks for: a file that came from the menu and one that came from the command line cannot
+/// disagree about what a description is. **The path is part of both failures**: a file that
+/// cannot be read and a text that does not parse both name it, so the dialog can show the reason
+/// without knowing which of the two went wrong.
+pub(crate) fn load(path: &str) -> Result<Session, AppError> {
+    let text = std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?;
+    let diagram =
+        monospace_description::parse(&text).map_err(|error| format!("{path}: {error}"))?;
+
+    Ok(Session::new(diagram))
 }
 
 #[cfg(test)]
