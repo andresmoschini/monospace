@@ -286,6 +286,44 @@ the bottom-right corner.
 **A `0×0` area outside a box, `at: (10, 5)`, `text: "abc"`.** `dx = -1`, `dy = 0`: `a` at `(9, 5)`,
 `b` at `(10, 5)`, `c` at `(11, 5)`.
 
+**A three-line block with no area, `at: (5, 5)`, `text: "ABC\nD\nEFG"`.** `dy = -1` for the whole
+block, and each line's `dx` is truncated on its own: `-1` for both three-wide lines and `0` for `D`.
+The block spans rows 4 to 6 and columns 4 to 6, so `at` is the middle of the cross rather than a
+corner. The row and column labels are the grid's, not the shape's.
+
+```text
+ 0123456789
+0
+1
+2
+3
+4    ABC
+5     D
+6    EFG
+7
+8
+9
+```
+
+**The same block with a second text shape stamped over it**, `at: (5, 5)`, `area: 6×6`,
+`text: "123\n4\n567"`, drawn after the first. The two are separate figures on one surface, so
+`(6, 6)` is written twice and the later stamp decides: the `G` is written and then covered by a `1`.
+Stamping them the other way round leaves `EFG23` on that row.
+
+```text
+ 0123456789
+0
+1
+2
+3
+4    ABC
+5     D
+6    EF123
+7       4
+8      567
+9
+```
+
 **The constructor's edge cases.**
 
 | input       | lines | width | height     |
@@ -319,6 +357,11 @@ The names bind the building stage: `crates/monospace-core/src/shape/text.rs`,
 The pictures in _Examples_ are the expected buffers; the tests render and compare them. The
 once-per-position property of `TextShape` is held by
 `no_text_shape_writes_any_position_more_than_once`.
+
+Two more names, both for the pair _Examples_ draws on one grid:
+`a_three_line_block_at_a_zero_area_sits_around_the_point` for the block whose `D` lands on `at`, and
+`a_second_text_shape_overwrites_the_first_where_they_meet` for the later stamp deciding at `(6, 6)`
+and for the swapped order leaving `EFG23`.
 
 The demonstration is the tenth proof, and the only one that is a run rather than a buffer:
 
