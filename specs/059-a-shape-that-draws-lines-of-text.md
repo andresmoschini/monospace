@@ -1,5 +1,6 @@
 ---
-status: draft
+status: agreed
+decided: "#258"
 date: 2026-10-29
 ---
 
@@ -232,9 +233,10 @@ An omitted `text` is no text; the field is `#[serde(default)]` and validated by 
 
 ## Examples
 
-None of these has been observed: this is what the acceptance list checks, not the record of a run.
-The pictures are hypothetical until the building stage teaches the description format to carry
-`text`; none is a `render` block.
+**Observed.** Every picture below is the buffer a named test compares: the box pictures through a
+`Shape::Box` holding the text, the blocks outside a box through a `TextShape` built in the test.
+None is a `render` block, because a text block outside a box has no `kind` of its own and a marker
+could not draw the half that does.
 
 **One line in an 8×5 box at `(0, 0)`, `text: "hi"`.** Interior `6×3`; `dx = 2`, `dy = 1`; the text
 is at `(3, 2)`.
@@ -342,17 +344,17 @@ Stamping them the other way round leaves `EFG23` on that row.
 The names bind the building stage: `crates/monospace-core/src/shape/text.rs`,
 `crates/monospace-diagram/src/shape.rs`, `crates/monospace-description/src/lib.rs`.
 
-| Rule | Test                                                                                                |
-| ---- | --------------------------------------------------------------------------------------------------- |
-| 1    | `a_text_splits_on_newlines_and_refuses_other_control_characters`                                    |
-| 2    | `an_empty_text_is_one_empty_line_and_a_trailing_newline_adds_one`                                   |
-| 3    | `a_text_shape_centres_each_line_in_its_area`, `a_text_shape_writes_a_line_at_the_computed_position` |
-| 4    | `a_zero_area_places_the_block_around_the_position`, `a_text_shape_does_not_clip_to_its_area`        |
-| 5    | `an_empty_line_writes_nothing_and_a_short_line_writes_no_spaces`                                    |
-| 6    | `a_box_centres_its_text_in_the_interior`, `a_two_by_two_box_draws_its_text_on_the_corner`           |
-| 7    | `a_box_without_text_draws_what_it_drew_before`, `a_filled_box_draws_its_text_over_the_fill`         |
-| 8    | `displacing_a_box_moves_its_text`, `a_box_with_text_answers_the_same_anchors`                       |
-| 9    | `a_description_refuses_a_control_character_in_text`, `a_description_reads_a_box_with_text`          |
+| Rule | Test                                                                                                                                                                             |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `a_text_splits_on_newlines_and_refuses_other_control_characters`                                                                                                                 |
+| 2    | `an_empty_text_is_one_empty_line_and_a_trailing_newline_adds_one`                                                                                                                |
+| 3    | `a_text_shape_centres_each_line_in_its_area`, `a_text_shape_writes_a_line_at_the_computed_position`                                                                              |
+| 4    | `a_zero_area_places_the_block_around_the_position`, `a_text_shape_does_not_clip_to_its_area`                                                                                     |
+| 5    | `an_empty_line_writes_nothing_and_a_short_line_writes_no_spaces`                                                                                                                 |
+| 6    | `a_box_centres_its_text_in_the_interior`, `a_two_by_two_box_draws_its_text_on_the_corner`, `a_box_centres_two_lines_in_the_interior`, `a_box_draws_text_wider_than_its_interior` |
+| 7    | `a_box_without_text_draws_what_it_drew_before`, `a_filled_box_draws_its_text_over_the_fill`                                                                                      |
+| 8    | `displacing_a_box_moves_its_text`, `a_box_with_text_answers_the_same_anchors`                                                                                                    |
+| 9    | `a_description_refuses_a_control_character_in_text`, `a_description_reads_a_box_with_text`                                                                                       |
 
 The pictures in _Examples_ are the expected buffers; the tests render and compare them. The
 once-per-position property of `TextShape` is held by
