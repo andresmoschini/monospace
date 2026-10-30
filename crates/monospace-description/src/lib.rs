@@ -45,7 +45,7 @@
 
 use std::num::NonZeroU16;
 
-use monospace_core::{Direction, Glyph, Orientation as CoreOrientation, SymbolStyleName};
+use monospace_core::{Direction, Glyph, Orientation as CoreOrientation, SymbolStyleName, Text};
 use monospace_diagram::{
     Anchor, Delta, Diagram, Endpoint as DiagramEndpoint, Position, Reference,
     Shape as DiagramShape, ShapeId,
@@ -203,6 +203,33 @@ where
 {
     #[derive(Deserialize)]
     struct Wrapper(#[serde(deserialize_with = "deserialize_glyph")] Glyph);
+
+    Ok(Option::<Wrapper>::deserialize(deserializer)?.map(|wrapper| wrapper.0))
+}
+
+/// Deserializes a text field: one string, split on `'\n'`, where any other control character is
+/// refused **by the field's name** the way [`deserialize_glyph`] refuses a bad `fill`.
+fn deserialize_text<'de, D>(deserializer: D) -> Result<Text, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let content = String::deserialize(deserializer)?;
+    Text::new(&content).ok_or_else(|| {
+        serde::de::Error::custom(format!(
+            "`text` is lines of glyphs: {content:?} holds a control character that is not a \
+             newline"
+        ))
+    })
+}
+
+/// Deserializes an optional text field (`text`): absent stays `None`; present, it is checked the
+/// same way [`deserialize_text`] checks a required one.
+fn deserialize_optional_text<'de, D>(deserializer: D) -> Result<Option<Text>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    struct Wrapper(#[serde(deserialize_with = "deserialize_text")] Text);
 
     Ok(Option::<Wrapper>::deserialize(deserializer)?.map(|wrapper| wrapper.0))
 }
@@ -452,6 +479,8 @@ enum ShapeDescription {
         stroke: String,
         #[serde(default, deserialize_with = "deserialize_optional_glyph")]
         fill: Option<Glyph>,
+        #[serde(default, deserialize_with = "deserialize_optional_text")]
+        text: Option<Text>,
     },
     Line {
         #[serde(deserialize_with = "id")]
@@ -496,12 +525,14 @@ impl From<ShapeDescription> for DiagramShape {
                 size,
                 stroke,
                 fill,
+                text,
                 ..
             } => DiagramShape::Box {
                 at: at.into(),
                 size: size.into(),
                 stroke: stroke.as_str().into(),
                 fill,
+                text,
             },
             ShapeDescription::Line {
                 at,
@@ -633,6 +664,56 @@ mod tests {
         assert_ne!(
             small, large,
             "the window is the caller's, not the description's"
+        );
+    }
+
+    /// Rule 9 — a box's `text` is one string, `\n` splits it into lines, and any other control
+    /// character is refused naming the field it was written in.
+    #[test]
+    fn a_description_refuses_a_control_character_in_text() {
+        let json = r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light",
+                          "text": "a\tb" } ]
+        }"#;
+        let error = refusal(json).to_string();
+
+        assert!(
+            error.contains("`text`"),
+            "the refusal names the field the text was written in: {error}"
+        );
+
+        let json = json.replace("a\\tb", "one\\ntwo");
+        parse(&json).expect("`\\n` is the one control character a text allows");
+    }
+
+    /// Rule 9 — a box's `text` is read and drawn centred in the box's interior: an 8x5 box puts
+    /// `hi` at `(3, 2)`, the position the diagram's own box test measures.
+    #[test]
+    fn a_description_reads_a_box_with_text() {
+        let diagram = parse(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 8, "height": 5 }, "stroke": "light",
+                          "text": "hi" } ]
+        }"#,
+        )
+        .expect("a box with a text is a well-formed description");
+
+        let mut buffer = Buffer::new(Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 8,
+                height: 5,
+            },
+        });
+        diagram.draw(&mut buffer);
+
+        assert_eq!(
+            monospace_core::render(&buffer, &GlyphCatalog::light(), buffer.window()),
+            "┌──────┐\n│      │\n│  hi  │\n│      │\n└──────┘\n"
         );
     }
 

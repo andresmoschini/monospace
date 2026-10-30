@@ -432,6 +432,7 @@ mod tests {
                 },
                 stroke: light(),
                 fill: None,
+                text: None,
             })
             .0;
         diagram = diagram
@@ -485,6 +486,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new("░").expect("one glyph")),
+            text: None,
         });
         let (diagram, front) = diagram.add(Shape::Box {
             at: Pos { x: 2, y: 1 },
@@ -494,6 +496,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new("▓").expect("one glyph")),
+            text: None,
         });
         (diagram, back, front)
     }
@@ -989,6 +992,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
         let diagram = Diagram::new()
             .add_under(shared, a_box_at(0))
@@ -1074,6 +1078,7 @@ mod tests {
                 },
                 stroke: light(),
                 fill: None,
+                text: None,
             })
             .0;
 
@@ -1100,6 +1105,7 @@ mod tests {
                 size,
                 stroke: light(),
                 fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+                text: None,
             })
             .0;
         let mut actual = Buffer::new(Window { origin, size });
@@ -1297,6 +1303,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
 
         let mut diagram = Diagram::new();
@@ -1364,6 +1371,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new(fill).expect("one grapheme cluster")),
+            text: None,
         };
         // `add_under` pushes onto the back of the order and the back is the **front** of the
         // order, so the last one added is the front-most and the first is the back-most. Added in
@@ -1432,6 +1440,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
 
         // Nothing a caller writes moves the numbering, and the counter advances by exactly one.
@@ -1467,6 +1476,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new(fill).expect("one grapheme cluster")),
+            text: None,
         };
 
         let repeated = Diagram::new()
@@ -1594,6 +1604,7 @@ mod tests {
                 },
                 stroke: light(),
                 fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+                text: None,
             },
             Shape::Box {
                 at: Pos { x: 2, y: 1 },
@@ -1603,6 +1614,7 @@ mod tests {
                 },
                 stroke: light(),
                 fill: Some(Glyph::new("▓").expect("\"▓\" is one glyph")),
+                text: None,
             },
         )
     }
@@ -1738,6 +1750,7 @@ mod tests {
                 },
                 stroke: light(),
                 fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+                text: None,
             })
             .0;
         let mut occluding_buffer = Buffer::new(Window { origin, size });
@@ -1857,6 +1870,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+            text: None,
         });
         let mut before = Buffer::new(Window { origin, size });
         diagram.draw(&mut before);
@@ -1972,6 +1986,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
         let inner = || Shape::Box {
             at: Pos { x: 2, y: 2 },
@@ -1981,6 +1996,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
 
         let mut outer_then_inner = Diagram::new();
@@ -2044,6 +2060,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new(fill).expect("one glyph")),
+            text: None,
         };
         (
             filled_box(Pos { x: 0, y: 0 }, "░"),
@@ -2096,6 +2113,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
 
         let moved = box_at(1).displaced_by(Delta { dx: 2, dy: 0 });
@@ -2335,6 +2353,7 @@ mod tests {
             size: Size { width, height: 3 },
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+            text: None,
         };
 
         let diagram = Diagram::new();
@@ -2368,6 +2387,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+            text: None,
         };
         let the_line = || Shape::Line {
             at: Pos { x: 0, y: 0 },
@@ -2444,6 +2464,7 @@ mod tests {
                 },
                 stroke: light(),
                 fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+                text: None,
             },
         );
         let after = draw_of(&diagram, origin, size);
@@ -2475,6 +2496,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new(fill).expect("one glyph")),
+            text: None,
         };
         let the_line = |x: i16| Shape::Line {
             at: Pos { x, y: 1 },
@@ -2530,6 +2552,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         }
     }
 
@@ -2576,6 +2599,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new("░").expect("one glyph")),
+            text: None,
         }
     }
 
@@ -3006,6 +3030,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
 
         // The two centres coincide before the offset, and the offset is added to that one answer.
@@ -3092,6 +3117,7 @@ mod tests {
                 },
                 stroke: light(),
                 fill: None,
+                text: None,
             })
             .0;
         expected = expected
@@ -3134,6 +3160,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
         let the_far_end = Pos { x: 0, y: 2 };
         let the_hanging_end = Pos { x: 7, y: 2 };
@@ -4256,6 +4283,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
         let a_line_at = |x: i16| Shape::Line {
             at: Pos { x, y: 0 },
@@ -4529,6 +4557,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
         let hanging_from_both = |from_offset: Delta, to_offset: Delta| {
             let diagram = Diagram::new();
@@ -5151,6 +5180,7 @@ mod tests {
                 },
                 stroke: light(),
                 fill: None,
+                text: None,
             })
             .0;
 
@@ -5181,6 +5211,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new("░").expect("one glyph")),
+            text: None,
         });
         let (diagram, front) = diagram.add(Shape::Box {
             at: Pos { x: 0, y: 0 },
@@ -5190,6 +5221,7 @@ mod tests {
             },
             stroke: light(),
             fill: Some(Glyph::new("▓").expect("one glyph")),
+            text: None,
         });
         let Window { origin, size } = the_window();
 

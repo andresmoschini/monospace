@@ -303,7 +303,17 @@ visiting them back to front with `Above`, so nothing about the picture depends o
 decides first. Its base stroke wins, its arms win on the sides it decided, and the sides it left
 `Unset` fall through — which is how two crossing lines produce a junction rather than one
 interrupting the other. A figure that does hide what it covers does so by writing literal glyphs,
-which is what a box's fill already is. That is the whole of the opacity this phase has.
+which is what a box's fill and its text already are. That is the whole of the opacity this phase
+has.
+
+**A figure may be composed of more than one core figure, and the later stamp decides where they
+meet.** The diagram's box is the first: it stamps its `BoxShape` and then, when it holds a text, a
+`TextShape` over the interior, so a labelled filled box reads its text over its fill and a line
+reaching the border keeps its junction unless the text covers that cell. **The once-per-position
+property is the core figure's rather than the composition's**: a position the text covers is written
+twice across the two figures, deliberately, and each figure alone still writes nothing twice. Text
+is not an identity of its own either — the box carries it, moves it with its own position, and
+answers the same four anchors with it as without it.
 
 Neither line knows the other is there, and neither one is in front in any way that matters — the
 front-most one is the horizontal, and the cell where they cross is `┼` rather than a `│` with a gap

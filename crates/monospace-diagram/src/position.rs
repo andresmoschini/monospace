@@ -330,6 +330,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         }
     }
 
@@ -403,6 +404,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
 
         assert_eq!(the_box.anchor(Anchor::Top), Some(Pos { x: 1, y: 0 }));
@@ -427,6 +429,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
         let one_tall = Shape::Box {
             at: Pos { x: 0, y: 0 },
@@ -436,6 +439,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         };
 
         assert_eq!(one_wide.anchor(Anchor::Top), Some(Pos { x: 0, y: 0 }));
@@ -470,6 +474,7 @@ mod tests {
             size: super::flat_size(len, orientation),
             stroke: light(),
             fill: None,
+            text: None,
         };
 
         for (at, len, orientation) in [
@@ -682,6 +687,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         });
         let nothing = Delta { dx: 0, dy: 0 };
         let stands_at = |anchor| {

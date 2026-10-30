@@ -8,6 +8,7 @@ mod connector;
 pub(crate) mod fragment;
 mod line;
 mod route;
+mod text;
 
 #[cfg(test)]
 mod gallery;
@@ -15,6 +16,7 @@ mod gallery;
 pub use box_shape::BoxShape;
 pub use connector::{Connector, Endpoint, Terminal};
 pub use line::Line;
+pub use text::{Text, TextShape};
 
 /// One write operation and no reader. What a shape draws into.
 ///

@@ -256,7 +256,7 @@ fn an_explicit_path_prints_the_hand_written_box() {
 
 /// Rule 8 — a path and no `--size` draws into the demonstration's window.
 ///
-/// **The file says `4x3` and the picture is fifty by thirteen.** That is the whole of the claim:
+/// **The file says `4x3` and the picture is fifty by seventeen.** That is the whole of the claim:
 /// the default is a value this binary chose, and the description it was handed has nothing to say
 /// about it. The picture is the box in the top-left corner of a window that reaches well past it,
 /// which is what makes the default visible rather than asserted.
@@ -279,8 +279,8 @@ fn a_path_and_no_size_draws_into_the_demonstrations_window() {
     let picture = String::from_utf8_lossy(&output.stdout);
     assert_eq!(
         picture.lines().count(),
-        13,
-        "the demonstration's window is thirteen rows tall: {picture}"
+        17,
+        "the demonstration's window is seventeen rows tall: {picture}"
     );
     assert_eq!(
         picture.lines().next().expect("a first row").chars().count(),
@@ -311,8 +311,8 @@ fn the_bare_run_draws_into_the_demonstrations_window() {
         let first = first_demonstrated_picture(&stdout);
         assert_eq!(
             first.lines().count(),
-            13,
-            "the demonstration is thirteen rows tall whatever the command line says"
+            17,
+            "the demonstration is seventeen rows tall whatever the command line says"
         );
         assert_eq!(
             first.lines().next().expect("a first row").chars().count(),
