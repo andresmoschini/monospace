@@ -19,8 +19,8 @@ characters, and how a shape puts cells in both without its caller computing any 
 above those — an input format, parsing, deciding where a figure goes — belongs to layers that are
 not described here. The first of them now has a document of its own:
 [`diagram-model.md`](diagram-model.md) owns what holds a figure after it has been drawn, and this
-one stays the buffer and render model. Text and diagonals are out of the model entirely; they will
-be designed when they arrive.
+one stays the buffer and render model. Diagonals are out of the model entirely; they will be
+designed when they arrive.
 
 What this document owns beyond those three mechanisms is the domain's **open questions**, including
 the ones about layers it does not describe yet. They are collected under _Open questions_, because
@@ -156,7 +156,8 @@ absence of a cell; the second is a decision.
 
 Most cells are a base stroke and four arms, as above, and the character they draw is derived. A cell
 can instead hold **a literal glyph**: the character it renders to, chosen rather than derived. Text
-needs that, and so does a fill that hides what it covers rather than letting it show through.
+needs that — and the text block is now its consumer — and so does a fill that hides what it covers
+rather than letting it show through.
 
 A literal has no arms of its own. For composing, it behaves as a cell whose four arms are `Closed`:
 nothing connects into a character. Which of the three kinds a cell ends up being belongs to the
@@ -424,9 +425,9 @@ path's steps into a border run's two sides happen in the route.
 
 ### The initial set
 
-Three figures, and each of them names the **stroke** its cells are drawn in: it is the base stroke
-of every stroke cell the figure writes. The core holds no default for it. What a diagram looks like
-is the caller's to say, and a constant inside the core would be an appearance decision no glyph set
+Four figures. Three of them name the **stroke** their cells are drawn in: it is the base stroke of
+every stroke cell the figure writes. The core holds no default for it. What a diagram looks like is
+the caller's to say, and a constant inside the core would be an appearance decision no glyph set
 could reach.
 
 A **box** is a position, a size and a stroke, with a fill as an option: corners, border runs and an
@@ -445,6 +446,16 @@ connector leaves it in, and a **terminal**; `at` is the cell the terminal hangs 
 terminal may write is vocabulary this document owns, so naming one more of them is a change here and
 in the figure, and to whatever states it as a rule. A glyph terminal's glyph points opposite to the
 direction that endpoint leaves in, and a symbol terminal's symbol does the same.
+
+A **text block** is a position, an area and lines of literal glyphs, and no stroke: every cell it
+writes holds a glyph the block carries, in the sense of _A cell can be a literal instead_. One glyph
+is one cell, however many columns a terminal draws it in, and each line is centred in the area by
+half the signed difference between the area and the line, truncated toward zero. **An area of zero
+is a zero area** rather than a sentinel saying "start at the position", so the block sits around its
+position and a caller with no area to give has an honest spelling of that; nothing is clipped to the
+area, so a block wider than the area overflows on both sides. It writes no position twice, an empty
+line writes nothing, and a line shorter than the area writes no spaces. It is a complete figure and
+may be placed as a piece, which is what a box with a text does.
 
 ### What a terminal writes
 
@@ -586,7 +597,9 @@ not.
   empty key. The test records the behavior; the question of whether that is wanted is deliberately
   left open.
 - A shape writes no position more than once in one drawing. The decomposition is what produces that,
-  so a counter per position tests the decomposition rather than a guard.
+  so a counter per position tests the decomposition rather than a guard. A text block is the case
+  where the writing is literal rather than arms, and it holds to the same property; an empty line in
+  it writes nothing at all.
 - Two lines whose ends land on one position render the corner the two of them make, whichever order
   they are drawn in.
 
@@ -598,8 +611,9 @@ not.
   first and the two give different characters for the same cell, and the discipline it needs —
   declaring a chain only for a genuine variant — cannot be checked by anything. It would come back
   if a second variant stroke were declared and copying whole tables again became the cost.
-- **Text and diagonals.** Out of the model, not merely out of the first slice. Connectors were on
-  this list until _Shapes_ was written and are not on it any more.
+- **Diagonals.** Out of the model, not merely out of the first slice. Text was on this list and is
+  not on it any more: the text block is in _The initial set_. Connectors were on this list until
+  _Shapes_ was written and are not on it any more.
 - **A coordinate-and-glyph output**, as an alternative to the string.
 - **Color.** It fits the degradation rule — one owner imposes, the rest yield — and would be a good
   way to test whether that rule generalizes. **The chrome's colors are the theme's**, which is a
