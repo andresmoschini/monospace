@@ -29,6 +29,25 @@ change; the area and the centring are what it will reuse.
   core's `BoxShape` and `TextShape`. A displaced box carries its text unchanged.
 - `monospace-description`: a box's optional `text` field, one string with `\n` line breaks, refused
   by name if it holds any other control character.
+- Both shipped demonstrations, `crates/monospace/assets/demo.json` and
+  `crates/monospace-cli/assets/demo.json`, gain the same labelled box, so the bare run shows the
+  shape rather than only a test knowing it:
+
+  ```json
+  {
+    "kind": "box",
+    "id": 27,
+    "at": { "x": 0, "y": 13 },
+    "size": { "width": 10, "height": 4 },
+    "stroke": "light",
+    "text": "Hello\nWorld!"
+  }
+  ```
+
+  `Hello` and `World!` need an interior six cells wide and two tall, and every box the demonstration
+  already holds is 4×3 in a window thirteen rows high whose last row is taken. So this is a new row
+  and the window grows to hold it, which moves all eight of the demonstration's pictures.
+
 - The tests and the exact pictures in _Examples_; the model amendments below.
 
 ### Out
@@ -300,6 +319,19 @@ The names bind the building stage: `crates/monospace-core/src/shape/text.rs`,
 The pictures in _Examples_ are the expected buffers; the tests render and compare them. The
 once-per-position property of `TextShape` is held by
 `no_text_shape_writes_any_position_more_than_once`.
+
+The demonstration is the tenth proof, and the only one that is a run rather than a buffer:
+
+```text
+┌────────┐
+│ Hello  │
+│ World! │
+└────────┘
+```
+
+`cargo run -p monospace-cli` prints it at the bottom left of every picture it prints, and the window
+it draws into is four rows taller to hold it. `the_bare_run_prints_a_labelled_box` holds the rows
+the label lands on.
 
 ## Open questions
 
