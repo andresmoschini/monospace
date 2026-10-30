@@ -144,7 +144,7 @@ const DEMO_WINDOW: Window = Window {
     origin: Pos { x: 0, y: 0 },
     size: Size {
         width: 50,
-        height: 13,
+        height: 17,
     },
 };
 
@@ -1170,9 +1170,33 @@ mod tests {
         );
         assert_eq!(
             once.lines().count(),
-            13,
-            "the shipped window is thirteen rows tall and nothing is added: {once:?}"
+            17,
+            "the shipped window is seventeen rows tall and nothing is added: {once:?}"
         );
+    }
+
+    /// Rule 6 — the demonstration's labelled box prints at the bottom left of every picture the run
+    /// prints, forward and walked back.
+    ///
+    /// **Rows 13 to 16 are below every figure the demonstration already drew**, so the box is what
+    /// a reader sees there, and its two lines are centred in the eight-cell interior. The window is
+    /// four rows taller than it was for no other reason.
+    #[test]
+    fn the_bare_run_prints_a_labelled_box() {
+        for picture in demonstrated_blocks(super::DEMO, super::DEMO_WINDOW) {
+            let rows: Vec<&str> = picture
+                .lines()
+                .skip(13)
+                .take(4)
+                .map(str::trim_end)
+                .collect();
+
+            assert_eq!(
+                rows,
+                ["┌────────┐", "│ Hello  │", "│ World! │", "└────────┘"],
+                "every picture carries the labelled box at its bottom left: {picture:?}"
+            );
+        }
     }
 
     /// The glyph a picture shows at `(column, row)`, or a space where it draws nothing.
@@ -1617,7 +1641,7 @@ mod tests {
         for (x, y, glyph, expected) in THE_CROSSING_CELLS {
             let at = Pos {
                 x: i16::try_from(x).expect("a fifty-column window"),
-                y: i16::try_from(y).expect("a thirteen-row window"),
+                y: i16::try_from(y).expect("a seventeen-row window"),
             };
             assert_eq!(the_glyph_at(&picture, (x, y)), glyph, "the cell at {at:?}");
             assert_eq!(
@@ -1932,14 +1956,14 @@ mod tests {
         }
     }
 
-    /// Rule 10 — the demonstration's eight pictures before the walk back are unchanged by this
-    /// change.
+    /// Rule 10 — the demonstration's eight pictures before the walk back are pinned, so a later
+    /// change that moves them is reported rather than argued.
     ///
     /// **Pinned as a snapshot rather than as eight literals**, because the eight are fifty columns
-    /// and thirteen rows each and nobody reads them as text. What a snapshot buys is that a move is
+    /// and seventeen rows each and nobody reads them as text. What a snapshot buys is that a move is
     /// reported rather than argued, and the report is the whole of what "unchanged" means here: the
-    /// eight are the demonstration's own, and this change contributes nothing to them but the
-    /// window they are drawn at.
+    /// eight are the demonstration's own, and a change that gives it a new figure or four more rows
+    /// accepts the move in the same commit that makes it.
     ///
     /// It is a contract test and sits in the directory of its own, beside the characterization: the
     /// eight pictures are a decision about what the demonstration shows, not a record of a range.

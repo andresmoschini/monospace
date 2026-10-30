@@ -1,5 +1,5 @@
 {
-  "next_id": 27,
+  "next_id": 28,
   "shapes": [
     {
       "kind": "box",
@@ -208,6 +208,14 @@
       "at": { "x": 42, "y": 10 },
       "size": { "width": 4, "height": 3 },
       "stroke": "double"
+    },
+    {
+      "kind": "box",
+      "id": 27,
+      "at": { "x": 0, "y": 13 },
+      "size": { "width": 10, "height": 4 },
+      "stroke": "light",
+      "text": "Hello\nWorld!"
     }
   ]
 }

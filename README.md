@@ -128,7 +128,7 @@ A description is JSON: an ordinal and a list of shapes, documented by the crate 
 description and draws the `Diagram` it gets back.
 
 **The window is the caller's**, and this binary names it with two flags: `--size <width>x<height>`
-and, beside it, `--origin <x>,<y>`. A path given neither is drawn into `50x13` at `(0, 0)`, which is
+and, beside it, `--origin <x>,<y>`. A path given neither is drawn into `50x17` at `(0, 0)`, which is
 the demonstration's own window — a convenience for a person running the binary by hand rather than a
 rule any file depends on. **The sheet takes neither**, because it draws no description: `--symbols`
 prints every style the catalog holds and the seven symbols each draws, which is
