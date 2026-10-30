@@ -13,6 +13,7 @@
 use monospace_core::Shape as _;
 use monospace_core::{
     BoxShape, Connector, Direction, Glyph, Line, Orientation, Pos, Size, Stroke, Surface, Terminal,
+    Text, TextShape,
 };
 
 use crate::position::{flat_size, side_centre};
@@ -80,7 +81,7 @@ impl Endpoint {
 /// type this enum holds already supported them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Shape {
-    /// A box: a position, a size, a stroke and an optional fill.
+    /// A box: a position, a size, a stroke, an optional fill and an optional text.
     Box {
         /// The box's top-left corner.
         at: Pos,
@@ -90,6 +91,8 @@ pub enum Shape {
         stroke: Stroke,
         /// The glyph that fills the interior, or `None` for no fill at all.
         fill: Option<Glyph>,
+        /// The block centred in the interior, or `None` for no text at all.
+        text: Option<Text>,
     },
     /// A line: a position, a length, an orientation and a stroke.
     Line {
@@ -158,13 +161,31 @@ impl Shape {
                 size,
                 stroke,
                 fill,
-            } => BoxShape {
-                at: *at,
-                size: *size,
-                stroke: stroke.clone(),
-                fill: fill.clone(),
+                text,
+            } => {
+                BoxShape {
+                    at: *at,
+                    size: *size,
+                    stroke: stroke.clone(),
+                    fill: fill.clone(),
+                }
+                .draw(surface);
+
+                if let Some(text) = text {
+                    let (Some(x), Some(y)) = (at.x.checked_add(1), at.y.checked_add(1)) else {
+                        return;
+                    };
+                    TextShape {
+                        at: Pos { x, y },
+                        area: Size {
+                            width: size.width.saturating_sub(2),
+                            height: size.height.saturating_sub(2),
+                        },
+                        text: text.clone(),
+                    }
+                    .draw(surface);
+                }
             }
-            .draw(surface),
             Self::Line {
                 at,
                 len,
@@ -234,11 +255,13 @@ impl Shape {
                 size,
                 stroke,
                 fill,
+                text,
             } => Self::Box {
                 at: by.apply(*at),
                 size: *size,
                 stroke: stroke.clone(),
                 fill: fill.clone(),
+                text: text.clone(),
             },
             Self::Line {
                 at,
@@ -325,8 +348,8 @@ mod tests {
     use super::{Delta, Endpoint, Shape};
     use crate::{Anchor, Diagram, Position, Reference, ShapeId};
     use monospace_core::{
-        Buffer, CellReader, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke,
-        Terminal, Window, render,
+        Buffer, CellReader, Direction, FigureLayer, Glyph, GlyphCatalog, Orientation, Pos, Size,
+        StampMode, Stroke, Terminal, Text, Window, render,
     };
 
     /// The window the arrangement below is drawn in: two 3×3 boxes on an 11×3 canvas, which is the
@@ -350,6 +373,7 @@ mod tests {
             },
             stroke: light(),
             fill: None,
+            text: None,
         }
     }
 
@@ -578,6 +602,142 @@ mod tests {
                 .cell(Pos { x: 2, y: 1 })
                 .expect("the connector writes this cell");
             assert!(!cell.is_decided(), "{cell:?} at (2, 1) should be undecided");
+        }
+    }
+
+    /// A box holding a text, drawn into a window wide and tall enough for it.
+    fn box_with_text(size: Size, content: &str) -> Shape {
+        Shape::Box {
+            at: ORIGIN,
+            size,
+            stroke: light(),
+            fill: None,
+            text: Some(
+                Text::new(content)
+                    .unwrap_or_else(|| panic!("{content:?} has no control character")),
+            ),
+        }
+    }
+
+    fn drawn_in(size: Size, shape: &Shape) -> String {
+        let mut buffer = Buffer::new(Window {
+            origin: ORIGIN,
+            size,
+        });
+        shape.draw(
+            &mut FigureLayer::new(&mut buffer, StampMode::Above),
+            &Diagram::new(),
+        );
+        text_of(&buffer)
+    }
+
+    /// Rule 6 - an 8x5 box centres `hi` in its 6x3 interior, which puts it at `(3, 2)`.
+    #[test]
+    fn a_box_centres_its_text_in_the_interior() {
+        let size = Size {
+            width: 8,
+            height: 5,
+        };
+
+        assert_eq!(
+            drawn_in(size, &box_with_text(size, "hi")),
+            "┌──────┐\n│      │\n│  hi  │\n│      │\n└──────┘\n"
+        );
+    }
+
+    /// Rule 6 - a 2x2 box has a 0x0 interior, and its text still draws: `x` lands on the
+    /// bottom-right corner rather than being skipped.
+    #[test]
+    fn a_two_by_two_box_draws_its_text_on_the_corner() {
+        let size = Size {
+            width: 2,
+            height: 2,
+        };
+
+        assert_eq!(drawn_in(size, &box_with_text(size, "x")), "┌┐\n└x\n");
+    }
+
+    /// Rule 7 - a box without text draws exactly what it drew before the field existed.
+    #[test]
+    fn a_box_without_text_draws_what_it_drew_before() {
+        let size = Size {
+            width: 8,
+            height: 5,
+        };
+        let without = Shape::Box {
+            at: ORIGIN,
+            size,
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+
+        assert_eq!(
+            drawn_in(size, &without),
+            "┌──────┐\n│      │\n│      │\n│      │\n└──────┘\n"
+        );
+    }
+
+    /// Rule 7 - the fill is drawn first and the text second, so the text wins where the two meet.
+    #[test]
+    fn a_filled_box_draws_its_text_over_the_fill() {
+        let size = Size {
+            width: 6,
+            height: 3,
+        };
+        let filled = Shape::Box {
+            at: ORIGIN,
+            size,
+            stroke: light(),
+            fill: Some(Glyph::new("░").expect("\"░\" is one glyph")),
+            text: Text::new("hi"),
+        };
+
+        assert_eq!(drawn_in(size, &filled), "┌────┐\n│░hi░│\n└────┘\n");
+    }
+
+    /// Rule 8 - displacing a box moves its text with it, because the text has no position of its
+    /// own: the same figure at `(2, 1)` draws the same `hi` two columns right and one row down.
+    #[test]
+    fn displacing_a_box_moves_its_text() {
+        let size = Size {
+            width: 8,
+            height: 5,
+        };
+        let displaced = box_with_text(size, "hi").displaced_by(Delta { dx: 2, dy: 1 });
+
+        assert_eq!(
+            drawn_in(
+                Size {
+                    width: 10,
+                    height: 6,
+                },
+                &displaced,
+            ),
+            concat!(
+                "          \n",
+                "  ┌──────┐\n",
+                "  │      │\n",
+                "  │  hi  │\n",
+                "  │      │\n",
+                "  └──────┘\n",
+            )
+        );
+    }
+
+    /// Rule 8 - text is not an identity: a box answers the same four anchors with a text as
+    /// without one, and the text is never an anchor or a reference target of its own.
+    #[test]
+    fn a_box_with_text_answers_the_same_anchors() {
+        let size = Size {
+            width: 8,
+            height: 5,
+        };
+        let without = box_with_text(size, "");
+        let with = box_with_text(size, "hi");
+
+        for anchor in [Anchor::Top, Anchor::Right, Anchor::Bottom, Anchor::Left] {
+            assert_eq!(with.anchor(anchor), without.anchor(anchor), "{anchor:?}");
         }
     }
 }

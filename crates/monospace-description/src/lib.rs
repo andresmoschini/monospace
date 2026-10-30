@@ -502,6 +502,7 @@ impl From<ShapeDescription> for DiagramShape {
                 size: size.into(),
                 stroke: stroke.as_str().into(),
                 fill,
+                text: None,
             },
             ShapeDescription::Line {
                 at,

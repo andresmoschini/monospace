@@ -116,6 +116,7 @@ fn a_diagram_of(count: u16) -> Diagram {
                 },
                 stroke: stroke.clone(),
                 fill: Some(fill.clone()),
+                text: None,
             },
         );
     }

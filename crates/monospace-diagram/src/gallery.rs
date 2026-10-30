@@ -129,6 +129,7 @@ fn box_shape(at_: Pos, fill: Option<&str>) -> Shape {
         size: window(6, 3),
         stroke: light(),
         fill: fill.map(glyph),
+        text: None,
     }
 }
 
@@ -167,6 +168,7 @@ fn small_box(at_: Pos, fill: Option<&str>) -> Shape {
         size: window(4, 3),
         stroke: light(),
         fill: fill.map(glyph),
+        text: None,
     }
 }
 

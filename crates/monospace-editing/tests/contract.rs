@@ -72,6 +72,8 @@ fn small_box(at: Pos) -> Shape {
         },
         stroke: Stroke::from("light"),
         fill: None,
+
+        text: None,
     }
 }
 
@@ -134,6 +136,8 @@ fn the_fixture() -> Diagram {
             },
             stroke: Stroke::from("heavy"),
             fill: None,
+
+            text: None,
         })
         .0;
     diagram = diagram
@@ -166,6 +170,8 @@ fn an_extra_box() -> Shape {
         },
         stroke: Stroke::from("light"),
         fill: None,
+
+        text: None,
     }
 }
 
