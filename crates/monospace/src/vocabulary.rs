@@ -123,11 +123,14 @@ impl Reply {
     ///
     /// **The order is `Act > Repaint > Consumed > Ignored`**: an action is carried out whatever
     /// else happened, a frame is owed by either answer, and a handler that took the event stops
-    /// the chain even where addressing it changed nothing.
+    /// the chain even where addressing it changed nothing. **Addressing a press only ever says
+    /// `Ignored` or `Repaint` today**, and the order is written for all four answers so that a
+    /// change to what addressing says cannot be lost here in silence.
     pub(crate) fn merge(self, addressed: Reply) -> Reply {
         match (self, addressed) {
             (Reply::Ignored, addressed) => addressed,
-            (Reply::Consumed, Reply::Repaint) => Reply::Repaint,
+            (Reply::Act(action), _) | (_, Reply::Act(action)) => Reply::Act(action),
+            (Reply::Consumed | Reply::Repaint, Reply::Repaint) => Reply::Repaint,
             (this, _) => this,
         }
     }
@@ -137,6 +140,93 @@ impl Reply {
         match self {
             Reply::Ignored => next(),
             this => this,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use super::*;
+
+    /// The four answers, one of each.
+    fn every_reply() -> [Reply; 4] {
+        [
+            Reply::Ignored,
+            Reply::Consumed,
+            Reply::Repaint,
+            Reply::Act(Action::Quit),
+        ]
+    }
+
+    /// **`Ignored` is the only answer that gives way**, from either side of the merge.
+    #[test]
+    fn an_ignored_reply_gives_way_to_the_other_side() {
+        for reply in every_reply() {
+            assert_eq!(
+                reply.clone().merge(Reply::Ignored),
+                reply,
+                "a handler's {reply:?} lost to the press's silence"
+            );
+            assert_eq!(
+                Reply::Ignored.merge(reply.clone()),
+                reply,
+                "the press's silence beat the handler's {reply:?}"
+            );
+        }
+    }
+
+    /// **A frame owed by either side is owed**: a silence and a repaint merge with the repaint,
+    /// and two of the same answer stay that answer.
+    #[test]
+    fn a_frame_owed_by_either_side_is_owed() {
+        assert_eq!(Reply::Consumed.merge(Reply::Repaint), Reply::Repaint);
+        assert_eq!(Reply::Repaint.merge(Reply::Consumed), Reply::Repaint);
+        assert_eq!(Reply::Repaint.merge(Reply::Repaint), Reply::Repaint);
+        assert_eq!(Reply::Consumed.merge(Reply::Consumed), Reply::Consumed);
+    }
+
+    /// **An action outweighs every other answer**, which is the top of the order the protocol
+    /// promises: `Act > Repaint > Consumed > Ignored`.
+    #[test]
+    fn an_action_outweighs_every_other_answer() {
+        let action = Reply::Act(Action::Quit);
+
+        for reply in every_reply() {
+            assert_eq!(
+                action.clone().merge(reply.clone()),
+                action,
+                "the handler's action lost to {reply:?}"
+            );
+            assert_eq!(
+                reply.clone().merge(action.clone()),
+                action,
+                "the press's action lost to {reply:?}"
+            );
+        }
+    }
+
+    /// **Only `Ignored` asks the next handler**, so an event that was taken is never answered
+    /// twice.
+    #[test]
+    fn only_an_ignored_reply_asks_the_next_handler() {
+        for reply in every_reply() {
+            let asked = Cell::new(false);
+            let next = || {
+                asked.set(true);
+                Reply::Repaint
+            };
+
+            let answer = reply.clone().or_else(next);
+
+            if reply == Reply::Ignored {
+                assert!(asked.get(), "an ignored event stopped the chain");
+                assert_eq!(answer, Reply::Repaint);
+            } else {
+                assert!(!asked.get(), "{reply:?} asked the next handler");
+                assert_eq!(answer, reply);
+            }
         }
     }
 }
