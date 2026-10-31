@@ -42,12 +42,12 @@ struct Shortcut {
     /// The modifiers that go with it, and no others.
     modifiers: KeyModifiers,
 
-    /// What the key means.
+    /// What the key answers.
     ///
-    /// **No row is a screen change**: a key means something a person asks for, and the frame being
-    /// owed again is not something to ask for. The table holds no such row; the type cannot say
-    /// so.
-    action: Action,
+    /// **No row is a screen change**: a key answers with a meaning or with an exit, and the frame
+    /// being owed again is not something a person asks for. The table holds no such row; the type
+    /// cannot say so.
+    reply: Reply,
 
     /// How far it reaches into the order the handlers are asked in.
     reach: Reach,
@@ -69,19 +69,19 @@ const SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         key: KeyCode::Char('c'),
         modifiers: KeyModifiers::CONTROL,
-        action: Action::ForceQuit,
+        reply: Reply::ForceQuit,
         reach: Reach::Always,
     },
     Shortcut {
         key: KeyCode::Char('q'),
         modifiers: KeyModifiers::CONTROL,
-        action: Action::Quit,
+        reply: Reply::Quit,
         reach: Reach::Unclaimed,
     },
     Shortcut {
         key: KeyCode::Char('z'),
         modifiers: KeyModifiers::CONTROL,
-        action: Action::Undo,
+        reply: Reply::Act(Action::Undo),
         reach: Reach::Unclaimed,
     },
     // **The shifted character, not `z` with `SHIFT` set.** A terminal that reports the
@@ -91,13 +91,13 @@ const SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         key: KeyCode::Char('Z'),
         modifiers: KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
-        action: Action::Redo,
+        reply: Reply::Act(Action::Redo),
         reach: Reach::Unclaimed,
     },
     Shortcut {
         key: KeyCode::Delete,
         modifiers: KeyModifiers::NONE,
-        action: Action::Delete,
+        reply: Reply::Act(Action::Delete),
         reach: Reach::Unclaimed,
     },
 ];
@@ -107,14 +107,14 @@ const SHORTCUTS: &[Shortcut] = &[
 /// This is the one `callbacks` asks first, before the chrome. A resize never reaches it: that is
 /// answered before anything is routed.
 pub(crate) fn handle_always(event: &Event) -> Reply {
-    reply(event, Reach::Always)
+    handle(event, Reach::Always)
 }
 
 /// What the event means to a shortcut nobody has claimed.
 ///
 /// This is the one `callbacks` asks last, after the chrome.
 pub(crate) fn handle_unclaimed(event: &Event) -> Reply {
-    reply(event, Reach::Unclaimed)
+    handle(event, Reach::Unclaimed)
 }
 
 /// What the event means to a shortcut of this reach.
@@ -122,13 +122,13 @@ pub(crate) fn handle_unclaimed(event: &Event) -> Reply {
 /// **A shortcut is the combination it shows and not another one**, and it answers to that
 /// combination at its own reach: `Ctrl+Q` is the way out and `Q` is not, and `Ctrl+Shift+Q` is
 /// not either. A release and a repeat are not a press, so neither answers.
-fn handle(event: &Event, reach: Reach) -> Option<Action> {
+fn handle(event: &Event, reach: Reach) -> Reply {
     let Event::Key(key) = event else {
-        return None;
+        return Reply::Ignored;
     };
 
     if key.kind != KeyEventKind::Press {
-        return None;
+        return Reply::Ignored;
     }
 
     SHORTCUTS
@@ -138,15 +138,7 @@ fn handle(event: &Event, reach: Reach) -> Option<Action> {
                 && shortcut.key == key.code
                 && shortcut.modifiers == key.modifiers
         })
-        .map(|shortcut| shortcut.action)
-}
-
-/// What an event means to a shortcut of this reach, as the router's answer.
-fn reply(event: &Event, reach: Reach) -> Reply {
-    match handle(event, reach) {
-        Some(action) => Reply::Act(action),
-        None => Reply::Ignored,
-    }
+        .map_or(Reply::Ignored, |shortcut| shortcut.reply)
 }
 
 /// The events that trigger the shortcuts answered before any handler.
@@ -188,7 +180,7 @@ mod tests {
     fn the_way_out_is_the_shortcut_the_menu_shows() {
         let event = key(KeyCode::Char('q'), KeyModifiers::CONTROL);
 
-        assert_eq!(handle_unclaimed(&event), Reply::Act(Action::Quit));
+        assert_eq!(handle_unclaimed(&event), Reply::Quit);
     }
 
     /// **The two exits differ in their reach, and that is the decision.** The forced exit is
@@ -199,8 +191,8 @@ mod tests {
         let forced_exit = key(KeyCode::Char('c'), KeyModifiers::CONTROL);
         let way_out = key(KeyCode::Char('q'), KeyModifiers::CONTROL);
 
-        assert_eq!(handle_always(&forced_exit), Reply::Act(Action::ForceQuit));
-        assert_eq!(handle_unclaimed(&way_out), Reply::Act(Action::Quit));
+        assert_eq!(handle_always(&forced_exit), Reply::ForceQuit);
+        assert_eq!(handle_unclaimed(&way_out), Reply::Quit);
         assert_eq!(
             handle_unclaimed(&forced_exit),
             Reply::Ignored,
@@ -227,7 +219,7 @@ mod tests {
                     handle_at(&event, shortcut.reach),
                     Reply::Ignored,
                     "{kind:?} answered {:?}",
-                    shortcut.action
+                    shortcut.reply
                 );
             }
         }
@@ -248,7 +240,7 @@ mod tests {
                     handle_at(&key(shortcut.key, modifiers), shortcut.reach),
                     Reply::Ignored,
                     "{:?} with {modifiers:?} answered",
-                    shortcut.action
+                    shortcut.reply
                 );
             }
         }

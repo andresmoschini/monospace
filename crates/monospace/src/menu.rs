@@ -144,16 +144,13 @@ pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
     let focused = chrome.is_bar();
 
     let answer = match menubar::handle_popup_events(chrome.menu_mut(), focused, raw) {
-        // An entry was taken: it means an action, and `callbacks` applies it — which is also where
-        // the keyboard goes back to the region, because a meaning carried out is left there. The
-        // loop is not asked again, so an entry and the key that means the same thing end in one
+        // An entry was taken: it means an answer, and `callbacks` carries it out — which is also
+        // where the keyboard goes back to the region, because a meaning carried out is left there.
+        // The loop is not asked again, so an entry and the key that means the same thing end in one
         // place. An entry nobody knows still closed the drop-down, so it owes the frame.
         MenuOutcome::MenuActivated(label, entry) => {
             chrome.close_popup();
-            match meaning(label, entry) {
-                Some(action) => Reply::Act(action),
-                None => Reply::Repaint,
-            }
+            meaning(label, entry)
         }
 
         // **The widget's vocabulary is finer than the application's.** Selecting, activating and
@@ -276,16 +273,17 @@ fn navigation(label: &str) -> Option<char> {
 /// What an entry of the bar means to the application.
 ///
 /// **The bar carries text and nothing else**: an entry means what its position says, and an entry
-/// nobody knows means nothing — it still closed the drop-down, so the caller owes the frame.
-fn meaning(label: usize, entry: usize) -> Option<Action> {
+/// nobody knows means nothing — it still closed the drop-down, so it owes the frame, which is
+/// [`Reply::Repaint`] said here rather than by the caller.
+fn meaning(label: usize, entry: usize) -> Reply {
     match (label, entry) {
-        (FILE, QUIT) => Some(Action::Quit),
-        (EDIT, UNDO) => Some(Action::Undo),
-        (EDIT, REDO) => Some(Action::Redo),
-        (EDIT, DELETE) => Some(Action::Delete),
-        (HELP, ABOUT) => Some(Action::About),
+        (FILE, QUIT) => Reply::Quit,
+        (EDIT, UNDO) => Reply::Act(Action::Undo),
+        (EDIT, REDO) => Reply::Act(Action::Redo),
+        (EDIT, DELETE) => Reply::Act(Action::Delete),
+        (HELP, ABOUT) => Reply::Act(Action::About),
 
-        _ => None,
+        _ => Reply::Repaint,
     }
 }
 
@@ -685,15 +683,15 @@ mod tests {
     }
 
     #[test]
-    fn taking_the_quit_entry_becomes_the_action_of_the_way_out() {
+    fn taking_the_quit_entry_becomes_the_answer_of_the_way_out() {
         let mut chrome = drawn();
         open(&mut chrome);
 
         let outcome = on_the_bar(&key(KeyCode::Enter), &mut chrome);
 
         assert!(
-            matches!(outcome, Reply::Act(Action::Quit)),
-            "the entry did not become the action of the way out: {outcome:?}"
+            matches!(outcome, Reply::Quit),
+            "the entry did not become the answer of the way out: {outcome:?}"
         );
         assert!(
             !chrome.popup_active(),
@@ -881,7 +879,7 @@ mod tests {
     }
 
     #[test]
-    fn a_click_on_the_entry_becomes_the_same_action() {
+    fn a_click_on_the_entry_becomes_the_same_answer() {
         let mut chrome = drawn();
         open(&mut chrome);
         let buffer = draw(&mut chrome);
@@ -890,8 +888,8 @@ mod tests {
         let outcome = on_the_bar(&click(column, row), &mut chrome);
 
         assert!(
-            matches!(outcome, Reply::Act(Action::Quit)),
-            "the click did not become the action of the way out: {outcome:?}"
+            matches!(outcome, Reply::Quit),
+            "the click did not become the answer of the way out: {outcome:?}"
         );
     }
 

@@ -31,19 +31,19 @@ they are decided rather than repeating them.
 
 ## 1. Vocabulary
 
-| Term            | Meaning                                                                             |
-| --------------- | ----------------------------------------------------------------------------------- |
-| `Event`         | What the application is told: the terminal's, or the framework's own                |
-| `Reply`         | What a handler says about an event: ignored, consumed, a frame owed, or an action   |
-| `Action`        | What the application does about an event                                            |
-| `Frame`         | One picture of the whole screen                                                     |
-| `Region`        | One of the three parts of the screen                                                |
-| `Bar`           | The region across the top, which holds the menus                                    |
-| `Status bar`    | The region along the bottom, which says what the application is                     |
-| `Chrome`        | Everything on the screen that is not the diagram                                    |
-| `Shortcut`      | A key the application answers to, and how far it reaches before the chrome is asked |
-| `Configuration` | What the application is configured with, read once at startup                       |
-| `Session`       | The diagram being edited — [the editing model](editing-model.md) owns it            |
+| Term            | Meaning                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| `Event`         | What the application is told: the terminal's, or the framework's own                       |
+| `Reply`         | What a handler says about an event: ignored, consumed, a frame owed, an action, or an exit |
+| `Action`        | What the application does about an event                                                   |
+| `Frame`         | One picture of the whole screen                                                            |
+| `Region`        | One of the three parts of the screen                                                       |
+| `Bar`           | The region across the top, which holds the menus                                           |
+| `Status bar`    | The region along the bottom, which says what the application is                            |
+| `Chrome`        | Everything on the screen that is not the diagram                                           |
+| `Shortcut`      | A key the application answers to, and how far it reaches before the chrome is asked        |
+| `Configuration` | What the application is configured with, read once at startup                              |
+| `Session`       | The diagram being edited — [the editing model](editing-model.md) owns it                   |
 
 **An event is not an action, and the two are kept apart.** The framework hands the application
 events — a key, a click, a resize — and a handler answers each with a reply that may carry an
@@ -269,9 +269,10 @@ vocabulary is `Ctrl+Z` or `Ctrl+Shift+Z` either, so there is no conflict for the
 today. **A terminal that reports `Ctrl+Shift+Z` as `Ctrl+Z` reports the undo**, and no event tells
 the two apart, so the Edit menu's entry is the way to redo there.
 
-**The way out is one action.** It is reached by the shortcut the menu shows and by the menu's own
-entry, and both apply that same action rather than a code path each: the entry and the key become
-the same thing before anything acts on them, so the two cannot disagree about what the way out is.
+**The way out is one answer.** It is reached by the shortcut the menu shows and by the menu's own
+entry, and both answer the same `Reply::Quit` rather than a code path each: the entry and the key
+become the same thing before anything acts on them, so the two cannot disagree about what the way
+out is.
 
 **`About` is the chrome's own, and it changes no session.** Taking `Help > About` is the action
 `About`, which opens the framework's message dialog and records no step: there is no command and no
@@ -288,7 +289,7 @@ that**: a change of the screen, which is `Reply::Repaint` and not a meaning, and
 which are not carried out at all. The rule is one place and not a line in each action (rule 13 of
 [#189](https://github.com/andresmoschini/monospace/issues/189)).
 
-**`Ctrl+C` is not that action.** It is a forced exit: it ends the application whatever the state is.
+**`Ctrl+C` is not that answer.** It is a forced exit: it ends the application whatever the state is.
 **It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a
 row of one table, and a row says how far the row reaches: a shortcut that reaches everything is
 answered before any handler, so a drop-down that is open and holds the keyboard, and the dialog that

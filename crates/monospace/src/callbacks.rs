@@ -170,18 +170,18 @@ fn target_of(event: &Event, state: &AppState) -> Target {
 /// What a reply does: paint the frame again, change the session, end the loop, or nothing at all.
 ///
 /// **A meaning is carried out here, and nowhere else.** The delete key performs the one command
-/// this slice issues, the two walks give a step back, and `About` opens the dialog; all of them are
-/// carried out beside the two that end the loop so that a handler never does anything but say what
-/// the event meant. **Every meaning that is carried out also leaves the keyboard on the region**
-/// (rule 13 of #189), and that is said once, in [`cleanup`], rather than in each arm.
+/// this slice issues, the two walks give a step back, the arrows displace what is selected, and
+/// `About` opens the dialog; all of them are carried out here so that a handler never does anything
+/// but say what the event meant. **Every meaning that is carried out also leaves the keyboard on
+/// the region** (rule 13 of #189), and that is said once, in [`cleanup`], rather than in each arm.
 ///
 /// **`Ignored` and `Consumed` are the same answer here**: neither owes a frame. **`Repaint` paints
 /// without carrying anything out**, and keeps the focus and menu state routing established. Only a
 /// carried-out meaning applies the cleanup.
 ///
-/// The way out and the forced exit both end the loop. **They are two meanings and not two code
-/// paths**: the way out grows a pop-up to confirm and the forced exit does not, which is #189's,
-/// and until then they end the same way.
+/// **The way out and the forced exit end the loop here**, and they are the only answers this
+/// function does not carry out into the state: nothing about the application changes, so there is
+/// nothing to apply. They are two answers and not two code paths, which is [`Reply::Quit`]'s.
 fn apply(reply: Reply, state: &mut AppState) -> Control<AppEvent> {
     match reply {
         Reply::Ignored | Reply::Consumed => Control::Continue,
@@ -190,8 +190,9 @@ fn apply(reply: Reply, state: &mut AppState) -> Control<AppEvent> {
         // press, and this preserves that focus and the menu state instead of applying the cleanup.
         Reply::Repaint => Control::Changed,
 
-        // **The two that end the loop**, and the only two that are not carried out.
-        Reply::Act(Action::Quit | Action::ForceQuit) => Control::Quit,
+        // **The two that end the loop**, and the only two that are not carried out: nothing about
+        // the state changes, so there is no meaning to apply and no frame to owe.
+        Reply::Quit | Reply::ForceQuit => Control::Quit,
 
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
         // of where the walk stands. At either end the session answers with itself, and the frame is
