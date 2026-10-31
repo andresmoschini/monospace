@@ -64,7 +64,28 @@ pub(crate) fn event(
         // painted with is the one it no longer has, so it is painted again.
         AppEvent::Terminal(Event::Resize(_, _)) => Control::Changed,
 
-        AppEvent::Terminal(event) => apply(route(event, state), state),
+        AppEvent::Terminal(event) => match route(event, state) {
+            // **`Ignored` and `Consumed` are the same answer here**: neither owes a frame.
+            Reply::Ignored | Reply::Consumed => Control::Continue,
+
+            // **The frame is owed, but no action is carried out.** `route` has already addressed
+            // any press, and this preserves that focus and the menu state instead of applying the
+            // cleanup.
+            Reply::Repaint => Control::Changed,
+
+            // **The two that end the loop**, and the only two that are not carried out: nothing
+            // about the state changes, so there is no meaning to apply and no frame to owe.
+            Reply::Quit | Reply::ForceQuit => Control::Quit,
+
+            // **A meaning is carried out, and carrying one out is the same three lines every
+            // time.** What owes the frame is the meaning having been said, not the state having
+            // changed, which is why the cleanup and the paint are here rather than in `apply`.
+            Reply::Act(action) => {
+                apply(action, state);
+                cleanup(state);
+                Control::Changed
+            }
+        },
     })
 }
 
@@ -167,83 +188,44 @@ fn target_of(event: &Event, state: &AppState) -> Target {
     state.target_at(Position::new(mouse.column, mouse.row))
 }
 
-/// What a reply does: paint the frame again, change the session, end the loop, or nothing at all.
+/// Carries a meaning out into the state, and does nothing else.
 ///
-/// **A meaning is carried out here, and nowhere else.** The delete key performs the one command
-/// this slice issues, the two walks give a step back, the arrows displace what is selected, and
-/// `About` opens the dialog; all of them are carried out here so that a handler never does anything
-/// but say what the event meant. **Every meaning that is carried out also leaves the keyboard on
-/// the region** (rule 13 of #189), and that is said once, in [`cleanup`], rather than in each arm.
+/// **Applying and deciding are two jobs, and the framework's boundary is where they split.**
+/// `apply` changes what the application knows; whether the loop continues, paints or ends is
+/// `event`'s, because that is the framework's own vocabulary and nothing else here speaks it.
 ///
-/// **`Ignored` and `Consumed` are the same answer here**: neither owes a frame. **`Repaint` paints
-/// without carrying anything out**, and keeps the focus and menu state routing established. Only a
-/// carried-out meaning applies the cleanup.
-///
-/// **The way out and the forced exit end the loop here**, and they are the only answers this
-/// function does not carry out into the state: nothing about the application changes, so there is
-/// nothing to apply. They are two answers and not two code paths, which is [`Reply::Quit`]'s.
-fn apply(reply: Reply, state: &mut AppState) -> Control<AppEvent> {
-    match reply {
-        Reply::Ignored | Reply::Consumed => Control::Continue,
-
-        // **The frame is owed, but no action is carried out.** `route` has already addressed any
-        // press, and this preserves that focus and the menu state instead of applying the cleanup.
-        Reply::Repaint => Control::Changed,
-
-        // **The two that end the loop**, and the only two that are not carried out: nothing about
-        // the state changes, so there is no meaning to apply and no frame to owe.
-        Reply::Quit | Reply::ForceQuit => Control::Quit,
-
+/// **An action need not change anything.** `Delete` with nothing selected removes nothing, `Undo`
+/// with nothing behind walks nothing, and `Move` with nothing selected moves nothing; every one of
+/// them is applied all the same. **What leaves the keyboard on the region is the carrying out and
+/// not the action** (rule 13 of #189), so it is said once in [`event`], beside the paint.
+fn apply(action: Action, state: &mut AppState) {
+    match action {
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
-        // of where the walk stands. At either end the session answers with itself, and the frame is
-        // owed all the same, because the action was carried out.
-        Reply::Act(Action::Undo) => {
-            state.diagram_mut().undo();
-            cleanup(state);
-            Control::Changed
-        }
+        // of where the walk stands. At either end the session answers with itself.
+        Action::Undo => state.diagram_mut().undo(),
 
-        Reply::Act(Action::Redo) => {
-            state.diagram_mut().redo();
-            cleanup(state);
-            Control::Changed
-        }
+        Action::Redo => state.diagram_mut().redo(),
 
         // **The one action that performs a command.** D2: the meaning arrives from the table and
         // the identity is asked of the state, so the removal is one place and the key that means it
-        // is another. **The frame is owed either way**: an action that was carried out repaints, so
-        // taking the Edit menu's entry closes the drop-down on the screen even when there was no
-        // figure to remove.
-        Reply::Act(Action::Delete) => {
+        // is another.
+        Action::Delete => {
             if let Some(selected) = state.diagram().selected() {
                 state.diagram_mut().remove(selected);
             }
-
-            cleanup(state);
-            Control::Changed
         }
 
         // **The movement is the same shape of action as the deletion** (rule 4 of #179): the delta
-        // arrives from the region's handler and the identity is read here. **A move with nothing
-        // selected moves nothing and paints all the same**, as every action that is carried out
-        // does: what owes the frame is the meaning having been said, not the drawing having
-        // changed.
-        Reply::Act(Action::Move(dx, dy)) => {
+        // arrives from the region's handler and the identity is read here.
+        Action::Move(dx, dy) => {
             if let Some(selected) = state.diagram().selected() {
                 state.diagram_mut().move_shape(selected, dx, dy);
             }
-
-            cleanup(state);
-            Control::Changed
         }
 
         // **The one action that opens an overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
-        Reply::Act(Action::About) => {
-            about::open(state.about_mut());
-            cleanup(state);
-            Control::Changed
-        }
+        Action::About => about::open(state.about_mut()),
     }
 }
 
@@ -1252,10 +1234,9 @@ mod tests {
             state.diagram().selected().is_some(),
             "the box was not selected"
         );
-        state.chrome_mut().move_to_bar();
         state.chrome_mut().menu_mut().set_popup_active(true);
 
-        let outcome = apply(Reply::Act(Action::Move(1, 0)), &mut state);
+        let outcome = send(&key(KeyCode::Right), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
