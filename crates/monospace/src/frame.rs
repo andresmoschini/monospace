@@ -66,11 +66,11 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // region uses.
     Clear.render(area, buf);
 
-    let focused = state.chrome.is_bar();
+    let focused = state.chrome().is_bar();
     menu::draw_bar(
         regions.bar,
         buf,
-        state.chrome.menu_mut(),
+        state.chrome_mut().menu_mut(),
         &global.cfg.theme,
         focused,
     );
@@ -78,7 +78,7 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     diagram_widget::draw(
         regions.region,
         buf,
-        &mut state.diagram,
+        state.diagram_mut(),
         &global.catalog,
         &global.cfg.theme,
     );
@@ -86,23 +86,23 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // **Read after the region is drawn**, because the footprint is a fact of the drawing rather than
     // of the session: the buffer this frame measured is the one the click paths will be answered
     // from, so the bar and the pointer agree about what is on screen.
-    let footprint = state.diagram.footprint();
+    let footprint = state.diagram().footprint();
 
     status::draw(
         regions.status,
         buf,
-        &mut state.status,
+        state.status_mut(),
         footprint,
         &global.cfg.theme,
     );
 
     // The drop-down is drawn after the region: it hangs from the bar and covers the region, and
     // a region painted after it would erase it.
-    menu::draw_drop_down(area, buf, state.chrome.menu_mut(), &global.cfg.theme);
+    menu::draw_drop_down(area, buf, state.chrome_mut().menu_mut(), &global.cfg.theme);
 
     // **The dialog is drawn last of all** (D6): it is the overlay, so it covers the drop-down
     // and everything else, and a control behind it is not there to be seen or clicked.
-    about::draw(regions.region, buf, &mut state.about, &global.cfg.theme);
+    about::draw(regions.region, buf, state.about_mut(), &global.cfg.theme);
 }
 
 /// Where a piece of text is on a frame, found in the frame itself so that a growing label
@@ -341,11 +341,11 @@ mod tests {
     /// been drawn, and a key that arrives before that finds nothing to open.
     fn open_the_drop_down(state: &mut AppState, global: &AppGlobal, navigation: char) {
         let _ = paint(state, global, WIDTH, HEIGHT);
-        state.chrome.move_to_bar();
+        state.chrome_mut().move_to_bar();
         let event = Event::Key(KeyEvent::new(KeyCode::Char(navigation), KeyModifiers::NONE));
-        let _ = crate::menu::handle(&event, &mut state.chrome);
+        let _ = crate::menu::handle(&event, state.chrome_mut());
         assert!(
-            state.chrome.popup_active(),
+            state.chrome().popup_active(),
             "the navigation character did not open the drop-down"
         );
     }
@@ -404,8 +404,8 @@ mod tests {
         });
 
         let target = state.target_at(Position::new(column, line));
-        let outcome =
-            crate::diagram_widget::handle(&event, &mut state.diagram, state.chrome.leaf(), target);
+        let leaf = state.chrome().leaf();
+        let outcome = crate::diagram_widget::handle(&event, state.diagram_mut(), leaf, target);
 
         assert!(
             matches!(outcome, Reply::Repaint),
@@ -483,7 +483,7 @@ mod tests {
 
         // The record counts the offset from the same corner the drawing does.
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "the box does not own the cell it drew"
         );
     }
@@ -495,7 +495,7 @@ mod tests {
 
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 2 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 2 }).is_some(),
             "the first frame did not draw the box"
         );
 
@@ -503,7 +503,7 @@ mod tests {
         // is outside it. The drawing of the frame that follows is what answers.
         let _ = paint(&mut state, &global, WIDTH, 6);
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 2 }).is_none(),
+            state.diagram().owner(Offset { x: 2, y: 2 }).is_none(),
             "the drawing of the first frame survived the second"
         );
     }
@@ -545,7 +545,7 @@ mod tests {
     fn the_owner_survives_the_copy() {
         let mut state = a_state_over(A_BOX);
         let buffer = paint(&mut state, &a_global(), WIDTH, HEIGHT);
-        let diagram = &state.diagram;
+        let diagram = state.diagram();
 
         let top_left = Offset { x: 2, y: 1 };
         let top_right = Offset { x: 5, y: 1 };
@@ -569,7 +569,7 @@ mod tests {
     fn the_owner_is_asked_with_the_click_offset_and_nothing_added() {
         let mut state = a_state_over(A_NARROW_BOX);
         let _ = paint(&mut state, &a_global(), WIDTH, HEIGHT);
-        let diagram = &state.diagram;
+        let diagram = state.diagram();
 
         // The box is at `(2, 1)` of the window and covers two rows: `(3, 3)` is the click with
         // the interior's corner `(1, 2)` added to it, and it names a cell nobody wrote.
@@ -589,17 +589,17 @@ mod tests {
         let global = a_global();
 
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
             "the empty drawing answered a click"
         );
 
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
-        let asked = state.diagram.owner(Offset { x: 2, y: 1 });
+        let asked = state.diagram().owner(Offset { x: 2, y: 1 });
         assert!(asked.is_some(), "the frame's drawing does not answer");
 
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
         assert_eq!(
-            state.diagram.owner(Offset { x: 2, y: 1 }),
+            state.diagram().owner(Offset { x: 2, y: 1 }),
             asked,
             "the second frame's drawing does not answer the same click"
         );
@@ -614,7 +614,7 @@ mod tests {
         let global = a_global();
 
         let before = paint(&mut state, &global, WIDTH, HEIGHT);
-        let asked = state.diagram.owner(Offset { x: 2, y: 1 });
+        let asked = state.diagram().owner(Offset { x: 2, y: 1 });
         assert!(asked.is_some(), "the box is not in the drawing");
 
         // The box's top-left is the screen's `(3, 3)`.
@@ -623,7 +623,7 @@ mod tests {
         let after = paint(&mut state, &global, WIDTH, HEIGHT);
 
         assert_eq!(
-            state.diagram.owner(Offset { x: 2, y: 1 }),
+            state.diagram().owner(Offset { x: 2, y: 1 }),
             asked,
             "the click changed which shape the drawing records"
         );
@@ -672,7 +672,7 @@ mod tests {
 
         let unrecorded = ShapeId::new(NonZeroU16::new(9).expect("9 is not zero"));
         assert!(
-            state.diagram.select(Some(unrecorded)),
+            state.diagram_mut().select(Some(unrecorded)),
             "the selection did not move"
         );
 
@@ -702,7 +702,7 @@ mod tests {
             "a cell of a shape the window does not hold is inverted"
         );
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the selection was dropped when the window stopped holding the shape"
         );
 
@@ -756,7 +756,7 @@ mod tests {
         let global = a_global();
 
         open_the_drop_down(&mut state, &global, 'f');
-        about::open(&mut state.about);
+        about::open(state.about_mut());
         let frame = picture(&paint(&mut state, &global, WIDTH, HEIGHT));
 
         assert!(
@@ -810,9 +810,9 @@ mod tests {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let region = regions(area).region;
 
-        state.chrome.move_to_region();
+        state.chrome_mut().move_to_region();
         let without = paint(&mut state, &global, WIDTH, HEIGHT);
-        state.chrome.move_to_bar();
+        state.chrome_mut().move_to_bar();
         let with = paint(&mut state, &global, WIDTH, HEIGHT);
 
         for line in region.top()..region.bottom() {
@@ -884,7 +884,7 @@ mod tests {
             "a region with no interior drew something"
         );
         assert!(
-            state.diagram.owner(Offset { x: 0, y: 0 }).is_none(),
+            state.diagram().owner(Offset { x: 0, y: 0 }).is_none(),
             "a window with no cells owns one"
         );
     }
@@ -968,7 +968,7 @@ mod tests {
                     x: column - region.left() - 1,
                     y: line - region.top() - 1,
                 };
-                let drawn = state.diagram.glyph(at, &catalog).unwrap_or(" ");
+                let drawn = state.diagram().glyph(at, &catalog).unwrap_or(" ");
 
                 assert_eq!(
                     buffer[(column, line)].symbol(),
@@ -1013,8 +1013,8 @@ mod tests {
         let at_rest = row_of(&paint(&mut state, &global, WIDTH, HEIGHT), 0);
 
         // The drop-down opens over the region, and the bar's row is still the bar's row.
-        state.chrome.menu_mut().bar.select(Some(0));
-        state.chrome.menu_mut().set_popup_active(true);
+        state.chrome_mut().menu_mut().bar.select(Some(0));
+        state.chrome_mut().menu_mut().set_popup_active(true);
         let with_drop_down = row_of(&paint(&mut state, &global, WIDTH, HEIGHT), 0);
 
         assert!(
@@ -1079,7 +1079,7 @@ mod tests {
         // The drop-down opens over the region and closes again.
         open_the_drop_down(&mut state, &global, 'f');
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
-        state.chrome.menu_mut().set_popup_active(false);
+        state.chrome_mut().menu_mut().set_popup_active(false);
         let after = paint(&mut state, &global, WIDTH, HEIGHT);
 
         for line in 0..HEIGHT {
@@ -1104,9 +1104,9 @@ mod tests {
 
         // The drop-down closes, the box is removed, and the same drop-down opens over the newest
         // position.
-        state.chrome.menu_mut().set_popup_active(false);
+        state.chrome_mut().menu_mut().set_popup_active(false);
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
-        state.diagram.remove(shape);
+        state.diagram_mut().remove(shape);
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
         open_the_drop_down(&mut state, &global, 'e');
         let after_the_delete = drop_down_picture(&paint(&mut state, &global, WIDTH, HEIGHT));

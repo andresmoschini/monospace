@@ -89,10 +89,10 @@ pub(crate) fn event(
 /// (D1): [`address`] gives the keyboard to the leaf a press lands in, and says whether it moved,
 /// because the frame that follows is owed even where nothing answers.
 ///
-/// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
-/// state.chrome`, the bar and the keyboard together, and the region `&mut state.diagram`, so what a
-/// handler may change about the application is what its own signature makes possible: the selection,
-/// the drop-down and which leaf holds the keyboard, and never the session.
+/// **The state comes whole and the handler is handed the part it owns.** The chrome is given
+/// `state.chrome_mut()`, the bar and the keyboard together, and the region `state.diagram_mut()`,
+/// so what a handler may change about the application is what its own signature makes possible: the
+/// selection, the drop-down and which leaf holds the keyboard, and never the session.
 ///
 /// **A handler that consumed the event stops the chain**, and that is the difference the protocol
 /// carries: `Ignored` is "not mine, ask the next one", `Consumed` is "mine, and nothing changed",
@@ -108,7 +108,7 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     // is what keeps the forced exit out of the dialog's hands. **`Ignored` is the dialog being
     // down**: the framework answers it while the dialog is inactive, so this is one call and not a
     // question about `active()` followed by a question about the event.
-    match about::handle(event, &mut state.about) {
+    match about::handle(event, state.about_mut()) {
         Reply::Ignored => {}
         reply => return reply,
     }
@@ -118,8 +118,13 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     let target = target_of(event, state);
     let addressed = address(target, state);
 
-    menu::handle(event, &mut state.chrome)
-        .or_else(|| diagram_widget::handle(event, &mut state.diagram, state.chrome.leaf(), target))
+    menu::handle(event, state.chrome_mut())
+        .or_else(|| {
+            // **The pair is taken together** so that the region is asked with the leaf the bar
+            // left behind, which is the one the event was routed with.
+            let (chrome, diagram) = state.chrome_and_diagram();
+            diagram_widget::handle(event, diagram, chrome.leaf(), target)
+        })
         .or_else(|| shortcuts::handle_unclaimed(event))
         .merge(addressed)
 }
@@ -139,7 +144,7 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
 /// and moves nothing. **The answer is `Repaint` where the keyboard moved**, because that is a frame
 /// owed even where no handler answers it: the label that was reversed is not any more.
 fn address(target: Target, state: &mut AppState) -> Reply {
-    if state.chrome.at(target) {
+    if state.chrome_mut().at(target) {
         Reply::Repaint
     } else {
         Reply::Ignored
@@ -192,13 +197,13 @@ fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
         // of where the walk stands. At either end the session answers with itself, and the frame is
         // owed all the same, because the action was carried out.
         Reply::Act(Action::Undo) => {
-            state.diagram.undo();
+            state.diagram_mut().undo();
             cleanup(state);
             Control::Changed
         }
 
         Reply::Act(Action::Redo) => {
-            state.diagram.redo();
+            state.diagram_mut().redo();
             cleanup(state);
             Control::Changed
         }
@@ -209,8 +214,8 @@ fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
         // taking the Edit menu's entry closes the drop-down on the screen even when there was no
         // figure to remove.
         Reply::Act(Action::Delete) => {
-            if let Some(selected) = state.diagram.selected() {
-                state.diagram.remove(selected);
+            if let Some(selected) = state.diagram().selected() {
+                state.diagram_mut().remove(selected);
             }
 
             cleanup(state);
@@ -222,11 +227,11 @@ fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
         // nothing selected is answered before the cleanup**, because nothing was carried out: no
         // command, no step and no frame owed.
         Reply::Act(Action::Move(dx, dy)) => {
-            let Some(selected) = state.diagram.selected() else {
+            let Some(selected) = state.diagram().selected() else {
                 return Control::Continue;
             };
 
-            state.diagram.move_shape(selected, *dx, *dy);
+            state.diagram_mut().move_shape(selected, *dx, *dy);
             cleanup(state);
             Control::Changed
         }
@@ -234,7 +239,7 @@ fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
         // **The one action that opens an overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
         Reply::Act(Action::About) => {
-            about::open(&mut state.about);
+            about::open(state.about_mut());
             cleanup(state);
             Control::Changed
         }
@@ -245,7 +250,7 @@ fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
 /// person took from the bar is done, and what is left to do is in the drawing. The drop-down the
 /// bar was showing closes with it, because a menu nobody holds the keyboard on is not open.
 fn cleanup(state: &mut AppState) {
-    state.chrome.close();
+    state.chrome_mut().close();
 }
 
 /// What the application does about a failure.
@@ -507,12 +512,12 @@ mod tests {
             "Alt+{label} did not owe a frame: {outcome:?}"
         );
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Bar,
             "Alt+{label} did not give the bar the keyboard"
         );
         assert!(
-            state.chrome.popup_active(),
+            state.chrome().popup_active(),
             "Alt+{label} did not open the drop-down"
         );
     }
@@ -544,14 +549,14 @@ mod tests {
             matches!(outcome, Control::Changed),
             "taking About owed no frame: {outcome:?}"
         );
-        assert!(state.about.active(), "taking About opened no dialog");
+        assert!(state.about().active(), "taking About opened no dialog");
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "taking About left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "taking About left the drop-down open"
         );
     }
@@ -562,7 +567,7 @@ mod tests {
     fn the_about_action_changes_no_session() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let selected = state.diagram.selected();
+        let selected = state.diagram().selected();
         assert!(
             selected.is_some(),
             "the box was not selected, so the test proves nothing"
@@ -571,20 +576,20 @@ mod tests {
         open_the_about_dialog(&mut state);
 
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             selected,
             "the dialog changed the selection"
         );
         assert!(
-            !state.diagram.can_undo(),
+            !state.diagram().can_undo(),
             "opening the dialog recorded a step"
         );
         assert!(
-            !state.diagram.can_redo(),
+            !state.diagram().can_redo(),
             "opening the dialog left a step ahead"
         );
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "opening the dialog removed the box"
         );
     }
@@ -596,31 +601,31 @@ mod tests {
     fn escape_closes_the_about_dialog_and_the_event_reaches_nothing_else() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let selected = state.diagram.selected();
+        let selected = state.diagram().selected();
         open_the_about_dialog(&mut state);
-        assert!(state.about.active(), "the dialog is not open");
-        let focus = state.chrome.leaf();
+        assert!(state.about().active(), "the dialog is not open");
+        let focus = state.chrome().leaf();
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.about.active(), "escape did not close the dialog");
+        assert!(!state.about().active(), "escape did not close the dialog");
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             focus,
             "the closing event moved the keyboard"
         );
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "the closing event opened a drop-down"
         );
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             selected,
             "the closing event changed the selection"
         );
         assert!(
-            !state.diagram.can_undo(),
+            !state.diagram().can_undo(),
             "the closing event recorded a step"
         );
     }
@@ -634,7 +639,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         open_the_about_dialog(&mut state);
         let (column, row) = frame::cell_of(&draw(&mut state), "File");
-        let focus = state.chrome.leaf();
+        let focus = state.chrome().leaf();
 
         let outcome = send(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
@@ -645,22 +650,22 @@ mod tests {
             matches!(outcome, Control::Continue),
             "the way out was answered through the dialog: {outcome:?}"
         );
-        assert!(state.about.active(), "Ctrl+Q closed the dialog");
+        assert!(state.about().active(), "Ctrl+Q closed the dialog");
 
         // The bar is behind the overlay even where the dialog does not cover it.
         let _ = send(&click(column, row), &mut state);
 
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             focus,
             "the click on the bar moved the keyboard"
         );
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "the click behind the dialog opened a drop-down"
         );
         assert!(
-            state.about.active(),
+            state.about().active(),
             "the click on the bar closed the dialog"
         );
     }
@@ -772,7 +777,7 @@ mod tests {
         // answered before it (D6 of #189).
         let mut state = a_drawn_state();
         open_the_about_dialog(&mut state);
-        assert!(state.about.active(), "the dialog is not open");
+        assert!(state.about().active(), "the dialog is not open");
 
         let outcome = send(
             &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
@@ -814,7 +819,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "a key with no action changed the state"
         );
     }
@@ -824,7 +829,7 @@ mod tests {
     #[test]
     fn a_left_click_selects_the_shape_that_owns_the_cell() {
         let mut state = a_drawn_state_over(A_BOX);
-        let owner = state.diagram.owner(Offset { x: 2, y: 1 });
+        let owner = state.diagram().owner(Offset { x: 2, y: 1 });
         assert!(owner.is_some(), "the box is not in the drawing");
 
         // The screen's `(3, 3)` is the window's `(2, 1)`: the region's interior starts one row
@@ -833,7 +838,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             owner,
             "the click selected another shape"
         );
@@ -846,7 +851,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the box was not selected"
         );
 
@@ -855,7 +860,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             None,
             "the selection survived a blank cell"
         );
@@ -875,7 +880,7 @@ mod tests {
         let state = a_state();
 
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the bar started with the keyboard"
         );
@@ -886,18 +891,18 @@ mod tests {
     #[test]
     fn a_press_inside_the_region_moves_the_keyboard_and_selects() {
         let mut state = a_drawn_state_over(A_BOX);
-        state.chrome.move_to_bar();
+        state.chrome_mut().move_to_bar();
         let _ = draw(&mut state);
 
         let outcome = send(&click(3, 3), &mut state);
 
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the press left the keyboard on the bar"
         );
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the press inside the interior selected nothing"
         );
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
@@ -909,7 +914,7 @@ mod tests {
     fn a_press_on_the_border_moves_the_keyboard_and_selects_nothing() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let selected = state.diagram.selected();
+        let selected = state.diagram().selected();
         assert!(
             selected.is_some(),
             "the box was not selected, so the test proves nothing"
@@ -921,18 +926,18 @@ mod tests {
             (WIDTH - 1, 3, "the right border"),
             (3, HEIGHT - 2, "the bottom border"),
         ] {
-            state.chrome.move_to_bar();
+            state.chrome_mut().move_to_bar();
             let _ = draw(&mut state);
 
             let outcome = send(&click(column, row), &mut state);
 
             assert_eq!(
-                state.chrome.leaf(),
+                state.chrome().leaf(),
                 Focus::Region,
                 "{what} did not give the region the keyboard"
             );
             assert_eq!(
-                state.diagram.selected(),
+                state.diagram().selected(),
                 selected,
                 "{what} changed the selection"
             );
@@ -946,19 +951,19 @@ mod tests {
     fn a_click_on_the_status_bar_moves_nothing() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let selected = state.diagram.selected();
-        state.chrome.move_to_bar();
+        let selected = state.diagram().selected();
+        state.chrome_mut().move_to_bar();
         let _ = draw(&mut state);
 
         let outcome = send(&click(3, HEIGHT - 1), &mut state);
 
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Bar,
             "the status line took the keyboard"
         );
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             selected,
             "the status line changed the selection"
         );
@@ -976,12 +981,12 @@ mod tests {
         let outcome = send(&click(column, row), &mut state);
 
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Bar,
             "the label did not give the bar the keyboard"
         );
         assert!(
-            state.chrome.popup_active(),
+            state.chrome().popup_active(),
             "the label did not open its drop-down"
         );
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
@@ -993,23 +998,23 @@ mod tests {
     fn a_press_in_the_region_closes_the_drop_down_and_selects() {
         let mut state = a_drawn_state_over(A_BOX_AND_WHAT_HANGS_FROM_IT);
         open_the_drop_down(&mut state, 'f');
-        assert!(state.chrome.popup_active(), "the drop-down did not open");
+        assert!(state.chrome().popup_active(), "the drop-down did not open");
 
         // The right box's top-left is outside the File drop-down, so the press is the region's.
         let outcome = send(&click(17, 3), &mut state);
 
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the press left the keyboard on the bar; the drop-down is {:?}",
-            state.chrome.menu().popup.area
+            state.chrome().menu().popup.area
         );
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "the drop-down survived the keyboard leaving it"
         );
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the press inside the interior selected nothing"
         );
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
@@ -1021,22 +1026,25 @@ mod tests {
     fn the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard() {
         let mut state = a_drawn_state();
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the bar started with the keyboard"
         );
 
         for arrow in [KeyCode::Left, KeyCode::Right, KeyCode::Up, KeyCode::Down] {
-            let selected = state.chrome.menu().bar.selected;
+            let selected = state.chrome().menu().bar.selected;
             let outcome = send(&key(arrow), &mut state);
 
             assert!(
                 matches!(outcome, Control::Continue),
                 "{arrow:?}: {outcome:?}"
             );
-            assert!(!state.chrome.popup_active(), "{arrow:?} opened a drop-down");
+            assert!(
+                !state.chrome().popup_active(),
+                "{arrow:?} opened a drop-down"
+            );
             assert_eq!(
-                state.chrome.menu().bar.selected,
+                state.chrome().menu().bar.selected,
                 selected,
                 "{arrow:?} moved the bar's label"
             );
@@ -1050,7 +1058,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the box was not selected"
         );
         let before = draw(&mut state);
@@ -1059,10 +1067,10 @@ mod tests {
         let after = draw(&mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(state.diagram.can_undo(), "the move recorded no step");
+        assert!(state.diagram().can_undo(), "the move recorded no step");
         assert_eq!(
-            state.diagram.owner(Offset { x: 3, y: 1 }),
-            state.diagram.selected(),
+            state.diagram().owner(Offset { x: 3, y: 1 }),
+            state.diagram().selected(),
             "the drawing does not record the box one cell right"
         );
         assert_eq!(
@@ -1095,7 +1103,7 @@ mod tests {
             let mut state = a_drawn_state_over(A_BOX);
             let _ = send(&click(3, 3), &mut state);
             assert!(
-                state.diagram.selected().is_some(),
+                state.diagram().selected().is_some(),
                 "{arrow:?}: the box was not selected"
             );
 
@@ -1107,11 +1115,11 @@ mod tests {
                 "{arrow:?}: {outcome:?}"
             );
             assert_eq!(
-                state.diagram.owner(at),
-                state.diagram.selected(),
+                state.diagram().owner(at),
+                state.diagram().selected(),
                 "{arrow:?} did not move the box along its own axis"
             );
-            assert!(state.diagram.can_undo(), "{arrow:?} recorded no step");
+            assert!(state.diagram().can_undo(), "{arrow:?} recorded no step");
         }
     }
 
@@ -1127,11 +1135,11 @@ mod tests {
         let _ = draw(&mut state);
 
         assert!(
-            state.diagram.owner(Offset { x: 4, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 4, y: 1 }).is_some(),
             "the two presses did not move the box twice"
         );
         assert_eq!(
-            state.diagram.owner(Offset { x: 3, y: 1 }),
+            state.diagram().owner(Offset { x: 3, y: 1 }),
             None,
             "the second press moved nothing"
         );
@@ -1140,7 +1148,7 @@ mod tests {
         let _ = draw(&mut state);
 
         assert!(
-            state.diagram.owner(Offset { x: 3, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 3, y: 1 }).is_some(),
             "one undo did not give back one press"
         );
 
@@ -1148,11 +1156,11 @@ mod tests {
         let _ = draw(&mut state);
 
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "the second undo did not give back the first press"
         );
         assert!(
-            !state.diagram.can_undo(),
+            !state.diagram().can_undo(),
             "two presses were more than two steps"
         );
     }
@@ -1163,14 +1171,14 @@ mod tests {
     fn a_move_keeps_the_selection() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let selected = state.diagram.selected();
+        let selected = state.diagram().selected();
         assert!(selected.is_some(), "the box was not selected");
 
         let _ = send(&key(KeyCode::Right), &mut state);
         let buffer = draw(&mut state);
 
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             selected,
             "the move dropped the selection"
         );
@@ -1194,11 +1202,11 @@ mod tests {
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
-            !state.diagram.can_undo(),
+            !state.diagram().can_undo(),
             "a move with nothing selected recorded a step"
         );
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "the box moved with nothing selected"
         );
     }
@@ -1210,7 +1218,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the box was not selected"
         );
         open_the_about_dialog(&mut state);
@@ -1218,15 +1226,15 @@ mod tests {
         let _ = send(&key(KeyCode::Right), &mut state);
 
         assert!(
-            state.about.active(),
+            state.about().active(),
             "the arrow closed the dialog it should not have reached"
         );
         assert!(
-            !state.diagram.can_undo(),
+            !state.diagram().can_undo(),
             "a key the dialog swallowed recorded a step"
         );
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "the box moved behind the dialog"
         );
     }
@@ -1238,25 +1246,25 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the box was not selected"
         );
-        state.chrome.move_to_bar();
-        state.chrome.menu_mut().set_popup_active(true);
+        state.chrome_mut().move_to_bar();
+        state.chrome_mut().menu_mut().set_popup_active(true);
 
         let outcome = apply(&Reply::Act(Action::Move(1, 0)), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the move left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "the move left a drop-down open"
         );
-        assert!(state.diagram.can_undo(), "the move recorded no step");
+        assert!(state.diagram().can_undo(), "the move recorded no step");
     }
 
     /// **A frame after a move draws the figure one cell further on** (rule 9): the drawing is the
@@ -1294,7 +1302,7 @@ mod tests {
         }
         let _ = draw(&mut state);
 
-        assert!(state.diagram.can_undo(), "the presses recorded no step");
+        assert!(state.diagram().can_undo(), "the presses recorded no step");
 
         // The region's own border is a box too, so the window is what is asked: no offset of the
         // drawing answers a glyph, and the copy therefore writes none.
@@ -1302,7 +1310,7 @@ mod tests {
         for y in 0..6 {
             for x in 0..38 {
                 assert!(
-                    state.diagram.glyph(Offset { x, y }, &catalog).is_none(),
+                    state.diagram().glyph(Offset { x, y }, &catalog).is_none(),
                     "({x}, {y}) still draws the figure that left the window"
                 );
             }
@@ -1316,7 +1324,7 @@ mod tests {
         for (label, text) in [('f', "Quit"), ('e', "Undo"), ('h', "About")] {
             let mut state = a_drawn_state();
             assert_eq!(
-                state.chrome.leaf(),
+                state.chrome().leaf(),
                 Focus::Region,
                 "the test starts on the bar"
             );
@@ -1343,11 +1351,11 @@ mod tests {
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "a combination that names no label moved the keyboard"
         );
-        assert!(!state.chrome.popup_active(), "a drop-down opened");
+        assert!(!state.chrome().popup_active(), "a drop-down opened");
     }
 
     /// **`Esc` closes the drop-down, and the next one gives the keyboard back to the region**
@@ -1363,11 +1371,11 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "escape left the drop-down open"
         );
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Bar,
             "the first escape left the bar"
         );
@@ -1382,7 +1390,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the second escape did not give the keyboard back"
         );
@@ -1398,7 +1406,7 @@ mod tests {
     fn escape_in_the_region_changes_nothing() {
         let mut state = a_drawn_state();
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the region does not start with the keyboard"
         );
@@ -1407,11 +1415,11 @@ mod tests {
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "escape moved the keyboard"
         );
-        assert!(!state.chrome.popup_active(), "escape opened a drop-down");
+        assert!(!state.chrome().popup_active(), "escape opened a drop-down");
     }
 
     /// **`F10` asks for the bar where a bare `Alt` cannot** (D4, amended): it moves the keyboard and
@@ -1420,7 +1428,7 @@ mod tests {
     fn f10_gives_the_bar_the_keyboard_without_opening_a_drop_down() {
         let mut state = a_drawn_state();
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the test starts on the bar"
         );
@@ -1430,11 +1438,11 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Bar,
             "F10 did not give the bar the keyboard"
         );
-        assert!(!state.chrome.popup_active(), "F10 opened a drop-down");
+        assert!(!state.chrome().popup_active(), "F10 opened a drop-down");
 
         let (column, row) = frame::cell_of(&frame, "File");
         assert!(
@@ -1456,7 +1464,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             None,
             "the click the drop-down took reached the diagram"
         );
@@ -1471,22 +1479,22 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         open_the_drop_down(&mut state, 'e');
 
-        let popup = state.chrome.menu().popup.area;
+        let popup = state.chrome().menu().popup.area;
         let mut border = None;
 
         for row in popup.top()..popup.bottom() {
             for column in popup.left()..popup.right() {
                 let at = Position::new(column, row);
 
-                if state.chrome.menu().popup.item_at((column, row)).is_some() {
+                if state.chrome().menu().popup.item_at((column, row)).is_some() {
                     continue;
                 }
 
-                let Some(offset) = state.diagram.offset_of(at) else {
+                let Some(offset) = state.diagram().offset_of(at) else {
                     continue;
                 };
 
-                if state.diagram.owner(offset).is_some() {
+                if state.diagram().owner(offset).is_some() {
                     border = Some(at);
                     break;
                 }
@@ -1504,7 +1512,7 @@ mod tests {
         });
 
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             None,
             "the test starts with a selection"
         );
@@ -1512,17 +1520,17 @@ mod tests {
         let outcome = send(&click(border.x, border.y), &mut state);
 
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             None,
             "the click on the drop-down's border reached the drawing behind it at {border:?}"
         );
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Bar,
             "the click on the drop-down's border moved the keyboard"
         );
         assert!(
-            state.chrome.popup_active(),
+            state.chrome().popup_active(),
             "the click on the drop-down's border closed the drop-down"
         );
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
@@ -1535,7 +1543,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the box was not selected"
         );
 
@@ -1544,7 +1552,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
             "the drawing still records the removed box"
         );
         assert_eq!(
@@ -1570,7 +1578,7 @@ mod tests {
         let buffer = draw(&mut state);
 
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             None,
             "the identity survived the removal"
         );
@@ -1592,16 +1600,16 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.diagram.can_undo(),
+            !state.diagram().can_undo(),
             "a press with nothing selected recorded a step"
         );
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             None,
             "a press with nothing selected left a selection"
         );
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "the box was removed without a selection"
         );
     }
@@ -1613,23 +1621,26 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the box was not selected"
         );
 
         let outcome = take_the_entry(&mut state, 'e', "Delete");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.chrome.popup_active(), "the entry left the menu open");
+        assert!(
+            !state.chrome().popup_active(),
+            "the entry left the menu open"
+        );
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             None,
             "the entry kept the identity it removed"
         );
 
         let _ = draw(&mut state);
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
             "the entry did not remove the selected shape"
         );
     }
@@ -1645,17 +1656,17 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "the entry stayed open with nothing to remove"
         );
         assert!(
-            !state.diagram.can_undo(),
+            !state.diagram().can_undo(),
             "the entry recorded a step with nothing selected"
         );
 
         let _ = draw(&mut state);
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "a figure was removed with nothing selected"
         );
     }
@@ -1674,23 +1685,23 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             None,
             "the drop-down kept the selection"
         );
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the removal left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "a drop-down is open with the keyboard on the region"
         );
 
         let _ = draw(&mut state);
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
             "the drop-down kept the delete key from the diagram"
         );
     }
@@ -1702,7 +1713,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the box was not selected, so the test proves nothing"
         );
 
@@ -1710,12 +1721,12 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the entry left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "the entry left a drop-down open"
         );
     }
@@ -1746,9 +1757,12 @@ mod tests {
         let outcome = take_the_entry(&mut state, 'e', "Undo");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.chrome.popup_active(), "the entry left the menu open");
-        assert!(!state.diagram.can_undo(), "the entry recorded a step");
-        assert!(!state.diagram.can_redo(), "the entry left a step ahead");
+        assert!(
+            !state.chrome().popup_active(),
+            "the entry left the menu open"
+        );
+        assert!(!state.diagram().can_undo(), "the entry recorded a step");
+        assert!(!state.diagram().can_redo(), "the entry left a step ahead");
 
         let after = draw(&mut state);
 
@@ -1763,10 +1777,16 @@ mod tests {
         let outcome = take_the_entry(&mut state, 'e', "Redo");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.chrome.popup_active(), "the entry left the menu open");
-        assert!(!state.diagram.can_undo(), "the redo entry recorded a step");
         assert!(
-            !state.diagram.can_redo(),
+            !state.chrome().popup_active(),
+            "the entry left the menu open"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "the redo entry recorded a step"
+        );
+        assert!(
+            !state.diagram().can_redo(),
             "the redo entry left a step ahead"
         );
     }
@@ -1781,7 +1801,7 @@ mod tests {
         let _ = send(&key(KeyCode::Delete), &mut state);
         let _ = draw(&mut state);
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
             "the box was not removed, so the test proves nothing"
         );
 
@@ -1790,7 +1810,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "the undo did not give the box back"
         );
         assert_eq!(
@@ -1798,8 +1818,8 @@ mod tests {
             "┌",
             "the frame after the undo does not draw the box"
         );
-        assert!(!state.diagram.can_undo(), "the undo left a step behind");
-        assert!(state.diagram.can_redo(), "the undo left nothing to redo");
+        assert!(!state.diagram().can_undo(), "the undo left a step behind");
+        assert!(state.diagram().can_redo(), "the undo left nothing to redo");
     }
 
     /// **`Ctrl+Shift+Z` gives the step ahead back** (rule 2): the undo left one, and the redo takes
@@ -1812,7 +1832,7 @@ mod tests {
         let _ = send(&undo_key(), &mut state);
         let _ = draw(&mut state);
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "the undo did not give the box back, so the test proves nothing"
         );
 
@@ -1821,7 +1841,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
             "the redo did not take the box out again"
         );
         assert_eq!(
@@ -1829,8 +1849,8 @@ mod tests {
             " ",
             "the frame after the redo still draws the box"
         );
-        assert!(state.diagram.can_undo(), "the redo left nothing to undo");
-        assert!(!state.diagram.can_redo(), "the redo left a step ahead");
+        assert!(state.diagram().can_undo(), "the redo left nothing to undo");
+        assert!(!state.diagram().can_redo(), "the redo left a step ahead");
     }
 
     /// **At the oldest position `Ctrl+Z` walks nothing and paints** (rules 3 and 8): the session is
@@ -1843,8 +1863,8 @@ mod tests {
         let buffer = draw(&mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.diagram.can_undo(), "the press recorded a step");
-        assert!(!state.diagram.can_redo(), "the press left a step ahead");
+        assert!(!state.diagram().can_undo(), "the press recorded a step");
+        assert!(!state.diagram().can_redo(), "the press left a step ahead");
         assert_eq!(
             buffer[(3, 3)].symbol(),
             "┌",
@@ -1861,8 +1881,8 @@ mod tests {
         let buffer = draw(&mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.diagram.can_undo(), "the press recorded a step");
-        assert!(!state.diagram.can_redo(), "the press left a step ahead");
+        assert!(!state.diagram().can_undo(), "the press recorded a step");
+        assert!(!state.diagram().can_redo(), "the press left a step ahead");
         assert_eq!(
             buffer[(3, 3)].symbol(),
             "┌",
@@ -1880,7 +1900,7 @@ mod tests {
         let _ = send(&key(KeyCode::Delete), &mut state);
         let _ = draw(&mut state);
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
             "the box was not removed, so the test proves nothing"
         );
 
@@ -1890,16 +1910,16 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_some(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "the drop-down kept the undo key from the history"
         );
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the undo left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "a drop-down is open with the keyboard on the region"
         );
 
@@ -1909,16 +1929,16 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            state.diagram.owner(Offset { x: 2, y: 1 }).is_none(),
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
             "the drop-down kept the redo key from the history"
         );
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the redo left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "a drop-down is open with the keyboard on the region"
         );
     }
@@ -1966,13 +1986,13 @@ mod tests {
         let _ = draw(&mut state);
 
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             None,
             "the undo restored a selection"
         );
 
         let _ = send(&click(3, 3), &mut state);
-        let selected = state.diagram.selected();
+        let selected = state.diagram().selected();
         assert!(selected.is_some(), "the box was not selected again");
 
         let outcome = send(&redo_key(), &mut state);
@@ -1980,7 +2000,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             selected,
             "the redo changed the selection"
         );
@@ -2019,7 +2039,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX_AND_WHAT_HANGS_FROM_IT);
         let _ = send(&click(1, 3), &mut state);
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the left box was not selected"
         );
 
@@ -2069,7 +2089,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 1 },
             "a turn down did not move the view by a tenth of the window, at least one cell"
         );
@@ -2081,7 +2101,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 3, y: 1 },
             "Alt and a turn down did not move the view across by a tenth of the window"
         );
@@ -2100,7 +2120,7 @@ mod tests {
             );
         }
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 22, y: 0 },
             "eight turns did not reach the content's far end, so the test proves nothing"
         );
@@ -2115,7 +2135,7 @@ mod tests {
             "the end of the content owed a frame: {outcome:?}"
         );
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 22, y: 0 },
             "the view moved past the content"
         );
@@ -2136,7 +2156,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 4 },
             "the press did not take the view to the position it named"
         );
@@ -2156,7 +2176,7 @@ mod tests {
         let outcome = send(&click(39, 3), &mut state);
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 0 },
             "the press where the thumb stands moved the view"
         );
@@ -2165,7 +2185,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 4 },
             "the drag did not follow the pointer down the track"
         );
@@ -2174,7 +2194,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 8 },
             "the drag across the track's last cell did not reach the content's end"
         );
@@ -2200,7 +2220,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 8 },
             "the drag past the track did not stop at the content's end"
         );
@@ -2211,7 +2231,7 @@ mod tests {
     #[test]
     fn a_scroll_records_no_step() {
         let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
-        let reach = state.diagram.footprint();
+        let reach = state.diagram().footprint();
         assert!(reach.is_some(), "the drawing reached nothing");
 
         let outcome = send(&wheel(MouseEventKind::ScrollDown, 5, 4), &mut state);
@@ -2220,10 +2240,10 @@ mod tests {
             matches!(outcome, Control::Changed),
             "the view did not move, so the test proves nothing: {outcome:?}"
         );
-        assert!(!state.diagram.can_undo(), "the scroll recorded a step");
-        assert!(!state.diagram.can_redo(), "the scroll left a step ahead");
+        assert!(!state.diagram().can_undo(), "the scroll recorded a step");
+        assert!(!state.diagram().can_redo(), "the scroll left a step ahead");
         assert_eq!(
-            state.diagram.footprint(),
+            state.diagram().footprint(),
             reach,
             "the scroll changed what the drawing reaches"
         );
@@ -2237,14 +2257,14 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
         let _ = send(&click(2, 2), &mut state);
         assert!(
-            state.diagram.selected().is_some(),
+            state.diagram().selected().is_some(),
             "the box was not selected"
         );
         let _ = send(&key(KeyCode::Right), &mut state);
-        assert!(state.diagram.can_undo(), "the move recorded no step");
+        assert!(state.diagram().can_undo(), "the move recorded no step");
         let _ = send(&wheel(MouseEventKind::ScrollDown, 5, 4), &mut state);
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 1 },
             "the wheel did not move the view, so the test proves nothing"
         );
@@ -2253,11 +2273,11 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            state.diagram.can_redo(),
+            state.diagram().can_redo(),
             "the undo did not walk the history"
         );
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 1 },
             "the undo restored a view"
         );
@@ -2266,11 +2286,11 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            state.diagram.can_undo(),
+            state.diagram().can_undo(),
             "the redo did not walk the history"
         );
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 1 },
             "the redo restored a view"
         );
@@ -2283,7 +2303,7 @@ mod tests {
     fn a_scroll_keeps_the_selection() {
         let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
         let _ = send(&click(2, 2), &mut state);
-        let selected = state.diagram.selected();
+        let selected = state.diagram().selected();
         assert!(selected.is_some(), "the box was not selected");
         assert!(
             reversed(&draw(&mut state), 2, 2),
@@ -2294,7 +2314,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 1 },
             "the wheel did not move the view, so the test proves nothing"
         );
@@ -2303,7 +2323,7 @@ mod tests {
         let region = frame::regions(Rect::new(0, 0, WIDTH, HEIGHT)).region;
 
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             selected,
             "the scroll dropped the selection"
         );
@@ -2313,7 +2333,7 @@ mod tests {
 
                 assert_eq!(
                     reversed(&buffer, region.left() + 1 + x, region.top() + 1 + y),
-                    state.diagram.is_cell_selected(at),
+                    state.diagram().is_cell_selected(at),
                     "the cell at {at:?} is not the inversion the drawing records"
                 );
             }
@@ -2337,7 +2357,7 @@ mod tests {
         );
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 3, y: 0 },
             "the view did not move across, so the test proves nothing"
         );
@@ -2348,13 +2368,13 @@ mod tests {
         let outcome = send(&click(25, 2), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        let under = state.diagram.owner(Offset { x: 24, y: 0 });
+        let under = state.diagram().owner(Offset { x: 24, y: 0 });
         assert!(
             under.is_some(),
             "the cell under the pointer is not the middle box's corner"
         );
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             under,
             "the click selected another shape"
         );
@@ -2367,26 +2387,26 @@ mod tests {
     fn a_press_on_the_bar_gives_the_region_the_keyboard() {
         let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
         let _ = send(&click(2, 2), &mut state);
-        let selected = state.diagram.selected();
+        let selected = state.diagram().selected();
         assert!(selected.is_some(), "the box was not selected");
-        state.chrome.move_to_bar();
+        state.chrome_mut().move_to_bar();
         let _ = draw(&mut state);
 
         let outcome = send(&click(39, 5), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.chrome.leaf(),
+            state.chrome().leaf(),
             Focus::Region,
             "the press on the bar left the keyboard on the bar"
         );
         assert_eq!(
-            state.diagram.selected(),
+            state.diagram().selected(),
             selected,
             "the press on the bar changed the selection"
         );
         assert_eq!(
-            state.diagram.origin(),
+            state.diagram().origin(),
             Pos { x: 0, y: 4 },
             "the press on the bar did not move the view"
         );

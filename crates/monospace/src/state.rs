@@ -19,19 +19,19 @@ use crate::status;
 
 /// Everything that survives between frames.
 pub(crate) struct AppState {
-    pub diagram: DiagramState,
+    diagram: DiagramState,
 
     /// The bar and the keyboard, which move together: the region's leaf at startup (D1 of #189).
-    pub chrome: Chrome,
+    chrome: Chrome,
 
     /// The status line's own state: what each of its sections says.
-    pub status: StatusLineState,
+    status: StatusLineState,
 
     /// The About dialog's own state: its message, its `Ok`, and whether it is up (D5 of #189).
     ///
     /// **The dialog runs its own focus** while it is up, and the application's leaf is left where
     /// it was, so closing the dialog gives the keyboard back unchanged.
-    pub about: MsgDialogState,
+    about: MsgDialogState,
 }
 
 impl AppState {
@@ -66,6 +66,62 @@ impl AppState {
             self.diagram.target_at(at)
         }
     }
+
+    /// The drawing, and the session it was drawn from.
+    pub(crate) fn diagram(&self) -> &DiagramState {
+        &self.diagram
+    }
+
+    /// The drawing, for the region's handler and the actions it carries out.
+    pub(crate) fn diagram_mut(&mut self) -> &mut DiagramState {
+        &mut self.diagram
+    }
+
+    /// The bar and the keyboard, which move together.
+    pub(crate) fn chrome(&self) -> &Chrome {
+        &self.chrome
+    }
+
+    /// The chrome, for the handler that moves its two parts together.
+    pub(crate) fn chrome_mut(&mut self) -> &mut Chrome {
+        &mut self.chrome
+    }
+
+    /// The chrome and the drawing together, for the chain that asks both.
+    ///
+    /// **The pair is one borrow** because the region is asked with the leaf the bar left behind,
+    /// and taking the two fields separately in one expression borrows the state twice.
+    pub(crate) fn chrome_and_diagram(&mut self) -> (&mut Chrome, &mut DiagramState) {
+        (&mut self.chrome, &mut self.diagram)
+    }
+
+    /// The status line's own state, for the tests that say what it holds.
+    ///
+    /// **The application only ever paints it**, so the crate's own door is [`Self::status_mut`]
+    /// and this one is the test's.
+    #[cfg(test)]
+    pub(crate) fn status(&self) -> &StatusLineState {
+        &self.status
+    }
+
+    /// The status line, for the frame that paints it.
+    pub(crate) fn status_mut(&mut self) -> &mut StatusLineState {
+        &mut self.status
+    }
+
+    /// The About dialog's own state, for the tests that say whether it is up.
+    ///
+    /// **The application opens, answers and paints the dialog**, and all three need it mutable, so
+    /// this door is the test's for the same reason as [`Self::status`].
+    #[cfg(test)]
+    pub(crate) fn about(&self) -> &MsgDialogState {
+        &self.about
+    }
+
+    /// The dialog, for the frame that paints it and the handler that answers it.
+    pub(crate) fn about_mut(&mut self) -> &mut MsgDialogState {
+        &mut self.about
+    }
 }
 
 #[cfg(test)]
@@ -77,11 +133,11 @@ mod tests {
         let state = AppState::new(empty_session());
 
         assert!(
-            !state.chrome.popup_active(),
+            !state.chrome().popup_active(),
             "a drop-down is open on the first frame"
         );
         assert_eq!(
-            state.status.status.len(),
+            state.status().status.len(),
             3,
             "the status bar does not have one section per row of its table"
         );
