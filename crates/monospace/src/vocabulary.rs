@@ -97,7 +97,10 @@ pub(crate) enum Action {
 /// protocol this replaced could not say: `None` meant both, so a handler that had consumed an
 /// event left the next one to answer it as well. **A change of the screen is not a meaning of a
 /// person's**, so it is `Repaint` rather than a variant of [`Action`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// **It is `Copy`**: an answer is a word or a meaning of two numbers, so it travels by value and
+/// [`merge`](Self::merge) and [`or_else`](Self::or_else) compose without borrowing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Reply {
     /// Not mine: ask the next handler.
     Ignored,
@@ -159,12 +162,12 @@ mod tests {
     fn an_ignored_reply_gives_way_to_the_other_side() {
         for reply in every_reply() {
             assert_eq!(
-                reply.clone().merge(Reply::Ignored),
+                reply.merge(Reply::Ignored),
                 reply,
                 "a handler's {reply:?} lost to the press's silence"
             );
             assert_eq!(
-                Reply::Ignored.merge(reply.clone()),
+                Reply::Ignored.merge(reply),
                 reply,
                 "the press's silence beat the handler's {reply:?}"
             );
@@ -189,12 +192,12 @@ mod tests {
 
         for reply in every_reply() {
             assert_eq!(
-                action.clone().merge(reply.clone()),
+                action.merge(reply),
                 action,
                 "the handler's action lost to {reply:?}"
             );
             assert_eq!(
-                reply.clone().merge(action.clone()),
+                reply.merge(action),
                 action,
                 "the press's action lost to {reply:?}"
             );
@@ -212,7 +215,7 @@ mod tests {
                 Reply::Repaint
             };
 
-            let answer = reply.clone().or_else(next);
+            let answer = reply.or_else(next);
 
             if reply == Reply::Ignored {
                 assert!(asked.get(), "an ignored event stopped the chain");

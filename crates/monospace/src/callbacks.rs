@@ -64,7 +64,7 @@ pub(crate) fn event(
         // painted with is the one it no longer has, so it is painted again.
         AppEvent::Terminal(Event::Resize(_, _)) => Control::Changed,
 
-        AppEvent::Terminal(event) => apply(&route(event, state), state),
+        AppEvent::Terminal(event) => apply(route(event, state), state),
     })
 }
 
@@ -182,7 +182,7 @@ fn target_of(event: &Event, state: &AppState) -> Target {
 /// The way out and the forced exit both end the loop. **They are two meanings and not two code
 /// paths**: the way out grows a pop-up to confirm and the forced exit does not, which is #189's,
 /// and until then they end the same way.
-fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
+fn apply(reply: Reply, state: &mut AppState) -> Control<AppEvent> {
     match reply {
         Reply::Ignored | Reply::Consumed => Control::Continue,
 
@@ -231,7 +231,7 @@ fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
                 return Control::Continue;
             };
 
-            state.diagram_mut().move_shape(selected, *dx, *dy);
+            state.diagram_mut().move_shape(selected, dx, dy);
             cleanup(state);
             Control::Changed
         }
@@ -1252,7 +1252,7 @@ mod tests {
         state.chrome_mut().move_to_bar();
         state.chrome_mut().menu_mut().set_popup_active(true);
 
-        let outcome = apply(&Reply::Act(Action::Move(1, 0)), &mut state);
+        let outcome = apply(Reply::Act(Action::Move(1, 0)), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
