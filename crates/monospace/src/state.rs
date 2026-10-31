@@ -582,6 +582,65 @@ pub(crate) enum Focus {
     Region,
 }
 
+/// The keyboard, and the ways it moves.
+///
+/// **The leaf is not a meaning** (D1 of #189): a press, `F10`, `Alt` plus a label's character and
+/// the `Esc` that closes nothing move the keyboard where they are read, and none of them becomes
+/// an action. **The moves are named here so that no module writes the leaf**: the bar asks for the
+/// keyboard and gives it back, and a press addresses it by its target.
+///
+/// **A move says whether it moved**, which is what owes the frame: a key that asks for the leaf
+/// already held changes nothing on the screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Keyboard {
+    leaf: Focus,
+}
+
+impl Keyboard {
+    /// A keyboard on the region, which is where an application starts (D1 of #189).
+    pub(crate) fn region() -> Self {
+        Self {
+            leaf: Focus::Region,
+        }
+    }
+
+    /// The leaf that holds it.
+    pub(crate) fn leaf(self) -> Focus {
+        self.leaf
+    }
+
+    /// Whether the bar holds it.
+    pub(crate) fn is_bar(self) -> bool {
+        self.leaf == Focus::Bar
+    }
+
+    /// The bar asks for the keyboard, saying whether it moved.
+    pub(crate) fn move_to_bar(&mut self) -> bool {
+        let moved = self.leaf != Focus::Bar;
+        self.leaf = Focus::Bar;
+        moved
+    }
+
+    /// The bar gives the keyboard back, saying whether it moved.
+    pub(crate) fn move_to_region(&mut self) -> bool {
+        let moved = self.leaf != Focus::Region;
+        self.leaf = Focus::Region;
+        moved
+    }
+
+    /// A press addresses the keyboard, saying whether it moved.
+    ///
+    /// **A target in neither leaf leaves it alone**: the status line and empty space are not
+    /// destinations for the keyboard.
+    pub(crate) fn at(&mut self, target: Target) -> bool {
+        match target {
+            Target::Bar => self.move_to_bar(),
+            Target::Border | Target::Interior(_) => self.move_to_region(),
+            Target::Nothing => false,
+        }
+    }
+}
+
 /// What a left press lands on.
 ///
 /// **One answer, decided once.** The leaf the keyboard moves to and the cell of the drawing under
@@ -615,7 +674,7 @@ pub(crate) struct AppState {
     pub status: StatusLineState,
 
     /// Which leaf holds the keyboard: the region at startup (D1 of #189).
-    pub focus: Focus,
+    pub focus: Keyboard,
 
     /// The About dialog's own state: its message, its `Ok`, and whether it is up (D5 of #189).
     ///
@@ -637,7 +696,7 @@ impl AppState {
             diagram: DiagramState::new(diagram_session),
             menu: MenubarState::default(),
             status: status::state(),
-            focus: Focus::Region,
+            focus: Keyboard::region(),
             about: MsgDialogState::default(),
         }
     }
@@ -656,23 +715,6 @@ impl AppState {
         } else {
             self.diagram.target_at(at)
         }
-    }
-
-    /// Moves the keyboard to the leaf the target names, returning whether the focus changed.
-    ///
-    /// **A target in neither leaf leaves the focus alone**: the status line and empty space are
-    /// not destinations for the keyboard. The target is [`Self::target_at`]'s, so an open
-    /// drop-down belongs to the bar even where it overlaps the region.
-    pub(crate) fn set_focus(&mut self, target: Target) -> bool {
-        let leaf = match target {
-            Target::Bar => Focus::Bar,
-            Target::Border | Target::Interior(_) => Focus::Region,
-            Target::Nothing => return false,
-        };
-
-        let moved = self.focus != leaf;
-        self.focus = leaf;
-        moved
     }
 }
 

@@ -17,7 +17,7 @@ use ratatui_core::widgets::Widget;
 use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
-use crate::state::{AppState, Focus};
+use crate::state::AppState;
 use crate::{about, diagram_widget, menu, status};
 
 /// The height of the bar across the top.
@@ -71,7 +71,7 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
         buf,
         &mut state.menu,
         &global.cfg.theme,
-        state.focus == Focus::Bar,
+        state.focus.is_bar(),
     );
 
     diagram_widget::draw(
@@ -340,7 +340,7 @@ mod tests {
     /// been drawn, and a key that arrives before that finds nothing to open.
     fn open_the_drop_down(state: &mut AppState, global: &AppGlobal, navigation: char) {
         let _ = paint(state, global, WIDTH, HEIGHT);
-        state.focus = Focus::Bar;
+        state.focus.move_to_bar();
         let event = Event::Key(KeyEvent::new(KeyCode::Char(navigation), KeyModifiers::NONE));
         let _ = crate::menu::handle(&event, &mut state.menu, &mut state.focus);
         assert!(
@@ -404,7 +404,7 @@ mod tests {
 
         let target = state.target_at(Position::new(column, line));
         let outcome =
-            crate::diagram_widget::handle(&event, &mut state.diagram, state.focus, target);
+            crate::diagram_widget::handle(&event, &mut state.diagram, state.focus.leaf(), target);
 
         assert!(
             matches!(outcome, Reply::Repaint),
@@ -809,9 +809,9 @@ mod tests {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let region = regions(area).region;
 
-        state.focus = Focus::Region;
+        state.focus.move_to_region();
         let without = paint(&mut state, &global, WIDTH, HEIGHT);
-        state.focus = Focus::Bar;
+        state.focus.move_to_bar();
         let with = paint(&mut state, &global, WIDTH, HEIGHT);
 
         for line in region.top()..region.bottom() {

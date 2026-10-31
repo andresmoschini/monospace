@@ -29,7 +29,7 @@ use ratatui_core::style::Style;
 use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::state::Focus;
+use crate::state::Keyboard;
 use crate::vocabulary::{Action, Reply};
 
 /// The bar, and what each of its entries means.
@@ -105,26 +105,26 @@ const ABOUT: usize = 0;
 /// table of names, and the keyboard is the bar's before the widget is asked (D4). `Esc` while the
 /// bar holds it and no drop-down is open gives it back to the region. **A leaf is not a meaning**:
 /// the keyboard moves where the event is addressed, and for these three keys that is here — which is
-/// why no action names a leaf, and why this is the one handler that writes the focus.
+/// why no action names a leaf, and why this is the one handler that moves the keyboard.
 ///
 /// **A bar that moved the keyboard answers**, with the frame owed because a label reversed is a
 /// label that changed. The caller's chain stops there, so nothing after the bar is asked with the
 /// keyboard somewhere other than where it was when the event arrived.
-pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focus: &mut Focus) -> Reply {
-    let bar = *focus == Focus::Bar;
+pub(crate) fn handle(raw: &Event, state: &mut MenubarState, keyboard: &mut Keyboard) -> Reply {
+    let bar = keyboard.is_bar();
 
     // **`F10` asks for the bar** (D4, amended): the key every terminal reports, where a bare `Alt`
     // is not one. It asks for the keyboard and opens nothing, so the bar looks focused with no
     // drop-down in the way.
     if !bar && asks_for_the_bar(raw) {
-        *focus = Focus::Bar;
+        keyboard.move_to_bar();
         return Reply::Repaint;
     }
 
     // **`Esc` on a bar with nothing left to close gives the keyboard back** (rule 5): the widget
     // answers the key while a drop-down is open, and this is the press after it.
     if bar && steps_back(raw, state) {
-        *focus = Focus::Region;
+        keyboard.move_to_region();
         return Reply::Repaint;
     }
 
@@ -132,17 +132,17 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focus: &mut Focus) -
     let (raw, arriving) = match alt_navigation(raw) {
         Some(character) => {
             translated = Event::Key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
-            let arrived = *focus != Focus::Bar;
-            *focus = Focus::Bar;
+            let arrived = !keyboard.is_bar();
+            keyboard.move_to_bar();
             (&translated, arrived)
         }
         None => (raw, false),
     };
 
     let before_open = state.popup_active();
-    let before_focus = *focus;
+    let before_focus = keyboard.leaf();
 
-    let answer = match menubar::handle_popup_events(state, *focus == Focus::Bar, raw) {
+    let answer = match menubar::handle_popup_events(state, keyboard.is_bar(), raw) {
         // An entry was taken: it means an action, and `callbacks` applies it — which is also where
         // the keyboard goes back to the region, because a meaning carried out is left there. The
         // loop is not asked again, so an entry and the key that means the same thing end in one
@@ -177,7 +177,7 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focus: &mut Focus) -
     // the keyboard had already left the bar, and the frame that closing owes is [`crate::callbacks`]'
     // address answer: claiming the event here would stop the chain and the region would never see
     // the press that took the keyboard away.
-    let state_changed = state.popup_active() != before_open || *focus != before_focus;
+    let state_changed = state.popup_active() != before_open || keyboard.leaf() != before_focus;
     let answer = if state_changed && answer != Reply::Ignored {
         answer.merge(Reply::Repaint)
     } else {
@@ -336,6 +336,7 @@ fn widgets(theme: &SalsaTheme) -> (MenubarLine<'static>, MenubarPopup<'static>) 
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::state::Focus;
     use ratatui_crossterm::crossterm::event::{
         KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
@@ -409,8 +410,15 @@ mod tests {
 
     /// Hands the event to the bar with the keyboard on it, where the test is not about the focus.
     fn on_the_bar(event: &Event, state: &mut MenubarState) -> Reply {
-        let mut focus = Focus::Bar;
-        handle(event, state, &mut focus)
+        let mut keyboard = a_keyboard_on_the_bar();
+        handle(event, state, &mut keyboard)
+    }
+
+    /// A keyboard the bar holds, which is where the tests about the bar start.
+    fn a_keyboard_on_the_bar() -> Keyboard {
+        let mut keyboard = Keyboard::region();
+        keyboard.move_to_bar();
+        keyboard
     }
 
     /// Opens the drop-down of the label, the way a person does.
@@ -603,11 +611,15 @@ mod tests {
     #[test]
     fn f10_moves_the_keyboard_to_the_bar_and_owes_the_frame() {
         let mut state = drawn();
-        let mut focus = Focus::Region;
+        let mut keyboard = Keyboard::region();
 
-        let outcome = handle(&key(KeyCode::F(10)), &mut state, &mut focus);
+        let outcome = handle(&key(KeyCode::F(10)), &mut state, &mut keyboard);
 
-        assert_eq!(focus, Focus::Bar, "F10 left the keyboard where it was");
+        assert_eq!(
+            keyboard.leaf(),
+            Focus::Bar,
+            "F10 left the keyboard where it was"
+        );
         assert!(
             matches!(outcome, Reply::Repaint),
             "F10 answered {outcome:?}"
@@ -621,12 +633,12 @@ mod tests {
     #[test]
     fn the_escape_that_closes_nothing_gives_the_keyboard_back() {
         let mut state = drawn();
-        let mut focus = Focus::Bar;
+        let mut keyboard = a_keyboard_on_the_bar();
 
-        let outcome = handle(&key(KeyCode::Esc), &mut state, &mut focus);
+        let outcome = handle(&key(KeyCode::Esc), &mut state, &mut keyboard);
 
         assert_eq!(
-            focus,
+            keyboard.leaf(),
             Focus::Region,
             "the escape left the keyboard on the bar"
         );
@@ -838,12 +850,12 @@ mod tests {
     #[test]
     fn the_shortcuts_are_not_the_bars() {
         let mut state = drawn();
-        let mut focus = Focus::Bar;
+        let mut keyboard = a_keyboard_on_the_bar();
 
         let outcome = handle(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
             &mut state,
-            &mut focus,
+            &mut keyboard,
         );
 
         assert_eq!(
@@ -851,7 +863,11 @@ mod tests {
             Reply::Ignored,
             "the bar answered a shortcut: {outcome:?}"
         );
-        assert_eq!(focus, Focus::Bar, "the bar gave the keyboard away");
+        assert_eq!(
+            keyboard.leaf(),
+            Focus::Bar,
+            "the bar gave the keyboard away"
+        );
         assert!(!state.popup_active(), "a shortcut opened a drop-down");
     }
 

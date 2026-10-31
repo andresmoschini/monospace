@@ -25,7 +25,7 @@ use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
 use crate::shortcuts;
-use crate::state::{AppState, Focus, Target};
+use crate::state::{AppState, Target};
 use crate::vocabulary::{Action, AppError, Reply};
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
@@ -118,7 +118,7 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     let addressed = address(target, state);
 
     menu::handle(event, &mut state.menu, &mut state.focus)
-        .or_else(|| diagram_widget::handle(event, &mut state.diagram, state.focus, target))
+        .or_else(|| diagram_widget::handle(event, &mut state.diagram, state.focus.leaf(), target))
         .or_else(|| shortcuts::handle_unclaimed(event))
         .merge(addressed)
 }
@@ -138,7 +138,7 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
 /// and moves nothing. **The answer is `Repaint` where the keyboard moved**, because that is a frame
 /// owed even where no handler answers it: the label that was reversed is not any more.
 fn address(target: Target, state: &mut AppState) -> Reply {
-    if state.set_focus(target) {
+    if state.focus.at(target) {
         Reply::Repaint
     } else {
         Reply::Ignored
@@ -245,7 +245,7 @@ fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
 /// bar was showing closes with it, because a menu nobody holds the keyboard on is not open.
 fn cleanup(state: &mut AppState) {
     state.menu.set_popup_active(false);
-    state.focus = Focus::Region;
+    state.focus.move_to_region();
 }
 
 /// What the application does about a failure.
@@ -268,6 +268,7 @@ pub(crate) fn error(
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::state::Focus;
     use crate::status;
     use crate::vocabulary::AppError;
     use monospace_core::{Offset, Pos};
@@ -506,7 +507,7 @@ mod tests {
             "Alt+{label} did not owe a frame: {outcome:?}"
         );
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Bar,
             "Alt+{label} did not give the bar the keyboard"
         );
@@ -545,7 +546,7 @@ mod tests {
         );
         assert!(state.about.active(), "taking About opened no dialog");
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "taking About left the keyboard on the bar"
         );
@@ -869,7 +870,7 @@ mod tests {
         let state = a_state();
 
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the bar started with the keyboard"
         );
@@ -880,13 +881,13 @@ mod tests {
     #[test]
     fn a_press_inside_the_region_moves_the_keyboard_and_selects() {
         let mut state = a_drawn_state_over(A_BOX);
-        state.focus = Focus::Bar;
+        state.focus.move_to_bar();
         let _ = draw(&mut state);
 
         let outcome = send(&click(3, 3), &mut state);
 
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the press left the keyboard on the bar"
         );
@@ -915,13 +916,13 @@ mod tests {
             (WIDTH - 1, 3, "the right border"),
             (3, HEIGHT - 2, "the bottom border"),
         ] {
-            state.focus = Focus::Bar;
+            state.focus.move_to_bar();
             let _ = draw(&mut state);
 
             let outcome = send(&click(column, row), &mut state);
 
             assert_eq!(
-                state.focus,
+                state.focus.leaf(),
                 Focus::Region,
                 "{what} did not give the region the keyboard"
             );
@@ -941,12 +942,16 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram.selected();
-        state.focus = Focus::Bar;
+        state.focus.move_to_bar();
         let _ = draw(&mut state);
 
         let outcome = send(&click(3, HEIGHT - 1), &mut state);
 
-        assert_eq!(state.focus, Focus::Bar, "the status line took the keyboard");
+        assert_eq!(
+            state.focus.leaf(),
+            Focus::Bar,
+            "the status line took the keyboard"
+        );
         assert_eq!(
             state.diagram.selected(),
             selected,
@@ -966,7 +971,7 @@ mod tests {
         let outcome = send(&click(column, row), &mut state);
 
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Bar,
             "the label did not give the bar the keyboard"
         );
@@ -989,7 +994,7 @@ mod tests {
         let outcome = send(&click(17, 3), &mut state);
 
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the press left the keyboard on the bar; the drop-down is {:?}",
             state.menu.popup.area
@@ -1011,7 +1016,7 @@ mod tests {
     fn the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard() {
         let mut state = a_drawn_state();
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the bar started with the keyboard"
         );
@@ -1230,14 +1235,14 @@ mod tests {
             state.diagram.selected().is_some(),
             "the box was not selected"
         );
-        state.focus = Focus::Bar;
+        state.focus.move_to_bar();
         state.menu.set_popup_active(true);
 
         let outcome = apply(&Reply::Act(Action::Move(1, 0)), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the move left the keyboard on the bar"
         );
@@ -1301,7 +1306,11 @@ mod tests {
     fn alt_and_a_labels_character_opens_that_labels_drop_down() {
         for (label, text) in [('f', "Quit"), ('e', "Undo"), ('h', "About")] {
             let mut state = a_drawn_state();
-            assert_eq!(state.focus, Focus::Region, "the test starts on the bar");
+            assert_eq!(
+                state.focus.leaf(),
+                Focus::Region,
+                "the test starts on the bar"
+            );
 
             open_the_drop_down(&mut state, label);
 
@@ -1325,7 +1334,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "a combination that names no label moved the keyboard"
         );
@@ -1345,7 +1354,11 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.menu.popup_active(), "escape left the drop-down open");
-        assert_eq!(state.focus, Focus::Bar, "the first escape left the bar");
+        assert_eq!(
+            state.focus.leaf(),
+            Focus::Bar,
+            "the first escape left the bar"
+        );
         let (column, row) = frame::cell_of(&frame, "File");
         assert!(
             reversed(&frame, column, row),
@@ -1357,7 +1370,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the second escape did not give the keyboard back"
         );
@@ -1373,7 +1386,7 @@ mod tests {
     fn escape_in_the_region_changes_nothing() {
         let mut state = a_drawn_state();
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the region does not start with the keyboard"
         );
@@ -1381,7 +1394,11 @@ mod tests {
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
-        assert_eq!(state.focus, Focus::Region, "escape moved the keyboard");
+        assert_eq!(
+            state.focus.leaf(),
+            Focus::Region,
+            "escape moved the keyboard"
+        );
         assert!(!state.menu.popup_active(), "escape opened a drop-down");
     }
 
@@ -1390,14 +1407,18 @@ mod tests {
     #[test]
     fn f10_gives_the_bar_the_keyboard_without_opening_a_drop_down() {
         let mut state = a_drawn_state();
-        assert_eq!(state.focus, Focus::Region, "the test starts on the bar");
+        assert_eq!(
+            state.focus.leaf(),
+            Focus::Region,
+            "the test starts on the bar"
+        );
 
         let outcome = send(&key(KeyCode::F(10)), &mut state);
         let frame = draw(&mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Bar,
             "F10 did not give the bar the keyboard"
         );
@@ -1484,7 +1505,7 @@ mod tests {
             "the click on the drop-down's border reached the drawing behind it at {border:?}"
         );
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Bar,
             "the click on the drop-down's border moved the keyboard"
         );
@@ -1646,7 +1667,7 @@ mod tests {
             "the drop-down kept the selection"
         );
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the removal left the keyboard on the bar"
         );
@@ -1677,7 +1698,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the entry left the keyboard on the bar"
         );
@@ -1861,7 +1882,7 @@ mod tests {
             "the drop-down kept the undo key from the history"
         );
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the undo left the keyboard on the bar"
         );
@@ -1880,7 +1901,7 @@ mod tests {
             "the drop-down kept the redo key from the history"
         );
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the redo left the keyboard on the bar"
         );
@@ -2336,14 +2357,14 @@ mod tests {
         let _ = send(&click(2, 2), &mut state);
         let selected = state.diagram.selected();
         assert!(selected.is_some(), "the box was not selected");
-        state.focus = Focus::Bar;
+        state.focus.move_to_bar();
         let _ = draw(&mut state);
 
         let outcome = send(&click(39, 5), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.focus,
+            state.focus.leaf(),
             Focus::Region,
             "the press on the bar left the keyboard on the bar"
         );
