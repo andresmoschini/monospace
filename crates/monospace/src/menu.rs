@@ -636,6 +636,43 @@ mod tests {
         );
     }
 
+    /// **A press the drop-down traps is consumed and not ignored** (rule 3 of #189): `rat-menu`
+    /// answers `Unchanged` for a cell that is not an entry — the border or the padding — which is
+    /// the bar's event with nothing changed. Mapping that to `Ignored` is what once let the press
+    /// reach the diagram behind it.
+    #[test]
+    fn a_press_the_drop_down_traps_is_consumed_and_not_ignored() {
+        let mut state = drawn();
+        open_with(&mut state, 'e');
+
+        let popup = state.popup.area;
+        let mut trapped = None;
+
+        for row in popup.top()..popup.bottom() {
+            for column in popup.left()..popup.right() {
+                if state.popup.item_at((column, row)).is_none() {
+                    trapped = Some((column, row));
+                    break;
+                }
+            }
+
+            if trapped.is_some() {
+                break;
+            }
+        }
+
+        let (column, row) = trapped.expect("the drop-down has no cell that is not an entry");
+
+        let outcome = on_the_bar(&click(column, row), &mut state);
+
+        assert_eq!(
+            outcome,
+            Reply::Consumed,
+            "a press the drop-down trapped answered {outcome:?}"
+        );
+        assert!(state.popup_active(), "the press closed the drop-down");
+    }
+
     #[test]
     fn taking_the_quit_entry_becomes_the_action_of_the_way_out() {
         let mut state = drawn();

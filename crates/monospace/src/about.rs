@@ -160,6 +160,33 @@ mod tests {
         })
     }
 
+    /// **The dialog's three answers keep their meaning in the router's vocabulary** (D6): a
+    /// dialog that is down ignores the event, one that keeps it without a change consumes it, and
+    /// one that changes owes the frame.
+    #[test]
+    fn the_three_answers_become_the_routers_reply() {
+        let mut down = MsgDialogState::default();
+        assert_eq!(
+            handle(&key(KeyCode::Esc), &mut down),
+            Reply::Ignored,
+            "a dialog that is down answered the event"
+        );
+
+        let (mut up, _) = drawn();
+        assert_eq!(
+            handle(&key(KeyCode::Right), &mut up),
+            Reply::Consumed,
+            "a key the dialog kept without a change owed a frame"
+        );
+
+        let (mut closing, _) = drawn();
+        assert_eq!(
+            handle(&key(KeyCode::Esc), &mut closing),
+            Reply::Repaint,
+            "the escape that closes the dialog owed no frame"
+        );
+    }
+
     /// **The title and the body come from the application's own name and version** (D5), so the
     /// dialog and the status line cannot say two different things.
     #[test]
