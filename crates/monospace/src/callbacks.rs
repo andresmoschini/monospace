@@ -115,26 +115,9 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     let addressed = address(event, state);
 
     menu::handle(event, &mut state.menu, &mut state.focus)
-        .or_else(|| {
-            from_option(diagram_widget::handle(
-                event,
-                &mut state.diagram,
-                state.focus,
-            ))
-        })
+        .or_else(|| diagram_widget::handle(event, &mut state.diagram, state.focus))
         .or_else(|| shortcuts::handle_unclaimed(event))
         .merge(addressed)
-}
-
-/// The protocol the handlers still speak, until each one answers with a [`Reply`]: `None` meant
-/// both "not mine" and "mine, and nothing changed", so it becomes [`Reply::Ignored`], and the
-/// screen changing becomes [`Reply::Repaint`].
-fn from_option(answer: Option<Action>) -> Reply {
-    match answer {
-        Some(Action::ScreenChanged) => Reply::Repaint,
-        Some(action) => Reply::Act(action),
-        None => Reply::Ignored,
-    }
 }
 
 /// **A press is addressed before it is answered** (D1 of #189): the leaf it lands in is who the
@@ -188,11 +171,7 @@ fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
 
         // **The frame is owed, but no action is carried out.** `route` has already addressed any
         // press, and this preserves that focus and the menu state instead of applying the cleanup.
-        //
-        // **The old protocol's repaint rides here**: [`from_option`] turns `ScreenChanged` into
-        // `Reply::Repaint`, so the `Act` arm is never reached — it is what keeps the match whole
-        // while the variant still exists, and it goes away with the variant.
-        Reply::Repaint | Reply::Act(Action::ScreenChanged) => Control::Changed,
+        Reply::Repaint => Control::Changed,
 
         // **The two that end the loop**, and the only two that are not carried out.
         Reply::Act(Action::Quit | Action::ForceQuit) => Control::Quit,

@@ -6,12 +6,10 @@
 //! action and the action is the only thing that changes the state — and a failure ends the loop
 //! instead of becoming one.
 //!
-//! **An action need not change anything.** `Action::ScreenChanged` is the screen being owed a
-//! paint, and it is the one action that never reaches the state; `Action::Delete` takes a shape out
-//! where one is selected and owes a paint either way; `Action::Undo` and `Action::Redo` walk the
-//! session's history and owe a paint whether or not there is a step to give back; the two focus
-//! actions move the keyboard between the leaves and owe one too; and `Action::Quit` and
-//! `Action::ForceQuit` end the loop.
+//! **An action need not change anything.** `Action::Delete` takes a shape out where one is
+//! selected and owes a paint either way; `Action::Undo` and `Action::Redo` walk the session's
+//! history and owe a paint whether or not there is a step to give back; `Action::About` opens the
+//! chrome's dialog; and `Action::Quit` and `Action::ForceQuit` end the loop.
 //!
 //! **A handler says an action rather than doing one**, so that an entry of the menu and the key
 //! that means the same thing are decided in one place. A handler answers with a [`Reply`], which
@@ -26,32 +24,27 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 
 /// What the application does about an event.
 ///
-/// **Every action but one is a meaning.** The way out and the forced exit end the loop; `Delete`
-/// takes a shape out, and `Undo` and `Redo` give a step back; `About` opens the chrome's dialog;
-/// `ScreenChanged` is the screen being owed a paint and nothing else. **The two exits are separate
-/// actions because they are separate meanings**, and they end the loop the same way only because
-/// nothing has been edited yet: the way out grows a pop-up to confirm and the forced exit does not,
-/// which is #189's.
+/// **Every action is a meaning.** The way out and the forced exit end the loop; `Delete` takes a
+/// shape out, and `Undo` and `Redo` give a step back; `About` opens the chrome's dialog. **The two
+/// exits are separate actions because they are separate meanings**, and they end the loop the same
+/// way only because nothing has been edited yet: the way out grows a pop-up to confirm and the
+/// forced exit does not, which is #189's.
 ///
 /// **A meaning that is carried out leaves the keyboard on the region** (rule 13 of #189), and the
-/// drop-down the bar was showing closes with it. Only two things are not that: the screen changing,
-/// which is not a meaning, and the two exits, which are not carried out at all. **So a meaning does
-/// not say where the keyboard is left** — `callbacks::apply` says it once — which is why this is a
-/// table of meanings and not a table of leaves.
+/// drop-down the bar was showing closes with it. Only the two exits are not that, because they are
+/// not carried out at all. **So a meaning does not say where the keyboard is left** —
+/// `callbacks::apply` says it once — which is why this is a table of meanings and not a table of
+/// leaves.
 ///
 /// **No action names a leaf** (D1 of #189): the keyboard moves where the event is addressed — a
 /// press by its position, the bar's own three keys inside [`crate::menu::handle`] — so there is no
 /// action for reaching the bar and none for leaving it.
 ///
 /// **A change of the screen is not a meaning of a person's, and undo will never hold one.** It is
-/// an action because an event becomes one thing, and what the application does about a screen that
-/// has changed is paint it again; see _The action model_ in
+/// what [`Reply::Repaint`] says instead; see _The action model_ in
 /// [`docs/application-model.md`](../../../docs/application-model.md).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Action {
-    /// It changed what the screen shows, and nothing else: the frame is owed again.
-    ScreenChanged,
-
     /// The step behind the session is given back, and the frame is owed either way.
     ///
     /// **A press with nothing behind walks nothing**: the session answers with itself, and the
@@ -102,7 +95,8 @@ pub(crate) enum Action {
 ///
 /// **"Not mine" and "mine, and nothing changed" are different answers**, which is what the
 /// protocol this replaced could not say: `None` meant both, so a handler that had consumed an
-/// event left the next one to answer it as well.
+/// event left the next one to answer it as well. **A change of the screen is not a meaning of a
+/// person's**, so it is `Repaint` rather than a variant of [`Action`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Reply {
     /// Not mine: ask the next handler.

@@ -32,7 +32,7 @@ use ratatui_crossterm::crossterm::event::{
 };
 
 use crate::state::{DiagramState, Focus};
-use crate::vocabulary::Action;
+use crate::vocabulary::{Action, Reply};
 
 /// Paints the region, and the diagram the state draws inside it.
 pub(crate) fn draw(
@@ -61,15 +61,16 @@ pub(crate) fn draw(
 ///
 /// **Everything else is answered with nothing** so that the event goes on to the next handler
 /// (rule 3).
-pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus) -> Option<Action> {
-    if let Some(action) = scroll(raw, state) {
-        return Some(action);
+pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus) -> Reply {
+    match scroll(raw, state) {
+        Reply::Ignored => {}
+        reply => return reply,
     }
 
     match raw {
         Event::Mouse(mouse) => click(*mouse, state),
         Event::Key(_) if focus == Focus::Region => key(raw),
-        _ => None,
+        _ => Reply::Ignored,
     }
 }
 
@@ -81,12 +82,13 @@ pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus) -> Opt
 /// nothing, so the interior's press reaches [`click`] as it always did.
 ///
 /// **Only a view that moved owes a frame** (rules 3 and 4): a turn the content refuses and a press
-/// where the view already stands leave the screen as it was, and the event is not claimed.
-fn scroll(raw: &Event, state: &mut DiagramState) -> Option<Action> {
+/// where the view already stands leave the screen as it was, but the bar took the event, so the
+/// answer is `Consumed` rather than `Ignored` and the region's click does not see it twice.
+fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
     let area = state.region();
     let answer = state.scroll_area(area).handle(raw, MouseOnly);
 
-    state.scrolled(answer).then_some(Action::ScreenChanged)
+    state.scrolled(answer)
 }
 
 /// What a key means to the region.
@@ -94,10 +96,12 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Option<Action> {
 /// **The four arrows displace the selected figure one cell** (rule 1 of #179): the action carries
 /// the delta the arrow names and no identity, and the selection is read where the action is carried
 /// out. A key that is no arrow is not the region's.
-fn key(raw: &Event) -> Option<Action> {
-    let (dx, dy) = displacement(raw)?;
+fn key(raw: &Event) -> Reply {
+    let Some((dx, dy)) = displacement(raw) else {
+        return Reply::Ignored;
+    };
 
-    Some(Action::Move(dx, dy))
+    Reply::Act(Action::Move(dx, dy))
 }
 
 /// The delta the four arrows name, or `None` for any other event.
@@ -136,20 +140,28 @@ fn displacement(event: &Event) -> Option<(i16, i16)> {
 /// press on a rectangle no frame drew into, and a press of any button but the left. A release is not
 /// a press, so it is not the region's either.
 ///
-/// **The answer is `ScreenChanged` only when the selection moved.** Selecting what is already
-/// selected, or dropping a selection that is not there, changed nothing and owes no frame.
-fn click(mouse: MouseEvent, state: &mut DiagramState) -> Option<Action> {
+/// **The answer is `Repaint` only when the selection moved.** Selecting what is already selected,
+/// or dropping a selection that is not there, changed nothing and owes no frame — but the press was
+/// still the region's, so it is `Consumed` rather than `Ignored`.
+fn click(mouse: MouseEvent, state: &mut DiagramState) -> Reply {
     if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
-        return None;
+        return Reply::Ignored;
     }
 
     let at = Position {
         x: mouse.column,
         y: mouse.row,
     };
-    let owner = state.owner(state.offset_of(at)?);
+    let Some(offset) = state.offset_of(at) else {
+        return Reply::Ignored;
+    };
+    let owner = state.owner(offset);
 
-    state.select(owner).then_some(Action::ScreenChanged)
+    if state.select(owner) {
+        Reply::Repaint
+    } else {
+        Reply::Consumed
+    }
 }
 
 /// Copies the drawing into the frame, one cell at a time.
@@ -456,7 +468,7 @@ mod tests {
         for button in [MouseButton::Right, MouseButton::Middle] {
             assert_eq!(
                 handle(&press(button, at.x, at.y), &mut state, Focus::Region),
-                None,
+                Reply::Ignored,
                 "{button:?} was the region's"
             );
         }
@@ -469,7 +481,7 @@ mod tests {
         });
         assert_eq!(
             handle(&released, &mut state, Focus::Region),
-            None,
+            Reply::Ignored,
             "a release was a press"
         );
 
@@ -498,7 +510,7 @@ mod tests {
         ] {
             assert_eq!(
                 handle(&key(arrow), &mut state, Focus::Region),
-                Some(Action::Move(delta.0, delta.1)),
+                Reply::Act(Action::Move(delta.0, delta.1)),
                 "{arrow:?} did not answer the movement"
             );
         }
@@ -513,7 +525,7 @@ mod tests {
 
         let answer = handle(&key(KeyCode::Right), &mut state, Focus::Region);
 
-        assert_eq!(answer, Some(Action::Move(1, 0)));
+        assert_eq!(answer, Reply::Act(Action::Move(1, 0)));
         assert_eq!(
             state.selected(),
             None,
@@ -538,7 +550,7 @@ mod tests {
                     &mut state,
                     Focus::Region,
                 ),
-                None,
+                Reply::Ignored,
                 "a modified arrow was the region's"
             );
         }
@@ -551,14 +563,14 @@ mod tests {
             ));
             assert_eq!(
                 handle(&event, &mut state, Focus::Region),
-                None,
+                Reply::Ignored,
                 "{kind:?} was a press"
             );
         }
 
         assert_eq!(
             handle(&key(KeyCode::Char('x')), &mut state, Focus::Region),
-            None,
+            Reply::Ignored,
             "a key that is no arrow was the region's"
         );
     }
@@ -575,7 +587,7 @@ mod tests {
         for arrow in [KeyCode::Up, KeyCode::Down] {
             assert_eq!(
                 handle(&key(arrow), &mut state, Focus::Bar),
-                None,
+                Reply::Ignored,
                 "{arrow:?} reached the region while the bar held the keyboard"
             );
         }

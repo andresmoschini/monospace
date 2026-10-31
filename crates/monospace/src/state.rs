@@ -22,6 +22,7 @@ use rat_widget::statusline::StatusLineState;
 use ratatui_core::layout::{Position, Rect};
 
 use crate::status;
+use crate::vocabulary::Reply;
 
 /// The drawing the last frame produced, and the session it was drawn from.
 pub(crate) struct DiagramState {
@@ -342,8 +343,9 @@ impl DiagramState {
     /// the content's span, so the offset names an origin and the range decides where that lands.
     ///
     /// **A frame is owed only when the origin moved**: a turn the content refuses, and a press where
-    /// the view already stands, changed nothing.
-    pub(crate) fn scrolled(&mut self, answer: ScrollOutcome) -> bool {
+    /// the view already stands, changed nothing — but the bars took the event, so the answer is
+    /// [`Reply::Consumed`] and the region's click does not read the same press again.
+    pub(crate) fn scrolled(&mut self, answer: ScrollOutcome) -> Reply {
         let changed = match answer {
             ScrollOutcome::Up(n) => self.vscroll.scroll_up(n),
             ScrollOutcome::Down(n) => self.vscroll.scroll_down(n),
@@ -361,11 +363,12 @@ impl DiagramState {
                 debug_assert!(false, "the bars answered with a repaint and no offset");
                 false
             }
-            ScrollOutcome::Unchanged | ScrollOutcome::Continue => false,
+            ScrollOutcome::Unchanged => return Reply::Consumed,
+            ScrollOutcome::Continue => return Reply::Ignored,
         };
 
         if !changed {
-            return false;
+            return Reply::Consumed;
         }
 
         let (across, down) = axes(self.measure(), self.interior);
@@ -376,7 +379,11 @@ impl DiagramState {
         let moved = origin != self.origin;
         self.origin = origin;
 
-        moved
+        if moved {
+            Reply::Repaint
+        } else {
+            Reply::Consumed
+        }
     }
 
     /// Draws the session's diagram into `interior` — the window, as the screen holds it — at the

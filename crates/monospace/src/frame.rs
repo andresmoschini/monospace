@@ -130,7 +130,7 @@ mod tests {
     use crate::context::AppGlobal;
     use crate::state::AppState;
     use crate::status;
-    use crate::vocabulary::Action;
+    use crate::vocabulary::Reply;
     use monospace_core::{Offset, ShapeId};
     use rat_theme4::palettes::dark::BASE16;
     use rat_theme4::themes::create_dark;
@@ -404,7 +404,7 @@ mod tests {
         let outcome = crate::diagram_widget::handle(&event, &mut state.diagram, state.focus);
 
         assert!(
-            matches!(outcome, Some(Action::ScreenChanged)),
+            matches!(outcome, Reply::Repaint),
             "({column}, {line}) selected nothing: {outcome:?}"
         );
     }
