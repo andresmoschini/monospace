@@ -641,6 +641,18 @@ impl Keyboard {
     }
 }
 
+/// The chrome's own state: the bar and the keyboard.
+///
+/// **The pair is one thing** (rule 1 of #189): the drop-down is the bar's, so a menu that stays
+/// open implies the bar holds the keyboard, and a meaning carried out closes the one and gives the
+/// other back together. They travel together so that a handler cannot be handed a bar with the
+/// keyboard somewhere else, and so that the closing has one home.
+pub(crate) struct Chrome {
+    pub(crate) menu: MenubarState,
+
+    pub(crate) keyboard: Keyboard,
+}
+
 /// What a left press lands on.
 ///
 /// **One answer, decided once.** The leaf the keyboard moves to and the cell of the drawing under
@@ -667,14 +679,11 @@ pub(crate) enum Target {
 pub(crate) struct AppState {
     pub diagram: DiagramState,
 
-    /// The menu bar's own state: which label is selected and whether the drop-down is open.
-    pub menu: MenubarState,
+    /// The bar and the keyboard, which move together: the region's leaf at startup (D1 of #189).
+    pub chrome: Chrome,
 
     /// The status line's own state: what each of its sections says.
     pub status: StatusLineState,
-
-    /// Which leaf holds the keyboard: the region at startup (D1 of #189).
-    pub focus: Keyboard,
 
     /// The About dialog's own state: its message, its `Ok`, and whether it is up (D5 of #189).
     ///
@@ -694,9 +703,11 @@ impl AppState {
     pub(crate) fn new(diagram_session: Session) -> Self {
         Self {
             diagram: DiagramState::new(diagram_session),
-            menu: MenubarState::default(),
+            chrome: Chrome {
+                menu: MenubarState::default(),
+                keyboard: Keyboard::region(),
+            },
             status: status::state(),
-            focus: Keyboard::region(),
             about: MsgDialogState::default(),
         }
     }
@@ -708,8 +719,8 @@ impl AppState {
     /// region's rectangle. Everything else is the region's own answer, taken by
     /// [`DiagramState::target_at`].
     pub(crate) fn target_at(&self, at: Position) -> Target {
-        if self.menu.area.contains(at)
-            || (self.menu.popup_active() && self.menu.popup.area.contains(at))
+        if self.chrome.menu.area.contains(at)
+            || (self.chrome.menu.popup_active() && self.chrome.menu.popup.area.contains(at))
         {
             Target::Bar
         } else {
@@ -786,7 +797,7 @@ mod tests {
         let state = AppState::new(empty_session());
 
         assert!(
-            !state.menu.popup_active(),
+            !state.chrome.menu.popup_active(),
             "a drop-down is open on the first frame"
         );
         assert_eq!(

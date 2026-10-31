@@ -69,9 +69,9 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     menu::draw_bar(
         regions.bar,
         buf,
-        &mut state.menu,
+        &mut state.chrome.menu,
         &global.cfg.theme,
-        state.focus.is_bar(),
+        state.chrome.keyboard.is_bar(),
     );
 
     diagram_widget::draw(
@@ -97,7 +97,7 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
 
     // The drop-down is drawn after the region: it hangs from the bar and covers the region, and
     // a region painted after it would erase it.
-    menu::draw_drop_down(area, buf, &mut state.menu, &global.cfg.theme);
+    menu::draw_drop_down(area, buf, &mut state.chrome.menu, &global.cfg.theme);
 
     // **The dialog is drawn last of all** (D6): it is the overlay, so it covers the drop-down
     // and everything else, and a control behind it is not there to be seen or clicked.
@@ -340,11 +340,11 @@ mod tests {
     /// been drawn, and a key that arrives before that finds nothing to open.
     fn open_the_drop_down(state: &mut AppState, global: &AppGlobal, navigation: char) {
         let _ = paint(state, global, WIDTH, HEIGHT);
-        state.focus.move_to_bar();
+        state.chrome.keyboard.move_to_bar();
         let event = Event::Key(KeyEvent::new(KeyCode::Char(navigation), KeyModifiers::NONE));
-        let _ = crate::menu::handle(&event, &mut state.menu, &mut state.focus);
+        let _ = crate::menu::handle(&event, &mut state.chrome.menu, &mut state.chrome.keyboard);
         assert!(
-            state.menu.popup_active(),
+            state.chrome.menu.popup_active(),
             "the navigation character did not open the drop-down"
         );
     }
@@ -403,8 +403,12 @@ mod tests {
         });
 
         let target = state.target_at(Position::new(column, line));
-        let outcome =
-            crate::diagram_widget::handle(&event, &mut state.diagram, state.focus.leaf(), target);
+        let outcome = crate::diagram_widget::handle(
+            &event,
+            &mut state.diagram,
+            state.chrome.keyboard.leaf(),
+            target,
+        );
 
         assert!(
             matches!(outcome, Reply::Repaint),
@@ -809,9 +813,9 @@ mod tests {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let region = regions(area).region;
 
-        state.focus.move_to_region();
+        state.chrome.keyboard.move_to_region();
         let without = paint(&mut state, &global, WIDTH, HEIGHT);
-        state.focus.move_to_bar();
+        state.chrome.keyboard.move_to_bar();
         let with = paint(&mut state, &global, WIDTH, HEIGHT);
 
         for line in region.top()..region.bottom() {
@@ -1012,8 +1016,8 @@ mod tests {
         let at_rest = row_of(&paint(&mut state, &global, WIDTH, HEIGHT), 0);
 
         // The drop-down opens over the region, and the bar's row is still the bar's row.
-        state.menu.bar.select(Some(0));
-        state.menu.set_popup_active(true);
+        state.chrome.menu.bar.select(Some(0));
+        state.chrome.menu.set_popup_active(true);
         let with_drop_down = row_of(&paint(&mut state, &global, WIDTH, HEIGHT), 0);
 
         assert!(
@@ -1078,7 +1082,7 @@ mod tests {
         // The drop-down opens over the region and closes again.
         open_the_drop_down(&mut state, &global, 'f');
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
-        state.menu.set_popup_active(false);
+        state.chrome.menu.set_popup_active(false);
         let after = paint(&mut state, &global, WIDTH, HEIGHT);
 
         for line in 0..HEIGHT {
@@ -1103,7 +1107,7 @@ mod tests {
 
         // The drop-down closes, the box is removed, and the same drop-down opens over the newest
         // position.
-        state.menu.set_popup_active(false);
+        state.chrome.menu.set_popup_active(false);
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
         state.diagram.remove(shape);
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
