@@ -2,9 +2,9 @@
 //!
 //! **Two words, and they are not the same thing.** An *action* is what the application decides to
 //! do about an event; a *failure* is what the application reports when it cannot carry on. The two
-//! are kept apart because the rule the whole application rests on is that an event becomes an
-//! action and the action is the only thing that changes the state — and a failure ends the loop
-//! instead of becoming one.
+//! are kept apart because the rule the whole application rests on is that an event becomes a reply
+//! and the action the reply carries is the only thing that changes the session — and a failure ends
+//! the loop instead of becoming one.
 //!
 //! **An action need not change anything.** `Action::Delete` takes a shape out where one is
 //! selected and owes a paint either way; `Action::Undo` and `Action::Redo` walk the session's

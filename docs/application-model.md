@@ -34,6 +34,7 @@ they are decided rather than repeating them.
 | Term            | Meaning                                                                             |
 | --------------- | ----------------------------------------------------------------------------------- |
 | `Event`         | What the application is told: the terminal's, or the framework's own                |
+| `Reply`         | What a handler says about an event: ignored, consumed, a frame owed, or an action   |
 | `Action`        | What the application does about an event                                            |
 | `Frame`         | One picture of the whole screen                                                     |
 | `Region`        | One of the three parts of the screen                                                |
@@ -45,9 +46,10 @@ they are decided rather than repeating them.
 | `Session`       | The diagram being edited — [the editing model](editing-model.md) owns it            |
 
 **An event is not an action, and the two are kept apart.** The framework hands the application
-events — a key, a click, a resize — and the application decides what to do about them. A rule that
-said "a key changes the state" would be a rule about events, and a rule that said "the state
-changes" would be a rule about actions, and the difference between them is the whole of §4.
+events — a key, a click, a resize — and a handler answers each with a reply that may carry an
+action. A rule that said "a key changes the state" would be a rule about events, and a rule that
+said "the session changes" would be a rule about actions, and the difference between them is the
+whole of §4.
 
 ## 2. The frame
 
@@ -172,52 +174,58 @@ discarded; the state is what the next frame is built from.
 
 ## 4. The action model
 
-**An event becomes an action, and the action is the only thing that changes the session.** There is
-no path from an event to the session that does not go through an action, which is what makes the
-diagram something a reader can follow: an event arrives, it becomes an action, the action changes
-the session or does not.
+**An event becomes a reply, and the action a reply carries is the only thing that changes the
+session.** There is no path from an event to the session that does not go through an action, which
+is what makes the diagram something a reader can follow: an event arrives, a handler answers it, and
+the action the answer carries changes the session or does not.
 
-**A handler answers with an action, or with nothing, and the first answer ends the asking.** A
-handler that took no interest says so by answering nothing, so the event goes on to the next one,
-and **nothing is not an action that does nothing**: it is the handler saying the event was not its.
+**A handler answers with a reply, and only `Ignored` gives way.** `Ignored` is "not mine, ask the
+next handler"; `Consumed` is "mine, and nothing changed"; `Repaint` is "mine, and the frame is
+owed"; `Act(action)` is "mine, and this meaning is carried out before the frame is painted". **"Not
+mine" and "mine, and nothing changed" are different answers**, which is what keeps a press the
+drop-down trapped from reaching the diagram behind it: a handler that took the event stops the chain
+even where it changed nothing. **`Ignored` is not an action that does nothing**: it is the handler
+saying the event was not its.
 
 **The chrome's own is the other half of §3, and it is not this rule's.** The widget that owns a part
 of it changes that part when the event reaches it — the bar opens its drop-down and moves its
 selection, the status line takes a value — and nothing it changes reaches the session. What a
-handler mints is `Action::ScreenChanged`, the frame being owed again. **A leaf is not a meaning**:
-the keyboard moves where the event is addressed, and the bar's three keys — `F10`, `Alt` plus a
-navigation character and the `Esc` with nothing left to close — are read by the bar, so the bar is
-the one handler that moves it (D4 and rule 5 of #189). **These three are about the screen and not
-about what a person means to do**, and undo never holds one: a selection, an open drop-down and the
-leaf that holds the keyboard are not what anybody takes back.
+handler says about a change of its own is `Reply::Repaint`, the frame being owed again. **A leaf is
+not a meaning**: the keyboard moves where the event is addressed, and a press that moved it owes the
+frame even where no handler answers. The bar's three keys — `F10`, `Alt` plus a navigation character
+and the `Esc` with nothing left to close — are read by the bar, so the bar is the one handler that
+moves the keyboard (D4 and rule 5 of #189). **These three are about the screen and not about what a
+person means to do**, and undo never holds one: a selection, an open drop-down and the leaf that
+holds the keyboard are not what anybody takes back.
 
 **An action that is carried out repaints.** An entry taken closes the drop-down before its meaning
 is carried out, so the frame that follows is owed by the action rather than by a second one:
 `Delete` paints whether or not it removed a figure, which is what makes the entry disappear with
-nothing selected. A handler still mints `ScreenChanged` for a change of its own that carries no
-meaning — the drop-down opening, the selection moving — and a key that changed nothing at all owes
-nothing.
+nothing selected. A handler says `Reply::Repaint` for a change of its own that carries no meaning —
+the drop-down opening, the selection moving — and a key that changed nothing at all answers
+`Consumed` and owes nothing.
 
 **A click on the diagram selects, and selecting is the same kind of change.** A left press inside
 the region's interior selects the shape the drawing records under it, or drops the selection where
-nobody owns the cell; what it mints is `ScreenChanged`, and only when the selection moved. **It is
-not a command**: the session is read and never changed, no step is recorded, and the editing layer
-is not reached. A press anywhere else — the bar, the region's border, the status bar, or any button
-but the left — is nobody's and the event goes on to the next handler. The drop-down is asked before
-the region, so a click it answers never reaches the diagram.
+nobody owns the cell; what it answers is `Reply::Repaint` when the selection moved and `Consumed`
+when it did not. **It is not a command**: the session is read and never changed, no step is
+recorded, and the editing layer is not reached. A press anywhere else — the bar, the region's
+border, the status bar, or any button but the left — is nobody's and the event goes on to the next
+handler. The drop-down is asked before the region, so a click it answers never reaches the diagram.
 
 **A scroll changes the view and not the session.** A wheel turn over the region moves the view by
 the helper's step — a tenth of the window, at least one cell — on the axis it reports, and `Alt`
 with the wheel moves it across; a press on either bar takes the view to the position it names, and a
-drag follows the pointer. What both mint is `ScreenChanged`, and **only when the origin moved**: a
-turn the content refuses and a press where the view already stands leave the screen as it was, and
-the event is not the region's either. **It is not a command**: the session is read and never changed
-and no step is recorded, so an undo or a redo walks the drawing without restoring a view, and the
-selection survives the scroll because it is an identity rather than a cell. **The bars are asked
-before the region**, so a press on the border is the bar's and not a click on the drawing, and it
-still gives the region the keyboard, because a press on the border is the region's. **No key moves
-the view**: [#237](https://github.com/andresmoschini/monospace/issues/237) decides which keys do and
-how far a press moves, and the plain arrows stay what #179 made them.
+drag follows the pointer. What both answer is `Reply::Repaint`, and **only when the origin moved**:
+a turn the content refuses and a press where the view already stands leave the screen as it was, but
+the bar took the event, so the answer is `Consumed` rather than `Ignored`. **It is not a command**:
+the session is read and never changed and no step is recorded, so an undo or a redo walks the
+drawing without restoring a view, and the selection survives the scroll because it is an identity
+rather than a cell. **The bars are asked before the region**, so a press on the border is the bar's
+and not a click on the drawing, and it still gives the region the keyboard, because a press on the
+border is the region's. **No key moves the view**:
+[#237](https://github.com/andresmoschini/monospace/issues/237) decides which keys do and how far a
+press moves, and the plain arrows stay what #179 made them.
 
 **`Delete` is the first action that changes the session, and it carries a meaning rather than a
 shape.** It is reached by the key and by the Edit menu's entry, and both apply that same action
@@ -265,19 +273,20 @@ the two apart, so the Edit menu's entry is the way to redo there.
 entry, and both apply that same action rather than a code path each: the entry and the key become
 the same thing before anything acts on them, so the two cannot disagree about what the way out is.
 
-**`About` is the chrome's own, and it changes no session.** Taking `Help > About` mints
-`Action::About`, which opens the framework's message dialog and records no step: there is no command
-and no drawing to change, so the session and the selection are exactly what they were. The dialog
-runs its own focus while it is up, and the keyboard is left on the region, where it is given back
-when the dialog closes.
+**`About` is the chrome's own, and it changes no session.** Taking `Help > About` is the action
+`About`, which opens the framework's message dialog and records no step: there is no command and no
+drawing to change, so the session and the selection are exactly what they were. The dialog runs its
+own focus while it is up, and the keyboard is left on the region, where it is given back when the
+dialog closes.
 
 **A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Delete`,
 `Move` and `About` are asked for with the keyboard on the bar and leave nothing to do there — a walk
 changes what the drawing shows, a removal takes out what was selected, a move displaces it, and the
 dialog takes the whole screen while it is up — so carrying them out puts the leaf back where the
 person is looking, and the drop-down the bar was showing closes with it. **Only two things are not
-that**: the screen changing, which is not a meaning, and the two exits, which are not carried out at
-all. The rule is one place and not a line in each action (rule 13 of #189).
+that**: a change of the screen, which is `Reply::Repaint` and not a meaning, and the two exits,
+which are not carried out at all. The rule is one place and not a line in each action (rule 13 of
+[#189](https://github.com/andresmoschini/monospace/issues/189)).
 
 **`Ctrl+C` is not that action.** It is a forced exit: it ends the application whatever the state is.
 **It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a
@@ -319,9 +328,9 @@ of ours in that promise, and so there is nothing of ours to test: the repository
 claiming a test it does not have.
 
 **The loop is the framework's.** It reads the terminal, hands the application an event, asks what to
-do about it, and paints a frame when the action says the screen is owed again. The application
-answers four questions — what to do at the start, what to paint, what to do about an event, and what
-to do about a failure — and the loop owns everything else about when they are asked.
+do about it, and paints a frame when the reply owes it. The application answers four questions —
+what to do at the start, what to paint, what to do about an event, and what to do about a failure —
+and the loop owns everything else about when they are asked.
 
 **The widgets are the framework's.** The menu bar, the drop-down it opens, the status line and the
 `MsgDialog` the About dialog is drawn in are widgets, and what they look like, how they are drawn
@@ -391,8 +400,10 @@ framework's buffer one at a time.
 - `Ctrl+C` ends the application whatever the state is, with the drop-down open and with the dialog
   up: the promise belongs to the reach, not to the key that happens to hold it.
 - A key reaches the session only as an action.
-- A handler that took no interest leaves the event to the next one, and the first answer ends the
-  asking.
+- A handler that took no interest (`Ignored`) leaves the event to the next one, and the first answer
+  that is not `Ignored` ends the asking.
+- A handler that consumed an event stops the chain even where it changed nothing, so a press the
+  drop-down trapped does not reach the diagram behind it.
 - A click is answered from the drawing of the last frame.
 - A left click inside the region selects the shape that owns the cell, and a click on a cell nobody
   owns drops the selection.
