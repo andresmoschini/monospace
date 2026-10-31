@@ -25,7 +25,7 @@ use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
 use crate::shortcuts;
-use crate::state::{AppState, Focus};
+use crate::state::{AppState, Focus, Target};
 use crate::vocabulary::{Action, AppError, Reply};
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
@@ -112,10 +112,13 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
         reply => return reply,
     }
 
-    let addressed = address(event, state);
+    // **Where the event is addressed is read once**: the keyboard moves to the leaf the press
+    // lands in, and the region is handed the same target rather than reading the press again.
+    let target = target_of(event, state);
+    let addressed = address(target, state);
 
     menu::handle(event, &mut state.menu, &mut state.focus)
-        .or_else(|| diagram_widget::handle(event, &mut state.diagram, state.focus))
+        .or_else(|| diagram_widget::handle(event, &mut state.diagram, state.focus, target))
         .or_else(|| shortcuts::handle_unclaimed(event))
         .merge(addressed)
 }
@@ -134,20 +137,28 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
 /// **A press on the status line, and one on a rectangle no frame drew into, lands in neither leaf**
 /// and moves nothing. **The answer is `Repaint` where the keyboard moved**, because that is a frame
 /// owed even where no handler answers it: the label that was reversed is not any more.
-fn address(event: &Event, state: &mut AppState) -> Reply {
-    let Event::Mouse(mouse) = event else {
-        return Reply::Ignored;
-    };
-
-    if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
-        return Reply::Ignored;
-    }
-
-    if state.set_focus_at(Position::new(mouse.column, mouse.row)) {
+fn address(target: Target, state: &mut AppState) -> Reply {
+    if state.set_focus(target) {
         Reply::Repaint
     } else {
         Reply::Ignored
     }
+}
+
+/// Where the event is addressed, or [`Target::Nothing`] where it is not a press.
+///
+/// **Only a left press is addressed**: a release, a drag, a turn of the wheel and a key belong to
+/// the handler that reads them, and the keyboard does not move for them.
+fn target_of(event: &Event, state: &AppState) -> Target {
+    let Event::Mouse(mouse) = event else {
+        return Target::Nothing;
+    };
+
+    if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+        return Target::Nothing;
+    }
+
+    state.target_at(Position::new(mouse.column, mouse.row))
 }
 
 /// What a reply does: paint the frame again, change the session, end the loop, or nothing at all.

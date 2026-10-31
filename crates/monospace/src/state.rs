@@ -302,6 +302,21 @@ impl DiagramState {
         })
     }
 
+    /// What a press at `at` lands on, as far as the region is concerned.
+    ///
+    /// **The interior is asked about before the border**: the window is inside the region's own
+    /// rectangle, so the cell comes first and the frame drawn around it is the border — the
+    /// keyboard's without being a cell of the drawing (rule 2 of #189).
+    pub(crate) fn target_at(&self, at: Position) -> Target {
+        if let Some(offset) = self.offset_of(at) {
+            Target::Interior(offset)
+        } else if self.region.contains(at) {
+            Target::Border
+        } else {
+            Target::Nothing
+        }
+    }
+
     /// The region's own rectangle, border included, as the last frame drew it.
     ///
     /// **The outer rectangle and not the window** (rule 2 of #189): a press on the border gives the
@@ -567,6 +582,28 @@ pub(crate) enum Focus {
     Region,
 }
 
+/// What a left press lands on.
+///
+/// **One answer, decided once.** The leaf the keyboard moves to and the cell of the drawing under
+/// the pointer are two readings of the same press, so they are taken together: a rectangle cannot
+/// belong to one reading and not to the other. The drop-down is asked about before the region
+/// (rule 1 of #189), and the region's border is the keyboard's without being a cell of the
+/// drawing (rule 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Target {
+    /// The bar, its labels, and the drop-down it opens.
+    Bar,
+
+    /// The region's border: the keyboard's, with no cell of the drawing under it.
+    Border,
+
+    /// The diagram's interior, at this cell of its window.
+    Interior(Offset),
+
+    /// Neither leaf: the status line, or a rectangle no frame drew into.
+    Nothing,
+}
+
 /// Everything that survives between frames.
 pub(crate) struct AppState {
     pub diagram: DiagramState,
@@ -605,31 +642,32 @@ impl AppState {
         }
     }
 
-    /// The leaf a left press at `at` lands in, or `None` where it lands in neither.
+    /// What a left press at `at` lands on.
     ///
     /// **The drop-down is the bar's** (rule 1 of #189): a press on an open entry gives the keyboard
     /// to the bar rather than to the region behind it, so the pop-up is asked about before the
-    /// region's rectangle. A press on the status line lands in neither leaf and moves nothing.
-    pub(crate) fn leaf_at(&self, at: Position) -> Option<Focus> {
+    /// region's rectangle. Everything else is the region's own answer, taken by
+    /// [`DiagramState::target_at`].
+    pub(crate) fn target_at(&self, at: Position) -> Target {
         if self.menu.area.contains(at)
             || (self.menu.popup_active() && self.menu.popup.area.contains(at))
         {
-            Some(Focus::Bar)
-        } else if self.diagram.region().contains(at) {
-            Some(Focus::Region)
+            Target::Bar
         } else {
-            None
+            self.diagram.target_at(at)
         }
     }
 
-    /// Moves the keyboard to the leaf at `at`, returning whether the focus changed.
+    /// Moves the keyboard to the leaf the target names, returning whether the focus changed.
     ///
-    /// **A position in neither leaf leaves the focus alone**: the status line and empty space
-    /// are not destinations for the keyboard. The leaf is resolved by [`Self::leaf_at`], so an
-    /// open drop-down belongs to the bar even where it overlaps the region.
-    pub(crate) fn set_focus_at(&mut self, at: Position) -> bool {
-        let Some(leaf) = self.leaf_at(at) else {
-            return false;
+    /// **A target in neither leaf leaves the focus alone**: the status line and empty space are
+    /// not destinations for the keyboard. The target is [`Self::target_at`]'s, so an open
+    /// drop-down belongs to the bar even where it overlaps the region.
+    pub(crate) fn set_focus(&mut self, target: Target) -> bool {
+        let leaf = match target {
+            Target::Bar => Focus::Bar,
+            Target::Border | Target::Interior(_) => Focus::Region,
+            Target::Nothing => return false,
         };
 
         let moved = self.focus != leaf;

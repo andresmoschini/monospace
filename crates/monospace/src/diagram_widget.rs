@@ -23,15 +23,13 @@ use ratatui_widgets::block::Block;
 use monospace_core::{GlyphCatalog, Offset};
 use ratatui_core::{
     buffer::Buffer,
-    layout::{Position, Rect},
+    layout::Rect,
     style::Style,
     widgets::{StatefulWidget, Widget},
 };
-use ratatui_crossterm::crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
-};
+use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::state::{DiagramState, Focus};
+use crate::state::{DiagramState, Focus, Target};
 use crate::vocabulary::{Action, Reply};
 
 /// Paints the region, and the diagram the state draws inside it.
@@ -61,14 +59,14 @@ pub(crate) fn draw(
 ///
 /// **Everything else is answered with nothing** so that the event goes on to the next handler
 /// (rule 3).
-pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus) -> Reply {
+pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus, target: Target) -> Reply {
     match scroll(raw, state) {
         Reply::Ignored => {}
         reply => return reply,
     }
 
     match raw {
-        Event::Mouse(mouse) => click(*mouse, state),
+        Event::Mouse(_) => click(target, state),
         Event::Key(_) if focus == Focus::Region => key(raw),
         _ => Reply::Ignored,
     }
@@ -131,30 +129,24 @@ fn displacement(event: &Event) -> Option<(i16, i16)> {
 
 /// What a click means to the region.
 ///
-/// **A left press inside the interior selects the shape the drawing records at the cell under it,
-/// and a press on a cell nobody owns drops the selection** (rules 1 and 2). The offset asked for is
-/// the click's own, counted from the interior's corner (see [`DiagramState::offset_of`]).
+/// **A left press inside the interior selects the shape the drawing records at the cell the router
+/// found, and a press on a cell nobody owns drops the selection** (rules 1 and 2). The cell is
+/// [`Target::Interior`]'s, counted from the interior's corner, so the region never reads the
+/// pointer a second time.
 ///
 /// **Everything else is not the region's**, and it is answered with nothing so that the event goes
-/// on to the next handler (rule 3): a press on the bar, the region's border or the status bar, a
-/// press on a rectangle no frame drew into, and a press of any button but the left. A release is not
-/// a press, so it is not the region's either.
+/// on to the next handler (rule 3): a press on the bar, the region's border or the status bar, and
+/// a press on a rectangle no frame drew into. A press of another button is no target at all, and a
+/// release is not a press, so neither is the region's either.
 ///
 /// **The answer is `Repaint` only when the selection moved.** Selecting what is already selected,
 /// or dropping a selection that is not there, changed nothing and owes no frame — but the press was
 /// still the region's, so it is `Consumed` rather than `Ignored`.
-fn click(mouse: MouseEvent, state: &mut DiagramState) -> Reply {
-    if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
+fn click(target: Target, state: &mut DiagramState) -> Reply {
+    let Target::Interior(offset) = target else {
         return Reply::Ignored;
-    }
+    };
 
-    let at = Position {
-        x: mouse.column,
-        y: mouse.row,
-    };
-    let Some(offset) = state.offset_of(at) else {
-        return Reply::Ignored;
-    };
     let owner = state.owner(offset);
 
     if state.select(owner) {
@@ -274,7 +266,10 @@ fn inner_region(area: Rect) -> Rect {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use ratatui_crossterm::crossterm::event::{KeyEvent, KeyEventKind, KeyModifiers, MouseEvent};
+    use ratatui_core::layout::Position;
+    use ratatui_crossterm::crossterm::event::{
+        KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
 
     /// The region these tests draw into. **Its interior is `18×6` at `(1, 1)` of the screen**, which
     /// is what says where a click's column and row land.
@@ -336,6 +331,19 @@ mod tests {
     /// in each direction.
     fn screen(x: u16, y: u16) -> Position {
         Position { x: x + 1, y: y + 1 }
+    }
+
+    /// Hands the event to the region the way `callbacks` does: the target of a left press is read
+    /// from the frame, and every other event carries none.
+    fn handle(event: &Event, state: &mut DiagramState, focus: Focus) -> Reply {
+        let target = match event {
+            Event::Mouse(mouse) if mouse.kind == MouseEventKind::Down(MouseButton::Left) => {
+                state.target_at(Position::new(mouse.column, mouse.row))
+            }
+            _ => Target::Nothing,
+        };
+
+        super::handle(event, state, focus, target)
     }
 
     /// **The bar sits on the region's border and takes no cell from the window** (rule 4). The

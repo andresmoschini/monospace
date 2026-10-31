@@ -135,6 +135,7 @@ mod tests {
     use rat_theme4::palettes::dark::BASE16;
     use rat_theme4::themes::create_dark;
     use ratatui_core::buffer::Buffer;
+    use ratatui_core::layout::Position;
     use ratatui_core::style::Modifier;
     use ratatui_crossterm::crossterm::event::{
         Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -401,7 +402,9 @@ mod tests {
             modifiers: KeyModifiers::NONE,
         });
 
-        let outcome = crate::diagram_widget::handle(&event, &mut state.diagram, state.focus);
+        let target = state.target_at(Position::new(column, line));
+        let outcome =
+            crate::diagram_widget::handle(&event, &mut state.diagram, state.focus, target);
 
         assert!(
             matches!(outcome, Reply::Repaint),
