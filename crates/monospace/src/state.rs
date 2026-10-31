@@ -653,6 +653,40 @@ pub(crate) struct Chrome {
     pub(crate) keyboard: Keyboard,
 }
 
+impl Chrome {
+    /// The chrome of an application that starts on the region (D1 of #189).
+    pub(crate) fn new() -> Self {
+        Self {
+            menu: MenubarState::default(),
+            keyboard: Keyboard::region(),
+        }
+    }
+
+    /// The leaf that holds the keyboard.
+    pub(crate) fn leaf(&self) -> Focus {
+        self.keyboard.leaf()
+    }
+
+    /// Whether the bar holds the keyboard.
+    pub(crate) fn is_bar(&self) -> bool {
+        self.keyboard.is_bar()
+    }
+
+    /// A press addresses the keyboard, saying whether it moved.
+    pub(crate) fn at(&mut self, target: Target) -> bool {
+        self.keyboard.at(target)
+    }
+
+    /// **A meaning carried out closes the drop-down and gives the keyboard back together**
+    /// (rule 13 of #189): what a person took from the bar is done, and what is left to do is in
+    /// the drawing. **The two are one operation** because a menu nobody holds the keyboard on is
+    /// not open, and doing one without the other is the state this type exists to prevent.
+    pub(crate) fn close(&mut self) {
+        self.menu.set_popup_active(false);
+        self.keyboard.move_to_region();
+    }
+}
+
 /// What a left press lands on.
 ///
 /// **One answer, decided once.** The leaf the keyboard moves to and the cell of the drawing under
@@ -703,10 +737,7 @@ impl AppState {
     pub(crate) fn new(diagram_session: Session) -> Self {
         Self {
             diagram: DiagramState::new(diagram_session),
-            chrome: Chrome {
-                menu: MenubarState::default(),
-                keyboard: Keyboard::region(),
-            },
+            chrome: Chrome::new(),
             status: status::state(),
             about: MsgDialogState::default(),
         }

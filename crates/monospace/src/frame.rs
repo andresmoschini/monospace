@@ -66,12 +66,13 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // region uses.
     Clear.render(area, buf);
 
+    let focused = state.chrome.is_bar();
     menu::draw_bar(
         regions.bar,
         buf,
         &mut state.chrome.menu,
         &global.cfg.theme,
-        state.chrome.keyboard.is_bar(),
+        focused,
     );
 
     diagram_widget::draw(
@@ -403,12 +404,8 @@ mod tests {
         });
 
         let target = state.target_at(Position::new(column, line));
-        let outcome = crate::diagram_widget::handle(
-            &event,
-            &mut state.diagram,
-            state.chrome.keyboard.leaf(),
-            target,
-        );
+        let outcome =
+            crate::diagram_widget::handle(&event, &mut state.diagram, state.chrome.leaf(), target);
 
         assert!(
             matches!(outcome, Reply::Repaint),
