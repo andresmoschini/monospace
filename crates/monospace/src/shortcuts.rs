@@ -20,7 +20,7 @@
 
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
 
-use crate::vocabulary::Action;
+use crate::vocabulary::{Action, Reply};
 
 /// How far a shortcut reaches into the order the handlers are asked in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,15 +106,15 @@ const SHORTCUTS: &[Shortcut] = &[
 ///
 /// This is the one `callbacks` asks first, before the chrome. A resize never reaches it: that is
 /// answered before anything is routed.
-pub(crate) fn handle_always(event: &Event) -> Option<Action> {
-    handle(event, Reach::Always)
+pub(crate) fn handle_always(event: &Event) -> Reply {
+    reply(event, Reach::Always)
 }
 
 /// What the event means to a shortcut nobody has claimed.
 ///
 /// This is the one `callbacks` asks last, after the chrome.
-pub(crate) fn handle_unclaimed(event: &Event) -> Option<Action> {
-    handle(event, Reach::Unclaimed)
+pub(crate) fn handle_unclaimed(event: &Event) -> Reply {
+    reply(event, Reach::Unclaimed)
 }
 
 /// What the event means to a shortcut of this reach.
@@ -139,6 +139,14 @@ fn handle(event: &Event, reach: Reach) -> Option<Action> {
                 && shortcut.modifiers == key.modifiers
         })
         .map(|shortcut| shortcut.action)
+}
+
+/// What an event means to a shortcut of this reach, as the router's answer.
+fn reply(event: &Event, reach: Reach) -> Reply {
+    match handle(event, reach) {
+        Some(action) => Reply::Act(action),
+        None => Reply::Ignored,
+    }
 }
 
 /// The events that trigger the shortcuts answered before any handler.
@@ -169,7 +177,7 @@ mod tests {
     }
 
     /// Hands the event to the entry point of one reach, the way `callbacks` does.
-    fn handle_at(event: &Event, reach: Reach) -> Option<Action> {
+    fn handle_at(event: &Event, reach: Reach) -> Reply {
         match reach {
             Reach::Always => handle_always(event),
             Reach::Unclaimed => handle_unclaimed(event),
@@ -180,7 +188,7 @@ mod tests {
     fn the_way_out_is_the_shortcut_the_menu_shows() {
         let event = key(KeyCode::Char('q'), KeyModifiers::CONTROL);
 
-        assert_eq!(handle_unclaimed(&event), Some(Action::Quit));
+        assert_eq!(handle_unclaimed(&event), Reply::Act(Action::Quit));
     }
 
     /// **The two exits differ in their reach, and that is the decision.** The forced exit is
@@ -191,16 +199,16 @@ mod tests {
         let forced_exit = key(KeyCode::Char('c'), KeyModifiers::CONTROL);
         let way_out = key(KeyCode::Char('q'), KeyModifiers::CONTROL);
 
-        assert_eq!(handle_always(&forced_exit), Some(Action::ForceQuit));
-        assert_eq!(handle_unclaimed(&way_out), Some(Action::Quit));
+        assert_eq!(handle_always(&forced_exit), Reply::Act(Action::ForceQuit));
+        assert_eq!(handle_unclaimed(&way_out), Reply::Act(Action::Quit));
         assert_eq!(
             handle_unclaimed(&forced_exit),
-            None,
+            Reply::Ignored,
             "the forced exit answered after the chrome"
         );
         assert_eq!(
             handle_always(&way_out),
-            None,
+            Reply::Ignored,
             "the way out answered before the chrome"
         );
     }
@@ -217,7 +225,7 @@ mod tests {
 
                 assert_eq!(
                     handle_at(&event, shortcut.reach),
-                    None,
+                    Reply::Ignored,
                     "{kind:?} answered {:?}",
                     shortcut.action
                 );
@@ -238,7 +246,7 @@ mod tests {
             for modifiers in combinations_but(shortcut.modifiers) {
                 assert_eq!(
                     handle_at(&key(shortcut.key, modifiers), shortcut.reach),
-                    None,
+                    Reply::Ignored,
                     "{:?} with {modifiers:?} answered",
                     shortcut.action
                 );
@@ -246,7 +254,7 @@ mod tests {
         }
 
         let another_key = key(KeyCode::Char('x'), KeyModifiers::CONTROL);
-        assert_eq!(handle_unclaimed(&another_key), None);
+        assert_eq!(handle_unclaimed(&another_key), Reply::Ignored);
     }
 
     /// Every combination of the modifiers a terminal reports for these keys, other than `own`.
@@ -281,7 +289,7 @@ mod tests {
         });
 
         for reach in [Reach::Always, Reach::Unclaimed] {
-            assert_eq!(handle_at(&event, reach), None);
+            assert_eq!(handle_at(&event, reach), Reply::Ignored);
         }
     }
 }

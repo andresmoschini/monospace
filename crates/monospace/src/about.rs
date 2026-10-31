@@ -24,6 +24,7 @@ use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::Event;
 
 use crate::status;
+use crate::vocabulary::Reply;
 
 /// The largest the pop-up grows: wide enough for a message, short enough to leave the chrome
 /// around it visible.
@@ -62,11 +63,17 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut MsgDialogState, the
 /// What an event means to the dialog.
 ///
 /// **The dialog's own focus runs while it is up** (D6): the framework moves between the message and
-/// the `Ok` with `Tab`, arms and presses the button, and closes on `Esc`. The answer is the
-/// framework's `Outcome`, so the router can paint when the dialog changed and leave everything
-/// alone when it only consumed the event.
-pub(crate) fn handle(event: &Event, state: &mut MsgDialogState) -> Outcome {
-    state.handle(event, Dialog)
+/// the `Ok` with `Tab`, arms and presses the button, and closes on `Esc`. **`Outcome` already has
+/// the three answers the router needs, and it also says whether the dialog is up**: the framework
+/// answers `Continue` while the dialog is inactive, `Unchanged` when it kept the event without
+/// changing the screen, and `Changed` when it owes a frame. One call is therefore enough — there is
+/// no separate question about `active()` — and the three answers keep their meaning in [`Reply`].
+pub(crate) fn handle(event: &Event, state: &mut MsgDialogState) -> Reply {
+    match state.handle(event, Dialog) {
+        Outcome::Continue => Reply::Ignored,
+        Outcome::Unchanged => Reply::Consumed,
+        Outcome::Changed => Reply::Repaint,
+    }
 }
 
 /// The dialog's styles, with the button's focus cue replaced by reverse video.

@@ -14,8 +14,9 @@
 //! `Action::ForceQuit` end the loop.
 //!
 //! **A handler says an action rather than doing one**, so that an entry of the menu and the key
-//! that means the same thing are decided in one place. A handler that took no interest says
-//! `None`, and the handlers are asked in order until one answers.
+//! that means the same thing are decided in one place. A handler answers with a [`Reply`], which
+//! keeps "not mine" apart from "mine, and nothing changed": only [`Reply::Ignored`] lets the next
+//! handler be asked.
 //!
 //! The event itself is not here: it is what the loop polls, and it lives in `crate::event`
 //! beside the two translations into it.
@@ -90,4 +91,52 @@ pub(crate) enum Action {
 
     /// The forced exit: the application ends whatever the state is.
     ForceQuit,
+}
+
+/// What a handler says about an event.
+///
+/// **The four answers are the protocol, and their order is [`Reply::merge`]'s.** `Ignored` lets
+/// the next handler be asked; the other three stop the chain. `Consumed` is the event taken with
+/// no frame owed, `Repaint` is the event taken with one, and `Act` carries a meaning for
+/// `callbacks::apply` to carry out.
+///
+/// **"Not mine" and "mine, and nothing changed" are different answers**, which is what the
+/// protocol this replaced could not say: `None` meant both, so a handler that had consumed an
+/// event left the next one to answer it as well.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Reply {
+    /// Not mine: ask the next handler.
+    Ignored,
+
+    /// Mine, and nothing changed: the chain stops and no frame is owed.
+    Consumed,
+
+    /// Mine, and the frame is owed.
+    Repaint,
+
+    /// Mine, and this action is carried out before the frame is painted.
+    Act(Action),
+}
+
+impl Reply {
+    /// Combines this reply with what addressing the event did.
+    ///
+    /// **The order is `Act > Repaint > Consumed > Ignored`**: an action is carried out whatever
+    /// else happened, a frame is owed by either answer, and a handler that took the event stops
+    /// the chain even where addressing it changed nothing.
+    pub(crate) fn merge(self, addressed: Reply) -> Reply {
+        match (self, addressed) {
+            (Reply::Ignored, addressed) => addressed,
+            (Reply::Consumed, Reply::Repaint) => Reply::Repaint,
+            (this, _) => this,
+        }
+    }
+
+    /// Asks `next` only where this handler ignored the event.
+    pub(crate) fn or_else(self, next: impl FnOnce() -> Reply) -> Reply {
+        match self {
+            Reply::Ignored => next(),
+            this => this,
+        }
+    }
 }

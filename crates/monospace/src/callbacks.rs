@@ -14,7 +14,6 @@
 //! is `shortcuts`' table. This module only says when each layer is asked.
 
 use rat_salsa::Control;
-use rat_widget::event::Outcome;
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::{Position, Rect};
 use ratatui_crossterm::crossterm::event::{Event, MouseButton, MouseEventKind};
@@ -27,7 +26,7 @@ use crate::frame;
 use crate::menu;
 use crate::shortcuts;
 use crate::state::{AppState, Focus};
-use crate::vocabulary::{Action, AppError};
+use crate::vocabulary::{Action, AppError, Reply};
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
 /// of ours to set up.
@@ -64,7 +63,7 @@ pub(crate) fn event(
         // painted with is the one it no longer has, so it is painted again.
         AppEvent::Terminal(Event::Resize(_, _)) => Control::Changed,
 
-        AppEvent::Terminal(event) => apply(route(event, state), state),
+        AppEvent::Terminal(event) => apply(&route(event, state), state),
     })
 }
 
@@ -93,27 +92,49 @@ pub(crate) fn event(
 /// state.menu` and the leaf the keyboard is on, and the region `&mut state.diagram`, so what a
 /// handler may change about the application is what its own signature makes possible: the selection,
 /// the drop-down and which leaf holds the keyboard, and never the session.
-fn route(event: &Event, state: &mut AppState) -> Option<Action> {
-    if let Some(action) = shortcuts::handle_always(event) {
-        return Some(action);
+///
+/// **A handler that consumed the event stops the chain**, and that is the difference the protocol
+/// carries: `Ignored` is "not mine, ask the next one", `Consumed` is "mine, and nothing changed",
+/// and only the first lets the region see a press the drop-down already trapped.
+fn route(event: &Event, state: &mut AppState) -> Reply {
+    let always = shortcuts::handle_always(event);
+    if always != Reply::Ignored {
+        return always;
     }
 
     // **The dialog is the overlay** (D6): while it is up, it is the only thing asked. A closing
     // event paints; anything else it consumed reaches nothing. `Ctrl+C` was answered above, which
-    // is what keeps the forced exit out of the dialog's hands.
-    if state.about.active() {
-        return match about::handle(event, &mut state.about) {
-            Outcome::Changed => Some(Action::ScreenChanged),
-            _ => None,
-        };
+    // is what keeps the forced exit out of the dialog's hands. **`Ignored` is the dialog being
+    // down**: the framework answers it while the dialog is inactive, so this is one call and not a
+    // question about `active()` followed by a question about the event.
+    match about::handle(event, &mut state.about) {
+        Reply::Ignored => {}
+        reply => return reply,
     }
 
-    let moved = address(event, state);
+    let addressed = address(event, state);
 
     menu::handle(event, &mut state.menu, &mut state.focus)
-        .or_else(|| diagram_widget::handle(event, &mut state.diagram, state.focus))
+        .or_else(|| {
+            from_option(diagram_widget::handle(
+                event,
+                &mut state.diagram,
+                state.focus,
+            ))
+        })
         .or_else(|| shortcuts::handle_unclaimed(event))
-        .or_else(|| moved.then_some(Action::ScreenChanged))
+        .merge(addressed)
+}
+
+/// The protocol the handlers still speak, until each one answers with a [`Reply`]: `None` meant
+/// both "not mine" and "mine, and nothing changed", so it becomes [`Reply::Ignored`], and the
+/// screen changing becomes [`Reply::Repaint`].
+fn from_option(answer: Option<Action>) -> Reply {
+    match answer {
+        Some(Action::ScreenChanged) => Reply::Repaint,
+        Some(action) => Reply::Act(action),
+        None => Reply::Ignored,
+    }
 }
 
 /// **A press is addressed before it is answered** (D1 of #189): the leaf it lands in is who the
@@ -128,100 +149,113 @@ fn route(event: &Event, state: &mut AppState) -> Option<Action> {
 /// keyboard afterwards would answer the wrong leaf. No action names a leaf.
 ///
 /// **A press on the status line, and one on a rectangle no frame drew into, lands in neither leaf**
-/// and moves nothing. **The answer is whether the keyboard moved**, because that is a frame owed
-/// even where no handler answers it: the label that was reversed is not any more.
-fn address(event: &Event, state: &mut AppState) -> bool {
+/// and moves nothing. **The answer is `Repaint` where the keyboard moved**, because that is a frame
+/// owed even where no handler answers it: the label that was reversed is not any more.
+fn address(event: &Event, state: &mut AppState) -> Reply {
     let Event::Mouse(mouse) = event else {
-        return false;
+        return Reply::Ignored;
     };
 
     if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
-        return false;
+        return Reply::Ignored;
     }
 
-    state.set_focus_at(Position::new(mouse.column, mouse.row))
+    if state.set_focus_at(Position::new(mouse.column, mouse.row)) {
+        Reply::Repaint
+    } else {
+        Reply::Ignored
+    }
 }
 
-/// What an action does: paint the frame again, change the session, end the loop, or nothing at
-/// all.
+/// What a reply does: paint the frame again, change the session, end the loop, or nothing at all.
 ///
-/// **An action is carried out here, and nowhere else.** The delete key performs the one command
+/// **A meaning is carried out here, and nowhere else.** The delete key performs the one command
 /// this slice issues, the two walks give a step back, and `About` opens the dialog; all of them are
 /// carried out beside the two that end the loop so that a handler never does anything but say what
 /// the event meant. **Every meaning that is carried out also leaves the keyboard on the region**
-/// (rule 13 of #189), and that is said once, at the end, rather than in each arm.
+/// (rule 13 of #189), and that is said once, in [`cleanup`], rather than in each arm.
 ///
-/// **No action names a leaf** (rule 5): the keyboard moves where the event is addressed — a press in
-/// `route`, the bar's three keys in `menu::handle` — so the only thing the rule at the end exempts
-/// is the screen changing, which carries nothing out.
-///
-/// **The action carries the meaning and not the identity** (D2): the selected shape is read here,
-/// from the state the click left, rather than minted into the action by the region. A press with
-/// nothing selected performs no command and records no step, and the frame is owed all the same:
-/// carrying the action out repaints, which is what makes the Edit menu's entry close on the screen
-/// with nothing selected.
+/// **`Ignored` and `Consumed` are the same answer here**: neither owes a frame. **`Repaint` paints
+/// without carrying anything out**, and keeps the focus and menu state routing established. Only a
+/// carried-out meaning applies the cleanup.
 ///
 /// The way out and the forced exit both end the loop. **They are two meanings and not two code
 /// paths**: the way out grows a pop-up to confirm and the forced exit does not, which is #189's,
 /// and until then they end the same way.
-fn apply(action: Option<Action>, state: &mut AppState) -> Control<AppEvent> {
-    let Some(action) = action else {
-        return Control::Continue;
-    };
-
-    match action {
-        // **The two that end the loop**, and the only two that are not carried out.
-        Action::Quit | Action::ForceQuit => return Control::Quit,
+fn apply(reply: &Reply, state: &mut AppState) -> Control<AppEvent> {
+    match reply {
+        Reply::Ignored | Reply::Consumed => Control::Continue,
 
         // **The frame is owed, but no action is carried out.** `route` has already addressed any
-        // press, and this action preserves that focus and the menu state instead of applying the
-        // cleanup below.
-        Action::ScreenChanged => return Control::Changed,
+        // press, and this preserves that focus and the menu state instead of applying the cleanup.
+        //
+        // **The old protocol's repaint rides here**: [`from_option`] turns `ScreenChanged` into
+        // `Reply::Repaint`, so the `Act` arm is never reached — it is what keeps the match whole
+        // while the variant still exists, and it goes away with the variant.
+        Reply::Repaint | Reply::Act(Action::ScreenChanged) => Control::Changed,
+
+        // **The two that end the loop**, and the only two that are not carried out.
+        Reply::Act(Action::Quit | Action::ForceQuit) => Control::Quit,
 
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
         // of where the walk stands. At either end the session answers with itself, and the frame is
         // owed all the same, because the action was carried out.
-        Action::Undo => state.diagram.undo(),
+        Reply::Act(Action::Undo) => {
+            state.diagram.undo();
+            cleanup(state);
+            Control::Changed
+        }
 
-        Action::Redo => state.diagram.redo(),
+        Reply::Act(Action::Redo) => {
+            state.diagram.redo();
+            cleanup(state);
+            Control::Changed
+        }
 
         // **The one action that performs a command.** D2: the meaning arrives from the table and
         // the identity is asked of the state, so the removal is one place and the key that means it
         // is another. **The frame is owed either way**: an action that was carried out repaints, so
         // taking the Edit menu's entry closes the drop-down on the screen even when there was no
         // figure to remove.
-        Action::Delete => {
+        Reply::Act(Action::Delete) => {
             if let Some(selected) = state.diagram.selected() {
                 state.diagram.remove(selected);
             }
+
+            cleanup(state);
+            Control::Changed
         }
 
         // **The movement is the same shape of action as the deletion** (rule 4 of #179): the delta
         // arrives from the region's handler and the identity is read here. **But a move with
         // nothing selected is answered before the cleanup**, because nothing was carried out: no
         // command, no step and no frame owed.
-        Action::Move(dx, dy) => {
+        Reply::Act(Action::Move(dx, dy)) => {
             let Some(selected) = state.diagram.selected() else {
                 return Control::Continue;
             };
 
-            state.diagram.move_shape(selected, dx, dy);
+            state.diagram.move_shape(selected, *dx, *dy);
+            cleanup(state);
+            Control::Changed
         }
 
         // **The one action that opens an overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
-        Action::About => about::open(&mut state.about),
+        Reply::Act(Action::About) => {
+            about::open(&mut state.about);
+            cleanup(state);
+            Control::Changed
+        }
     }
+}
 
-    // **A meaning that is carried out leaves the keyboard on the region** (rule 13 of #189): what a
-    // person took from the bar is done, and what is left to do is in the drawing. The drop-down the
-    // bar was showing closes with it, because a menu nobody holds the keyboard on is not open.
-    // **Only actions carried out reach this cleanup**: `ScreenChanged` returns above with the
-    // focus and menu state that routing established. Keeping the cleanup here means every other
-    // carried-out action closes the drop-down and leaves the keyboard on the region.
+/// **A meaning that is carried out leaves the keyboard on the region** (rule 13 of #189): what a
+/// person took from the bar is done, and what is left to do is in the drawing. The drop-down the
+/// bar was showing closes with it, because a menu nobody holds the keyboard on is not open.
+fn cleanup(state: &mut AppState) {
     state.menu.set_popup_active(false);
     state.focus = Focus::Region;
-    Control::Changed
 }
 
 /// What the application does about a failure.
@@ -1209,7 +1243,7 @@ mod tests {
         state.focus = Focus::Bar;
         state.menu.set_popup_active(true);
 
-        let outcome = apply(Some(Action::Move(1, 0)), &mut state);
+        let outcome = apply(&Reply::Act(Action::Move(1, 0)), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
@@ -1410,7 +1444,6 @@ mod tests {
     /// found on the frame rather than named, because where the pop-up hangs is the widget's
     /// arithmetic.
     #[test]
-    #[should_panic(expected = "the click on the drop-down's border reached the drawing behind it")]
     fn a_click_on_the_drop_down_border_never_reaches_the_diagram() {
         let mut state = a_drawn_state_over(A_BOX);
         open_the_drop_down(&mut state, 'e');
@@ -1670,12 +1703,12 @@ mod tests {
     fn the_delete_shortcut_says_only_that_it_deletes() {
         assert_eq!(
             shortcuts::handle_unclaimed(&key(KeyCode::Delete)),
-            Some(Action::Delete),
+            Reply::Act(Action::Delete),
             "the delete key is not a row of the table, or says something else"
         );
         assert_eq!(
             shortcuts::handle_always(&key(KeyCode::Delete)),
-            None,
+            Reply::Ignored,
             "the delete key reaches before the chrome"
         );
     }
@@ -1873,12 +1906,12 @@ mod tests {
     fn the_undo_shortcut_says_only_that_it_undoes() {
         assert_eq!(
             shortcuts::handle_unclaimed(&undo_key()),
-            Some(Action::Undo),
+            Reply::Act(Action::Undo),
             "the undo key is not a row of the table, or says something else"
         );
         assert_eq!(
             shortcuts::handle_always(&undo_key()),
-            None,
+            Reply::Ignored,
             "the undo key reaches before the chrome"
         );
     }
@@ -1888,12 +1921,12 @@ mod tests {
     fn the_redo_shortcut_says_only_that_it_redoes() {
         assert_eq!(
             shortcuts::handle_unclaimed(&redo_key()),
-            Some(Action::Redo),
+            Reply::Act(Action::Redo),
             "the redo key is not a row of the table, or says something else"
         );
         assert_eq!(
             shortcuts::handle_always(&redo_key()),
-            None,
+            Reply::Ignored,
             "the redo key reaches before the chrome"
         );
     }
@@ -2286,8 +2319,8 @@ mod tests {
             "the view did not move across, so the test proves nothing"
         );
 
-        // **The frame comes before the click**, as it does in the loop: `ScreenChanged` repaints, and
-        // a click is answered from the picture the person saw.
+        // **The frame comes before the click**, as it does in the loop: `Reply::Repaint` repaints,
+        // and a click is answered from the picture the person saw.
         let _ = draw(&mut state);
         let outcome = send(&click(25, 2), &mut state);
 

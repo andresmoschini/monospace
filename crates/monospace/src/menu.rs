@@ -30,7 +30,7 @@ use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::state::Focus;
-use crate::vocabulary::Action;
+use crate::vocabulary::{Action, Reply};
 
 /// The bar, and what each of its entries means.
 ///
@@ -83,18 +83,21 @@ const ABOUT: usize = 0;
 
 /// What an event means to the chrome.
 ///
-/// **The bar is asked about every event and says what it was worth**: `None` if it took no
-/// interest, `ScreenChanged` if it changed what the screen shows, and the action the event means —
-/// the entry that was taken, or the keyboard leaving the bar or arriving there. A shortcut is not
-/// the bar's to answer: the application's own are asked around it, in `callbacks` — before it the
-/// ones that reach everything, after it the ones nobody has claimed — so the bar says nothing about
-/// one.
+/// **The bar is asked about every event and says what it was worth**: `Ignored` if it took no
+/// interest, `Repaint` if it changed what the screen shows, `Consumed` if it took the event without
+/// changing anything, and `Act` for the entry that was taken. A shortcut is not the bar's to
+/// answer: the application's own are asked around it, in `callbacks` — before it the ones that
+/// reach everything, after it the ones nobody has claimed — so the bar says nothing about one.
 ///
-/// **`None` is `Continue` and `Unchanged`, and the application makes no difference between them**:
-/// the widget handled the event and there is nothing for the screen to paint, so the shortcuts
-/// nobody has claimed are still asked. **The widget only answers a key while the bar holds the
-/// keyboard**: the leaf it is handed says whether it does, and a bar that does not hold it answers
-/// no key and closes the drop-down the keyboard left behind.
+/// **The widget's `Continue` is `Ignored` and its `Unchanged` is `Consumed`**, and the difference
+/// is the point: an event the drop-down trapped on its border is the drop-down's, and the region
+/// behind it must not be asked. **The widget's outcome is not the whole answer**: `rat-menu` closes
+/// the pop-up when the bar loses the keyboard and reports `Continue` all the same, so the bar
+/// compares the drop-down and the keyboard before and after it asks. A change made while the event
+/// was taken upgrades `Consumed` to `Repaint`; an event the bar ignored goes on to the next
+/// handler, and the keyboard that left is what owes that frame. **The widget only answers a key
+/// while the bar holds the keyboard**: the leaf it is handed says whether it does, and a bar that
+/// does not hold it answers no key and closes the drop-down the keyboard left behind.
 ///
 /// **The three keys that move the keyboard are read here, and the bar moves it** (rule 5 of #189).
 /// `F10` asks for the bar from either leaf (D4, amended). `Alt` plus a navigation character brings
@@ -107,7 +110,7 @@ const ABOUT: usize = 0;
 /// **A bar that moved the keyboard answers**, with the frame owed because a label reversed is a
 /// label that changed. The caller's chain stops there, so nothing after the bar is asked with the
 /// keyboard somewhere other than where it was when the event arrived.
-pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focus: &mut Focus) -> Option<Action> {
+pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focus: &mut Focus) -> Reply {
     let bar = *focus == Focus::Bar;
 
     // **`F10` asks for the bar** (D4, amended): the key every terminal reports, where a bare `Alt`
@@ -115,14 +118,14 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focus: &mut Focus) -
     // drop-down in the way.
     if !bar && asks_for_the_bar(raw) {
         *focus = Focus::Bar;
-        return Some(Action::ScreenChanged);
+        return Reply::Repaint;
     }
 
     // **`Esc` on a bar with nothing left to close gives the keyboard back** (rule 5): the widget
     // answers the key while a drop-down is open, and this is the press after it.
     if bar && steps_back(raw, state) {
         *focus = Focus::Region;
-        return Some(Action::ScreenChanged);
+        return Reply::Repaint;
     }
 
     let translated;
@@ -136,33 +139,60 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, focus: &mut Focus) -
         None => (raw, false),
     };
 
+    let before_open = state.popup_active();
+    let before_focus = *focus;
+
     let answer = match menubar::handle_popup_events(state, *focus == Focus::Bar, raw) {
         // An entry was taken: it means an action, and `callbacks` applies it — which is also where
         // the keyboard goes back to the region, because a meaning carried out is left there. The
         // loop is not asked again, so an entry and the key that means the same thing end in one
-        // place.
+        // place. An entry nobody knows still closed the drop-down, so it owes the frame.
         MenuOutcome::MenuActivated(label, entry) => {
             state.set_popup_active(false);
-            Some(meaning(label, entry))
+            match meaning(label, entry) {
+                Some(action) => Reply::Act(action),
+                None => Reply::Repaint,
+            }
         }
 
         // **The widget's vocabulary is finer than the application's.** Selecting, activating and
-        // hiding are all "the screen changed"; the other two leave the application nothing to do,
-        // and the shortcuts nobody has claimed are asked after it.
+        // hiding are all "the screen changed"; `Unchanged` took the event and changed nothing, so
+        // the chain stops there; `Continue` leaves it to the next handler.
         MenuOutcome::Changed
         | MenuOutcome::Hide
         | MenuOutcome::Selected(_)
         | MenuOutcome::Activated(_)
-        | MenuOutcome::MenuSelected(_, _) => Some(Action::ScreenChanged),
+        | MenuOutcome::MenuSelected(_, _) => Reply::Repaint,
 
-        MenuOutcome::Continue | MenuOutcome::Unchanged => None,
+        MenuOutcome::Unchanged => Reply::Consumed,
+
+        MenuOutcome::Continue => Reply::Ignored,
+    };
+
+    // **The widget can change the state and still say nothing.** `rat-menu` closes the drop-down
+    // when the bar loses the keyboard and answers `Continue`, so a `Consumed` that changed
+    // something is a frame owed rather than a silent event.
+    //
+    // **An ignored event stays ignored even where the state moved.** The drop-down closes because
+    // the keyboard had already left the bar, and the frame that closing owes is [`crate::callbacks`]'
+    // address answer: claiming the event here would stop the chain and the region would never see
+    // the press that took the keyboard away.
+    let state_changed = state.popup_active() != before_open || *focus != before_focus;
+    let answer = if state_changed && answer != Reply::Ignored {
+        answer.merge(Reply::Repaint)
+    } else {
+        answer
     };
 
     // **The keyboard arrived with the translation** (D4): the label reversed and the drop-down
     // opened are changes the widget has answered, and the frame is owed even where it said nothing
     // — the keyboard that arrived is the screen changing. It cannot be an entry: an entry is only
     // taken from an open drop-down, and an open drop-down means the bar already held the keyboard.
-    answer.or(arriving.then_some(Action::ScreenChanged))
+    if arriving {
+        answer.merge(Reply::Repaint)
+    } else {
+        answer
+    }
 }
 
 /// The navigation character an `Alt` press names, or `None` where the event is not one.
@@ -244,17 +274,17 @@ fn navigation(label: &str) -> Option<char> {
 
 /// What an entry of the bar means to the application.
 ///
-/// **The bar carries text and nothing else**: an entry means what its position says.
-fn meaning(label: usize, entry: usize) -> Action {
+/// **The bar carries text and nothing else**: an entry means what its position says, and an entry
+/// nobody knows means nothing — it still closed the drop-down, so the caller owes the frame.
+fn meaning(label: usize, entry: usize) -> Option<Action> {
     match (label, entry) {
-        (FILE, QUIT) => Action::Quit,
-        (EDIT, UNDO) => Action::Undo,
-        (EDIT, REDO) => Action::Redo,
-        (EDIT, DELETE) => Action::Delete,
-        (HELP, ABOUT) => Action::About,
+        (FILE, QUIT) => Some(Action::Quit),
+        (EDIT, UNDO) => Some(Action::Undo),
+        (EDIT, REDO) => Some(Action::Redo),
+        (EDIT, DELETE) => Some(Action::Delete),
+        (HELP, ABOUT) => Some(Action::About),
 
-        // An entry nobody knows still closed the drop-down, so the frame has to be painted again.
-        _ => Action::ScreenChanged,
+        _ => None,
     }
 }
 
@@ -378,7 +408,7 @@ mod tests {
     }
 
     /// Hands the event to the bar with the keyboard on it, where the test is not about the focus.
-    fn on_the_bar(event: &Event, state: &mut MenubarState) -> Option<Action> {
+    fn on_the_bar(event: &Event, state: &mut MenubarState) -> Reply {
         let mut focus = Focus::Bar;
         handle(event, state, &mut focus)
     }
@@ -404,7 +434,7 @@ mod tests {
     /// but not what it says, and a test that pressed `Enter` would take whatever happens to be
     /// first. **The pointer moves onto it before the button goes down**, because the widget
     /// activates the entry it has selected and a press alone selects nothing.
-    fn take(state: &mut MenubarState, text: &str) -> Option<Action> {
+    fn take(state: &mut MenubarState, text: &str) -> Reply {
         let buffer = draw(state);
         let (column, row) = cell_of(&buffer, text);
         let _ = on_the_bar(&moved(column, row), state);
@@ -483,7 +513,7 @@ mod tests {
         let outcome = on_the_bar(&key(KeyCode::Char('f')), &mut state);
 
         assert!(
-            matches!(outcome, Some(Action::ScreenChanged)),
+            matches!(outcome, Reply::Repaint),
             "the navigation character did not report a screen change: {outcome:?}"
         );
         assert!(state.popup_active(), "the drop-down did not open");
@@ -491,7 +521,7 @@ mod tests {
         let outcome = on_the_bar(&key(KeyCode::Esc), &mut state);
 
         assert!(
-            matches!(outcome, Some(Action::ScreenChanged)),
+            matches!(outcome, Reply::Repaint),
             "escape did not report a screen change: {outcome:?}"
         );
         assert!(!state.popup_active(), "escape did not close the drop-down");
@@ -579,7 +609,7 @@ mod tests {
 
         assert_eq!(focus, Focus::Bar, "F10 left the keyboard where it was");
         assert!(
-            matches!(outcome, Some(Action::ScreenChanged)),
+            matches!(outcome, Reply::Repaint),
             "F10 answered {outcome:?}"
         );
         assert!(!state.popup_active(), "F10 opened a drop-down");
@@ -601,7 +631,7 @@ mod tests {
             "the escape left the keyboard on the bar"
         );
         assert!(
-            matches!(outcome, Some(Action::ScreenChanged)),
+            matches!(outcome, Reply::Repaint),
             "the escape answered {outcome:?}"
         );
     }
@@ -614,7 +644,7 @@ mod tests {
         let outcome = on_the_bar(&key(KeyCode::Enter), &mut state);
 
         assert!(
-            matches!(outcome, Some(Action::Quit)),
+            matches!(outcome, Reply::Act(Action::Quit)),
             "the entry did not become the action of the way out: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
@@ -631,7 +661,7 @@ mod tests {
         let outcome = take(&mut state, "Delete");
 
         assert!(
-            matches!(outcome, Some(Action::Delete)),
+            matches!(outcome, Reply::Act(Action::Delete)),
             "the entry did not become the action of the delete key: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
@@ -647,7 +677,7 @@ mod tests {
         let outcome = take(&mut state, "Undo");
 
         assert!(
-            matches!(outcome, Some(Action::Undo)),
+            matches!(outcome, Reply::Act(Action::Undo)),
             "the entry did not become the action of the undo key: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
@@ -688,7 +718,7 @@ mod tests {
         let outcome = take(&mut state, "About");
 
         assert!(
-            matches!(outcome, Some(Action::About)),
+            matches!(outcome, Reply::Act(Action::About)),
             "the entry did not become the action of the About dialog: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
@@ -703,7 +733,7 @@ mod tests {
         let outcome = take(&mut state, "Redo");
 
         assert!(
-            matches!(outcome, Some(Action::Redo)),
+            matches!(outcome, Reply::Act(Action::Redo)),
             "the entry did not become the action of the redo key: {outcome:?}"
         );
         assert!(!state.popup_active(), "the drop-down stayed open behind it");
@@ -779,8 +809,9 @@ mod tests {
             &mut focus,
         );
 
-        assert!(
-            outcome.is_none(),
+        assert_eq!(
+            outcome,
+            Reply::Ignored,
             "the bar answered a shortcut: {outcome:?}"
         );
         assert_eq!(focus, Focus::Bar, "the bar gave the keyboard away");
@@ -797,7 +828,7 @@ mod tests {
         let outcome = on_the_bar(&click(column, row), &mut state);
 
         assert!(
-            matches!(outcome, Some(Action::Quit)),
+            matches!(outcome, Reply::Act(Action::Quit)),
             "the click did not become the action of the way out: {outcome:?}"
         );
     }
@@ -811,7 +842,7 @@ mod tests {
         let outcome = on_the_bar(&click(column, row), &mut state);
 
         assert!(
-            matches!(outcome, Some(Action::ScreenChanged)),
+            matches!(outcome, Reply::Repaint),
             "the click did not report a screen change: {outcome:?}"
         );
         assert!(state.popup_active(), "the click did not open the drop-down");
@@ -823,7 +854,7 @@ mod tests {
 
         let outcome = on_the_bar(&key(KeyCode::Char('z')), &mut state);
 
-        assert!(outcome.is_none(), "{outcome:?}");
+        assert_eq!(outcome, Reply::Ignored, "{outcome:?}");
         assert!(!state.popup_active(), "a key opened a drop-down");
     }
 
