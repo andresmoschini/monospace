@@ -74,11 +74,11 @@ impl Keyboard {
         moved
     }
 
-    /// A press addresses the keyboard, saying whether it moved.
+    /// A move to the leaf the target names, saying whether it moved.
     ///
     /// **A target in neither leaf leaves it alone**: the status line and empty space are not
     /// destinations for the keyboard.
-    fn at(&mut self, target: Target) -> bool {
+    fn move_to(&mut self, target: Target) -> bool {
         match target {
             Target::Bar => self.move_to_bar(),
             Target::Border | Target::Interior(_) => self.move_to_region(),
@@ -155,9 +155,9 @@ impl Chrome {
         self.keyboard.is_bar()
     }
 
-    /// A press addresses the keyboard, saying whether it moved.
-    pub(crate) fn at(&mut self, target: Target) -> bool {
-        self.keyboard.at(target)
+    /// A move to the leaf the target names, saying whether it moved.
+    pub(crate) fn move_to(&mut self, target: Target) -> bool {
+        self.keyboard.move_to(target)
     }
 
     /// **A meaning carried out closes the drop-down and gives the keyboard back together**

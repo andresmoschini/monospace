@@ -19,7 +19,7 @@ use ratatui_core::layout::{Position, Rect};
 use ratatui_crossterm::crossterm::event::{Event, MouseButton, MouseEventKind};
 
 use crate::about;
-use crate::chrome::Target;
+use crate::chrome::{Chrome, Target};
 use crate::context::AppGlobal;
 use crate::diagram_widget;
 use crate::event::AppEvent;
@@ -107,8 +107,8 @@ pub(crate) fn event(
 /// action names a leaf.
 ///
 /// **The one thing that is settled before a handler is asked is where the event is addressed**
-/// (D1): [`address`] gives the keyboard to the leaf a press lands in, and says whether it moved,
-/// because the frame that follows is owed even where nothing answers.
+/// (D1): [`move_keyboard`] gives the keyboard to the leaf a press lands in, and says whether it
+/// moved, because the frame that follows is owed even where nothing answers.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The chrome is given
 /// `state.chrome_mut()`, the bar and the keyboard together, and the region `state.diagram_mut()`,
@@ -119,25 +119,27 @@ pub(crate) fn event(
 /// carries: `Ignored` is "not mine, ask the next one", `Consumed` is "mine, and nothing changed",
 /// and only the first lets the region see a press the drop-down already trapped.
 fn route(event: &Event, state: &mut AppState) -> Reply {
-    let always = shortcuts::handle_always(event);
-    if always != Reply::Ignored {
-        return always;
-    }
+    // **The two reaches that answer before the press is addressed come first, and in this order.**
+    // A `Ctrl+C` that reached the chrome as a key would be answered by the chrome, and the point of
+    // it is that it is answered by nothing; the dialog is the overlay, so while it is up an event it
+    // leaves alone reaches nothing else. **`Ignored` is the dialog being down**: the framework
+    // answers it while the dialog is inactive, so asking it is one call and not a question about
+    // `active()` followed by a question about the event.
+    //
+    // **Neither of the two moves the keyboard**, which is why addressing sits below and not here: a
+    // click on the bar behind the dialog moves nothing, and the press is addressed only once nobody
+    // above has answered it.
+    let before =
+        shortcuts::handle_always(event).or_else(|| about::handle(event, state.about_mut()));
 
-    // **The dialog is the overlay** (D6): while it is up, it is the only thing asked. A closing
-    // event paints; anything else it consumed reaches nothing. `Ctrl+C` was answered above, which
-    // is what keeps the forced exit out of the dialog's hands. **`Ignored` is the dialog being
-    // down**: the framework answers it while the dialog is inactive, so this is one call and not a
-    // question about `active()` followed by a question about the event.
-    match about::handle(event, state.about_mut()) {
-        Reply::Ignored => {}
-        reply => return reply,
+    if before != Reply::Ignored {
+        return before;
     }
 
     // **Where the event is addressed is read once**: the keyboard moves to the leaf the press
     // lands in, and the region is handed the same target rather than reading the press again.
     let target = target_of(event, state);
-    let addressed = address(target, state);
+    let addressed = move_keyboard(target, state.chrome_mut());
 
     menu::handle(event, state.chrome_mut())
         .or_else(|| {
@@ -164,8 +166,8 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
 /// **A press on the status line, and one on a rectangle no frame drew into, lands in neither leaf**
 /// and moves nothing. **The answer is `Repaint` where the keyboard moved**, because that is a frame
 /// owed even where no handler answers it: the label that was reversed is not any more.
-fn address(target: Target, state: &mut AppState) -> Reply {
-    if state.chrome_mut().at(target) {
+fn move_keyboard(target: Target, chrome: &mut Chrome) -> Reply {
+    if chrome.move_to(target) {
         Reply::Repaint
     } else {
         Reply::Ignored
