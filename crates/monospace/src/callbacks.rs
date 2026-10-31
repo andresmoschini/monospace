@@ -117,7 +117,7 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     let target = target_of(event, state);
     let addressed = address(target, state);
 
-    menu::handle(event, &mut state.chrome.menu, &mut state.chrome.keyboard)
+    menu::handle(event, &mut state.chrome)
         .or_else(|| diagram_widget::handle(event, &mut state.diagram, state.chrome.leaf(), target))
         .or_else(|| shortcuts::handle_unclaimed(event))
         .merge(addressed)
@@ -511,7 +511,7 @@ mod tests {
             "Alt+{label} did not give the bar the keyboard"
         );
         assert!(
-            state.chrome.menu.popup_active(),
+            state.chrome.popup_active(),
             "Alt+{label} did not open the drop-down"
         );
     }
@@ -550,7 +550,7 @@ mod tests {
             "taking About left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "taking About left the drop-down open"
         );
     }
@@ -610,7 +610,7 @@ mod tests {
             "the closing event moved the keyboard"
         );
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "the closing event opened a drop-down"
         );
         assert_eq!(
@@ -655,7 +655,7 @@ mod tests {
             "the click on the bar moved the keyboard"
         );
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "the click behind the dialog opened a drop-down"
         );
         assert!(
@@ -813,7 +813,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "a key with no action changed the state"
         );
     }
@@ -980,7 +980,7 @@ mod tests {
             "the label did not give the bar the keyboard"
         );
         assert!(
-            state.chrome.menu.popup_active(),
+            state.chrome.popup_active(),
             "the label did not open its drop-down"
         );
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
@@ -992,10 +992,7 @@ mod tests {
     fn a_press_in_the_region_closes_the_drop_down_and_selects() {
         let mut state = a_drawn_state_over(A_BOX_AND_WHAT_HANGS_FROM_IT);
         open_the_drop_down(&mut state, 'f');
-        assert!(
-            state.chrome.menu.popup_active(),
-            "the drop-down did not open"
-        );
+        assert!(state.chrome.popup_active(), "the drop-down did not open");
 
         // The right box's top-left is outside the File drop-down, so the press is the region's.
         let outcome = send(&click(17, 3), &mut state);
@@ -1004,10 +1001,10 @@ mod tests {
             state.chrome.leaf(),
             Focus::Region,
             "the press left the keyboard on the bar; the drop-down is {:?}",
-            state.chrome.menu.popup.area
+            state.chrome.menu().popup.area
         );
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "the drop-down survived the keyboard leaving it"
         );
         assert!(
@@ -1029,19 +1026,17 @@ mod tests {
         );
 
         for arrow in [KeyCode::Left, KeyCode::Right, KeyCode::Up, KeyCode::Down] {
-            let selected = state.chrome.menu.bar.selected;
+            let selected = state.chrome.menu().bar.selected;
             let outcome = send(&key(arrow), &mut state);
 
             assert!(
                 matches!(outcome, Control::Continue),
                 "{arrow:?}: {outcome:?}"
             );
-            assert!(
-                !state.chrome.menu.popup_active(),
-                "{arrow:?} opened a drop-down"
-            );
+            assert!(!state.chrome.popup_active(), "{arrow:?} opened a drop-down");
             assert_eq!(
-                state.chrome.menu.bar.selected, selected,
+                state.chrome.menu().bar.selected,
+                selected,
                 "{arrow:?} moved the bar's label"
             );
         }
@@ -1246,7 +1241,7 @@ mod tests {
             "the box was not selected"
         );
         state.chrome.keyboard.move_to_bar();
-        state.chrome.menu.set_popup_active(true);
+        state.chrome.menu_mut().set_popup_active(true);
 
         let outcome = apply(&Reply::Act(Action::Move(1, 0)), &mut state);
 
@@ -1257,7 +1252,7 @@ mod tests {
             "the move left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "the move left a drop-down open"
         );
         assert!(state.diagram.can_undo(), "the move recorded no step");
@@ -1351,7 +1346,7 @@ mod tests {
             Focus::Region,
             "a combination that names no label moved the keyboard"
         );
-        assert!(!state.chrome.menu.popup_active(), "a drop-down opened");
+        assert!(!state.chrome.popup_active(), "a drop-down opened");
     }
 
     /// **`Esc` closes the drop-down, and the next one gives the keyboard back to the region**
@@ -1367,7 +1362,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "escape left the drop-down open"
         );
         assert_eq!(
@@ -1415,10 +1410,7 @@ mod tests {
             Focus::Region,
             "escape moved the keyboard"
         );
-        assert!(
-            !state.chrome.menu.popup_active(),
-            "escape opened a drop-down"
-        );
+        assert!(!state.chrome.popup_active(), "escape opened a drop-down");
     }
 
     /// **`F10` asks for the bar where a bare `Alt` cannot** (D4, amended): it moves the keyboard and
@@ -1441,7 +1433,7 @@ mod tests {
             Focus::Bar,
             "F10 did not give the bar the keyboard"
         );
-        assert!(!state.chrome.menu.popup_active(), "F10 opened a drop-down");
+        assert!(!state.chrome.popup_active(), "F10 opened a drop-down");
 
         let (column, row) = frame::cell_of(&frame, "File");
         assert!(
@@ -1478,14 +1470,14 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         open_the_drop_down(&mut state, 'e');
 
-        let popup = state.chrome.menu.popup.area;
+        let popup = state.chrome.menu().popup.area;
         let mut border = None;
 
         for row in popup.top()..popup.bottom() {
             for column in popup.left()..popup.right() {
                 let at = Position::new(column, row);
 
-                if state.chrome.menu.popup.item_at((column, row)).is_some() {
+                if state.chrome.menu().popup.item_at((column, row)).is_some() {
                     continue;
                 }
 
@@ -1529,7 +1521,7 @@ mod tests {
             "the click on the drop-down's border moved the keyboard"
         );
         assert!(
-            state.chrome.menu.popup_active(),
+            state.chrome.popup_active(),
             "the click on the drop-down's border closed the drop-down"
         );
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
@@ -1627,10 +1619,7 @@ mod tests {
         let outcome = take_the_entry(&mut state, 'e', "Delete");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(
-            !state.chrome.menu.popup_active(),
-            "the entry left the menu open"
-        );
+        assert!(!state.chrome.popup_active(), "the entry left the menu open");
         assert_eq!(
             state.diagram.selected(),
             None,
@@ -1655,7 +1644,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "the entry stayed open with nothing to remove"
         );
         assert!(
@@ -1694,7 +1683,7 @@ mod tests {
             "the removal left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "a drop-down is open with the keyboard on the region"
         );
 
@@ -1725,7 +1714,7 @@ mod tests {
             "the entry left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "the entry left a drop-down open"
         );
     }
@@ -1756,10 +1745,7 @@ mod tests {
         let outcome = take_the_entry(&mut state, 'e', "Undo");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(
-            !state.chrome.menu.popup_active(),
-            "the entry left the menu open"
-        );
+        assert!(!state.chrome.popup_active(), "the entry left the menu open");
         assert!(!state.diagram.can_undo(), "the entry recorded a step");
         assert!(!state.diagram.can_redo(), "the entry left a step ahead");
 
@@ -1776,10 +1762,7 @@ mod tests {
         let outcome = take_the_entry(&mut state, 'e', "Redo");
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(
-            !state.chrome.menu.popup_active(),
-            "the entry left the menu open"
-        );
+        assert!(!state.chrome.popup_active(), "the entry left the menu open");
         assert!(!state.diagram.can_undo(), "the redo entry recorded a step");
         assert!(
             !state.diagram.can_redo(),
@@ -1915,7 +1898,7 @@ mod tests {
             "the undo left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "a drop-down is open with the keyboard on the region"
         );
 
@@ -1934,7 +1917,7 @@ mod tests {
             "the redo left the keyboard on the bar"
         );
         assert!(
-            !state.chrome.menu.popup_active(),
+            !state.chrome.popup_active(),
             "a drop-down is open with the keyboard on the region"
         );
     }

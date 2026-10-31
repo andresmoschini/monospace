@@ -29,7 +29,7 @@ use ratatui_core::style::Style;
 use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::state::Keyboard;
+use crate::state::Chrome;
 use crate::vocabulary::{Action, Reply};
 
 /// The bar, and what each of its entries means.
@@ -110,21 +110,21 @@ const ABOUT: usize = 0;
 /// **A bar that moved the keyboard answers**, with the frame owed because a label reversed is a
 /// label that changed. The caller's chain stops there, so nothing after the bar is asked with the
 /// keyboard somewhere other than where it was when the event arrived.
-pub(crate) fn handle(raw: &Event, state: &mut MenubarState, keyboard: &mut Keyboard) -> Reply {
-    let bar = keyboard.is_bar();
+pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
+    let bar = chrome.is_bar();
 
     // **`F10` asks for the bar** (D4, amended): the key every terminal reports, where a bare `Alt`
     // is not one. It asks for the keyboard and opens nothing, so the bar looks focused with no
     // drop-down in the way.
     if !bar && asks_for_the_bar(raw) {
-        keyboard.move_to_bar();
+        chrome.move_to_bar();
         return Reply::Repaint;
     }
 
     // **`Esc` on a bar with nothing left to close gives the keyboard back** (rule 5): the widget
     // answers the key while a drop-down is open, and this is the press after it.
-    if bar && steps_back(raw, state) {
-        keyboard.move_to_region();
+    if bar && steps_back(raw, chrome.menu()) {
+        chrome.move_to_region();
         return Reply::Repaint;
     }
 
@@ -132,23 +132,24 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, keyboard: &mut Keybo
     let (raw, arriving) = match alt_navigation(raw) {
         Some(character) => {
             translated = Event::Key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
-            let arrived = !keyboard.is_bar();
-            keyboard.move_to_bar();
+            let arrived = !chrome.is_bar();
+            chrome.move_to_bar();
             (&translated, arrived)
         }
         None => (raw, false),
     };
 
-    let before_open = state.popup_active();
-    let before_focus = keyboard.leaf();
+    let before_open = chrome.popup_active();
+    let before_focus = chrome.leaf();
+    let focused = chrome.is_bar();
 
-    let answer = match menubar::handle_popup_events(state, keyboard.is_bar(), raw) {
+    let answer = match menubar::handle_popup_events(chrome.menu_mut(), focused, raw) {
         // An entry was taken: it means an action, and `callbacks` applies it — which is also where
         // the keyboard goes back to the region, because a meaning carried out is left there. The
         // loop is not asked again, so an entry and the key that means the same thing end in one
         // place. An entry nobody knows still closed the drop-down, so it owes the frame.
         MenuOutcome::MenuActivated(label, entry) => {
-            state.set_popup_active(false);
+            chrome.close_popup();
             match meaning(label, entry) {
                 Some(action) => Reply::Act(action),
                 None => Reply::Repaint,
@@ -177,7 +178,7 @@ pub(crate) fn handle(raw: &Event, state: &mut MenubarState, keyboard: &mut Keybo
     // the keyboard had already left the bar, and the frame that closing owes is [`crate::callbacks`]'
     // address answer: claiming the event here would stop the chain and the region would never see
     // the press that took the keyboard away.
-    let state_changed = state.popup_active() != before_open || keyboard.leaf() != before_focus;
+    let state_changed = chrome.popup_active() != before_open || chrome.leaf() != before_focus;
     let answer = if state_changed && answer != Reply::Ignored {
         answer.merge(Reply::Repaint)
     } else {
@@ -336,7 +337,7 @@ fn widgets(theme: &SalsaTheme) -> (MenubarLine<'static>, MenubarPopup<'static>) 
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::state::Focus;
+    use crate::state::{Chrome, Focus};
     use ratatui_crossterm::crossterm::event::{
         KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
@@ -353,30 +354,30 @@ mod tests {
     }
 
     /// The bar and its drop-down, drawn into a buffer of the whole screen.
-    fn draw(state: &mut MenubarState) -> Buffer {
-        draw_with(state, true)
+    fn draw(chrome: &mut Chrome) -> Buffer {
+        draw_with(chrome, true)
     }
 
     /// The bar and its drop-down, with the keyboard on the bar or not.
-    fn draw_with(state: &mut MenubarState, focused: bool) -> Buffer {
+    fn draw_with(chrome: &mut Chrome, focused: bool) -> Buffer {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let mut buffer = Buffer::empty(area);
         draw_bar(
             Rect::new(0, 0, WIDTH, 1),
             &mut buffer,
-            state,
+            chrome.menu_mut(),
             &theme(),
             focused,
         );
-        draw_drop_down(area, &mut buffer, state, &theme());
+        draw_drop_down(area, &mut buffer, chrome.menu_mut(), &theme());
         buffer
     }
 
     /// The bar, drawn once so that the widget knows where its labels are.
-    fn drawn() -> MenubarState {
-        let mut state = MenubarState::default();
-        draw(&mut state);
-        state
+    fn drawn() -> Chrome {
+        let mut chrome = Chrome::new();
+        draw(&mut chrome);
+        chrome
     }
 
     /// The picture of the frame, as text.
@@ -409,16 +410,9 @@ mod tests {
     }
 
     /// Hands the event to the bar with the keyboard on it, where the test is not about the focus.
-    fn on_the_bar(event: &Event, state: &mut MenubarState) -> Reply {
-        let mut keyboard = a_keyboard_on_the_bar();
-        handle(event, state, &mut keyboard)
-    }
-
-    /// A keyboard the bar holds, which is where the tests about the bar start.
-    fn a_keyboard_on_the_bar() -> Keyboard {
-        let mut keyboard = Keyboard::region();
-        keyboard.move_to_bar();
-        keyboard
+    fn on_the_bar(event: &Event, chrome: &mut Chrome) -> Reply {
+        chrome.move_to_bar();
+        handle(event, chrome)
     }
 
     /// Opens the drop-down of the label, the way a person does.
@@ -426,14 +420,14 @@ mod tests {
     /// **The frame is drawn after the key as well as before it**: the widget knows what it
     /// holds only once it has been drawn, and a frame that is not drawn leaves the drop-down
     /// without an entry to take.
-    fn open_with(state: &mut MenubarState, navigation: char) {
-        let _ = on_the_bar(&key(KeyCode::Char(navigation)), state);
-        draw(state);
+    fn open_with(chrome: &mut Chrome, navigation: char) {
+        let _ = on_the_bar(&key(KeyCode::Char(navigation)), chrome);
+        draw(chrome);
     }
 
     /// Opens the File drop-down.
-    fn open(state: &mut MenubarState) {
-        open_with(state, 'f');
+    fn open(chrome: &mut Chrome) {
+        open_with(chrome, 'f');
     }
 
     /// Takes the entry whose text is `text`, by clicking it on the frame, the way a person does.
@@ -442,12 +436,12 @@ mod tests {
     /// but not what it says, and a test that pressed `Enter` would take whatever happens to be
     /// first. **The pointer moves onto it before the button goes down**, because the widget
     /// activates the entry it has selected and a press alone selects nothing.
-    fn take(state: &mut MenubarState, text: &str) -> Reply {
-        let buffer = draw(state);
+    fn take(chrome: &mut Chrome, text: &str) -> Reply {
+        let buffer = draw(chrome);
         let (column, row) = cell_of(&buffer, text);
-        let _ = on_the_bar(&moved(column, row), state);
+        let _ = on_the_bar(&moved(column, row), chrome);
 
-        on_the_bar(&click(column, row), state)
+        on_the_bar(&click(column, row), chrome)
     }
 
     fn key(code: KeyCode) -> Event {
@@ -483,7 +477,7 @@ mod tests {
     /// keyboard is.
     #[test]
     fn a_control_the_keyboard_is_on_is_drawn_in_reverse_video() {
-        let mut without = MenubarState::default();
+        let mut without = Chrome::new();
         let unfocused = draw_with(&mut without, false);
         let (column, row) = cell_of(&unfocused, "File");
         let plain = unfocused[(column, row)].style();
@@ -516,23 +510,23 @@ mod tests {
 
     #[test]
     fn the_navigation_character_opens_the_drop_down_and_escape_closes_it() {
-        let mut state = drawn();
+        let mut chrome = drawn();
 
-        let outcome = on_the_bar(&key(KeyCode::Char('f')), &mut state);
+        let outcome = on_the_bar(&key(KeyCode::Char('f')), &mut chrome);
 
         assert!(
             matches!(outcome, Reply::Repaint),
             "the navigation character did not report a screen change: {outcome:?}"
         );
-        assert!(state.popup_active(), "the drop-down did not open");
+        assert!(chrome.popup_active(), "the drop-down did not open");
 
-        let outcome = on_the_bar(&key(KeyCode::Esc), &mut state);
+        let outcome = on_the_bar(&key(KeyCode::Esc), &mut chrome);
 
         assert!(
             matches!(outcome, Reply::Repaint),
             "escape did not report a screen change: {outcome:?}"
         );
-        assert!(!state.popup_active(), "escape did not close the drop-down");
+        assert!(!chrome.popup_active(), "escape did not close the drop-down");
     }
 
     /// **The key that leaves the bar is a press and nothing else** (rule 5): a release, a repeat,
@@ -540,10 +534,10 @@ mod tests {
     /// while a drop-down is open.
     #[test]
     fn an_escape_press_is_the_bars_way_out() {
-        let mut state = drawn();
+        let mut chrome = drawn();
 
         assert!(
-            steps_back(&key(KeyCode::Esc), &state),
+            steps_back(&key(KeyCode::Esc), chrome.menu()),
             "the escape press was not read"
         );
 
@@ -554,21 +548,27 @@ mod tests {
                 kind,
             ));
 
-            assert!(!steps_back(&event, &state), "{kind:?} was read as it");
+            assert!(
+                !steps_back(&event, chrome.menu()),
+                "{kind:?} was read as it"
+            );
         }
 
         assert!(
-            !steps_back(&key_with(KeyCode::Esc, KeyModifiers::CONTROL), &state),
+            !steps_back(
+                &key_with(KeyCode::Esc, KeyModifiers::CONTROL),
+                chrome.menu()
+            ),
             "a modified escape was read as it"
         );
         assert!(
-            !steps_back(&key(KeyCode::Enter), &state),
+            !steps_back(&key(KeyCode::Enter), chrome.menu()),
             "another key was read as it"
         );
 
-        open(&mut state);
+        open(&mut chrome);
         assert!(
-            !steps_back(&key(KeyCode::Esc), &state),
+            !steps_back(&key(KeyCode::Esc), chrome.menu()),
             "the escape that closes the drop-down was read as the bar stepping back"
         );
     }
@@ -610,13 +610,12 @@ mod tests {
     /// is why the frame is owed. It opens nothing on the way.
     #[test]
     fn f10_moves_the_keyboard_to_the_bar_and_owes_the_frame() {
-        let mut state = drawn();
-        let mut keyboard = Keyboard::region();
+        let mut chrome = drawn();
 
-        let outcome = handle(&key(KeyCode::F(10)), &mut state, &mut keyboard);
+        let outcome = handle(&key(KeyCode::F(10)), &mut chrome);
 
         assert_eq!(
-            keyboard.leaf(),
+            chrome.leaf(),
             Focus::Bar,
             "F10 left the keyboard where it was"
         );
@@ -624,7 +623,7 @@ mod tests {
             matches!(outcome, Reply::Repaint),
             "F10 answered {outcome:?}"
         );
-        assert!(!state.popup_active(), "F10 opened a drop-down");
+        assert!(!chrome.popup_active(), "F10 opened a drop-down");
     }
 
     /// **The escape that closes nothing gives the keyboard back where it is read** (rule 5): the
@@ -632,13 +631,13 @@ mod tests {
     /// because the label stops being reversed.
     #[test]
     fn the_escape_that_closes_nothing_gives_the_keyboard_back() {
-        let mut state = drawn();
-        let mut keyboard = a_keyboard_on_the_bar();
+        let mut chrome = drawn();
+        chrome.move_to_bar();
 
-        let outcome = handle(&key(KeyCode::Esc), &mut state, &mut keyboard);
+        let outcome = handle(&key(KeyCode::Esc), &mut chrome);
 
         assert_eq!(
-            keyboard.leaf(),
+            chrome.leaf(),
             Focus::Region,
             "the escape left the keyboard on the bar"
         );
@@ -654,15 +653,15 @@ mod tests {
     /// reach the diagram behind it.
     #[test]
     fn a_press_the_drop_down_traps_is_consumed_and_not_ignored() {
-        let mut state = drawn();
-        open_with(&mut state, 'e');
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'e');
 
-        let popup = state.popup.area;
+        let popup = chrome.menu().popup.area;
         let mut trapped = None;
 
         for row in popup.top()..popup.bottom() {
             for column in popup.left()..popup.right() {
-                if state.popup.item_at((column, row)).is_none() {
+                if chrome.menu().popup.item_at((column, row)).is_none() {
                     trapped = Some((column, row));
                     break;
                 }
@@ -675,28 +674,31 @@ mod tests {
 
         let (column, row) = trapped.expect("the drop-down has no cell that is not an entry");
 
-        let outcome = on_the_bar(&click(column, row), &mut state);
+        let outcome = on_the_bar(&click(column, row), &mut chrome);
 
         assert_eq!(
             outcome,
             Reply::Consumed,
             "a press the drop-down trapped answered {outcome:?}"
         );
-        assert!(state.popup_active(), "the press closed the drop-down");
+        assert!(chrome.popup_active(), "the press closed the drop-down");
     }
 
     #[test]
     fn taking_the_quit_entry_becomes_the_action_of_the_way_out() {
-        let mut state = drawn();
-        open(&mut state);
+        let mut chrome = drawn();
+        open(&mut chrome);
 
-        let outcome = on_the_bar(&key(KeyCode::Enter), &mut state);
+        let outcome = on_the_bar(&key(KeyCode::Enter), &mut chrome);
 
         assert!(
             matches!(outcome, Reply::Act(Action::Quit)),
             "the entry did not become the action of the way out: {outcome:?}"
         );
-        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
     }
 
     /// **The Edit menu's entry is the key's action, and the bar holds no selection to condition
@@ -704,42 +706,48 @@ mod tests {
     /// action out as a deletion that removes nothing rather than the menu refusing to open it.
     #[test]
     fn taking_the_delete_entry_becomes_the_action_of_the_key() {
-        let mut state = drawn();
-        open_with(&mut state, 'e');
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'e');
 
-        let outcome = take(&mut state, "Delete");
+        let outcome = take(&mut chrome, "Delete");
 
         assert!(
             matches!(outcome, Reply::Act(Action::Delete)),
             "the entry did not become the action of the delete key: {outcome:?}"
         );
-        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
     }
 
     /// **The Edit menu's entries are the keys' actions.** The undo is the first, and taking it says
     /// `Action::Undo` rather than a second spelling of the walk.
     #[test]
     fn taking_the_undo_entry_becomes_the_action_of_the_key() {
-        let mut state = drawn();
-        open_with(&mut state, 'e');
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'e');
 
-        let outcome = take(&mut state, "Undo");
+        let outcome = take(&mut chrome, "Undo");
 
         assert!(
             matches!(outcome, Reply::Act(Action::Undo)),
             "the entry did not become the action of the undo key: {outcome:?}"
         );
-        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
     }
 
     /// **Help is the third label and About its only entry, with no shortcut drawn** (rule 8):
     /// About opens a dialog rather than a command, so there is no key to show beside it.
     #[test]
     fn the_help_menu_holds_about_and_draws_no_shortcut() {
-        let mut state = drawn();
-        open_with(&mut state, 'h');
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'h');
 
-        let buffer = draw(&mut state);
+        let buffer = draw(&mut chrome);
         let frame = picture(&buffer);
 
         assert!(frame.contains("Help"), "the bar has no Help: {frame:?}");
@@ -761,41 +769,47 @@ mod tests {
     /// opened where the action is carried out rather than by the bar.
     #[test]
     fn taking_the_about_entry_mints_the_about_action() {
-        let mut state = drawn();
-        open_with(&mut state, 'h');
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'h');
 
-        let outcome = take(&mut state, "About");
+        let outcome = take(&mut chrome, "About");
 
         assert!(
             matches!(outcome, Reply::Act(Action::About)),
             "the entry did not become the action of the About dialog: {outcome:?}"
         );
-        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
     }
 
     /// **The redo entry is the redo key's action**, the same way.
     #[test]
     fn taking_the_redo_entry_becomes_the_action_of_the_key() {
-        let mut state = drawn();
-        open_with(&mut state, 'e');
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'e');
 
-        let outcome = take(&mut state, "Redo");
+        let outcome = take(&mut chrome, "Redo");
 
         assert!(
             matches!(outcome, Reply::Act(Action::Redo)),
             "the entry did not become the action of the redo key: {outcome:?}"
         );
-        assert!(!state.popup_active(), "the drop-down stayed open behind it");
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
     }
 
     /// **The Edit menu holds the three entries in the order the keys are learned**: Undo, Redo and
     /// Delete, each with the shortcut the table answers to (rule 9).
     #[test]
     fn the_edit_menu_shows_undo_and_redo_with_their_shortcuts() {
-        let mut state = drawn();
-        open_with(&mut state, 'e');
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'e');
 
-        let frame = picture(&draw(&mut state));
+        let frame = picture(&draw(&mut chrome));
 
         assert!(
             frame.contains("Undo"),
@@ -828,10 +842,10 @@ mod tests {
 
     #[test]
     fn the_edit_menu_is_on_the_bar_and_shows_the_delete_entry() {
-        let mut state = drawn();
-        open_with(&mut state, 'e');
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'e');
 
-        let frame = picture(&draw(&mut state));
+        let frame = picture(&draw(&mut chrome));
 
         assert!(
             frame.contains("Edit"),
@@ -849,13 +863,12 @@ mod tests {
 
     #[test]
     fn the_shortcuts_are_not_the_bars() {
-        let mut state = drawn();
-        let mut keyboard = a_keyboard_on_the_bar();
+        let mut chrome = drawn();
+        chrome.move_to_bar();
 
         let outcome = handle(
             &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
-            &mut state,
-            &mut keyboard,
+            &mut chrome,
         );
 
         assert_eq!(
@@ -863,22 +876,18 @@ mod tests {
             Reply::Ignored,
             "the bar answered a shortcut: {outcome:?}"
         );
-        assert_eq!(
-            keyboard.leaf(),
-            Focus::Bar,
-            "the bar gave the keyboard away"
-        );
-        assert!(!state.popup_active(), "a shortcut opened a drop-down");
+        assert_eq!(chrome.leaf(), Focus::Bar, "the bar gave the keyboard away");
+        assert!(!chrome.popup_active(), "a shortcut opened a drop-down");
     }
 
     #[test]
     fn a_click_on_the_entry_becomes_the_same_action() {
-        let mut state = drawn();
-        open(&mut state);
-        let buffer = draw(&mut state);
+        let mut chrome = drawn();
+        open(&mut chrome);
+        let buffer = draw(&mut chrome);
         let (column, row) = cell_of(&buffer, "Quit");
 
-        let outcome = on_the_bar(&click(column, row), &mut state);
+        let outcome = on_the_bar(&click(column, row), &mut chrome);
 
         assert!(
             matches!(outcome, Reply::Act(Action::Quit)),
@@ -888,35 +897,38 @@ mod tests {
 
     #[test]
     fn a_click_on_the_label_opens_its_drop_down() {
-        let mut state = drawn();
-        let buffer = draw(&mut state);
+        let mut chrome = drawn();
+        let buffer = draw(&mut chrome);
         let (column, row) = cell_of(&buffer, "File");
 
-        let outcome = on_the_bar(&click(column, row), &mut state);
+        let outcome = on_the_bar(&click(column, row), &mut chrome);
 
         assert!(
             matches!(outcome, Reply::Repaint),
             "the click did not report a screen change: {outcome:?}"
         );
-        assert!(state.popup_active(), "the click did not open the drop-down");
+        assert!(
+            chrome.popup_active(),
+            "the click did not open the drop-down"
+        );
     }
 
     #[test]
     fn a_key_the_bar_does_not_use_is_nothing() {
-        let mut state = drawn();
+        let mut chrome = drawn();
 
-        let outcome = on_the_bar(&key(KeyCode::Char('z')), &mut state);
+        let outcome = on_the_bar(&key(KeyCode::Char('z')), &mut chrome);
 
         assert_eq!(outcome, Reply::Ignored, "{outcome:?}");
-        assert!(!state.popup_active(), "a key opened a drop-down");
+        assert!(!chrome.popup_active(), "a key opened a drop-down");
     }
 
     #[test]
     fn the_drop_down_shows_the_shortcut_the_entry_answers_to() {
-        let mut state = drawn();
-        open(&mut state);
+        let mut chrome = drawn();
+        open(&mut chrome);
 
-        let buffer = draw(&mut state);
+        let buffer = draw(&mut chrome);
         let frame = picture(&buffer);
 
         assert!(
