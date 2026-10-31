@@ -1405,6 +1405,73 @@ mod tests {
         );
     }
 
+    /// **The drop-down's own rectangle is the drop-down's, border and padding included** (rule 1
+    /// of #189): a press between its entries is not a press on the drawing behind it. The cell is
+    /// found on the frame rather than named, because where the pop-up hangs is the widget's
+    /// arithmetic.
+    #[test]
+    #[should_panic(expected = "the click on the drop-down's border reached the drawing behind it")]
+    fn a_click_on_the_drop_down_border_never_reaches_the_diagram() {
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_drop_down(&mut state, 'e');
+
+        let popup = state.menu.popup.area;
+        let mut border = None;
+
+        for row in popup.top()..popup.bottom() {
+            for column in popup.left()..popup.right() {
+                let at = Position::new(column, row);
+
+                if state.menu.popup.item_at((column, row)).is_some() {
+                    continue;
+                }
+
+                let Some(offset) = state.diagram.offset_of(at) else {
+                    continue;
+                };
+
+                if state.diagram.owner(offset).is_some() {
+                    border = Some(at);
+                    break;
+                }
+            }
+
+            if border.is_some() {
+                break;
+            }
+        }
+
+        let border = border.unwrap_or_else(|| {
+            panic!(
+                "the Edit drop-down {popup:?} has no border cell over the box, so the test proves nothing"
+            )
+        });
+
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the test starts with a selection"
+        );
+
+        let outcome = send(&click(border.x, border.y), &mut state);
+
+        assert_eq!(
+            state.diagram.selected(),
+            None,
+            "the click on the drop-down's border reached the drawing behind it at {border:?}"
+        );
+        assert_eq!(
+            state.focus,
+            Focus::Bar,
+            "the click on the drop-down's border moved the keyboard"
+        );
+        assert!(
+            state.menu.popup_active(),
+            "the click on the drop-down's border closed the drop-down"
+        );
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+    }
+
     /// **The delete key is the first action that changes the session.** The selected shape is gone
     /// from the drawing the next frame makes, and the frame is owed because of it.
     #[test]
