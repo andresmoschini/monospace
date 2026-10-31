@@ -89,7 +89,7 @@ pub(crate) fn event(
 /// because the frame that follows is owed even where nothing answers.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The bar is given `&mut
-/// state.chrome.menu` and the leaf the keyboard is on, and the region `&mut state.diagram`, so what a
+/// state.chrome`, the bar and the keyboard together, and the region `&mut state.diagram`, so what a
 /// handler may change about the application is what its own signature makes possible: the selection,
 /// the drop-down and which leaf holds the keyboard, and never the session.
 ///
@@ -885,7 +885,7 @@ mod tests {
     #[test]
     fn a_press_inside_the_region_moves_the_keyboard_and_selects() {
         let mut state = a_drawn_state_over(A_BOX);
-        state.chrome.keyboard.move_to_bar();
+        state.chrome.move_to_bar();
         let _ = draw(&mut state);
 
         let outcome = send(&click(3, 3), &mut state);
@@ -920,7 +920,7 @@ mod tests {
             (WIDTH - 1, 3, "the right border"),
             (3, HEIGHT - 2, "the bottom border"),
         ] {
-            state.chrome.keyboard.move_to_bar();
+            state.chrome.move_to_bar();
             let _ = draw(&mut state);
 
             let outcome = send(&click(column, row), &mut state);
@@ -946,7 +946,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram.selected();
-        state.chrome.keyboard.move_to_bar();
+        state.chrome.move_to_bar();
         let _ = draw(&mut state);
 
         let outcome = send(&click(3, HEIGHT - 1), &mut state);
@@ -1240,7 +1240,7 @@ mod tests {
             state.diagram.selected().is_some(),
             "the box was not selected"
         );
-        state.chrome.keyboard.move_to_bar();
+        state.chrome.move_to_bar();
         state.chrome.menu_mut().set_popup_active(true);
 
         let outcome = apply(&Reply::Act(Action::Move(1, 0)), &mut state);
@@ -2368,7 +2368,7 @@ mod tests {
         let _ = send(&click(2, 2), &mut state);
         let selected = state.diagram.selected();
         assert!(selected.is_some(), "the box was not selected");
-        state.chrome.keyboard.move_to_bar();
+        state.chrome.move_to_bar();
         let _ = draw(&mut state);
 
         let outcome = send(&click(39, 5), &mut state);

@@ -341,7 +341,7 @@ mod tests {
     /// been drawn, and a key that arrives before that finds nothing to open.
     fn open_the_drop_down(state: &mut AppState, global: &AppGlobal, navigation: char) {
         let _ = paint(state, global, WIDTH, HEIGHT);
-        state.chrome.keyboard.move_to_bar();
+        state.chrome.move_to_bar();
         let event = Event::Key(KeyEvent::new(KeyCode::Char(navigation), KeyModifiers::NONE));
         let _ = crate::menu::handle(&event, &mut state.chrome);
         assert!(
@@ -810,9 +810,9 @@ mod tests {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let region = regions(area).region;
 
-        state.chrome.keyboard.move_to_region();
+        state.chrome.move_to_region();
         let without = paint(&mut state, &global, WIDTH, HEIGHT);
-        state.chrome.keyboard.move_to_bar();
+        state.chrome.move_to_bar();
         let with = paint(&mut state, &global, WIDTH, HEIGHT);
 
         for line in region.top()..region.bottom() {

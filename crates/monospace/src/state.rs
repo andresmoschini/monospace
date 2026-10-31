@@ -592,37 +592,37 @@ pub(crate) enum Focus {
 /// **A move says whether it moved**, which is what owes the frame: a key that asks for the leaf
 /// already held changes nothing on the screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Keyboard {
+struct Keyboard {
     leaf: Focus,
 }
 
 impl Keyboard {
     /// A keyboard on the region, which is where an application starts (D1 of #189).
-    pub(crate) fn region() -> Self {
+    fn region() -> Self {
         Self {
             leaf: Focus::Region,
         }
     }
 
     /// The leaf that holds it.
-    pub(crate) fn leaf(self) -> Focus {
+    fn leaf(self) -> Focus {
         self.leaf
     }
 
     /// Whether the bar holds it.
-    pub(crate) fn is_bar(self) -> bool {
+    fn is_bar(self) -> bool {
         self.leaf == Focus::Bar
     }
 
     /// The bar asks for the keyboard, saying whether it moved.
-    pub(crate) fn move_to_bar(&mut self) -> bool {
+    fn move_to_bar(&mut self) -> bool {
         let moved = self.leaf != Focus::Bar;
         self.leaf = Focus::Bar;
         moved
     }
 
     /// The bar gives the keyboard back, saying whether it moved.
-    pub(crate) fn move_to_region(&mut self) -> bool {
+    fn move_to_region(&mut self) -> bool {
         let moved = self.leaf != Focus::Region;
         self.leaf = Focus::Region;
         moved
@@ -632,7 +632,7 @@ impl Keyboard {
     ///
     /// **A target in neither leaf leaves it alone**: the status line and empty space are not
     /// destinations for the keyboard.
-    pub(crate) fn at(&mut self, target: Target) -> bool {
+    fn at(&mut self, target: Target) -> bool {
         match target {
             Target::Bar => self.move_to_bar(),
             Target::Border | Target::Interior(_) => self.move_to_region(),
@@ -648,9 +648,9 @@ impl Keyboard {
 /// other back together. They travel together so that a handler cannot be handed a bar with the
 /// keyboard somewhere else, and so that the closing has one home.
 pub(crate) struct Chrome {
-    pub(crate) menu: MenubarState,
+    menu: MenubarState,
 
-    pub(crate) keyboard: Keyboard,
+    keyboard: Keyboard,
 }
 
 impl Chrome {
