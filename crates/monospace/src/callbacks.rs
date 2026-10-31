@@ -19,13 +19,14 @@ use ratatui_core::layout::{Position, Rect};
 use ratatui_crossterm::crossterm::event::{Event, MouseButton, MouseEventKind};
 
 use crate::about;
+use crate::chrome::Target;
 use crate::context::AppGlobal;
 use crate::diagram_widget;
 use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
 use crate::shortcuts;
-use crate::state::{AppState, Target};
+use crate::state::AppState;
 use crate::vocabulary::{Action, AppError, Reply};
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
@@ -266,8 +267,8 @@ pub(crate) fn error(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chrome::Focus;
     use crate::config::Config;
-    use crate::state::Focus;
     use crate::status;
     use crate::vocabulary::AppError;
     use monospace_core::{Offset, Pos};

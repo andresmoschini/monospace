@@ -29,7 +29,8 @@ use ratatui_core::{
 };
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::state::{DiagramState, Focus, Target};
+use crate::chrome::{Focus, Target};
+use crate::state::DiagramState;
 use crate::vocabulary::{Action, Reply};
 
 /// Paints the region, and the diagram the state draws inside it.

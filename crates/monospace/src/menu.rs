@@ -29,7 +29,7 @@ use ratatui_core::style::Style;
 use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::state::Chrome;
+use crate::chrome::Chrome;
 use crate::vocabulary::{Action, Reply};
 
 /// The bar, and what each of its entries means.
@@ -336,8 +336,8 @@ fn widgets(theme: &SalsaTheme) -> (MenubarLine<'static>, MenubarPopup<'static>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chrome::{Chrome, Focus};
     use crate::config::Config;
-    use crate::state::{Chrome, Focus};
     use ratatui_crossterm::crossterm::event::{
         KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };

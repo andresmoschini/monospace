@@ -9,6 +9,7 @@
 
 mod about;
 mod callbacks;
+mod chrome;
 mod config;
 mod context;
 mod diagram_widget;
