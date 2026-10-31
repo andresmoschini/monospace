@@ -223,15 +223,15 @@ fn apply(reply: Reply, state: &mut AppState) -> Control<AppEvent> {
         }
 
         // **The movement is the same shape of action as the deletion** (rule 4 of #179): the delta
-        // arrives from the region's handler and the identity is read here. **But a move with
-        // nothing selected is answered before the cleanup**, because nothing was carried out: no
-        // command, no step and no frame owed.
+        // arrives from the region's handler and the identity is read here. **A move with nothing
+        // selected moves nothing and paints all the same**, as every action that is carried out
+        // does: what owes the frame is the meaning having been said, not the drawing having
+        // changed.
         Reply::Act(Action::Move(dx, dy)) => {
-            let Some(selected) = state.diagram().selected() else {
-                return Control::Continue;
-            };
+            if let Some(selected) = state.diagram().selected() {
+                state.diagram_mut().move_shape(selected, dx, dy);
+            }
 
-            state.diagram_mut().move_shape(selected, dx, dy);
             cleanup(state);
             Control::Changed
         }
@@ -1021,7 +1021,8 @@ mod tests {
     }
 
     /// **The arrows are not the bar's while the region holds the keyboard** (rule 5): they open no
-    /// drop-down and move no label, so #179 and #176 can bind them from here.
+    /// drop-down and move no label, so #179 and #176 can bind them from here. Each answers
+    /// `Changed` because an arrow is a carried-out action, whether or not anything is selected.
     #[test]
     fn the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard() {
         let mut state = a_drawn_state();
@@ -1036,7 +1037,7 @@ mod tests {
             let outcome = send(&key(arrow), &mut state);
 
             assert!(
-                matches!(outcome, Control::Continue),
+                matches!(outcome, Control::Changed),
                 "{arrow:?}: {outcome:?}"
             );
             assert!(
@@ -1192,15 +1193,16 @@ mod tests {
         );
     }
 
-    /// **A move with nothing selected performs no command** (rule 5): no step is recorded and the
-    /// answer is `Continue` — nothing was carried out, so no frame is owed.
+    /// **A move with nothing selected performs no command and paints all the same** (rule 5): no
+    /// step is recorded and no figure moves, and the answer is `Changed` because a carried-out
+    /// action owes the frame whether or not it found something to do.
     #[test]
-    fn a_move_with_nothing_selected_performs_no_command() {
+    fn a_move_with_nothing_selected_moves_nothing_and_still_paints() {
         let mut state = a_drawn_state_over(A_BOX);
 
         let outcome = send(&key(KeyCode::Right), &mut state);
 
-        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
             !state.diagram().can_undo(),
             "a move with nothing selected recorded a step"

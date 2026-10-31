@@ -7,7 +7,8 @@
 //! the loop instead of becoming one.
 //!
 //! **An action need not change anything.** `Action::Delete` takes a shape out where one is
-//! selected and owes a paint either way; `Action::Undo` and `Action::Redo` walk the session's
+//! selected and owes a paint either way; `Action::Move` displaces what is selected and owes a
+//! paint whether or not there was one; `Action::Undo` and `Action::Redo` walk the session's
 //! history and owe a paint whether or not there is a step to give back; `Action::About` opens the
 //! chrome's dialog; and `Action::Quit` and `Action::ForceQuit` end the loop.
 //!
@@ -65,12 +66,13 @@ pub(crate) enum Action {
     /// the screen when there was no figure to take.
     Delete,
 
-    /// The selected shape is displaced by `(dx, dy)` cells, and the frame is owed when one moved.
+    /// The selected shape is displaced by `(dx, dy)` cells, and the frame is owed either way.
     ///
     /// **The meaning and not the identity**, as [`Self::Delete`] is: the shape is read from the
     /// state where the action is carried out, so the four arrows are one action carrying a delta
     /// rather than four actions naming a figure each. **A move with nothing selected moves nothing
-    /// and owes no frame**: nothing was carried out, so there is nothing to paint.
+    /// and paints all the same**: what owes the frame is the action having been carried out, not
+    /// the drawing having changed.
     Move(i16, i16),
 
     /// The About dialog is opened, and the frame is owed.
