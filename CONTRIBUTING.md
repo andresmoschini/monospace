@@ -32,10 +32,10 @@ because rustup treats `stable` and `1.98.1` as different installations. The seco
 a minute the first time.
 
 There is no third step for the hooks: a session installs them, whichever harness it is — a Claude
-Code session through the `SessionStart` entry in `.claude/settings.json`, an OpenCode session
-through `.opencode/plugins/install-git-hooks.js`. Working another way, run
-`git config core.hooksPath .claude/git-hooks` yourself — and read _The hooks_ first, because without
-it nothing checks your commits until CI does.
+Code session through the `SessionStart` entry in `.claude/settings.json`, an Antigravity session
+through `.agents/hooks.json`, an OpenCode session through `.opencode/plugins/install-git-hooks.js`.
+Working another way, run `git config core.hooksPath .claude/git-hooks` yourself — and read _The
+hooks_ first, because without it nothing checks your commits until CI does.
 
 ## Everyday commands
 
@@ -470,8 +470,8 @@ and the limit is `main`, which is never rewritten.
 
 ### The session trailer
 
-A commit made from an agent session can carry up to three trailers, and each is a different handle
-on the same conversation rather than the same one twice.
+A commit made from an agent session can carry up to four trailers, and each is a different handle on
+the same conversation rather than the same one twice.
 
 - **`Claude-Resume`** holds a Claude Code session's local id. Reopen the conversation with
   `claude --resume <id>`. The `commit-msg` hook writes it.
@@ -480,10 +480,12 @@ on the same conversation rather than the same one twice.
   present sometimes and absent otherwise.
 - **`OpenCode-Session`** holds an OpenCode session's id, stamped by the same hook from the value
   `.opencode/plugins/session-trailer.js` injects.
+- **`Antigravity-Conversation`** holds an Antigravity session's conversation id, stamped by the same
+  hook from `ANTIGRAVITY_CONVERSATION_ID`. Reopen the conversation with `agy --conversation <id>`.
 
-**They are separate keys on purpose because neither client's id resumes the other**, and one key
-whose shape depends on the client would make a commit's provenance unreadable after the fact. List
-them with:
+**They are separate keys on purpose because no client's id resumes another**, and one key whose
+shape depends on the client would make a commit's provenance unreadable after the fact. List them
+with:
 
 ```sh
 git log --format='%h %(trailers:key=Claude-Resume,valueonly)'

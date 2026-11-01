@@ -3,7 +3,7 @@
 # Records which agent session produced the commit, then checks the message against
 # Conventional Commits.
 #
-# Installed by the SessionStart hook in .claude/settings.json, and equivalently by
+# Installed by the SessionStart hook in .claude/settings.json, by .agents/hooks.json, and by
 # .opencode/plugins/install-git-hooks.js. It therefore does not run outside a session; CI is
 # what enforces the convention for everyone. The trade and its cost are recorded in
 # CONTRIBUTING.md, under The hooks.
@@ -14,12 +14,13 @@ MSG_FILE="$1"
 
 # --- Record the session -------------------------------------------------------
 #
-# Two clients, two variables, two trailer keys. Claude Code exports CLAUDE_CODE_SESSION_ID into
-# the environment of its shell tools. OpenCode exports nothing of the kind - measured, not
+# Three clients, three variables, three trailer keys. Claude Code exports CLAUDE_CODE_SESSION_ID
+# and Antigravity exports ANTIGRAVITY_CONVERSATION_ID into the environment of their shell tools.
+# OpenCode exports nothing of the kind - measured, not
 # assumed: the only OPENCODE_* variable in a session's environment is OPENCODE_TERMINAL - so
 # .opencode/plugins/session-trailer.js captures the id from the session hook and injects
 # MONOSPACE_SESSION_ID into the shells the agent spawns. `git commit` runs as a child of that
-# shell and this hook as a child of git, so in both cases the value is inherited and is always
+# shell and this hook as a child of git, so in all three cases the value is inherited and is always
 # the session that is committing. Reading it from a transcript file instead would be a guess:
 # several sessions can be open on one checkout, and "the newest transcript" is not the same
 # thing as "the one committing".
@@ -32,8 +33,8 @@ MSG_FILE="$1"
 # The key is Claude-Resume, not Claude-Session: Claude Code writes the latter itself when Remote
 # Control is on, carrying a browser URL. Those are different handles on the same conversation,
 # not two formats of one, so they get separate keys rather than one key whose shape depends on a
-# setting invisible from this repository. OpenCode gets its own key
-# for the same reason: neither client's id can resume the other.
+# setting invisible from this repository. OpenCode and Antigravity get their own keys
+# for the same reason: no client's id can resume another.
 #
 # --if-exists doNothing keeps `git commit --amend` idempotent, and keeps the session that first
 # wrote the commit rather than the one that touched it last.
@@ -50,11 +51,10 @@ OPENCODE='ses_?[A-Za-z0-9]*'
 # would only ever equal the bracket string itself. Measured: the first attempt stamped nothing,
 # and the symptom read as a missing variable rather than as a quoted glob.
 #
-# One pattern per client, and the second is not a copy of the first. The two ids have different
-# shapes: measured across this repository's own sessions, a Claude Code id is a UUID and an
-# OpenCode id is `ses_` followed by more of the same, never a UUID. Validating both against the
-# UUID pattern therefore stamped nothing at all from this harness, silently, which is the one
-# failure mode this whole arrangement exists to rule out.
+# The ids have two shapes: measured across this repository's own sessions, a Claude Code or
+# Antigravity id is a UUID and an OpenCode id is `ses_` followed by more of the same, never a UUID.
+# Validating OpenCode against the UUID pattern therefore stamped nothing at all from that harness,
+# silently, which is the one failure mode this whole arrangement exists to rule out.
 #
 # The prefix is the whole guard, and the width is deliberately not pinned. An exact length would
 # be a claim about OpenCode's internal id scheme, which this repository does not control, and a
@@ -72,6 +72,13 @@ case "$MONOSPACE_SESSION_ID" in
 $OPENCODE)
     git interpret-trailers --in-place --if-exists doNothing \
         --trailer "OpenCode-Session: $MONOSPACE_SESSION_ID" "$MSG_FILE"
+    ;;
+esac
+
+case "$ANTIGRAVITY_CONVERSATION_ID" in
+$UUID)
+    git interpret-trailers --in-place --if-exists doNothing \
+        --trailer "Antigravity-Conversation: $ANTIGRAVITY_CONVERSATION_ID" "$MSG_FILE"
     ;;
 esac
 
