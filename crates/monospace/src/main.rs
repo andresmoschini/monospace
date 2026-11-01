@@ -19,6 +19,7 @@ mod error;
 mod event;
 mod frame;
 mod menu;
+mod open;
 mod shortcuts;
 mod state;
 mod status;
@@ -100,12 +101,28 @@ fn run() -> Result<(), AppError> {
 /// back goes straight into the session and is never named: the editing layer takes it, and the
 /// application asks the session for it when it draws.
 fn start(path: Option<&str>) -> Result<Session, AppError> {
-    let text = match path {
-        None => DEMO.to_owned(),
-        Some(path) => std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?,
-    };
+    match path {
+        None => Ok(Session::new(monospace_description::parse(DEMO)?)),
+        Some(path) => load(path),
+    }
+}
 
-    Ok(Session::new(monospace_description::parse(&text)?))
+/// The session a description at `path` describes.
+///
+/// **The same reader the path argument and the demonstration use**, and the one the open dialog
+/// asks for: a file that came from the menu and one that came from the command line cannot
+/// disagree about what a description is. **The path is part of both failures**: a file that
+/// cannot be read and a text that does not parse both name it, so the dialog can show the reason
+/// without knowing which of the two went wrong.
+pub(crate) fn load(path: &str) -> Result<Session, AppError> {
+    if path.is_empty() {
+        return Err("a file name is needed".into());
+    }
+    let text = std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?;
+    let diagram =
+        monospace_description::parse(&text).map_err(|error| format!("{path}: {error}"))?;
+
+    Ok(Session::new(diagram))
 }
 
 #[cfg(test)]
@@ -113,7 +130,7 @@ mod tests {
     use std::io::Write as _;
     use std::path::PathBuf;
 
-    use super::start;
+    use super::{load, start};
 
     /// Writes `contents` to a fresh file under the system temp directory, named after the calling
     /// test so parallel tests never collide.
@@ -149,5 +166,39 @@ mod tests {
             start(Some(path.to_str().expect("the temp path is UTF-8"))).is_ok(),
             "a well-formed description at a path was refused"
         );
+    }
+
+    #[test]
+    fn a_missing_file_fails_naming_the_path() {
+        let Err(error) = load("missing.json") else {
+            panic!("a missing file succeeded");
+        };
+        let message = error.to_string();
+        assert!(
+            message.starts_with("missing.json:"),
+            "the error does not start with the path: {message}"
+        );
+    }
+
+    #[test]
+    fn a_malformed_file_fails_naming_the_path() {
+        let path = write_description("malformed", "not valid json");
+        let path_str = path.to_str().expect("the temp path is UTF-8");
+        let Err(error) = load(path_str) else {
+            panic!("malformed json succeeded");
+        };
+        let message = error.to_string();
+        assert!(
+            message.starts_with(&format!("{path_str}:")),
+            "the error does not start with the path: {message}"
+        );
+    }
+
+    #[test]
+    fn an_empty_path_fails() {
+        let Err(error) = load("") else {
+            panic!("an empty path succeeded");
+        };
+        assert_eq!(error.to_string(), "a file name is needed");
     }
 }

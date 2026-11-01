@@ -27,6 +27,7 @@ use crate::error;
 use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
+use crate::open;
 use crate::shortcuts;
 use crate::state::AppState;
 use crate::vocabulary::{Action, AppError, Reply};
@@ -134,8 +135,9 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     // **Neither of the two moves the keyboard**, which is why addressing sits below and not here: a
     // click on the bar behind the dialog moves nothing, and the press is addressed only once nobody
     // above has answered it.
-    let before =
-        shortcuts::handle_always(event).or_else(|| dialog::handle(event, state.dialog_mut()));
+    let before = shortcuts::handle_always(event)
+        .or_else(|| dialog::handle(event, state.dialog_mut()))
+        .or_else(|| open::handle(event, state.open_mut()));
 
     if before != Reply::Ignored {
         return before;
@@ -217,6 +219,17 @@ fn apply(action: &Action, state: &mut AppState) {
 
         // **The same overlay, over a failure's text**: it replaces whatever the dialog held.
         Action::ShowError(message) => error::open(state.dialog_mut(), message),
+
+        // **The open dialog is the chrome's own too**, and opening it changes no session.
+        Action::Open => state.open_mut().open(),
+
+        // **The path is read and parsed before anything is replaced** (D3 and D4 of #260): a
+        // file that cannot be read or parsed leaves the current session untouched, and reports
+        // the failure in the message dialog through ShowError. A success starts a fresh session.
+        Action::OpenFile(path) => match crate::load(path) {
+            Ok(session) => *state = AppState::new(session),
+            Err(error) => apply(&Action::ShowError(error.to_string()), state),
+        },
     }
 }
 
@@ -535,6 +548,42 @@ mod tests {
         );
     }
 
+    /// Opens the open dialog the way a person does: `File > Open` by pointer.
+    ///
+    /// **It also checks the keyboard goes back to the region** (rule 13): the dialog takes the
+    /// whole screen while it is up, so the leaf is already where it will be given back.
+    fn open_the_open_dialog(state: &mut AppState) {
+        let outcome = take_the_entry(state, 'f', "Open");
+
+        assert!(
+            matches!(outcome, Control::Changed),
+            "taking Open owed no frame: {outcome:?}"
+        );
+        assert!(state.open().active(), "taking Open opened no dialog");
+        assert_eq!(
+            state.chrome().leaf(),
+            Focus::Region,
+            "taking Open left the keyboard on the bar"
+        );
+        assert!(
+            !state.chrome().popup_active(),
+            "taking Open left the drop-down open"
+        );
+    }
+
+    /// Writes `contents` to a fresh file under the system temp directory, named after the calling
+    /// test so parallel tests never collide.
+    fn write_description(name: &str, contents: &str) -> std::path::PathBuf {
+        use std::io::Write as _;
+
+        let path =
+            std::env::temp_dir().join(format!("monospace-open-{name}-{}.json", std::process::id()));
+        std::fs::File::create(&path)
+            .and_then(|mut file| file.write_all(contents.as_bytes()))
+            .expect("temp description file should be writable");
+        path
+    }
+
     /// **The chrome's own and no session** (rule 8): About opens an overlay and records no step,
     /// so the drawing and its history are exactly what they were.
     #[test]
@@ -601,22 +650,30 @@ mod tests {
         );
     }
 
-    /// TEMPORARY: `Ctrl+E` reaches the error dialog through the whole chain, so neither the bar nor
-    /// the region claims it first.
+    /// **`Ctrl+O` and the File menu's first entry open the same dialog**, and neither touches the
+    /// session: the shortcut and the entry are one action.
     #[test]
-    fn ctrl_e_opens_the_error_dialog() {
-        let mut state = a_drawn_state_over(A_BOX);
-
+    fn the_open_dialog_is_reached_by_the_shortcut_and_by_the_menus_entry() {
+        // The shortcut.
+        let mut state = a_drawn_state();
         let outcome = send(
-            &key_with(KeyCode::Char('e'), KeyModifiers::CONTROL),
+            &key_with(KeyCode::Char('o'), KeyModifiers::CONTROL),
             &mut state,
         );
 
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            matches!(outcome, Control::Changed),
-            "Ctrl+E owed no frame: {outcome:?}"
+            state.open().active(),
+            "the shortcut did not open the dialog"
         );
-        assert!(state.dialog().active(), "Ctrl+E opened no dialog");
+
+        // The entry of the menu.
+        let mut state = a_drawn_state();
+        open_the_open_dialog(&mut state);
+        assert!(
+            state.open().active(),
+            "the menu entry did not open the dialog"
+        );
     }
 
     /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, leaves the
@@ -652,6 +709,247 @@ mod tests {
         assert!(
             !state.diagram().can_undo(),
             "the closing event recorded a step"
+        );
+    }
+
+    /// **The chrome's own and no session**: opening the open dialog records no step and changes
+    /// no selection, so the drawing is exactly what it was.
+    #[test]
+    fn opening_the_open_dialog_changes_no_session() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(
+            selected.is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
+
+        open_the_open_dialog(&mut state);
+
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the dialog changed the selection"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "opening the dialog recorded a step"
+        );
+        assert!(
+            !state.diagram().can_redo(),
+            "opening the dialog left a step ahead"
+        );
+        assert!(
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
+            "opening the dialog removed the box"
+        );
+    }
+
+    /// **The closing event reaches nothing else**: `Esc` closes the open dialog, leaves the
+    /// keyboard on the region, opens no drop-down, and changes neither the selection nor history.
+    #[test]
+    fn escape_closes_the_open_dialog_and_the_event_reaches_nothing_else() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        open_the_open_dialog(&mut state);
+        assert!(state.open().active(), "the open dialog is not open");
+        let focus = state.chrome().leaf();
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.open().active(),
+            "escape did not close the open dialog"
+        );
+        assert_eq!(
+            state.chrome().leaf(),
+            focus,
+            "the closing event moved the keyboard"
+        );
+        assert!(
+            !state.chrome().popup_active(),
+            "the closing event opened a drop-down"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the closing event changed the selection"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "the closing event recorded a step"
+        );
+    }
+
+    /// **The overlay takes the controls behind it**: `Ctrl+Q` does nothing while the open dialog
+    /// is up, and a click on the bar behind it moves no keyboard and opens no menu.
+    #[test]
+    fn control_q_does_nothing_while_the_open_dialog_is_up() {
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_open_dialog(&mut state);
+        let (column, row) = frame::cell_of(&draw(&mut state), "File");
+        let focus = state.chrome().leaf();
+
+        let outcome = send(
+            &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Continue),
+            "the way out was answered through the open dialog: {outcome:?}"
+        );
+        assert!(state.open().active(), "Ctrl+Q closed the open dialog");
+
+        let _ = send(&click(column, row), &mut state);
+
+        assert_eq!(
+            state.chrome().leaf(),
+            focus,
+            "the click on the bar moved the keyboard"
+        );
+        assert!(
+            !state.chrome().popup_active(),
+            "the click behind the dialog opened a drop-down"
+        );
+        assert!(
+            state.open().active(),
+            "the click on the bar closed the open dialog"
+        );
+    }
+
+    /// **A file that loads starts a new session**: the diagram is the file's, the selection is
+    /// gone, the history is empty, and no confirmation asked before the old one was discarded.
+    #[test]
+    fn a_file_that_loads_starts_a_new_session() {
+        let path = write_description(
+            "loaded",
+            r#"{ "next_id": 2, "shapes": [ { "kind": "box", "id": 1, "at": { "x": 8, "y": 2 },
+                                            "size": { "width": 3, "height": 2 }, "stroke": "light" } ] }"#,
+        );
+
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram().selected().is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        assert!(
+            state.diagram().can_undo(),
+            "the removal recorded no step, so the test proves nothing"
+        );
+
+        open_the_open_dialog(&mut state);
+        state
+            .open_mut()
+            .set_path(path.to_str().expect("the temp path is UTF-8"));
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.open().active(), "the load left the dialog up");
+        assert_eq!(
+            state.chrome().leaf(),
+            Focus::Region,
+            "the load moved the keyboard off the region"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            None,
+            "the new session kept the old selection"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "the new session kept the old history"
+        );
+        assert!(
+            !state.diagram().can_redo(),
+            "the new session kept the old history"
+        );
+
+        let _ = draw(&mut state);
+
+        assert!(
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
+            "the old diagram is still there"
+        );
+        assert!(
+            state.diagram().owner(Offset { x: 8, y: 2 }).is_some(),
+            "the file's box is not there"
+        );
+    }
+
+    /// **A missing file closes the open dialog and opens the error dialog**: the session is
+    /// untouched and the failure names the missing file in the message dialog.
+    #[test]
+    fn a_missing_file_closes_the_open_dialog_and_opens_the_error_dialog() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        open_the_open_dialog(&mut state);
+        state.open_mut().set_path("missing.json");
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.open().active(),
+            "the failure left the open dialog up"
+        );
+        assert!(
+            state.dialog().active(),
+            "the failure did not open the error dialog"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the failure changed the selection"
+        );
+        assert!(!state.diagram().can_undo(), "the failure recorded a step");
+        assert!(
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
+            "the failure removed the box"
+        );
+    }
+
+    /// **A file that does not parse closes the open dialog and opens the error dialog**: the
+    /// session is untouched and the failure names the file in the message dialog.
+    #[test]
+    fn a_file_that_does_not_parse_closes_the_open_dialog_and_opens_the_error_dialog() {
+        let path = write_description("bad", "not json");
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        open_the_open_dialog(&mut state);
+        state
+            .open_mut()
+            .set_path(path.to_str().expect("the temp path is UTF-8"));
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.open().active(),
+            "the failure left the open dialog up"
+        );
+        assert!(
+            state.dialog().active(),
+            "the failure did not open the error dialog"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the failure changed the selection"
+        );
+        assert!(!state.diagram().can_undo(), "the failure recorded a step");
+        assert!(
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
+            "the failure removed the box"
         );
     }
 
@@ -746,8 +1044,7 @@ mod tests {
 
         // The entry of the menu.
         let mut state = a_drawn_state();
-        open_the_drop_down(&mut state, 'f');
-        let outcome = send(&key(KeyCode::Enter), &mut state);
+        let outcome = take_the_entry(&mut state, 'f', "Quit");
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
     }
@@ -763,20 +1060,7 @@ mod tests {
 
         // The click on the entry of the menu.
         let mut state = a_drawn_state();
-        open_the_drop_down(&mut state, 'f');
-        let buffer = draw(&mut state);
-        let (column, row) = frame::cell_of(&buffer, "Quit");
-        let by_click = send(
-            &Event::Mouse(ratatui_crossterm::crossterm::event::MouseEvent {
-                kind: ratatui_crossterm::crossterm::event::MouseEventKind::Down(
-                    ratatui_crossterm::crossterm::event::MouseButton::Left,
-                ),
-                column,
-                row,
-                modifiers: KeyModifiers::NONE,
-            }),
-            &mut state,
-        );
+        let by_click = take_the_entry(&mut state, 'f', "Quit");
 
         assert_eq!(
             by_click, by_shortcut,
@@ -1482,11 +1766,7 @@ mod tests {
     #[test]
     fn a_click_the_drop_down_takes_never_reaches_the_diagram() {
         let mut state = a_drawn_state_over(A_BOX);
-        open_the_drop_down(&mut state, 'f');
-        let buffer = draw(&mut state);
-        let (column, row) = frame::cell_of(&buffer, "Quit");
-
-        let outcome = send(&click(column, row), &mut state);
+        let outcome = take_the_entry(&mut state, 'f', "Quit");
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
         assert_eq!(

@@ -48,7 +48,7 @@ use crate::vocabulary::{Action, Reply};
 /// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
 static MENU: StaticMenu = StaticMenu {
     menu: &[
-        ("_File", &["_Quit|Ctrl+Q"]),
+        ("_File", &["_Open|Ctrl+O", "_Quit|Ctrl+Q"]),
         (
             "_Edit",
             &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z", "_Delete|Del"],
@@ -60,8 +60,11 @@ static MENU: StaticMenu = StaticMenu {
 /// The label of the way out.
 const FILE: usize = 0;
 
+/// The entry that asks for a description by name.
+const OPEN: usize = 0;
+
 /// The entry of the way out.
-const QUIT: usize = 0;
+const QUIT: usize = 1;
 
 /// The label of the editing commands.
 const EDIT: usize = 1;
@@ -277,6 +280,7 @@ fn navigation(label: &str) -> Option<char> {
 /// [`Reply::Repaint`] said here rather than by the caller.
 fn meaning(label: usize, entry: usize) -> Reply {
     match (label, entry) {
+        (FILE, OPEN) => Reply::Act(Action::Open),
         (FILE, QUIT) => Reply::quit(),
         (EDIT, UNDO) => Reply::Act(Action::Undo),
         (EDIT, REDO) => Reply::Act(Action::Redo),
@@ -682,12 +686,30 @@ mod tests {
         assert!(chrome.popup_active(), "the press closed the drop-down");
     }
 
+    /// **The File menu's first entry is Open, which mints [`Action::Open`].**
+    #[test]
+    fn taking_the_open_entry_becomes_the_action_of_the_open_dialog() {
+        let mut chrome = drawn();
+        open(&mut chrome);
+
+        let outcome = take(&mut chrome, "Open");
+
+        assert!(
+            matches!(outcome, Reply::Act(Action::Open)),
+            "the entry did not become the action of the open dialog: {outcome:?}"
+        );
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
+    }
+
     #[test]
     fn taking_the_quit_entry_becomes_the_answer_of_the_way_out() {
         let mut chrome = drawn();
         open(&mut chrome);
 
-        let outcome = on_the_bar(&key(KeyCode::Enter), &mut chrome);
+        let outcome = take(&mut chrome, "Quit");
 
         assert_eq!(
             outcome,
@@ -883,10 +905,8 @@ mod tests {
     fn a_click_on_the_entry_becomes_the_same_answer() {
         let mut chrome = drawn();
         open(&mut chrome);
-        let buffer = draw(&mut chrome);
-        let (column, row) = cell_of(&buffer, "Quit");
 
-        let outcome = on_the_bar(&click(column, row), &mut chrome);
+        let outcome = take(&mut chrome, "Quit");
 
         assert_eq!(
             outcome,

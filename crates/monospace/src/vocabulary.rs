@@ -83,6 +83,20 @@ pub(crate) enum Action {
     /// so the drawing and its history are untouched.
     About,
 
+    /// The open dialog is opened, and the frame is owed.
+    ///
+    /// **The chrome's own and no session**, as [`Self::About`] is: opening the dialog records no
+    /// step, and the path it is given is read only when [`Self::OpenFile`] is taken.
+    Open,
+
+    /// A description is read from disk and starts a fresh session.
+    ///
+    /// **The path is carried by the action**, and reading and parsing are done when the action is
+    /// carried out. **A failure changes no session**: the error is reported via
+    /// [`Self::ShowError`] and the current session is untouched. **A success starts a fresh
+    /// session**, discarding the previous one without confirmation.
+    OpenFile(String),
+
     /// The error dialog is opened over this text, and the frame is owed.
     ///
     /// **The text is whoever failed's**, so it is owned and not a word of a table. Like
