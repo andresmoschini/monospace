@@ -88,13 +88,6 @@ pub(crate) enum Action {
     /// **The text is whoever failed's**, so it is owned and not a word of a table. Like
     /// [`Self::About`], it is the chrome's own and no session: it opens the overlay, replacing
     /// whatever it held, and records no step.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "nothing raises an error yet; the demonstration shortcut is the next step"
-        )
-    )]
     ShowError(String),
 }
 

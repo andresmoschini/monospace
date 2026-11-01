@@ -601,6 +601,24 @@ mod tests {
         );
     }
 
+    /// TEMPORARY: `Ctrl+E` reaches the error dialog through the whole chain, so neither the bar nor
+    /// the region claims it first.
+    #[test]
+    fn ctrl_e_opens_the_error_dialog() {
+        let mut state = a_drawn_state_over(A_BOX);
+
+        let outcome = send(
+            &key_with(KeyCode::Char('e'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Changed),
+            "Ctrl+E owed no frame: {outcome:?}"
+        );
+        assert!(state.dialog().active(), "Ctrl+E opened no dialog");
+    }
+
     /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, leaves the
     /// keyboard where the dialog was given it — the region, rule 13 — opens no drop-down, and
     /// changes neither the selection nor the history.
