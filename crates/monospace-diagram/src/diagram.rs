@@ -251,16 +251,28 @@ impl Diagram {
 
     /// The figure named by `id`, or `None` when this diagram holds no such shape.
     ///
-    /// The crate's first reader, and the only one: one query by an identity the caller already
-    /// holds, and nothing coming back the other way. There is no listing of a diagram's
-    /// identities, no count, no order, and no way to ask which shape decided a position.
-    ///
     /// It borrows, and there is no `cloned()` beside it. What comes back is the bare figure the
     /// caller added, with the identity and the place in the order held here in the diagram rather
     /// than inside the figure, so nothing about what is returned says where it sits.
     #[must_use]
     pub fn get(&self, id: ShapeId) -> Option<&Shape> {
         self.shapes.get(&id)
+    }
+
+    /// The shapes in this diagram, in drawing order from back to front, paired with their identities.
+    ///
+    /// The iterator yields pairs of `(ShapeId, &Shape)` in the order shapes are added, which is the
+    /// drawing order that serializing and description formats read back.
+    pub fn shapes(&self) -> impl Iterator<Item = (ShapeId, &Shape)> {
+        self.order
+            .iter()
+            .filter_map(|id| self.shapes.get(id).map(|shape| (*id, shape)))
+    }
+
+    /// The ordinal the next shape added takes.
+    #[must_use]
+    pub fn next_id(&self) -> NonZeroU16 {
+        self.next_id
     }
 
     /// Takes the shape named by `id` out of the diagram, and freezes what hung from it.
@@ -5277,5 +5289,18 @@ mod tests {
     #[test]
     fn an_empty_diagram_has_no_footprint() {
         assert_eq!(footprint_of(&Diagram::new()), None);
+    }
+
+    #[test]
+    fn shapes_yields_shapes_in_drawing_order() {
+        let (diagram, back, front) = two_overlapping_boxes();
+        let ids: Vec<ShapeId> = diagram.shapes().map(|(id, _)| id).collect();
+        assert_eq!(ids, vec![back, front]);
+    }
+
+    #[test]
+    fn next_id_reports_the_resuming_ordinal() {
+        let diagram = Diagram::numbered_from(NonZeroU16::new(42).expect("nonzero"));
+        assert_eq!(diagram.next_id(), NonZeroU16::new(42).expect("nonzero"));
     }
 }

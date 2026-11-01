@@ -67,10 +67,10 @@ left in a cell is gone with the frame that follows it.
 **The order the screen is painted in is part of the picture.** The bar, then the region, then the
 status bar, then the drop-down, and the overlay last of all: a widget drawn later covers the one
 before it, and a drop-down drawn under the region could not be seen, let alone clicked. **The
-overlay layer at the end of the draw order holds the open dialog as well as the message dialog** (at
-most one is up at a time), so it covers the drop-down as well, and it sets the terminal's screen
-cursor when the open dialog's field holds the focus. A drop-down or a dialog that closes therefore
-leaves the region exactly as it was, byte for byte.
+overlay layer at the end of the draw order holds the save dialog and the open dialog as well as the
+message dialog** (at most one is up at a time), so it covers the drop-down as well, and it sets the
+terminal's screen cursor when an open or save dialog's text field holds the focus. A drop-down or a
+dialog that closes therefore leaves the region exactly as it was, byte for byte.
 
 **The region's interior is the diagram's window.** The frame is the region's, and the diagram is
 drawn inside it: the window is the interior, one cell in from each side, and a click's column and
@@ -104,11 +104,13 @@ selected, and the chrome's own.** The session is what the person is working on, 
 the last frame put on the screen, the origin is where in the plane that drawing was seen from, the
 selection is the shape that drawing answered with, and the chrome's own is what the widgets of the
 screen hold between frames — which label of the bar is selected, whether a drop-down is open, which
-of the two leaves holds the keyboard, what the status bar says, and what the message dialog and the
-open dialog hold (`MsgDialogState` and `OpenDialogState`). They are one thing because they change
-together: a frame that changes one of them changes the others. Replacing the session on `OpenFile`
-resets the state as a fresh startup does: the diagram is drawn at `(0, 0)`, nothing is selected, the
-undo and redo history is empty, and both dialogs are down.
+of the two leaves holds the keyboard, what the status bar says, and what the message dialog, the
+open dialog, and the save dialog hold (`MsgDialogState`, `OpenDialogState`, and `SaveDialogState`).
+They are one thing because they change together: a frame that changes one of them changes the
+others. Replacing the session on `OpenFile` resets the state as a fresh startup does: the diagram is
+drawn at `(0, 0)`, nothing is selected, the undo and redo history is empty, and the dialogs are
+down. Saving via `SaveFile` writes the description to disk and leaves the session, its selection,
+and its history untouched.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
@@ -296,14 +298,22 @@ dialog closes it and answers `OpenFile(String)` with the path typed in the field
 state; on any failure it leaves the current session untouched and opens the message dialog via
 `ShowError(String)`.
 
+**`Save` is the chrome's own, and `SaveFile` is the write.** Taking `File > Save` or pressing
+`Ctrl+S` is the action `Save`, which opens the prompt without touching the session; accepting the
+dialog closes it and answers `SaveFile(String)` with the path typed in the field. Carrying out
+`SaveFile(String)` serializes the session's diagram and writes it to the path: on success the file
+is written and the current session, selection, and history remain untouched; on any failure it
+leaves the current session untouched and opens the message dialog via `ShowError(String)`.
+
 **A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Delete`,
-`Move`, `About`, `Open`, `OpenFile` and `ShowError` are asked for with the keyboard on the bar and
-leave nothing to do there — a walk changes what the drawing shows, a removal takes out what was
-selected, a move displaces it, and the dialog takes the whole screen while it is up — so carrying
-them out puts the leaf back where the person is looking, and the drop-down the bar was showing
-closes with it. **Only two things are not that**: a change of the screen, which is `Reply::Repaint`
-and not a meaning, and the way out, which is not carried out at all. The rule is one place and not a
-line in each action (rule 13 of [#189](https://github.com/andresmoschini/monospace/issues/189)).
+`Move`, `About`, `Open`, `OpenFile`, `Save`, `SaveFile` and `ShowError` are asked for with the
+keyboard on the bar and leave nothing to do there — a walk changes what the drawing shows, a removal
+takes out what was selected, a move displaces it, and the dialog takes the whole screen while it is
+up — so carrying them out puts the leaf back where the person is looking, and the drop-down the bar
+was showing closes with it. **Only two things are not that**: a change of the screen, which is
+`Reply::Repaint` and not a meaning, and the way out, which is not carried out at all. The rule is
+one place and not a line in each action (rule 13 of
+[#189](https://github.com/andresmoschini/monospace/issues/189)).
 
 **`Ctrl+C` is not the way out.** It is the forced exit: it ends the application whatever the state
 is, and it is the same `Reply::Quit` with `forced` set — the difference is not a second answer but
@@ -352,10 +362,10 @@ what to do at the start, what to paint, what to do about an event, and what to d
 and the loop owns everything else about when they are asked.
 
 **The widgets are the framework's.** The menu bar, the drop-down it opens, the status line, the
-`MsgDialog` the message dialog is drawn in, and the `DialogFrame` and `TextInput` of the open dialog
-are widgets, and what they look like, how they are drawn and which keys they answer to are theirs.
-So is the rectangle a click is tested against: the widget knows where its labels are only once it
-has been drawn, and a click is tested against the areas of the frame before it.
+`MsgDialog` the message dialog is drawn in, and the `DialogFrame` and `TextInput` of the open and
+save dialogs are widgets, and what they look like, how they are drawn and which keys they answer to
+are theirs. So is the rectangle a click is tested against: the widget knows where its labels are
+only once it has been drawn, and a click is tested against the areas of the frame before it.
 
 **The scrollbar is the framework's.** The bar is the helper's, with its own symbols, style and
 thumb, its own mapping from a cell of the track to an offset, and its own reading of the wheel and
@@ -414,12 +424,18 @@ framework's buffer one at a time.
   grows to the lines of its message.
 - `File > Open` and `Ctrl+O` open the open dialog with an empty field holding the focus; accepting
   it closes the dialog and mints `OpenFile(path)`, and `Cancel` or `Esc` closes it.
-- An overlay (the message dialog or the open dialog) is drawn last of all, sets the terminal's
-  screen cursor when the field is focused, and leaves the region byte-identical when it closes.
+- `File > Save` and `Ctrl+S` open the save dialog with an empty field holding the focus; accepting
+  it closes the dialog and mints `SaveFile(path)`, and `Cancel` or `Esc` closes it.
+- An overlay (the message dialog, the open dialog, or the save dialog) is drawn last of all, sets
+  the terminal's screen cursor when the field is focused, and leaves the region byte-identical when
+  it closes.
 - `Esc` and `Ok` close the dialog, and the closing event reaches nothing else.
 - `Ctrl+Q` does nothing while an overlay is up, and a click on the bar behind it reaches nothing.
 - `OpenFile` with a valid file starts a fresh session and resets the state; on any failure the
   current session is untouched and `ShowError` opens the error dialog.
+- `SaveFile` serializes the current diagram and writes it to disk; on success the current session,
+  selection, and history remain untouched; on any failure the current session is untouched and
+  `ShowError` opens the error dialog.
 - The palette is the dark BASE16 theme, read once.
 - The way out is reached by the shortcut and by the menu's entry.
 - A click on the entry and its shortcut apply the same action.

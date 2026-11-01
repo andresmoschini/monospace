@@ -97,6 +97,20 @@ pub(crate) enum Action {
     /// session**, discarding the previous one without confirmation.
     OpenFile(String),
 
+    /// The save dialog is opened, and the frame is owed.
+    ///
+    /// **The chrome's own and no session**, as [`Self::Open`] is: opening the dialog records no
+    /// step, leaves the keyboard on the region, and saves only when [`Self::SaveFile`] is taken.
+    Save,
+
+    /// The current session's diagram is serialized and written to disk at this path.
+    ///
+    /// **The path is carried by the action**, and serialization and writing are done when the
+    /// action is carried out. **A failure changes no session**: the error is reported via
+    /// [`Self::ShowError`] and the current session is untouched. **A success leaves the current
+    /// session untouched**, overwriting any existing file without confirmation.
+    SaveFile(String),
+
     /// The error dialog is opened over this text, and the frame is owed.
     ///
     /// **The text is whoever failed's**, so it is owned and not a word of a table. Like
