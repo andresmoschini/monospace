@@ -56,7 +56,8 @@ whole of §4.
 **The screen is in three regions: the bar across the top, the region the diagram goes into, and the
 status bar along the bottom.** The bar's row is the bar's and the status bar's row is the status
 bar's, whatever the size of the screen; the region between them takes the rest of it, and a screen
-too short to hold the three of them gives the region what is left over.
+too short to hold the three of them gives the region what is left over. The bar offers the menus —
+`File` (holding `New`, `Open`, `Save`, `Open Demo`, and `Quit`), `Edit`, and `Help`.
 
 **Every cell of the screen is painted on every frame.** The terminal diffs against the previous
 frame rather than clearing, so a cell that is not painted keeps whatever was last in it. The frame
@@ -74,10 +75,11 @@ dialog that closes therefore leaves the region exactly as it was, byte for byte.
 
 **The region's interior is the diagram's window.** The frame is the region's, and the diagram is
 drawn inside it: the window is the interior, one cell in from each side, and a click's column and
-row are counted from that interior's corner. On every frame the application draws the session's
-diagram into a buffer the size of the window at the scroll origin, and copies the cells the drawing
-holds into the frame one at a time. A cell no shape wrote, and a cell whose glyph the catalog does
-not answer, keeps the space the frame's clear painted; the copy writes only what it has.
+row are counted from that interior's corner. On launch without arguments the application starts with
+a blank diagram, showing an empty canvas. On every frame the application draws the session's diagram
+into a buffer the size of the window at the scroll origin, and copies the cells the drawing holds
+into the frame one at a time. A cell no shape wrote, and a cell whose glyph the catalog does not
+answer, keeps the space the frame's clear painted; the copy writes only what it has.
 **`monospace_core::render` is not the way**: the string it returns is the picture and nothing else,
 and the buffer behind it is what answers a click.
 
@@ -107,10 +109,10 @@ screen hold between frames — which label of the bar is selected, whether a dro
 of the two leaves holds the keyboard, what the status bar says, and what the message dialog, the
 open dialog, and the save dialog hold (`MsgDialogState`, `OpenDialogState`, and `SaveDialogState`).
 They are one thing because they change together: a frame that changes one of them changes the
-others. Replacing the session on `OpenFile` resets the state as a fresh startup does: the diagram is
-drawn at `(0, 0)`, nothing is selected, the undo and redo history is empty, and the dialogs are
-down. Saving via `SaveFile` writes the description to disk and leaves the session, its selection,
-and its history untouched.
+others. Replacing the session on `New`, `OpenFile` or `OpenDemo` resets the state as a fresh startup
+does: the diagram is drawn at `(0, 0)`, nothing is selected, the undo and redo history is empty, and
+the dialogs are down. Saving via `SaveFile` writes the description to disk and leaves the session,
+its selection, and its history untouched.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
@@ -291,6 +293,12 @@ inner width before it is handed over, and the dialog grows in height to fit the 
 the region's size. The dialog runs its own focus while it is up, and the keyboard is left on the
 region, where it is given back when the dialog closes.
 
+**`New` and `Open Demo` reset the session directly.** Taking `File > New` or pressing `Ctrl+N` is
+the action `New`, which starts a new session with an empty diagram, resetting the state. Taking
+`File > Open Demo` is the action `OpenDemo`, which starts a new session with the built-in
+demonstration diagram, resetting the state. Both discard current work, selection, and undo history
+immediately without confirmation.
+
 **`Open` is the chrome's own, and `OpenFile` is the load.** Taking `File > Open` or pressing
 `Ctrl+O` is the action `Open`, which opens the prompt without touching the session; accepting the
 dialog closes it and answers `OpenFile(String)` with the path typed in the field. Carrying out
@@ -306,13 +314,13 @@ is written and the current session, selection, and history remain untouched; on 
 leaves the current session untouched and opens the message dialog via `ShowError(String)`.
 
 **A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Delete`,
-`Move`, `About`, `Open`, `OpenFile`, `Save`, `SaveFile` and `ShowError` are asked for with the
-keyboard on the bar and leave nothing to do there — a walk changes what the drawing shows, a removal
-takes out what was selected, a move displaces it, and the dialog takes the whole screen while it is
-up — so carrying them out puts the leaf back where the person is looking, and the drop-down the bar
-was showing closes with it. **Only two things are not that**: a change of the screen, which is
-`Reply::Repaint` and not a meaning, and the way out, which is not carried out at all. The rule is
-one place and not a line in each action (rule 13 of
+`Move`, `About`, `New`, `Open`, `OpenFile`, `OpenDemo`, `Save`, `SaveFile` and `ShowError` are asked
+for with the keyboard on the bar and leave nothing to do there — a walk changes what the drawing
+shows, a removal takes out what was selected, a move displaces it, and the dialog takes the whole
+screen while it is up — so carrying them out puts the leaf back where the person is looking, and the
+drop-down the bar was showing closes with it. **Only two things are not that**: a change of the
+screen, which is `Reply::Repaint` and not a meaning, and the way out, which is not carried out at
+all. The rule is one place and not a line in each action (rule 13 of
 [#189](https://github.com/andresmoschini/monospace/issues/189)).
 
 **`Ctrl+C` is not the way out.** It is the forced exit: it ends the application whatever the state
@@ -426,6 +434,11 @@ framework's buffer one at a time.
   it closes the dialog and mints `OpenFile(path)`, and `Cancel` or `Esc` closes it.
 - `File > Save` and `Ctrl+S` open the save dialog with an empty field holding the focus; accepting
   it closes the dialog and mints `SaveFile(path)`, and `Cancel` or `Esc` closes it.
+- `File > New` and `Ctrl+N` apply `New`, starting a fresh session with a blank diagram and resetting
+  the state.
+- `File > Open Demo` applies `OpenDemo`, starting a fresh session with the built-in demonstration
+  diagram and resetting the state.
+- Launching with no arguments starts with a blank diagram (`nothing drawn`).
 - An overlay (the message dialog, the open dialog, or the save dialog) is drawn last of all, sets
   the terminal's screen cursor when the field is focused, and leaves the region byte-identical when
   it closes.
