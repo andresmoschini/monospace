@@ -14,6 +14,7 @@ mod config;
 mod context;
 mod diagram_state;
 mod diagram_widget;
+mod dialog;
 mod event;
 mod frame;
 mod menu;

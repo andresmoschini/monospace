@@ -18,7 +18,7 @@ use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
 use crate::state::AppState;
-use crate::{about, diagram_widget, menu, status};
+use crate::{diagram_widget, dialog, menu, status};
 
 /// The height of the bar across the top.
 pub(crate) const BAR_HEIGHT: u16 = 1;
@@ -102,7 +102,7 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
 
     // **The dialog is drawn last of all** (D6): it is the overlay, so it covers the drop-down
     // and everything else, and a control behind it is not there to be seen or clicked.
-    about::draw(regions.region, buf, state.about_mut(), &global.cfg.theme);
+    dialog::draw(regions.region, buf, state.dialog_mut(), &global.cfg.theme);
 }
 
 /// Where a piece of text is on a frame, found in the frame itself so that a growing label
@@ -756,7 +756,7 @@ mod tests {
         let global = a_global();
 
         open_the_drop_down(&mut state, &global, 'f');
-        about::open(state.about_mut());
+        crate::about::open(state.dialog_mut());
         let frame = picture(&paint(&mut state, &global, WIDTH, HEIGHT));
 
         assert!(

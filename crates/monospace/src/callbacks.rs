@@ -22,6 +22,7 @@ use crate::about;
 use crate::chrome::Target;
 use crate::context::AppGlobal;
 use crate::diagram_widget;
+use crate::dialog;
 use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
@@ -133,7 +134,7 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     // click on the bar behind the dialog moves nothing, and the press is addressed only once nobody
     // above has answered it.
     let before =
-        shortcuts::handle_always(event).or_else(|| about::handle(event, state.about_mut()));
+        shortcuts::handle_always(event).or_else(|| dialog::handle(event, state.dialog_mut()));
 
     if before != Reply::Ignored {
         return before;
@@ -211,7 +212,7 @@ fn apply(action: &Action, state: &mut AppState) {
 
         // **The one action that opens an overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
-        Action::About => about::open(state.about_mut()),
+        Action::About => about::open(state.dialog_mut()),
     }
 }
 
@@ -518,7 +519,7 @@ mod tests {
             matches!(outcome, Control::Changed),
             "taking About owed no frame: {outcome:?}"
         );
-        assert!(state.about().active(), "taking About opened no dialog");
+        assert!(state.dialog().active(), "taking About opened no dialog");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -572,13 +573,13 @@ mod tests {
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram().selected();
         open_the_about_dialog(&mut state);
-        assert!(state.about().active(), "the dialog is not open");
+        assert!(state.dialog().active(), "the dialog is not open");
         let focus = state.chrome().leaf();
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.about().active(), "escape did not close the dialog");
+        assert!(!state.dialog().active(), "escape did not close the dialog");
         assert_eq!(
             state.chrome().leaf(),
             focus,
@@ -619,7 +620,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "the way out was answered through the dialog: {outcome:?}"
         );
-        assert!(state.about().active(), "Ctrl+Q closed the dialog");
+        assert!(state.dialog().active(), "Ctrl+Q closed the dialog");
 
         // The bar is behind the overlay even where the dialog does not cover it.
         let _ = send(&click(column, row), &mut state);
@@ -634,7 +635,7 @@ mod tests {
             "the click behind the dialog opened a drop-down"
         );
         assert!(
-            state.about().active(),
+            state.dialog().active(),
             "the click on the bar closed the dialog"
         );
     }
@@ -746,7 +747,7 @@ mod tests {
         // answered before it (D6 of #189).
         let mut state = a_drawn_state();
         open_the_about_dialog(&mut state);
-        assert!(state.about().active(), "the dialog is not open");
+        assert!(state.dialog().active(), "the dialog is not open");
 
         let outcome = send(
             &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
@@ -1197,7 +1198,7 @@ mod tests {
         let _ = send(&key(KeyCode::Right), &mut state);
 
         assert!(
-            state.about().active(),
+            state.dialog().active(),
             "the arrow closed the dialog it should not have reached"
         );
         assert!(
