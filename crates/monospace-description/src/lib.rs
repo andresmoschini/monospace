@@ -50,7 +50,7 @@ use monospace_diagram::{
     Anchor, Delta, Diagram, Endpoint as DiagramEndpoint, Position, Reference,
     Shape as DiagramShape, ShapeId,
 };
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A description that could not be read.
 ///
@@ -115,8 +115,8 @@ pub fn parse(json: &str) -> Result<Diagram, ParseError> {
     Ok(description.into_diagram())
 }
 
-/// A position, mirroring `monospace_core::Pos` for deserialization.
-#[derive(Deserialize, Debug, Clone, Copy)]
+/// A position, mirroring `monospace_core::Pos` for deserialization and serialization.
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 struct Pos {
     x: i16,
     y: i16,
@@ -128,8 +128,14 @@ impl From<Pos> for monospace_core::Pos {
     }
 }
 
-/// A size, mirroring `monospace_core::Size` for deserialization.
-#[derive(Deserialize, Debug, Clone, Copy)]
+impl From<monospace_core::Pos> for Pos {
+    fn from(pos: monospace_core::Pos) -> Self {
+        Self { x: pos.x, y: pos.y }
+    }
+}
+
+/// A size, mirroring `monospace_core::Size` for deserialization and serialization.
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 struct Size {
     width: u16,
     height: u16,
@@ -144,8 +150,17 @@ impl From<Size> for monospace_core::Size {
     }
 }
 
+impl From<monospace_core::Size> for Size {
+    fn from(size: monospace_core::Size) -> Self {
+        Self {
+            width: size.width,
+            height: size.height,
+        }
+    }
+}
+
 /// Whether a line runs along a row or a column, mirroring `monospace_core::Orientation`.
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 enum Orientation {
     Horizontal,
@@ -161,8 +176,17 @@ impl From<Orientation> for CoreOrientation {
     }
 }
 
+impl From<CoreOrientation> for Orientation {
+    fn from(orientation: CoreOrientation) -> Self {
+        match orientation {
+            CoreOrientation::Horizontal => Self::Horizontal,
+            CoreOrientation::Vertical => Self::Vertical,
+        }
+    }
+}
+
 /// The direction a connector endpoint leaves in, mirroring `monospace_core::Direction`.
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 enum Leaving {
     Up,
@@ -180,6 +204,68 @@ impl From<Leaving> for Direction {
             Leaving::Left => Direction::Left,
         }
     }
+}
+
+impl From<Direction> for Leaving {
+    fn from(direction: Direction) -> Self {
+        match direction {
+            Direction::Up => Self::Up,
+            Direction::Right => Self::Right,
+            Direction::Down => Self::Down,
+            Direction::Left => Self::Left,
+        }
+    }
+}
+
+/// Serializes a required glyph field as its string representation.
+fn serialize_glyph<S>(glyph: &Glyph, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(glyph.as_str())
+}
+
+/// Serializes an optional glyph field (`fill`): `Some` writes the string, `None` is skipped.
+#[allow(clippy::ref_option)]
+fn serialize_optional_glyph<S>(glyph: &Option<Glyph>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match glyph {
+        Some(glyph) => serializer.serialize_str(glyph.as_str()),
+        None => serializer.serialize_none(),
+    }
+}
+
+/// Serializes an optional text field (`text`): lines are joined with newlines.
+#[allow(clippy::ref_option)]
+fn serialize_optional_text<S>(text: &Option<Text>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match text {
+        Some(text) => {
+            let content = text
+                .lines()
+                .iter()
+                .map(|line| line.iter().map(Glyph::as_str).collect::<String>())
+                .collect::<Vec<_>>()
+                .join("\n");
+            serializer.serialize_str(&content)
+        }
+        None => serializer.serialize_none(),
+    }
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_zero(n: &i16) -> bool {
+    *n == 0
+}
+
+fn shape_id_ordinal(id: ShapeId) -> NonZeroU16 {
+    id.to_string()
+        .parse::<NonZeroU16>()
+        .expect("ShapeId displays its NonZeroU16")
 }
 
 /// Deserializes a required glyph field: the text must be exactly one grapheme cluster with no
@@ -291,11 +377,14 @@ where
 /// from the endpoint's `leaving`, decided by the core so no file can spell a head that disagrees
 /// with the direction it leaves in. The name is not checked here: the catalog the caller renders
 /// with answers it, and a name it does not hold draws a space.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum Terminal {
     Glyph {
-        #[serde(deserialize_with = "deserialize_glyph")]
+        #[serde(
+            serialize_with = "serialize_glyph",
+            deserialize_with = "deserialize_glyph"
+        )]
         glyph: Glyph,
     },
     Symbol {
@@ -316,10 +405,20 @@ impl From<Terminal> for monospace_core::Terminal {
     }
 }
 
+impl From<monospace_core::Terminal> for Terminal {
+    fn from(terminal: monospace_core::Terminal) -> Self {
+        match terminal {
+            monospace_core::Terminal::Glyph { glyph } => Self::Glyph { glyph },
+            monospace_core::Terminal::Symbol { style } => Self::Symbol { style: style.0 },
+            monospace_core::Terminal::Arm => Self::Arm,
+        }
+    }
+}
+
 /// Which of a figure's four sides an endpoint hangs from, mirroring `monospace_diagram::Anchor`.
 ///
 /// The same four and no fifth: there is no corner and no center, and the file cannot name one.
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 enum AnchorDescription {
     Top,
@@ -339,6 +438,17 @@ impl From<AnchorDescription> for Anchor {
     }
 }
 
+impl From<Anchor> for AnchorDescription {
+    fn from(anchor: Anchor) -> Self {
+        match anchor {
+            Anchor::Top => Self::Top,
+            Anchor::Right => Self::Right,
+            Anchor::Bottom => Self::Bottom,
+            Anchor::Left => Self::Left,
+        }
+    }
+}
+
 /// How far from that side an endpoint stands, mirroring `monospace_diagram::Delta`.
 ///
 /// `Default` is what makes the field optional on the wire: `#[serde(default)]` on the field below
@@ -346,7 +456,7 @@ impl From<AnchorDescription> for Anchor {
 /// three fields rather than five. The two amounts are signed and are in the **screen** axes whatever
 /// side the anchor names — `dx` is cells right, `dy` cells down — and neither is checked against the
 /// side it is measured from.
-#[derive(Deserialize, Debug, Clone, Copy, Default)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct OffsetDescription {
     dx: i16,
     dy: i16,
@@ -355,6 +465,15 @@ struct OffsetDescription {
 impl From<OffsetDescription> for Delta {
     fn from(offset: OffsetDescription) -> Self {
         Delta {
+            dx: offset.dx,
+            dy: offset.dy,
+        }
+    }
+}
+
+impl From<Delta> for OffsetDescription {
+    fn from(offset: Delta) -> Self {
+        Self {
             dx: offset.dx,
             dy: offset.dy,
         }
@@ -379,14 +498,8 @@ impl From<OffsetDescription> for Delta {
 /// that is that a diagram which drew nothing and a diagram whose every reference is broken look
 /// identical, and there is nothing to ask about the difference.
 ///
-/// `Point` is a **newtype** over the file's own [`Pos`] rather than a struct variant with `x` and
-/// `y` written out, which keeps one `Pos` in this file instead of a second pair of coordinates to
-/// convert. Both spellings were measured and read `{"kind": "point", "x": 1, "y": 1}` and refused
-/// `{"x": 1, "y": 1}` identically, so the newtype is taken for the one `Pos` it saves. It carries a
-/// trap worth knowing: **an internally tagged newtype variant deserializes and does not serialize**.
-/// Nothing here is broken, because the format is read and never written — but a caller who later
-/// wanted a `Serialize` on this type would have to widen the variant, and this is where to find out
-/// why.
+/// `Point` carries its `x` and `y` coordinates inline so the enum serializes and deserializes
+/// with the internal `kind` tag identically.
 ///
 /// The `Reference` variant's two gap fields are **two spellings of one gap**, and which one a file
 /// reaches for is the caller's: `offset` is the screen axes whatever side the anchor names, and
@@ -397,19 +510,36 @@ impl From<OffsetDescription> for Delta {
 /// by the diagram crate, not by this one** — `Reference::new` turns `out` into an offset and never
 /// sees the anchor twice, which is what keeps four files spelling four different gaps from becoming
 /// four copies of the same arithmetic.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum At {
-    Point(Pos),
+    Point {
+        x: i16,
+        y: i16,
+    },
     Reference {
         #[serde(deserialize_with = "shape")]
         shape: NonZeroU16,
         anchor: AnchorDescription,
         #[serde(default)]
         offset: OffsetDescription,
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "is_zero")]
         out: i16,
     },
+}
+
+impl From<Position> for At {
+    fn from(position: Position) -> Self {
+        match position {
+            Position::Absolute(pos) => Self::Point { x: pos.x, y: pos.y },
+            Position::Reference(reference) => Self::Reference {
+                shape: shape_id_ordinal(reference.id),
+                anchor: reference.anchor.into(),
+                offset: reference.offset.into(),
+                out: 0,
+            },
+        }
+    }
 }
 
 /// One endpoint of a connector: where it stands, the direction it leaves in, and its terminal.
@@ -421,18 +551,28 @@ enum At {
 /// rather than the prose. The restriction is what keeps a chain of references one link long: a
 /// reference names a box or a line, both positioned absolutely, or a connector, which answers no
 /// side at all, so nothing recurses and no cycle can be built.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 struct Endpoint {
     at: At,
     leaving: Leaving,
     terminal: Terminal,
 }
 
+impl From<DiagramEndpoint> for Endpoint {
+    fn from(endpoint: DiagramEndpoint) -> Self {
+        Self {
+            at: endpoint.at.into(),
+            leaving: endpoint.leaving.into(),
+            terminal: endpoint.terminal.into(),
+        }
+    }
+}
+
 impl From<Endpoint> for DiagramEndpoint {
     fn from(endpoint: Endpoint) -> Self {
         DiagramEndpoint {
             at: match endpoint.at {
-                At::Point(at) => Position::Absolute(at.into()),
+                At::Point { x, y } => Position::Absolute(monospace_core::Pos { x, y }),
                 At::Reference {
                     shape,
                     anchor,
@@ -468,7 +608,7 @@ impl From<Endpoint> for DiagramEndpoint {
 /// the first is what every change and every reference finds, and the second is reachable by no
 /// identity until the first is removed. That cost is accepted, and it is why the model's "unique
 /// within that diagram" is amended in the `docs` commit rather than enforced here.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum ShapeDescription {
     Box {
@@ -477,9 +617,19 @@ enum ShapeDescription {
         at: Pos,
         size: Size,
         stroke: String,
-        #[serde(default, deserialize_with = "deserialize_optional_glyph")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            serialize_with = "serialize_optional_glyph",
+            deserialize_with = "deserialize_optional_glyph"
+        )]
         fill: Option<Glyph>,
-        #[serde(default, deserialize_with = "deserialize_optional_text")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            serialize_with = "serialize_optional_text",
+            deserialize_with = "deserialize_optional_text"
+        )]
         text: Option<Text>,
     },
     Line {
@@ -500,6 +650,45 @@ enum ShapeDescription {
 }
 
 impl ShapeDescription {
+    #[cfg(test)]
+    fn from_shape(id: ShapeId, shape: &DiagramShape) -> Self {
+        let ordinal = shape_id_ordinal(id);
+        match shape {
+            DiagramShape::Box {
+                at,
+                size,
+                stroke,
+                fill,
+                text,
+            } => Self::Box {
+                id: ordinal,
+                at: (*at).into(),
+                size: (*size).into(),
+                stroke: stroke.0.clone(),
+                fill: fill.clone(),
+                text: text.clone(),
+            },
+            DiagramShape::Line {
+                at,
+                len,
+                orientation,
+                stroke,
+            } => Self::Line {
+                id: ordinal,
+                at: (*at).into(),
+                len: *len,
+                orientation: (*orientation).into(),
+                stroke: stroke.0.clone(),
+            },
+            DiagramShape::Connector { from, to, stroke } => Self::Connector {
+                id: ordinal,
+                from: from.clone().into(),
+                to: to.clone().into(),
+                stroke: stroke.0.clone(),
+            },
+        }
+    }
+
     /// The identity this entry's shape is held under, read before the shape is converted.
     ///
     /// One method rather than three because the field is on every variant and the conversion below
@@ -563,7 +752,7 @@ impl From<ShapeDescription> for DiagramShape {
 /// Private because nothing outside this crate needs it: [`parse`] reads one and hands back what it
 /// holds, and a caller that could hold a `Description` would be able to look at a format this
 /// crate does not promise to keep.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 struct Description {
     /// The ordinal the next `add` takes: a number rather than a container holding one, because it
     /// is one number. Required, so a file leaving it out is refused by name, the way `shapes`
@@ -586,6 +775,18 @@ struct Description {
 }
 
 impl Description {
+    /// Builds a description representation from `diagram`.
+    #[cfg(test)]
+    fn from_diagram(diagram: &Diagram) -> Self {
+        Self {
+            next_id: diagram.next_id(),
+            shapes: diagram
+                .shapes()
+                .map(|(id, shape)| ShapeDescription::from_shape(id, shape))
+                .collect(),
+        }
+    }
+
     /// Builds a diagram from `shapes`, in order, under the identities the file wrote and with its
     /// numbering resuming where it says.
     ///
@@ -1276,5 +1477,15 @@ mod tests {
             picture.contains('>'),
             "the connector must draw, so the reference resolved through the ordinal: {picture:?}"
         );
+    }
+
+    #[test]
+    fn converting_a_diagram_to_description_and_back_preserves_the_diagram() {
+        let json = include_str!("../../monospace/assets/demo.json");
+        let original = parse(json).expect("demo parses");
+        let description = Description::from_diagram(&original);
+        let restored = description.into_diagram();
+        let second_description = Description::from_diagram(&restored);
+        assert_eq!(second_description, Description::from_diagram(&original));
     }
 }
