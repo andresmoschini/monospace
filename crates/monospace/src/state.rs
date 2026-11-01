@@ -187,14 +187,8 @@ mod tests {
         );
     }
 
-    /// A session over an empty diagram. **The diagram's type is not named here** either: the
-    /// session takes what `Default` gives it, and the application never names the model below
-    /// the editing layer.
+    /// A session over an empty diagram.
     fn empty_session() -> Session {
-        #[allow(
-            clippy::default_trait_access,
-            reason = "the diagram's type is not named here: the application depends on the editing layer and not on the model below it"
-        )]
-        Session::new(Default::default())
+        crate::empty_session()
     }
 }

@@ -83,6 +83,18 @@ pub(crate) enum Action {
     /// so the drawing and its history are untouched.
     About,
 
+    /// A fresh session with an empty diagram is started.
+    ///
+    /// **Carried out immediately without confirmation** (D3 of #273), discarding current work,
+    /// selection, and undo history.
+    New,
+
+    /// A fresh session with the built-in demonstration description is started.
+    ///
+    /// **Carried out immediately without confirmation** (D3 of #273), discarding current work,
+    /// selection, and undo history.
+    OpenDemo,
+
     /// The open dialog is opened, and the frame is owed.
     ///
     /// **The chrome's own and no session**, as [`Self::About`] is: opening the dialog records no

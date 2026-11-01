@@ -46,6 +46,28 @@ use crate::vocabulary::AppError;
 /// a coupling declared here.
 const DEMO: &str = include_str!("../assets/demo.json");
 
+/// A session over an empty diagram.
+///
+/// **The diagram's type is not named here**: the session takes what `Default` gives it, and the
+/// application never names the model below the editing layer.
+pub(crate) fn empty_session() -> Session {
+    #[allow(
+        clippy::default_trait_access,
+        reason = "the diagram's type is not named here: the application depends on the editing \
+        layer and not on the model below it"
+    )]
+    Session::new(Default::default())
+}
+
+/// A session over the built-in demonstration description.
+///
+/// **Embedded at compile time and parsed on demand**, so the demonstration takes the same
+/// description reader and produces a fresh session.
+pub(crate) fn demo() -> Result<Session, AppError> {
+    let diagram = monospace_description::parse(DEMO)?;
+    Ok(Session::new(diagram))
+}
+
 /// What the application takes on the command line.
 const USAGE: &str = "usage: monospace [path]";
 
@@ -95,15 +117,15 @@ fn run() -> Result<(), AppError> {
     }
 }
 
-/// The session the application starts over: the description at `path`, or its own demonstration.
+/// The session the application starts over: the description at `path`, or an empty diagram.
 ///
-/// **The path is read here and the text parsed in one place**, so a file and the demonstration
-/// take the same reader and there is no second way into the format. The diagram the parse hands
-/// back goes straight into the session and is never named: the editing layer takes it, and the
+/// **The path is read here and the text parsed in one place**, so a file and the empty diagram
+/// take the same reader and there is no second way into the format. The diagram hands back
+/// straight into the session and is never named: the editing layer takes it, and the
 /// application asks the session for it when it draws.
 fn start(path: Option<&str>) -> Result<Session, AppError> {
     match path {
-        None => Ok(Session::new(monospace_description::parse(DEMO)?)),
+        None => Ok(empty_session()),
         Some(path) => load(path),
     }
 }
@@ -145,7 +167,7 @@ mod tests {
     use std::io::Write as _;
     use std::path::PathBuf;
 
-    use super::{load, save, start};
+    use super::{demo, load, save, start};
 
     /// Writes `contents` to a fresh file under the system temp directory, named after the calling
     /// test so parallel tests never collide.
@@ -159,9 +181,19 @@ mod tests {
     }
 
     #[test]
+    fn startup_with_no_path_starts_with_a_blank_diagram() {
+        let session = start(None).expect("startup with no path succeeds");
+        assert_eq!(
+            session.diagram().shapes().count(),
+            0,
+            "startup with no path has shapes in diagram"
+        );
+    }
+
+    #[test]
     fn the_application_s_own_demonstration_is_a_description_it_reads() {
         assert!(
-            start(None).is_ok(),
+            demo().is_ok(),
             "the embedded demonstration is not a description this build reads"
         );
     }
