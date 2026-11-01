@@ -19,6 +19,7 @@ mod error;
 mod event;
 mod frame;
 mod menu;
+mod open;
 mod shortcuts;
 mod state;
 mod status;
