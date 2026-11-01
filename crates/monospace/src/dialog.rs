@@ -33,19 +33,30 @@ use crate::vocabulary::Reply;
 /// around it visible.
 const MAX_WIDTH: u16 = 40;
 
-/// The largest the pop-up grows, in rows.
-const MAX_HEIGHT: u16 = 9;
+/// The rows the framework spends around the message: the border and the padding above and below,
+/// the row its horizontal scroll bar keeps, and the `Ok`.
+///
+/// **Measured, not documented**: `MsgDialog` lays these out itself, and the test that a message
+/// of several lines is shown whole is what holds this number to the framework.
+const CHROME_HEIGHT: u16 = 7;
 
-/// Paints the dialog, centered in `area`.
+/// Paints the dialog, centered in `area`, as tall as its message.
 ///
 /// **The dialog is given a rectangle and the caller keeps it small** (D5): `MsgDialog` lays its
 /// content out inside the area it is handed but does not build a pop-up of its own, so the size
 /// and place are the application's. **The rectangle is the layout's**: `centered` clamps a `Max`
-/// constraint to the area it is given, so a region smaller than the maximum shrinks the pop-up
-/// rather than the frame around it, and the one cell an odd margin leaves over goes to the top and
-/// the left — where the arithmetic this replaced gave it to the bottom and the right.
+/// constraint to the area it is given, so a region smaller than the message shrinks the pop-up
+/// rather than the frame around it — and the framework's own scroll bar shows what is left over —
+/// and the one cell an odd margin leaves over goes to the top and the left.
+///
+/// **The height is read off the message on every frame**, so whoever opens the dialog decides how
+/// tall it is by what it says and nothing else.
 pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut MsgDialogState, theme: &SalsaTheme) {
-    let pop_up = area.centered(Constraint::Max(MAX_WIDTH), Constraint::Max(MAX_HEIGHT));
+    let rows = state.message.borrow().lines().count().max(1);
+    let height = u16::try_from(rows)
+        .unwrap_or(u16::MAX)
+        .saturating_add(CHROME_HEIGHT);
+    let pop_up = area.centered(Constraint::Max(MAX_WIDTH), Constraint::Max(height));
 
     MsgDialog::new()
         .styles(dialog_style(theme))
@@ -261,5 +272,24 @@ mod tests {
             reversed(&buffer, column, line),
             "a pressed Ok that is not focused is not reversed"
         );
+    }
+
+    /// **The dialog grows with its message**, so a message of several lines is shown whole where
+    /// the region has room for it.
+    #[test]
+    fn a_message_of_several_lines_is_shown_whole() {
+        let tall = Rect::new(0, 0, 40, 20);
+        let mut state = MsgDialogState::new_active("Title", "line one\nline two\nline three");
+
+        let mut buffer = Buffer::empty(tall);
+        draw(tall, &mut buffer, &mut state, &theme());
+        let frame = testing::picture(&buffer);
+
+        for line in ["line one", "line two", "line three"] {
+            assert!(
+                frame.contains(line),
+                "the dialog hid {line:?} although the region had room: {frame:?}"
+            );
+        }
     }
 }
