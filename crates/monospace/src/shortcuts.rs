@@ -102,6 +102,9 @@ const SHORTCUTS: &[Shortcut] = &[
     },
 ];
 
+/// TEMPORARY: what the demonstration error says, until something real fails.
+const DEMO_ERROR: &str = "This is a demonstration error, raised by Ctrl+E.";
+
 /// What the event means to a shortcut answered before any handler.
 ///
 /// This is the one `callbacks` asks first, before the chrome. A resize never reaches it: that is
@@ -131,6 +134,16 @@ fn handle(event: &Event, reach: Reach) -> Reply {
         return Reply::Ignored;
     }
 
+    // TEMPORARY: the demonstration of the error dialog, until something real fails. It is read
+    // here and not as a row of `SHORTCUTS` because the table is a `const` and its text is a
+    // `String`; it reaches as far as an `Unclaimed` row would, and goes when the spike does.
+    if reach == Reach::Unclaimed
+        && key.code == KeyCode::Char('e')
+        && key.modifiers == KeyModifiers::CONTROL
+    {
+        return Reply::Act(Action::ShowError(DEMO_ERROR.to_string()));
+    }
+
     SHORTCUTS
         .iter()
         .find(|shortcut| {
@@ -138,7 +151,7 @@ fn handle(event: &Event, reach: Reach) -> Reply {
                 && shortcut.key == key.code
                 && shortcut.modifiers == key.modifiers
         })
-        .map_or(Reply::Ignored, |shortcut| shortcut.reply)
+        .map_or(Reply::Ignored, |shortcut| shortcut.reply.clone())
 }
 
 /// The events that trigger the shortcuts answered before any handler.
@@ -174,6 +187,27 @@ mod tests {
             Reach::Always => handle_always(event),
             Reach::Unclaimed => handle_unclaimed(event),
         }
+    }
+
+    /// TEMPORARY: `Ctrl+E` raises the demonstration error once nobody claimed it, and only then.
+    #[test]
+    fn ctrl_e_raises_the_demonstration_error_where_nobody_claimed_it() {
+        let event = key(KeyCode::Char('e'), KeyModifiers::CONTROL);
+
+        assert_eq!(
+            handle_unclaimed(&event),
+            Reply::Act(Action::ShowError(DEMO_ERROR.to_string()))
+        );
+        assert_eq!(
+            handle_always(&event),
+            Reply::Ignored,
+            "the demonstration error answered before the chrome"
+        );
+        assert_eq!(
+            handle_unclaimed(&key(KeyCode::Char('e'), KeyModifiers::NONE)),
+            Reply::Ignored,
+            "a bare e raised the demonstration error"
+        );
     }
 
     #[test]

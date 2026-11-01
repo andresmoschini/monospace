@@ -9,9 +9,10 @@
 //! **An action need not change anything.** `Action::Delete` takes a shape out where one is
 //! selected and owes a paint either way; `Action::Move` displaces what is selected and owes a
 //! paint whether or not there was one; `Action::Undo` and `Action::Redo` walk the session's
-//! history and owe a paint whether or not there is a step to give back; and `Action::About` opens
-//! the chrome's dialog. **The way out is not an action**: nothing about the state changes, so there
-//! is nothing to carry out, and it is [`Reply::Quit`], which says whether it is the forced one.
+//! history and owe a paint whether or not there is a step to give back; and `Action::About` and
+//! `Action::ShowError` open the chrome's dialog. **The way out is not an action**: nothing about
+//! the state changes, so there is nothing to carry out, and it is [`Reply::Quit`], which says
+//! whether it is the forced one.
 //!
 //! **A handler says an action rather than doing one**, so that an entry of the menu and the key
 //! that means the same thing are decided in one place. A handler answers with a [`Reply`], which
@@ -27,9 +28,9 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 /// What the application does about an event.
 ///
 /// **Every action is a meaning the state must show.** `Delete` takes a shape out, `Undo` and
-/// `Redo` give a step back, `Move` displaces what is selected, and `About` opens the chrome's
-/// dialog. **Ending the application is not one of them**: it changes no state, so there is nothing
-/// to carry out, and it is an answer of the [`Reply`]'s own instead.
+/// `Redo` give a step back, `Move` displaces what is selected, and `About` and `ShowError` open the
+/// chrome's dialog. **Ending the application is not one of them**: it changes no state, so there is
+/// nothing to carry out, and it is an answer of the [`Reply`]'s own instead.
 ///
 /// **A meaning that is carried out leaves the keyboard on the region** (rule 13 of #189), and the
 /// drop-down the bar was showing closes with it. **So a meaning does not say where the keyboard is
@@ -43,7 +44,9 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 /// **A change of the screen is not a meaning of a person's, and undo will never hold one.** It is
 /// what [`Reply::Repaint`] says instead; see _The action model_ in
 /// [`docs/application-model.md`](../../../docs/application-model.md).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// **It is not `Copy`**: a meaning may carry what a person is told, and that text is owned.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Action {
     /// The step behind the session is given back, and the frame is owed either way.
     ///
@@ -79,6 +82,13 @@ pub(crate) enum Action {
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,
     /// so the drawing and its history are untouched.
     About,
+
+    /// The error dialog is opened over this text, and the frame is owed.
+    ///
+    /// **The text is whoever failed's**, so it is owned and not a word of a table. Like
+    /// [`Self::About`], it is the chrome's own and no session: it opens the overlay, replacing
+    /// whatever it held, and records no step.
+    ShowError(String),
 }
 
 /// What a handler says about an event.
@@ -93,9 +103,10 @@ pub(crate) enum Action {
 /// event left the next one to answer it as well. **A change of the screen is not a meaning of a
 /// person's**, so it is `Repaint` rather than a variant of [`Action`].
 ///
-/// **It is `Copy`**: an answer is a word or a meaning of two numbers, so it travels by value and
-/// [`and_repaint`](Self::and_repaint) and [`or_else`](Self::or_else) compose without borrowing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// **It travels by value but is not `Copy`**: an answer can carry an [`Action`] that owns text, so
+/// [`and_repaint`](Self::and_repaint) and [`or_else`](Self::or_else) take it and give it back
+/// rather than borrowing it, and a caller that keeps one clones it.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Reply {
     /// Not mine: ask the next handler.
     Ignored,
@@ -190,7 +201,7 @@ mod tests {
     #[test]
     fn only_silence_is_raised_to_a_frame() {
         for reply in every_reply() {
-            let raised = reply.and_repaint();
+            let raised = reply.clone().and_repaint();
 
             match reply {
                 Reply::Ignored | Reply::Consumed => {
@@ -212,7 +223,7 @@ mod tests {
                 Reply::Repaint
             };
 
-            let answer = reply.or_else(next);
+            let answer = reply.clone().or_else(next);
 
             if reply == Reply::Ignored {
                 assert!(asked.get(), "an ignored event stopped the chain");

@@ -27,11 +27,14 @@ pub(crate) struct AppState {
     /// The status line's own state: what each of its sections says.
     status: StatusLineState,
 
-    /// The About dialog's own state: its message, its `Ok`, and whether it is up (D5 of #189).
+    /// The message dialog's own state: its message, its `Ok`, and whether it is up (D5 of #189).
+    ///
+    /// **One overlay, whatever it says**: About and every other message open the same dialog, so
+    /// a second message replaces the first rather than stacking over it.
     ///
     /// **The dialog runs its own focus** while it is up, and the application's leaf is left where
     /// it was, so closing the dialog gives the keyboard back unchanged.
-    about: MsgDialogState,
+    dialog: MsgDialogState,
 }
 
 impl AppState {
@@ -47,7 +50,7 @@ impl AppState {
             diagram: DiagramState::new(diagram_session),
             chrome: Chrome::new(),
             status: status::state(),
-            about: MsgDialogState::default(),
+            dialog: MsgDialogState::default(),
         }
     }
 
@@ -109,18 +112,19 @@ impl AppState {
         &mut self.status
     }
 
-    /// The About dialog's own state, for the tests that say whether it is up.
+    /// The message dialog's own state, for the tests that say whether it is up.
     ///
     /// **The application opens, answers and paints the dialog**, and all three need it mutable, so
     /// this door is the test's for the same reason as [`Self::status`].
     #[cfg(test)]
-    pub(crate) fn about(&self) -> &MsgDialogState {
-        &self.about
+    pub(crate) fn dialog(&self) -> &MsgDialogState {
+        &self.dialog
     }
 
-    /// The dialog, for the frame that paints it and the handler that answers it.
-    pub(crate) fn about_mut(&mut self) -> &mut MsgDialogState {
-        &mut self.about
+    /// The dialog, for the frame that paints it, the handler that answers it and the actions that
+    /// open it.
+    pub(crate) fn dialog_mut(&mut self) -> &mut MsgDialogState {
+        &mut self.dialog
     }
 }
 

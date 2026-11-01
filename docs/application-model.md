@@ -274,20 +274,24 @@ entry, and both answer the same `Reply::Quit` rather than a code path each: the 
 become the same thing before anything acts on them, so the two cannot disagree about what the way
 out is.
 
-**`About` is the chrome's own, and it changes no session.** Taking `Help > About` is the action
-`About`, which opens the framework's message dialog and records no step: there is no command and no
-drawing to change, so the session and the selection are exactly what they were. The dialog runs its
-own focus while it is up, and the keyboard is left on the region, where it is given back when the
-dialog closes.
+**`About` and `ShowError` are the chrome's own, and they change no session.** Taking `Help > About`
+is the action `About`, and an operation that cannot do what the person asked for answers
+`ShowError(String)` with the text of the failure; both open the framework's message dialog — one
+overlay for the whole application, so a second message replaces the first rather than stacking over
+it — and record no step: there is no command and no drawing to change, so the session and the
+selection are exactly what they were. An error's text is wrapped on word boundaries to the dialog's
+inner width before it is handed over, and the dialog grows in height to fit the lines it holds up to
+the region's size. The dialog runs its own focus while it is up, and the keyboard is left on the
+region, where it is given back when the dialog closes.
 
 **A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Delete`,
-`Move` and `About` are asked for with the keyboard on the bar and leave nothing to do there — a walk
-changes what the drawing shows, a removal takes out what was selected, a move displaces it, and the
-dialog takes the whole screen while it is up — so carrying them out puts the leaf back where the
-person is looking, and the drop-down the bar was showing closes with it. **Only two things are not
-that**: a change of the screen, which is `Reply::Repaint` and not a meaning, and the way out, which
-is not carried out at all. The rule is one place and not a line in each action (rule 13 of
-[#189](https://github.com/andresmoschini/monospace/issues/189)).
+`Move`, `About` and `ShowError` are asked for with the keyboard on the bar and leave nothing to do
+there — a walk changes what the drawing shows, a removal takes out what was selected, a move
+displaces it, and the dialog takes the whole screen while it is up — so carrying them out puts the
+leaf back where the person is looking, and the drop-down the bar was showing closes with it. **Only
+two things are not that**: a change of the screen, which is `Reply::Repaint` and not a meaning, and
+the way out, which is not carried out at all. The rule is one place and not a line in each action
+(rule 13 of [#189](https://github.com/andresmoschini/monospace/issues/189)).
 
 **`Ctrl+C` is not the way out.** It is the forced exit: it ends the application whatever the state
 is, and it is the same `Reply::Quit` with `forced` set — the difference is not a second answer but
@@ -336,7 +340,7 @@ what to do at the start, what to paint, what to do about an event, and what to d
 and the loop owns everything else about when they are asked.
 
 **The widgets are the framework's.** The menu bar, the drop-down it opens, the status line and the
-`MsgDialog` the About dialog is drawn in are widgets, and what they look like, how they are drawn
+`MsgDialog` the message dialog is drawn in are widgets, and what they look like, how they are drawn
 and which keys they answer to are theirs. So is the rectangle a click is tested against: the widget
 knows where its labels are only once it has been drawn, and a click is tested against the areas of
 the frame before it.
@@ -393,7 +397,9 @@ framework's buffer one at a time.
   has no focus cue of its own.
 - A drop-down leaves the region byte-identical when it closes.
 - A drop-down is not erased by the region being painted after it.
-- `Help > About` opens the dialog, changes no session and records no step.
+- `Help > About` and `ShowError` open the message dialog, replace whatever it held, change no
+  session and record no step; an error's text is wrapped to the dialog's inner width and the dialog
+  grows to the lines of its message.
 - The dialog is drawn last of all, and it leaves the region byte-identical when it closes.
 - `Esc` and `Ok` close the dialog, and the closing event reaches nothing else.
 - `Ctrl+Q` does nothing while the dialog is up, and a click on the bar behind it reaches nothing.

@@ -22,6 +22,8 @@ use crate::about;
 use crate::chrome::Target;
 use crate::context::AppGlobal;
 use crate::diagram_widget;
+use crate::dialog;
+use crate::error;
 use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
@@ -82,7 +84,7 @@ pub(crate) fn event(
             // time.** What owes the frame is the meaning having been said, not the state having
             // changed, which is why the cleanup and the paint are here rather than in `apply`.
             Reply::Act(action) => {
-                apply(action, state);
+                apply(&action, state);
                 cleanup(state);
                 Control::Changed
             }
@@ -133,7 +135,7 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     // click on the bar behind the dialog moves nothing, and the press is addressed only once nobody
     // above has answered it.
     let before =
-        shortcuts::handle_always(event).or_else(|| about::handle(event, state.about_mut()));
+        shortcuts::handle_always(event).or_else(|| dialog::handle(event, state.dialog_mut()));
 
     if before != Reply::Ignored {
         return before;
@@ -184,7 +186,7 @@ fn target_of(event: &Event, state: &AppState) -> Target {
 /// with nothing behind walks nothing, and `Move` with nothing selected moves nothing; every one of
 /// them is applied all the same. **What leaves the keyboard on the region is the carrying out and
 /// not the action** (rule 13 of #189), so it is said once in [`event`], beside the paint.
-fn apply(action: Action, state: &mut AppState) {
+fn apply(action: &Action, state: &mut AppState) {
     match action {
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
         // of where the walk stands. At either end the session answers with itself.
@@ -205,13 +207,16 @@ fn apply(action: Action, state: &mut AppState) {
         // arrives from the region's handler and the identity is read here.
         Action::Move(dx, dy) => {
             if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().move_shape(selected, dx, dy);
+                state.diagram_mut().move_shape(selected, *dx, *dy);
             }
         }
 
-        // **The one action that opens an overlay.** The dialog is the chrome's own, so the
+        // **The two actions that open the overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
-        Action::About => about::open(state.about_mut()),
+        Action::About => about::open(state.dialog_mut()),
+
+        // **The same overlay, over a failure's text**: it replaces whatever the dialog held.
+        Action::ShowError(message) => error::open(state.dialog_mut(), message),
     }
 }
 
@@ -518,7 +523,7 @@ mod tests {
             matches!(outcome, Control::Changed),
             "taking About owed no frame: {outcome:?}"
         );
-        assert!(state.about().active(), "taking About opened no dialog");
+        assert!(state.dialog().active(), "taking About opened no dialog");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -563,6 +568,57 @@ mod tests {
         );
     }
 
+    /// **The error is the same overlay and no session** (rule 8): it opens the dialog over the
+    /// text it carries, replaces the About it finds there, and records no step.
+    #[test]
+    fn showing_an_error_opens_the_dialog_over_its_text_and_changes_no_session() {
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_about_dialog(&mut state);
+
+        apply(&Action::ShowError("Something failed".into()), &mut state);
+
+        assert!(state.dialog().active(), "the error left the dialog down");
+
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 40, 10));
+        crate::dialog::draw(
+            Rect::new(0, 1, 40, 8),
+            &mut buffer,
+            state.dialog_mut(),
+            &Config::default().theme,
+        );
+        let frame = crate::dialog::testing::picture(&buffer);
+        assert!(
+            frame.contains("Something failed"),
+            "the dialog does not carry the error: {frame:?}"
+        );
+        assert!(
+            !frame.contains("About"),
+            "the error did not replace the About: {frame:?}"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "showing the error recorded a step"
+        );
+    }
+
+    /// TEMPORARY: `Ctrl+E` reaches the error dialog through the whole chain, so neither the bar nor
+    /// the region claims it first.
+    #[test]
+    fn ctrl_e_opens_the_error_dialog() {
+        let mut state = a_drawn_state_over(A_BOX);
+
+        let outcome = send(
+            &key_with(KeyCode::Char('e'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Changed),
+            "Ctrl+E owed no frame: {outcome:?}"
+        );
+        assert!(state.dialog().active(), "Ctrl+E opened no dialog");
+    }
+
     /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, leaves the
     /// keyboard where the dialog was given it — the region, rule 13 — opens no drop-down, and
     /// changes neither the selection nor the history.
@@ -572,13 +628,13 @@ mod tests {
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram().selected();
         open_the_about_dialog(&mut state);
-        assert!(state.about().active(), "the dialog is not open");
+        assert!(state.dialog().active(), "the dialog is not open");
         let focus = state.chrome().leaf();
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.about().active(), "escape did not close the dialog");
+        assert!(!state.dialog().active(), "escape did not close the dialog");
         assert_eq!(
             state.chrome().leaf(),
             focus,
@@ -619,7 +675,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "the way out was answered through the dialog: {outcome:?}"
         );
-        assert!(state.about().active(), "Ctrl+Q closed the dialog");
+        assert!(state.dialog().active(), "Ctrl+Q closed the dialog");
 
         // The bar is behind the overlay even where the dialog does not cover it.
         let _ = send(&click(column, row), &mut state);
@@ -634,7 +690,7 @@ mod tests {
             "the click behind the dialog opened a drop-down"
         );
         assert!(
-            state.about().active(),
+            state.dialog().active(),
             "the click on the bar closed the dialog"
         );
     }
@@ -746,7 +802,7 @@ mod tests {
         // answered before it (D6 of #189).
         let mut state = a_drawn_state();
         open_the_about_dialog(&mut state);
-        assert!(state.about().active(), "the dialog is not open");
+        assert!(state.dialog().active(), "the dialog is not open");
 
         let outcome = send(
             &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
@@ -1197,7 +1253,7 @@ mod tests {
         let _ = send(&key(KeyCode::Right), &mut state);
 
         assert!(
-            state.about().active(),
+            state.dialog().active(),
             "the arrow closed the dialog it should not have reached"
         );
         assert!(
