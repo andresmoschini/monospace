@@ -23,16 +23,15 @@ use ratatui_widgets::block::Block;
 use monospace_core::{GlyphCatalog, Offset};
 use ratatui_core::{
     buffer::Buffer,
-    layout::{Position, Rect},
+    layout::Rect,
     style::Style,
     widgets::{StatefulWidget, Widget},
 };
-use ratatui_crossterm::crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
-};
+use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::state::{DiagramState, Focus};
-use crate::vocabulary::Action;
+use crate::chrome::{Focus, Target};
+use crate::diagram_state::DiagramState;
+use crate::vocabulary::{Action, Reply};
 
 /// Paints the region, and the diagram the state draws inside it.
 pub(crate) fn draw(
@@ -61,15 +60,16 @@ pub(crate) fn draw(
 ///
 /// **Everything else is answered with nothing** so that the event goes on to the next handler
 /// (rule 3).
-pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus) -> Option<Action> {
-    if let Some(action) = scroll(raw, state) {
-        return Some(action);
+pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus, target: Target) -> Reply {
+    match scroll(raw, state) {
+        Reply::Ignored => {}
+        reply => return reply,
     }
 
     match raw {
-        Event::Mouse(mouse) => click(*mouse, state),
+        Event::Mouse(_) => click(target, state),
         Event::Key(_) if focus == Focus::Region => key(raw),
-        _ => None,
+        _ => Reply::Ignored,
     }
 }
 
@@ -81,12 +81,13 @@ pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus) -> Opt
 /// nothing, so the interior's press reaches [`click`] as it always did.
 ///
 /// **Only a view that moved owes a frame** (rules 3 and 4): a turn the content refuses and a press
-/// where the view already stands leave the screen as it was, and the event is not claimed.
-fn scroll(raw: &Event, state: &mut DiagramState) -> Option<Action> {
+/// where the view already stands leave the screen as it was, but the bar took the event, so the
+/// answer is `Consumed` rather than `Ignored` and the region's click does not see it twice.
+fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
     let area = state.region();
     let answer = state.scroll_area(area).handle(raw, MouseOnly);
 
-    state.scrolled(answer).then_some(Action::ScreenChanged)
+    state.scrolled(answer)
 }
 
 /// What a key means to the region.
@@ -94,10 +95,12 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Option<Action> {
 /// **The four arrows displace the selected figure one cell** (rule 1 of #179): the action carries
 /// the delta the arrow names and no identity, and the selection is read where the action is carried
 /// out. A key that is no arrow is not the region's.
-fn key(raw: &Event) -> Option<Action> {
-    let (dx, dy) = displacement(raw)?;
+fn key(raw: &Event) -> Reply {
+    let Some((dx, dy)) = displacement(raw) else {
+        return Reply::Ignored;
+    };
 
-    Some(Action::Move(dx, dy))
+    Reply::Act(Action::Move(dx, dy))
 }
 
 /// The delta the four arrows name, or `None` for any other event.
@@ -127,29 +130,31 @@ fn displacement(event: &Event) -> Option<(i16, i16)> {
 
 /// What a click means to the region.
 ///
-/// **A left press inside the interior selects the shape the drawing records at the cell under it,
-/// and a press on a cell nobody owns drops the selection** (rules 1 and 2). The offset asked for is
-/// the click's own, counted from the interior's corner (see [`DiagramState::offset_of`]).
+/// **A left press inside the interior selects the shape the drawing records at the cell the router
+/// found, and a press on a cell nobody owns drops the selection** (rules 1 and 2). The cell is
+/// [`Target::Interior`]'s, counted from the interior's corner, so the region never reads the
+/// pointer a second time.
 ///
 /// **Everything else is not the region's**, and it is answered with nothing so that the event goes
-/// on to the next handler (rule 3): a press on the bar, the region's border or the status bar, a
-/// press on a rectangle no frame drew into, and a press of any button but the left. A release is not
-/// a press, so it is not the region's either.
+/// on to the next handler (rule 3): a press on the bar, the region's border or the status bar, and
+/// a press on a rectangle no frame drew into. A press of another button is no target at all, and a
+/// release is not a press, so neither is the region's either.
 ///
-/// **The answer is `ScreenChanged` only when the selection moved.** Selecting what is already
-/// selected, or dropping a selection that is not there, changed nothing and owes no frame.
-fn click(mouse: MouseEvent, state: &mut DiagramState) -> Option<Action> {
-    if mouse.kind != MouseEventKind::Down(MouseButton::Left) {
-        return None;
-    }
-
-    let at = Position {
-        x: mouse.column,
-        y: mouse.row,
+/// **The answer is `Repaint` only when the selection moved.** Selecting what is already selected,
+/// or dropping a selection that is not there, changed nothing and owes no frame — but the press was
+/// still the region's, so it is `Consumed` rather than `Ignored`.
+fn click(target: Target, state: &mut DiagramState) -> Reply {
+    let Target::Interior(offset) = target else {
+        return Reply::Ignored;
     };
-    let owner = state.owner(state.offset_of(at)?);
 
-    state.select(owner).then_some(Action::ScreenChanged)
+    let owner = state.owner(offset);
+
+    if state.select(owner) {
+        Reply::Repaint
+    } else {
+        Reply::Consumed
+    }
 }
 
 /// Copies the drawing into the frame, one cell at a time.
@@ -262,7 +267,10 @@ fn inner_region(area: Rect) -> Rect {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use ratatui_crossterm::crossterm::event::{KeyEvent, KeyEventKind, KeyModifiers, MouseEvent};
+    use ratatui_core::layout::Position;
+    use ratatui_crossterm::crossterm::event::{
+        KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
 
     /// The region these tests draw into. **Its interior is `18×6` at `(1, 1)` of the screen**, which
     /// is what says where a click's column and row land.
@@ -324,6 +332,19 @@ mod tests {
     /// in each direction.
     fn screen(x: u16, y: u16) -> Position {
         Position { x: x + 1, y: y + 1 }
+    }
+
+    /// Hands the event to the region the way `callbacks` does: the target of a left press is read
+    /// from the frame, and every other event carries none.
+    fn handle(event: &Event, state: &mut DiagramState, focus: Focus) -> Reply {
+        let target = match event {
+            Event::Mouse(mouse) if mouse.kind == MouseEventKind::Down(MouseButton::Left) => {
+                state.target_at(Position::new(mouse.column, mouse.row))
+            }
+            _ => Target::Nothing,
+        };
+
+        super::handle(event, state, focus, target)
     }
 
     /// **The bar sits on the region's border and takes no cell from the window** (rule 4). The
@@ -456,7 +477,7 @@ mod tests {
         for button in [MouseButton::Right, MouseButton::Middle] {
             assert_eq!(
                 handle(&press(button, at.x, at.y), &mut state, Focus::Region),
-                None,
+                Reply::Ignored,
                 "{button:?} was the region's"
             );
         }
@@ -469,7 +490,7 @@ mod tests {
         });
         assert_eq!(
             handle(&released, &mut state, Focus::Region),
-            None,
+            Reply::Ignored,
             "a release was a press"
         );
 
@@ -498,7 +519,7 @@ mod tests {
         ] {
             assert_eq!(
                 handle(&key(arrow), &mut state, Focus::Region),
-                Some(Action::Move(delta.0, delta.1)),
+                Reply::Act(Action::Move(delta.0, delta.1)),
                 "{arrow:?} did not answer the movement"
             );
         }
@@ -513,7 +534,7 @@ mod tests {
 
         let answer = handle(&key(KeyCode::Right), &mut state, Focus::Region);
 
-        assert_eq!(answer, Some(Action::Move(1, 0)));
+        assert_eq!(answer, Reply::Act(Action::Move(1, 0)));
         assert_eq!(
             state.selected(),
             None,
@@ -538,7 +559,7 @@ mod tests {
                     &mut state,
                     Focus::Region,
                 ),
-                None,
+                Reply::Ignored,
                 "a modified arrow was the region's"
             );
         }
@@ -551,14 +572,14 @@ mod tests {
             ));
             assert_eq!(
                 handle(&event, &mut state, Focus::Region),
-                None,
+                Reply::Ignored,
                 "{kind:?} was a press"
             );
         }
 
         assert_eq!(
             handle(&key(KeyCode::Char('x')), &mut state, Focus::Region),
-            None,
+            Reply::Ignored,
             "a key that is no arrow was the region's"
         );
     }
@@ -575,7 +596,7 @@ mod tests {
         for arrow in [KeyCode::Up, KeyCode::Down] {
             assert_eq!(
                 handle(&key(arrow), &mut state, Focus::Bar),
-                None,
+                Reply::Ignored,
                 "{arrow:?} reached the region while the bar held the keyboard"
             );
         }
