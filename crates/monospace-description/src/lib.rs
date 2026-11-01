@@ -1,10 +1,13 @@
-//! The diagram description format: JSON deserialized into a `monospace_diagram::Diagram`.
+//! The diagram description format: JSON deserialized into a `monospace_diagram::Diagram` or
+//! serialized back from one.
 //!
-//! One call does the whole of it — [`parse`] takes the text and hands back the diagram — and every
-//! type behind that call is private to this crate. The public surface is two things: [`parse`] and
-//! [`ParseError`]. Nothing here reaches a file, a terminal or a screen: a caller that wants to read
-//! from disk reads the disk itself and hands the text over. **Nothing here names a window either**,
-//! because which part of a diagram to draw is the caller's question and the window is the caller's.
+//! Two calls do the whole of it — [`parse`] takes the text and hands back the diagram, and
+//! [`serialize`] takes the diagram and hands back the formatted JSON text — and every type behind
+//! those calls is private to this crate. The public surface is four things: [`parse`],
+//! [`ParseError`], [`serialize`] and [`SerializeError`]. Nothing here reaches a file, a terminal or
+//! a screen: a caller that wants to read from or write to disk reads or writes the disk itself and
+//! hands the text over. **Nothing here names a window either**, because which part of a diagram to
+//! draw is the caller's question and the window is the caller's.
 //!
 //! **This crate is a layer above the diagram, and it knows nothing of the editing layer.** Both
 //! hang off `monospace-diagram` and neither depends on the other; what would join them is a
@@ -38,10 +41,9 @@
 //!
 //! # What is not here
 //!
-//! **No writer.** The format is read and not written, and [`ParseError`] says nothing about what a
-//! writer would owe a reader. **No file.** [`parse`] takes text rather than a path, so nothing in
-//! this crate reaches a filesystem — which is also what keeps it portable by naming rather than by
-//! anything it avoids.
+//! **No file.** Neither [`parse`] nor [`serialize`] takes a path, so nothing in this crate reaches
+//! a filesystem — which is also what keeps it portable by naming rather than by anything it
+//! avoids.
 
 use std::num::NonZeroU16;
 
@@ -113,6 +115,58 @@ impl std::error::Error for ParseError {
 pub fn parse(json: &str) -> Result<Diagram, ParseError> {
     let description: Description = serde_json::from_str(json).map_err(ParseError)?;
     Ok(description.into_diagram())
+}
+
+/// A description that could not be serialized.
+///
+/// **The message is the one `serde_json` produced, unchanged.** A newtype rather than a
+/// re-wrap: the value of this type is that `serde` does not appear in this crate's public API, not
+/// that it says anything the underlying error did not.
+#[derive(Debug)]
+pub struct SerializeError(serde_json::Error);
+
+impl std::fmt::Display for SerializeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+impl std::error::Error for SerializeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+/// Serializes `diagram` into formatted JSON matching the description format read by [`parse`].
+///
+/// The output is 2-space pretty-printed JSON ending in a newline, with `next_id` and the `shapes`
+/// array in drawing order from back to front.
+///
+/// # Errors
+///
+/// [`SerializeError`] when the description could not be converted to JSON.
+///
+/// # Examples
+///
+/// ```
+/// # use monospace_description::{parse, serialize};
+/// let diagram = parse(
+///     r#"{
+///         "next_id": 2,
+///         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+///                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+///     }"#,
+/// )
+/// .expect("a well-formed description");
+///
+/// let json = serialize(&diagram).expect("serializes to JSON");
+/// assert!(json.contains("\"next_id\": 2"));
+/// ```
+pub fn serialize(diagram: &Diagram) -> Result<String, SerializeError> {
+    let description = Description::from_diagram(diagram);
+    let mut json = serde_json::to_string_pretty(&description).map_err(SerializeError)?;
+    json.push('\n');
+    Ok(json)
 }
 
 /// A position, mirroring `monospace_core::Pos` for deserialization and serialization.
@@ -650,7 +704,6 @@ enum ShapeDescription {
 }
 
 impl ShapeDescription {
-    #[cfg(test)]
     fn from_shape(id: ShapeId, shape: &DiagramShape) -> Self {
         let ordinal = shape_id_ordinal(id);
         match shape {
@@ -776,7 +829,6 @@ struct Description {
 
 impl Description {
     /// Builds a description representation from `diagram`.
-    #[cfg(test)]
     fn from_diagram(diagram: &Diagram) -> Self {
         Self {
             next_id: diagram.next_id(),
@@ -1487,5 +1539,22 @@ mod tests {
         let restored = description.into_diagram();
         let second_description = Description::from_diagram(&restored);
         assert_eq!(second_description, Description::from_diagram(&original));
+    }
+
+    #[test]
+    fn serialize_produces_two_space_indented_json_ending_in_newline() {
+        let json = include_str!("../../monospace/assets/demo.json");
+        let diagram = parse(json).expect("demo parses");
+        let serialized = super::serialize(&diagram).expect("serializes");
+
+        assert!(
+            serialized.ends_with('\n'),
+            "serialized JSON has no trailing newline"
+        );
+        assert!(serialized.contains("  \"next_id\": 28,\n  \"shapes\": ["));
+
+        let read_again = parse(&serialized).expect("reads serialized JSON back");
+        let description_after = Description::from_diagram(&read_again);
+        assert_eq!(description_after, Description::from_diagram(&diagram));
     }
 }
