@@ -177,7 +177,7 @@ pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
     // the press that took the keyboard away.
     let state_changed = chrome.popup_active() != before_open || chrome.leaf() != before_focus;
     let answer = if state_changed && answer != Reply::Ignored {
-        answer.merge(Reply::Repaint)
+        answer.and_repaint()
     } else {
         answer
     };
@@ -187,7 +187,7 @@ pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
     // — the keyboard that arrived is the screen changing. It cannot be an entry: an entry is only
     // taken from an open drop-down, and an open drop-down means the bar already held the keyboard.
     if arriving {
-        answer.merge(Reply::Repaint)
+        answer.and_repaint()
     } else {
         answer
     }

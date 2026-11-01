@@ -19,7 +19,7 @@ use ratatui_core::layout::{Position, Rect};
 use ratatui_crossterm::crossterm::event::{Event, MouseButton, MouseEventKind};
 
 use crate::about;
-use crate::chrome::{Chrome, Target};
+use crate::chrome::Target;
 use crate::context::AppGlobal;
 use crate::diagram_widget;
 use crate::event::AppEvent;
@@ -107,8 +107,10 @@ pub(crate) fn event(
 /// action names a leaf.
 ///
 /// **The one thing that is settled before a handler is asked is where the event is addressed**
-/// (D1): [`move_keyboard`] gives the keyboard to the leaf a press lands in, and says whether it
-/// moved, because the frame that follows is owed even where nothing answers.
+/// (D1): a press moves the keyboard to the leaf it lands in, and it does so first because the label
+/// a press opens and the drop-down a press closes are changes the handlers make while they are
+/// asked — moving the keyboard afterwards would answer the wrong leaf. **A press that moved it owes
+/// a frame even where nobody answers**: the label that was reversed is not any more.
 ///
 /// **The state comes whole and the handler is handed the part it owns.** The chrome is given
 /// `state.chrome_mut()`, the bar and the keyboard together, and the region `state.diagram_mut()`,
@@ -139,39 +141,20 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     // **Where the event is addressed is read once**: the keyboard moves to the leaf the press
     // lands in, and the region is handed the same target rather than reading the press again.
     let target = target_of(event, state);
-    let addressed = move_keyboard(target, state.chrome_mut());
+    let moved = state.chrome_mut().move_to(target);
 
-    menu::handle(event, state.chrome_mut())
+    let answer = menu::handle(event, state.chrome_mut())
         .or_else(|| {
             // **The pair is taken together** so that the region is asked with the leaf the bar
             // left behind, which is the one the event was routed with.
             let (chrome, diagram) = state.chrome_and_diagram();
             diagram_widget::handle(event, diagram, chrome.leaf(), target)
         })
-        .or_else(|| shortcuts::handle_unclaimed(event))
-        .merge(addressed)
-}
+        .or_else(|| shortcuts::handle_unclaimed(event));
 
-/// **A press is addressed before it is answered** (D1 of #189): the leaf it lands in is who the
-/// event is for, so the keyboard moves to it before the bar and the region are asked — a click on a
-/// label opens nothing if the bar is told it does not hold the keyboard, and a click in the region
-/// closes the drop-down on the same press.
-///
-/// **The keyboard moves where the event is addressed** (D1 of #189), and this is the press's
-/// half of it: a click is addressed by its position, and the bar's own three keys are addressed by
-/// [`crate::menu::handle`]. It happens before the handlers are asked because the label a press opens
-/// and the drop-down a press closes are changes they make while they are asked, so moving the
-/// keyboard afterwards would answer the wrong leaf. No action names a leaf.
-///
-/// **A press on the status line, and one on a rectangle no frame drew into, lands in neither leaf**
-/// and moves nothing. **The answer is `Repaint` where the keyboard moved**, because that is a frame
-/// owed even where no handler answers it: the label that was reversed is not any more.
-fn move_keyboard(target: Target, chrome: &mut Chrome) -> Reply {
-    if chrome.move_to(target) {
-        Reply::Repaint
-    } else {
-        Reply::Ignored
-    }
+    // **The move is added last, and it is not part of the chain**: it is not an answer to the
+    // event, it is a change the screen already made and that no handler was told about.
+    if moved { answer.and_repaint() } else { answer }
 }
 
 /// Where the event is addressed, or [`Target::Nothing`] where it is not a press.

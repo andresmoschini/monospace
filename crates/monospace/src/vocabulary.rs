@@ -83,11 +83,10 @@ pub(crate) enum Action {
 
 /// What a handler says about an event.
 ///
-/// **The six answers are the protocol, and their order is [`Reply::merge`]'s.** `Ignored` lets the
-/// next handler be asked; the other five stop the chain. `Consumed` is the event taken with no
-/// frame owed, `Repaint` is the event taken with one, `Act` carries a meaning for
-/// `callbacks::apply` to carry out, and `Quit` and `ForceQuit` end the loop: nothing about the
-/// state changes, so there is nothing to apply and no frame to owe.
+/// **The six answers are the protocol.** `Ignored` lets the next handler be asked; the other five
+/// stop the chain. `Consumed` is the event taken with no frame owed, `Repaint` is the event taken
+/// with one, `Act` carries a meaning for `callbacks::apply` to carry out, and `Quit` and `ForceQuit`
+/// end the loop: nothing about the state changes, so there is nothing to apply and no frame to owe.
 ///
 /// **"Not mine" and "mine, and nothing changed" are different answers**, which is what the
 /// protocol this replaced could not say: `None` meant both, so a handler that had consumed an
@@ -95,7 +94,7 @@ pub(crate) enum Action {
 /// person's**, so it is `Repaint` rather than a variant of [`Action`].
 ///
 /// **It is `Copy`**: an answer is a word or a meaning of two numbers, so it travels by value and
-/// [`merge`](Self::merge) and [`or_else`](Self::or_else) compose without borrowing.
+/// [`and_repaint`](Self::and_repaint) and [`or_else`](Self::or_else) compose without borrowing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Reply {
     /// Not mine: ask the next handler.
@@ -121,32 +120,31 @@ pub(crate) enum Reply {
     /// The forced exit: the application ends whatever the state is.
     ///
     /// **Answered before any handler**: it is the one request the chrome and the dialog may not
-    /// swallow (D6 of #189), so it is `shortcuts`' first reach and [`Reply::merge`]'s highest
-    /// place.
+    /// swallow (D6 of #189), so it is `shortcuts`' first reach, and the one answer nothing else may
+    /// be added to.
     ForceQuit,
 }
 
 impl Reply {
-    /// Combines this reply with what addressing the event did.
+    /// This answer, raised to a frame where it owes none.
     ///
-    /// **The order is `ForceQuit > Quit > Act > Repaint > Consumed > Ignored`**, and the arms are
-    /// written from the top of it: each names what it beats, and the last two answers are the only
-    /// pair left for the end. **`Ignored` is the only answer that gives way**, and a handler that
-    /// took the event stops the chain even where addressing it changed nothing.
+    /// **It raises and never lowers.** Only an answer that owes no frame becomes `Repaint`; an
+    /// action and an exit say more than a paint, so they are left exactly as they are. **The one
+    /// thing this is for is something else having changed the screen** — the keyboard moving to
+    /// where a press landed, the label the bar reversed, the drop-down it opened — and that is
+    /// something the answer knows nothing about.
     ///
-    /// **The two exits beat everything**: a person asking to leave is not stopped by a meaning that
-    /// would be carried out or a frame that would be owed. **Addressing a press only ever says
-    /// `Ignored` or `Repaint` today**, and the order is written for all six answers so that a change
-    /// to what addressing says cannot be lost here in silence.
-    pub(crate) fn merge(self, addressed: Reply) -> Reply {
-        match (self, addressed) {
-            (Reply::Ignored, addressed) => addressed,
-            (this, Reply::Ignored) => this,
-            (Reply::ForceQuit, _) | (_, Reply::ForceQuit) => Reply::ForceQuit,
-            (Reply::Quit, _) | (_, Reply::Quit) => Reply::Quit,
-            (Reply::Act(action), _) | (_, Reply::Act(action)) => Reply::Act(action),
-            (Reply::Repaint, _) | (_, Reply::Repaint) => Reply::Repaint,
-            (Reply::Consumed, Reply::Consumed) => Reply::Consumed,
+    /// **`Ignored` is raised too**, because a handler that answered nothing can still be an event
+    /// the screen moved under; whether it did is the caller's to know, and the bar asks only where
+    /// the widget answered, so an event still going down the chain keeps its silence.
+    ///
+    /// **There is no order here, and that is the point.** Nothing weighs one answer against
+    /// another, so two answers meeting cannot resolve by which side they came in on: what a change
+    /// of the screen adds to an answer is a frame, whatever the answer was.
+    pub(crate) fn and_repaint(self) -> Reply {
+        match self {
+            Reply::Ignored | Reply::Consumed => Reply::Repaint,
+            this => this,
         }
     }
 
@@ -177,102 +175,18 @@ mod tests {
         ]
     }
 
-    /// **`Ignored` is the only answer that gives way**, from either side of the merge.
+    /// **Only silence is raised to a frame**, and every answer is walked: `Ignored` and `Consumed`
+    /// owe one after the raise, and an action and an exit are left exactly as they were.
     #[test]
-    fn an_ignored_reply_gives_way_to_the_other_side() {
+    fn only_silence_is_raised_to_a_frame() {
         for reply in every_reply() {
-            assert_eq!(
-                reply.merge(Reply::Ignored),
-                reply,
-                "a handler's {reply:?} lost to the press's silence"
-            );
-            assert_eq!(
-                Reply::Ignored.merge(reply),
-                reply,
-                "the press's silence beat the handler's {reply:?}"
-            );
-        }
-    }
+            let raised = reply.and_repaint();
 
-    /// **A frame owed by either side is owed**: a silence and a repaint merge with the repaint,
-    /// and two of the same answer stay that answer.
-    #[test]
-    fn a_frame_owed_by_either_side_is_owed() {
-        assert_eq!(Reply::Consumed.merge(Reply::Repaint), Reply::Repaint);
-        assert_eq!(Reply::Repaint.merge(Reply::Consumed), Reply::Repaint);
-        assert_eq!(Reply::Repaint.merge(Reply::Repaint), Reply::Repaint);
-        assert_eq!(Reply::Consumed.merge(Reply::Consumed), Reply::Consumed);
-    }
-
-    /// **An action outweighs every answer below it**: `Act > Repaint > Consumed > Ignored`.
-    #[test]
-    fn an_action_outweighs_every_answer_below_it() {
-        let action = Reply::Act(Action::About);
-
-        for reply in [Reply::Ignored, Reply::Consumed, Reply::Repaint] {
-            assert_eq!(
-                action.merge(reply),
-                action,
-                "the handler's action lost to {reply:?}"
-            );
-            assert_eq!(
-                reply.merge(action),
-                action,
-                "the press's action lost to {reply:?}"
-            );
-        }
-    }
-
-    /// **The two exits beat everything below them**, and the forced exit beats the way out:
-    /// `ForceQuit > Quit > Act > Repaint > Consumed > Ignored`. A person asking to leave is not
-    /// stopped by a meaning that would be carried out or a frame that would be owed.
-    #[test]
-    fn the_exits_outweigh_every_other_answer() {
-        for reply in [
-            Reply::Ignored,
-            Reply::Consumed,
-            Reply::Repaint,
-            Reply::Act(Action::About),
-        ] {
-            assert_eq!(
-                Reply::Quit.merge(reply),
-                Reply::Quit,
-                "{reply:?} outlived the way out"
-            );
-            assert_eq!(
-                reply.merge(Reply::Quit),
-                Reply::Quit,
-                "{reply:?} outlived the way out"
-            );
-            assert_eq!(
-                Reply::ForceQuit.merge(reply),
-                Reply::ForceQuit,
-                "{reply:?} outlived the forced exit"
-            );
-            assert_eq!(
-                reply.merge(Reply::ForceQuit),
-                Reply::ForceQuit,
-                "{reply:?} outlived the forced exit"
-            );
-        }
-
-        assert_eq!(Reply::Quit.merge(Reply::ForceQuit), Reply::ForceQuit);
-        assert_eq!(Reply::ForceQuit.merge(Reply::Quit), Reply::ForceQuit);
-    }
-
-    /// **The order does not depend on the side**: every pair merges to the same answer whichever
-    /// way it is handed in. The one pair that could differ is two different actions, and they
-    /// never meet — only a handler's answer and what addressing said are merged, and addressing
-    /// names no action.
-    #[test]
-    fn the_order_does_not_depend_on_the_side() {
-        for left in every_reply() {
-            for right in every_reply() {
-                assert_eq!(
-                    left.merge(right),
-                    right.merge(left),
-                    "{left:?} and {right:?} merge by side"
-                );
+            match reply {
+                Reply::Ignored | Reply::Consumed => {
+                    assert_eq!(raised, Reply::Repaint, "{reply:?} was not raised");
+                }
+                _ => assert_eq!(raised, reply, "{reply:?} was lowered or changed"),
             }
         }
     }
