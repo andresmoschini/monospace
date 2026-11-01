@@ -233,6 +233,17 @@ fn apply(action: &Action, state: &mut AppState) {
             Err(error) => apply(&Action::ShowError(error.to_string()), state),
         },
 
+        // **A fresh blank session is started immediately** (D3 of #273), discarding current work,
+        // selection, and undo history without confirmation.
+        Action::New => *state = AppState::new(crate::empty_session()),
+
+        // **A fresh demonstration session is started immediately** (D3 of #273), discarding current
+        // work, selection, and undo history without confirmation.
+        Action::OpenDemo => match crate::demo() {
+            Ok(session) => *state = AppState::new(session),
+            Err(error) => apply(&Action::ShowError(error.to_string()), state),
+        },
+
         // **The save dialog is the chrome's own too**, and opening it changes no session.
         Action::Save => state.save_mut().open(),
 
@@ -292,14 +303,7 @@ mod tests {
 
     /// The state of an application that starts with nothing in it.
     fn a_state() -> AppState {
-        #[allow(
-            clippy::default_trait_access,
-            reason = "the diagram's type is not named here: the application depends on \
-            the editing layer and not on the model below it"
-        )]
-        let session = monospace_editing::Session::new(Default::default());
-
-        AppState::new(session)
+        AppState::new(crate::empty_session())
     }
 
     /// The configuration the application starts with.
@@ -687,7 +691,37 @@ mod tests {
         );
     }
 
-    /// **`Ctrl+O` and the File menu's first entry open the same dialog**, and neither touches the
+    /// **`Ctrl+N` and the File menu's first entry start a fresh session**, and both apply the same
+    /// action.
+    #[test]
+    fn the_new_action_is_reached_by_the_shortcut_and_by_the_menus_entry() {
+        // The shortcut.
+        let mut state = a_drawn_state_over(A_BOX);
+        let outcome = send(
+            &key_with(KeyCode::Char('n'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().session().diagram().shapes().count(),
+            0,
+            "the shortcut did not reset to a blank diagram"
+        );
+
+        // The entry of the menu.
+        let mut state = a_drawn_state_over(A_BOX);
+        let outcome = take_the_entry(&mut state, 'f', "New");
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().session().diagram().shapes().count(),
+            0,
+            "the menu entry did not reset to a blank diagram"
+        );
+    }
+
+    /// **`Ctrl+O` and the File menu's second entry open the same dialog**, and neither touches the
     /// session: the shortcut and the entry are one action.
     #[test]
     fn the_open_dialog_is_reached_by_the_shortcut_and_by_the_menus_entry() {
@@ -713,7 +747,7 @@ mod tests {
         );
     }
 
-    /// **`Ctrl+S` and the File menu's second entry open the save dialog**, and neither touches the
+    /// **`Ctrl+S` and the File menu's third entry open the save dialog**, and neither touches the
     /// session: the shortcut and the entry are one action.
     #[test]
     fn the_save_dialog_is_reached_by_the_shortcut_and_by_the_menus_entry() {
@@ -1051,6 +1085,131 @@ mod tests {
             state.diagram().owner(Offset { x: 8, y: 2 }).is_some(),
             "the file's box is not there"
         );
+    }
+
+    /// **Taking New resets to an empty diagram immediately** (rule 4 of #273): the current
+    /// session, selection, and undo history are discarded without confirmation.
+    #[test]
+    fn taking_new_discards_current_session_and_starts_blank() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram().selected().is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        assert!(
+            state.diagram().can_undo(),
+            "the removal recorded no step, so the test proves nothing"
+        );
+
+        let outcome = take_the_entry(&mut state, 'f', "New");
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.chrome().leaf(),
+            Focus::Region,
+            "taking New moved the keyboard off the region"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            None,
+            "the new session kept the old selection"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "the new session kept the old history"
+        );
+        assert!(
+            !state.diagram().can_redo(),
+            "the new session kept the old history"
+        );
+
+        let _ = draw(&mut state);
+
+        assert!(
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
+            "the old diagram is still there"
+        );
+        assert_eq!(
+            state.diagram().session().diagram().shapes().count(),
+            0,
+            "the blank diagram is not empty"
+        );
+    }
+
+    /// **Taking Open Demo resets to the demonstration diagram immediately** (rule 5 of #273): the
+    /// current session, selection, and undo history are discarded without confirmation.
+    #[test]
+    fn taking_open_demo_discards_current_session_and_loads_demo() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram().selected().is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
+        let _ = send(&key(KeyCode::Delete), &mut state);
+        assert!(
+            state.diagram().can_undo(),
+            "the removal recorded no step, so the test proves nothing"
+        );
+
+        let outcome = take_the_entry(&mut state, 'f', "Open Demo");
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.chrome().leaf(),
+            Focus::Region,
+            "taking Open Demo moved the keyboard off the region"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            None,
+            "the new session kept the old selection"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "the new session kept the old history"
+        );
+        assert!(
+            !state.diagram().can_redo(),
+            "the new session kept the old history"
+        );
+
+        let _ = draw(&mut state);
+
+        assert!(
+            state.diagram().session().diagram().shapes().count() > 0,
+            "the demonstration has no shapes"
+        );
+    }
+
+    /// **Taking New or Open Demo leaves the keyboard on the region** (rule 6 of #273), and closes
+    /// the drop-down.
+    #[test]
+    fn taking_new_or_open_demo_leaves_the_keyboard_on_the_region() {
+        // Taking New from the menu.
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = take_the_entry(&mut state, 'f', "New");
+        assert_eq!(state.chrome().leaf(), Focus::Region);
+        assert!(!state.chrome().popup_active());
+
+        // Pressing Ctrl+N with drop-down open.
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_drop_down(&mut state, 'f');
+        assert_eq!(state.chrome().leaf(), Focus::Bar);
+        let _ = send(
+            &key_with(KeyCode::Char('n'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+        assert_eq!(state.chrome().leaf(), Focus::Region);
+        assert!(!state.chrome().popup_active());
+
+        // Taking Open Demo from the menu.
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = take_the_entry(&mut state, 'f', "Open Demo");
+        assert_eq!(state.chrome().leaf(), Focus::Region);
+        assert!(!state.chrome().popup_active());
     }
 
     /// **A missing file closes the open dialog and opens the error dialog**: the session is

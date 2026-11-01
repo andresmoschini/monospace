@@ -48,7 +48,16 @@ use crate::vocabulary::{Action, Reply};
 /// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
 static MENU: StaticMenu = StaticMenu {
     menu: &[
-        ("_File", &["_Open|Ctrl+O", "_Save|Ctrl+S", "_Quit|Ctrl+Q"]),
+        (
+            "_File",
+            &[
+                "_New|Ctrl+N",
+                "_Open|Ctrl+O",
+                "_Save|Ctrl+S",
+                "Open _Demo",
+                "_Quit|Ctrl+Q",
+            ],
+        ),
         (
             "_Edit",
             &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z", "_Delete|Del"],
@@ -60,14 +69,20 @@ static MENU: StaticMenu = StaticMenu {
 /// The label of the way out.
 const FILE: usize = 0;
 
+/// The entry that starts a fresh blank diagram.
+const NEW: usize = 0;
+
 /// The entry that asks for a description by name.
-const OPEN: usize = 0;
+const OPEN: usize = 1;
 
 /// The entry that saves a description by name.
-const SAVE: usize = 1;
+const SAVE: usize = 2;
+
+/// The entry that loads the demonstration description.
+const OPEN_DEMO: usize = 3;
 
 /// The entry of the way out.
-const QUIT: usize = 2;
+const QUIT: usize = 4;
 
 /// The label of the editing commands.
 const EDIT: usize = 1;
@@ -283,8 +298,10 @@ fn navigation(label: &str) -> Option<char> {
 /// [`Reply::Repaint`] said here rather than by the caller.
 fn meaning(label: usize, entry: usize) -> Reply {
     match (label, entry) {
+        (FILE, NEW) => Reply::Act(Action::New),
         (FILE, OPEN) => Reply::Act(Action::Open),
         (FILE, SAVE) => Reply::Act(Action::Save),
+        (FILE, OPEN_DEMO) => Reply::Act(Action::OpenDemo),
         (FILE, QUIT) => Reply::quit(),
         (EDIT, UNDO) => Reply::Act(Action::Undo),
         (EDIT, REDO) => Reply::Act(Action::Redo),
@@ -690,7 +707,25 @@ mod tests {
         assert!(chrome.popup_active(), "the press closed the drop-down");
     }
 
-    /// **The File menu's first entry is Open, which mints [`Action::Open`].**
+    /// **The File menu's first entry is New, which mints [`Action::New`].**
+    #[test]
+    fn taking_the_new_entry_becomes_the_action_of_new() {
+        let mut chrome = drawn();
+        open(&mut chrome);
+
+        let outcome = take(&mut chrome, "New");
+
+        assert!(
+            matches!(outcome, Reply::Act(Action::New)),
+            "the entry did not become the action of new: {outcome:?}"
+        );
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
+    }
+
+    /// **The File menu's second entry is Open, which mints [`Action::Open`].**
     #[test]
     fn taking_the_open_entry_becomes_the_action_of_the_open_dialog() {
         let mut chrome = drawn();
@@ -708,7 +743,7 @@ mod tests {
         );
     }
 
-    /// **The File menu's second entry is Save, which mints [`Action::Save`].**
+    /// **The File menu's third entry is Save, which mints [`Action::Save`].**
     #[test]
     fn taking_the_save_entry_becomes_the_action_of_the_save_dialog() {
         let mut chrome = drawn();
@@ -719,6 +754,24 @@ mod tests {
         assert!(
             matches!(outcome, Reply::Act(Action::Save)),
             "the entry did not become the action of the save dialog: {outcome:?}"
+        );
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
+    }
+
+    /// **The File menu's fourth entry is Open Demo, which mints [`Action::OpenDemo`].**
+    #[test]
+    fn taking_the_open_demo_entry_becomes_the_action_of_open_demo() {
+        let mut chrome = drawn();
+        open(&mut chrome);
+
+        let outcome = take(&mut chrome, "Open Demo");
+
+        assert!(
+            matches!(outcome, Reply::Act(Action::OpenDemo)),
+            "the entry did not become the action of open demo: {outcome:?}"
         );
         assert!(
             !chrome.popup_active(),

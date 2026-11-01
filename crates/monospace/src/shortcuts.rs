@@ -73,6 +73,12 @@ const SHORTCUTS: &[Shortcut] = &[
         reach: Reach::Always,
     },
     Shortcut {
+        key: KeyCode::Char('n'),
+        modifiers: KeyModifiers::CONTROL,
+        reply: Reply::Act(Action::New),
+        reach: Reach::Unclaimed,
+    },
+    Shortcut {
         key: KeyCode::Char('o'),
         modifiers: KeyModifiers::CONTROL,
         reply: Reply::Act(Action::Open),

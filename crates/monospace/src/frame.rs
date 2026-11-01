@@ -168,14 +168,7 @@ mod tests {
 
     /// The state of an application that starts with nothing in it.
     fn a_state() -> AppState {
-        #[allow(
-            clippy::default_trait_access,
-            reason = "the diagram's type is not named here: the application depends on \
-            the editing layer and not on the model below it"
-        )]
-        let session = monospace_editing::Session::new(Default::default());
-
-        AppState::new(session)
+        AppState::new(crate::empty_session())
     }
 
     /// The state of an application over the diagram `json` describes.
@@ -920,18 +913,13 @@ mod tests {
     }
 
     #[test]
-    fn the_demonstration_is_drawn_when_no_path_is_given() {
-        let session = crate::start(None).expect("the shipped demonstration is readable");
+    fn a_blank_diagram_is_drawn_when_no_path_is_given() {
+        let session = crate::start(None).expect("startup with no path succeeds");
         let buffer = paint(&mut AppState::new(session), &a_global(), WIDTH, HEIGHT);
 
-        let first = row_of(&buffer, 2);
         assert!(
-            first.starts_with("│┌──┐"),
-            "the demonstration's first row is not inside the frame: {first:?}"
-        );
-        assert!(
-            first.contains("+--+"),
-            "the demonstration's ASCII box is not drawn: {first:?}"
+            row_of(&buffer, HEIGHT - 1).contains("nothing drawn"),
+            "the status bar does not say nothing drawn for blank startup"
         );
     }
 
@@ -963,7 +951,7 @@ mod tests {
     /// change had them.
     #[test]
     fn the_demonstrations_picture_keeps_its_cells() {
-        let session = crate::start(None).expect("the shipped demonstration is readable");
+        let session = crate::demo().expect("the shipped demonstration is readable");
         let mut state = AppState::new(session);
         let buffer = paint(&mut state, &a_global(), WIDTH, HEIGHT);
         let region = regions(Rect::new(0, 0, WIDTH, HEIGHT)).region;
@@ -998,7 +986,7 @@ mod tests {
 
     #[test]
     fn the_screen_with_the_demo() {
-        let session = crate::start(None).expect("the shipped demonstration is readable");
+        let session = crate::demo().expect("the shipped demonstration is readable");
         let mut state = AppState::new(session);
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let buffer = paint(&mut state, &a_global(), WIDTH, HEIGHT);
