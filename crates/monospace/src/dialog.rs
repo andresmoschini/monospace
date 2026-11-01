@@ -33,6 +33,10 @@ use crate::vocabulary::Reply;
 /// around it visible.
 const MAX_WIDTH: u16 = 40;
 
+/// The columns inside the pop-up's border and padding, and before the column its vertical scroll
+/// bar keeps: the widest line `MsgDialog` draws without a horizontal scroll bar.
+pub(crate) const TEXT_WIDTH: usize = 35;
+
 /// The rows the framework spends around the message: the border and the padding above and below,
 /// the row its horizontal scroll bar keeps, and the `Ok`.
 ///
