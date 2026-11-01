@@ -69,13 +69,13 @@ const SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         key: KeyCode::Char('c'),
         modifiers: KeyModifiers::CONTROL,
-        reply: Reply::ForceQuit,
+        reply: Reply::force_quit(),
         reach: Reach::Always,
     },
     Shortcut {
         key: KeyCode::Char('q'),
         modifiers: KeyModifiers::CONTROL,
-        reply: Reply::Quit,
+        reply: Reply::quit(),
         reach: Reach::Unclaimed,
     },
     Shortcut {
@@ -180,10 +180,10 @@ mod tests {
     fn the_way_out_is_the_shortcut_the_menu_shows() {
         let event = key(KeyCode::Char('q'), KeyModifiers::CONTROL);
 
-        assert_eq!(handle_unclaimed(&event), Reply::Quit);
+        assert_eq!(handle_unclaimed(&event), Reply::quit());
     }
 
-    /// **The two exits differ in their reach, and that is the decision.** The forced exit is
+    /// **The two ways out differ in their reach, and that is the decision.** The forced exit is
     /// answered before anything and the way out after everything, so neither answers at the other
     /// one's reach.
     #[test]
@@ -191,8 +191,8 @@ mod tests {
         let forced_exit = key(KeyCode::Char('c'), KeyModifiers::CONTROL);
         let way_out = key(KeyCode::Char('q'), KeyModifiers::CONTROL);
 
-        assert_eq!(handle_always(&forced_exit), Reply::ForceQuit);
-        assert_eq!(handle_unclaimed(&way_out), Reply::Quit);
+        assert_eq!(handle_always(&forced_exit), Reply::force_quit());
+        assert_eq!(handle_unclaimed(&way_out), Reply::quit());
         assert_eq!(
             handle_unclaimed(&forced_exit),
             Reply::Ignored,

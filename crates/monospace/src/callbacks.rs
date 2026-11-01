@@ -73,9 +73,10 @@ pub(crate) fn event(
             // cleanup.
             Reply::Repaint => Control::Changed,
 
-            // **The two that end the loop**, and the only two that are not carried out: nothing
+            // **The one that ends the loop**, and the only one that is not carried out: nothing
             // about the state changes, so there is no meaning to apply and no frame to owe.
-            Reply::Quit | Reply::ForceQuit => Control::Quit,
+            // **Whether it is forced stops here**: the loop ends either way.
+            Reply::Quit { .. } => Control::Quit,
 
             // **A meaning is carried out, and carrying one out is the same three lines every
             // time.** What owes the frame is the meaning having been said, not the state having

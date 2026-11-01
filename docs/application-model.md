@@ -285,17 +285,19 @@ dialog closes.
 changes what the drawing shows, a removal takes out what was selected, a move displaces it, and the
 dialog takes the whole screen while it is up — so carrying them out puts the leaf back where the
 person is looking, and the drop-down the bar was showing closes with it. **Only two things are not
-that**: a change of the screen, which is `Reply::Repaint` and not a meaning, and the two exits,
-which are not carried out at all. The rule is one place and not a line in each action (rule 13 of
+that**: a change of the screen, which is `Reply::Repaint` and not a meaning, and the way out, which
+is not carried out at all. The rule is one place and not a line in each action (rule 13 of
 [#189](https://github.com/andresmoschini/monospace/issues/189)).
 
-**`Ctrl+C` is not that answer.** It is a forced exit: it ends the application whatever the state is.
-**It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a
-row of one table, and a row says how far the row reaches: a shortcut that reaches everything is
-answered before any handler, so a drop-down that is open and holds the keyboard, and the dialog that
-takes every other key, are not asked first; a shortcut nobody has claimed is answered after the
-chrome, so a key the widget uses stays the widget's. A forced exit that reached the chrome as a key
-would be answered by the chrome, and the point of it is that it is answered by nothing.
+**`Ctrl+C` is not the way out.** It is the forced exit: it ends the application whatever the state
+is, and it is the same `Reply::Quit` with `forced` set — the difference is not a second answer but
+whether the application may ask before it goes, which is #189's. **It is a shortcut like the way
+out, and it differs in one thing — its reach.** Every shortcut is a row of one table, and a row says
+how far the row reaches: a shortcut that reaches everything is answered before any handler, so a
+drop-down that is open and holds the keyboard, and the dialog that takes every other key, are not
+asked first; a shortcut nobody has claimed is answered after the chrome, so a key the widget uses
+stays the widget's. A forced exit that reached the chrome as a key would be answered by the chrome,
+and the point of it is that it is answered by nothing.
 
 **The chrome's own keys are the chrome's.** The navigation character that opens a drop-down, the
 arrows that move it, `Enter` that takes an entry and `Esc` that closes it belong to the widget,

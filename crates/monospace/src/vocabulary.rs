@@ -10,8 +10,8 @@
 //! selected and owes a paint either way; `Action::Move` displaces what is selected and owes a
 //! paint whether or not there was one; `Action::Undo` and `Action::Redo` walk the session's
 //! history and owe a paint whether or not there is a step to give back; and `Action::About` opens
-//! the chrome's dialog. **The two exits are not actions**: nothing about the state changes, so
-//! there is nothing to carry out, and they are [`Reply::Quit`] and [`Reply::ForceQuit`].
+//! the chrome's dialog. **The way out is not an action**: nothing about the state changes, so there
+//! is nothing to carry out, and it is [`Reply::Quit`], which says whether it is the forced one.
 //!
 //! **A handler says an action rather than doing one**, so that an entry of the menu and the key
 //! that means the same thing are decided in one place. A handler answers with a [`Reply`], which
@@ -83,10 +83,10 @@ pub(crate) enum Action {
 
 /// What a handler says about an event.
 ///
-/// **The six answers are the protocol.** `Ignored` lets the next handler be asked; the other five
+/// **The five answers are the protocol.** `Ignored` lets the next handler be asked; the other four
 /// stop the chain. `Consumed` is the event taken with no frame owed, `Repaint` is the event taken
-/// with one, `Act` carries a meaning for `callbacks::apply` to carry out, and `Quit` and `ForceQuit`
-/// end the loop: nothing about the state changes, so there is nothing to apply and no frame to owe.
+/// with one, `Act` carries a meaning for `callbacks::apply` to carry out, and `Quit` ends the loop:
+/// nothing about the state changes, so there is nothing to apply and no frame to owe.
 ///
 /// **"Not mine" and "mine, and nothing changed" are different answers**, which is what the
 /// protocol this replaced could not say: `None` meant both, so a handler that had consumed an
@@ -112,20 +112,30 @@ pub(crate) enum Reply {
     /// The way out: the application ends and the terminal comes back.
     ///
     /// **It is not an [`Action`]**: nothing about the state changes, so there is nothing to carry
-    /// out. **The way out and the forced exit are two answers and not two code paths**: the way out
-    /// grows a pop-up to confirm and the forced exit does not, which is #189's, and until then they
-    /// end the loop the same way.
-    Quit,
-
-    /// The forced exit: the application ends whatever the state is.
+    /// out. **The two ways out are one answer and a bit**: `forced` is the difference between them,
+    /// and it changes nothing about what happens — the way out grows a pop-up to confirm and the
+    /// forced exit does not, which is #189's, and until then both end the loop the same way. **The
+    /// bit is carried here rather than read back off the shortcut's reach** (D6 of #189), because
+    /// the row that read the key is gone by the time the answer reaches the loop, and the answer is
+    /// what #189 will ask.
     ///
-    /// **Answered before any handler**: it is the one request the chrome and the dialog may not
-    /// swallow (D6 of #189), so it is `shortcuts`' first reach, and the one answer nothing else may
-    /// be added to.
-    ForceQuit,
+    /// **A forced exit is answered before any handler**: it is the one request the chrome and the
+    /// dialog may not swallow, so it is `shortcuts`' first reach, and the one answer nothing else
+    /// may be added to.
+    Quit { forced: bool },
 }
 
 impl Reply {
+    /// The way out, as the menu's entry and the shortcut it shows answer it.
+    pub(crate) const fn quit() -> Reply {
+        Reply::Quit { forced: false }
+    }
+
+    /// The forced exit, as `Ctrl+C` answers it.
+    pub(crate) const fn force_quit() -> Reply {
+        Reply::Quit { forced: true }
+    }
+
     /// This answer, raised to a frame where it owes none.
     ///
     /// **It raises and never lowers.** Only an answer that owes no frame becomes `Repaint`; an
@@ -163,15 +173,15 @@ mod tests {
 
     use super::*;
 
-    /// The six answers, one of each.
+    /// Every answer, with the way out in both of its roads.
     fn every_reply() -> [Reply; 6] {
         [
             Reply::Ignored,
             Reply::Consumed,
             Reply::Repaint,
             Reply::Act(Action::About),
-            Reply::Quit,
-            Reply::ForceQuit,
+            Reply::quit(),
+            Reply::force_quit(),
         ]
     }
 

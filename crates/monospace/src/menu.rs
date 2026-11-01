@@ -277,7 +277,7 @@ fn navigation(label: &str) -> Option<char> {
 /// [`Reply::Repaint`] said here rather than by the caller.
 fn meaning(label: usize, entry: usize) -> Reply {
     match (label, entry) {
-        (FILE, QUIT) => Reply::Quit,
+        (FILE, QUIT) => Reply::quit(),
         (EDIT, UNDO) => Reply::Act(Action::Undo),
         (EDIT, REDO) => Reply::Act(Action::Redo),
         (EDIT, DELETE) => Reply::Act(Action::Delete),
@@ -689,9 +689,10 @@ mod tests {
 
         let outcome = on_the_bar(&key(KeyCode::Enter), &mut chrome);
 
-        assert!(
-            matches!(outcome, Reply::Quit),
-            "the entry did not become the answer of the way out: {outcome:?}"
+        assert_eq!(
+            outcome,
+            Reply::quit(),
+            "the entry did not become the answer of the way out"
         );
         assert!(
             !chrome.popup_active(),
@@ -887,9 +888,10 @@ mod tests {
 
         let outcome = on_the_bar(&click(column, row), &mut chrome);
 
-        assert!(
-            matches!(outcome, Reply::Quit),
-            "the click did not become the answer of the way out: {outcome:?}"
+        assert_eq!(
+            outcome,
+            Reply::quit(),
+            "the click did not become the answer of the way out"
         );
     }
 
