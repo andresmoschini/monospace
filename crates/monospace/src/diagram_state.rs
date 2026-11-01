@@ -103,6 +103,11 @@ impl DiagramState {
         }
     }
 
+    /// The session this diagram state holds.
+    pub(crate) fn session(&self) -> &Session {
+        &self.session
+    }
+
     /// The glyph the last drawing put at `at`, or `None` where it put none: a position outside the
     /// window, a cell no shape wrote, or a cell this catalog does not answer.
     ///
@@ -948,5 +953,13 @@ mod tests {
             !state.can_redo(),
             "the redo at the newest position recorded a step"
         );
+    }
+
+    #[test]
+    fn the_session_is_exposed() {
+        let diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let state = DiagramState::new(Session::new(diagram));
+        assert!(!state.session().can_undo());
     }
 }

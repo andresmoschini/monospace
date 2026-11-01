@@ -79,6 +79,12 @@ const SHORTCUTS: &[Shortcut] = &[
         reach: Reach::Unclaimed,
     },
     Shortcut {
+        key: KeyCode::Char('s'),
+        modifiers: KeyModifiers::CONTROL,
+        reply: Reply::Act(Action::Save),
+        reach: Reach::Unclaimed,
+    },
+    Shortcut {
         key: KeyCode::Char('q'),
         modifiers: KeyModifiers::CONTROL,
         reply: Reply::quit(),

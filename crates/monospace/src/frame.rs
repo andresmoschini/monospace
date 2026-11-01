@@ -19,7 +19,7 @@ use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
 use crate::state::AppState;
-use crate::{diagram_widget, dialog, menu, open, status};
+use crate::{diagram_widget, dialog, menu, open, save, status};
 
 /// The height of the bar across the top.
 pub(crate) const BAR_HEIGHT: u16 = 1;
@@ -105,10 +105,11 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // and everything else, and a control behind it is not there to be seen or clicked.
     dialog::draw(regions.region, buf, state.dialog_mut(), &global.cfg.theme);
 
-    // **The open dialog is the second overlay and the last thing painted.** At most one of the
-    // two overlays is ever up, and the frame says where the field's cursor goes when this one is.
-    let cursor = open::draw(regions.region, buf, state.open_mut(), &global.cfg.theme);
-    global.set_screen_cursor(cursor);
+    // **The open dialog and save dialog are overlays at the top layer.** At most one of the
+    // overlays is ever up, and the frame says where the field's cursor goes when one is.
+    let open_cursor = open::draw(regions.region, buf, state.open_mut(), &global.cfg.theme);
+    let save_cursor = save::draw(regions.region, buf, state.save_mut(), &global.cfg.theme);
+    global.set_screen_cursor(open_cursor.or(save_cursor));
 }
 
 /// Where a piece of text is on a frame, found in the frame itself so that a growing label

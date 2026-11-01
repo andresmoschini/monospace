@@ -20,6 +20,7 @@ mod event;
 mod frame;
 mod menu;
 mod open;
+mod save;
 mod shortcuts;
 mod state;
 mod status;
@@ -125,12 +126,26 @@ pub(crate) fn load(path: &str) -> Result<Session, AppError> {
     Ok(Session::new(diagram))
 }
 
+/// Serializes `session`'s current diagram and writes it to `path`.
+///
+/// **The path is part of every failure**: an empty path, a diagram that cannot be serialized and a
+/// file that cannot be written all name it, so the error dialog can show `{path}: {error}` directly.
+pub(crate) fn save(path: &str, session: &Session) -> Result<(), AppError> {
+    if path.is_empty() {
+        return Err(": a file name is needed".into());
+    }
+    let text = monospace_description::serialize(session.diagram())
+        .map_err(|error| format!("{path}: {error}"))?;
+    std::fs::write(path, text).map_err(|error| format!("{path}: {error}"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write as _;
     use std::path::PathBuf;
 
-    use super::{load, start};
+    use super::{load, save, start};
 
     /// Writes `contents` to a fresh file under the system temp directory, named after the calling
     /// test so parallel tests never collide.
@@ -200,5 +215,30 @@ mod tests {
             panic!("an empty path succeeded");
         };
         assert_eq!(error.to_string(), "a file name is needed");
+    }
+
+    #[test]
+    fn saving_to_an_empty_path_fails_naming_empty_prefix() {
+        let session = start(None).expect("demo starts");
+        let Err(error) = save("", &session) else {
+            panic!("saving to an empty path succeeded");
+        };
+        assert_eq!(error.to_string(), ": a file name is needed");
+    }
+
+    #[test]
+    fn saving_a_session_writes_the_description_and_overwrites() {
+        let session = start(None).expect("demo starts");
+        let path =
+            std::env::temp_dir().join(format!("monospace-test-saving-{}.json", std::process::id()));
+        let path_str = path.to_str().expect("valid utf8");
+
+        assert!(save(path_str, &session).is_ok());
+        let read = std::fs::read_to_string(&path).expect("file was written");
+        assert!(read.contains("\"next_id\":"));
+
+        // Overwrites without error
+        assert!(save(path_str, &session).is_ok());
+        let _ = std::fs::remove_file(&path);
     }
 }

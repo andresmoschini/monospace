@@ -48,7 +48,7 @@ use crate::vocabulary::{Action, Reply};
 /// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
 static MENU: StaticMenu = StaticMenu {
     menu: &[
-        ("_File", &["_Open|Ctrl+O", "_Quit|Ctrl+Q"]),
+        ("_File", &["_Open|Ctrl+O", "_Save|Ctrl+S", "_Quit|Ctrl+Q"]),
         (
             "_Edit",
             &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z", "_Delete|Del"],
@@ -63,8 +63,11 @@ const FILE: usize = 0;
 /// The entry that asks for a description by name.
 const OPEN: usize = 0;
 
+/// The entry that saves a description by name.
+const SAVE: usize = 1;
+
 /// The entry of the way out.
-const QUIT: usize = 1;
+const QUIT: usize = 2;
 
 /// The label of the editing commands.
 const EDIT: usize = 1;
@@ -281,6 +284,7 @@ fn navigation(label: &str) -> Option<char> {
 fn meaning(label: usize, entry: usize) -> Reply {
     match (label, entry) {
         (FILE, OPEN) => Reply::Act(Action::Open),
+        (FILE, SAVE) => Reply::Act(Action::Save),
         (FILE, QUIT) => Reply::quit(),
         (EDIT, UNDO) => Reply::Act(Action::Undo),
         (EDIT, REDO) => Reply::Act(Action::Redo),
@@ -697,6 +701,24 @@ mod tests {
         assert!(
             matches!(outcome, Reply::Act(Action::Open)),
             "the entry did not become the action of the open dialog: {outcome:?}"
+        );
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
+    }
+
+    /// **The File menu's second entry is Save, which mints [`Action::Save`].**
+    #[test]
+    fn taking_the_save_entry_becomes_the_action_of_the_save_dialog() {
+        let mut chrome = drawn();
+        open(&mut chrome);
+
+        let outcome = take(&mut chrome, "Save");
+
+        assert!(
+            matches!(outcome, Reply::Act(Action::Save)),
+            "the entry did not become the action of the save dialog: {outcome:?}"
         );
         assert!(
             !chrome.popup_active(),

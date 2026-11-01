@@ -28,6 +28,7 @@ use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
 use crate::open;
+use crate::save;
 use crate::shortcuts;
 use crate::state::AppState;
 use crate::vocabulary::{Action, AppError, Reply};
@@ -137,7 +138,8 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     // above has answered it.
     let before = shortcuts::handle_always(event)
         .or_else(|| dialog::handle(event, state.dialog_mut()))
-        .or_else(|| open::handle(event, state.open_mut()));
+        .or_else(|| open::handle(event, state.open_mut()))
+        .or_else(|| save::handle(event, state.save_mut()));
 
     if before != Reply::Ignored {
         return before;
@@ -230,6 +232,18 @@ fn apply(action: &Action, state: &mut AppState) {
             Ok(session) => *state = AppState::new(session),
             Err(error) => apply(&Action::ShowError(error.to_string()), state),
         },
+
+        // **The save dialog is the chrome's own too**, and opening it changes no session.
+        Action::Save => state.save_mut().open(),
+
+        // **The session's diagram is serialized and written to path** (D2 and D3 of #270): on
+        // success the file is written and the current session is untouched; on any error it
+        // leaves the session untouched and reports through ShowError.
+        Action::SaveFile(path) => {
+            if let Err(error) = crate::save(path, state.diagram().session()) {
+                apply(&Action::ShowError(error.to_string()), state);
+            }
+        }
     }
 }
 
@@ -571,6 +585,29 @@ mod tests {
         );
     }
 
+    /// Opens the save dialog the way a person does: `File > Save` by pointer.
+    ///
+    /// **It also checks the keyboard goes back to the region** (rule 13): the dialog takes the
+    /// whole screen while it is up, so the leaf is already where it will be given back.
+    fn open_the_save_dialog(state: &mut AppState) {
+        let outcome = take_the_entry(state, 'f', "Save");
+
+        assert!(
+            matches!(outcome, Control::Changed),
+            "taking Save owed no frame: {outcome:?}"
+        );
+        assert!(state.save().active(), "taking Save opened no dialog");
+        assert_eq!(
+            state.chrome().leaf(),
+            Focus::Region,
+            "taking Save left the keyboard on the bar"
+        );
+        assert!(
+            !state.chrome().popup_active(),
+            "taking Save left the drop-down open"
+        );
+    }
+
     /// Writes `contents` to a fresh file under the system temp directory, named after the calling
     /// test so parallel tests never collide.
     fn write_description(name: &str, contents: &str) -> std::path::PathBuf {
@@ -676,6 +713,32 @@ mod tests {
         );
     }
 
+    /// **`Ctrl+S` and the File menu's second entry open the save dialog**, and neither touches the
+    /// session: the shortcut and the entry are one action.
+    #[test]
+    fn the_save_dialog_is_reached_by_the_shortcut_and_by_the_menus_entry() {
+        // The shortcut.
+        let mut state = a_drawn_state();
+        let outcome = send(
+            &key_with(KeyCode::Char('s'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.save().active(),
+            "the shortcut did not open the save dialog"
+        );
+
+        // The entry of the menu.
+        let mut state = a_drawn_state();
+        open_the_save_dialog(&mut state);
+        assert!(
+            state.save().active(),
+            "the menu entry did not open the save dialog"
+        );
+    }
+
     /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, leaves the
     /// keyboard where the dialog was given it — the region, rule 13 — opens no drop-down, and
     /// changes neither the selection nor the history.
@@ -745,6 +808,39 @@ mod tests {
         );
     }
 
+    /// **The chrome's own and no session**: opening the save dialog records no step and changes
+    /// no selection, so the drawing is exactly what it was.
+    #[test]
+    fn opening_the_save_dialog_changes_no_session() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(
+            selected.is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
+
+        open_the_save_dialog(&mut state);
+
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the dialog changed the selection"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "opening the dialog recorded a step"
+        );
+        assert!(
+            !state.diagram().can_redo(),
+            "opening the dialog left a step ahead"
+        );
+        assert!(
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
+            "opening the dialog removed the box"
+        );
+    }
+
     /// **The closing event reaches nothing else**: `Esc` closes the open dialog, leaves the
     /// keyboard on the region, opens no drop-down, and changes neither the selection nor history.
     #[test]
@@ -762,6 +858,44 @@ mod tests {
         assert!(
             !state.open().active(),
             "escape did not close the open dialog"
+        );
+        assert_eq!(
+            state.chrome().leaf(),
+            focus,
+            "the closing event moved the keyboard"
+        );
+        assert!(
+            !state.chrome().popup_active(),
+            "the closing event opened a drop-down"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the closing event changed the selection"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "the closing event recorded a step"
+        );
+    }
+
+    /// **The closing event reaches nothing else**: `Esc` closes the save dialog, leaves the
+    /// keyboard on the region, opens no drop-down, and changes neither the selection nor history.
+    #[test]
+    fn escape_closes_the_save_dialog_and_the_event_reaches_nothing_else() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        open_the_save_dialog(&mut state);
+        assert!(state.save().active(), "the save dialog is not open");
+        let focus = state.chrome().leaf();
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.save().active(),
+            "escape did not close the save dialog"
         );
         assert_eq!(
             state.chrome().leaf(),
@@ -817,6 +951,43 @@ mod tests {
         assert!(
             state.open().active(),
             "the click on the bar closed the open dialog"
+        );
+    }
+
+    /// **The overlay takes the controls behind it**: `Ctrl+Q` does nothing while the save dialog
+    /// is up, and a click on the bar behind it moves no keyboard and opens no menu.
+    #[test]
+    fn control_q_does_nothing_while_the_save_dialog_is_up() {
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_save_dialog(&mut state);
+        let (column, row) = frame::cell_of(&draw(&mut state), "File");
+        let focus = state.chrome().leaf();
+
+        let outcome = send(
+            &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Continue),
+            "the way out was answered through the save dialog: {outcome:?}"
+        );
+        assert!(state.save().active(), "Ctrl+Q closed the save dialog");
+
+        let _ = send(&click(column, row), &mut state);
+
+        assert_eq!(
+            state.chrome().leaf(),
+            focus,
+            "the click on the bar moved the keyboard"
+        );
+        assert!(
+            !state.chrome().popup_active(),
+            "the click behind the save dialog opened a drop-down"
+        );
+        assert!(
+            state.save().active(),
+            "the click on the bar closed the save dialog"
         );
     }
 
@@ -950,6 +1121,156 @@ mod tests {
         assert!(
             state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "the failure removed the box"
+        );
+    }
+
+    /// **A diagram is saved to a file and overwrites existing content**: saving serializes the
+    /// current diagram to the path, creating or replacing the file.
+    #[test]
+    fn a_diagram_is_saved_to_a_file_and_overwrites_existing_content() {
+        let path = std::env::temp_dir().join(format!(
+            "monospace-save-overwrite-{}.json",
+            std::process::id()
+        ));
+        let path_str = path.to_str().expect("temp path is UTF-8");
+        std::fs::write(&path, "old content").expect("temp file is writable");
+
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_save_dialog(&mut state);
+        state.save_mut().set_path(path_str);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.save().active(), "saving left the save dialog up");
+        assert_eq!(
+            state.chrome().leaf(),
+            Focus::Region,
+            "saving moved the keyboard off the region"
+        );
+
+        let read = std::fs::read_to_string(&path).expect("saved file can be read");
+        assert_ne!(
+            read, "old content",
+            "saving did not overwrite existing content"
+        );
+        let parsed = monospace_description::parse(&read).expect("saved JSON is valid description");
+        assert_eq!(
+            parsed.shapes().count(),
+            1,
+            "saved diagram is missing the box"
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// **Saving leaves the current session and history intact** (rule 6 of #270): the file is
+    /// written, but the current diagram, selection, and undo/redo stacks remain unchanged.
+    #[test]
+    fn saving_leaves_the_current_session_and_history_intact() {
+        let path =
+            std::env::temp_dir().join(format!("monospace-save-intact-{}.json", std::process::id()));
+        let path_str = path.to_str().expect("temp path is UTF-8");
+
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+
+        // Perform a modification to create history
+        let _ = send(&key(KeyCode::Right), &mut state);
+        assert!(state.diagram().can_undo(), "movement created no undo step");
+
+        open_the_save_dialog(&mut state);
+        state.save_mut().set_path(path_str);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.save().active(), "saving left the save dialog up");
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "saving changed the selection"
+        );
+        assert!(state.diagram().can_undo(), "saving dropped the undo stack");
+        assert!(!state.diagram().can_redo(), "saving modified redo stack");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// **An empty path closes the save dialog and opens the error dialog** (rule 7 of #270): the
+    /// session is untouched and the failure reports `": a file name is needed"`.
+    #[test]
+    fn an_empty_path_closes_the_save_dialog_and_opens_the_error_dialog() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        open_the_save_dialog(&mut state);
+        assert_eq!(state.save().path(), "");
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.save().active(),
+            "the failure left the save dialog up"
+        );
+        assert!(
+            state.dialog().active(),
+            "the failure did not open the error dialog"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the failure changed the selection"
+        );
+        assert!(!state.diagram().can_undo(), "the failure recorded a step");
+
+        let buffer = draw(&mut state);
+        let shown: String = (0..HEIGHT).map(|line| row_of(&buffer, line)).collect();
+        assert!(
+            shown.contains(": a file name is needed"),
+            "the error dialog does not report the empty path message: {shown:?}"
+        );
+    }
+
+    /// **A path in a missing directory closes the save dialog and opens the error dialog**
+    /// (rule 7 of #270): the session is untouched and the failure names the missing directory.
+    #[test]
+    fn a_path_in_a_missing_directory_closes_the_save_dialog_and_opens_the_error_dialog() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        open_the_save_dialog(&mut state);
+        let missing_path = "nonexistent_dir_12345/saved.json";
+        state.save_mut().set_path(missing_path);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.save().active(),
+            "the failure left the save dialog up"
+        );
+        assert!(
+            state.dialog().active(),
+            "the failure did not open the error dialog"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the failure changed the selection"
+        );
+        assert!(!state.diagram().can_undo(), "the failure recorded a step");
+
+        let buffer = draw(&mut state);
+        let shown: String = (0..HEIGHT).map(|line| row_of(&buffer, line)).collect();
+        assert!(
+            shown.contains("nonexistent_dir_12345"),
+            "the error dialog does not name the missing directory: {shown:?}"
         );
     }
 
@@ -1096,6 +1417,21 @@ mod tests {
         assert!(
             matches!(outcome, Control::Quit),
             "the dialog swallowed the forced exit: {outcome:?}"
+        );
+
+        // The save dialog is up: the overlay takes every control but this one.
+        let mut state = a_drawn_state();
+        open_the_save_dialog(&mut state);
+        assert!(state.save().active(), "the save dialog is not open");
+
+        let outcome = send(
+            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Quit),
+            "the save dialog swallowed the forced exit: {outcome:?}"
         );
     }
 
