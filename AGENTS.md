@@ -135,9 +135,9 @@ in either is silent — check that they loaded before assuming either works.
 - **A reload unloads a plugin without warning.** Anything that checks out these files, a rebase
   among them, drops both until they load again, and a session that loses `session-trailer.js` loses
   the variable with it.
-- **The trailer key differs by client and the hook reads both.** `commit-msg` reads
-  `MONOSPACE_SESSION_ID` and `CLAUDE_CODE_SESSION_ID`; a commit made outside an agent shell
-  correctly carries neither.
+- **The trailer key differs by client and the hook reads all three.** `commit-msg` reads
+  `MONOSPACE_SESSION_ID`, `CLAUDE_CODE_SESSION_ID` and `ANTIGRAVITY_CONVERSATION_ID`; a commit made
+  outside an agent shell correctly carries none.
 
 ## Running a session
 

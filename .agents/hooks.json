@@ -1,0 +1,11 @@
+{
+  "git-hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "git -C .. config --local core.hooksPath .claude/git-hooks && echo {}",
+        "timeout": 5
+      }
+    ]
+  }
+}
