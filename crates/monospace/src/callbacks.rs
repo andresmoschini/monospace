@@ -23,6 +23,7 @@ use crate::chrome::Target;
 use crate::context::AppGlobal;
 use crate::diagram_widget;
 use crate::dialog;
+use crate::error;
 use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
@@ -186,7 +187,7 @@ fn target_of(event: &Event, state: &AppState) -> Target {
 /// them is applied all the same. **What leaves the keyboard on the region is the carrying out and
 /// not the action** (rule 13 of #189), so it is said once in [`event`], beside the paint.
 fn apply(action: &Action, state: &mut AppState) {
-    match *action {
+    match action {
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
         // of where the walk stands. At either end the session answers with itself.
         Action::Undo => state.diagram_mut().undo(),
@@ -206,13 +207,16 @@ fn apply(action: &Action, state: &mut AppState) {
         // arrives from the region's handler and the identity is read here.
         Action::Move(dx, dy) => {
             if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().move_shape(selected, dx, dy);
+                state.diagram_mut().move_shape(selected, *dx, *dy);
             }
         }
 
-        // **The one action that opens an overlay.** The dialog is the chrome's own, so the
+        // **The two actions that open the overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
         Action::About => about::open(state.dialog_mut()),
+
+        // **The same overlay, over a failure's text**: it replaces whatever the dialog held.
+        Action::ShowError(message) => error::open(state.dialog_mut(), message),
     }
 }
 
@@ -561,6 +565,39 @@ mod tests {
         assert!(
             state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
             "opening the dialog removed the box"
+        );
+    }
+
+    /// **The error is the same overlay and no session** (rule 8): it opens the dialog over the
+    /// text it carries, replaces the About it finds there, and records no step.
+    #[test]
+    fn showing_an_error_opens_the_dialog_over_its_text_and_changes_no_session() {
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_about_dialog(&mut state);
+
+        apply(&Action::ShowError("Something failed".into()), &mut state);
+
+        assert!(state.dialog().active(), "the error left the dialog down");
+
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 40, 10));
+        crate::dialog::draw(
+            Rect::new(0, 1, 40, 8),
+            &mut buffer,
+            state.dialog_mut(),
+            &Config::default().theme,
+        );
+        let frame = crate::dialog::testing::picture(&buffer);
+        assert!(
+            frame.contains("Something failed"),
+            "the dialog does not carry the error: {frame:?}"
+        );
+        assert!(
+            !frame.contains("About"),
+            "the error did not replace the About: {frame:?}"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "showing the error recorded a step"
         );
     }
 

@@ -9,9 +9,10 @@
 //! **An action need not change anything.** `Action::Delete` takes a shape out where one is
 //! selected and owes a paint either way; `Action::Move` displaces what is selected and owes a
 //! paint whether or not there was one; `Action::Undo` and `Action::Redo` walk the session's
-//! history and owe a paint whether or not there is a step to give back; and `Action::About` opens
-//! the chrome's dialog. **The way out is not an action**: nothing about the state changes, so there
-//! is nothing to carry out, and it is [`Reply::Quit`], which says whether it is the forced one.
+//! history and owe a paint whether or not there is a step to give back; and `Action::About` and
+//! `Action::ShowError` open the chrome's dialog. **The way out is not an action**: nothing about
+//! the state changes, so there is nothing to carry out, and it is [`Reply::Quit`], which says
+//! whether it is the forced one.
 //!
 //! **A handler says an action rather than doing one**, so that an entry of the menu and the key
 //! that means the same thing are decided in one place. A handler answers with a [`Reply`], which
@@ -27,9 +28,9 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 /// What the application does about an event.
 ///
 /// **Every action is a meaning the state must show.** `Delete` takes a shape out, `Undo` and
-/// `Redo` give a step back, `Move` displaces what is selected, and `About` opens the chrome's
-/// dialog. **Ending the application is not one of them**: it changes no state, so there is nothing
-/// to carry out, and it is an answer of the [`Reply`]'s own instead.
+/// `Redo` give a step back, `Move` displaces what is selected, and `About` and `ShowError` open the
+/// chrome's dialog. **Ending the application is not one of them**: it changes no state, so there is
+/// nothing to carry out, and it is an answer of the [`Reply`]'s own instead.
 ///
 /// **A meaning that is carried out leaves the keyboard on the region** (rule 13 of #189), and the
 /// drop-down the bar was showing closes with it. **So a meaning does not say where the keyboard is
@@ -81,6 +82,20 @@ pub(crate) enum Action {
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,
     /// so the drawing and its history are untouched.
     About,
+
+    /// The error dialog is opened over this text, and the frame is owed.
+    ///
+    /// **The text is whoever failed's**, so it is owned and not a word of a table. Like
+    /// [`Self::About`], it is the chrome's own and no session: it opens the overlay, replacing
+    /// whatever it held, and records no step.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "nothing raises an error yet; the demonstration shortcut is the next step"
+        )
+    )]
+    ShowError(String),
 }
 
 /// What a handler says about an event.
