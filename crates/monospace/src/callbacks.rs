@@ -548,19 +548,26 @@ mod tests {
         );
     }
 
-    /// Opens the open dialog and closes any drop-down.
+    /// Opens the open dialog the way a person does: `File > Open` by pointer.
+    ///
+    /// **It also checks the keyboard goes back to the region** (rule 13): the dialog takes the
+    /// whole screen while it is up, so the leaf is already where it will be given back.
     fn open_the_open_dialog(state: &mut AppState) {
-        apply(&Action::Open, state);
-        cleanup(state);
-        assert!(state.open().active(), "Action::Open opened no dialog");
+        let outcome = take_the_entry(state, 'f', "Open");
+
+        assert!(
+            matches!(outcome, Control::Changed),
+            "taking Open owed no frame: {outcome:?}"
+        );
+        assert!(state.open().active(), "taking Open opened no dialog");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
-            "Action::Open left the keyboard on the bar"
+            "taking Open left the keyboard on the bar"
         );
         assert!(
             !state.chrome().popup_active(),
-            "Action::Open left the drop-down open"
+            "taking Open left the drop-down open"
         );
     }
 
@@ -643,22 +650,30 @@ mod tests {
         );
     }
 
-    /// TEMPORARY: `Ctrl+E` reaches the error dialog through the whole chain, so neither the bar nor
-    /// the region claims it first.
+    /// **`Ctrl+O` and the File menu's first entry open the same dialog**, and neither touches the
+    /// session: the shortcut and the entry are one action.
     #[test]
-    fn ctrl_e_opens_the_error_dialog() {
-        let mut state = a_drawn_state_over(A_BOX);
-
+    fn the_open_dialog_is_reached_by_the_shortcut_and_by_the_menus_entry() {
+        // The shortcut.
+        let mut state = a_drawn_state();
         let outcome = send(
-            &key_with(KeyCode::Char('e'), KeyModifiers::CONTROL),
+            &key_with(KeyCode::Char('o'), KeyModifiers::CONTROL),
             &mut state,
         );
 
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            matches!(outcome, Control::Changed),
-            "Ctrl+E owed no frame: {outcome:?}"
+            state.open().active(),
+            "the shortcut did not open the dialog"
         );
-        assert!(state.dialog().active(), "Ctrl+E opened no dialog");
+
+        // The entry of the menu.
+        let mut state = a_drawn_state();
+        open_the_open_dialog(&mut state);
+        assert!(
+            state.open().active(),
+            "the menu entry did not open the dialog"
+        );
     }
 
     /// **The closing event reaches nothing else** (rule 10): `Esc` closes the dialog, leaves the
@@ -1029,8 +1044,7 @@ mod tests {
 
         // The entry of the menu.
         let mut state = a_drawn_state();
-        open_the_drop_down(&mut state, 'f');
-        let outcome = send(&key(KeyCode::Enter), &mut state);
+        let outcome = take_the_entry(&mut state, 'f', "Quit");
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
     }
@@ -1046,20 +1060,7 @@ mod tests {
 
         // The click on the entry of the menu.
         let mut state = a_drawn_state();
-        open_the_drop_down(&mut state, 'f');
-        let buffer = draw(&mut state);
-        let (column, row) = frame::cell_of(&buffer, "Quit");
-        let by_click = send(
-            &Event::Mouse(ratatui_crossterm::crossterm::event::MouseEvent {
-                kind: ratatui_crossterm::crossterm::event::MouseEventKind::Down(
-                    ratatui_crossterm::crossterm::event::MouseButton::Left,
-                ),
-                column,
-                row,
-                modifiers: KeyModifiers::NONE,
-            }),
-            &mut state,
-        );
+        let by_click = take_the_entry(&mut state, 'f', "Quit");
 
         assert_eq!(
             by_click, by_shortcut,
@@ -1765,11 +1766,7 @@ mod tests {
     #[test]
     fn a_click_the_drop_down_takes_never_reaches_the_diagram() {
         let mut state = a_drawn_state_over(A_BOX);
-        open_the_drop_down(&mut state, 'f');
-        let buffer = draw(&mut state);
-        let (column, row) = frame::cell_of(&buffer, "Quit");
-
-        let outcome = send(&click(column, row), &mut state);
+        let outcome = take_the_entry(&mut state, 'f', "Quit");
 
         assert!(matches!(outcome, Control::Quit), "{outcome:?}");
         assert_eq!(

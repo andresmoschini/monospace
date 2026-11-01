@@ -6,13 +6,13 @@ expression: body
 the drop-down open over the region, 40x10
 File Edit Help
 ┌──────────────┐───────────────────────┐
+│ Open  Ctrl+O │                       │
 │ Quit  Ctrl+Q │                       │
 └──────────────┘                       │
-│                                      │
 │                                      │
 │                                      │
 │                                      │
 └──────────────────────────────────────┘
 monospace        nothing drawn     0.1.0
 the bar is 1 row, the region is 8 rows and the status is 1 row
-156 of 400 cells are not blank
+167 of 400 cells are not blank

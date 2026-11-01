@@ -87,13 +87,6 @@ pub(crate) enum Action {
     ///
     /// **The chrome's own and no session**, as [`Self::About`] is: opening the dialog records no
     /// step, and the path it is given is read only when [`Self::OpenFile`] is taken.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "nothing raises it yet; menu and shortcuts arrive in the next step"
-        )
-    )]
     Open,
 
     /// A description is read from disk and starts a fresh session.
