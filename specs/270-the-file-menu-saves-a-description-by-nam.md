@@ -14,7 +14,7 @@ diagram is edited, however, there is no way to save the work back to disk: leavi
 discards modifications unless the diagram can be serialized and written out.
 
 Serializing a diagram to the JSON description format is also the unsettled capability noted in
-[`docs/diagram-model.md`](../docs/diagram-model.md) §8 ("What the format still does not have is a
+[`docs/diagram-model.md`](../docs/diagram-model.md) §11 ("What the format still does not have is a
 writer..."). Saving descriptions from the application settles that the format has a writer, provided
 by `monospace-description`.
 
@@ -98,9 +98,10 @@ by** the maintainer, in #270.
 pretty-printed JSON matching the format read by `parse`, with `next_id` and the `shapes` array in
 drawing order. `monospace-diagram::Diagram` exposes its shapes in order and `next_id` to support
 serialization. **Why not** serializing inside `monospace-cli` or `monospace`:
-`docs/diagram-model.md` §8 settles that `monospace-description` owns the format. **Why not** compact
-single-line JSON: tracked description files and examples use formatted JSON with 2-space indents
-(e.g. `demo.json`), which is readable and version-controllable. **Answered by** the maintainer.
+`docs/diagram-model.md` §11 settles that `monospace-description` owns the format. **Why not**
+compact single-line JSON: tracked description files and examples use formatted JSON with 2-space
+indents (e.g. `demo.json`), which is readable and version-controllable. **Answered by** the
+maintainer.
 
 **D6 — the save dialog is an overlay and sets the terminal's screen cursor while it is up.**
 
@@ -116,7 +117,7 @@ maintainer.
 
 ## Model slice
 
-- `docs/diagram-model.md` §8 _Open questions_: answers the question of whether a diagram is
+- `docs/diagram-model.md` §11 _Open questions_: answers the question of whether a diagram is
   serializable and what format it takes, recording that `monospace-description` provides the
   serializer matching its reader, and that `Diagram` exposes its shapes in drawing order and
   `next_id`.

@@ -487,9 +487,10 @@ that needs one of them answered amends this document first and then implements t
   that would want to speak about shapes generically rather than by kind.
 - **Is a diagram serializable, and in what?** Settled: in JSON, by
   [`monospace-description`](../crates/monospace-description), which is a layer above this one and
-  holds no domain logic — it reads a file into a `Diagram` and knows nothing of this crate's
-  operations. The format is **no longer provisional**, which is what the application saving a
-  diagram settles: a format nobody has to write has no obligations, and one somebody's files depend
-  on does. What the format still does not have is a **writer**, and what that would owe a reader —
-  what changes, what breaks, whether a version is named — is unsettled and is the next question
-  here. See [the crate](../crates/monospace-description/src/lib.rs).
+  holds no domain logic — it reads a file into a `Diagram`, writes a `Diagram` back to JSON via
+  `monospace_description::serialize`, and knows nothing of this crate's operations. The format is
+  **no longer provisional**, which is what the application saving a diagram settles: a format nobody
+  has to write has no obligations, and one somebody's files depend on does. `Diagram` exposes its
+  shapes in drawing order (`shapes(&self)`) and the next identity (`next_id(&self)`) so the
+  serializer can reconstruct the wire description without exposing private diagram storage. See
+  [the crate](../crates/monospace-description/src/lib.rs).
