@@ -43,7 +43,9 @@ pub(crate) type AppError = Box<dyn std::error::Error>;
 /// **A change of the screen is not a meaning of a person's, and undo will never hold one.** It is
 /// what [`Reply::Repaint`] says instead; see _The action model_ in
 /// [`docs/application-model.md`](../../../docs/application-model.md).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// **It is not `Copy`**: a meaning may carry what a person is told, and that text is owned.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Action {
     /// The step behind the session is given back, and the frame is owed either way.
     ///
@@ -93,9 +95,10 @@ pub(crate) enum Action {
 /// event left the next one to answer it as well. **A change of the screen is not a meaning of a
 /// person's**, so it is `Repaint` rather than a variant of [`Action`].
 ///
-/// **It is `Copy`**: an answer is a word or a meaning of two numbers, so it travels by value and
-/// [`and_repaint`](Self::and_repaint) and [`or_else`](Self::or_else) compose without borrowing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// **It travels by value but is not `Copy`**: an answer can carry an [`Action`] that owns text, so
+/// [`and_repaint`](Self::and_repaint) and [`or_else`](Self::or_else) take it and give it back
+/// rather than borrowing it, and a caller that keeps one clones it.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Reply {
     /// Not mine: ask the next handler.
     Ignored,
@@ -190,7 +193,7 @@ mod tests {
     #[test]
     fn only_silence_is_raised_to_a_frame() {
         for reply in every_reply() {
-            let raised = reply.and_repaint();
+            let raised = reply.clone().and_repaint();
 
             match reply {
                 Reply::Ignored | Reply::Consumed => {
@@ -212,7 +215,7 @@ mod tests {
                 Reply::Repaint
             };
 
-            let answer = reply.or_else(next);
+            let answer = reply.clone().or_else(next);
 
             if reply == Reply::Ignored {
                 assert!(asked.get(), "an ignored event stopped the chain");

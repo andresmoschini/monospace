@@ -82,7 +82,7 @@ pub(crate) fn event(
             // time.** What owes the frame is the meaning having been said, not the state having
             // changed, which is why the cleanup and the paint are here rather than in `apply`.
             Reply::Act(action) => {
-                apply(action, state);
+                apply(&action, state);
                 cleanup(state);
                 Control::Changed
             }
@@ -184,8 +184,8 @@ fn target_of(event: &Event, state: &AppState) -> Target {
 /// with nothing behind walks nothing, and `Move` with nothing selected moves nothing; every one of
 /// them is applied all the same. **What leaves the keyboard on the region is the carrying out and
 /// not the action** (rule 13 of #189), so it is said once in [`event`], beside the paint.
-fn apply(action: Action, state: &mut AppState) {
-    match action {
+fn apply(action: &Action, state: &mut AppState) {
+    match *action {
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
         // of where the walk stands. At either end the session answers with itself.
         Action::Undo => state.diagram_mut().undo(),

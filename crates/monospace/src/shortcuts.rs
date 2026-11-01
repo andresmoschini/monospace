@@ -138,7 +138,7 @@ fn handle(event: &Event, reach: Reach) -> Reply {
                 && shortcut.key == key.code
                 && shortcut.modifiers == key.modifiers
         })
-        .map_or(Reply::Ignored, |shortcut| shortcut.reply)
+        .map_or(Reply::Ignored, |shortcut| shortcut.reply.clone())
 }
 
 /// The events that trigger the shortcuts answered before any handler.
