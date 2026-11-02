@@ -111,8 +111,10 @@ would read as a frame it does not have. Four sequences, one per state:
 
 1. No selection (`IDLE`, or selected `ShapeId` not in `diagram`):
    `monospace <VERSION> · Footprint: <footprint> · <N> shape(s) · Viewport: (<origin.x>, <origin.y>)`,
-   where `<footprint>` is `<W>×<H> at <X>,<Y>` if `Some(rect)` or `nothing drawn` if `None`, and
-   `<N> shape(s)` uses singular `1 shape` when `count == 1` and `<N> shapes` otherwise.
+   where `<footprint>` is `<W>×<H> at <X>,<Y>` if `Some(rect)` or `nothing drawn` if `None` — not
+   `(<X>, <Y>) <W>×<H>`, which writes the drawing's corner exactly as `Viewport:` writes the view,
+   two different facts in one notation — and `<N> shape(s)` uses singular `1 shape` when
+   `count == 1` and `<N> shapes` otherwise.
 2. Selected `Shape::Box` (`id`):
    `Box #<id>[ "<label>"] · Pos: (<at.x>, <at.y>) · Size: <width>×<height> · Stroke: <stroke.0> · Fill: <None | '<glyph>'>`.
    If `text` is `None`, the first block is `Box #<id>`. If `text` is `Some(s)`, the first line is
@@ -243,7 +245,5 @@ blocks or commands on a single line, blocks in this increment are truncated at t
 Multi-line wrapping without truncation and dynamic status bar height are specified and implemented
 in [#280](https://github.com/andresmoschini/monospace/issues/280).
 
-**The label is elided at 20 glyphs.** The cap is a stopgap of the same kind, and the label is the
-one block that may be shortened at all: the rest wrap. Where a fixed count of glyphs stops the label
-today, #280 replaces it with the column the block actually runs out of, which is the rule the other
-blocks get.
+**The label is elided at 20 glyphs.** The cap is the same stopgap: the label is the one block that
+may be shortened at all, and #280 replaces the fixed count with the column the block runs out of.
