@@ -972,6 +972,7 @@ mod tests {
              comparison below"
         );
         tenth["to"]["at"] = serde_json::json!({ "kind": "point", "x": 22, "y": 4 });
+        tenth["to"]["leaving"] = serde_json::json!("down");
         let with_the_point = value.to_string();
 
         let (first, second, third, fourth, fifth, sixth, seventh, eighth) =

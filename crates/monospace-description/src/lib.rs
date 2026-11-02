@@ -49,7 +49,7 @@ use std::num::NonZeroU16;
 
 use monospace_core::{Direction, Glyph, Orientation as CoreOrientation, SymbolStyleName, Text};
 use monospace_diagram::{
-    Anchor, Delta, Diagram, Endpoint as DiagramEndpoint, Position, Reference,
+    Anchor, Delta, Diagram, Endpoint as DiagramEndpoint, EndpointAt, Position, Reference,
     Shape as DiagramShape, ShapeId,
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -603,19 +603,57 @@ impl From<Position> for At {
 /// rather than the prose. The restriction is what keeps a chain of references one link long: a
 /// reference names a box or a line, both positioned absolutely, or a connector, which answers no
 /// side at all, so nothing recurses and no cycle can be built.
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
+/// An endpoint positioning at a `point` requires `leaving`. An endpoint positioning at a `reference`
+/// derives its leaving direction from its anchor and must not specify `leaving`.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 struct Endpoint {
     at: At,
-    leaving: Leaving,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    leaving: Option<Leaving>,
     terminal: Terminal,
+}
+
+impl<'de> Deserialize<'de> for Endpoint {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct RawEndpoint {
+            at: At,
+            #[serde(default)]
+            leaving: Option<Leaving>,
+            terminal: Terminal,
+        }
+
+        let raw = RawEndpoint::deserialize(deserializer)?;
+        match (&raw.at, raw.leaving) {
+            (At::Point { .. }, None) => Err(serde::de::Error::missing_field("leaving")),
+            (At::Reference { .. }, Some(_)) => Err(serde::de::Error::custom(
+                "a reference endpoint derives its leaving direction from its anchor and must not specify `leaving`",
+            )),
+            _ => Ok(Self {
+                at: raw.at,
+                leaving: raw.leaving,
+                terminal: raw.terminal,
+            }),
+        }
+    }
 }
 
 impl From<DiagramEndpoint> for Endpoint {
     fn from(endpoint: DiagramEndpoint) -> Self {
-        Self {
-            at: endpoint.at.position().into(),
-            leaving: endpoint.at.leaving().into(),
-            terminal: endpoint.terminal.into(),
+        match endpoint.at {
+            EndpointAt::Absolute { at, leaving } => Self {
+                at: Position::Absolute(at).into(),
+                leaving: Some(leaving.into()),
+                terminal: endpoint.terminal.into(),
+            },
+            EndpointAt::Reference(reference) => Self {
+                at: Position::Reference(reference).into(),
+                leaving: None,
+                terminal: endpoint.terminal.into(),
+            },
         }
     }
 }
@@ -625,7 +663,10 @@ impl From<Endpoint> for DiagramEndpoint {
         match endpoint.at {
             At::Point { x, y } => DiagramEndpoint::absolute(
                 monospace_core::Pos { x, y },
-                endpoint.leaving.into(),
+                endpoint
+                    .leaving
+                    .expect("a deserialized point endpoint always has a leaving direction")
+                    .into(),
                 endpoint.terminal.into(),
             ),
             At::Reference {
@@ -856,7 +897,8 @@ impl Description {
 
 #[cfg(test)]
 mod tests {
-    use monospace_core::{Buffer, GlyphCatalog, Pos, Size, Window};
+    use monospace_core::{Buffer, Direction, GlyphCatalog, Pos, Size, Window};
+    use monospace_diagram::{Shape as DiagramShape, ShapeId};
 
     use super::{Description, Diagram, ParseError, parse};
 
@@ -1198,6 +1240,13 @@ mod tests {
       "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
               "terminal": { "kind": "glyph", "glyph": ">" } }"#;
 
+    /// A connector whose `from` endpoint stands at `AT` without a `leaving` direction, used for
+    /// reference endpoints which derive leaving from their anchor.
+    const ARROW_WITH_A_REFERENCE: &str = r#""from": { "at": AT,
+        "terminal": { "kind": "arm" } },
+      "to": { "at": { "kind": "point", "x": 6, "y": 0 }, "leaving": "left",
+              "terminal": { "kind": "glyph", "glyph": ">" } }"#;
+
     /// The message the binary reports for an endpoint whose `at` is `at`, read the way a reader
     /// reads it: the message, not the `serde_json` position that follows it.
     fn error_for_an_at(at: &str) -> String {
@@ -1261,7 +1310,7 @@ mod tests {
     /// the field is optional and absent zero.
     #[test]
     fn a_reference_with_no_offset_is_read_as_a_reference_on_the_side_itself() {
-        let json = description_of(&ARROW_WITH_AN_AT.replace(
+        let json = description_of(&ARROW_WITH_A_REFERENCE.replace(
             "AT",
             r#"{ "kind": "reference", "shape": 1, "anchor": "right" }"#,
         ));
@@ -1283,7 +1332,7 @@ mod tests {
     /// reads, and reads as a reference that says nothing about it.
     #[test]
     fn an_unknown_key_inside_a_reference_is_dropped_in_silence() {
-        let json = description_of(&ARROW_WITH_AN_AT.replace(
+        let json = description_of(&ARROW_WITH_A_REFERENCE.replace(
             "AT",
             r#"{ "kind": "reference", "shape": 1, "anchor": "right", "along": 2 }"#,
         ));
@@ -1346,7 +1395,6 @@ mod tests {
                              "terminal": {{ "kind": "glyph", "glyph": "▼" }} }},
                   "to": {{ "at": {{ "kind": "reference", "shape": {connector_names},
                                       "anchor": "top" }},
-                          "leaving": "up",
                           "terminal": {{ "kind": "arm" }} }},
                   "stroke": "light" }}
             ]
@@ -1441,7 +1489,7 @@ mod tests {
             "shapes": [ { "kind": "box", "id": "arrow", "at": { "x": 0, "y": 0 },
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
         }"#;
-        let a_string_shape = &description_of(&ARROW_WITH_AN_AT.replace(
+        let a_string_shape = &description_of(&ARROW_WITH_A_REFERENCE.replace(
             "AT",
             r##"{ "kind": "reference", "shape": "#1", "anchor": "right" }"##,
         ));
@@ -1505,7 +1553,7 @@ mod tests {
                   "size": { "width": 4, "height": 3 }, "stroke": "light" },
                 { "kind": "connector", "id": 2,
                   "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" },
-                            "leaving": "right", "terminal": { "kind": "glyph", "glyph": ">" } },
+                            "terminal": { "kind": "glyph", "glyph": ">" } },
                   "to": { "at": { "kind": "point", "x": 7, "y": 1 }, "leaving": "left",
                           "terminal": { "kind": "arm" } },
                   "stroke": "light" }
@@ -1583,7 +1631,6 @@ mod tests {
           "offset": { "dx": 2, "dy": -1 },
           "out": 1
         },
-        "leaving": "right",
         "terminal": { "kind": "arm" }
       },
       "to": {
@@ -1603,7 +1650,6 @@ mod tests {
           "anchor": "bottom",
           "offset": { "dx": 1, "dy": 0 }
         },
-        "leaving": "down",
         "terminal": { "kind": "arm" }
       },
       "to": {
@@ -1647,6 +1693,120 @@ mod tests {
         assert!(
             conn3_from.get("out").is_none(),
             "an out of zero is omitted from the serialized reference JSON"
+        );
+        assert!(
+            shapes[1]["from"].get("leaving").is_none(),
+            "reference endpoint must omit leaving when serialized"
+        );
+        assert_eq!(shapes[1]["to"]["leaving"], "left");
+    }
+
+    /// A reference endpoint derives its leaving direction from its anchor and must not specify
+    /// `leaving`.
+    #[test]
+    fn a_reference_endpoint_without_leaving_derives_its_leaving_direction_from_the_anchor() {
+        let json = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" },
+                            "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
+                          "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let diagram = parse(json).expect("valid reference endpoint without leaving parses");
+        let connector = diagram.get(ShapeId::new(std::num::NonZeroU16::new(2).unwrap()));
+        let Some(DiagramShape::Connector { from, .. }) = connector else {
+            panic!("expected connector");
+        };
+        assert_eq!(from.leaving(), Direction::Right);
+    }
+
+    /// A point endpoint requires a leaving direction and is refused by name if `leaving` is missing.
+    #[test]
+    fn a_point_endpoint_without_leaving_is_refused_by_name() {
+        let json = r#"{
+            "next_id": 2,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 1, "y": 2 },
+                            "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 8, "y": 2 }, "leaving": "left",
+                          "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let error = refusal(json).to_string();
+        assert!(
+            error.starts_with("missing field `leaving`"),
+            "expected missing field `leaving`, got: {error}"
+        );
+    }
+
+    /// A reference endpoint specifying a leaving direction is rejected.
+    #[test]
+    fn a_reference_endpoint_with_leaving_is_rejected() {
+        let json = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" },
+                            "leaving": "right",
+                            "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
+                          "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let error = refusal(json).to_string();
+        assert!(
+            error.contains(
+                "a reference endpoint derives its leaving direction from its anchor and must not specify `leaving`"
+            ),
+            "expected error refusing leaving on reference endpoint, got: {error}"
+        );
+    }
+
+    /// Serializing a connector omits `leaving` on a reference endpoint and writes it on a point endpoint.
+    #[test]
+    fn serializing_a_connector_omits_leaving_on_a_reference_and_includes_it_on_a_point() {
+        let json = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" },
+                            "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
+                          "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let diagram = parse(json).expect("valid description parses");
+        let serialized = super::serialize(&diagram).expect("serializes cleanly");
+        let desc = serde_json::from_str::<serde_json::Value>(&serialized).expect("valid json");
+        let shapes = desc["shapes"].as_array().expect("shapes is array");
+        let from = &shapes[1]["from"];
+        let to = &shapes[1]["to"];
+
+        assert!(
+            from.get("leaving").is_none(),
+            "reference endpoint must omit leaving when serialized: {serialized}"
+        );
+        assert_eq!(
+            to["leaving"], "left",
+            "point endpoint must include leaving when serialized: {serialized}"
         );
     }
 }

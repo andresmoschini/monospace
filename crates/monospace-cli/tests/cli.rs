@@ -79,7 +79,7 @@ fn an_identity_written_as_a_string_is_refused_by_name_on_stderr_and_fails() {
                   "stroke": "light" },
                 { "kind": "connector", "id": 2,
                   "from": { "at": { "kind": "reference", "shape": "#1", "anchor": "right" },
-                            "leaving": "right", "terminal": { "kind": "arm" } },
+                            "terminal": { "kind": "arm" } },
                   "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left",
                           "terminal": { "kind": "arm" } },
                   "stroke": "light" } ]
@@ -481,6 +481,11 @@ const A_BOX: &str = r#"{ "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size
 /// `label` names the temp file, so it is the caller's short handle and not the JSON: a description
 /// is full of slashes and quotes and makes for no filename at all.
 fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
+    let leaving = if at.contains(r#""kind": "point""#) {
+        r#""leaving": "right","#
+    } else {
+        ""
+    };
     let path = write_description(
         label,
         &format!(
@@ -489,7 +494,7 @@ fn picture_of_a_connector_hanging_from(label: &str, at: &str) -> String {
             "shapes": [
                 {A_BOX},
                 {{ "kind": "connector", "id": 2,
-                  "from": {{ "at": {at}, "leaving": "right",
+                  "from": {{ "at": {at}, {leaving}
                              "terminal": {{ "kind": "glyph", "glyph": ">" }} }},
                   "to": {{ "at": {{ "kind": "point", "x": 8, "y": 1 }}, "leaving": "left",
                            "terminal": {{ "kind": "arm" }} }},

@@ -336,9 +336,9 @@ mod tests {
               "size": { "width": 4, "height": 3 }, "stroke": "light" },
             { "kind": "connector", "id": 3,
               "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" },
-                        "leaving": "right", "terminal": { "kind": "arm" } },
+                        "terminal": { "kind": "arm" } },
               "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left" },
-                        "leaving": "left", "terminal": { "kind": "arm" } },
+                        "terminal": { "kind": "arm" } },
               "stroke": "light" }
         ]
     }"#;
