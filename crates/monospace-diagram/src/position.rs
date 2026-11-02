@@ -15,7 +15,7 @@
 //! state of a diagram being built — and what it costs is that a diagram which drew nothing and a
 //! diagram whose every reference is broken look identical, with nothing to ask about the difference.
 
-use monospace_core::{Orientation, Pos, Size};
+use monospace_core::{Direction, Orientation, Pos, Size};
 
 use crate::{Delta, Diagram, ShapeId};
 
@@ -44,6 +44,17 @@ pub enum Anchor {
 }
 
 impl Anchor {
+    /// Which way a connector leaves when hanging from this side.
+    #[must_use]
+    pub const fn leaving(self) -> Direction {
+        match self {
+            Self::Top => Direction::Up,
+            Self::Right => Direction::Right,
+            Self::Bottom => Direction::Down,
+            Self::Left => Direction::Left,
+        }
+    }
+
     /// `out` cells away from the shape through this side, in the screen axes
     /// [`Delta`](crate::Delta) carries.
     ///
@@ -331,6 +342,14 @@ mod tests {
             fill: None,
             text: None,
         }
+    }
+
+    #[test]
+    fn each_anchor_leaves_toward_its_outward_normal() {
+        assert_eq!(Anchor::Top.leaving(), Direction::Up);
+        assert_eq!(Anchor::Right.leaving(), Direction::Right);
+        assert_eq!(Anchor::Bottom.leaving(), Direction::Down);
+        assert_eq!(Anchor::Left.leaving(), Direction::Left);
     }
 
     /// `resolve` asked rather than drawn, and the offset is a gap from the side.
