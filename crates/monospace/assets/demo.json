@@ -81,7 +81,6 @@
           "anchor": "right",
           "offset": { "dx": 0, "dy": 0 }
         },
-        "leaving": "right",
         "terminal": { "kind": "arm" }
       },
       "to": {
@@ -92,7 +91,6 @@
           "offset": { "dx": 1, "dy": 0 },
           "out": 1
         },
-        "leaving": "down",
         "terminal": { "kind": "symbol", "style": "solid" }
       },
       "stroke": "light"

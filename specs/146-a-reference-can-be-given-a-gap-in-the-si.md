@@ -194,7 +194,7 @@ own `─` at (2, 2), which is what a caller reaching for a gap is reaching past:
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "bottom",
                         "out": 0 },
-                "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
+                "terminal": { "kind": "glyph", "glyph": "▲" } },
       "to":   { "at": { "kind": "point", "x": 2, "y": 4 }, "leaving": "up",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" }
@@ -222,7 +222,7 @@ And with the gap one cell out of the same side, at (2, 3), where the border is a
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "bottom",
                         "out": 1 },
-                "leaving": "down", "terminal": { "kind": "glyph", "glyph": "▲" } },
+                "terminal": { "kind": "glyph", "glyph": "▲" } },
       "to":   { "at": { "kind": "point", "x": 2, "y": 4 }, "leaving": "up",
                 "terminal": { "kind": "arm" } },
       "stroke": "light" }

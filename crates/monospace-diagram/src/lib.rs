@@ -16,4 +16,4 @@ pub use delta::Delta;
 pub use diagram::Diagram;
 pub use monospace_core::ShapeId;
 pub use position::{Anchor, Position, Reference};
-pub use shape::{Endpoint, Shape};
+pub use shape::{Endpoint, EndpointAt, Shape};

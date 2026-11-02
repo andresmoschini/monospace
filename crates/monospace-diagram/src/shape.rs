@@ -17,56 +17,124 @@ use monospace_core::{
 };
 
 use crate::position::{flat_size, side_centre};
-use crate::{Anchor, Delta, Diagram, Position, ShapeId};
+use crate::{Anchor, Delta, Diagram, Position, Reference, ShapeId};
 
-/// One endpoint of a connector: a position, the direction it leaves in, and its terminal.
+/// Where a connector endpoint stands and which way it leaves.
+///
+/// An endpoint is either an absolute point on the canvas (which states its own leaving direction)
+/// or a reference to a side of another figure (where the leaving direction is derived from that
+/// side's anchor).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EndpointAt {
+    /// A free point on the canvas and the direction the connector leaves it in.
+    Absolute {
+        /// The point on the canvas where the endpoint stands.
+        at: Pos,
+        /// The direction the connector leaves this endpoint in.
+        leaving: Direction,
+    },
+    /// Another figure and one of its four sides; the leaving direction is `reference.anchor.leaving()`.
+    Reference(Reference),
+}
+
+impl EndpointAt {
+    /// The position this endpoint stands at.
+    #[must_use]
+    pub const fn position(self) -> Position {
+        match self {
+            Self::Absolute { at, .. } => Position::Absolute(at),
+            Self::Reference(reference) => Position::Reference(reference),
+        }
+    }
+
+    /// Which way a connector leaves when starting from this endpoint.
+    #[must_use]
+    pub const fn leaving(self) -> Direction {
+        match self {
+            Self::Absolute { leaving, .. } => leaving,
+            Self::Reference(reference) => reference.anchor.leaving(),
+        }
+    }
+
+    /// Where this endpoint stands now, in `diagram`, or `None` when it does not resolve.
+    #[must_use]
+    pub fn resolve(self, diagram: &Diagram) -> Option<Pos> {
+        self.position().resolve(diagram)
+    }
+
+    /// This endpoint, moved by `by`, changing nothing else.
+    #[must_use]
+    pub(crate) fn displaced_by(self, by: Delta) -> Self {
+        match self.position().displaced_by(by) {
+            Position::Absolute(at) => Self::Absolute {
+                at,
+                leaving: self.leaving(),
+            },
+            Position::Reference(reference) => Self::Reference(reference),
+        }
+    }
+}
+
+/// One endpoint of a connector: where it stands (and leaves) and its terminal.
 ///
 /// Mirrors `monospace_core::Endpoint` rather than reusing it, so that a later change to how an
 /// endpoint is anchored stays inside this crate. The terminal is the core's own type and this crate
 /// re-exports nothing: a caller takes it from `monospace_core`, exactly as it already takes the
 /// `Pos`, `Direction` and `Glyph` the other two fields hold.
 ///
-/// `at` is a [`Position`] rather than a `Pos`, and this is the only field in the crate that can
-/// hold a reference: the model's _Positions_ restriction — only a connector's endpoint may name
-/// another figure — is then the type system rather than a rule to remember (D2).
+/// `at` is an [`EndpointAt`] rather than a `Pos`: an absolute point states its leaving direction,
+/// while an attached endpoint derives its leaving direction from the anchor it hangs from.
 ///
 /// `PartialEq` and `Eq` are here for [`Shape`]'s sake rather than this struct's own: a derive does
 /// not reach through a field, and `Shape::Connector` holds one of these.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Endpoint {
-    /// The endpoint's position. The terminal occupies this position itself.
-    pub at: Position,
-    /// The direction the connector leaves this endpoint in.
-    pub leaving: Direction,
+    /// The endpoint's placement and leaving direction. The terminal occupies this position itself.
+    pub at: EndpointAt,
     /// What this endpoint contributes to the cell at `at`.
     pub terminal: Terminal,
 }
 
-/// An endpoint's position, frozen against a removal of the shape `id` names, or `None` when there
-/// is nothing here to freeze.
-///
-/// Three arms and the second carries three of them, and **none of the three is a defensive check**:
-/// an absolute point has nothing to freeze and already resolves to itself; a reference naming
-/// **another** figure is not this removal's to reach; and a reference naming `id` that **does not
-/// resolve** is a broken reference the removal did not create, so the removal does not repair it.
-///
-/// That third one is the arm worth a reader's attention, and it is why the caller keeps a `Some`
-/// guard: a reference naming an identity that was never added comes back as itself and still
-/// resolves to nothing, exactly as before. Freezing it to nothing or dropping it would each be a
-/// second rule about removals, and neither is one.
-///
-/// `resolve` is asked rather than the anchor computed and the offset added by hand, because the
-/// offset is the gap and the gap is what moves with the side. Measured: the demonstration's arrow
-/// freezes to `{16, 5}`, which is `3`'s right side centre at `{16, 3}` plus the offset `(0, 2)`
-/// the sixth picture grew.
-///
-/// It is crate-private because `remove` is the only consumer: the answer is a rewrite of a figure
-/// this diagram already holds, and there is nothing for a caller outside to do with it.
 impl Endpoint {
-    pub(crate) fn frozen_position(&self, id: ShapeId, diagram: &Diagram) -> Option<Position> {
-        match &self.at {
-            Position::Reference(reference) if reference.id == id => {
-                self.at.resolve(diagram).map(Position::Absolute)
+    /// An endpoint at an absolute point on the canvas, leaving in `leaving`.
+    #[must_use]
+    pub const fn absolute(at: Pos, leaving: Direction, terminal: Terminal) -> Self {
+        Self {
+            at: EndpointAt::Absolute { at, leaving },
+            terminal,
+        }
+    }
+
+    /// An endpoint hanging from `reference`, leaving in the direction of `reference.anchor`.
+    #[must_use]
+    pub const fn reference(reference: Reference, terminal: Terminal) -> Self {
+        Self {
+            at: EndpointAt::Reference(reference),
+            terminal,
+        }
+    }
+
+    /// The position this endpoint stands at.
+    #[must_use]
+    pub const fn position(&self) -> Position {
+        self.at.position()
+    }
+
+    /// The direction the connector leaves this endpoint in.
+    #[must_use]
+    pub const fn leaving(&self) -> Direction {
+        self.at.leaving()
+    }
+
+    /// An endpoint's position, frozen against a removal of the shape `id` names, or `None` when there
+    /// is nothing here to freeze.
+    pub(crate) fn frozen_position(&self, id: ShapeId, diagram: &Diagram) -> Option<EndpointAt> {
+        match self.at {
+            EndpointAt::Reference(reference) if reference.id == id => {
+                self.at.resolve(diagram).map(|at| EndpointAt::Absolute {
+                    at,
+                    leaving: reference.anchor.leaving(),
+                })
             }
             _ => None,
         }
@@ -207,12 +275,12 @@ impl Shape {
                 Connector {
                     from: monospace_core::Endpoint {
                         at: from_at,
-                        leaving: from.leaving,
+                        leaving: from.at.leaving(),
                         terminal: from.terminal.clone(),
                     },
                     to: monospace_core::Endpoint {
                         at: to_at,
-                        leaving: to.leaving,
+                        leaving: to.at.leaving(),
                         terminal: to.terminal.clone(),
                     },
                     stroke: stroke.clone(),
@@ -277,12 +345,10 @@ impl Shape {
             Self::Connector { from, to, stroke } => Self::Connector {
                 from: Endpoint {
                     at: from.at.displaced_by(by),
-                    leaving: from.leaving,
                     terminal: from.terminal.clone(),
                 },
                 to: Endpoint {
                     at: to.at.displaced_by(by),
-                    leaving: to.leaving,
                     terminal: to.terminal.clone(),
                 },
                 stroke: stroke.clone(),
@@ -345,8 +411,8 @@ impl Shape {
 
 #[cfg(test)]
 mod tests {
-    use super::{Delta, Endpoint, Shape};
-    use crate::{Anchor, Diagram, Position, Reference, ShapeId};
+    use super::{Delta, Endpoint, EndpointAt, Shape};
+    use crate::{Anchor, Diagram, Reference, ShapeId};
     use monospace_core::{
         Buffer, CellReader, Direction, FigureLayer, Glyph, GlyphCatalog, Orientation, Pos, Size,
         StampMode, Stroke, Terminal, Text, Window, render,
@@ -381,16 +447,8 @@ mod tests {
     /// the given position.
     fn connector(from: Terminal, to: Terminal) -> Shape {
         Shape::Connector {
-            from: Endpoint {
-                at: Pos { x: 2, y: 1 }.into(),
-                leaving: Direction::Right,
-                terminal: from,
-            },
-            to: Endpoint {
-                at: Pos { x: 8, y: 1 }.into(),
-                leaving: Direction::Left,
-                terminal: to,
-            },
+            from: Endpoint::absolute(Pos { x: 2, y: 1 }, Direction::Right, from),
+            to: Endpoint::absolute(Pos { x: 8, y: 1 }, Direction::Left, to),
             stroke: light(),
         }
     }
@@ -409,21 +467,11 @@ mod tests {
     /// `box_id`'s right side rather than as the point that side resolves to.
     fn hanging_from(box_id: ShapeId) -> Shape {
         Shape::Connector {
-            from: Endpoint {
-                at: Position::Reference(Reference::new(
-                    box_id,
-                    Anchor::Right,
-                    Delta { dx: 0, dy: 0 },
-                    0,
-                )),
-                leaving: Direction::Right,
-                terminal: Terminal::Arm,
-            },
-            to: Endpoint {
-                at: Pos { x: 7, y: 1 }.into(),
-                leaving: Direction::Left,
-                terminal: Terminal::Arm,
-            },
+            from: Endpoint::reference(
+                Reference::new(box_id, Anchor::Right, Delta { dx: 0, dy: 0 }, 0),
+                Terminal::Arm,
+            ),
+            to: Endpoint::absolute(Pos { x: 7, y: 1 }, Direction::Left, Terminal::Arm),
             stroke: light(),
         }
     }
@@ -480,7 +528,10 @@ mod tests {
         };
         assert_eq!(
             from.at,
-            Position::Absolute(Pos { x: 2, y: 1 }),
+            EndpointAt::Absolute {
+                at: Pos { x: 2, y: 1 },
+                leaving: Direction::Right,
+            },
             "the end did not freeze at the point its reference was resolving to"
         );
         assert_ne!(
@@ -769,6 +820,102 @@ mod tests {
 
         for anchor in [Anchor::Top, Anchor::Right, Anchor::Bottom, Anchor::Left] {
             assert_eq!(with.anchor(anchor), without.anchor(anchor), "{anchor:?}");
+        }
+    }
+
+    /// An attached endpoint derives its leaving direction from its anchor's outward normal, draws
+    /// its route and symbol in that direction, and preserves that leaving direction when frozen by
+    /// removing the referenced shape.
+    #[test]
+    fn an_attached_endpoint_derives_its_leaving_direction_and_preserves_it_on_freeze() {
+        use monospace_core::SymbolStyleName;
+
+        let style = SymbolStyleName::from("solid");
+        let nothing = Delta { dx: 0, dy: 0 };
+        let the_box = Shape::Box {
+            at: Pos { x: 5, y: 5 },
+            size: Size {
+                width: 5,
+                height: 5,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+
+        for (anchor, expected_leaving, far_point, far_leaving) in [
+            (
+                Anchor::Top,
+                Direction::Up,
+                Pos { x: 7, y: 1 },
+                Direction::Down,
+            ),
+            (
+                Anchor::Right,
+                Direction::Right,
+                Pos { x: 13, y: 7 },
+                Direction::Left,
+            ),
+            (
+                Anchor::Bottom,
+                Direction::Down,
+                Pos { x: 7, y: 13 },
+                Direction::Up,
+            ),
+            (
+                Anchor::Left,
+                Direction::Left,
+                Pos { x: 1, y: 7 },
+                Direction::Right,
+            ),
+        ] {
+            let diagram = Diagram::new();
+            let (d, box_id) = diagram.add(the_box.clone());
+            let from_endpoint = Endpoint::reference(
+                Reference::new(box_id, anchor, nothing, 0),
+                Terminal::Symbol {
+                    style: style.clone(),
+                },
+            );
+            assert_eq!(from_endpoint.leaving(), expected_leaving);
+            assert_eq!(from_endpoint.at.leaving(), expected_leaving);
+
+            let (d, connector_id) = d.add(Shape::Connector {
+                from: from_endpoint,
+                to: Endpoint::absolute(far_point, far_leaving, Terminal::Arm),
+                stroke: light(),
+            });
+
+            // The diagram draws the connector leaving in the anchor's outward direction.
+            let mut buffer = Buffer::new(Window {
+                origin: Pos { x: 0, y: 0 },
+                size: Size {
+                    width: 15,
+                    height: 15,
+                },
+            });
+            d.draw(&mut buffer);
+
+            // Removing the box freezes the endpoint to an absolute position with the anchor's leaving direction.
+            let d_after = d.remove(box_id);
+            let Shape::Connector {
+                from: frozen_from, ..
+            } = d_after
+                .get(connector_id)
+                .expect("connector still in diagram")
+            else {
+                unreachable!()
+            };
+
+            let expected_at = the_box.anchor(anchor).expect("box answers all anchors");
+            assert_eq!(
+                frozen_from.at,
+                EndpointAt::Absolute {
+                    at: expected_at,
+                    leaving: expected_leaving,
+                }
+            );
+            assert_eq!(frozen_from.leaving(), expected_leaving);
         }
     }
 }

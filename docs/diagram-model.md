@@ -246,11 +246,12 @@ A **frozen** endpoint is attached to **nothing**: it is an absolute point like a
 is no side for it to name and no figure to name one against. That is the whole of what a removal
 does to an attachment, and _Positions_ is where the rule it follows is stated.
 
-The direction the connector leaves in and the terminal it carries are not derived from the
-attachment. They are the caller's. What a symbol terminal writes follows from `leaving`, and the
-attachment decides neither. Deriving a direction from which side of a shape was attached to is an
-open question below, and every anchor being a side is what keeps it answerable: a side has an
-outside to leave through.
+The direction an attached endpoint leaves in is derived from the anchor it attaches to: outward from
+that side (`Top` leaves `Up`, `Right` leaves `Right`, `Bottom` leaves `Down`, and `Left` leaves
+`Left`). An absolute endpoint carries its own leaving direction, and an attached endpoint that
+freezes when its target figure is removed preserves the leaving direction of the anchor it was
+attached to. The terminal it carries remains the caller's, while what a symbol terminal writes
+follows from `leaving`.
 
 A connector's `from` endpoint standing on the right border of a box, and its `to` endpoint out in
 the open. The cell at `(3, 1)` reads `├`, and neither figure wrote a junction there — the box's
@@ -480,9 +481,6 @@ that needs one of them answered amends this document first and then implements t
   [`displacing_the_box_and_then_the_connector`](../crates/monospace-diagram/src/diagram.rs). What
   would settle it: the first consumer that displaces more than one figure at a time, which is a
   selection.
-- **Does an attachment decide the direction a connector leaves in?** Attaching to a box's right side
-  and leaving leftward is expressible today and draws something nobody wants. What would settle it:
-  the first slice where the caller's direction and the anchor's side are routinely the same.
 - **What does a group of shapes do to this model?** Issue #58 asks for one, and groups are
   deliberately out of scope here. A group contains shapes, which is the first thing in this document
   that would want to speak about shapes generically rather than by kind.

@@ -15,7 +15,7 @@
 //! state of a diagram being built — and what it costs is that a diagram which drew nothing and a
 //! diagram whose every reference is broken look identical, with nothing to ask about the difference.
 
-use monospace_core::{Orientation, Pos, Size};
+use monospace_core::{Direction, Orientation, Pos, Size};
 
 use crate::{Delta, Diagram, ShapeId};
 
@@ -44,6 +44,17 @@ pub enum Anchor {
 }
 
 impl Anchor {
+    /// Which way a connector leaves when hanging from this side.
+    #[must_use]
+    pub const fn leaving(self) -> Direction {
+        match self {
+            Self::Top => Direction::Up,
+            Self::Right => Direction::Right,
+            Self::Bottom => Direction::Down,
+            Self::Left => Direction::Left,
+        }
+    }
+
     /// `out` cells away from the shape through this side, in the screen axes
     /// [`Delta`](crate::Delta) carries.
     ///
@@ -302,7 +313,7 @@ mod tests {
     };
 
     use super::Anchor;
-    use crate::{Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
+    use crate::{Delta, Diagram, Endpoint, EndpointAt, Position, Reference, Shape, ShapeId};
 
     /// An identity of the ordinal `ordinal`, which is how every test below names one.
     fn identity(ordinal: u16) -> ShapeId {
@@ -331,6 +342,14 @@ mod tests {
             fill: None,
             text: None,
         }
+    }
+
+    #[test]
+    fn each_anchor_leaves_toward_its_outward_normal() {
+        assert_eq!(Anchor::Top.leaving(), Direction::Up);
+        assert_eq!(Anchor::Right.leaving(), Direction::Right);
+        assert_eq!(Anchor::Bottom.leaving(), Direction::Down);
+        assert_eq!(Anchor::Left.leaving(), Direction::Left);
     }
 
     /// `resolve` asked rather than drawn, and the offset is a gap from the side.
@@ -501,16 +520,8 @@ mod tests {
     #[test]
     fn a_connector_answers_none_of_its_four_side_centres() {
         let connector = Shape::Connector {
-            from: Endpoint {
-                at: Pos { x: 0, y: 0 }.into(),
-                leaving: Direction::Right,
-                terminal: Terminal::Arm,
-            },
-            to: Endpoint {
-                at: Pos { x: 6, y: 0 }.into(),
-                leaving: Direction::Left,
-                terminal: Terminal::Arm,
-            },
+            from: Endpoint::absolute(Pos { x: 0, y: 0 }, Direction::Right, Terminal::Arm),
+            to: Endpoint::absolute(Pos { x: 6, y: 0 }, Direction::Left, Terminal::Arm),
             stroke: light(),
         };
 
@@ -594,21 +605,13 @@ mod tests {
     /// [`the_box_at_the_origin`]'s own tests keep the one `add` returned. A reference naming an
     /// identity this diagram does not hold is reachable only by spelling one, which is what
     /// `an_out_on_a_reference_that_resolves_to_nothing_still_draws_nothing` does.
-    fn diagram_hanging_from(hanging_from: impl FnOnce(ShapeId) -> Position) -> Diagram {
+    fn diagram_hanging_from(hanging_from: impl FnOnce(ShapeId) -> Reference) -> Diagram {
         let diagram = Diagram::new();
         let (mut diagram, id) = diagram.add(the_box_at_the_origin());
         diagram = diagram
             .add(Shape::Connector {
-                from: Endpoint {
-                    at: hanging_from(id),
-                    leaving: Direction::Down,
-                    terminal: Terminal::Arm,
-                },
-                to: Endpoint {
-                    at: Pos { x: 1, y: 5 }.into(),
-                    leaving: Direction::Up,
-                    terminal: Terminal::Arm,
-                },
+                from: Endpoint::reference(hanging_from(id), Terminal::Arm),
+                to: Endpoint::absolute(Pos { x: 1, y: 5 }, Direction::Up, Terminal::Arm),
                 stroke: light(),
             })
             .0;
@@ -756,26 +759,20 @@ mod tests {
         );
 
         let as_an_out = picture_of(
-            &diagram_hanging_from(|id| {
-                Position::Reference(Reference::new(id, Anchor::Bottom, nothing, 0))
-            }),
+            &diagram_hanging_from(|id| Reference::new(id, Anchor::Bottom, nothing, 0)),
             size,
         );
         let as_an_offset = picture_of(
-            &diagram_hanging_from(|id| {
-                Position::Reference(Reference {
-                    id,
-                    anchor: Anchor::Bottom,
-                    offset: nothing,
-                    out: 0,
-                })
+            &diagram_hanging_from(|id| Reference {
+                id,
+                anchor: Anchor::Bottom,
+                offset: nothing,
+                out: 0,
             }),
             size,
         );
         let a_cell_clear = picture_of(
-            &diagram_hanging_from(|id| {
-                Position::Reference(Reference::new(id, Anchor::Bottom, nothing, 1))
-            }),
+            &diagram_hanging_from(|id| Reference::new(id, Anchor::Bottom, nothing, 1)),
             size,
         );
 
@@ -835,23 +832,15 @@ mod tests {
         let (diagram, id) = diagram.add(the_box_at_the_origin());
         let hanging = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: 0 }, 1);
         let connector = Shape::Connector {
-            from: Endpoint {
-                at: Position::Reference(hanging),
-                leaving: Direction::Down,
-                terminal: Terminal::Arm,
-            },
-            to: Endpoint {
-                at: Pos { x: 1, y: 5 }.into(),
-                leaving: Direction::Up,
-                terminal: Terminal::Arm,
-            },
+            from: Endpoint::reference(hanging, Terminal::Arm),
+            to: Endpoint::absolute(Pos { x: 1, y: 5 }, Direction::Up, Terminal::Arm),
             stroke: light(),
         };
 
         let Shape::Connector { from, .. } = connector.displaced_by(by) else {
             unreachable!("the figure above is a connector")
         };
-        let Position::Reference(moved) = from.at else {
+        let EndpointAt::Reference(moved) = from.at else {
             unreachable!("its near end was a reference")
         };
 
@@ -918,31 +907,21 @@ mod tests {
             height: 6,
         };
         let nothing = Delta { dx: 0, dy: 0 };
-        let arm = |at: Position, leaving, to: Pos| Shape::Connector {
-            from: Endpoint {
-                at,
-                leaving,
-                terminal: Terminal::Arm,
-            },
-            to: Endpoint {
-                at: to.into(),
-                leaving: Direction::Up,
-                terminal: Terminal::Arm,
-            },
+        let arm = |reference: Reference, to: Pos| Shape::Connector {
+            from: Endpoint::reference(reference, Terminal::Arm),
+            to: Endpoint::absolute(to, Direction::Up, Terminal::Arm),
             stroke: light(),
         };
 
         let mut chain = Diagram::new();
         chain = chain.add(the_box_at_the_origin()).0;
         let (mut chain, the_first) = chain.add(arm(
-            Position::Reference(Reference::new(identity(99), Anchor::Bottom, nothing, 1)),
-            Direction::Down,
+            Reference::new(identity(99), Anchor::Bottom, nothing, 1),
             Pos { x: 1, y: 5 },
         ));
         chain = chain
             .add(arm(
-                Position::Reference(Reference::new(the_first, Anchor::Right, nothing, 1)),
-                Direction::Right,
+                Reference::new(the_first, Anchor::Right, nothing, 1),
                 Pos { x: 3, y: 5 },
             ))
             .0;

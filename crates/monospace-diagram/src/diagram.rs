@@ -393,7 +393,7 @@ mod tests {
     };
 
     use super::{Diagram, ShapeId};
-    use crate::{Anchor, Delta, Endpoint, Position, Reference, Shape};
+    use crate::{Anchor, Delta, Endpoint, EndpointAt, Position, Reference, Shape};
 
     fn light() -> Stroke {
         Stroke::from("light")
@@ -822,7 +822,10 @@ mod tests {
             the_hanging_end(&removed, connector)
                 .expect("the connector is still held")
                 .at,
-            Position::from(it_resolved_to),
+            EndpointAt::Absolute {
+                at: it_resolved_to,
+                leaving: Direction::Right,
+            },
             "the end is the point it was resolving to rather than the reference to a figure that is gone"
         );
         let written_out = Diagram::new()
@@ -843,7 +846,10 @@ mod tests {
             the_hanging_end(&put_back, connector)
                 .expect("the connector is still held")
                 .at,
-            Position::from(it_resolved_to),
+            EndpointAt::Absolute {
+                at: it_resolved_to,
+                leaving: Direction::Right,
+            },
             "with the figure standing again the end is still the frozen point"
         );
         assert_ne!(
@@ -1182,19 +1188,23 @@ mod tests {
             width: 5,
             height: 4,
         };
-        let from = || Endpoint {
-            at: Pos { x: 0, y: 0 }.into(),
-            leaving: Direction::Down,
-            terminal: Terminal::Glyph {
-                glyph: Glyph::new("▼").expect("one glyph"),
-            },
+        let from = || {
+            Endpoint::absolute(
+                Pos { x: 0, y: 0 },
+                Direction::Down,
+                Terminal::Glyph {
+                    glyph: Glyph::new("▼").expect("one glyph"),
+                },
+            )
         };
-        let to = || Endpoint {
-            at: Pos { x: 4, y: 3 }.into(),
-            leaving: Direction::Left,
-            terminal: Terminal::Glyph {
-                glyph: Glyph::new("►").expect("one glyph"),
-            },
+        let to = || {
+            Endpoint::absolute(
+                Pos { x: 4, y: 3 },
+                Direction::Left,
+                Terminal::Glyph {
+                    glyph: Glyph::new("►").expect("one glyph"),
+                },
+            )
         };
 
         let mut diagram = Diagram::new();
@@ -2152,20 +2162,20 @@ mod tests {
             height: 5,
         };
         let connector = |from: Pos, to: Pos| Shape::Connector {
-            from: Endpoint {
-                at: from.into(),
-                leaving: Direction::Right,
-                terminal: Terminal::Glyph {
+            from: Endpoint::absolute(
+                from,
+                Direction::Right,
+                Terminal::Glyph {
                     glyph: Glyph::new("◄").expect("one glyph"),
                 },
-            },
-            to: Endpoint {
-                at: to.into(),
-                leaving: Direction::Left,
-                terminal: Terminal::Glyph {
+            ),
+            to: Endpoint::absolute(
+                to,
+                Direction::Left,
+                Terminal::Glyph {
                     glyph: Glyph::new("►").expect("one glyph"),
                 },
-            },
+            ),
             stroke: light(),
         };
 
@@ -2568,6 +2578,17 @@ mod tests {
         }
     }
 
+    fn endpoint_from_position(
+        position: Position,
+        leaving: Direction,
+        terminal: Terminal,
+    ) -> Endpoint {
+        match position {
+            Position::Absolute(at) => Endpoint::absolute(at, leaving, terminal),
+            Position::Reference(reference) => Endpoint::reference(reference, terminal),
+        }
+    }
+
     /// A connector with both ends as arms and the given positions, so a picture's difference is the
     /// route and the two cells it starts and ends on, and nothing else about how a terminal draws.
     ///
@@ -2586,16 +2607,8 @@ mod tests {
         arriving: Direction,
     ) -> Shape {
         Shape::Connector {
-            from: Endpoint {
-                at: from,
-                leaving,
-                terminal: Terminal::Arm,
-            },
-            to: Endpoint {
-                at: to,
-                leaving: arriving,
-                terminal: Terminal::Arm,
-            },
+            from: endpoint_from_position(from, leaving, Terminal::Arm),
+            to: endpoint_from_position(to, arriving, Terminal::Arm),
             stroke: light(),
         }
     }
@@ -2729,7 +2742,13 @@ mod tests {
         };
         assert_eq!(from.at.resolve(&diagram), Some(Pos { x: 5, y: 1 }));
         assert_ne!(from.at.resolve(&diagram), Some(THE_SIDE_CENTRE));
-        assert_ne!(from.at, Pos { x: 5, y: 1 }.into());
+        assert_ne!(
+            from.at,
+            EndpointAt::Absolute {
+                at: Pos { x: 5, y: 1 },
+                leaving: Direction::Right,
+            }
+        );
 
         let mut absolute = Diagram::new();
         absolute = absolute.add(the_box()).0;
@@ -2865,7 +2884,12 @@ mod tests {
         let mut with_the_point = Diagram::new();
         with_the_point = with_the_point.add(the_line.clone()).0;
         with_the_point = with_the_point
-            .add(arm_connector(the_line_endpoint.into(), the_far_end.into()))
+            .add(connector_leaving(
+                the_line_endpoint.into(),
+                Direction::Down,
+                the_far_end.into(),
+                Direction::Left,
+            ))
             .0;
 
         let replaced = Diagram::new();
@@ -3050,7 +3074,12 @@ mod tests {
             let mut absolute = Diagram::new();
             absolute = absolute.add(one_wide.clone()).0;
             absolute = absolute
-                .add(arm_connector(Pos { x: 3, y: 2 }.into(), the_far_end.into()))
+                .add(connector_leaving(
+                    Pos { x: 3, y: 2 }.into(),
+                    anchor.leaving(),
+                    the_far_end.into(),
+                    Direction::Left,
+                ))
                 .0;
 
             assert_eq!(
@@ -3160,7 +3189,12 @@ mod tests {
             let mut diagram = Diagram::new();
             diagram = diagram.add(the_held_box()).0;
             diagram = diagram
-                .add(arm_connector(the_far_end.into(), the_hanging_end.into()))
+                .add(connector_leaving(
+                    the_far_end.into(),
+                    Direction::Right,
+                    the_hanging_end.into(),
+                    Direction::Down,
+                ))
                 .0;
             cells(&draw_of(&diagram, origin, size))
         };
@@ -3168,7 +3202,12 @@ mod tests {
             let mut diagram = Diagram::new();
             diagram = diagram.add(the_held_box()).0;
             diagram = diagram
-                .add(arm_connector(the_hanging_end.into(), the_far_end.into()))
+                .add(connector_leaving(
+                    the_hanging_end.into(),
+                    Direction::Down,
+                    the_far_end.into(),
+                    Direction::Left,
+                ))
                 .0;
             cells(&draw_of(&diagram, origin, size))
         };
@@ -3400,10 +3439,8 @@ mod tests {
         for (from_terminal, to_terminal) in
             [(glyph("◄"), glyph("►")), (Terminal::Arm, Terminal::Arm)]
         {
-            let endpoint = |at: Pos, leaving: Direction, terminal: Terminal| Endpoint {
-                at: at.into(),
-                leaving,
-                terminal,
+            let endpoint = |at: Pos, leaving: Direction, terminal: Terminal| {
+                Endpoint::absolute(at, leaving, terminal)
             };
             let from = endpoint(Pos { x: 0, y: 0 }, Direction::Down, from_terminal.clone());
             let to = endpoint(Pos { x: 7, y: 2 }, Direction::Up, to_terminal.clone());
@@ -3603,12 +3640,15 @@ mod tests {
             .expect("the connector is still held, so it is still drawn");
         assert_eq!(
             frozen.at,
-            Position::Absolute(it_resolved_to),
+            EndpointAt::Absolute {
+                at: it_resolved_to,
+                leaving: Direction::Right,
+            },
             "the end was not frozen at the point the reference was resolving to"
         );
         assert_ne!(
             frozen.at,
-            Position::Reference(Reference::new(box_id, Anchor::Right, nothing, 0)),
+            EndpointAt::Reference(Reference::new(box_id, Anchor::Right, nothing, 0)),
             "the end is still a reference, so nothing was frozen"
         );
 
@@ -3702,13 +3742,16 @@ mod tests {
             the_hanging_end(&diagram, identity(2))
                 .expect("the connector is still held")
                 .at,
-            Position::Absolute(THE_SIDE_CENTRE)
+            EndpointAt::Absolute {
+                at: THE_SIDE_CENTRE,
+                leaving: Direction::Right,
+            }
         );
         assert_ne!(
             the_hanging_end(&diagram, identity(2))
                 .expect("the connector is still held")
                 .at,
-            Position::Reference(Reference::new(
+            EndpointAt::Reference(Reference::new(
                 the_removed,
                 Anchor::Right,
                 Delta { dx: 0, dy: 0 },
@@ -3739,7 +3782,10 @@ mod tests {
             the_hanging_end(&diagram, identity(2))
                 .expect("the connector is still held")
                 .at,
-            Position::Absolute(THE_SIDE_CENTRE),
+            EndpointAt::Absolute {
+                at: THE_SIDE_CENTRE,
+                leaving: Direction::Right,
+            },
             "the frozen end followed the figure put back under the same identity"
         );
 
@@ -3907,13 +3953,19 @@ mod tests {
             the_hanging_end(&diagram, identity(2))
                 .expect("the first connector is still held")
                 .at,
-            Position::Absolute(top)
+            EndpointAt::Absolute {
+                at: top,
+                leaving: Direction::Right,
+            }
         );
         assert_eq!(
             the_hanging_end(&diagram, identity(3))
                 .expect("the second connector is still held")
                 .at,
-            Position::Absolute(bottom)
+            EndpointAt::Absolute {
+                at: bottom,
+                leaving: Direction::Down,
+            }
         );
 
         // And drawn: the picture holds two arrows where the removal took the figure they hung from.
@@ -3921,7 +3973,12 @@ mod tests {
         let mut expected = Diagram::new();
         expected = expected.add(arm_connector(top.into(), at_the_top.into())).0;
         expected = expected
-            .add(arm_connector(bottom.into(), at_the_bottom.into()))
+            .add(connector_leaving(
+                bottom.into(),
+                Direction::Down,
+                at_the_bottom.into(),
+                Direction::Left,
+            ))
             .0;
         expected = expected.add(the_unrelated_box()).0;
         assert_eq!(
@@ -3962,110 +4019,95 @@ mod tests {
     fn a_removal_touches_nothing_else() {
         let nothing = Delta { dx: 0, dy: 0 };
         let the_far_end = Pos { x: 8, y: 1 };
-        let naming = |id: ShapeId, anchor: Anchor, offset: Delta| {
-            Position::Reference(Reference::new(id, anchor, offset, 0))
+        let naming =
+            |id: ShapeId, anchor: Anchor, offset: Delta| Reference::new(id, anchor, offset, 0);
+        let abs = |x, y, leaving| EndpointAt::Absolute {
+            at: Pos { x, y },
+            leaving,
+        };
+        let ends_of = |d: &Diagram, id| match d.get(id) {
+            Some(Shape::Connector { from, to, .. }) => (from.at, to.at),
+            _ => unreachable!("the figure under test is a connector"),
         };
 
         // (1a) An identity that was never there, and a removal naming exactly that identity.
-        let mut never_there = Diagram::new();
-        never_there = never_there.add_under(
-            identity(2),
-            arm_connector(
-                naming(identity(1), Anchor::Right, nothing),
-                the_far_end.into(),
-            ),
-        );
-        never_there = never_there.remove(identity(1));
-        let Shape::Connector { from, .. } = never_there
-            .get(identity(2))
-            .expect("the connector is under 2, which nothing removed")
-        else {
-            unreachable!("the figure under test is a connector")
-        };
+        let never_there = Diagram::new()
+            .add_under(
+                identity(2),
+                arm_connector(
+                    Position::Reference(naming(identity(1), Anchor::Right, nothing)),
+                    the_far_end.into(),
+                ),
+            )
+            .remove(identity(1));
         assert_eq!(
-            from.at,
-            naming(identity(1), Anchor::Right, nothing),
+            ends_of(&never_there, identity(2)).0,
+            EndpointAt::Reference(naming(identity(1), Anchor::Right, nothing)),
             "the removal repaired a reference to an identity it never held"
         );
 
         // (1b) The same unresolved reference, over an identity a figure answering no side holds — so
         // the freeze runs, `resolve` answers nothing, and the `Some(point)` guard is what is left.
-        let mut held_and_unresolvable = Diagram::new();
-        held_and_unresolvable = held_and_unresolvable.add_under(
-            identity(1),
-            connector_leaving(
-                Pos { x: 0, y: 0 }.into(),
-                Direction::Down,
-                Pos { x: 0, y: 2 }.into(),
-                Direction::Up,
-            ),
-        );
-        held_and_unresolvable = held_and_unresolvable.add_under(
-            identity(2),
-            arm_connector(
-                naming(identity(1), Anchor::Right, nothing),
-                the_far_end.into(),
-            ),
-        );
-        held_and_unresolvable = held_and_unresolvable.remove(identity(1));
-        let Shape::Connector { from, .. } = held_and_unresolvable
-            .get(identity(2))
-            .expect("the connector is under 2, which nothing removed")
-        else {
-            unreachable!("the figure under test is a connector")
-        };
+        let held_and_unresolvable = Diagram::new()
+            .add_under(
+                identity(1),
+                connector_leaving(
+                    Pos { x: 0, y: 0 }.into(),
+                    Direction::Down,
+                    Pos { x: 0, y: 2 }.into(),
+                    Direction::Up,
+                ),
+            )
+            .add_under(
+                identity(2),
+                arm_connector(
+                    Position::Reference(naming(identity(1), Anchor::Right, nothing)),
+                    the_far_end.into(),
+                ),
+            )
+            .remove(identity(1));
         assert_eq!(
-            from.at,
-            naming(identity(1), Anchor::Right, nothing),
+            ends_of(&held_and_unresolvable, identity(2)).0,
+            EndpointAt::Reference(naming(identity(1), Anchor::Right, nothing)),
             "an unresolved reference was frozen or dropped, which is a second rule"
         );
 
         // (2) One end naming a figure that stays, the other the one taken out.
         let (one_end, stays) = Diagram::new().add(the_box());
-        let (mut one_end, goes) = one_end.add(the_unrelated_box());
-        one_end = one_end
+        let (one_end, goes) = one_end.add(the_unrelated_box());
+        let one_end = one_end
             .add(arm_connector(
-                naming(stays, Anchor::Right, nothing),
-                naming(goes, Anchor::Bottom, Delta { dx: 1, dy: 0 }),
+                Position::Reference(naming(stays, Anchor::Right, nothing)),
+                Position::Reference(naming(goes, Anchor::Bottom, Delta { dx: 1, dy: 0 })),
             ))
-            .0;
-        one_end = one_end.remove(goes);
-        let Shape::Connector { from, to, .. } = one_end
-            .get(identity(3))
-            .expect("the connector is still held")
-        else {
-            unreachable!("the figure under test is a connector")
-        };
+            .0
+            .remove(goes);
+        let (from, to) = ends_of(&one_end, identity(3));
         assert_eq!(
-            from.at,
-            naming(stays, Anchor::Right, nothing),
+            from,
+            EndpointAt::Reference(naming(stays, Anchor::Right, nothing)),
             "a reference naming a figure that stayed was rewritten"
         );
         assert_eq!(
-            to.at,
-            Position::Absolute(Pos { x: 11, y: 2 }),
+            to,
+            abs(11, 2, Direction::Down),
             "the end naming the removed figure did not freeze at the point it was resolving to"
         );
 
         // (3) Both ends on the same figure, at two different anchors.
-        let (mut both_ends, id) = Diagram::new().add(the_box());
-        both_ends = both_ends
+        let (both_ends, id) = Diagram::new().add(the_box());
+        let both_ends = both_ends
             .add(arm_connector(
-                naming(id, Anchor::Right, nothing),
-                naming(id, Anchor::Bottom, Delta { dx: 1, dy: 0 }),
+                Position::Reference(naming(id, Anchor::Right, nothing)),
+                Position::Reference(naming(id, Anchor::Bottom, Delta { dx: 1, dy: 0 })),
             ))
-            .0;
-        both_ends = both_ends.remove(identity(1));
-        let Shape::Connector { from, to, .. } = both_ends
-            .get(identity(2))
-            .expect("the connector is still held")
-        else {
-            unreachable!("the figure under test is a connector")
-        };
-        assert_eq!(from.at, Position::Absolute(Pos { x: 3, y: 1 }));
-        assert_eq!(to.at, Position::Absolute(Pos { x: 2, y: 2 }));
+            .0
+            .remove(identity(1));
+        let (from, to) = ends_of(&both_ends, identity(2));
+        assert_eq!(from, abs(3, 1, Direction::Right));
+        assert_eq!(to, abs(2, 2, Direction::Down));
         assert_ne!(
-            from.at, to.at,
+            from, to,
             "both ends came back at the same point, so one answer was written into both"
         );
     }
@@ -4207,9 +4249,11 @@ mod tests {
         let mut expected = Diagram::new();
         expected = expected.add(the_box()).0;
         expected = expected
-            .add(arm_connector(
+            .add(connector_leaving(
                 Pos { x: 0, y: 3 }.into(),
+                Direction::Right,
                 Pos { x: 3, y: 3 }.into(),
+                Direction::Right,
             ))
             .0;
 
@@ -4307,12 +4351,14 @@ mod tests {
             expected_before = expected_before.add(figure_at(0)).0;
             for (anchor, to) in the_anchors.into_iter().zip(the_destinations) {
                 expected_before = expected_before
-                    .add(arm_connector(
+                    .add(connector_leaving(
                         figure_at(0)
                             .anchor(anchor)
                             .expect("a box and a line answer every anchor")
                             .into(),
+                        anchor.leaving(),
                         to.into(),
+                        Direction::Left,
                     ))
                     .0;
             }
@@ -4326,12 +4372,14 @@ mod tests {
             expected_after = expected_after.add(moved.clone()).0;
             for (anchor, to) in the_anchors.into_iter().zip(the_destinations) {
                 expected_after = expected_after
-                    .add(arm_connector(
+                    .add(connector_leaving(
                         moved
                             .anchor(anchor)
                             .expect("a box and a line answer every anchor")
                             .into(),
+                        anchor.leaving(),
                         to.into(),
+                        Direction::Left,
                     ))
                     .0;
             }
@@ -4402,9 +4450,9 @@ mod tests {
         let Shape::Connector { from, .. } = d.get(connector).expect("the connector is held") else {
             unreachable!("the figure named is a connector")
         };
-        match &from.at {
-            Position::Reference(reference) => reference.offset,
-            Position::Absolute(_) => unreachable!("the `from` above is a reference"),
+        match from.at {
+            EndpointAt::Reference(reference) => reference.offset,
+            EndpointAt::Absolute { .. } => unreachable!("the `from` above is a reference"),
         }
     }
 
@@ -4455,10 +4503,10 @@ mod tests {
         else {
             unreachable!("the figure above is a connector")
         };
-        let Position::Reference(grown) = &from.at else {
+        let EndpointAt::Reference(grown) = from.at else {
             unreachable!("the `from` above is a reference")
         };
-        let Position::Reference(was) = &was_from.at else {
+        let EndpointAt::Reference(was) = was_from.at else {
             unreachable!("the `from` above is a reference")
         };
 
@@ -4474,7 +4522,13 @@ mod tests {
         assert_eq!(grown.anchor, was.anchor);
 
         // The absolute end moved by the same delta, and the figure as a whole is not what it was.
-        assert_eq!(to.at, Pos { x: 7, y: 3 }.into());
+        assert_eq!(
+            to.at,
+            EndpointAt::Absolute {
+                at: Pos { x: 7, y: 3 },
+                leaving: Direction::Left,
+            }
+        );
         assert_ne!(to.at, was_to.at);
         assert_ne!(moved, as_written);
 
@@ -4575,7 +4629,7 @@ mod tests {
         else {
             unreachable!("the figure above is a connector")
         };
-        let (Position::Reference(from), Position::Reference(to)) = (&from.at, &to.at) else {
+        let (EndpointAt::Reference(from), EndpointAt::Reference(to)) = (from.at, to.at) else {
             unreachable!("both ends of this connector are references")
         };
         assert_eq!(from.offset, Delta { dx: 4, dy: 2 });

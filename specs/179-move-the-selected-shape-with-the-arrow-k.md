@@ -202,7 +202,7 @@ point, with a gap of one cell so a move is visible.
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 2, "dy": 0 } },
-                "leaving": "right", "terminal": { "kind": "arm" } },
+                "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 15, "y": 2 },
                 "leaving": "left", "terminal": { "kind": "arm" } },
       "stroke": "light" }
@@ -231,7 +231,7 @@ the connector is one cell shorter. One press, one `Command::Move { id: 1, by: (1
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 2, "dy": 0 } },
-                "leaving": "right", "terminal": { "kind": "arm" } },
+                "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 15, "y": 2 },
                 "leaving": "left", "terminal": { "kind": "arm" } },
       "stroke": "light" }
@@ -261,7 +261,7 @@ whole diagram: one figure is replaced, and everything else is what it was.
     { "kind": "connector", "id": 2,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
                         "offset": { "dx": 3, "dy": 0 } },
-                "leaving": "right", "terminal": { "kind": "arm" } },
+                "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "point", "x": 16, "y": 2 },
                 "leaving": "left", "terminal": { "kind": "arm" } },
       "stroke": "light" }

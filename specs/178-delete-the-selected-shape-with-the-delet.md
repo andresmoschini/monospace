@@ -234,9 +234,9 @@ connector reaches by a second reference.
       "stroke": "light" },
     { "kind": "connector", "id": 3,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" },
-                "leaving": "right", "terminal": { "kind": "arm" } },
+                "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left" },
-                "leaving": "left", "terminal": { "kind": "arm" } },
+                "terminal": { "kind": "arm" } },
       "stroke": "light" }
   ] }
 -->
@@ -265,7 +265,7 @@ leaves, which is what the format can say:
       "from": { "at": { "kind": "point", "x": 3, "y": 2 },
                 "leaving": "right", "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left" },
-                "leaving": "left", "terminal": { "kind": "arm" } },
+                "terminal": { "kind": "arm" } },
       "stroke": "light" }
   ] }
 -->
@@ -290,9 +290,9 @@ hold it: the connector is not drawn at all, and nothing on the screen says why.
       "stroke": "light" },
     { "kind": "connector", "id": 3,
       "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" },
-                "leaving": "right", "terminal": { "kind": "arm" } },
+                "terminal": { "kind": "arm" } },
       "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left" },
-                "leaving": "left", "terminal": { "kind": "arm" } },
+                "terminal": { "kind": "arm" } },
       "stroke": "light" }
   ] }
 -->
