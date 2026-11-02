@@ -560,10 +560,8 @@ impl From<Delta> for OffsetDescription {
 /// `out` is the side's own words, so `"anchor": "bottom", "out": 1` is one cell below the border
 /// without the file knowing that "below" is `dy: 1`. Both are optional and absent is zero, so a
 /// reference on the side itself is three fields; `out` is added to `offset` rather than replacing it,
-/// and a file may write either or both. **Only the two signs are decided here and they are decided
-/// by the diagram crate, not by this one** — `Reference::new` turns `out` into an offset and never
-/// sees the anchor twice, which is what keeps four files spelling four different gaps from becoming
-/// four copies of the same arithmetic.
+/// and a file may write either or both. `Reference` preserves both `offset` and `out` separately,
+/// resolving their sum at draw time and keeping `out` on serialization.
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum At {
@@ -590,7 +588,7 @@ impl From<Position> for At {
                 shape: shape_id_ordinal(reference.id),
                 anchor: reference.anchor.into(),
                 offset: reference.offset.into(),
-                out: 0,
+                out: reference.out,
             },
         }
     }
@@ -1556,5 +1554,101 @@ mod tests {
         let read_again = parse(&serialized).expect("reads serialized JSON back");
         let description_after = Description::from_diagram(&read_again);
         assert_eq!(description_after, Description::from_diagram(&diagram));
+    }
+
+    /// A reference with a non-zero `out` preserves both `offset` and `out` across serialization,
+    /// and a reference with an `out` of zero omits the `out` field from the JSON output.
+    #[test]
+    fn serializing_a_reference_preserves_its_out_field_and_omits_it_when_zero() {
+        let json = r#"{
+  "canvas": {
+    "origin": { "x": 0, "y": 0 },
+    "size": { "width": 10, "height": 5 }
+  },
+  "next_id": 4,
+  "shapes": [
+    {
+      "kind": "box",
+      "id": 1,
+      "at": { "x": 0, "y": 0 },
+      "size": { "width": 4, "height": 3 },
+      "stroke": "light"
+    },
+    {
+      "kind": "connector",
+      "id": 2,
+      "from": {
+        "at": {
+          "kind": "reference",
+          "shape": 1,
+          "anchor": "right",
+          "offset": { "dx": 2, "dy": -1 },
+          "out": 1
+        },
+        "leaving": "right",
+        "terminal": { "kind": "arm" }
+      },
+      "to": {
+        "at": { "kind": "point", "x": 8, "y": 1 },
+        "leaving": "left",
+        "terminal": { "kind": "arm" }
+      },
+      "stroke": "light"
+    },
+    {
+      "kind": "connector",
+      "id": 3,
+      "from": {
+        "at": {
+          "kind": "reference",
+          "shape": 1,
+          "anchor": "bottom",
+          "offset": { "dx": 1, "dy": 0 }
+        },
+        "leaving": "down",
+        "terminal": { "kind": "arm" }
+      },
+      "to": {
+        "at": { "kind": "point", "x": 2, "y": 4 },
+        "leaving": "up",
+        "terminal": { "kind": "arm" }
+      },
+      "stroke": "light"
+    }
+  ]
+}"#;
+
+        let diagram = parse(json).expect("valid description parses");
+        let serialized = super::serialize(&diagram).expect("serializes cleanly");
+
+        assert!(
+            serialized.contains("\"out\": 1"),
+            "serialized output must preserve non-zero out: {serialized}"
+        );
+        assert!(
+            serialized.contains("\"dx\": 2") && serialized.contains("\"dy\": -1"),
+            "offset must remain separate without folding out into it: {serialized}"
+        );
+
+        let round_tripped = parse(&serialized).expect("serialized JSON parses back");
+        assert_eq!(
+            Description::from_diagram(&round_tripped),
+            Description::from_diagram(&diagram),
+            "round trip preserves the description structure"
+        );
+
+        let desc = serde_json::from_str::<serde_json::Value>(&serialized)
+            .expect("serialized JSON is valid JSON");
+        let shapes = desc["shapes"].as_array().expect("shapes is array");
+        let conn2_from = &shapes[1]["from"]["at"];
+        assert_eq!(conn2_from["out"], 1);
+        assert_eq!(conn2_from["offset"]["dx"], 2);
+        assert_eq!(conn2_from["offset"]["dy"], -1);
+
+        let conn3_from = &shapes[2]["from"]["at"];
+        assert!(
+            conn3_from.get("out").is_none(),
+            "an out of zero is omitted from the serialized reference JSON"
+        );
     }
 }

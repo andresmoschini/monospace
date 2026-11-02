@@ -92,12 +92,13 @@ impl Anchor {
 /// it; neither is checked against the side, and
 /// [#90](https://github.com/andresmoschini/monospace/issues/90) is where a corner would be.
 ///
-/// All three fields are public, as [`Delta`](crate::Delta)'s are, so a caller names a reference as
+/// All four fields are public, as [`Delta`](crate::Delta)'s are, so a caller names a reference as
 /// a value. [`ShapeId::new`] builds the identity it holds, and the identity a diagram's own
 /// [`add`](crate::Diagram::add) handed back is the one the reference should hold.
 ///
-/// It is `Copy`, because every field is: an identity is two bytes and `Delta` is two `i16`s, and a
-/// reference is a value a caller hands on rather than one it has to keep track of.
+/// It is `Copy`, because every field is: an identity is two bytes, `Delta` is two `i16`s, and `out`
+/// is an `i16`, and a reference is a value a caller hands on rather than one it has to keep track
+/// of.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reference {
     /// The identity of the shape the position hangs from.
@@ -105,28 +106,19 @@ pub struct Reference {
     /// Which of that shape's four sides it hangs from.
     pub anchor: Anchor,
     /// How far from that side, along each screen axis, in cells.
-    ///
-    /// This is where an `out` lands rather than a field of its own — [`Reference::new`] adds it
-    /// here — so a gap spelled in the side's own words and a gap spelled as an offset are one value
-    /// by the time anything reads it.
     pub offset: Delta,
+    /// How far outward from that side, in cells.
+    pub out: i16,
 }
 
 impl Reference {
-    /// A reference hanging from `anchor` on `id`, standing `offset` from that side **plus `out`
-    /// cells outward from it**, in the side's own words.
+    /// A reference hanging from `anchor` on `id`, standing `offset` from that side plus `out`
+    /// cells outward from it, in the side's own words.
     ///
-    /// **The two amounts are added here, once, and what comes back holds the sum.** The model's §4
-    /// _Positions_ says an `out` is written beside an offset and added to it, so a figure may write
-    /// either one or both — and one that writes neither is a reference standing on the border, which
-    /// is this constructor with a zero offset and a zero `out`. Adding rather than replacing is what
-    /// keeps every figure that exists today standing exactly where it stands.
-    ///
-    /// **Nothing in the result records which of the two spellings it was written in**, and that is
-    /// the whole of what a displacement relies on: it grows the offset this constructor grew, and it
-    /// neither can nor needs to know whether the gap arrived as one amount or as two. Storing the
-    /// `out` instead would have given that method two readings of one reference and sent it looking
-    /// for which spelling it was handed.
+    /// The four fields are stored directly. The model's §4 _Positions_ says an `out` is written
+    /// beside an offset and added to it when resolving, so a figure may write either one or both —
+    /// and one that writes neither is a reference standing on the border, which is this constructor
+    /// with a zero offset and a zero `out`.
     ///
     /// `out` is signed and is not checked against the side it is measured from, so a negative one is
     /// a point inside the shape and an `out` and an offset pushing the same axis in opposite
@@ -138,7 +130,8 @@ impl Reference {
         Self {
             id,
             anchor,
-            offset: offset.grow(anchor.outward(out)),
+            offset,
+            out,
         }
     }
 }
@@ -202,7 +195,12 @@ impl Position {
             Self::Reference(reference) => {
                 let shape = diagram.get(reference.id)?;
                 let point = shape.anchor(reference.anchor)?;
-                Some(reference.offset.apply(point))
+                Some(
+                    reference
+                        .offset
+                        .grow(reference.anchor.outward(reference.out))
+                        .apply(point),
+                )
             }
         }
     }
@@ -235,6 +233,7 @@ impl Position {
                 id: reference.id,
                 anchor: reference.anchor,
                 offset: reference.offset.grow(by),
+                out: reference.out,
             }),
         }
     }
@@ -346,16 +345,14 @@ mod tests {
         let diagram = Diagram::new();
         let (diagram, id) = diagram.add(the_box_at_the_origin());
 
-        let right = Position::Reference(Reference {
+        let right =
+            Position::Reference(Reference::new(id, Anchor::Right, Delta { dx: 2, dy: 0 }, 0));
+        let bottom = Position::Reference(Reference::new(
             id,
-            anchor: Anchor::Right,
-            offset: Delta { dx: 2, dy: 0 },
-        });
-        let bottom = Position::Reference(Reference {
-            id,
-            anchor: Anchor::Bottom,
-            offset: Delta { dx: 0, dy: 1 },
-        });
+            Anchor::Bottom,
+            Delta { dx: 0, dy: 1 },
+            0,
+        ));
 
         assert_eq!(right.resolve(&diagram), Some(Pos { x: 5, y: 1 }));
         assert_eq!(bottom.resolve(&diagram), Some(Pos { x: 1, y: 3 }));
@@ -375,11 +372,8 @@ mod tests {
         let the_box = the_box_at_the_origin();
         let (diagram, id) = diagram.add(the_box.clone());
 
-        let on_the_side = Position::Reference(Reference {
-            id,
-            anchor: Anchor::Right,
-            offset: Delta { dx: 0, dy: 0 },
-        });
+        let on_the_side =
+            Position::Reference(Reference::new(id, Anchor::Right, Delta { dx: 0, dy: 0 }, 0));
         let the_side_middle = the_box
             .anchor(Anchor::Right)
             .expect("a box answers all four of its sides");
@@ -540,11 +534,12 @@ mod tests {
     #[test]
     fn a_displacement_moves_a_point_and_grows_a_references_offset() {
         let by = Delta { dx: 4, dy: 0 };
-        let reference = super::Position::Reference(crate::Reference {
-            id: identity(1),
-            anchor: Anchor::Right,
-            offset: Delta { dx: 0, dy: 0 },
-        });
+        let reference = super::Position::Reference(crate::Reference::new(
+            identity(1),
+            Anchor::Right,
+            Delta { dx: 0, dy: 0 },
+            0,
+        ));
         let point = super::Position::Absolute(Pos { x: 1, y: 1 });
 
         assert_eq!(
@@ -637,10 +632,10 @@ mod tests {
 
         assert_eq!(
             reference.offset,
-            Delta { dx: 1, dy: 4 },
-            "one cell out of a bottom side is one row down, added to the offset rather than put in \
-             its place"
+            Delta { dx: 1, dy: 3 },
+            "offset remains separate without folding out into it"
         );
+        assert_eq!(reference.out, 1, "out is stored in its own field");
         assert_eq!(
             Position::Reference(reference).resolve(&diagram),
             Some(Pos { x: 2, y: 6 }),
@@ -694,25 +689,26 @@ mod tests {
             let reference = Reference::new(id, anchor, nothing, 1);
             (
                 reference.offset,
+                reference.out,
                 Position::Reference(reference).resolve(&diagram),
             )
         };
 
         assert_eq!(
             stands_at(Anchor::Top),
-            (Delta { dx: 0, dy: -1 }, Some(Pos { x: 2, y: -1 }))
+            (Delta { dx: 0, dy: 0 }, 1, Some(Pos { x: 2, y: -1 }))
         );
         assert_eq!(
             stands_at(Anchor::Right),
-            (Delta { dx: 1, dy: 0 }, Some(Pos { x: 5, y: 1 }))
+            (Delta { dx: 0, dy: 0 }, 1, Some(Pos { x: 5, y: 1 }))
         );
         assert_eq!(
             stands_at(Anchor::Bottom),
-            (Delta { dx: 0, dy: 1 }, Some(Pos { x: 2, y: 3 }))
+            (Delta { dx: 0, dy: 0 }, 1, Some(Pos { x: 2, y: 3 }))
         );
         assert_eq!(
             stands_at(Anchor::Left),
-            (Delta { dx: -1, dy: 0 }, Some(Pos { x: -1, y: 1 }))
+            (Delta { dx: 0, dy: 0 }, 1, Some(Pos { x: -1, y: 1 }))
         );
 
         // A `top` or a `bottom` is a horizontal border and moves a point vertically; a `left` or a
@@ -754,8 +750,9 @@ mod tests {
                 id: identity(1),
                 anchor: Anchor::Bottom,
                 offset: nothing,
+                out: 0,
             },
-            "an `out` of zero is the three fields the reference has always held"
+            "an `out` of zero is the four fields written with zero out"
         );
 
         let as_an_out = picture_of(
@@ -770,6 +767,7 @@ mod tests {
                     id,
                     anchor: Anchor::Bottom,
                     offset: nothing,
+                    out: 0,
                 })
             }),
             size,
@@ -788,32 +786,38 @@ mod tests {
         );
     }
 
-    /// Nothing in a reference records which of the two spellings its gap was written in, and **all
-    /// three agree as whole values** rather than merely resolving alike.
+    /// A reference keeps its offset and its out distinct as fields, while resolving to the same
+    /// point in the diagram.
     ///
-    /// That is what lets a displacement reach a gap by reaching the offset: a method that grew it
-    /// would have had two readings of one reference and no way to tell which it was handed. So the
-    /// assertion is on the struct — the one thing a reader could have asked to inspect for a
-    /// leftover field — and not on the resolution, which agrees whatever the reference happened to
-    /// hold.
+    /// Storing both fields separately allows editing them independently, while `Position::resolve`
+    /// applies both the offset and outward normal to reach the identical point on the canvas.
     #[test]
-    fn a_reference_cannot_be_told_which_of_the_two_spellings_it_was_written_in() {
+    fn a_reference_keeps_its_offset_and_its_out_distinct_while_resolving_to_the_same_point() {
+        let diagram = Diagram::new();
+        let (diagram, id) = diagram.add(the_box_at_the_origin());
         let nothing = Delta { dx: 0, dy: 0 };
         let one_down = Delta { dx: 0, dy: 1 };
 
+        let as_offset = Reference::new(id, Anchor::Bottom, one_down, 0);
+        let as_out = Reference::new(id, Anchor::Bottom, nothing, 1);
+
+        assert_ne!(
+            as_offset, as_out,
+            "offset and out are held in separate fields on Reference"
+        );
+        assert_eq!(as_offset.offset, one_down);
+        assert_eq!(as_offset.out, 0);
+        assert_eq!(as_out.offset, nothing);
+        assert_eq!(as_out.out, 1);
+
         assert_eq!(
-            Reference::new(identity(1), Anchor::Bottom, one_down, 0),
-            Reference::new(identity(1), Anchor::Bottom, nothing, 1),
-            "one cell out of a bottom side is one value however it was spelled"
+            Position::Reference(as_offset).resolve(&diagram),
+            Position::Reference(as_out).resolve(&diagram),
+            "both spellings resolve to the exact same position in the diagram"
         );
         assert_eq!(
-            Reference::new(identity(1), Anchor::Bottom, one_down, 0),
-            Reference {
-                id: identity(1),
-                anchor: Anchor::Bottom,
-                offset: one_down,
-            },
-            "and it is the value the offset spelled on its own already names"
+            Position::Reference(as_out).resolve(&diagram),
+            Some(Pos { x: 1, y: 3 })
         );
     }
 
@@ -853,9 +857,10 @@ mod tests {
 
         assert_eq!(
             moved.offset,
-            Delta { dx: 0, dy: 4 },
-            "three rows of displacement added to the one cell the `out` grew"
+            Delta { dx: 0, dy: 3 },
+            "three rows of displacement added to the offset"
         );
+        assert_eq!(moved.out, 1, "out is preserved across displacement");
         assert_eq!(
             Position::Reference(moved).resolve(&diagram),
             Some(Pos { x: 1, y: 6 }),
@@ -883,12 +888,15 @@ mod tests {
         let cancelling = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: -1 }, 1);
         let past_the_side = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: -3 }, 1);
 
-        assert_eq!(cancelling.offset, Delta { dx: 0, dy: 0 });
+        assert_eq!(cancelling.offset, Delta { dx: 0, dy: -1 });
+        assert_eq!(cancelling.out, 1);
         assert_eq!(
             Position::Reference(cancelling).resolve(&diagram),
             Some(Pos { x: 1, y: 2 }),
             "one cell up against one cell down is the side itself, which is a point and not a fault"
         );
+        assert_eq!(past_the_side.offset, Delta { dx: 0, dy: -3 });
+        assert_eq!(past_the_side.out, 1);
         assert_eq!(
             Position::Reference(past_the_side).resolve(&diagram),
             Some(Pos { x: 1, y: 0 }),
@@ -899,10 +907,10 @@ mod tests {
     /// An `out` on a reference that resolves to nothing still draws nothing, and **both ways of not
     /// resolving are asked**: an identity nothing holds, and a side a connector does not answer.
     ///
-    /// Each reference carries an `out` of one, so this is the claim that the outward amount is
-    /// turned into the offset at construction and never reaches a diagram — there is no cell left
-    /// for it to move. The picture compared against is the box on its own, so a connector that drew
-    /// something over it, or something anywhere else, fails.
+    /// Each reference carries an `out` of one, so this is the claim that an outward amount on an
+    /// unresolvable reference never reaches a diagram — there is no cell left for it to move. The
+    /// picture compared against is the box on its own, so a connector that drew something over it,
+    /// or something anywhere else, fails.
     #[test]
     fn an_out_on_a_reference_that_resolves_to_nothing_still_draws_nothing() {
         let size = Size {

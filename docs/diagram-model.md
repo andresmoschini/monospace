@@ -39,7 +39,7 @@ one stays the diagram itself.
 | `ShapeId`   | A shape's identity: an ordinal, unique within its diagram when the diagram issued it                                          |
 | `Anchor`    | One of four named points a shape may offer: the center of each of its sides                                                   |
 | `Position`  | Either an absolute point or a reference                                                                                       |
-| `Reference` | A `ShapeId`, an `Anchor` on it, and a horizontal and vertical offset                                                          |
+| `Reference` | A `ShapeId`, an `Anchor` on it, a horizontal and vertical offset, and an outward gap (`out`)                                  |
 | `Delta`     | How far a figure moves along each axis, or how far from it a reference stands: a horizontal and a vertical amount             |
 | `Order`     | The sequence the diagram holds its shapes in; its front is drawn first                                                        |
 | `Ownership` | What a drawing records at every position: which shape the cell there belongs to                                               |
@@ -157,11 +157,12 @@ the side does not run in. It is **added to** the offset rather than put in its p
 may write either one or both, and one that writes neither is a reference standing on the border. It
 is signed, so a negative `out` is a point inside the shape; like every other amount in the format it
 is not checked against the side or clamped, so an `out` and an offset pushing one axis in opposite
-directions add and may cancel, and nothing reports it. **What a reference stores is the sum**, which
-is why nothing in it records which of the two spellings it was written in and a displacement reaches
-both exactly as it reaches the offset it already reached. The amount _along_ the side gets no second
-spelling, because it is the other of the two amounts the offset already carries — and one pair of
-screen amounts is one gap, which is what tells a gap from a slide.
+directions add and may cancel, and nothing reports it. **A reference stores both `offset` and `out`
+separately and sums them when resolving**, so both amounts can be inspected, serialized and edited
+independently. A displacement reaches the `offset`, sliding the endpoint and growing that gap while
+preserving `out` unchanged. The amount _along_ the side gets no second spelling, because it is the
+other of the two amounts the offset already carries — and one pair of screen amounts is one gap,
+which is what tells a gap from a slide.
 
 **Only a connector's endpoint holds a reference, for now.** Every other shape's position is
 absolute, and _Attachment_ below is where the reference lives. A reference therefore names a box or

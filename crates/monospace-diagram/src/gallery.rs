@@ -370,11 +370,12 @@ fn arm_connector(from_at: Pos, to_at: Pos) -> Shape {
 fn hanging_connector(box_id: ShapeId) -> Shape {
     Shape::Connector {
         from: Endpoint {
-            at: Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
+            at: Position::Reference(Reference::new(
+                box_id,
+                Anchor::Right,
+                Delta { dx: 0, dy: 0 },
+                0,
+            )),
             leaving: Direction::Right,
             terminal: monospace_core::Terminal::Arm,
         },
