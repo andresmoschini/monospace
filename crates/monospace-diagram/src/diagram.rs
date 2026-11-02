@@ -2647,11 +2647,7 @@ mod tests {
     /// arrangement the removal cases below all start from.
     fn hanging_from(box_id: ShapeId, offset: Delta, to: Pos) -> Shape {
         arm_connector(
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset,
-            }),
+            Position::Reference(Reference::new(box_id, Anchor::Right, offset, 0)),
             to.into(),
         )
     }
@@ -2670,11 +2666,12 @@ mod tests {
         let diagram = Diagram::new();
         let (mut diagram, box_id) = diagram.add(the_box());
         let hanging = arm_connector(
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
+            Position::Reference(Reference::new(
+                box_id,
+                Anchor::Right,
+                Delta { dx: 0, dy: 0 },
+                0,
+            )),
             Pos { x: 8, y: 1 }.into(),
         );
         diagram = diagram.add(hanging.clone()).0;
@@ -2720,11 +2717,7 @@ mod tests {
         let (mut diagram, box_id) = diagram.add(the_box());
         let offset = Delta { dx: 2, dy: 0 };
         let hanging = arm_connector(
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset,
-            }),
+            Position::Reference(Reference::new(box_id, Anchor::Right, offset, 0)),
             the_far_end.into(),
         );
         diagram = diagram.add(hanging.clone()).0;
@@ -2772,11 +2765,7 @@ mod tests {
         let diagram = Diagram::new();
         let (mut diagram, box_id) = diagram.add(the_box());
         let hanging = arm_connector(
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset,
-            }),
+            Position::Reference(Reference::new(box_id, Anchor::Right, offset, 0)),
             the_far_end.into(),
         );
         diagram = diagram.add(hanging).0;
@@ -2867,11 +2856,7 @@ mod tests {
             let (mut d, id) = d.add(the_line.clone());
             d = d
                 .add(arm_connector(
-                    Position::Reference(Reference {
-                        id,
-                        anchor: Anchor::Bottom,
-                        offset,
-                    }),
+                    Position::Reference(Reference::new(id, Anchor::Bottom, offset, 0)),
                     the_far_end.into(),
                 ))
                 .0;
@@ -2887,11 +2872,7 @@ mod tests {
         let (mut replaced, identity) = replaced.add(the_box());
         replaced = replaced
             .add(arm_connector(
-                Position::Reference(Reference {
-                    id: identity,
-                    anchor: Anchor::Bottom,
-                    offset,
-                }),
+                Position::Reference(Reference::new(identity, Anchor::Bottom, offset, 0)),
                 the_far_end.into(),
             ))
             .0;
@@ -2934,19 +2915,16 @@ mod tests {
         let cases = [
             (
                 "an identity nothing holds",
-                Position::Reference(Reference {
-                    id: a_foreign_identity(),
-                    anchor: Anchor::Right,
-                    offset: large,
-                }),
+                Position::Reference(Reference::new(
+                    a_foreign_identity(),
+                    Anchor::Right,
+                    large,
+                    0,
+                )),
             ),
             (
                 "a kind that answers no anchor",
-                Position::Reference(Reference {
-                    id: identity(3),
-                    anchor: Anchor::Right,
-                    offset: large,
-                }),
+                Position::Reference(Reference::new(identity(3), Anchor::Right, large, 0)),
             ),
         ];
 
@@ -2995,11 +2973,12 @@ mod tests {
                     .0;
                 d = d
                     .add(arm_connector(
-                        Position::Reference(Reference {
-                            id: a_foreign_identity(),
-                            anchor: Anchor::Right,
-                            offset: large,
-                        }),
+                        Position::Reference(Reference::new(
+                            a_foreign_identity(),
+                            Anchor::Right,
+                            large,
+                            0,
+                        )),
                         the_other_end,
                     ))
                     .0;
@@ -3054,11 +3033,7 @@ mod tests {
             let diagram = Diagram::new();
             let (mut diagram, box_id) = diagram.add(one_wide.clone());
             let hanging = arm_connector(
-                Position::Reference(Reference {
-                    id: box_id,
-                    anchor,
-                    offset,
-                }),
+                Position::Reference(Reference::new(box_id, anchor, offset, 0)),
                 the_far_end.into(),
             );
             diagram = diagram.add(hanging.clone()).0;
@@ -3103,11 +3078,12 @@ mod tests {
         let (mut diagram, box_id) = diagram.add(the_box());
         diagram = diagram
             .add(arm_connector(
-                Position::Reference(Reference {
-                    id: box_id,
-                    anchor: Anchor::Right,
-                    offset: Delta { dx: 0, dy: 0 },
-                }),
+                Position::Reference(Reference::new(
+                    box_id,
+                    Anchor::Right,
+                    Delta { dx: 0, dy: 0 },
+                    0,
+                )),
                 the_far_end.into(),
             ))
             .0;
@@ -3202,11 +3178,12 @@ mod tests {
         hanging_to = hanging_to
             .add(arm_connector(
                 the_far_end.into(),
-                Position::Reference(Reference {
-                    id: box_id,
-                    anchor: Anchor::Bottom,
-                    offset: Delta { dx: 0, dy: 0 },
-                }),
+                Position::Reference(Reference::new(
+                    box_id,
+                    Anchor::Bottom,
+                    Delta { dx: 0, dy: 0 },
+                    0,
+                )),
             ))
             .0;
 
@@ -3214,11 +3191,12 @@ mod tests {
         let (mut hanging_from, box_id) = hanging_from.add(the_held_box());
         hanging_from = hanging_from
             .add(arm_connector(
-                Position::Reference(Reference {
-                    id: box_id,
-                    anchor: Anchor::Bottom,
-                    offset: Delta { dx: 0, dy: 0 },
-                }),
+                Position::Reference(Reference::new(
+                    box_id,
+                    Anchor::Bottom,
+                    Delta { dx: 0, dy: 0 },
+                    0,
+                )),
                 the_far_end.into(),
             ))
             .0;
@@ -3265,16 +3243,18 @@ mod tests {
     #[test]
     fn a_connector_with_an_endpoint_that_does_not_resolve_is_not_drawn_at_all() {
         let Window { origin, size } = the_window();
-        let unresolvable = Position::Reference(Reference {
-            id: a_foreign_identity(),
-            anchor: Anchor::Right,
-            offset: Delta { dx: 0, dy: 0 },
-        });
-        let answers_nothing = Position::Reference(Reference {
-            id: identity(3),
-            anchor: Anchor::Right,
-            offset: Delta { dx: 0, dy: 0 },
-        });
+        let unresolvable = Position::Reference(Reference::new(
+            a_foreign_identity(),
+            Anchor::Right,
+            Delta { dx: 0, dy: 0 },
+            0,
+        ));
+        let answers_nothing = Position::Reference(Reference::new(
+            identity(3),
+            Anchor::Right,
+            Delta { dx: 0, dy: 0 },
+            0,
+        ));
         let the_other_end: Position = Pos { x: 8, y: 1 }.into();
 
         let cases = [
@@ -3325,11 +3305,7 @@ mod tests {
 
         let hanging = |anchor| {
             arm_connector(
-                Position::Reference(Reference {
-                    id: spelled,
-                    anchor,
-                    offset: Delta { dx: 0, dy: 0 },
-                }),
+                Position::Reference(Reference::new(spelled, anchor, Delta { dx: 0, dy: 0 }, 0)),
                 the_far_end,
             )
         };
@@ -3632,11 +3608,7 @@ mod tests {
         );
         assert_ne!(
             frozen.at,
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset: nothing,
-            }),
+            Position::Reference(Reference::new(box_id, Anchor::Right, nothing, 0)),
             "the end is still a reference, so nothing was frozen"
         );
 
@@ -3736,11 +3708,12 @@ mod tests {
             the_hanging_end(&diagram, identity(2))
                 .expect("the connector is still held")
                 .at,
-            Position::Reference(Reference {
-                id: the_removed,
-                anchor: Anchor::Right,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
+            Position::Reference(Reference::new(
+                the_removed,
+                Anchor::Right,
+                Delta { dx: 0, dy: 0 },
+                0,
+            )),
             "the arrow was re-hung from a figure put back under the same identity"
         );
 
@@ -3890,21 +3863,18 @@ mod tests {
 
         let from_the_right = |id: ShapeId| {
             arm_connector(
-                Position::Reference(Reference {
-                    id,
-                    anchor: Anchor::Right,
-                    offset: nothing,
-                }),
+                Position::Reference(Reference::new(id, Anchor::Right, nothing, 0)),
                 at_the_top.into(),
             )
         };
         let from_the_bottom = |id: ShapeId| {
             arm_connector(
-                Position::Reference(Reference {
+                Position::Reference(Reference::new(
                     id,
-                    anchor: Anchor::Bottom,
-                    offset: Delta { dx: 2, dy: 0 },
-                }),
+                    Anchor::Bottom,
+                    Delta { dx: 2, dy: 0 },
+                    0,
+                )),
                 at_the_bottom.into(),
             )
         };
@@ -3993,7 +3963,7 @@ mod tests {
         let nothing = Delta { dx: 0, dy: 0 };
         let the_far_end = Pos { x: 8, y: 1 };
         let naming = |id: ShapeId, anchor: Anchor, offset: Delta| {
-            Position::Reference(Reference { id, anchor, offset })
+            Position::Reference(Reference::new(id, anchor, offset, 0))
         };
 
         // (1a) An identity that was never there, and a removal naming exactly that identity.
@@ -4131,11 +4101,12 @@ mod tests {
         let (mut diagram, identity) = diagram.add(the_box());
         diagram = diagram
             .add(arm_connector(
-                Position::Reference(Reference {
-                    id: identity,
-                    anchor: Anchor::Right,
-                    offset: Delta { dx: 0, dy: 0 },
-                }),
+                Position::Reference(Reference::new(
+                    identity,
+                    Anchor::Right,
+                    Delta { dx: 0, dy: 0 },
+                    0,
+                )),
                 the_far_end.into(),
             ))
             .0;
@@ -4194,11 +4165,12 @@ mod tests {
         diagram = diagram
             .add(arm_connector(
                 Pos { x: 0, y: 1 }.into(),
-                Position::Reference(Reference {
-                    id: box_id,
-                    anchor: Anchor::Right,
-                    offset: Delta { dx: 0, dy: 0 },
-                }),
+                Position::Reference(Reference::new(
+                    box_id,
+                    Anchor::Right,
+                    Delta { dx: 0, dy: 0 },
+                    0,
+                )),
             ))
             .0;
 
@@ -4313,11 +4285,12 @@ mod tests {
             for (anchor, to) in the_anchors.into_iter().zip(the_destinations) {
                 diagram = diagram
                     .add(arm_connector(
-                        Position::Reference(Reference {
-                            id: identity,
+                        Position::Reference(Reference::new(
+                            identity,
                             anchor,
-                            offset: Delta { dx: 0, dy: 0 },
-                        }),
+                            Delta { dx: 0, dy: 0 },
+                            0,
+                        )),
                         to.into(),
                     ))
                     .0;
@@ -4385,11 +4358,12 @@ mod tests {
         let diagram = Diagram::new();
         let (diagram, box_id) = diagram.add(the_box());
         let (diagram, connector_id) = diagram.add(arm_connector(
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset: Delta { dx: 0, dy: 0 },
-            }),
+            Position::Reference(Reference::new(
+                box_id,
+                Anchor::Right,
+                Delta { dx: 0, dy: 0 },
+                0,
+            )),
             Pos { x: 7, y: 1 }.into(),
         ));
         (diagram, box_id, connector_id)
@@ -4409,11 +4383,7 @@ mod tests {
         let diagram = Diagram::new();
         let (diagram, box_id) = diagram.add(the_box());
         let (diagram, connector_id) = diagram.add(arm_connector(
-            Position::Reference(Reference {
-                id: box_id,
-                anchor: Anchor::Right,
-                offset: gap,
-            }),
+            Position::Reference(Reference::new(box_id, Anchor::Right, gap, 0)),
             far_end.into(),
         ));
         (diagram, box_id, connector_id)
@@ -4517,11 +4487,7 @@ mod tests {
         let (mut expected, expected_box) = expected.add(the_box());
         expected = expected
             .add(arm_connector(
-                Position::Reference(Reference {
-                    id: expected_box,
-                    anchor: Anchor::Right,
-                    offset: by,
-                }),
+                Position::Reference(Reference::new(expected_box, Anchor::Right, by, 0)),
                 Pos { x: 7, y: 3 }.into(),
             ))
             .0;
@@ -4577,16 +4543,8 @@ mod tests {
             let (mut diagram, b) = diagram.add(second_box());
             diagram = diagram
                 .add(arm_connector(
-                    Position::Reference(Reference {
-                        id: a,
-                        anchor: Anchor::Right,
-                        offset: from_offset,
-                    }),
-                    Position::Reference(Reference {
-                        id: b,
-                        anchor: Anchor::Left,
-                        offset: to_offset,
-                    }),
+                    Position::Reference(Reference::new(a, Anchor::Right, from_offset, 0)),
+                    Position::Reference(Reference::new(b, Anchor::Left, to_offset, 0)),
                 ))
                 .0;
             diagram
@@ -4698,11 +4656,7 @@ mod tests {
             let (mut diagram, box_id) = diagram.add(the_box());
             diagram = diagram.add(the_unrelated_box()).0;
             let (diagram, connector_id) = diagram.add(arm_connector(
-                Position::Reference(Reference {
-                    id: box_id,
-                    anchor: Anchor::Right,
-                    offset,
-                }),
+                Position::Reference(Reference::new(box_id, Anchor::Right, offset, 0)),
                 the_other_end,
             ));
             (diagram, connector_id)
@@ -4961,19 +4915,11 @@ mod tests {
         let cases = [
             (
                 "an identity nothing holds",
-                Position::Reference(Reference {
-                    id: identity(9),
-                    anchor: Anchor::Right,
-                    offset: large,
-                }),
+                Position::Reference(Reference::new(identity(9), Anchor::Right, large, 0)),
             ),
             (
                 "a kind that answers no anchor",
-                Position::Reference(Reference {
-                    id: identity(3),
-                    anchor: Anchor::Right,
-                    offset: large,
-                }),
+                Position::Reference(Reference::new(identity(3), Anchor::Right, large, 0)),
             ),
         ];
 

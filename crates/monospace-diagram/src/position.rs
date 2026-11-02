@@ -346,16 +346,14 @@ mod tests {
         let diagram = Diagram::new();
         let (diagram, id) = diagram.add(the_box_at_the_origin());
 
-        let right = Position::Reference(Reference {
+        let right =
+            Position::Reference(Reference::new(id, Anchor::Right, Delta { dx: 2, dy: 0 }, 0));
+        let bottom = Position::Reference(Reference::new(
             id,
-            anchor: Anchor::Right,
-            offset: Delta { dx: 2, dy: 0 },
-        });
-        let bottom = Position::Reference(Reference {
-            id,
-            anchor: Anchor::Bottom,
-            offset: Delta { dx: 0, dy: 1 },
-        });
+            Anchor::Bottom,
+            Delta { dx: 0, dy: 1 },
+            0,
+        ));
 
         assert_eq!(right.resolve(&diagram), Some(Pos { x: 5, y: 1 }));
         assert_eq!(bottom.resolve(&diagram), Some(Pos { x: 1, y: 3 }));
@@ -375,11 +373,8 @@ mod tests {
         let the_box = the_box_at_the_origin();
         let (diagram, id) = diagram.add(the_box.clone());
 
-        let on_the_side = Position::Reference(Reference {
-            id,
-            anchor: Anchor::Right,
-            offset: Delta { dx: 0, dy: 0 },
-        });
+        let on_the_side =
+            Position::Reference(Reference::new(id, Anchor::Right, Delta { dx: 0, dy: 0 }, 0));
         let the_side_middle = the_box
             .anchor(Anchor::Right)
             .expect("a box answers all four of its sides");
@@ -540,11 +535,12 @@ mod tests {
     #[test]
     fn a_displacement_moves_a_point_and_grows_a_references_offset() {
         let by = Delta { dx: 4, dy: 0 };
-        let reference = super::Position::Reference(crate::Reference {
-            id: identity(1),
-            anchor: Anchor::Right,
-            offset: Delta { dx: 0, dy: 0 },
-        });
+        let reference = super::Position::Reference(crate::Reference::new(
+            identity(1),
+            Anchor::Right,
+            Delta { dx: 0, dy: 0 },
+            0,
+        ));
         let point = super::Position::Absolute(Pos { x: 1, y: 1 });
 
         assert_eq!(

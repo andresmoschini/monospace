@@ -410,11 +410,12 @@ mod tests {
     fn hanging_from(box_id: ShapeId) -> Shape {
         Shape::Connector {
             from: Endpoint {
-                at: Position::Reference(Reference {
-                    id: box_id,
-                    anchor: Anchor::Right,
-                    offset: Delta { dx: 0, dy: 0 },
-                }),
+                at: Position::Reference(Reference::new(
+                    box_id,
+                    Anchor::Right,
+                    Delta { dx: 0, dy: 0 },
+                    0,
+                )),
                 leaving: Direction::Right,
                 terminal: Terminal::Arm,
             },
