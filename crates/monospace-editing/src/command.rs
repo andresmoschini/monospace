@@ -2,7 +2,7 @@
 //! diagram's own operation underneath. See the _Vocabulary_ row for `Command` and §2 of
 //! [`docs/editing-model.md`](../../../docs/editing-model.md).
 
-use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
+use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Reference, Shape, ShapeId};
 
 /// One thing a caller means to do to a diagram.
 ///
@@ -91,11 +91,8 @@ impl Command {
                 }
             }
             Self::Hang { id, from, anchor } => {
-                // **Only the end's position changes.** The way it leaves and the terminal it
-                // writes are the caller's and stay what they were, because a command carries no
-                // field for either: deriving a direction from a side is
-                // [#89](https://github.com/andresmoschini/monospace/issues/89), and hanging an end
-                // again is not the caller saying which way it should leave.
+                // **Only the end's attachment changes.** The terminal it writes stays what it was,
+                // and the direction it leaves in is derived from the anchor it hangs from.
                 if let Some(Shape::Connector {
                     from: end,
                     to,
@@ -106,16 +103,10 @@ impl Command {
                     diagram.replace(
                         id,
                         Shape::Connector {
-                            from: Endpoint {
-                                at: Position::Reference(Reference::new(
-                                    from,
-                                    anchor,
-                                    Delta { dx: 0, dy: 0 },
-                                    0,
-                                )),
-                                leaving: end.leaving,
-                                terminal: end.terminal,
-                            },
+                            from: Endpoint::reference(
+                                Reference::new(from, anchor, Delta { dx: 0, dy: 0 }, 0),
+                                end.terminal,
+                            ),
                             to,
                             stroke,
                         },

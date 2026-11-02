@@ -613,8 +613,8 @@ struct Endpoint {
 impl From<DiagramEndpoint> for Endpoint {
     fn from(endpoint: DiagramEndpoint) -> Self {
         Self {
-            at: endpoint.at.into(),
-            leaving: endpoint.leaving.into(),
+            at: endpoint.at.position().into(),
+            leaving: endpoint.at.leaving().into(),
             terminal: endpoint.terminal.into(),
         }
     }
@@ -622,23 +622,21 @@ impl From<DiagramEndpoint> for Endpoint {
 
 impl From<Endpoint> for DiagramEndpoint {
     fn from(endpoint: Endpoint) -> Self {
-        DiagramEndpoint {
-            at: match endpoint.at {
-                At::Point { x, y } => Position::Absolute(monospace_core::Pos { x, y }),
-                At::Reference {
-                    shape,
-                    anchor,
-                    offset,
-                    out,
-                } => Position::Reference(Reference::new(
-                    ShapeId::new(shape),
-                    anchor.into(),
-                    offset.into(),
-                    out,
-                )),
-            },
-            leaving: endpoint.leaving.into(),
-            terminal: endpoint.terminal.into(),
+        match endpoint.at {
+            At::Point { x, y } => DiagramEndpoint::absolute(
+                monospace_core::Pos { x, y },
+                endpoint.leaving.into(),
+                endpoint.terminal.into(),
+            ),
+            At::Reference {
+                shape,
+                anchor,
+                offset,
+                out,
+            } => DiagramEndpoint::reference(
+                Reference::new(ShapeId::new(shape), anchor.into(), offset.into(), out),
+                endpoint.terminal.into(),
+            ),
         }
     }
 }

@@ -37,7 +37,7 @@ use monospace_core::{
 
 use std::num::NonZeroU16;
 
-use crate::{Anchor, Delta, Diagram, Endpoint, Position, Reference, Shape, ShapeId};
+use crate::{Anchor, Delta, Diagram, Endpoint, Reference, Shape, ShapeId};
 
 /// One description for every file, so the prose is written once rather than per level.
 const WHAT: &str = concat!(
@@ -144,20 +144,20 @@ fn line_shape(at_: Pos, len: u16) -> Shape {
 
 fn connector_shape(from_at: Pos, to_at: Pos) -> Shape {
     Shape::Connector {
-        from: Endpoint {
-            at: from_at.into(),
-            leaving: Direction::Right,
-            terminal: monospace_core::Terminal::Glyph {
+        from: Endpoint::absolute(
+            from_at,
+            Direction::Right,
+            monospace_core::Terminal::Glyph {
                 glyph: glyph("◄")
             },
-        },
-        to: Endpoint {
-            at: to_at.into(),
-            leaving: Direction::Left,
-            terminal: monospace_core::Terminal::Glyph {
+        ),
+        to: Endpoint::absolute(
+            to_at,
+            Direction::Left,
+            monospace_core::Terminal::Glyph {
                 glyph: glyph("►")
             },
-        },
+        ),
         stroke: light(),
     }
 }
@@ -349,16 +349,8 @@ fn an_arm_terminal_composes_where_a_border_is() {
 
 fn arm_connector(from_at: Pos, to_at: Pos) -> Shape {
     Shape::Connector {
-        from: Endpoint {
-            at: from_at.into(),
-            leaving: Direction::Right,
-            terminal: monospace_core::Terminal::Arm,
-        },
-        to: Endpoint {
-            at: to_at.into(),
-            leaving: Direction::Left,
-            terminal: monospace_core::Terminal::Arm,
-        },
+        from: Endpoint::absolute(from_at, Direction::Right, monospace_core::Terminal::Arm),
+        to: Endpoint::absolute(to_at, Direction::Left, monospace_core::Terminal::Arm),
         stroke: light(),
     }
 }
@@ -369,21 +361,11 @@ fn arm_connector(from_at: Pos, to_at: Pos) -> Shape {
 /// box's right side rather than as the point that side resolves to.
 fn hanging_connector(box_id: ShapeId) -> Shape {
     Shape::Connector {
-        from: Endpoint {
-            at: Position::Reference(Reference::new(
-                box_id,
-                Anchor::Right,
-                Delta { dx: 0, dy: 0 },
-                0,
-            )),
-            leaving: Direction::Right,
-            terminal: monospace_core::Terminal::Arm,
-        },
-        to: Endpoint {
-            at: at(7, 1).into(),
-            leaving: Direction::Left,
-            terminal: monospace_core::Terminal::Arm,
-        },
+        from: Endpoint::reference(
+            Reference::new(box_id, Anchor::Right, Delta { dx: 0, dy: 0 }, 0),
+            monospace_core::Terminal::Arm,
+        ),
+        to: Endpoint::absolute(at(7, 1), Direction::Left, monospace_core::Terminal::Arm),
         stroke: light(),
     }
 }

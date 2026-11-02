@@ -17,7 +17,7 @@ use std::num::NonZeroU16;
 use monospace_core::{
     Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, Window, render,
 };
-use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Position, Shape, ShapeId};
+use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Shape, ShapeId};
 use monospace_editing::{Command, Session};
 
 /// The specification's window: `window(8, 3)`, wide enough for a four-cell box at the origin and
@@ -140,18 +140,14 @@ fn the_fixture() -> Diagram {
         .0;
     diagram = diagram
         .add(Shape::Connector {
-            from: Endpoint {
-                at: Position::from(Pos { x: 0, y: 4 }),
-                leaving: Direction::Right,
-                terminal: Terminal::Arm,
-            },
-            to: Endpoint {
-                at: Position::from(Pos { x: 8, y: 4 }),
-                leaving: Direction::Left,
-                terminal: Terminal::Glyph {
+            from: Endpoint::absolute(Pos { x: 0, y: 4 }, Direction::Right, Terminal::Arm),
+            to: Endpoint::absolute(
+                Pos { x: 8, y: 4 },
+                Direction::Left,
+                Terminal::Glyph {
                     glyph: Glyph::new("▶").expect("\"▶\" is one glyph"),
                 },
-            },
+            ),
             stroke: Stroke::from("light"),
         })
         .0;
@@ -288,16 +284,15 @@ fn each_command_becomes_one_of_the_diagrams_five_operations() {
                 diagram.replace(
                     id(3),
                     Shape::Connector {
-                        from: Endpoint {
-                            at: Position::Reference(monospace_diagram::Reference::new(
+                        from: Endpoint::reference(
+                            monospace_diagram::Reference::new(
                                 id(1),
                                 Anchor::Bottom,
                                 Delta { dx: 0, dy: 0 },
                                 0,
-                            )),
-                            leaving: from.leaving,
-                            terminal: from.terminal,
-                        },
+                            ),
+                            from.terminal,
+                        ),
                         to,
                         stroke,
                     },
