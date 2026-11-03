@@ -213,22 +213,39 @@ impl Diagram {
         self.order.iter().position(|held| *held == id)
     }
 
+    /// Where `id` stands, when [`forward`](Self::forward) would move it.
+    ///
+    /// **The one place the rule is written**: a figure this diagram does not hold and one already at
+    /// the front are the same answer, `None`, because neither would move.
+    fn place_to_forward(&self, id: ShapeId) -> Option<usize> {
+        self.find(id).filter(|index| index + 1 < self.order.len())
+    }
+
     /// Moves the shape named by `id` one place toward the front of the order. Does nothing when
     /// `id` names no shape here, or when it is already the front-most.
     #[must_use]
     pub fn forward(&self, id: ShapeId) -> Self {
-        let Some(index) = self.find(id) else {
+        let Some(index) = self.place_to_forward(id) else {
             return self.clone();
         };
-        if index + 1 >= self.order.len() {
-            return self.clone();
-        }
 
         Self {
             shapes: self.shapes.clone(),
             order: swapped(&self.order, index, index + 1),
             next_id: self.next_id,
         }
+    }
+
+    /// Whether [`forward`](Self::forward) would move the shape `id` names: it is here, and it is not in
+    /// front of everything else already.
+    ///
+    /// **Answerable without carrying it out**, as `Session::can_undo` is, and it is the same rule
+    /// `forward` guards itself with — written once in `place_to_forward` and read from both sides.
+    /// `Command::Forward` is what asks it (#285): a figure already at the front changes nothing, and a
+    /// command that changes nothing records no step.
+    #[must_use]
+    pub fn can_forward(&self, id: ShapeId) -> bool {
+        self.place_to_forward(id).is_some()
     }
 
     /// Moves the shape named by `id` one place toward the back of the order. Does nothing when
@@ -1872,6 +1889,36 @@ mod tests {
         let mut after_backward = Buffer::new(Window { origin, size });
         diagram.draw(&mut after_backward);
         assert_eq!(cells(&before), cells(&after_backward));
+    }
+
+    /// Whether a figure can move forward is the answer `forward` obeys.
+    ///
+    /// **Both sides of one rule**, as `Shape::has_size` and `Shape::resized_by` are: the front-most
+    /// figure cannot, the one behind it can, and an identity the diagram does not hold cannot — and
+    /// each answer is checked against whether `forward` changed the drawing, so a predicate that was
+    /// right about the examples and wrong about the rule fails.
+    #[test]
+    fn the_answer_to_whether_a_figure_can_move_forward_is_the_answer_forward_obeys() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b) = overlapping_boxes();
+        let (diagram, back) = Diagram::new().add(a);
+        let (diagram, front) = diagram.add(b);
+        let before = cells(&draw_of(&diagram, origin, size));
+
+        for (figure, expected) in [(back, true), (front, false), (identity(9), false)] {
+            let moved = cells(&draw_of(&diagram.forward(figure), origin, size)) != before;
+
+            assert_eq!(
+                diagram.can_forward(figure),
+                expected,
+                "the predicate's own answer"
+            );
+            assert_eq!(moved, expected, "which is the answer `forward` obeys");
+        }
     }
 
     /// A diagram holding one shape is unchanged by either move, since that
