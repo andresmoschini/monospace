@@ -135,6 +135,10 @@ fn key(raw: &Event, state: &mut DiagramState) -> Reply {
         return Reply::Ignored;
     };
 
+    if state.selected().is_none() {
+        return Reply::Ignored;
+    }
+
     Reply::Act(Action::Move(dx, dy))
 }
 
@@ -591,6 +595,7 @@ mod tests {
     #[test]
     fn the_arrows_are_the_regions_while_it_holds_the_keyboard() {
         let mut state = a_state_over(A_BOX);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
 
         for (arrow, delta) in [
             (KeyCode::Right, (1, 0)),
@@ -607,20 +612,37 @@ mod tests {
     }
 
     /// **The action is the movement and not a figure** (rule 4): the region answers `Move` with
-    /// nothing selected as well, and the handler neither selects nor performs anything.
+    /// the delta the arrow names and no identity, and the figure is read where it is applied.
     #[test]
     fn the_arrows_say_only_that_they_move() {
         let mut state = a_state_over(A_BOX);
-        assert_eq!(state.selected(), None, "the test starts with a selection");
+        let selected = Some(ShapeId::new(NonZeroU16::new(1).unwrap()));
+        state.select(selected);
 
         let answer = handle(&key(KeyCode::Right), &mut state, Focus::Region);
 
         assert_eq!(answer, Reply::Act(Action::Move(1, 0)));
         assert_eq!(
             state.selected(),
-            None,
-            "the region minted a selection into the action"
+            selected,
+            "the region changed the selection"
         );
+    }
+
+    /// **The arrows are ignored when nothing is selected**: the region answers `Reply::Ignored` so
+    /// the key is left unhandled when there is no figure to move.
+    #[test]
+    fn arrows_are_ignored_when_nothing_is_selected() {
+        let mut state = a_state_over(A_BOX);
+        assert_eq!(state.selected(), None);
+
+        for arrow in [KeyCode::Right, KeyCode::Left, KeyCode::Up, KeyCode::Down] {
+            assert_eq!(
+                handle(&key(arrow), &mut state, Focus::Region),
+                Reply::Ignored,
+                "{arrow:?} was not ignored with nothing selected"
+            );
+        }
     }
 
     /// **A move is the arrow and no modifier** (rule 8): another combination, a release and a
