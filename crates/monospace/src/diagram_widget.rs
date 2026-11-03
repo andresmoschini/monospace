@@ -822,4 +822,110 @@ mod tests {
         assert_eq!(outcome, Reply::Ignored);
         assert!(state.selected().is_some(), "the box lost its selection");
     }
+
+    const ALL_CONTEXTUAL_KEYS: [(KeyCode, KeyModifiers); 9] = [
+        (KeyCode::Right, KeyModifiers::NONE),
+        (KeyCode::Left, KeyModifiers::NONE),
+        (KeyCode::Up, KeyModifiers::NONE),
+        (KeyCode::Down, KeyModifiers::NONE),
+        (KeyCode::Right, KeyModifiers::SHIFT),
+        (KeyCode::Left, KeyModifiers::SHIFT),
+        (KeyCode::Up, KeyModifiers::SHIFT),
+        (KeyCode::Down, KeyModifiers::SHIFT),
+        (KeyCode::Esc, KeyModifiers::NONE),
+    ];
+
+    const ARROWS_AND_ESC: [(KeyCode, KeyModifiers); 5] = [
+        (KeyCode::Right, KeyModifiers::NONE),
+        (KeyCode::Left, KeyModifiers::NONE),
+        (KeyCode::Up, KeyModifiers::NONE),
+        (KeyCode::Down, KeyModifiers::NONE),
+        (KeyCode::Esc, KeyModifiers::NONE),
+    ];
+
+    fn assert_offer_matches_acceptance(
+        fixture: &str,
+        selected: Option<u16>,
+        offered_keys: &[(KeyCode, KeyModifiers)],
+    ) {
+        let make_state = || {
+            let mut state = a_state_over(fixture);
+            if let Some(id) = selected {
+                state.select(Some(ShapeId::new(NonZeroU16::new(id).unwrap())));
+            }
+            state
+        };
+
+        let bar = crate::status::command_line(&make_state());
+
+        let offers_move = offered_keys.contains(&(KeyCode::Right, KeyModifiers::NONE));
+        let offers_resize = offered_keys.contains(&(KeyCode::Right, KeyModifiers::SHIFT));
+        let offers_esc = offered_keys.contains(&(KeyCode::Esc, KeyModifiers::NONE));
+
+        assert_eq!(
+            bar.contains("MOVE: ↑↓←→"),
+            offers_move,
+            "bar MOVE offer disagreement with test table in: {bar}"
+        );
+        assert_eq!(
+            bar.contains("RESIZE: Shift+↑↓←→"),
+            offers_resize,
+            "bar RESIZE offer disagreement with test table in: {bar}"
+        );
+        assert_eq!(
+            bar.contains("[Esc] Deselect"),
+            offers_esc,
+            "bar [Esc] offer disagreement with test table in: {bar}"
+        );
+
+        for (code, modifiers) in ALL_CONTEXTUAL_KEYS {
+            let mut state = make_state();
+            let event = Event::Key(KeyEvent::new(code, modifiers));
+            let reply = handle(&event, &mut state, Focus::Region);
+            let is_offered = offered_keys.contains(&(code, modifiers));
+
+            if is_offered {
+                assert_ne!(
+                    reply,
+                    Reply::Ignored,
+                    "offered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} was ignored"
+                );
+            } else {
+                assert_eq!(
+                    reply,
+                    Reply::Ignored,
+                    "unoffered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} was NOT ignored: {reply:?}"
+                );
+            }
+        }
+    }
+
+    /// **In IDLE, key acceptance matches what the contextual bar offers**: the bar offers only
+    /// selection via click, so all contextual keys (arrows, Shift+arrows, Esc) are ignored.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_in_idle() {
+        assert_offer_matches_acceptance(A_BOX, None, &[]);
+    }
+
+    /// **For a selected box, key acceptance matches what the contextual bar offers**: the bar offers
+    /// MOVE, RESIZE, and Deselect, so plain arrows, Shift+arrows, and Esc are all accepted.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_for_selected_box() {
+        assert_offer_matches_acceptance(A_BOX, Some(1), &ALL_CONTEXTUAL_KEYS);
+    }
+
+    /// **For a selected line, key acceptance matches what the contextual bar offers**: the bar offers
+    /// MOVE and Deselect, but no RESIZE; plain arrows and Esc are accepted, and Shift+arrows are ignored.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_for_selected_line() {
+        assert_offer_matches_acceptance(A_LINE, Some(1), &ARROWS_AND_ESC);
+    }
+
+    /// **For a selected connector, key acceptance matches what the contextual bar offers**: the bar
+    /// offers MOVE and Deselect, but no RESIZE; plain arrows and Esc are accepted, and Shift+arrows
+    /// are ignored.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_for_selected_connector() {
+        assert_offer_matches_acceptance(A_CONNECTOR, Some(1), &ARROWS_AND_ESC);
+    }
 }
