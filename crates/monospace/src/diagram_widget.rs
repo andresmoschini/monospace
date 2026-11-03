@@ -21,6 +21,7 @@ use rat_widget::scrolled::{Scroll, ScrollbarPolicy};
 use ratatui_widgets::block::Block;
 
 use monospace_core::{GlyphCatalog, Offset};
+use monospace_diagram::Shape;
 use ratatui_core::{
     buffer::Buffer,
     layout::Rect,
@@ -94,11 +95,12 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
 ///
 /// **The four arrows displace the selected figure one cell** (rule 1 of #179): the action carries
 /// the delta the arrow names and no identity, and the selection is read where the action is carried
-/// out.
+/// out. An arrow with nothing selected dispatches no `Move`.
 ///
-/// **Shift plus an arrow resizes the selected figure one cell** (rules 1 and 4 of #284): if a figure
-/// is selected, `Action::Resize(dx, dy)` is emitted; if nothing is selected, the key is ignored so
-/// the loop continues without a step or repaint.
+/// **Shift plus an arrow resizes the selected figure one cell** (rules 1 and 4 of #284): if the
+/// selected figure has a size, `Action::Resize(dx, dy)` is emitted; if nothing is selected or the
+/// selected figure has no size (such as a line or a connector), the key is ignored so the loop
+/// continues without a step or repaint.
 ///
 /// **Escape clears the active selection** (D1 of #279): pressing Escape while a shape is selected
 /// drops the selection and requests a repaint; pressing Escape with nothing selected changes nothing
@@ -118,7 +120,12 @@ fn key(raw: &Event, state: &mut DiagramState) -> Reply {
     }
 
     if let Some((dx, dy)) = resize_delta(raw) {
-        if state.selected().is_some() {
+        let resizable = state
+            .selected()
+            .and_then(|id| state.session().diagram().get(id))
+            .is_some_and(Shape::has_size);
+
+        if resizable {
             return Reply::Act(Action::Resize(dx, dy));
         }
         return Reply::Ignored;
@@ -321,10 +328,12 @@ fn inner_region(area: Rect) -> Rect {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use monospace_core::ShapeId;
     use ratatui_core::layout::Position;
     use ratatui_crossterm::crossterm::event::{
         KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
+    use std::num::NonZeroU16;
 
     /// The region these tests draw into. **Its interior is `18×6` at `(1, 1)` of the screen**, which
     /// is what says where a click's column and row land.
@@ -335,6 +344,24 @@ mod tests {
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light horizontal line of length 6 at `(2, 1)`.
+    const A_LINE: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
+                      "len": 6, "orientation": "horizontal", "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light connector between `(2, 1)` and `(10, 1)`.
+    const A_CONNECTOR: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "connector", "id": 1,
+                      "from": { "at": { "kind": "point", "x": 2, "y": 1 },
+                                "leaving": "right", "terminal": { "kind": "arm" } },
+                      "to": { "at": { "kind": "point", "x": 10, "y": 1 },
+                              "leaving": "left", "terminal": { "kind": "arm" } },
+                      "stroke": "light" } ]
     }"#;
 
     /// A description whose only shape is a light 30×9 box at `(0, 0)`: larger than the region's
@@ -638,9 +665,9 @@ mod tests {
         );
     }
 
-    /// **Shift plus an arrow resizes when a shape is selected** (rule 1 of #284).
+    /// **Shift plus an arrow resizes when a box is selected** (rule 1 of #284).
     #[test]
-    fn shift_arrows_resize_when_a_shape_is_selected() {
+    fn shift_arrows_resize_when_a_box_is_selected() {
         let mut state = a_state_over(A_BOX);
         let _ = paint(&mut state);
         let at = screen(2, 1);
@@ -663,6 +690,36 @@ mod tests {
                 "{arrow:?} with Shift did not answer the resize"
             );
         }
+    }
+
+    /// **Shift plus an arrow is ignored when a line is selected** (rule 5 of contextual bar).
+    #[test]
+    fn shift_arrows_are_ignored_when_a_line_is_selected() {
+        let mut state = a_state_over(A_LINE);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Ignored
+        );
+    }
+
+    /// **Shift plus an arrow is ignored when a connector is selected** (rule 5 of contextual bar).
+    #[test]
+    fn shift_arrows_are_ignored_when_a_connector_is_selected() {
+        let mut state = a_state_over(A_CONNECTOR);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Ignored
+        );
     }
 
     /// **Shift plus an arrow is ignored when nothing is selected** (rule 4 of #284).
