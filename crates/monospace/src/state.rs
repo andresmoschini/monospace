@@ -10,14 +10,12 @@
 
 use monospace_editing::Session;
 use rat_widget::msgdialog::MsgDialogState;
-use rat_widget::statusline::StatusLineState;
 use ratatui_core::layout::Position;
 
 use crate::chrome::{Chrome, Target};
 use crate::diagram_state::DiagramState;
 use crate::open::OpenDialogState;
 use crate::save::SaveDialogState;
-use crate::status;
 
 /// Everything that survives between frames.
 pub(crate) struct AppState {
@@ -25,9 +23,6 @@ pub(crate) struct AppState {
 
     /// The bar and the keyboard, which move together: the region's leaf at startup (D1 of #189).
     chrome: Chrome,
-
-    /// The status line's own state: what each of its sections says.
-    status: StatusLineState,
 
     /// The message dialog's own state: its message, its `Ok`, and whether it is up (D5 of #189).
     ///
@@ -63,7 +58,6 @@ impl AppState {
         Self {
             diagram: DiagramState::new(diagram_session),
             chrome: Chrome::new(),
-            status: status::state(),
             dialog: MsgDialogState::default(),
             open: OpenDialogState::default(),
             save: SaveDialogState::default(),
@@ -114,20 +108,6 @@ impl AppState {
         (&mut self.chrome, &mut self.diagram)
     }
 
-    /// The status line's own state, for the tests that say what it holds.
-    ///
-    /// **The application only ever paints it**, so the crate's own door is [`Self::status_mut`]
-    /// and this one is the test's.
-    #[cfg(test)]
-    pub(crate) fn status(&self) -> &StatusLineState {
-        &self.status
-    }
-
-    /// The status line, for the frame that paints it.
-    pub(crate) fn status_mut(&mut self) -> &mut StatusLineState {
-        &mut self.status
-    }
-
     /// The message dialog's own state, for the tests that say whether it is up.
     ///
     /// **The application opens, answers and paints the dialog**, and all three need it mutable, so
@@ -173,17 +153,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_bar_and_the_status_start_inert() {
+    fn the_bar_starts_inert() {
         let state = AppState::new(empty_session());
 
         assert!(
             !state.chrome().popup_active(),
             "a drop-down is open on the first frame"
         );
-        assert_eq!(
-            state.status().status.len(),
-            3,
-            "the status bar does not have one section per row of its table"
+        assert!(
+            state.diagram().selected().is_none(),
+            "the diagram starts with a selection"
         );
     }
 

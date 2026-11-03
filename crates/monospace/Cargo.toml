@@ -16,8 +16,8 @@ license.workspace = true
 # ratatui-widgets 0.3.2 and ratatui-crossterm 0.1.2 published 2026-06-19.
 #
 # The rest are this workspace's own, and they are what the application reads and draws with: the
-# editing layer that holds the session, the format both binaries read a description with, and the
-# tables they draw it in.
+# editing layer that holds the session, the diagram model its shapes are read from, the format both
+# binaries read a description with, and the tables they draw it in.
 #
 # The three `ratatui` crates are named one by one and not through the umbrella, because the
 # umbrella resolves `ratatui-core` by a second path and a `ratatui` that moves to a new
@@ -28,6 +28,8 @@ license.workspace = true
 # The session the application holds: the layer above the diagram, and the only one of the three
 # workspace crates that the application asks for what a person is working on.
 monospace-editing.workspace = true
+# The diagram model: the shapes and their endpoints, which the status bar formats when a shape is selected.
+monospace-diagram.workspace = true
 # The format the description is read with. **The same reader the command line uses**, so the screen
 # has no second way into the format and a change to it moves both binaries.
 monospace-description.workspace = true

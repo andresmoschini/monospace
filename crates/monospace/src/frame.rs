@@ -87,15 +87,7 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // **Read after the region is drawn**, because the footprint is a fact of the drawing rather than
     // of the session: the buffer this frame measured is the one the click paths will be answered
     // from, so the bar and the pointer agree about what is on screen.
-    let footprint = state.diagram().footprint();
-
-    status::draw(
-        regions.status,
-        buf,
-        state.status_mut(),
-        footprint,
-        &global.cfg.theme,
-    );
+    status::draw(regions.status, buf, state.diagram(), &global.cfg.theme);
 
     // The drop-down is drawn after the region: it hangs from the bar and covers the region, and
     // a region painted after it would erase it.

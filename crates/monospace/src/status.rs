@@ -23,6 +23,8 @@ use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::{Constraint, Rect};
 use ratatui_core::widgets::StatefulWidget;
 
+use crate::diagram_state::DiagramState;
+
 /// The name the application answers to.
 pub(crate) const NAME: &str = "monospace";
 
@@ -61,7 +63,7 @@ fn sections() -> [(Constraint, &'static str); 3] {
 }
 
 /// The state of the bar: one section per row of the table, saying what the row says.
-pub(crate) fn state() -> StatusLineState {
+fn state() -> StatusLineState {
     let mut state = StatusLineState::default();
 
     for (at, (_, text)) in sections().into_iter().enumerate() {
@@ -96,24 +98,27 @@ fn footprint_text(footprint: Option<Footprint>) -> String {
 
 /// Paints the status bar, saying how far the drawing of this frame reaches.
 ///
-/// **The footprint is a parameter rather than a call**, so that a bar cannot be drawn without saying
-/// what the drawing reached: the compiler asks every caller, and the section is never left saying
-/// what the frame before it said.
-pub(crate) fn draw(
+/// **The diagram is passed rather than its footprint**, so that the bar can derive everything it
+/// displays directly from [`DiagramState`].
+pub(crate) fn draw(area: Rect, buf: &mut Buffer, diagram: &DiagramState, theme: &SalsaTheme) {
+    draw_with_footprint(area, buf, diagram.footprint(), theme);
+}
+
+fn draw_with_footprint(
     area: Rect,
     buf: &mut Buffer,
-    state: &mut StatusLineState,
     footprint: Option<Footprint>,
     theme: &SalsaTheme,
 ) {
     let style: StatusLineStyle = theme.style(WidgetStyle::STATUSLINE);
+    let mut state = state();
 
     state.status(FOOTPRINT, footprint_text(footprint));
 
     StatusLine::new()
         .layout(sections().map(|(constraint, _)| constraint))
         .styles(style)
-        .render(area, buf, state);
+        .render(area, buf, &mut state);
 }
 
 #[cfg(test)]
@@ -136,7 +141,7 @@ mod tests {
     fn row_with(width: u16, footprint: Option<Footprint>) -> String {
         let area = Rect::new(0, 0, width, 1);
         let mut buffer = Buffer::empty(area);
-        draw(area, &mut buffer, &mut state(), footprint, &theme());
+        draw_with_footprint(area, &mut buffer, footprint, &theme());
 
         (area.left()..area.right())
             .map(|column| buffer[(column, area.top())].symbol().to_string())
