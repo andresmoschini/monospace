@@ -245,7 +245,9 @@ impl Session {
     /// than it needed to be.
     #[must_use]
     pub fn perform(&self, command: Command) -> Self {
-        let made = command.apply_to(self.diagram());
+        let made = command
+            .apply_to(self.diagram())
+            .unwrap_or_else(|| self.diagram().clone());
 
         let mut steps = kept_first(&self.steps, self.position);
         steps.push_back_mut(Step::new(command, made));
