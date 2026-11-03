@@ -52,17 +52,19 @@ So a command carries **its own fields rather than a finished shape**:
 ```rust
 Command::Replace(ShapeId, Shape)   // "here is the figure it is now"
 Command::Move { id, by: Delta }    // "move it by this"
+Command::Resize { id, by: Delta }  // "resize it by this"
 ```
 
-The first restates the diagram's operation and throws away what the caller knew. The second keeps
-the delta, which is the thing a person reading a list of them would recognize — and the thing a
-script would have to write either way, since a line of a script is made of meanings and not of a
-blob handed to a method.
+The first restates the diagram's operation and throws away what the caller knew. The second and
+third keep the delta, which is the thing a person reading a list of them would recognize — and the
+thing a script would have to write either way, since a line of a script is made of meanings and not
+of a blob handed to a method.
 
 **Each command says which operation it becomes.** That mapping is the layer's work and it is not
-free: a command that resizes has to know how to rebuild a figure of each kind at another size, and
-to answer what resizing a figure that has no size means. The diagram never has to answer either
-question, because it is handed the finished figure and never asks what became of it.
+free: a command that resizes knows how to rebuild a figure at another size (`replace` with
+`Shape::resized_by`), and resizing a figure that has no size (lines and connectors) leaves the
+figure unchanged. The diagram never has to answer either question, because it is handed the finished
+figure and never asks what became of it.
 
 ### The initial set
 
@@ -72,6 +74,7 @@ command says, and one more meaning is one more arm.
 | Command                     | What it means                                     | The change it becomes              |
 | --------------------------- | ------------------------------------------------- | ---------------------------------- |
 | `Move { id, by }`           | the figure goes so much, along each axis          | `replace` with it displaced        |
+| `Resize { id, by }`         | the figure becomes so much wider and taller       | `replace` with it resized          |
 | `Hang { id, from, anchor }` | one end of a connector hangs from a figure's side | `replace` with a rebuilt connector |
 | `Forward { id }`            | one place toward the front of the order           | `forward`                          |
 | `Remove { id }`             | the figure is taken out                           | `remove`                           |
