@@ -81,7 +81,6 @@ pub(crate) enum Action {
     ///
     /// **The meaning and not the identity**, as [`Self::Move`] is: the shape is read from the
     /// state where the action is carried out.
-    #[allow(dead_code)]
     Resize(i16, i16),
 
     /// The About dialog is opened, and the frame is owed.

@@ -2028,6 +2028,154 @@ mod tests {
         assert_eq!(size.width, 5);
     }
 
+    /// **Shift plus an arrow resizes the selected box by one cell** (rule 1 of #284).
+    #[test]
+    fn shift_arrows_resize_the_selected_box_by_one_cell() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let outcome = send(&shift_right, &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Box { size, .. }) = shape else {
+            panic!("expected box");
+        };
+        assert_eq!(size.width, 5);
+        assert_eq!(size.height, 3);
+    }
+
+    /// **With nothing selected, Shift+arrow performs no command and records no step** (rule 4 of #284).
+    #[test]
+    fn a_resize_with_nothing_selected_performs_no_command() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let outcome = send(&shift_right, &mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(!state.diagram().can_undo());
+    }
+
+    /// **A resize keeps the selection** (rule 5 of #284).
+    #[test]
+    fn a_resize_keeps_the_selection() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let _ = send(&shift_right, &mut state);
+
+        assert_eq!(state.diagram().selected(), selected);
+    }
+
+    /// **Two resizes are two steps** (rule 7 of #284): undo gives back one cell per press.
+    #[test]
+    fn two_resizes_are_two_steps() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let _ = send(&shift_right, &mut state);
+        let _ = send(&shift_right, &mut state);
+
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Box { size, .. }) = shape else {
+            panic!("expected box");
+        };
+        assert_eq!(size.width, 6);
+
+        state.diagram_mut().undo();
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Box { size, .. }) = shape else {
+            panic!("expected box");
+        };
+        assert_eq!(size.width, 5);
+    }
+
+    /// **A plain arrow still moves** (rule 8 of #284).
+    #[test]
+    fn a_plain_arrow_still_moves() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        let right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        let _ = send(&right, &mut state);
+
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Box { at, size, .. }) = shape else {
+            panic!("expected box");
+        };
+        assert_eq!(at.x, 3);
+        assert_eq!(size.width, 4);
+    }
+
+    /// **No other modifier combination resizes** (rule 8 of #284): Ctrl+Shift is ignored.
+    #[test]
+    fn no_other_modifier_resizes() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+
+        let ctrl_shift_right = Event::Key(KeyEvent::new(
+            KeyCode::Right,
+            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+        ));
+        let outcome = send(&ctrl_shift_right, &mut state);
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(!state.diagram().can_undo());
+    }
+
+    /// **While the bar holds the keyboard, Shift+arrow resizes nothing** (rule 9 of #284).
+    #[test]
+    fn shift_arrow_with_the_bar_focused_resizes_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::F(10)), &mut state);
+
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let _ = send(&shift_right, &mut state);
+
+        assert!(!state.diagram().can_undo());
+    }
+
+    /// **A resize carries the connector hanging from the right side** (rule 6 of #284).
+    #[test]
+    fn a_resize_carries_the_connector_hanging_from_the_right_side() {
+        let text = r#"{
+  "next_id": 3,
+  "shapes": [
+    { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 }, "size": { "width": 4, "height": 3 },
+      "stroke": "light" },
+    { "kind": "connector", "id": 2,
+      "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
+                        "offset": { "dx": 2, "dy": 0 } },
+                "terminal": { "kind": "arm" } },
+      "to":   { "at": { "kind": "point", "x": 15, "y": 2 },
+                "leaving": "left", "terminal": { "kind": "arm" } },
+      "stroke": "light" }
+  ]
+}"#;
+        let mut state = a_drawn_state_over(text);
+        let _ = send(&click(3, 3), &mut state);
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let _ = send(&shift_right, &mut state);
+
+        let shape = state
+            .diagram()
+            .session()
+            .diagram()
+            .get(state.diagram().selected().expect("shape was selected"));
+        let Some(monospace_diagram::Shape::Box { size, .. }) = shape else {
+            panic!("expected box");
+        };
+        assert_eq!(size.width, 5);
+    }
+
     /// **A move with nothing selected performs no command and paints all the same** (rule 5): no
     /// step is recorded and no figure moves, and the answer is `Changed` because a carried-out
     /// action owes the frame whether or not it found something to do.
