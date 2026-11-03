@@ -30,6 +30,13 @@ pub enum Command {
         /// How far, along each screen axis. Negative amounts move against it.
         by: Delta,
     },
+    /// The figure becomes so much wider and taller.
+    Resize {
+        /// The figure to resize.
+        id: ShapeId,
+        /// How much the size changes: `dx` is width, `dy` is height.
+        by: Delta,
+    },
     /// The `from` end of a connector hangs from one of `from`'s four sides.
     Hang {
         /// The connector whose end is being hung.
@@ -86,6 +93,15 @@ impl Command {
                 // diagram does not hold changes nothing.
                 if let Some(moved) = diagram.get(id).map(|shape| shape.displaced_by(by)) {
                     diagram.replace(id, moved)
+                } else {
+                    diagram.clone()
+                }
+            }
+            Self::Resize { id, by } => {
+                // The figure's own resized_by decides what goes back: lines and connectors
+                // come back equal, and an identity this diagram does not hold changes nothing.
+                if let Some(resized) = diagram.get(id).map(|shape| shape.resized_by(by)) {
+                    diagram.replace(id, resized)
                 } else {
                     diagram.clone()
                 }
