@@ -215,6 +215,14 @@ fn apply(action: &Action, state: &mut AppState) {
             }
         }
 
+        // **The resize is the same shape of action as the movement**: the delta arrives from the
+        // region's handler and the identity is read here.
+        Action::Resize(dx, dy) => {
+            if let Some(selected) = state.diagram().selected() {
+                state.diagram_mut().resize_shape(selected, *dx, *dy);
+            }
+        }
+
         // **The two actions that open the overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
         Action::About => about::open(state.dialog_mut()),
@@ -1999,6 +2007,25 @@ mod tests {
             !reversed(&buffer, 3, 3),
             "the frame still inverts the cell the box left"
         );
+    }
+
+    /// **The selection survives the resize**: applying `Action::Resize` keeps the selected shape.
+    #[test]
+    fn an_action_resize_resizes_the_selected_shape_and_keeps_selection() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+
+        apply(&Action::Resize(1, 0), &mut state);
+
+        assert_eq!(state.diagram().selected(), selected);
+        assert!(state.diagram().can_undo());
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Box { size, .. }) = shape else {
+            panic!("expected box");
+        };
+        assert_eq!(size.width, 5);
     }
 
     /// **A move with nothing selected performs no command and paints all the same** (rule 5): no

@@ -219,6 +219,20 @@ impl DiagramState {
         });
     }
 
+    /// Resizes `id` by `(dx, dy)` cells on the session.
+    ///
+    /// **The pair and not the delta.** As with [`Self::move_shape`], the application's vocabulary
+    /// names no `Delta`: the pair is converted where the command is written.
+    ///
+    /// **The identity survives**: the figure is still there, so the next frame inverts the cells
+    /// it now owns.
+    pub(crate) fn resize_shape(&mut self, id: ShapeId, dx: i16, dy: i16) {
+        self.perform(Command::Resize {
+            id,
+            by: (dx, dy).into(),
+        });
+    }
+
     /// Performs `command` on the session, recording its one step.
     ///
     /// **The session is the only thing performed on, and the application keeps no copy of it.**
@@ -894,6 +908,28 @@ mod tests {
             state.session.diagram().get(shape).is_some(),
             "the session lost the shape it moved"
         );
+    }
+
+    /// **The resize is the session's too, and it records one step.**
+    #[test]
+    fn a_resize_leaves_the_session_one_step_further_on() {
+        let diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let mut state = DiagramState::new(Session::new(diagram));
+        let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+
+        state.resize_shape(shape, 1, 0);
+
+        assert!(state.session.can_undo(), "the resize recorded no step");
+        assert!(
+            !state.session.can_redo(),
+            "the resize recorded more than one step"
+        );
+        let Some(monospace_diagram::Shape::Box { size, .. }) = state.session.diagram().get(shape)
+        else {
+            panic!("expected box");
+        };
+        assert_eq!(size.width, 5);
     }
 
     /// **The walk stops at both ends of the history.** An undo at the oldest position and a redo at
