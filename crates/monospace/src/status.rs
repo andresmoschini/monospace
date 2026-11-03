@@ -7,7 +7,8 @@
 //! the count of shapes, and the viewport origin; the lower row offers `[Click] Pick`.
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
-//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect`.
+//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect`, with
+//! `RESIZE: Shift+↑↓←→` added while a box is selected.
 
 use monospace_core::Footprint;
 use monospace_diagram::{Diagram, EndpointAt, Shape};
@@ -171,15 +172,14 @@ pub(crate) fn command_line(diagram_state: &DiagramState) -> String {
     let session = diagram_state.session();
     let diagram = session.diagram();
 
-    let has_selection = diagram_state
-        .selected()
-        .and_then(|id| diagram.get(id))
-        .is_some();
+    let selected_shape = diagram_state.selected().and_then(|id| diagram.get(id));
 
-    if has_selection {
-        "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned()
-    } else {
-        "SELECT: [Click] Pick".to_owned()
+    match selected_shape {
+        Some(Shape::Box { .. }) => {
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned()
+        }
+        Some(_) => "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned(),
+        None => "SELECT: [Click] Pick".to_owned(),
     }
 }
 
@@ -366,7 +366,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -516,5 +516,46 @@ mod tests {
             .collect();
         assert_eq!(narrow0.len(), 10);
         assert_eq!(narrow0, status_line(&state)[..10]);
+    }
+
+    /// **The command row offers RESIZE for a box only** (rule 10 of #284).
+    #[test]
+    fn the_command_row_offers_resize_for_a_box_only() {
+        let text = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "line", "id": 2, "at": { "x": 0, "y": 5 },
+                  "len": 8, "orientation": "horizontal", "stroke": "light" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "point", "x": 1, "y": 2 }, "leaving": "right",
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 5, "y": 6 }, "leaving": "left",
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        assert_eq!(command_line(&state), "SELECT: [Click] Pick");
+
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · [Del] Delete · [Esc] Deselect"
+        );
+
+        state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+        );
+
+        state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+        );
     }
 }
