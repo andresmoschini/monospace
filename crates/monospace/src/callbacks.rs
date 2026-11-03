@@ -2205,8 +2205,8 @@ mod tests {
         );
     }
 
-    /// **`Esc` is not the region's**: with the keyboard there the key changes nothing, so the bar's
-    /// way out is a press that acts on the chrome and never on the drawing.
+    /// **`Esc` with nothing selected is not the region's**: with the keyboard there the key changes
+    /// nothing, so the bar's way out is a press that acts on the chrome and never on the drawing.
     #[test]
     fn escape_in_the_region_changes_nothing() {
         let mut state = a_drawn_state();
@@ -2530,6 +2530,32 @@ mod tests {
             !state.chrome().popup_active(),
             "the entry left a drop-down open"
         );
+    }
+
+    /// **Escape drops the active selection** (D1 of #279): pressing Escape while a shape is
+    /// selected drops the selection and owes a frame. Pressing Escape when nothing is selected
+    /// changes nothing.
+    #[test]
+    fn escape_in_the_region_drops_the_selection() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram().selected().is_some(),
+            "the box was not selected"
+        );
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().selected(),
+            None,
+            "Escape did not drop the selection"
+        );
+
+        let second = send(&key(KeyCode::Esc), &mut state);
+
+        assert!(matches!(second, Control::Continue), "{second:?}");
     }
 
     /// **The table answers a meaning, and not an identity** (D2): `Action::Delete` has no field to
