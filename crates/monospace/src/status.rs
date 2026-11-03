@@ -8,7 +8,7 @@
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
 //! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect`, with
-//! `RESIZE: Shift+↑↓←→` added while a box is selected.
+//! `RESIZE: Shift+↑↓←→` added while the selected figure has a size.
 
 use monospace_core::Footprint;
 use monospace_diagram::{Diagram, EndpointAt, Shape};
@@ -175,7 +175,7 @@ pub(crate) fn command_line(diagram_state: &DiagramState) -> String {
     let selected_shape = diagram_state.selected().and_then(|id| diagram.get(id));
 
     match selected_shape {
-        Some(Shape::Box { .. }) => {
+        Some(shape) if shape.has_size() => {
             "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned()
         }
         Some(_) => "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned(),
