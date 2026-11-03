@@ -126,12 +126,12 @@ would read as a frame it does not have. Four sequences, one per state:
    `Stroke` precedes the two endpoints (`1. From` and `2. To`), and each endpoint is formatted
    according to its `Position` (following #276 and #277): `Position::Reference(r)` renders as
    `<TargetKind> #<r.id> [<Anchor> (<dx>, <dy>) out:<out>]` (where `<TargetKind>` is `Box`, `Line`,
-   or `Shape` if the `id` is not present in the diagram); `Position::Absolute { at, leaving }`
-   renders as `(<at.x>, <at.y>) [<Leaving>]`. **Why not** placing `Stroke` at the end for
-   `SELECTED_CONNECTOR`: endpoints `1. From` and `2. To` are the longest and most variable blocks of
-   a connector; placing `Stroke` immediately after `Connector #<id>` keeps identity and style
-   together at the beginning of the line, leaving the two endpoints contiguous at the end.
-   **Answered by** the maintainer.
+   `Connector`, or `Shape` if the `id` is not present in the diagram);
+   `Position::Absolute { at, leaving }` renders as `(<at.x>, <at.y>) [<Leaving>]`. **Why not**
+   placing `Stroke` at the end for `SELECTED_CONNECTOR`: endpoints `1. From` and `2. To` are the
+   longest and most variable blocks of a connector; placing `Stroke` immediately after
+   `Connector #<id>` keeps identity and style together at the beginning of the line, leaving the two
+   endpoints contiguous at the end. **Answered by** the maintainer.
 
 ## Model slice
 
