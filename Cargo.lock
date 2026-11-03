@@ -632,6 +632,7 @@ dependencies = [
  "insta",
  "monospace-core",
  "monospace-description",
+ "monospace-diagram",
  "monospace-editing",
  "monospace-glyph-sets",
  "rat-salsa",

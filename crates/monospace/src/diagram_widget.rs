@@ -68,7 +68,7 @@ pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus, target
 
     match raw {
         Event::Mouse(_) => click(target, state),
-        Event::Key(_) if focus == Focus::Region => key(raw),
+        Event::Key(_) if focus == Focus::Region => key(raw, state),
         _ => Reply::Ignored,
     }
 }
@@ -94,8 +94,25 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
 ///
 /// **The four arrows displace the selected figure one cell** (rule 1 of #179): the action carries
 /// the delta the arrow names and no identity, and the selection is read where the action is carried
-/// out. A key that is no arrow is not the region's.
-fn key(raw: &Event) -> Reply {
+/// out.
+///
+/// **Escape clears the active selection** (D1 of #279): pressing Escape while a shape is selected
+/// drops the selection and requests a repaint; pressing Escape with nothing selected changes nothing
+/// and is ignored. A key that is neither an arrow nor Escape is not the region's.
+fn key(raw: &Event, state: &mut DiagramState) -> Reply {
+    if let Event::Key(KeyEvent {
+        code: KeyCode::Esc,
+        modifiers: KeyModifiers::NONE,
+        kind: KeyEventKind::Press,
+        ..
+    }) = raw
+    {
+        if state.select(None) {
+            return Reply::Repaint;
+        }
+        return Reply::Ignored;
+    }
+
     let Some((dx, dy)) = displacement(raw) else {
         return Reply::Ignored;
     };
@@ -601,6 +618,49 @@ mod tests {
             );
         }
 
+        assert!(state.selected().is_some(), "the box lost its selection");
+    }
+
+    /// **Escape clears the active selection** (D1 of #279): pressing Escape while the region holds
+    /// the keyboard drops the active selection and requests a repaint.
+    #[test]
+    fn pressing_esc_in_the_region_clears_the_selection_and_requests_repaint() {
+        let mut state = a_state_over(A_BOX);
+        let _ = paint(&mut state);
+        let _ = handle(&click(3, 2), &mut state, Focus::Region);
+        assert!(state.selected().is_some(), "the box was not selected");
+
+        let outcome = handle(&key(KeyCode::Esc), &mut state, Focus::Region);
+
+        assert_eq!(outcome, Reply::Repaint);
+        assert_eq!(state.selected(), None);
+    }
+
+    /// **Escape with nothing selected changes nothing and is ignored** (D1 of #279): no event is
+    /// answered and no frame is owed.
+    #[test]
+    fn pressing_esc_with_nothing_selected_is_ignored() {
+        let mut state = a_state_over(A_BOX);
+        assert_eq!(state.selected(), None);
+
+        let outcome = handle(&key(KeyCode::Esc), &mut state, Focus::Region);
+
+        assert_eq!(outcome, Reply::Ignored);
+        assert_eq!(state.selected(), None);
+    }
+
+    /// **Escape while the bar holds the keyboard does not drop the selection** (D1 of #279): the key
+    /// is not the region's while the bar holds the keyboard.
+    #[test]
+    fn escape_with_the_bar_focused_does_not_drop_the_selection() {
+        let mut state = a_state_over(A_BOX);
+        let _ = paint(&mut state);
+        let _ = handle(&click(3, 2), &mut state, Focus::Region);
+        assert!(state.selected().is_some(), "the box was not selected");
+
+        let outcome = handle(&key(KeyCode::Esc), &mut state, Focus::Bar);
+
+        assert_eq!(outcome, Reply::Ignored);
         assert!(state.selected().is_some(), "the box lost its selection");
     }
 }

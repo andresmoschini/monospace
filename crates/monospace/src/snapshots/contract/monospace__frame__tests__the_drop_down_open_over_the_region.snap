@@ -11,8 +11,8 @@ File Edit Help
 │ Save   Ctrl+S │                      │
 │ Open Demo     │                      │
 │ Quit   Ctrl+Q │                      │
-└───────────────┘                      │
-└──────────────────────────────────────┘
-monospace        nothing drawn     0.1.0
-the bar is 1 row, the region is 8 rows and the status is 1 row
-198 of 400 cells are not blank
+└───────────────┘──────────────────────┘
+monospace 0.1.0 · Footprint: nothing dra
+SELECT: [Click] Pick
+the bar is 1 row, the region is 7 rows and the status is 2 rows
+207 of 400 cells are not blank

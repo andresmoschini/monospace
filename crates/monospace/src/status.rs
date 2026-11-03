@@ -1,27 +1,23 @@
-//! The status bar along the bottom.
+//! The contextual status and command bar along the bottom.
 //!
-//! **It says what the application is until the editing surface gives it something to say.** The
-//! name and the version are what a person looking at the terminal can be told at once, and the
-//! state of the session — what has been changed and what can be undone — is #181's.
+//! **Two rows without box borders of their own** (D2 of #279): row 0 renders the contextual
+//! status blocks, and row 1 renders the available command shortcuts in the current context.
 //!
-//! **It also says how far the drawing reaches**, which is the diagram's footprint in the plane
-//! rather than its picture in the region: a figure behind another and one scrolled out of sight
-//! both count, which is why the measurement is a [`FootprintSink`](monospace_core::FootprintSink)
-//! between the drawing and the buffer. The section is written from the [`Footprint`] the frame is
-//! drawn with, so it is the last frame's answer and never the one before it.
+//! **In IDLE**, the upper row reports the application name and version, the drawing's footprint,
+//! the count of shapes, and the viewport origin; the lower row offers `[Click] Pick`.
 //!
-//! **One table says what the bar holds and how much room each part of it takes.** The state and
-//! the layout have to agree, and they used to be written in two files: the state was built
-//! section by section in `state`, and the widths were laid out here, so a section added to one of
-//! them alone was drawn wrong or not at all, in silence. Both now come from the same list.
+//! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
+//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect`.
 
 use monospace_core::Footprint;
-use rat_theme4::WidgetStyle;
+use monospace_diagram::{Diagram, EndpointAt, Shape};
+use rat_theme4::StyleName;
 use rat_theme4::theme::SalsaTheme;
-use rat_widget::statusline::{StatusLine, StatusLineState, StatusLineStyle};
 use ratatui_core::buffer::Buffer;
-use ratatui_core::layout::{Constraint, Rect};
-use ratatui_core::widgets::StatefulWidget;
+use ratatui_core::layout::Rect;
+use ratatui_core::style::Style;
+
+use crate::diagram_state::DiagramState;
 
 /// The name the application answers to.
 pub(crate) const NAME: &str = "monospace";
@@ -32,44 +28,8 @@ pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// What the bar says about a drawing that has reached nothing yet.
 const NOTHING_DRAWN: &str = "nothing drawn";
 
-/// The index of the section that says how far the drawing reaches.
-const FOOTPRINT: usize = 1;
-
-/// The room that section takes.
-///
-/// **A fixed width, because the bar lays its sections out before it knows the text.** The longest
-/// text there is — a drawing spanning the whole plane, `65536×65536 at -32768,-32768` — is longer
-/// than this and is clipped to what fits; the alternative is a version that moves whenever the
-/// drawing does, which is worse.
-const FOOTPRINT_WIDTH: u16 = 18;
-
-/// The sections of the bar, in the order they are drawn: how much room each one takes, and what it
-/// says.
-///
-/// **The name takes what is left and the version takes what it needs**, so a screen too narrow for
-/// all three gives the version its room and the name whatever remains. **The footprint's text is not
-/// here**: it is a fact of the last frame rather than of the application, so [`draw`] writes it
-/// from the drawing it is handed.
-fn sections() -> [(Constraint, &'static str); 3] {
-    let version = u16::try_from(VERSION.len()).expect("a version fits a line");
-
-    [
-        (Constraint::Fill(1), NAME),
-        (Constraint::Length(FOOTPRINT_WIDTH), NOTHING_DRAWN),
-        (Constraint::Length(version), VERSION),
-    ]
-}
-
-/// The state of the bar: one section per row of the table, saying what the row says.
-pub(crate) fn state() -> StatusLineState {
-    let mut state = StatusLineState::default();
-
-    for (at, (_, text)) in sections().into_iter().enumerate() {
-        state.status(at, text);
-    }
-
-    state
-}
+/// The separator between contextual blocks.
+const SEPARATOR: &str = " · ";
 
 /// How far the drawing reaches, as the bar says it: `46×13 at 0,0` or `4×3 at -4,-3`.
 ///
@@ -94,110 +54,208 @@ fn footprint_text(footprint: Option<Footprint>) -> String {
     )
 }
 
-/// Paints the status bar, saying how far the drawing of this frame reaches.
+/// Formats the contextual status row (row 0) from the diagram state.
+pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
+    let session = diagram_state.session();
+    let diagram = session.diagram();
+
+    let selected_shape = diagram_state
+        .selected()
+        .and_then(|id| diagram.get(id).map(|shape| (id, shape)));
+
+    match selected_shape {
+        Some((
+            id,
+            Shape::Box {
+                at,
+                size,
+                stroke,
+                fill,
+                text,
+            },
+        )) => {
+            let label = match text {
+                None => format!("Box #{id}"),
+                Some(t) => {
+                    let first_line = t.lines().first().map_or(&[][..], |v| &v[..]);
+                    let summary = if first_line.len() <= 20 && t.lines().len() <= 1 {
+                        first_line
+                            .iter()
+                            .map(monospace_core::Glyph::as_str)
+                            .collect::<String>()
+                    } else {
+                        let truncated = first_line
+                            .iter()
+                            .take(20)
+                            .map(monospace_core::Glyph::as_str)
+                            .collect::<String>();
+                        format!("{truncated}…")
+                    };
+                    format!(r#"Box #{id} "{summary}""#)
+                }
+            };
+            let pos = format!("Pos: ({}, {})", at.x, at.y);
+            let size = format!("Size: {}×{}", size.width, size.height);
+            let stroke = format!("Stroke: {}", stroke.0);
+            let fill = match fill {
+                None => "Fill: None".to_owned(),
+                Some(g) => format!("Fill: '{}'", g.as_str()),
+            };
+            [label, pos, size, stroke, fill].join(SEPARATOR)
+        }
+        Some((
+            id,
+            Shape::Line {
+                at,
+                len,
+                orientation,
+                stroke,
+            },
+        )) => {
+            let identity = format!("Line #{id}");
+            let pos = format!("Pos: ({}, {})", at.x, at.y);
+            let length = format!("Length: {len}");
+            let orientation = format!("Orientation: {orientation:?}");
+            let stroke = format!("Stroke: {}", stroke.0);
+            [identity, pos, length, orientation, stroke].join(SEPARATOR)
+        }
+        Some((id, Shape::Connector { from, to, stroke })) => {
+            let identity = format!("Connector #{id}");
+            let stroke = format!("Stroke: {}", stroke.0);
+            let from = format!("1. From: {}", endpoint_text(from.at, diagram));
+            let to = format!("2. To: {}", endpoint_text(to.at, diagram));
+            [identity, stroke, from, to].join(SEPARATOR)
+        }
+        None => {
+            let name_version = format!("{NAME} {VERSION}");
+            let footprint = format!("Footprint: {}", footprint_text(diagram_state.footprint()));
+            let count = diagram.shapes().count();
+            let count_text = if count == 1 {
+                "1 shape".to_owned()
+            } else {
+                format!("{count} shapes")
+            };
+            let origin = diagram_state.origin();
+            let viewport = format!("Viewport: ({}, {})", origin.x, origin.y);
+            [name_version, footprint, count_text, viewport].join(SEPARATOR)
+        }
+    }
+}
+
+fn endpoint_text(at: EndpointAt, diagram: &Diagram) -> String {
+    match at {
+        EndpointAt::Reference(r) => {
+            let kind = match diagram.get(r.id) {
+                Some(Shape::Box { .. }) => "Box",
+                Some(Shape::Line { .. }) => "Line",
+                Some(Shape::Connector { .. }) => "Connector",
+                None => "Shape",
+            };
+            format!(
+                "{kind} #{id} [{anchor:?} ({dx}, {dy}) out:{out}]",
+                id = r.id,
+                anchor = r.anchor,
+                dx = r.offset.dx,
+                dy = r.offset.dy,
+                out = r.out
+            )
+        }
+        EndpointAt::Absolute { at, leaving } => {
+            format!("({}, {}) [{leaving:?}]", at.x, at.y)
+        }
+    }
+}
+
+/// Formats the contextual command row (row 1) from the diagram state.
+pub(crate) fn command_line(diagram_state: &DiagramState) -> String {
+    let session = diagram_state.session();
+    let diagram = session.diagram();
+
+    let has_selection = diagram_state
+        .selected()
+        .and_then(|id| diagram.get(id))
+        .is_some();
+
+    if has_selection {
+        "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned()
+    } else {
+        "SELECT: [Click] Pick".to_owned()
+    }
+}
+
+/// Paints the contextual status and command bar.
 ///
-/// **The footprint is a parameter rather than a call**, so that a bar cannot be drawn without saying
-/// what the drawing reached: the compiler asks every caller, and the section is never left saying
-/// what the frame before it said.
-pub(crate) fn draw(
-    area: Rect,
-    buf: &mut Buffer,
-    state: &mut StatusLineState,
-    footprint: Option<Footprint>,
-    theme: &SalsaTheme,
-) {
-    let style: StatusLineStyle = theme.style(WidgetStyle::STATUSLINE);
+/// **Two clean rows without box borders of their own** (D2 of #279): row 0 renders the contextual
+/// status and row 1 renders the available commands, both painted using the theme's status base
+/// style.
+pub(crate) fn draw(area: Rect, buf: &mut Buffer, diagram: &DiagramState, theme: &SalsaTheme) {
+    if area.is_empty() {
+        return;
+    }
 
-    state.status(FOOTPRINT, footprint_text(footprint));
+    let style: Style = theme.style(Style::STATUS_BASE);
+    buf.set_style(area, style);
 
-    StatusLine::new()
-        .layout(sections().map(|(constraint, _)| constraint))
-        .styles(style)
-        .render(area, buf, state);
+    let status = status_line(diagram);
+    buf.set_stringn(area.left(), area.top(), status, area.width as usize, style);
+
+    if area.height >= 2 {
+        let command = command_line(diagram);
+        buf.set_stringn(
+            area.left(),
+            area.top() + 1,
+            command,
+            area.width as usize,
+            style,
+        );
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::Config;
-    use monospace_core::Pos;
+    use monospace_core::{Pos, ShapeId};
+    use std::num::NonZeroU16;
 
-    /// The theme the chrome is drawn in.
-    fn theme() -> SalsaTheme {
-        Config::default().theme
-    }
-
-    /// The bar, as text.
-    fn row(width: u16) -> String {
-        row_with(width, None)
-    }
-
-    /// The bar, as text, drawn with the footprint the frame reached.
-    fn row_with(width: u16, footprint: Option<Footprint>) -> String {
-        let area = Rect::new(0, 0, width, 1);
-        let mut buffer = Buffer::empty(area);
-        draw(area, &mut buffer, &mut state(), footprint, &theme());
-
-        (area.left()..area.right())
-            .map(|column| buffer[(column, area.top())].symbol().to_string())
-            .collect()
-    }
-
-    /// **A section the table has is a section on the screen.** The two halves of this rule used to
-    /// live in two files, and a section added to the state alone was drawn nowhere and said so to
-    /// nobody.
-    #[test]
-    fn every_section_of_the_table_is_drawn() {
-        let row = row(40);
-
-        assert!(
-            row.contains(NAME),
-            "the bar does not name the application: {row:?}"
+    /// The state of a region that has drawn a frame, over the diagram `json` describes.
+    fn a_state_over(json: &str) -> DiagramState {
+        let diagram =
+            monospace_description::parse(json).expect("the test's description is readable");
+        let mut state = DiagramState::new(monospace_editing::Session::new(diagram));
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 24));
+        crate::diagram_widget::draw(
+            Rect::new(0, 0, 80, 24),
+            &mut buffer,
+            &mut state,
+            &monospace_glyph_sets::all(),
+            &Config::default().theme,
         );
-        assert!(
-            row.contains(NOTHING_DRAWN),
-            "the bar says nothing about a drawing that reached nothing: {row:?}"
-        );
-        assert!(
-            row.contains(VERSION),
-            "the bar does not give the version: {row:?}"
-        );
+        state
     }
 
     /// The bar says the drawing's width, height and corner, and the numbers are the footprint's:
     /// `max - min + 1` on each axis, so a one-cell drawing is `1×1` and not `0×0`.
     #[test]
     fn the_bar_says_how_far_the_drawing_reaches() {
-        let row = row_with(
-            40,
-            Some(Footprint {
-                min: Pos { x: 0, y: 0 },
-                max: Pos { x: 45, y: 12 },
-            }),
-        );
+        let text = footprint_text(Some(Footprint {
+            min: Pos { x: 0, y: 0 },
+            max: Pos { x: 45, y: 12 },
+        }));
 
-        assert!(
-            row.contains("46×13 at 0,0"),
-            "the bar does not say the drawing's size and corner: {row:?}"
-        );
+        assert_eq!(text, "46×13 at 0,0");
     }
 
     /// A drawing at a negative corner says so and measures four by three rather than counting from
     /// the origin: `min` is where the drawing starts, not how far it is from `(0, 0)`.
     #[test]
     fn the_bar_says_a_corner_before_the_origin_as_it_is() {
-        let row = row_with(
-            40,
-            Some(Footprint {
-                min: Pos { x: -4, y: -3 },
-                max: Pos { x: -1, y: -1 },
-            }),
-        );
+        let text = footprint_text(Some(Footprint {
+            min: Pos { x: -4, y: -3 },
+            max: Pos { x: -1, y: -1 },
+        }));
 
-        assert!(
-            row.contains("4×3 at -4,-3"),
-            "the bar does not say the drawing's size and corner: {row:?}"
-        );
+        assert_eq!(text, "4×3 at -4,-3");
     }
 
     /// One stamp is `1×1` at its own position, which is the case a `max - min` without the `+ 1`
@@ -220,38 +278,243 @@ mod tests {
         assert_eq!(footprint_text(None), NOTHING_DRAWN);
     }
 
-    /// **The section's width is fixed, so a text too long for it is clipped rather than paid for by
-    /// the rest of the bar.** The plane's own corner is the longest text there is, and the version
-    /// keeps its room while it is drawn: a width that followed the text would move the name's
-    /// boundary whenever the drawing did.
+    /// **The idle bar reports the application identity, footprint, shape count and viewport.**
     #[test]
-    fn a_text_longer_than_the_section_is_clipped() {
-        let row = row_with(
-            40,
-            Some(Footprint {
-                min: Pos {
-                    x: i16::MIN,
-                    y: i16::MIN,
-                },
-                max: Pos {
-                    x: i16::MAX,
-                    y: i16::MAX,
-                },
-            }),
+    fn idle_state_shows_version_footprint_shape_count_viewport_and_click_command() {
+        let mut empty_state = DiagramState::new(monospace_editing::Session::new(
+            monospace_diagram::Diagram::new(),
+        ));
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 24));
+        crate::diagram_widget::draw(
+            Rect::new(0, 0, 80, 24),
+            &mut buffer,
+            &mut empty_state,
+            &monospace_glyph_sets::all(),
+            &Config::default().theme,
         );
 
-        assert!(
-            row.contains(VERSION),
-            "a long footprint text pushed the version off the bar: {row:?}"
+        assert_eq!(
+            status_line(&empty_state),
+            format!("{NAME} {VERSION} · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)")
         );
-        assert!(
-            !row.contains("65536×65536 at -32768,-32768"),
-            "the bar drew a text longer than the section that holds it: {row:?}"
+        assert_eq!(command_line(&empty_state), "SELECT: [Click] Pick");
+
+        let single_box = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 46, "height": 13 }, "stroke": "light" } ]
+        }"#,
+        );
+        assert_eq!(
+            status_line(&single_box),
+            format!("{NAME} {VERSION} · Footprint: 46×13 at 0,0 · 1 shape · Viewport: (0, 0)")
+        );
+        assert_eq!(command_line(&single_box), "SELECT: [Click] Pick");
+
+        let two_shapes = a_state_over(
+            r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 10, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" }
+            ]
+        }"#,
+        );
+        assert_eq!(
+            status_line(&two_shapes),
+            format!("{NAME} {VERSION} · Footprint: 14×3 at 0,0 · 2 shapes · Viewport: (0, 0)")
         );
     }
 
+    /// **A selection whose identity is not in the diagram renders as idle.**
     #[test]
-    fn the_state_has_one_section_per_row_of_the_table() {
-        assert_eq!(state().status.len(), sections().len());
+    fn a_selection_not_held_by_the_diagram_renders_as_idle() {
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#,
+        );
+        let unrecorded = ShapeId::new(NonZeroU16::new(99).unwrap());
+        state.select(Some(unrecorded));
+
+        assert_eq!(
+            status_line(&state),
+            format!("{NAME} {VERSION} · Footprint: 4×3 at 0,0 · 1 shape · Viewport: (0, 0)")
+        );
+        assert_eq!(command_line(&state), "SELECT: [Click] Pick");
+    }
+
+    /// **A selected box formats its identity, optional label, pos, size, stroke, and fill.**
+    #[test]
+    fn selected_box_shows_identity_label_pos_size_stroke_fill_and_selection_commands() {
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            status_line(&state),
+            "Box #1 · Pos: (2, 1) · Size: 4×3 · Stroke: light · Fill: None"
+        );
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+        );
+
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light",
+                          "fill": "░", "text": "API" } ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            status_line(&state),
+            "Box #1 \"API\" · Pos: (2, 1) · Size: 4×3 · Stroke: light · Fill: '░'"
+        );
+
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                          "size": { "width": 10, "height": 4 }, "stroke": "light",
+                          "text": "API\nrest" } ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            status_line(&state),
+            "Box #1 \"API…\" · Pos: (2, 1) · Size: 10×4 · Stroke: light · Fill: None"
+        );
+
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 25, "height": 3 }, "stroke": "light",
+                          "text": "12345678901234567890extra" } ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            status_line(&state),
+            "Box #1 \"12345678901234567890…\" · Pos: (0, 0) · Size: 25×3 · Stroke: light · Fill: None"
+        );
+    }
+
+    /// **A selected line formats its identity, pos, length, orientation, and stroke.**
+    #[test]
+    fn selected_line_shows_identity_pos_length_orientation_stroke_and_selection_commands() {
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "line", "id": 1, "at": { "x": 0, "y": 5 },
+                          "len": 8, "orientation": "horizontal", "stroke": "light" } ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            status_line(&state),
+            "Line #1 · Pos: (0, 5) · Length: 8 · Orientation: Horizontal · Stroke: light"
+        );
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+        );
+    }
+
+    /// **A selected connector formats identity, stroke before both endpoints, and commands.**
+    #[test]
+    fn selected_connector_shows_stroke_before_both_endpoints_and_selection_commands() {
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 10, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "bottom", "offset": { "dx": 1, "dy": 0 }, "out": 1 },
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
+        assert_eq!(
+            status_line(&state),
+            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] · 2. To: Box #2 [Bottom (1, 0) out:1]"
+        );
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+        );
+
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 1, "y": 2 }, "leaving": "right",
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 5, "y": 6 }, "leaving": "left",
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            status_line(&state),
+            "Connector #1 · Stroke: light · 1. From: (1, 2) [Right] · 2. To: (5, 6) [Left]"
+        );
+    }
+
+    /// **The status bar paints status on the top row and commands on the bottom row.**
+    #[test]
+    fn status_bar_paints_status_on_top_row_and_commands_on_bottom_row() {
+        let state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#,
+        );
+        let area = Rect::new(0, 0, 80, 2);
+        let mut buffer = Buffer::empty(area);
+        draw(area, &mut buffer, &state, &Config::default().theme);
+
+        let row0: String = (0..area.width)
+            .map(|col| buffer[(col, 0)].symbol().to_string())
+            .collect();
+        let row1: String = (0..area.width)
+            .map(|col| buffer[(col, 1)].symbol().to_string())
+            .collect();
+
+        assert!(row0.starts_with(&status_line(&state)));
+        assert!(row1.starts_with(&command_line(&state)));
+
+        let narrow = Rect::new(0, 0, 10, 2);
+        let mut narrow_buf = Buffer::empty(narrow);
+        draw(narrow, &mut narrow_buf, &state, &Config::default().theme);
+
+        let narrow0: String = (0..narrow.width)
+            .map(|col| narrow_buf[(col, 0)].symbol().to_string())
+            .collect();
+        assert_eq!(narrow0.len(), 10);
+        assert_eq!(narrow0, status_line(&state)[..10]);
     }
 }

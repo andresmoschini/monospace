@@ -11,8 +11,8 @@ File Edit Help
 │                                      │
 │                                      │
 │                                      │
-│                                      │
 └──────────────────────────────────────┘
-monospace        nothing drawn     0.1.0
-the bar is 1 row, the region is 8 rows and the status is 1 row
-130 of 400 cells are not blank
+monospace 0.1.0 · Footprint: nothing dra
+SELECT: [Click] Pick
+the bar is 1 row, the region is 7 rows and the status is 2 rows
+155 of 400 cells are not blank

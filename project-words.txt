@@ -29,6 +29,7 @@ safecrlf
 speckit
 statusline
 stdlib
+stringn
 TKTK
 truecolor
 tuirealm
