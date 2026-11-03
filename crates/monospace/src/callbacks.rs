@@ -186,10 +186,10 @@ fn target_of(event: &Event, state: &AppState) -> Target {
 /// `apply` changes what the application knows; whether the loop continues, paints or ends is
 /// `event`'s, because that is the framework's own vocabulary and nothing else here speaks it.
 ///
-/// **An action need not change anything.** `Delete` with nothing selected removes nothing, `Undo`
-/// with nothing behind walks nothing, and `Move` with nothing selected moves nothing; every one of
-/// them is applied all the same. **What leaves the keyboard on the region is the carrying out and
-/// not the action** (rule 13 of #189), so it is said once in [`event`], beside the paint.
+/// **An action need not change anything.** `Delete` with nothing selected removes nothing, and
+/// `Undo` with nothing behind walks nothing; every action is applied all the same. **What leaves
+/// the keyboard on the region is the carrying out and not the action** (rule 13 of #189), so it is
+/// said once in [`event`], beside the paint.
 fn apply(action: &Action, state: &mut AppState) {
     match action {
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy

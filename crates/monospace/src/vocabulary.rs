@@ -74,7 +74,8 @@ pub(crate) enum Action {
     /// state where the action is carried out, so the four arrows are one action carrying a delta
     /// rather than four actions naming a figure each. **A move with nothing selected moves nothing
     /// and paints all the same**: what owes the frame is the action having been carried out, not
-    /// the drawing having changed.
+    /// the drawing having changed. While the diagram region no longer emits this action without a
+    /// selection, `apply` continues to accept it.
     Move(i16, i16),
 
     /// The selected shape is resized by `(dx, dy)` cells, and the frame is owed either way.

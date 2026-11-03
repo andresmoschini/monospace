@@ -216,9 +216,9 @@ what anybody takes back.
 **An action that is carried out repaints.** An entry taken closes the drop-down before its meaning
 is carried out, so the frame that follows is owed by the action rather than by a second one:
 `Delete` paints whether or not it removed a figure, which is what makes the entry disappear with
-nothing selected, and an arrow paints whether or not there was one to move. A handler says
-`Reply::Repaint` for a change of its own that carries no meaning — the drop-down opening, the
-selection moving — and a key that changed nothing at all answers `Consumed` and owes nothing.
+nothing selected. A handler says `Reply::Repaint` for a change of its own that carries no meaning —
+the drop-down opening, the selection moving — and a key that changed nothing at all answers
+`Consumed` and owes nothing.
 
 **A click on the diagram selects, and selecting is the same kind of change.** A left press inside
 the region's interior selects the shape the drawing records under it, or drops the selection where
@@ -263,10 +263,11 @@ arrow's own axis, and the action carries `(dx, dy)` rather than an identity: the
 the state where the action is carried out, as the deletion's is. **One press is one `Command::Move`
 and one step**, so `Undo` gives back one cell per press. **The selection survives**, because the
 figure is still there one cell along, and the next frame inverts the cells it now owns. **An arrow
-with nothing selected performs no command and paints all the same**, as every action that is carried
-out does. **The arrows are the region's only while it holds the keyboard**, and the application
-names no position and clamps nothing — what a displacement does to a reference is
-`docs/diagram-model.md` §4's, and a figure moved past the window's edge is not drawn.
+with nothing selected ignores the key** (`Control::Continue`) and dispatches no command: the
+selection is what the arrow is about, and the bar offers only selection while nothing is selected.
+**The arrows are the region's only while it holds the keyboard**, and the application names no
+position and clamps nothing — what a displacement does to a reference is `docs/diagram-model.md`
+§4's, and a figure moved past the window's edge is not drawn.
 
 **`Shift` with the four arrows resizes the selected box, and the resize is one action carrying a
 delta.** A press of `Shift` plus an arrow while the region holds the keyboard and a box is selected
@@ -278,8 +279,9 @@ survives**, and the next frame draws the box at its new size with the new cells 
 with an arrow with nothing selected ignores the key (`Control::Continue`) and performs no command**,
 leaving it unhandled. **Resizing is the region's only while it holds the keyboard**, and only
 `Shift` acts — no other modifier combination (`Ctrl`, `Alt`) resizes. While a line or connector is
-selected, or a box is at its minimum size (2×2), the command is still dispatched and records a step,
-but the figure comes back unchanged.
+selected, the key is ignored (`Control::Continue`) and performs no command, just as with nothing
+selected. While a box is at its minimum size (2×2), the command is still dispatched and records a
+step, but the figure comes back unchanged.
 
 **Undo and Redo are the actions that give a step back.** Each is reached by a key and by the Edit
 menu's entry, and both apply that same action rather than a code path each: `Ctrl+Z` and **Undo**,
@@ -498,7 +500,7 @@ framework's buffer one at a time.
 - A frame after a removal draws what hung from the removed figure where it stood.
 - An arrow moves the selected figure one cell along its own axis, records one step, and leaves the
   selection on it.
-- An arrow with nothing selected performs no command and paints all the same.
+- An arrow with nothing selected ignores the key and performs no command.
 - An arrow while the bar holds the keyboard, or while the dialog is up, moves nothing.
 - A move with a modifier, a release and a repeat move nothing.
 - A carried-out move leaves the keyboard on the region.
@@ -506,6 +508,8 @@ framework's buffer one at a time.
 - `Shift` with an arrow resizes the selected box one cell along the arrow's axis, records one step,
   and leaves the selection on it.
 - `Shift` with an arrow with nothing selected performs no command and leaves the key unhandled.
+- `Shift` with an arrow with a line or a connector selected performs no command and leaves the key
+  unhandled.
 - `Shift` with an arrow while the bar holds the keyboard, or while an overlay is up, resizes
   nothing.
 - A resize with any modifier other than `Shift`, a release and a repeat resize nothing.
