@@ -141,10 +141,8 @@ impl DiagramState {
 
     /// The scroll origin the last frame drew at.
     ///
-    /// **This read exists for the tests**: no frame asks where the origin is, because the frame
-    /// draws at it and the click counts its offset from the window's corner rather than from the
-    /// plane.
-    #[cfg(test)]
+    /// **The status line reads it on every frame** to report the viewport position in the idle
+    /// context, and the tests verify where scrolling moves it.
     pub(crate) fn origin(&self) -> Pos {
         self.origin
     }

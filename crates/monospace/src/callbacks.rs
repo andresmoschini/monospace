@@ -314,7 +314,7 @@ mod tests {
     /// A description whose only shape is a light 4×3 box at `(2, 1)` of the window.
     ///
     /// The window is the region's interior, which on a screen of the size these tests draw is
-    /// `38×6` at `(1, 2)` of the screen: the box's top-left is the screen's `(3, 3)`.
+    /// `38×5` at `(1, 2)` of the screen: the box's top-left is the screen's `(3, 3)`.
     const A_BOX: &str = r#"{
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
@@ -346,8 +346,8 @@ mod tests {
     /// A description whose only shape is a light `60×14` box at `(0, 0)`: larger than the window on
     /// both axes, so the view has room to travel.
     ///
-    /// The window is `38×6`, so the content's span is `22` cells across and `8` down. The helper's
-    /// step is a tenth of the window — `3` across, and `1` down because a tenth of six cells is
+    /// The window is `38×5`, so the content's span is `22` cells across and `9` down. The helper's
+    /// step is a tenth of the window — `3` across, and `1` down because a tenth of five cells is
     /// nothing and the helper answers at least one.
     const A_BOX_TOO_BIG: &str = r#"{
         "next_id": 2,
@@ -1387,8 +1387,10 @@ mod tests {
         );
         assert!(!state.diagram().can_undo(), "the failure recorded a step");
 
-        let buffer = draw(&mut state);
-        let shown: String = (0..HEIGHT).map(|line| row_of(&buffer, line)).collect();
+        let area = Rect::new(0, 0, WIDTH, 12);
+        let mut buffer = Buffer::empty(area);
+        frame::draw(area, &mut buffer, &mut state, &a_global());
+        let shown: String = (0..12).map(|line| row_of(&buffer, line)).collect();
         assert!(
             shown.contains(": a file name is needed"),
             "the error dialog does not report the empty path message: {shown:?}"
@@ -1425,8 +1427,10 @@ mod tests {
         );
         assert!(!state.diagram().can_undo(), "the failure recorded a step");
 
-        let buffer = draw(&mut state);
-        let shown: String = (0..HEIGHT).map(|line| row_of(&buffer, line)).collect();
+        let area = Rect::new(0, 0, WIDTH, 12);
+        let mut buffer = Buffer::empty(area);
+        frame::draw(area, &mut buffer, &mut state, &a_global());
+        let shown: String = (0..12).map(|line| row_of(&buffer, line)).collect();
         assert!(
             shown.contains("nonexistent_dir_12345"),
             "the error dialog does not name the missing directory: {shown:?}"
@@ -1728,7 +1732,7 @@ mod tests {
             (3, 1, "the top border"),
             (0, 3, "the left border"),
             (WIDTH - 1, 3, "the right border"),
-            (3, HEIGHT - 2, "the bottom border"),
+            (3, HEIGHT - 3, "the bottom border"),
         ] {
             state.chrome_mut().move_to_bar();
             let _ = draw(&mut state);
@@ -2849,7 +2853,8 @@ mod tests {
         let _ = send(&undo_key(), &mut state);
         let after = draw(&mut state);
 
-        for line in 0..HEIGHT {
+        let region = frame::regions(Rect::new(0, 0, WIDTH, HEIGHT)).region;
+        for line in region.top()..region.bottom() {
             assert_eq!(
                 row_of(&before, line),
                 row_of(&after, line),
@@ -2904,7 +2909,7 @@ mod tests {
     /// **A turn of the wheel over the region moves the view by the helper's step** (rule 3): a
     /// tenth of the window on the axis the wheel reports, and at least one cell where the tenth is
     /// less. The step is the helper's rather than a rule of ours, so the numbers are its
-    /// arithmetic: `38/10 = 3` across and `6/10 = 0`, which it answers as one cell down.
+    /// arithmetic: `38/10 = 3` across and `5/10 = 0`, which it answers as one cell down.
     ///
     /// **`Alt` is the wheel's across**: the helper reads a turn with `Alt` held as the horizontal
     /// axis, which is the one gesture the wheel and the bar share.
@@ -2972,9 +2977,9 @@ mod tests {
     /// track's cells over the content's reach, so the middle of the track names the middle of the
     /// content.
     ///
-    /// The vertical track is the region's last column, rows `2` to `7`, and the content's span is
-    /// `8`: the row `5` the press lands on is the third of the four cells the track maps, so the view
-    /// stands four rows down.
+    /// The vertical track is the region's last column, rows `2` to `6`, and the content's span is
+    /// `9`: the row `5` the press lands on is the fourth of the five cells the track maps, so the view
+    /// stands six rows down.
     #[test]
     fn a_press_on_the_bar_jumps_the_view() {
         let mut state = a_drawn_state_over(A_BOX_TOO_BIG);
@@ -2984,7 +2989,7 @@ mod tests {
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
             state.diagram().origin(),
-            Pos { x: 0, y: 4 },
+            Pos { x: 0, y: 6 },
             "the press did not take the view to the position it named"
         );
     }
@@ -2992,7 +2997,7 @@ mod tests {
     /// **A drag on the bar follows the pointer** (rule 4): the press starts the drag where the thumb
     /// stands, and every position the pointer reaches names the offset under it.
     ///
-    /// The track is rows `2` to `7` of the region's last column. The press is at row `3`, which maps
+    /// The track is rows `2` to `6` of the region's last column. The press is at row `3`, which maps
     /// to the content's first row — where the view already stands, so it moves nothing and is only
     /// what starts the drag — and the two drags walk the track to its last cell, which is the end of
     /// the content.
@@ -3013,25 +3018,25 @@ mod tests {
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
             state.diagram().origin(),
-            Pos { x: 0, y: 4 },
+            Pos { x: 0, y: 6 },
             "the drag did not follow the pointer down the track"
         );
 
-        let outcome = send(&drag(39, 7), &mut state);
+        let outcome = send(&drag(39, 6), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
             state.diagram().origin(),
-            Pos { x: 0, y: 8 },
+            Pos { x: 0, y: 9 },
             "the drag across the track's last cell did not reach the content's end"
         );
     }
 
     /// **A drag past the track stops at the content's end** (rule 2): the helper keeps reading a drag
     /// once it began on the bar, so a pointer that leaves the track names an offset past the
-    /// content's span — `10` where the span is `8` — and the origin's range is what holds it.
+    /// content's span — `10` where the span is `9` — and the origin's range is what holds it.
     ///
-    /// The track is rows `2` to `7` of the region's last column, so row `8` is the region's bottom
+    /// The track is rows `2` to `6` of the region's last column, so row `7` is the region's bottom
     /// border: one cell past the track, and still a drag the helper answers.
     #[test]
     fn a_drag_past_the_track_is_clamped_to_the_content() {
@@ -3043,12 +3048,12 @@ mod tests {
             "the press moved the view: {outcome:?}"
         );
 
-        let outcome = send(&drag(39, 8), &mut state);
+        let outcome = send(&drag(39, 7), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
             state.diagram().origin(),
-            Pos { x: 0, y: 8 },
+            Pos { x: 0, y: 9 },
             "the drag past the track did not stop at the content's end"
         );
     }
@@ -3234,7 +3239,7 @@ mod tests {
         );
         assert_eq!(
             state.diagram().origin(),
-            Pos { x: 0, y: 4 },
+            Pos { x: 0, y: 6 },
             "the press on the bar did not move the view"
         );
     }

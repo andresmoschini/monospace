@@ -25,7 +25,7 @@ use crate::{diagram_widget, dialog, menu, open, save, status};
 pub(crate) const BAR_HEIGHT: u16 = 1;
 
 /// The height of the status bar along the bottom.
-pub(crate) const STATUS_HEIGHT: u16 = 1;
+pub(crate) const STATUS_HEIGHT: u16 = 2;
 
 /// The three regions of the screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -408,10 +408,12 @@ mod tests {
     #[test]
     fn the_bar_is_at_the_top_and_the_status_bar_is_at_the_bottom() {
         let buffer = paint(&mut a_state(), &a_global(), WIDTH, HEIGHT);
+        let regions = regions(Rect::new(0, 0, WIDTH, HEIGHT));
 
         let bar = row_of(&buffer, 0);
         let region = row_of(&buffer, 1);
-        let status_bar = row_of(&buffer, HEIGHT - 1);
+        let status_bar = row_of(&buffer, regions.status.top());
+        let command_bar = row_of(&buffer, regions.status.top() + 1);
 
         assert!(bar.contains("File"), "the bar has no File on it: {bar:?}");
         assert!(
@@ -421,6 +423,10 @@ mod tests {
         assert!(
             status_bar.contains(status::NAME),
             "the status bar says nothing: {status_bar:?}"
+        );
+        assert!(
+            command_bar.contains("SELECT: [Click] Pick"),
+            "the command bar says nothing: {command_bar:?}"
         );
     }
 
@@ -619,11 +625,14 @@ mod tests {
             asked,
             "the click changed which shape the drawing records"
         );
-        assert_eq!(
-            picture(&before),
-            picture(&after),
-            "the click changed the cells the frame holds"
-        );
+        let region = regions(Rect::new(0, 0, WIDTH, HEIGHT)).region;
+        for line in region.top()..region.bottom() {
+            assert_eq!(
+                row_of(&before, line),
+                row_of(&after, line),
+                "the click changed row {line} in the region"
+            );
+        }
         assert!(
             !inverted(&after).is_empty(),
             "the click selected nothing, so the frame proves nothing"
@@ -717,9 +726,9 @@ mod tests {
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
         click(&mut state, 3, 3);
 
-        // Seven rows leave the region five rows and its interior three: the box's third row is
+        // Eight rows leave the region five rows and its interior three: the box's third row is
         // outside the window.
-        let clipped = paint(&mut state, &global, WIDTH, 7);
+        let clipped = paint(&mut state, &global, WIDTH, 8);
         let rows_the_window_holds: Vec<(u16, u16)> = cells_of_the_box()
             .into_iter()
             .filter(|(_, line)| *line < 5)
@@ -868,7 +877,7 @@ mod tests {
     #[test]
     fn a_region_with_no_interior_draws_nothing() {
         let mut state = a_state_over(A_BOX);
-        let buffer = paint(&mut state, &a_global(), WIDTH, 3);
+        let buffer = paint(&mut state, &a_global(), WIDTH, 4);
 
         assert_eq!(
             row_of(&buffer, 1),
@@ -893,24 +902,24 @@ mod tests {
         let clipped = paint(&mut state, &a_global(), WIDTH, 6);
 
         assert!(
-            row_of(&whole, HEIGHT - 1).contains("4×3 at 2,1"),
+            row_of(&whole, HEIGHT - 2).contains("4×3 at 2,1"),
             "the bar does not say where the box of A_BOX reaches: {:?}",
-            row_of(&whole, HEIGHT - 1)
+            row_of(&whole, HEIGHT - 2)
         );
         assert!(
-            row_of(&clipped, 5).contains("4×3 at 2,1"),
+            row_of(&clipped, 4).contains("4×3 at 2,1"),
             "a window too small to hold the box changed how far it reaches: {:?}",
-            row_of(&clipped, 5)
+            row_of(&clipped, 4)
         );
     }
 
     #[test]
     fn a_blank_diagram_is_drawn_when_no_path_is_given() {
         let session = crate::start(None).expect("startup with no path succeeds");
-        let buffer = paint(&mut AppState::new(session), &a_global(), WIDTH, HEIGHT);
+        let buffer = paint(&mut AppState::new(session), &a_global(), 60, HEIGHT);
 
         assert!(
-            row_of(&buffer, HEIGHT - 1).contains("nothing drawn"),
+            row_of(&buffer, HEIGHT - 2).contains("nothing drawn"),
             "the status bar does not say nothing drawn for blank startup"
         );
     }
@@ -1031,7 +1040,7 @@ mod tests {
         );
 
         // A screen too short to hold it: the region is not drawn, and what it held is gone.
-        draw(Rect::new(0, 0, WIDTH, 3), &mut buffer, &mut state, &global);
+        draw(Rect::new(0, 0, WIDTH, 4), &mut buffer, &mut state, &global);
 
         assert_eq!(
             row_of(&buffer, 1),
@@ -1174,7 +1183,8 @@ mod tests {
         let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
 
         let regions = regions(area);
-        let status_bar = row_of(&buffer, HEIGHT - 1);
+        let status_bar = row_of(&buffer, regions.status.top());
+        let command_bar = row_of(&buffer, regions.status.top() + 1);
 
         assert!(
             regions.status.top() == regions.region.bottom(),
@@ -1183,6 +1193,10 @@ mod tests {
         assert!(
             status_bar.contains(status::NAME),
             "the status bar says nothing: {status_bar:?}"
+        );
+        assert!(
+            command_bar.contains("SELECT: [Click] Pick"),
+            "the command bar says nothing: {command_bar:?}"
         );
 
         snap(
