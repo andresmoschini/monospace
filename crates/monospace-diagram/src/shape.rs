@@ -393,6 +393,16 @@ impl Shape {
         }
     }
 
+    /// Whether this figure has a width and a height for a resize to change.
+    ///
+    /// **Only a box has them.** A line has a length and a connector has two endpoints, and neither
+    /// is a `Size`; `resized_by` leaves both unchanged. The predicate is here, beside that method,
+    /// because the two are the same rule read from two sides.
+    #[must_use]
+    pub const fn has_size(&self) -> bool {
+        matches!(self, Self::Box { .. })
+    }
+
     /// This figure with every reference **naming `id`** replaced by the point it was resolving to,
     /// or `None` when this figure holds no such reference and nothing changed.
     ///
@@ -1092,5 +1102,33 @@ mod tests {
     fn a_connector_is_not_resized() {
         let conn = connector(Terminal::Arm, Terminal::Arm);
         assert_eq!(conn.resized_by(Delta { dx: 2, dy: 3 }), conn);
+    }
+
+    #[test]
+    fn a_box_has_size_and_a_line_and_connector_do_not() {
+        assert!(box_at(0).has_size());
+        assert!(!line_at(0).has_size());
+        assert!(!connector(Terminal::Arm, Terminal::Arm).has_size());
+    }
+
+    #[test]
+    fn a_figure_without_size_is_never_resized() {
+        let delta = Delta { dx: 2, dy: 3 };
+        for shape in [
+            box_at(0),
+            line_at(0),
+            connector(Terminal::Arm, Terminal::Arm),
+        ] {
+            if !shape.has_size() {
+                assert_eq!(shape.resized_by(delta), shape);
+            }
+        }
+    }
+
+    #[test]
+    fn a_box_with_size_can_be_resized() {
+        let the_box = box_at(0);
+        assert!(the_box.has_size());
+        assert_ne!(the_box.resized_by(Delta { dx: 2, dy: 3 }), the_box);
     }
 }
