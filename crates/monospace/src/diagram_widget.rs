@@ -843,6 +843,34 @@ mod tests {
         (KeyCode::Esc, KeyModifiers::NONE),
     ];
 
+    /// Keys the region must never answer, whatever the context: another change's shortcuts, the
+    /// global table's (`Delete`, `Ctrl+Shift+Z`), the bar's own (`Tab`), and keys nobody claims.
+    ///
+    /// **This is the direction a table of offers cannot see.** The list above says what the bar
+    /// offers; this one says that the region answers nothing else, which is the other half of the
+    /// Representation Rule.
+    const NOT_THE_REGIONS: [(KeyCode, KeyModifiers); 10] = [
+        (KeyCode::Char('x'), KeyModifiers::NONE),
+        (KeyCode::Char('s'), KeyModifiers::NONE),
+        (KeyCode::Enter, KeyModifiers::NONE),
+        (KeyCode::Tab, KeyModifiers::NONE),
+        (KeyCode::BackTab, KeyModifiers::SHIFT),
+        (KeyCode::Delete, KeyModifiers::NONE),
+        (KeyCode::Home, KeyModifiers::NONE),
+        (KeyCode::End, KeyModifiers::NONE),
+        (KeyCode::F(1), KeyModifiers::NONE),
+        (
+            KeyCode::Char('Z'),
+            KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        ),
+    ];
+
+    /// **The rule holds three ways**: the table the test writes, the bar the application draws and
+    /// the keys the region answers all say the same thing.
+    ///
+    /// The bar is checked for the three blocks it can carry, the table decides which keys a context
+    /// offers, every key outside it is asserted `Ignored`, and `NOT_THE_REGIONS` closes the other
+    /// direction: a key the bar never shows is not the region's, whichever context is asking.
     fn assert_offer_matches_acceptance(
         fixture: &str,
         selected: Option<u16>,
@@ -897,6 +925,18 @@ mod tests {
                     "unoffered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} was NOT ignored: {reply:?}"
                 );
             }
+        }
+
+        for (code, modifiers) in NOT_THE_REGIONS {
+            let mut state = make_state();
+            let event = Event::Key(KeyEvent::new(code, modifiers));
+            let reply = handle(&event, &mut state, Focus::Region);
+
+            assert_eq!(
+                reply,
+                Reply::Ignored,
+                "{code:?} with modifiers {modifiers:?} was the region's in: {bar}"
+            );
         }
     }
 
