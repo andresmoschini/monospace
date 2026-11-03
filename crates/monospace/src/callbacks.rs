@@ -186,10 +186,10 @@ fn target_of(event: &Event, state: &AppState) -> Target {
 /// `apply` changes what the application knows; whether the loop continues, paints or ends is
 /// `event`'s, because that is the framework's own vocabulary and nothing else here speaks it.
 ///
-/// **An action need not change anything.** `Delete` with nothing selected removes nothing, `Undo`
-/// with nothing behind walks nothing, and `Move` with nothing selected moves nothing; every one of
-/// them is applied all the same. **What leaves the keyboard on the region is the carrying out and
-/// not the action** (rule 13 of #189), so it is said once in [`event`], beside the paint.
+/// **An action need not change anything.** `Delete` with nothing selected removes nothing, and
+/// `Undo` with nothing behind walks nothing; every action is applied all the same. **What leaves
+/// the keyboard on the region is the carrying out and not the action** (rule 13 of #189), so it is
+/// said once in [`event`], beside the paint.
 fn apply(action: &Action, state: &mut AppState) {
     match action {
         // **The walks are the session's** (D2 of #181): each gives back one step and keeps no copy
@@ -1837,8 +1837,8 @@ mod tests {
     }
 
     /// **The arrows are not the bar's while the region holds the keyboard** (rule 5): they open no
-    /// drop-down and move no label, so #179 and #176 can bind them from here. Each answers
-    /// `Changed` because an arrow is a carried-out action, whether or not anything is selected.
+    /// drop-down and move no label, so #179 and #176 can bind them from here. With nothing selected,
+    /// each answers `Continue` because the arrow is ignored by the region.
     #[test]
     fn the_arrows_are_not_the_bars_while_the_region_holds_the_keyboard() {
         let mut state = a_drawn_state();
@@ -1853,7 +1853,7 @@ mod tests {
             let outcome = send(&key(arrow), &mut state);
 
             assert!(
-                matches!(outcome, Control::Changed),
+                matches!(outcome, Control::Continue),
                 "{arrow:?}: {outcome:?}"
             );
             assert!(
@@ -2176,16 +2176,15 @@ mod tests {
         assert_eq!(size.width, 5);
     }
 
-    /// **A move with nothing selected performs no command and paints all the same** (rule 5): no
-    /// step is recorded and no figure moves, and the answer is `Changed` because a carried-out
-    /// action owes the frame whether or not it found something to do.
+    /// **A move with nothing selected moves nothing**: no figure is selected, so no step is
+    /// recorded, no figure moves, and the answer is `Continue` because the arrow is ignored.
     #[test]
-    fn a_move_with_nothing_selected_moves_nothing_and_still_paints() {
+    fn a_move_with_nothing_selected_moves_nothing() {
         let mut state = a_drawn_state_over(A_BOX);
 
         let outcome = send(&key(KeyCode::Right), &mut state);
 
-        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
             !state.diagram().can_undo(),
             "a move with nothing selected recorded a step"

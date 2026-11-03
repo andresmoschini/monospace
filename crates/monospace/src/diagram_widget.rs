@@ -21,6 +21,7 @@ use rat_widget::scrolled::{Scroll, ScrollbarPolicy};
 use ratatui_widgets::block::Block;
 
 use monospace_core::{GlyphCatalog, Offset};
+use monospace_diagram::Shape;
 use ratatui_core::{
     buffer::Buffer,
     layout::Rect,
@@ -94,11 +95,12 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
 ///
 /// **The four arrows displace the selected figure one cell** (rule 1 of #179): the action carries
 /// the delta the arrow names and no identity, and the selection is read where the action is carried
-/// out.
+/// out. An arrow with nothing selected dispatches no `Move`.
 ///
-/// **Shift plus an arrow resizes the selected figure one cell** (rules 1 and 4 of #284): if a figure
-/// is selected, `Action::Resize(dx, dy)` is emitted; if nothing is selected, the key is ignored so
-/// the loop continues without a step or repaint.
+/// **Shift plus an arrow resizes the selected figure one cell** (rules 1 and 4 of #284): if the
+/// selected figure has a size, `Action::Resize(dx, dy)` is emitted; if nothing is selected or the
+/// selected figure has no size (such as a line or a connector), the key is ignored so the loop
+/// continues without a step or repaint.
 ///
 /// **Escape clears the active selection** (D1 of #279): pressing Escape while a shape is selected
 /// drops the selection and requests a repaint; pressing Escape with nothing selected changes nothing
@@ -118,7 +120,12 @@ fn key(raw: &Event, state: &mut DiagramState) -> Reply {
     }
 
     if let Some((dx, dy)) = resize_delta(raw) {
-        if state.selected().is_some() {
+        let resizable = state
+            .selected()
+            .and_then(|id| state.session().diagram().get(id))
+            .is_some_and(Shape::has_size);
+
+        if resizable {
             return Reply::Act(Action::Resize(dx, dy));
         }
         return Reply::Ignored;
@@ -127,6 +134,10 @@ fn key(raw: &Event, state: &mut DiagramState) -> Reply {
     let Some((dx, dy)) = displacement(raw) else {
         return Reply::Ignored;
     };
+
+    if state.selected().is_none() {
+        return Reply::Ignored;
+    }
 
     Reply::Act(Action::Move(dx, dy))
 }
@@ -321,10 +332,12 @@ fn inner_region(area: Rect) -> Rect {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use monospace_core::ShapeId;
     use ratatui_core::layout::Position;
     use ratatui_crossterm::crossterm::event::{
         KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
+    use std::num::NonZeroU16;
 
     /// The region these tests draw into. **Its interior is `18×6` at `(1, 1)` of the screen**, which
     /// is what says where a click's column and row land.
@@ -335,6 +348,24 @@ mod tests {
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light horizontal line of length 6 at `(2, 1)`.
+    const A_LINE: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
+                      "len": 6, "orientation": "horizontal", "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light connector between `(2, 1)` and `(10, 1)`.
+    const A_CONNECTOR: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "connector", "id": 1,
+                      "from": { "at": { "kind": "point", "x": 2, "y": 1 },
+                                "leaving": "right", "terminal": { "kind": "arm" } },
+                      "to": { "at": { "kind": "point", "x": 10, "y": 1 },
+                              "leaving": "left", "terminal": { "kind": "arm" } },
+                      "stroke": "light" } ]
     }"#;
 
     /// A description whose only shape is a light 30×9 box at `(0, 0)`: larger than the region's
@@ -564,6 +595,7 @@ mod tests {
     #[test]
     fn the_arrows_are_the_regions_while_it_holds_the_keyboard() {
         let mut state = a_state_over(A_BOX);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
 
         for (arrow, delta) in [
             (KeyCode::Right, (1, 0)),
@@ -580,20 +612,37 @@ mod tests {
     }
 
     /// **The action is the movement and not a figure** (rule 4): the region answers `Move` with
-    /// nothing selected as well, and the handler neither selects nor performs anything.
+    /// the delta the arrow names and no identity, and the figure is read where it is applied.
     #[test]
     fn the_arrows_say_only_that_they_move() {
         let mut state = a_state_over(A_BOX);
-        assert_eq!(state.selected(), None, "the test starts with a selection");
+        let selected = Some(ShapeId::new(NonZeroU16::new(1).unwrap()));
+        state.select(selected);
 
         let answer = handle(&key(KeyCode::Right), &mut state, Focus::Region);
 
         assert_eq!(answer, Reply::Act(Action::Move(1, 0)));
         assert_eq!(
             state.selected(),
-            None,
-            "the region minted a selection into the action"
+            selected,
+            "the region changed the selection"
         );
+    }
+
+    /// **The arrows are ignored when nothing is selected**: the region answers `Reply::Ignored` so
+    /// the key is left unhandled when there is no figure to move.
+    #[test]
+    fn arrows_are_ignored_when_nothing_is_selected() {
+        let mut state = a_state_over(A_BOX);
+        assert_eq!(state.selected(), None);
+
+        for arrow in [KeyCode::Right, KeyCode::Left, KeyCode::Up, KeyCode::Down] {
+            assert_eq!(
+                handle(&key(arrow), &mut state, Focus::Region),
+                Reply::Ignored,
+                "{arrow:?} was not ignored with nothing selected"
+            );
+        }
     }
 
     /// **A move is the arrow and no modifier** (rule 8): another combination, a release and a
@@ -638,9 +687,9 @@ mod tests {
         );
     }
 
-    /// **Shift plus an arrow resizes when a shape is selected** (rule 1 of #284).
+    /// **Shift plus an arrow resizes when a box is selected** (rule 1 of #284).
     #[test]
-    fn shift_arrows_resize_when_a_shape_is_selected() {
+    fn shift_arrows_resize_when_a_box_is_selected() {
         let mut state = a_state_over(A_BOX);
         let _ = paint(&mut state);
         let at = screen(2, 1);
@@ -663,6 +712,36 @@ mod tests {
                 "{arrow:?} with Shift did not answer the resize"
             );
         }
+    }
+
+    /// **Shift plus an arrow is ignored when a line is selected** (rule 5 of contextual bar).
+    #[test]
+    fn shift_arrows_are_ignored_when_a_line_is_selected() {
+        let mut state = a_state_over(A_LINE);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Ignored
+        );
+    }
+
+    /// **Shift plus an arrow is ignored when a connector is selected** (rule 5 of contextual bar).
+    #[test]
+    fn shift_arrows_are_ignored_when_a_connector_is_selected() {
+        let mut state = a_state_over(A_CONNECTOR);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Ignored
+        );
     }
 
     /// **Shift plus an arrow is ignored when nothing is selected** (rule 4 of #284).
@@ -742,5 +821,151 @@ mod tests {
 
         assert_eq!(outcome, Reply::Ignored);
         assert!(state.selected().is_some(), "the box lost its selection");
+    }
+
+    const ALL_CONTEXTUAL_KEYS: [(KeyCode, KeyModifiers); 9] = [
+        (KeyCode::Right, KeyModifiers::NONE),
+        (KeyCode::Left, KeyModifiers::NONE),
+        (KeyCode::Up, KeyModifiers::NONE),
+        (KeyCode::Down, KeyModifiers::NONE),
+        (KeyCode::Right, KeyModifiers::SHIFT),
+        (KeyCode::Left, KeyModifiers::SHIFT),
+        (KeyCode::Up, KeyModifiers::SHIFT),
+        (KeyCode::Down, KeyModifiers::SHIFT),
+        (KeyCode::Esc, KeyModifiers::NONE),
+    ];
+
+    const ARROWS_AND_ESC: [(KeyCode, KeyModifiers); 5] = [
+        (KeyCode::Right, KeyModifiers::NONE),
+        (KeyCode::Left, KeyModifiers::NONE),
+        (KeyCode::Up, KeyModifiers::NONE),
+        (KeyCode::Down, KeyModifiers::NONE),
+        (KeyCode::Esc, KeyModifiers::NONE),
+    ];
+
+    /// Keys the region must never answer, whatever the context: another change's shortcuts, the
+    /// global table's (`Delete`, `Ctrl+Shift+Z`), the bar's own (`Tab`), and keys nobody claims.
+    ///
+    /// **This is the direction a table of offers cannot see.** The list above says what the bar
+    /// offers; this one says that the region answers nothing else, which is the other half of the
+    /// Representation Rule.
+    const NOT_THE_REGIONS: [(KeyCode, KeyModifiers); 10] = [
+        (KeyCode::Char('x'), KeyModifiers::NONE),
+        (KeyCode::Char('s'), KeyModifiers::NONE),
+        (KeyCode::Enter, KeyModifiers::NONE),
+        (KeyCode::Tab, KeyModifiers::NONE),
+        (KeyCode::BackTab, KeyModifiers::SHIFT),
+        (KeyCode::Delete, KeyModifiers::NONE),
+        (KeyCode::Home, KeyModifiers::NONE),
+        (KeyCode::End, KeyModifiers::NONE),
+        (KeyCode::F(1), KeyModifiers::NONE),
+        (
+            KeyCode::Char('Z'),
+            KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        ),
+    ];
+
+    /// **The rule holds three ways**: the table the test writes, the bar the application draws and
+    /// the keys the region answers all say the same thing.
+    ///
+    /// The bar is checked for the three blocks it can carry, the table decides which keys a context
+    /// offers, every key outside it is asserted `Ignored`, and `NOT_THE_REGIONS` closes the other
+    /// direction: a key the bar never shows is not the region's, whichever context is asking.
+    fn assert_offer_matches_acceptance(
+        fixture: &str,
+        selected: Option<u16>,
+        offered_keys: &[(KeyCode, KeyModifiers)],
+    ) {
+        let make_state = || {
+            let mut state = a_state_over(fixture);
+            if let Some(id) = selected {
+                state.select(Some(ShapeId::new(NonZeroU16::new(id).unwrap())));
+            }
+            state
+        };
+
+        let bar = crate::status::command_line(&make_state());
+
+        let offers_move = offered_keys.contains(&(KeyCode::Right, KeyModifiers::NONE));
+        let offers_resize = offered_keys.contains(&(KeyCode::Right, KeyModifiers::SHIFT));
+        let offers_esc = offered_keys.contains(&(KeyCode::Esc, KeyModifiers::NONE));
+
+        assert_eq!(
+            bar.contains("MOVE: ↑↓←→"),
+            offers_move,
+            "bar MOVE offer disagreement with test table in: {bar}"
+        );
+        assert_eq!(
+            bar.contains("RESIZE: Shift+↑↓←→"),
+            offers_resize,
+            "bar RESIZE offer disagreement with test table in: {bar}"
+        );
+        assert_eq!(
+            bar.contains("[Esc] Deselect"),
+            offers_esc,
+            "bar [Esc] offer disagreement with test table in: {bar}"
+        );
+
+        for (code, modifiers) in ALL_CONTEXTUAL_KEYS {
+            let mut state = make_state();
+            let event = Event::Key(KeyEvent::new(code, modifiers));
+            let reply = handle(&event, &mut state, Focus::Region);
+            let is_offered = offered_keys.contains(&(code, modifiers));
+
+            if is_offered {
+                assert_ne!(
+                    reply,
+                    Reply::Ignored,
+                    "offered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} was ignored"
+                );
+            } else {
+                assert_eq!(
+                    reply,
+                    Reply::Ignored,
+                    "unoffered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} was NOT ignored: {reply:?}"
+                );
+            }
+        }
+
+        for (code, modifiers) in NOT_THE_REGIONS {
+            let mut state = make_state();
+            let event = Event::Key(KeyEvent::new(code, modifiers));
+            let reply = handle(&event, &mut state, Focus::Region);
+
+            assert_eq!(
+                reply,
+                Reply::Ignored,
+                "{code:?} with modifiers {modifiers:?} was the region's in: {bar}"
+            );
+        }
+    }
+
+    /// **In IDLE, key acceptance matches what the contextual bar offers**: the bar offers only
+    /// selection via click, so all contextual keys (arrows, Shift+arrows, Esc) are ignored.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_in_idle() {
+        assert_offer_matches_acceptance(A_BOX, None, &[]);
+    }
+
+    /// **For a selected box, key acceptance matches what the contextual bar offers**: the bar offers
+    /// MOVE, RESIZE, and Deselect, so plain arrows, Shift+arrows, and Esc are all accepted.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_for_selected_box() {
+        assert_offer_matches_acceptance(A_BOX, Some(1), &ALL_CONTEXTUAL_KEYS);
+    }
+
+    /// **For a selected line, key acceptance matches what the contextual bar offers**: the bar offers
+    /// MOVE and Deselect, but no RESIZE; plain arrows and Esc are accepted, and Shift+arrows are ignored.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_for_selected_line() {
+        assert_offer_matches_acceptance(A_LINE, Some(1), &ARROWS_AND_ESC);
+    }
+
+    /// **For a selected connector, key acceptance matches what the contextual bar offers**: the bar
+    /// offers MOVE and Deselect, but no RESIZE; plain arrows and Esc are accepted, and Shift+arrows
+    /// are ignored.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_for_selected_connector() {
+        assert_offer_matches_acceptance(A_CONNECTOR, Some(1), &ARROWS_AND_ESC);
     }
 }
