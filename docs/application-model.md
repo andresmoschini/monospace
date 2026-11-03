@@ -9,8 +9,9 @@
 [#178](../specs/178-delete-the-selected-shape-with-the-delet.md),
 [#179](../specs/179-move-the-selected-shape-with-the-arrow-k.md),
 [#181](../specs/181-undo-and-redo.md),
-[#189](../specs/189-the-chrome-is-a-real-interface-the-pop-u.md) and
-[#238](../specs/238-show-the-origin-and-size-of-the-diagram.md) — every specification that names
+[#189](../specs/189-the-chrome-is-a-real-interface-the-pop-u.md),
+[#238](../specs/238-show-the-origin-and-size-of-the-diagram.md) and
+[#279](../specs/279-replace-the-status-line-with-the-context.md) — every specification that names
 this document in its _Model slice_, and the one that created it. §6 _Deliberately unresolved_ and §8
 _Open questions_ are what a later change answers. Amend this document when reality contradicts it,
 and say so in the commit.
@@ -39,7 +40,7 @@ they are decided rather than repeating them.
 | `Frame`         | One picture of the whole screen                                                            |
 | `Region`        | One of the three parts of the screen                                                       |
 | `Bar`           | The region across the top, which holds the menus                                           |
-| `Status bar`    | The region along the bottom, which says what the application is                            |
+| `Status bar`    | The region along the bottom, which shows current status and available commands             |
 | `Chrome`        | Everything on the screen that is not the diagram                                           |
 | `Shortcut`      | A key the application answers to, and how far it reaches before the chrome is asked        |
 | `Configuration` | What the application is configured with, read once at startup                              |
@@ -54,9 +55,10 @@ whole of §4.
 ## 2. The frame
 
 **The screen is in three regions: the bar across the top, the region the diagram goes into, and the
-status bar along the bottom.** The bar's row is the bar's and the status bar's row is the status
-bar's, whatever the size of the screen; the region between them takes the rest of it, and a screen
-too short to hold the three of them gives the region what is left over. The bar offers the menus —
+status bar along the bottom.** The bar takes 1 row across the top, the status bar takes 2 rows along
+the bottom (the top row for diagram or shape status, the bottom row for contextual commands),
+whatever the size of the screen; the region between them takes the rest of it, and a screen too
+short to hold the three of them gives the region what is left over. The bar offers the menus —
 `File` (holding `New`, `Open`, `Save`, `Open Demo`, and `Quit`), `Edit`, and `Help`.
 
 **Every cell of the screen is painted on every frame.** The terminal diffs against the previous
@@ -93,11 +95,15 @@ screen at rest a plain border. **The bar costs the window no cell** because it i
 rather than inside it, and **the corners keep the block's glyphs** because the run it is laid in is
 the border's own from one corner to the next.
 
-**The status bar says how far the drawing reaches.** The section is written from the footprint of
-the frame being drawn — measured by the sink on the way into the buffer, see _The buffer_ in
-[`model.md`](model.md) — so the bar and the region speak about the same drawing rather than about
-the one before it. A figure the region clips and one another figure covers still count: the bar says
-the drawing's extent, not the interior's, and a drawing that stamped nothing says `nothing drawn`.
+**The status bar says how far the drawing reaches, or what the selected shape is.** In the idle
+state the status row names the application and its version, the footprint of the frame being drawn
+(measured by the sink on the way into the buffer, see _The buffer_ in [`model.md`](model.md) — so
+the bar and the region speak about the same drawing rather than the one before it), the shape count,
+and the viewport origin; a drawing that stamped nothing says `nothing drawn`. When a shape is
+selected, the status row instead describes that shape's identity, geometry, and styling: a `Box`
+shows label, position, size, stroke, and fill; a `Line` shows identity, position, length,
+orientation, and stroke; a `Connector` shows identity, stroke, and both endpoints. Below it, the
+command row shows the contextual actions available for that state.
 
 ## 3. The state
 
@@ -106,13 +112,13 @@ selected, and the chrome's own.** The session is what the person is working on, 
 the last frame put on the screen, the origin is where in the plane that drawing was seen from, the
 selection is the shape that drawing answered with, and the chrome's own is what the widgets of the
 screen hold between frames — which label of the bar is selected, whether a drop-down is open, which
-of the two leaves holds the keyboard, what the status bar says, and what the message dialog, the
-open dialog, and the save dialog hold (`MsgDialogState`, `OpenDialogState`, and `SaveDialogState`).
-They are one thing because they change together: a frame that changes one of them changes the
-others. Replacing the session on `New`, `OpenFile` or `OpenDemo` resets the state as a fresh startup
-does: the diagram is drawn at `(0, 0)`, nothing is selected, the undo and redo history is empty, and
-the dialogs are down. Saving via `SaveFile` writes the description to disk and leaves the session,
-its selection, and its history untouched.
+of the two leaves holds the keyboard, and what the message dialog, the open dialog, and the save
+dialog hold (`MsgDialogState`, `OpenDialogState`, and `SaveDialogState`). They are one thing because
+they change together: a frame that changes one of them changes the others. Replacing the session on
+`New`, `OpenFile` or `OpenDemo` resets the state as a fresh startup does: the diagram is drawn at
+`(0, 0)`, nothing is selected, the undo and redo history is empty, and the dialogs are down. Saving
+via `SaveFile` writes the description to disk and leaves the session, its selection, and its history
+untouched.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
@@ -143,8 +149,8 @@ move the shape, so a rectangle would mark cells the shape no longer holds while 
 gained. A selection no cell of a later drawing records inverts nothing; **the removal of the
 selected figure also drops the identity**, as part of carrying the action out (see §4), so the frame
 that follows a deletion inverts nothing because nothing is selected rather than because the record
-and the selection disagree. Naming the selected shape in words is not this document's: the status
-bar is §8's, and [#226](https://github.com/andresmoschini/monospace/issues/226) answers it.
+and the selection disagree. Naming the selected shape in words is the status bar's (see §2), derived
+directly from the diagram state rather than stored.
 
 **The focus is the chrome's own, and it is not the selection.** Which of the two leaves — the bar
 and the diagram region — holds the keyboard is a fact about the chrome, held between frames: it
@@ -154,7 +160,7 @@ thing the key does there. The region keeps its outer rectangle beside its interi
 on the border gives it the keyboard without selecting a shape. **The selection's inversion is not a
 cue for it**: inverting the selected shape is
 [#177](https://github.com/andresmoschini/monospace/issues/177)'s, and a focused region looks the
-same as an unfocused one. The status line is not a leaf: a press on it moves nothing.
+same as an unfocused one. The status bar is not a leaf: a press on it moves nothing.
 
 **The application keeps no history of its own, and the walk is the session's.** The steps behind and
 ahead are the session's, and the state holds no position and no copy of a step: `Session::undo` and
@@ -198,14 +204,14 @@ saying the event was not its.
 
 **The chrome's own is the other half of §3, and it is not this rule's.** The widget that owns a part
 of it changes that part when the event reaches it — the bar opens its drop-down and moves its
-selection, the status line takes a value — and nothing it changes reaches the session. What a
-handler says about a change of its own is `Reply::Repaint`, the frame being owed again. **A leaf is
-not a meaning**: the keyboard moves where the event is addressed, and a press that moved it owes the
-frame even where no handler answers. The bar's three keys — `F10`, `Alt` plus a navigation character
-and the `Esc` with nothing left to close — are read by the bar, so the bar is the one handler that
-moves the keyboard (D4 and rule 5 of #189). **These three are about the screen and not about what a
-person means to do**, and undo never holds one: a selection, an open drop-down and the leaf that
-holds the keyboard are not what anybody takes back.
+selection — and nothing it changes reaches the session. What a handler says about a change of its
+own is `Reply::Repaint`, the frame being owed again. **A leaf is not a meaning**: the keyboard moves
+where the event is addressed, and a press that moved it owes the frame even where no handler
+answers. The bar's three keys — `F10`, `Alt` plus a navigation character and the `Esc` with nothing
+left to close — are read by the bar, so the bar is the one handler that moves the keyboard (D4 and
+rule 5 of #189). **These three are about the screen and not about what a person means to do**, and
+undo never holds one: a selection, an open drop-down and the leaf that holds the keyboard are not
+what anybody takes back.
 
 **An action that is carried out repaints.** An entry taken closes the drop-down before its meaning
 is carried out, so the frame that follows is owed by the action rather than by a second one:
@@ -369,11 +375,11 @@ do about it, and paints a frame when the reply owes it. The application answers 
 what to do at the start, what to paint, what to do about an event, and what to do about a failure —
 and the loop owns everything else about when they are asked.
 
-**The widgets are the framework's.** The menu bar, the drop-down it opens, the status line, the
-`MsgDialog` the message dialog is drawn in, and the `DialogFrame` and `TextInput` of the open and
-save dialogs are widgets, and what they look like, how they are drawn and which keys they answer to
-are theirs. So is the rectangle a click is tested against: the widget knows where its labels are
-only once it has been drawn, and a click is tested against the areas of the frame before it.
+**The widgets are the framework's.** The menu bar, the drop-down it opens, the `MsgDialog` the
+message dialog is drawn in, and the `DialogFrame` and `TextInput` of the open and save dialogs are
+widgets, and what they look like, how they are drawn and which keys they answer to are theirs. So is
+the rectangle a click is tested against: the widget knows where its labels are only once it has been
+drawn, and a click is tested against the areas of the frame before it.
 
 **The scrollbar is the framework's.** The bar is the helper's, with its own symbols, style and
 thumb, its own mapping from a cell of the track to an offset, and its own reading of the wheel and
@@ -422,7 +428,7 @@ framework's buffer one at a time.
 - The diagram region holds the keyboard at startup, and a left press moves it to the rectangle it
   lands in; a press on the border gives the region the keyboard without selecting a shape. `Esc`
   closes the drop-down, and the next one gives the keyboard back to the region; `Esc` in the region
-  changes nothing.
+  drops the active selection and owes a repaint, or changes nothing when nothing is selected.
 - The control the keyboard is on is drawn in reverse video over the theme's colors, and the region
   has no focus cue of its own.
 - A drop-down leaves the region byte-identical when it closes.
@@ -517,10 +523,11 @@ framework's buffer one at a time.
   table of actions would be another. What would settle it: the first command that needs a name. Undo
   did not force it — the two entries are written in both places as `Delete` is, and nothing reads
   one from the other yet.
-- **What the status bar says.** It names the application and its version, and it says how far the
-  drawing reaches — the footprint of _The buffer_ in [`model.md`](model.md), as §2 states. What else
-  it should say is open: the state of the session — what has been changed and what can be undone —
-  is the editing surface's, and it is what the rest of the row is for;
+- **What the status bar says.** The contextual two-row bar format and its idle and selection content
+  are settled by [#279](https://github.com/andresmoschini/monospace/issues/279). Multi-line wrapping
+  without truncation and dynamic bar height are tracked in
+  [#280](https://github.com/andresmoschini/monospace/issues/280). What the bar says about the state
+  of the session — what has been changed and what can be undone — is the editing surface's, and
   [#226](https://github.com/andresmoschini/monospace/issues/226) owns it.
 - **The light terminal.** The framework has light palettes and a light theme, and the light theme is
   the dark one over a light palette, so "looks right on a light terminal" is a palette to choose
