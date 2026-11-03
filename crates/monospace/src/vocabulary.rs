@@ -72,10 +72,9 @@ pub(crate) enum Action {
     ///
     /// **The meaning and not the identity**, as [`Self::Delete`] is: the shape is read from the
     /// state where the action is carried out, so the four arrows are one action carrying a delta
-    /// rather than four actions naming a figure each. **A move with nothing selected moves nothing
-    /// and paints all the same**: what owes the frame is the action having been carried out, not
-    /// the drawing having changed. While the diagram region no longer emits this action without a
-    /// selection, `apply` continues to accept it.
+    /// rather than four actions naming a figure each. **A move with nothing selected moves
+    /// nothing**: the action is applied all the same, and `apply` continues to accept it, although
+    /// the region no longer emits it without a selection.
     Move(i16, i16),
 
     /// The selected shape is resized by `(dx, dy)` cells, and the frame is owed either way.
