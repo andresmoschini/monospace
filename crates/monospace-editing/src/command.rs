@@ -19,7 +19,9 @@ use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Reference, Shape, Shap
 ///
 /// The identities are compared by value, so one issued by another diagram is a well-formed value
 /// matching nothing here — the same answer the diagram gives everything that names a figure it
-/// does not hold. **A command naming nothing is a step like any other**: see
+/// does not hold. **A command that changes nothing is not a step** (#285): the session records one only for
+/// the diagram a command leaves, so one naming a figure the diagram does not hold, and one
+/// whose change gives the figure back, leave the history where it was. See
 /// [`Session`](crate::Session) and §5 of the model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -80,59 +82,48 @@ impl Command {
     /// reachable from inside the crate and nowhere else, so the claim is a rule about the type
     /// rather than a request from outside it.
     ///
-    /// **The result is what the session is built from**, so dropping it would build a session over
-    /// the diagram a command found rather than the one it left — a history that walks over states
-    /// the session never reached, and nothing would say so. `must_use_candidate` does not ask for
-    /// this on a `pub(crate)` method, which is why the attribute is here rather than inferred.
-    #[must_use]
-    pub(crate) fn apply_to(&self, diagram: &Diagram) -> Diagram {
+    /// **`None` is the diagram the command found, and it is not a failure.** A figure the diagram does
+    /// not hold, a change that gives the figure back as it was, and a figure brought forward when it is
+    /// already at the front are one answer: nothing changed. What `Some` holds is the whole diagram the
+    /// command left, and the session records it as the step.
+    pub(crate) fn apply_to(&self, diagram: &Diagram) -> Option<Diagram> {
         match *self {
-            Self::Move { id, by } => {
-                // Read, then write, so the figure's own displacement decides what goes back: a
-                // delta of nothing gives back the same figure, and `replace` on an identity this
-                // diagram does not hold changes nothing.
-                if let Some(moved) = diagram.get(id).map(|shape| shape.displaced_by(by)) {
-                    diagram.replace(id, moved)
-                } else {
-                    diagram.clone()
-                }
-            }
-            Self::Resize { id, by } => {
-                // The figure's own resized_by decides what goes back: lines and connectors
-                // come back equal, and an identity this diagram does not hold changes nothing.
-                if let Some(resized) = diagram.get(id).map(|shape| shape.resized_by(by)) {
-                    diagram.replace(id, resized)
-                } else {
-                    diagram.clone()
-                }
-            }
-            Self::Hang { id, from, anchor } => {
-                // **Only the end's attachment changes.** The terminal it writes stays what it was,
-                // and the direction it leaves in is derived from the anchor it hangs from.
-                if let Some(Shape::Connector {
+            Self::Move { id, by } => changed(diagram, id, |shape| shape.displaced_by(by)),
+            Self::Resize { id, by } => changed(diagram, id, |shape| shape.resized_by(by)),
+            Self::Hang { id, from, anchor } => changed(diagram, id, |shape| match shape {
+                Shape::Connector {
                     from: end,
                     to,
                     stroke,
-                    ..
-                }) = diagram.get(id).cloned()
-                {
-                    diagram.replace(
-                        id,
-                        Shape::Connector {
-                            from: Endpoint::reference(
-                                Reference::new(from, anchor, Delta { dx: 0, dy: 0 }, 0),
-                                end.terminal,
-                            ),
-                            to,
-                            stroke,
-                        },
-                    )
-                } else {
-                    diagram.clone()
-                }
-            }
-            Self::Forward { id } => diagram.forward(id),
-            Self::Remove { id } => diagram.remove(id),
+                } => Shape::Connector {
+                    from: Endpoint::reference(
+                        Reference::new(from, anchor, Delta { dx: 0, dy: 0 }, 0),
+                        end.terminal.clone(),
+                    ),
+                    to: to.clone(),
+                    stroke: stroke.clone(),
+                },
+                Shape::Box { .. } | Shape::Line { .. } => shape.clone(),
+            }),
+            Self::Forward { id } => diagram.can_forward(id).then(|| diagram.forward(id)),
+            Self::Remove { id } => diagram.get(id).map(|_| diagram.remove(id)),
         }
     }
+}
+
+/// The diagram `change` leaves, or `None` when it leaves the figure `id` names as it found it.
+///
+/// **A figure that is not there and a change that gives the same figure back are one answer**: the
+/// diagram a command leaves is the one it was given, and nothing above this line needs to tell the
+/// two apart. `Shape` compares by value, which is the diagram's own notion of the same figure and
+/// not a second one written here.
+fn changed(
+    diagram: &Diagram,
+    id: ShapeId,
+    change: impl FnOnce(&Shape) -> Shape,
+) -> Option<Diagram> {
+    let before = diagram.get(id)?;
+    let after = change(before);
+
+    (after != *before).then(|| diagram.replace(id, after))
 }

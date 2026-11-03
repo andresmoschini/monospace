@@ -280,8 +280,9 @@ with an arrow with nothing selected ignores the key (`Control::Continue`) and pe
 leaving it unhandled. **Resizing is the region's only while it holds the keyboard**, and only
 `Shift` acts — no other modifier combination (`Ctrl`, `Alt`) resizes. While a line or connector is
 selected, the key is ignored (`Control::Continue`) and performs no command, just as with nothing
-selected. While a box is at its minimum size (2×2), the command is still dispatched and records a
-step, but the figure comes back unchanged.
+selected. While a box is at its minimum size (2×2), the command is still dispatched and leaves the
+figure unchanged, so **the frame is owed and no step is recorded** (#285): the bar and the region
+decide whether the key applies, and the session decides whether it changed anything.
 
 **Undo and Redo are the actions that give a step back.** Each is reached by a key and by the Edit
 menu's entry, and both apply that same action rather than a code path each: `Ctrl+Z` and **Undo**,
@@ -507,6 +508,9 @@ framework's buffer one at a time.
 - A figure moved past the window's edge is not drawn.
 - `Shift` with an arrow resizes the selected box one cell along the arrow's axis, records one step,
   and leaves the selection on it.
+- A command that changes nothing records no step: a resize at the smallest size, a figure brought
+  forward at the front, and a command naming a figure the drawing does not hold all leave the
+  history where it was, what was ahead of the position included.
 - `Shift` with an arrow with nothing selected performs no command and leaves the key unhandled.
 - `Shift` with an arrow with a line or a connector selected performs no command and leaves the key
   unhandled.

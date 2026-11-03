@@ -156,17 +156,28 @@ and would make the field hold the newest state rather than the first: a second p
 be, one whose contents change with every command, and an answer at the end of the history that is a
 case of its own because the newest state is the one state kept outside it.
 
-**One command is one step, and the session merges nothing.** A caller asks, and what it asked for is
-one thing the caller may give back. The session records and does not interpret: it holds what it was
-told and what the diagram looked like afterwards, and it draws no conclusion from the pair. §3 says
-why that conclusion is available and _Deliberately unresolved_ says what is left to write.
+**One command that changed the diagram is one step, and the session merges nothing.** A caller asks,
+and what it asked for is one thing the caller may give back. The session records and does not
+interpret: it holds what the command answered and what the diagram looked like afterwards, and it
+draws no conclusion from the pair. §3 says why that conclusion is available and _Deliberately
+unresolved_ says what is left to write.
 
-**A command that names nothing is a step like any other.** The diagram's operations cannot fail, so
-a command naming a figure the diagram does not hold changes nothing — and the session records it all
-the same, because the session does not know whether the caller meant to do something. The
-alternative, recording only commands that altered the diagram, would make the history shorter and
-would make undo skip a step the caller took, and a history that does not match what was done is
-worse than one longer than it needed to be.
+**A command that changes nothing records no step.** The diagram's operations cannot fail, so a
+command naming a figure the diagram does not hold changes nothing, and neither does one whose change
+gives back the figure it found — a box at its smallest shrunk again, a line resized, a figure
+brought forward when it is already at the front. **A step is a change**, and a step that gives the
+same diagram back is one `Undo` presses past: a person who presses it once sees nothing happen.
+
+**What answers it is the command, and not the caller.** The session does not ask what was meant; it
+asks the command what it did, and `apply_to` answers with the diagram it leaves or with nothing at
+all. **Why not** recording the step and letting `Undo` skip it: the empty steps stay in the history,
+and `can_undo` stops being answerable without walking it. **Why not** comparing the two diagrams in
+the session: a diagram holds no equality of its own, and the command already knows which figure it
+touched.
+
+**A command that changes nothing leaves the history untouched, what was ahead included.** The
+position does not move, so a no-op between a give-back and a redo discards no branch. **A branch is
+discarded by moving on from a state**, and a command that changed nothing did not move.
 
 ## 6. Giving a change back
 
@@ -181,9 +192,11 @@ session standing one place earlier over the same steps** — a new position rath
 and no diagram copied to produce it.
 
 **The history is linear.** A session at a position has steps behind it and steps ahead of it, and
-giving a step back moves the position rather than removing anything. A command carried out while the
-position is behind the end discards the steps ahead, which is what makes the history a line rather
-than a tree: there is one way back from any point, and only the newest one is kept.
+giving a step back moves the position rather than removing anything. A command that changed the
+diagram, carried out while the position is behind the end, discards the steps ahead, which is what
+makes the history a line rather than a tree: there is one way back from any point, and only the
+newest one is kept. **A command that changed nothing discards nothing** (§5): it is not a step, so
+the steps ahead survive.
 
 **Nothing is given back when there is nothing to give back.** At the oldest position there is no
 step behind, and at the newest there is none ahead, and asking in either direction changes nothing —
@@ -241,8 +254,11 @@ ambiguity is worth one sentence rather than two names, because both are diagrams
 
 - Giving back every step in order reaches the diagram the session was created over.
 - Redoing them reaches the diagram the session held before any of it was given back.
-- A command naming a figure the diagram does not hold leaves the diagram equal and is still a step.
-- A command carried out after a step was given back leaves nothing ahead of the position to give.
+- A command that changes nothing — a figure the diagram does not hold, a box at its smallest, a line
+  resized, a figure brought forward at the front — leaves the diagram equal, records no step, and
+  leaves what was ahead of the position ahead.
+- A command that changed the diagram, carried out after a step was given back, leaves nothing ahead
+  of the position to give.
 - Each command is what one of the diagram's five operations becomes, and no command reaches the
   diagram by any other way. **Not the other way round**: `add` and `backward` are two of the five
   and the initial set of commands reaches neither, because adding a figure is not one thing a caller
@@ -257,12 +273,9 @@ Each of these is waiting for an answer, and the answer is prose in this document
 that owns what the question is about where nothing outside it can observe the choice. A feature spec
 that needs one of them answered amends this document first and then implements the slice.
 
-- **What is a command that means nothing about a figure the diagram does not hold?** §5 answers it:
-  the step is recorded anyway. What it does not answer is whether the step is worth keeping, which
-  is the same question as how far back the history reaches and is settled there.
 - **Can a session be handed a diagram that has already been edited?** A diagram is a value, so one
   can be produced any way and opened. Whether the session should care where its diagram came from is
   _Deliberately unresolved_, and this question is what settles it.
-- **Does a command know what it did?** §3 gives it the session and no way to be asked afterwards,
-  which is enough for deciding what to record and not enough for a caller that wants to know what
-  happened. Nothing needs the answer yet.
+- **Does a command know what it did?** It answers whether it changed the diagram, which is what the
+  session records on, and no more: a caller still cannot ask it what happened. Nothing needs that
+  answer yet.

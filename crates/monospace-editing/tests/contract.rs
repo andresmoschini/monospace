@@ -76,6 +76,20 @@ fn small_box(at: Pos) -> Shape {
     }
 }
 
+/// The smallest a box shrinks to: a `2×2`, under which `BoxShape` draws nothing.
+fn smallest_box(at: Pos) -> Shape {
+    Shape::Box {
+        at,
+        size: Size {
+            width: 2,
+            height: 2,
+        },
+        stroke: Stroke::from("light"),
+        fill: None,
+        text: None,
+    }
+}
+
 /// A diagram holding one of the boxes above and nothing else, so its `add` hands back `1`.
 fn one_box(at: Pos) -> Diagram {
     Diagram::new().add(small_box(at)).0
@@ -398,13 +412,13 @@ fn no_command_reaches_the_diagram_by_another_way() {
     );
 }
 
-/// Rule 5 — a command is a step whether or not it changed the diagram.
+/// Rule 5 — a command that changes nothing is not a step.
 ///
 /// **The specification's fifth line**, a command naming a figure the diagram does not hold. It
-/// changes nothing, it is recorded all the same, and giving it back changes nothing and leaves
-/// something to carry out again — which is the rule as a caller meets it.
+/// changes nothing, records no step, and leaves what was ahead of the position untouched — which is
+/// the rule as a caller meets it.
 #[test]
-fn a_command_naming_nothing_is_still_a_step() {
+fn a_command_naming_nothing_records_no_step() {
     let mut session = Session::new(one_box(ORIGIN));
     let as_written = picture(&session);
 
@@ -418,17 +432,10 @@ fn a_command_naming_nothing_is_still_a_step() {
         as_written,
         "a command naming a figure the diagram does not hold changes nothing"
     );
-    assert!(session.can_undo(), "and left a step behind it all the same");
-
-    session = session.undo();
-    assert_eq!(
-        picture(&session),
-        as_written,
-        "and giving it back changes nothing"
-    );
+    assert!(!session.can_undo(), "and records no step");
     assert!(
-        session.can_redo(),
-        "which leaves it available to be carried out again"
+        !session.can_redo(),
+        "and leaves nothing ahead of a position that did not move"
     );
 }
 
@@ -870,7 +877,7 @@ fn a_resize_command_changes_the_size() {
 }
 
 #[test]
-fn a_resize_naming_nothing_leaves_the_diagram_untouched() {
+fn a_resize_naming_nothing_leaves_the_diagram_untouched_and_records_no_step() {
     let session = Session::new(the_fixture()).perform(Command::Resize {
         id: id(999),
         by: Delta { dx: 2, dy: 1 },
@@ -878,6 +885,137 @@ fn a_resize_naming_nothing_leaves_the_diagram_untouched() {
     assert_eq!(
         picture_in(session.diagram(), FIXTURE),
         picture_in(&the_fixture(), FIXTURE)
+    );
+    assert!(!session.can_undo(), "and no step was recorded");
+}
+
+#[test]
+fn a_resize_at_the_smallest_size_records_no_step() {
+    let diagram = Diagram::new().add(smallest_box(ORIGIN)).0;
+    let session = Session::new(diagram);
+    let before = picture_in(session.diagram(), EXAMPLE);
+
+    let shrunk = session.perform(Command::Resize {
+        id: id(1),
+        by: Delta { dx: -1, dy: -1 },
+    });
+    assert_eq!(
+        picture_in(shrunk.diagram(), EXAMPLE),
+        before,
+        "shrinking a 2×2 box changes nothing"
+    );
+    assert!(!shrunk.can_undo(), "and records no step");
+
+    let grown = shrunk.perform(Command::Resize {
+        id: id(1),
+        by: Delta { dx: 1, dy: 0 },
+    });
+    assert!(
+        grown.can_undo(),
+        "but growing it again records its step as any other command"
+    );
+}
+
+#[test]
+fn hanging_an_end_where_it_already_hangs_records_no_step() {
+    let session = Session::new(the_fixture());
+    let initial_pic = picture_in(session.diagram(), FIXTURE);
+
+    let hung = session.perform(Command::Hang {
+        id: id(3),
+        from: id(1),
+        anchor: Anchor::Bottom,
+    });
+    assert!(hung.can_undo(), "hanging an end records its step");
+
+    let hung_again = hung.perform(Command::Hang {
+        id: id(3),
+        from: id(1),
+        anchor: Anchor::Bottom,
+    });
+    assert_eq!(
+        picture_in(hung_again.diagram(), FIXTURE),
+        picture_in(hung.diagram(), FIXTURE),
+        "hanging it where it already hangs changes nothing"
+    );
+
+    let undone = hung_again.undo();
+    assert_eq!(
+        picture_in(undone.diagram(), FIXTURE),
+        initial_pic,
+        "so a single undo returns to the initial state"
+    );
+}
+
+#[test]
+fn a_forward_of_the_front_most_figure_records_no_step() {
+    let session = Session::new(the_fixture());
+    let initial_pic = picture_in(session.diagram(), FIXTURE);
+
+    let no_op = session.perform(Command::Forward { id: id(3) });
+    assert_eq!(
+        picture_in(no_op.diagram(), FIXTURE),
+        initial_pic,
+        "forwarding the front-most figure changes nothing"
+    );
+    assert!(!no_op.can_undo(), "and records no step");
+
+    let moved = session.perform(Command::Forward { id: id(1) });
+    assert!(
+        moved.can_undo(),
+        "forwarding an obscured figure records a step"
+    );
+}
+
+#[test]
+fn a_remove_naming_nothing_records_no_step() {
+    let session = Session::new(one_box(ORIGIN));
+    let initial_pic = picture(&session);
+
+    let after_remove = session.perform(Command::Remove { id: id(9) });
+    assert_eq!(picture(&after_remove), initial_pic);
+    assert!(!after_remove.can_undo());
+}
+
+#[test]
+fn a_move_by_nothing_records_no_step() {
+    let session = Session::new(one_box(ORIGIN));
+    let initial_pic = picture(&session);
+
+    let after_move = session.perform(Command::Move {
+        id: id(1),
+        by: Delta { dx: 0, dy: 0 },
+    });
+    assert_eq!(picture(&after_move), initial_pic);
+    assert!(!after_move.can_undo());
+}
+
+#[test]
+fn a_command_that_changes_nothing_leaves_what_was_ahead() {
+    let session = Session::new(one_box(ORIGIN));
+    let moved = session.perform(Command::Move {
+        id: id(1),
+        by: Delta { dx: 2, dy: 0 },
+    });
+    let moved_pic = picture(&moved);
+
+    let undone = moved.undo();
+    assert!(undone.can_redo());
+
+    let no_op = undone.perform(Command::Move {
+        id: id(9),
+        by: Delta { dx: 1, dy: 0 },
+    });
+    assert!(
+        no_op.can_redo(),
+        "a command that changed nothing preserves what was ahead"
+    );
+
+    let redone = no_op.redo();
+    assert_eq!(
+        picture(&redone),
+        moved_pic,
+        "and redo restores the state that was ahead"
     );
 }
 

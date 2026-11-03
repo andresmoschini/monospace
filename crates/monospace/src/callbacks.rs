@@ -329,6 +329,14 @@ mod tests {
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
     }"#;
 
+    /// A description whose only shape is a light `2×2` box at `(2, 1)`: the smallest a box shrinks to,
+    /// so shrinking it again changes nothing.
+    const A_BOX_AT_ITS_SMALLEST: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 2, "height": 2 }, "stroke": "light" } ]
+    }"#;
+
     /// The arrangement §4 and §6 of the diagram model are shown with: a box at the left, a box at
     /// the right, and one connector hung from the right side of the first and reaching the left
     /// side of the second.
@@ -2046,6 +2054,30 @@ mod tests {
         };
         assert_eq!(size.width, 5);
         assert_eq!(size.height, 3);
+    }
+
+    /// **A box at its minimum still accepts the resize and records no step** (#285).
+    ///
+    /// **The key is dispatched and the frame is owed**, which is what #288 settled: the box has a
+    /// size, so the region answers. What does not happen is a step: the figure comes back 2×2, so
+    /// `Undo` has nothing to give back.
+    #[test]
+    fn a_box_at_its_minimum_accepts_the_resize_and_records_no_step() {
+        let mut state = a_drawn_state_over(A_BOX_AT_ITS_SMALLEST);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram().selected().is_some(),
+            "the box was not selected"
+        );
+
+        let shift_left = Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT));
+        let outcome = send(&shift_left, &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.diagram().can_undo(),
+            "a resize that changes no size records no step"
+        );
     }
 
     /// **With nothing selected, Shift+arrow performs no command and records no step** (rule 4 of #284).
