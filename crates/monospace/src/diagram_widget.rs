@@ -136,6 +136,14 @@ fn displacement(event: &Event) -> Option<(i16, i16)> {
         return None;
     };
 
+    arrow_direction(*code)
+}
+
+/// The delta along screen axes named by the four arrow keys, or `None` for any other key code.
+///
+/// Right is one cell along the x axis, Down along the y one, and the two negatives are the other
+/// directions.
+fn arrow_direction(code: KeyCode) -> Option<(i16, i16)> {
     match code {
         KeyCode::Right => Some((1, 0)),
         KeyCode::Left => Some((-1, 0)),
