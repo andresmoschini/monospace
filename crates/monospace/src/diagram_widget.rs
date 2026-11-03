@@ -96,6 +96,10 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
 /// the delta the arrow names and no identity, and the selection is read where the action is carried
 /// out.
 ///
+/// **Shift plus an arrow resizes the selected figure one cell** (rules 1 and 4 of #284): if a figure
+/// is selected, `Action::Resize(dx, dy)` is emitted; if nothing is selected, the key is ignored so
+/// the loop continues without a step or repaint.
+///
 /// **Escape clears the active selection** (D1 of #279): pressing Escape while a shape is selected
 /// drops the selection and requests a repaint; pressing Escape with nothing selected changes nothing
 /// and is ignored. A key that is neither an arrow nor Escape is not the region's.
@@ -113,11 +117,36 @@ fn key(raw: &Event, state: &mut DiagramState) -> Reply {
         return Reply::Ignored;
     }
 
+    if let Some((dx, dy)) = resize_delta(raw) {
+        if state.selected().is_some() {
+            return Reply::Act(Action::Resize(dx, dy));
+        }
+        return Reply::Ignored;
+    }
+
     let Some((dx, dy)) = displacement(raw) else {
         return Reply::Ignored;
     };
 
     Reply::Act(Action::Move(dx, dy))
+}
+
+/// The delta Shift plus an arrow names, or `None` for any other event.
+///
+/// **A press with Shift and no other modifier** (rules 1 and 8 of #284): `Ctrl+Shift+arrow` and
+/// other combinations are ignored, and a release or repeat does nothing.
+fn resize_delta(event: &Event) -> Option<(i16, i16)> {
+    let Event::Key(KeyEvent {
+        code,
+        modifiers: KeyModifiers::SHIFT,
+        kind: KeyEventKind::Press,
+        ..
+    }) = event
+    else {
+        return None;
+    };
+
+    arrow_direction(*code)
 }
 
 /// The delta the four arrows name, or `None` for any other event.
@@ -136,6 +165,14 @@ fn displacement(event: &Event) -> Option<(i16, i16)> {
         return None;
     };
 
+    arrow_direction(*code)
+}
+
+/// The delta along screen axes named by the four arrow keys, or `None` for any other key code.
+///
+/// Right is one cell along the x axis, Down along the y one, and the two negatives are the other
+/// directions.
+fn arrow_direction(code: KeyCode) -> Option<(i16, i16)> {
     match code {
         KeyCode::Right => Some((1, 0)),
         KeyCode::Left => Some((-1, 0)),
@@ -598,6 +635,49 @@ mod tests {
             handle(&key(KeyCode::Char('x')), &mut state, Focus::Region),
             Reply::Ignored,
             "a key that is no arrow was the region's"
+        );
+    }
+
+    /// **Shift plus an arrow resizes when a shape is selected** (rule 1 of #284).
+    #[test]
+    fn shift_arrows_resize_when_a_shape_is_selected() {
+        let mut state = a_state_over(A_BOX);
+        let _ = paint(&mut state);
+        let at = screen(2, 1);
+        let _ = handle(&click(at.x, at.y), &mut state, Focus::Region);
+        assert!(state.selected().is_some());
+
+        for (arrow, delta) in [
+            (KeyCode::Right, (1, 0)),
+            (KeyCode::Left, (-1, 0)),
+            (KeyCode::Up, (0, -1)),
+            (KeyCode::Down, (0, 1)),
+        ] {
+            assert_eq!(
+                handle(
+                    &Event::Key(KeyEvent::new(arrow, KeyModifiers::SHIFT)),
+                    &mut state,
+                    Focus::Region,
+                ),
+                Reply::Act(Action::Resize(delta.0, delta.1)),
+                "{arrow:?} with Shift did not answer the resize"
+            );
+        }
+    }
+
+    /// **Shift plus an arrow is ignored when nothing is selected** (rule 4 of #284).
+    #[test]
+    fn shift_arrows_are_ignored_when_nothing_is_selected() {
+        let mut state = a_state_over(A_BOX);
+        assert_eq!(state.selected(), None);
+
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Ignored
         );
     }
 

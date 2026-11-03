@@ -274,6 +274,22 @@ fn each_command_becomes_one_of_the_diagrams_five_operations() {
     );
 
     assert_eq!(
+        after(&Command::Resize {
+            id: id(1),
+            by: two_down,
+        }),
+        after_operating(|diagram| {
+            let resized = diagram.get(id(1)).map(|shape| shape.resized_by(two_down));
+            if let Some(resized) = resized {
+                diagram.replace(id(1), resized)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`Resize` is `replace` with the figure resized"
+    );
+
+    assert_eq!(
         after(&Command::Hang {
             id: id(3),
             from: id(1),
@@ -342,6 +358,10 @@ fn no_command_reaches_the_diagram_by_another_way() {
         Command::Move {
             id: id(7),
             by: Delta { dx: 1, dy: 1 },
+        },
+        Command::Resize {
+            id: id(7),
+            by: Delta { dx: 2, dy: 1 },
         },
         Command::Remove { id: id(2) },
         Command::Remove { id: id(7) },
@@ -827,4 +847,87 @@ fn drawing_what_a_session_holds_needs_no_copy() {
         "the copy did not move with the session's diagram"
     );
     assert_eq!(picture(&session), FOUR_RIGHT, "which did");
+}
+
+#[test]
+fn a_resize_command_changes_the_size() {
+    let session = Session::new(the_fixture()).perform(Command::Resize {
+        id: id(1),
+        by: Delta { dx: 2, dy: 1 },
+    });
+
+    let Shape::Box { size, .. } = session.diagram().get(id(1)).expect("box is still there") else {
+        panic!("expected box");
+    };
+
+    assert_eq!(
+        *size,
+        Size {
+            width: 6,
+            height: 4
+        }
+    );
+}
+
+#[test]
+fn a_resize_naming_nothing_leaves_the_diagram_untouched() {
+    let session = Session::new(the_fixture()).perform(Command::Resize {
+        id: id(999),
+        by: Delta { dx: 2, dy: 1 },
+    });
+    assert_eq!(
+        picture_in(session.diagram(), FIXTURE),
+        picture_in(&the_fixture(), FIXTURE)
+    );
+}
+
+#[test]
+fn two_resizes_are_two_steps() {
+    let session = Session::new(one_box(ORIGIN));
+    let after_one = session.perform(Command::Resize {
+        id: id(1),
+        by: Delta { dx: 1, dy: 0 },
+    });
+    let after_two = after_one.perform(Command::Resize {
+        id: id(1),
+        by: Delta { dx: 0, dy: 1 },
+    });
+
+    let Shape::Box { size: size_two, .. } = after_two.diagram().get(id(1)).expect("box") else {
+        panic!("expected box");
+    };
+    assert_eq!(
+        *size_two,
+        Size {
+            width: 5,
+            height: 4
+        }
+    );
+
+    let undone = after_two.undo();
+    let Shape::Box { size: size_one, .. } = undone.diagram().get(id(1)).expect("box") else {
+        panic!("expected box");
+    };
+    assert_eq!(
+        *size_one,
+        Size {
+            width: 5,
+            height: 3
+        }
+    );
+
+    let undone_twice = undone.undo();
+    let Shape::Box {
+        size: size_orig, ..
+    } = undone_twice.diagram().get(id(1)).expect("box")
+    else {
+        panic!("expected box");
+    };
+    assert_eq!(
+        *size_orig,
+        Size {
+            width: 4,
+            height: 3
+        }
+    );
 }

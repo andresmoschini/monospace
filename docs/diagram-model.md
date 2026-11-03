@@ -425,6 +425,12 @@ once — a connector is not the exception to this. Displacing a figure builds a 
 nothing in a diagram; replacing is what puts the value in. What a displacement means for a position
 that is a reference is stated under _Positions_.
 
+Resizing is a replacement too: the new shape is the old one resized by a delta in width and height.
+Resizing a box changes its `size` while keeping its anchor `at`, clamped so that neither dimension
+falls below 2 (or below its current dimension if it was already smaller) nor exceeds `u16::MAX`.
+Resizing a line or a connector leaves the shape unchanged. Resizing builds a value and changes
+nothing in a diagram; replacing is what puts the value in.
+
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A
 shape put back under the removed identity is not re-hung from, because nothing went looking for the

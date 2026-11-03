@@ -77,6 +77,12 @@ pub(crate) enum Action {
     /// the drawing having changed.
     Move(i16, i16),
 
+    /// The selected shape is resized by `(dx, dy)` cells, and the frame is owed either way.
+    ///
+    /// **The meaning and not the identity**, as [`Self::Move`] is: the shape is read from the
+    /// state where the action is carried out.
+    Resize(i16, i16),
+
     /// The About dialog is opened, and the frame is owed.
     ///
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,
