@@ -19,7 +19,9 @@ use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Reference, Shape, Shap
 ///
 /// The identities are compared by value, so one issued by another diagram is a well-formed value
 /// matching nothing here — the same answer the diagram gives everything that names a figure it
-/// does not hold. **A command naming nothing is a step like any other**: see
+/// does not hold. **A command that changes nothing is not a step** (#285): the session records one only for
+/// the diagram a command leaves, so one naming a figure the diagram does not hold, and one
+/// whose change gives the figure back, leave the history where it was. See
 /// [`Session`](crate::Session) and §5 of the model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {

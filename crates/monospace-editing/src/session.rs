@@ -49,6 +49,9 @@ use crate::{Command, Step};
 /// was ahead, which is the only end a line can discard from without changing what giving a step
 /// back means.
 ///
+/// **A command that changes nothing records nothing and discards nothing** (#285): the session
+/// comes back as it was, so a branch is only ever cut by a command that moved the drawing.
+///
 /// **The steps are held in the same persistent sequence the diagram holds its figures in**, so a
 /// session standing at one place in a history shares every step with one standing at another
 /// rather than copying them — and a step is a whole diagram beside a command, which is what makes
@@ -239,15 +242,19 @@ impl Session {
     /// in place; the walk is where the cost of that choice is written down rather than paid
     /// silently here.
     ///
-    /// **It is recorded whether or not the command changed anything**, including a command naming
-    /// a figure this diagram does not hold. The session does not know whether the caller meant to
-    /// do something, and a history that skipped a step the caller took is worse than one longer
-    /// than it needed to be.
+    /// **A command that changed nothing records no step** (#285). The diagram's operations cannot
+    /// fail, so a command naming a figure it does not hold changes nothing, and neither does one
+    /// whose change gives the figure back as it was — a box at its smallest shrunk again, a line
+    /// resized, a figure brought forward when it is already at the front. **What comes back is
+    /// this session**: the same steps, the same position and the same diagram, so what was ahead
+    /// of the position stays ahead and a no-op discards no branch. The command knows which figure
+    /// it touched and answers whether that figure changed; nothing here compares two diagrams,
+    /// which a diagram has no way of doing.
     #[must_use]
     pub fn perform(&self, command: Command) -> Self {
-        let made = command
-            .apply_to(self.diagram())
-            .unwrap_or_else(|| self.diagram().clone());
+        let Some(made) = command.apply_to(self.diagram()) else {
+            return self.clone();
+        };
 
         let mut steps = kept_first(&self.steps, self.position);
         steps.push_back_mut(Step::new(command, made));

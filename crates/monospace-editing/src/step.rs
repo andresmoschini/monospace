@@ -6,7 +6,7 @@ use monospace_diagram::Diagram;
 
 use crate::Command;
 
-/// What a session pushes after it carries out a command.
+/// What a session pushes after it carries out a command that changed the diagram.
 ///
 /// **Both halves are needed and a diagram alone cannot stand in for the other.** A diagram records
 /// what is true and never what was done to it — a figure dragged one cell and the same figure

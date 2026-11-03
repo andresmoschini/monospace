@@ -233,7 +233,10 @@ impl DiagramState {
         });
     }
 
-    /// Performs `command` on the session, recording its one step.
+    /// Performs `command` on the session, recording a step when it changes the diagram.
+    ///
+    /// **A command that changes nothing records no step** (#285): the session is handed back as it
+    /// was, and the action is still carried out, which is why the caller still owes the frame.
     ///
     /// **The session is the only thing performed on, and the application keeps no copy of it.**
     /// Every command a slice adds goes through here, so the layer below stays the one that decides

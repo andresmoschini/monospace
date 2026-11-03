@@ -36,9 +36,9 @@
 //! ownership rule from a sentence into something exercised. The seven pictures before the walk
 //! back are the diagram model's own and this crate contributes only the lines under them.
 //!
-//! **The walk back is one picture per step, and a step exists only where the record named a
-//! shape.** So the shipped description walks eight and an empty one walks none, and what a reader
-//! counts is what the session holds rather than what this function chose to draw.
+//! **The walk back is one picture per step, and a step exists only where the command changed the
+//! diagram.** So the shipped description walks seven (#285) and an empty one walks none, and what a
+//! reader counts is what the session holds rather than what this function chose to draw.
 //!
 //! **The demonstration reads its shapes out of the drawing rather than naming them, and there is
 //! nothing written in beside the lookup to catch a wrong answer.** Every shape it acts on comes from
@@ -568,7 +568,7 @@ fn demonstrate(diagram: Diagram, window: Window) -> String {
     // A description whose tenth entry is not a connector, one with no tenth entry at all, and one
     // whose record names nothing at `(14, 3)`, all have nothing to rehang. Two of those the guard
     // below catches by asking whether the record named anything at all; the third is a command
-    // naming an identity the diagram does not hold, which changes nothing and is still a step.
+    // naming an identity the diagram does not hold, which changes nothing and records no step (#285).
     if let (Some(the_arrow), Some(the_hung_from)) = (the_arrow, the_hung_from) {
         session = session.perform(Command::Hang {
             id: the_arrow,
@@ -656,9 +656,10 @@ fn demonstrate(diagram: Diagram, window: Window) -> String {
     //
     // **The loop asks `can_undo` rather than counting, so the number of pictures is what the session
     // holds and not what this function chose to draw.** Eight commands reach it for the shipped
-    // description — including the two the fifth picture shares, which is what makes the count eight
-    // where the forward count is seven — and none for an empty one, which then prints the same eight
-    // pictures it always did and walks nowhere.
+    // description — including the two the fifth picture shares. The rehang changes nothing and
+    // records no step (#285), which is what makes the count of walked back pictures seven where
+    // eight commands were performed — and an empty description walks nowhere, printing the same eight
+    // pictures it always did.
     //
     // **The last caption says what is true rather than what is counted**: after the final `undo`
     // there is nothing behind the position, so what the picture shows is the diagram the session
@@ -791,7 +792,7 @@ mod tests {
 
     /// Every captioned block of a demonstration's output, as a picture without its caption.
     ///
-    /// **The whole run rather than its first eight**, because the walk back is eight of the blocks
+    /// **The whole run rather than its first eight**, because the walk back is seven of the blocks
     /// now and a helper that stopped at eight would have made it invisible to every test here. Each
     /// carries exactly the trailing newline `render` gives it: the last block already holds one,
     /// since nothing follows it, so it is stripped and put back rather than doubled.
@@ -1023,15 +1024,15 @@ mod tests {
         );
     }
 
-    /// A bare run prints **sixteen** captioned pictures: eight as it changes the diagram and one per
-    /// step as it walks back.
+    /// A bare run prints **fifteen** captioned pictures: eight as it changes the diagram and seven
+    /// walked back (#285).
     ///
     /// The count comes from the blank lines the output holds, and no caption's wording is pinned —
-    /// what is claimed is that there are sixteen of them and that the first is the one a file's run
+    /// what is claimed is that there are fifteen of them and that the first is the one a file's run
     /// prints on its own. Which picture the sixth holds is `the_sixth_picture_moves_only_the_arrow`'s
     /// claim, which the seventh holds is
     /// `the_seventh_picture_takes_the_box_away_and_leaves_the_arrow`'s, and which the eighth holds is
-    /// `the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names`'s. The eight after them
+    /// `the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names`'s. The seven after them
     /// are `the_demonstration_runs_every_step_through_a_session`'s.
     #[test]
     fn a_bare_run_prints_eight_captioned_pictures_the_first_being_the_description_as_written() {
@@ -1039,8 +1040,8 @@ mod tests {
 
         assert_eq!(
             output.split("\n\n").count(),
-            16,
-            "eight pictures as the diagram changes and eight walked back: {output:?}"
+            15,
+            "eight pictures as the diagram changes and seven walked back: {output:?}"
         );
 
         let (first, ..) = demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
@@ -1050,11 +1051,11 @@ mod tests {
     /// Rule 14 — the demonstration wraps its diagram in a session once and performs every step
     /// through it.
     ///
-    /// **Eight pictures after the eighth, one for each step, which is the whole of what "through a
+    /// **Seven pictures after the eighth, one for each step that changed the diagram, which is the whole of what "through a
     /// session" is observable as.** The eight commands are not the seven pictures that follow the
     /// first: the fifth picture is printed after both the rehang and the displacement of the box it
-    /// was rehung from, and the session records each of them, so the count of steps and the count of
-    /// pictures part company here for the first time.
+    /// was rehung from. The rehang changes nothing, so it records no step (#285), and the displacement
+    /// records its one step, so the walk back walks the seven steps that changed the diagram.
     ///
     /// **A description with less in it walks a shorter way, and that is the claim that says the
     /// count comes from the session rather than from a loop.** An empty description records no step
@@ -1067,8 +1068,8 @@ mod tests {
 
         assert_eq!(
             blocks.len(),
-            16,
-            "eight pictures as the diagram changes and one per step walked back"
+            15,
+            "eight pictures as the diagram changes and seven steps walked back"
         );
 
         let empty = demonstrated_blocks(
@@ -1089,15 +1090,15 @@ mod tests {
     /// Rule 15 — the demonstration walks back one picture per step after its last, and its final
     /// picture is the one it began with.
     ///
-    /// **The final picture is the first one, byte for byte.** That is the whole of the walk: eight
-    /// commands in and the description as written out again, with no figure rebuilt and no reference
-    /// re-resolved on the way — which is what a diagram alone could not have done, because
-    /// `Diagram::remove` freezes what hung from the figure it takes and nothing re-hangs it.
+    /// **The final picture is the first one, byte for byte.** That is the whole of the walk: seven
+    /// steps that changed the diagram walked back and the description as written out again, with no
+    /// figure rebuilt and no reference re-resolved on the way — which is what a diagram alone could
+    /// not have done, because `Diagram::remove` freezes what hung from the figure it takes and nothing
+    /// re-hangs it.
     ///
-    /// **One of the eight is a picture the run never printed going forward.** The rehang hangs the
-    /// arrow's `from` end from the box it already hangs from, so it changes nothing a picture can
-    /// show — and it is a step all the same, which is why two of the eight walked-back pictures are
-    /// the same picture and why the walk is eight pictures long where the forward run is seven.
+    /// **The rehang changed no cell and records no step** (#285): the arrow already hung where it
+    /// was hung, so `Session::perform` recorded no step and the walk back has seven pictures rather
+    /// than eight. Each walked-back picture is the picture the forward run printed for that state.
     #[test]
     fn the_demonstration_walks_back_to_the_picture_it_began_with() {
         let blocks = demonstrated_blocks(super::DEMO, super::DEMO_WINDOW);
@@ -1108,46 +1109,14 @@ mod tests {
             "the last picture walked back is the one the run began with"
         );
 
-        // The pictures as the diagram changed, and the ones walked back, as the states they hold. The
-        // forward run prints the states 0, 1, 2, 3, 5, 6, 7 and 8; the walk prints 7, 6, 5, 4, 3, 2,
-        // 1 and 0 — eight pictures for eight commands, where the forward run has seven pictures for
-        // the same eight because the fifth is printed after two of them. **The block number is
-        // written out rather than counted**, because the two lists are of different lengths and a
-        // counter would silently walk the second one along.
-        let printed_going_forward = [0_usize, 1, 2, 3, 5, 6, 7, 8];
-        for (walked, state) in [
-            (8_usize, 7_usize),
-            (9, 6),
-            (10, 5),
-            (12, 3),
-            (13, 2),
-            (14, 1),
-            (15, 0),
-        ] {
-            let printed_at = printed_going_forward
-                .iter()
-                .position(|held| *held == state)
-                .expect("every state named here was printed going forward");
+        for step in 0..7 {
+            let walked = 8 + step;
+            let forward = 6 - step;
             assert_eq!(
-                blocks[walked], blocks[printed_at],
-                "the picture walked back to state {state} is the one printed for it"
+                blocks[walked], blocks[forward],
+                "the picture walked back at step {step} matches the forward picture for that state"
             );
         }
-
-        // Block 11 holds state 4, which has no forward picture of its own, and the reason is the rule
-        // rather than an accident: the rehang hangs the arrow's `from` end from the box it already
-        // hangs from, so it changes nothing a picture can show — and it is a step all the same. Two
-        // of the eight walked-back pictures are therefore the same picture, which is what "one
-        // command is one step" looks like in the demonstration's own output.
-        assert_eq!(
-            blocks[11], blocks[12],
-            "the rehang changed no cell and is a step all the same, so two walked-back pictures are \
-             the same picture"
-        );
-        assert_eq!(
-            blocks[11], blocks[3],
-            "and it is the picture the run printed after the shape before it was taken out"
-        );
     }
 
     /// `render_once` over a path prints one picture and nothing else, which is what `cargo xtask
