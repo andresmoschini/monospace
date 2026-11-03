@@ -1,8 +1,8 @@
 # AGENTS.md
 
-OpenCode reads this file at the start of every session. It and `CONTRIBUTING.md` are **the two only
-entry points**: a session that reads neither has no rules at all, so any rule worth having is in one
-of the two, not in a file one of them points at.
+OpenCode, Claude Code, and Antigravity read this file at the start of every session. It and
+`CONTRIBUTING.md` are **the two only entry points**: a session that reads neither has no rules at
+all, so any rule worth having is in one of the two, not in a file one of them points at.
 
 **Read in this order, and stop where your question is answered.**
 
@@ -64,7 +64,7 @@ does not rename anything.
 
 ```sh
 cargo xtask check                   # the whole quality gate; the hook and CI run this and nothing else
-cargo xtask fix                     # every automatic fix the gate knows about
+cargo xtask fix                     # every automatic fix the gate knows about; run before check to save turns
 cargo xtask setup                   # install the Node tooling the gate needs
 cargo xtask render                  # rewrite every picture a tracked document carries, from its description
 cargo xtask change open 163         # open the branch of a change of one stage
@@ -73,6 +73,8 @@ cargo xtask change use 163 building # check out the branch of one stage of an is
 cargo xtask change status 163       # where the change stands, and what to do next
 cargo xtask pr body                 # write target/pr-body.md; fill it, then `cargo xtask pr open`
 cargo run -p monospace-cli          # run the application; a bare `cargo run` is ambiguous
+cargo check -p <crate>              # targeted crate check; sub-second loop
+cargo test -p <crate>               # targeted crate tests; much faster than whole-workspace gate
 cargo test --workspace              # tests only, for a faster loop
 cargo insta review                  # accept a moved snapshot; report what moved first
 ```
@@ -119,15 +121,16 @@ the first thing to bend it. Orchestrating subprocesses and propagating exit code
   third: it prints one row per style the catalog holds and takes no path and no window. Do not add
   output to the path form.
 
-### Two plugins, and what a harness needs to know
+### Harness integrations: OpenCode, Claude Code, and Antigravity
 
-`.opencode/plugins/` holds the two plugins nothing in the gate can execute. They are the only thing
-that installs the git hooks here and the only thing that puts a session id in a commit, so a failure
-in either is silent — check that they loaded before assuming either works.
+`.opencode/plugins/` holds the two OpenCode plugins nothing in the gate can execute;
+`.claude/settings.json` configures Claude Code; `.agents/hooks.json` configures Antigravity. They
+are what install the git hooks and what allow commits to carry session trailers.
 
-- **They log a line when they arm, and it reaches the TUI, not the log file.** Measured: that file
-  has never held a `[monospace]` line whether the plugin loaded or died. Its own `loading plugin`
-  and `failed to load plugin` entries are the readable signal, and the second carries the cause.
+- **OpenCode plugins log a line when they arm, reaching the TUI, not the log file.** Measured: that
+  file has never held a `[monospace]` line whether the plugin loaded or died. Its own
+  `loading plugin` and `failed to load plugin` entries are the readable signal, and the second
+  carries the cause.
 - **A missing line is usually not the API moving.** The loader dies at module resolution first, and
   a local plugin's bare imports resolve from **this project's `node_modules`** — so whatever a
   plugin imports has to be a dependency here. What it must export is a default object carrying an
@@ -135,17 +138,31 @@ in either is silent — check that they loaded before assuming either works.
 - **A reload unloads a plugin without warning.** Anything that checks out these files, a rebase
   among them, drops both until they load again, and a session that loses `session-trailer.js` loses
   the variable with it.
+- **Antigravity configures hooks in `.agents/hooks.json`**, which executes at `SessionStart` to set
+  `core.hooksPath .claude/git-hooks`.
 - **The trailer key differs by client and the hook reads all three.** `commit-msg` reads
   `MONOSPACE_SESSION_ID`, `CLAUDE_CODE_SESSION_ID` and `ANTIGRAVITY_CONVERSATION_ID`; a commit made
   outside an agent shell correctly carries none.
 
 ## Running a session
 
-Every call re-reads the whole context, so a session costs its length squared. Two habits follow:
+Every call re-reads the whole context, so a session costs its length squared. Five habits follow:
 
 - **Read the part, not the file.** `docs/model.md`, `docs/diagram-model.md` and `docs/glyph-sets.md`
   are large enough that opening one whole is a decision. Take a line range, or grep with context.
-- **Delegate a lookup that spans files**, so the files never enter this context.
+- **Delegate a lookup that spans files**, so the files never enter this context. In Antigravity,
+  invoke the `research` subagent (`invoke_subagent`) for architectural discovery and cross-crate
+  investigations rather than performing sequential `read_file` calls in the primary thread.
+- **Run `fix` before `check`, and iterate with targeted checks.** Run `cargo xtask fix` first to let
+  automatic formatters resolve layout in one pass without failing the gate. During code development,
+  iterate with `cargo check -p <crate>` and `cargo test -p <crate>`. Reserve `cargo xtask check` for
+  final pre-commit and pre-PR validation.
+- **Do not poll background tasks.** Long-running commands (such as `cargo xtask check` on Windows)
+  yield and run in the background when they exceed the sync timeout. Do not invoke `manage_task` or
+  loop to poll their status; stop tool calls and let the harness's reactive system notification wake
+  the session upon completion.
+- **Keep sessions scoped.** Maintain one session per stage or distinct task. When a conversation
+  accumulates large history or changes scope, compact or start a new session (`/compact` or `/new`).
 
 ## Known gaps
 
