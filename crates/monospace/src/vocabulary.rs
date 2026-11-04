@@ -62,10 +62,9 @@ pub(crate) enum Action {
     /// The selected shape is taken out of the session, and the frame is owed either way.
     ///
     /// **The meaning and not the identity.** The shape is read from the state where the action is
-    /// carried out, so the key is one row of the shortcut table rather than a second way of
-    /// naming what a click selected. **A deletion with nothing selected removes nothing and still
-    /// paints**: carrying an action out owes the frame, which is what closes the menu's entry on
-    /// the screen when there was no figure to take.
+    /// carried out. Deletion is offered contextually while a figure is selected (D3 of #292).
+    /// **A deletion with nothing selected removes nothing**: `apply` continues to accept it,
+    /// although the region only emits it when a figure is selected.
     Delete,
 
     /// The selected shape is displaced by `(dx, dy)` cells, and the frame is owed either way.

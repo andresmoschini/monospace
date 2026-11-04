@@ -58,9 +58,9 @@ struct Shortcut {
 /// **The rows differ in one column, and that column is the whole of the precedence.** The forced
 /// exit is answered before anything, and the other four after everything: they are the same
 /// mechanism with a different scope, rather than one mechanism per row and an `if` somewhere else.
-/// The deletion, the undo and the redo are `Unclaimed` because they are not the chrome's to
-/// swallow: which keys the chrome keeps is the focus rule #189 owns, and none of the three is one
-/// of the bar's own (D3 of #178, D3 of #181).
+/// The undo and the redo are `Unclaimed` because they are not the chrome's to swallow: which keys
+/// the chrome keeps is the focus rule #189 owns, and neither of the two is one of the bar's own
+/// (D3 of #181).
 ///
 /// **A slice rather than an array of a counted length**: the count of an array is a number beside
 /// the rows it counts, and a row added without it is an error the compiler reports about the wrong
@@ -110,12 +110,6 @@ const SHORTCUTS: &[Shortcut] = &[
         key: KeyCode::Char('Z'),
         modifiers: KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
         reply: Reply::Act(Action::Redo),
-        reach: Reach::Unclaimed,
-    },
-    Shortcut {
-        key: KeyCode::Delete,
-        modifiers: KeyModifiers::NONE,
-        reply: Reply::Act(Action::Delete),
         reach: Reach::Unclaimed,
     },
 ];
@@ -262,10 +256,9 @@ mod tests {
     /// **A shortcut is the combination it shows and not another one.** Every combination a terminal
     /// can report other than the row's own is handed to its reach, and none of them answers.
     ///
-    /// **The alternatives are walked rather than named**: `Delete` is the first row whose own
-    /// combination is no modifier at all, so the walk has to contain the empty set, and a row with
-    /// two modifiers has to be handed the ones it does not have — a hand-written list of single
-    /// modifiers would try neither.
+    /// **The alternatives are walked rather than named**: the walk has to contain the empty set,
+    /// and a row with two modifiers has to be handed the ones it does not have — a hand-written
+    /// list of single modifiers would try neither.
     #[test]
     fn a_shortcut_is_the_combination_it_shows_and_not_another_one() {
         for shortcut in SHORTCUTS {
