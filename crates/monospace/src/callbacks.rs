@@ -2774,6 +2774,171 @@ mod tests {
         assert!(state.diagram().selected().is_some());
     }
 
+    /// The stroke `shape` carries, whichever kind of figure it is.
+    fn stroke_of(shape: &monospace_diagram::Shape) -> monospace_diagram::Stroke {
+        match shape {
+            monospace_diagram::Shape::Box { stroke, .. }
+            | monospace_diagram::Shape::Line { stroke, .. }
+            | monospace_diagram::Shape::Connector { stroke, .. } => stroke.clone(),
+        }
+    }
+
+    /// **A stroke the figure already carries changes nothing** (#285): the command leaves the
+    /// diagram as it found it, so the session records no step and an undo has nothing to give
+    /// back. The key was offered and carried out all the same, so the sub-mode ends and the
+    /// identity stays.
+    #[test]
+    fn setting_identical_stroke_leaves_diagram_untouched_and_records_no_step() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+
+        let outcome = send(&key(KeyCode::Char('1')), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().sub_mode(),
+            None,
+            "the sub-mode survived the stroke it was asked for"
+        );
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("light"),
+            "the stroke changed"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "an unchanged stroke recorded a step"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the identity went with the stroke"
+        );
+    }
+
+    /// **A stroke the figure does not carry is one step** (#292, behavior 5): the diagram holds
+    /// the new stroke, and one undo gives the old one back with nothing behind it.
+    #[test]
+    fn setting_different_stroke_records_one_step_in_session_history() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+
+        let outcome = send(&key(KeyCode::Char('2')), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().sub_mode(),
+            None,
+            "the sub-mode survived the stroke it was asked for"
+        );
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("double"),
+            "the stroke did not change"
+        );
+        assert!(state.diagram().can_undo(), "no step was recorded");
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the identity went with the stroke"
+        );
+
+        let _ = send(&undo_key(), &mut state);
+
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("light"),
+            "one undo did not give the old stroke back"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "the stroke recorded more than one step"
+        );
+    }
+
+    /// **Undo and redo walk the history from inside the sub-mode and leave it alone** (behavior 9):
+    /// the global keys fall through the region, and the sub-mode belongs to the selection, which a
+    /// walk does not touch.
+    #[test]
+    fn undo_and_redo_in_stroke_select_walk_history() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        let _ = send(&key(KeyCode::Char('2')), &mut state);
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect),
+            "the sub-mode was not entered again"
+        );
+
+        let outcome = send(&undo_key(), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("light"),
+            "the undo did not give the old stroke back"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect),
+            "the undo ended the sub-mode"
+        );
+
+        let outcome = send(&redo_key(), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("double"),
+            "the redo did not give the new stroke back"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect),
+            "the redo ended the sub-mode"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the walk changed the selection"
+        );
+    }
+
     /// **Escape drops the active selection** (D1 of #279): pressing Escape while a shape is
     /// selected drops the selection and owes a frame. Pressing Escape when nothing is selected
     /// changes nothing.
