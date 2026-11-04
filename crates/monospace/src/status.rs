@@ -169,18 +169,7 @@ fn endpoint_text(at: EndpointAt, diagram: &Diagram) -> String {
 
 /// Formats the contextual command row (row 1) from the diagram state.
 pub(crate) fn command_line(diagram_state: &DiagramState) -> String {
-    let session = diagram_state.session();
-    let diagram = session.diagram();
-
-    let selected_shape = diagram_state.selected().and_then(|id| diagram.get(id));
-
-    match selected_shape {
-        Some(shape) if shape.has_size() => {
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned()
-        }
-        Some(_) => "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned(),
-        None => "SELECT: [Click] Pick".to_owned(),
-    }
+    crate::context_table::format_command_line(diagram_state)
 }
 
 /// Paints the contextual status and command bar.

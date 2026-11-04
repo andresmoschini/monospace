@@ -13,6 +13,7 @@ use monospace_core::{
     Buffer, CellReader, Footprint, FootprintSink, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId,
     Size, Window,
 };
+use monospace_diagram::Shape;
 use monospace_editing::{Command, Session};
 use rat_widget::event::ScrollOutcome;
 use rat_widget::scrolled::{ScrollAreaState, ScrollState};
@@ -153,6 +154,12 @@ impl DiagramState {
     /// the shape changes what is inverted without changing this (D2).
     pub(crate) fn selected(&self) -> Option<ShapeId> {
         self.selected
+    }
+
+    /// The shape currently selected, or `None` if nothing is selected or the selected id is not in
+    /// the diagram.
+    pub(crate) fn selected_shape(&self) -> Option<&Shape> {
+        self.selected.and_then(|id| self.session.diagram().get(id))
     }
 
     /// Makes `selection` the shape a click selected, and says whether the screen has to be painted
