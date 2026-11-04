@@ -755,6 +755,10 @@ mod tests {
 
     /// **The rule holds three ways**: the table the test writes, the bar the application draws and
     /// the keys the region answers all say the same thing.
+    ///
+    /// **An unoffered key is answered with `Reply::Ignored`**, so it falls through to whatever
+    /// comes after the region; a key the table offers is never ignored, because the bar said it
+    /// was there.
     fn assert_offer_matches_acceptance(
         fixture: &str,
         selected: Option<u16>,
@@ -802,15 +806,14 @@ mod tests {
             }
         }
 
-        let unoffered_expected = Reply::Ignored;
-
         for (code, modifiers) in ALL_POSSIBLE_CONTEXT_KEYS {
             if !offered_keys.contains(&(code, modifiers)) {
                 let mut s = make_state();
                 let event = Event::Key(KeyEvent::new(code, modifiers));
                 let reply = handle(&event, &mut s, Focus::Region);
                 assert_eq!(
-                    reply, unoffered_expected,
+                    reply,
+                    Reply::Ignored,
                     "unoffered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} answered unexpected reply: {reply:?}"
                 );
             }
@@ -822,7 +825,8 @@ mod tests {
             let reply = handle(&event, &mut s, Focus::Region);
 
             assert_eq!(
-                reply, unoffered_expected,
+                reply,
+                Reply::Ignored,
                 "{code:?} with modifiers {modifiers:?} was unexpected in: {bar}"
             );
         }
