@@ -1,9 +1,11 @@
 //! The drawing the last frame produced, and the session it was drawn from.
 //!
 //! **The session is read on every frame and changed only by an action.** Every frame draws it into
-//! the window the interior gives; the Edit menu's three actions change it, all carried out in
-//! `crate::callbacks`: **Delete** performs one removal, and **Undo** and **Redo** walk the history
-//! the removal recorded. The application keeps no history of its own: the session is the history.
+//! the window the interior gives; the region's contextual actions change it, all carried out in
+//! `crate::callbacks`: **Delete** performs one removal, **Move** and **Resize** displace and
+//! resize the selected figure, **`SetStroke`** gives it another stroke, and the Edit menu's **Undo**
+//! and **Redo** walk the history those commands recorded. The application keeps no history of its
+//! own: the session is the history.
 //!
 //! **The view survives a frame and the offset does not** (D1 of #176): each axis's scroll offset is
 //! derived from the origin and the content, so a content change that moves the drawing's first cell
@@ -77,8 +79,9 @@ pub(crate) struct DiagramState {
     /// The active sub-mode, or `None` if in normal mode.
     sub_mode: Option<SubMode>,
 
-    /// **The session is read on every frame and changed by the Edit menu's three actions**: Delete
-    /// performs its one command, Undo and Redo give a step back, and every other slice reads it.
+    /// **The session is read on every frame and changed by the region's actions and the menu's two
+    /// walks**: Delete performs its one command, Move, Resize and `SetStroke` change the selected
+    /// figure, Undo and Redo give a step back, and every other slice reads it.
     session: Session,
 }
 
