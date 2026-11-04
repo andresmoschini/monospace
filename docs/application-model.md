@@ -173,18 +173,19 @@ same as an unfocused one. The status bar is not a leaf: a press on it moves noth
 ahead are the session's, and the state holds no position and no copy of a step: `Session::undo` and
 `Session::redo` are one call each, and the next frame is drawn from what the session holds then.
 **Nothing on the screen is drawn from where the walk stands** — every entry is offered all the time
-— so there is nothing for the application to remember. **A walk cancels sub-modes and leaves the
-selection alone**: walking history moves the drawing across its chronological timeline, so any
-active ephemeral sub-mode is dropped (`sub_mode = None`); the selection stays as #181 wrote it, and
-a selection the restored drawing does not record is kept and inverts nothing. Clearing it is
+— so there is nothing for the application to remember. **The walk is the session's and leaves the
+selection alone**: walking history moves the drawing across its chronological timeline, so the
+selection stays as #181 wrote it, and a selection the restored drawing does not record is kept and
+inverts nothing. Clearing the selection when the history is walked is
 [#297](https://github.com/andresmoschini/monospace/issues/297)'s question, not this document's
 answer.
 
 **The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
 interaction mode is entered (such as `STROKE_SELECT` via `s`), `DiagramState` records
 `sub_mode: Option<SubMode>`. The sub-mode is transient: selecting a value or pressing `Esc` exits it
-back to normal selection; clicking outside, walking history (`Undo`/`Redo`), opening a modal dialog,
-or transferring focus to the menu bar drops it immediately (`sub_mode = None`).
+back to normal selection; losing or changing the selection — clicking another figure or outside, or
+removing the selected figure — drops it immediately (`sub_mode = None`). While the figure remains
+selected, transferring focus to the menu bar or opening an application dialog keeps the sub-mode.
 
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
@@ -282,14 +283,15 @@ an ephemeral sub-mode (such as `STROKE_SELECT`) is active:
    Save, `Ctrl+Q` Quit, `Ctrl+N` New, `Ctrl+O` Open) answers `Reply::Ignored`. This allows it to
    pass through the region handler to `shortcuts::handle_unclaimed`, keeping universal productivity
    controls active. The forced exit `Ctrl+C` is `Reach::Always` and is answered before the region,
-   so it is not part of this rule. Invoking `Undo` or `Redo` cancels the sub-mode
-   (`sub_mode = None`) and walks the session history; the selection stays as #181 says, and clearing
-   it is [#297](https://github.com/andresmoschini/monospace/issues/297)'s question.
+   so it is not part of this rule. The selection stays as #181 says, and clearing it on a walk is
+   [#297](https://github.com/andresmoschini/monospace/issues/297)'s question.
 
 **A sub-mode ends when the thing it edits stops being the thing selected.** A click that changes the
-selection — another figure, or no figure at all — an application-level overlay (`Save`, `Open`,
-`About`, `ShowError`), or the keyboard moving to the menu bar drops it (`sub_mode = None`). A dialog
-that belongs to the sub-mode itself is not an application-level overlay and does not end it.
+selection — another figure, or no figure at all — or removing the selected figure drops it
+(`sub_mode = None`). While the figure remains selected, moving keyboard focus to the menu bar or
+opening an application-level overlay (`Save`, `Open`, `About`, `ShowError`) preserves the active
+sub-mode, resuming it when focus returns to the diagram. A dialog that belongs to the sub-mode
+itself is not an application-level overlay and does not end it either.
 
 **The four arrows move what is selected, and the movement is one action carrying a delta.** A press
 of an arrow while the region holds the keyboard displaces the selected figure one cell along the
@@ -570,9 +572,9 @@ framework's buffer one at a time.
 - The Edit menu's Undo and Redo entries carry the same actions as the keys, and they are offered at
   every position of the history: no entry is drawn differently when there is nothing to give back.
 - Taking an entry with nothing to give back changes nothing and still paints.
-- Undo and redo cancel any active sub-mode (`sub_mode = None`) and leave the selection alone, as
-  #181 says; a selection the restored drawing does not record is kept and inverts nothing. Clearing
-  it is [#297](https://github.com/andresmoschini/monospace/issues/297)'s.
+- Undo and redo leave the selection alone, as #181 says; a selection the restored drawing does not
+  record is kept and inverts nothing. Clearing the selection on a walk is
+  [#297](https://github.com/andresmoschini/monospace/issues/297)'s.
 - Pressing `s` while a box, line, or connector is selected transitions `DiagramState` to
   `SubMode::StrokeSelect` and requests a repaint.
 - In `StrokeSelect`, keys `1..=5` set the corresponding stroke, reset `sub_mode = None`, and return
@@ -585,8 +587,9 @@ framework's buffer one at a time.
 - In `StrokeSelect`, a key the unclaimed global shortcut table answers (`Ctrl+Z`, `Ctrl+Shift+Z`,
   `Ctrl+S`, `Ctrl+Q`, `Ctrl+N`, `Ctrl+O`) is ignored by the region (`Reply::Ignored`) and falls
   through to the global handler; `Ctrl+C` is answered before the region.
-- A click that changes the selection, an application-level overlay, or the keyboard moving to the
-  bar cancels an active sub-mode.
+- Losing or changing the selection (clicking another figure or outside, or removing the selected
+  figure) cancels an active sub-mode (`sub_mode = None`); transferring focus to the menu bar or
+  opening an application dialog keeps the sub-mode while the figure remains selected.
 - The status row reports `STROKE SELECTION for <Kind> #<id> · Current: <stroke>` while the stroke
   sub-mode is active, and the command row offers the five strokes and `[Esc] Cancel`.
 - The contextual command row and the widget dispatcher derive offered and accepted keys from a

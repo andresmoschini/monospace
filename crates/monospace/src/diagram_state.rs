@@ -193,6 +193,9 @@ impl DiagramState {
     ///
     /// **A click that selects what is already selected changed nothing**, and neither did one on a
     /// cell nobody owns with no selection to drop: the answer is `false` and the frame is not owed.
+    ///
+    /// **Changing or dropping the selection ends any active sub-mode**: the sub-mode belongs to the
+    /// figure that was selected, so another selection or no selection starts fresh.
     pub(crate) fn select(&mut self, selection: Option<ShapeId>) -> bool {
         if self.selected == selection {
             return false;
@@ -234,6 +237,7 @@ impl DiagramState {
     pub(crate) fn remove(&mut self, id: ShapeId) {
         self.perform(Command::Remove { id });
         self.selected = None;
+        self.sub_mode = None;
     }
 
     /// Displaces the shape `id` by `(dx, dy)` cells and keeps the selection.
@@ -297,7 +301,6 @@ impl DiagramState {
     /// **The selection is not restored**: the removal dropped the identity, and the drawing that
     /// comes back arrives with nothing selected.
     pub(crate) fn undo(&mut self) {
-        self.sub_mode = None;
         self.session = self.session.undo();
     }
 
@@ -310,7 +313,6 @@ impl DiagramState {
     /// **The selection is not touched**: a redo takes the drawing ahead, and the identity the state
     /// holds survives the walk even where no cell of the restored drawing records it.
     pub(crate) fn redo(&mut self) {
-        self.sub_mode = None;
         self.session = self.session.redo();
     }
 

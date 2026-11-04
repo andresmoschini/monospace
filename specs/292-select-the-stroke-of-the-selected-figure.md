@@ -56,15 +56,15 @@ active sub-modes. Whether a walk should also clear the selection is a separate q
     `shortcuts::handle_unclaimed`. The forced exit `Ctrl+C` is `Reach::Always` and is answered
     before the region, so it is not part of this rule.
 - Explicit interaction between global actions, sub-modes, and selection:
-  - Executing `Undo` (`Ctrl+Z`) or `Redo` (`Ctrl+Shift+Z`) cancels any active sub-mode
-    (`sub_mode = None`) and walks the session history. The selection is left as
-    [#181](https://github.com/andresmoschini/monospace/issues/181) says; clearing it is
-    [#297](https://github.com/andresmoschini/monospace/issues/297)'s question.
+  - Executing `Undo` (`Ctrl+Z`) or `Redo` (`Ctrl+Shift+Z`) walks the session history. The selection
+    is left as [#181](https://github.com/andresmoschini/monospace/issues/181) says; clearing it is
+    [#297](https://github.com/andresmoschini/monospace/issues/297)'s question (which in turn will
+    cancel any active sub-mode when selection is cleared).
   - Opening an application-level modal dialog (`Save`, `Open`, `About`, `ShowError`) or transferring
-    keyboard focus to the menu bar (`Focus::Bar`) cancels any active sub-mode (`sub_mode = None`). A
-    dialog that belongs to a sub-mode itself is not one of these.
+    keyboard focus to the menu bar (`Focus::Bar`) preserves the active sub-mode while the figure
+    remains selected.
   - A click that changes the selection — another figure, or no figure at all — cancels the active
-    sub-mode.
+    sub-mode (`sub_mode = None`).
 - Removal of `Delete` from the global `Edit` menu (`menu.rs`) and from the unclaimed global shortcut
   table (`shortcuts.rs`). `Delete` becomes strictly a contextual action provided by the unified
   context table in `SELECTED_BOX`, `SELECTED_LINE`, and `SELECTED_CONNECTOR`; `Backspace` is not a
@@ -125,14 +125,12 @@ transitions `sub_mode` to `Some(SubMode::StrokeSelect)` and returns `Reply::Repa
   `Ctrl+Z`, `Ctrl+Shift+Z`) returns `Reply::Ignored`, so it falls through to
   `shortcuts::handle_unclaimed`. The forced exit `Ctrl+C` is `Reach::Always` and is answered before
   the region, so it is not part of this rule.
-- History walks (`Undo` / `Redo`) reset `sub_mode = None` and walk the session history. The
-  selection is left alone, as [#181](https://github.com/andresmoschini/monospace/issues/181) says: a
-  selection the restored drawing does not record is kept and inverts nothing. Clearing it is
-  [#297](https://github.com/andresmoschini/monospace/issues/297)'s question.
-- A click that changes the selection (another figure, or no figure), opening an application-level
-  overlay dialog (`Save`, `Open`, `About`, `ShowError`), or moving focus to the menu bar
-  (`Focus::Bar`) resets `sub_mode` to `None`. A dialog that belongs to a sub-mode itself is not one
-  of these.
+- History walks (`Undo` / `Redo`) walk the session history; clearing the selection is #297's.
+- While the figure remains selected, opening an application-level dialog (`Save`, `Open`, `About`,
+  `ShowError`) or transferring keyboard focus to the menu bar (`Focus::Bar`) preserves the active
+  sub-mode, resuming it when returning to the diagram region.
+- Losing or changing the selection (clicking another figure, or clicking empty space to deselect)
+  cancels the active sub-mode (`sub_mode = None`).
 
 **Why not** holding the modal state in `AppState` or a modal overlay: `STROKE_SELECT` is an inline
 interaction mode of the diagram region where the canvas remains visible and interactive; storing it
@@ -217,9 +215,8 @@ maintainer.
   - §1: document `Sub-mode`, `Global action`, and `Contextual action` in vocabulary.
   - §2: document that `Edit` menu offers `Undo` and `Redo`, with `Delete` removed as a contextual
     action.
-  - §3: document `sub_mode: Option<SubMode>` in `DiagramState` and establish that history walks
-    (`undo`/`redo`) cancel active sub-modes while leaving the selection as #181 says; clearing it is
-    [#297](https://github.com/andresmoschini/monospace/issues/297)'s.
+  - §3: document `sub_mode: Option<SubMode>` in `DiagramState` and establish that losing or changing
+    the selection cancels active sub-modes; clearing selection on a walk is #297's.
   - §4: document two-layer dispatching in sub-modes (keys the table does not offer are consumed,
     keys the unclaimed global table answers are ignored, the chrome's keys are asked before the
     region) and document that `Delete` is a contextual action of selection contexts.
@@ -320,8 +317,7 @@ maintainer.
       pub(crate) fn select(&mut self, id: Option<ShapeId>);
   }
 
-  // `select` clears `sub_mode` when the selection changes; `undo` and `redo` clear `sub_mode` and
-  // leave `selected` as #181 says.
+  // `select` and `remove` clear `sub_mode` when the selection changes or is dropped.
 
   // crates/monospace/src/status.rs
   // `status_line` gains the STROKE_SELECT arm:
@@ -329,8 +325,7 @@ maintainer.
   // `command_line` delegates to `context_table::format_command_line`.
 
   // crates/monospace/src/callbacks.rs
-  // `apply(Save | Open | About | ShowError)` clears `DiagramState::sub_mode` before opening the
-  // overlay, and `route` clears it when the keyboard has moved to `Focus::Bar`.
+  // Preserves `DiagramState::sub_mode` across overlay dialogs and menu navigation while the selection persists.
 
   // crates/monospace/src/menu.rs
   // Edit menu entries: &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z"] (Delete removed).
@@ -365,15 +360,14 @@ maintainer.
    `Ctrl+Shift+Z`, `Ctrl+S`, `Ctrl+Q`, `Ctrl+N`, `Ctrl+O`) is ignored (`Reply::Ignored`), allowing
    it to fall through to `shortcuts::handle_unclaimed`. `Ctrl+C` is `Reach::Always` and is answered
    before the region.
-9. Invoking `Undo` (`Ctrl+Z`) or `Redo` (`Ctrl+Shift+Z`) cancels any active sub-mode
-   (`sub_mode = None`) and walks session history. The selection is left alone, as #181 says; a
-   selection the restored drawing does not record is kept and inverts nothing. Clearing it is
+9. Invoking `Undo` (`Ctrl+Z`) or `Redo` (`Ctrl+Shift+Z`) walks session history. The selection is
+   left alone, as #181 says; clearing it is
    [#297](https://github.com/andresmoschini/monospace/issues/297)'s.
 10. Opening an application-level modal overlay (`Save`, `Open`, `About`, `ShowError`) or moving
-    focus to the menu bar (`Focus::Bar`) cancels any active sub-mode (`sub_mode = None`). A dialog
-    that belongs to a sub-mode itself is not one of these.
-11. A click that changes the selection — another figure, or no figure at all — cancels the active
-    sub-mode (`sub_mode = None`).
+    focus to the menu bar (`Focus::Bar`) preserves the active sub-mode while the figure remains
+    selected.
+11. A click that changes the selection — another figure, or no figure at all — or removing the
+    selected figure cancels the active sub-mode (`sub_mode = None`).
 12. In `SELECTED_BOX`, `SELECTED_LINE`, and `SELECTED_CONNECTOR`, the contextual command row
     displays `STROKE: [s]`, and pressing `Delete` dispatches `Action::Delete`.
 13. In `IDLE`, pressing `Delete` is ignored (`Reply::Ignored`).
@@ -427,8 +421,8 @@ whole prompt, and Phase 4 is the slice that makes it fit.
 | 6    | `pressing_escape_in_stroke_select_cancels_sub_mode_without_deselecting` |
 | 7    | `unoffered_local_keys_in_stroke_select_are_consumed`                    |
 | 8    | `global_unclaimed_shortcuts_pass_through_from_stroke_select`            |
-| 9    | `undo_and_redo_in_stroke_select_cancel_sub_mode_and_walk_history`       |
-| 10   | `opening_overlay_or_focusing_menu_cancels_sub_mode`                     |
+| 9    | `undo_and_redo_in_stroke_select_walk_history`                           |
+| 10   | `opening_overlay_or_focusing_menu_preserves_sub_mode`                   |
 | 11   | `clicking_another_figure_or_outside_cancels_sub_mode`                   |
 | 12   | `command_row_offers_stroke_s_and_delete_for_selected_figures`           |
 | 13   | `delete_in_idle_is_ignored`                                             |
@@ -449,8 +443,8 @@ Existing guardian tests updated during building:
   the no-modifier row rewritten.
 - `crates/monospace/src/status.rs`: the `STROKE: [s]` block and the `STROKE_SELECT` prompt/status
   row asserted.
-- `crates/monospace/src/diagram_state.rs`: `undo`/`redo` cancel `sub_mode` and leave the selection;
-  `select` clears `sub_mode` when the selection changes.
+- `crates/monospace/src/diagram_state.rs`: `select` and `remove` clear `sub_mode` when the selection
+  changes or is dropped.
 - `docs/application-model.md`: the stale `Delete` sentence in §4 corrected.
 
 ## Open questions
@@ -458,6 +452,7 @@ Existing guardian tests updated during building:
 - **Nested sub-modes.** `Option<SubMode>` models the flat sub-modes this slice has. Connector
   endpoint editing (`1`/`2` with `a`/`t`/`d`/`0`) and the fill palette (`f` then `m`) are nested;
   their own specs decide whether the parent is encoded in the variant or held in a stack.
-- **The selection when the history is walked.** #181 leaves it alone; this slice only cancels the
-  active sub-mode. Whether a walk should clear it is
-  [#297](https://github.com/andresmoschini/monospace/issues/297).
+- **The selection when the history is walked.** #181 leaves it alone; clearing it on a walk (which
+  in turn drops any active sub-mode) is
+  [#297](https://github.com/andresmoschini/monospace/issues/297). Selecting the figure modified by
+  that action is tracked by [#299](https://github.com/andresmoschini/monospace/issues/299).

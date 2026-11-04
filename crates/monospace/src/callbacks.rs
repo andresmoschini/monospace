@@ -159,10 +159,6 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
         })
         .or_else(|| shortcuts::handle_unclaimed(event));
 
-    if state.chrome().is_bar() {
-        state.diagram_mut().set_sub_mode(None);
-    }
-
     // **The move is added last, and it is not part of the chain**: it is not an answer to the
     // event, it is a change the screen already made and that no handler was told about.
     if moved { answer.and_repaint() } else { answer }
@@ -235,22 +231,13 @@ fn apply(action: &Action, state: &mut AppState) {
 
         // **The two actions that open the overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
-        Action::About => {
-            state.diagram_mut().set_sub_mode(None);
-            about::open(state.dialog_mut());
-        }
+        Action::About => about::open(state.dialog_mut()),
 
         // **The same overlay, over a failure's text**: it replaces whatever the dialog held.
-        Action::ShowError(message) => {
-            state.diagram_mut().set_sub_mode(None);
-            error::open(state.dialog_mut(), message);
-        }
+        Action::ShowError(message) => error::open(state.dialog_mut(), message),
 
         // **The open dialog is the chrome's own too**, and opening it changes no session.
-        Action::Open => {
-            state.diagram_mut().set_sub_mode(None);
-            state.open_mut().open();
-        }
+        Action::Open => state.open_mut().open(),
 
         // **The path is read and parsed before anything is replaced** (D3 and D4 of #260): a
         // file that cannot be read or parsed leaves the current session untouched, and reports
@@ -272,10 +259,7 @@ fn apply(action: &Action, state: &mut AppState) {
         },
 
         // **The save dialog is the chrome's own too**, and opening it changes no session.
-        Action::Save => {
-            state.diagram_mut().set_sub_mode(None);
-            state.save_mut().open();
-        }
+        Action::Save => state.save_mut().open(),
 
         // **The session's diagram is serialized and written to path** (D2 and D3 of #270): on
         // success the file is written and the current session is untouched; on any error it
@@ -2685,55 +2669,6 @@ mod tests {
     }
 
     #[test]
-    fn undo_in_sub_mode_cancels_sub_mode_and_keeps_selection() {
-        let mut state = a_drawn_state_over(A_BOX);
-        let _ = send(&click(3, 3), &mut state);
-        let _ = send(&key(KeyCode::Right), &mut state);
-        assert!(state.diagram().can_undo());
-
-        let _ = send(&key(KeyCode::Char('s')), &mut state);
-        assert_eq!(
-            state.diagram().sub_mode(),
-            Some(crate::diagram_state::SubMode::StrokeSelect)
-        );
-
-        let _ = send(
-            &key_with(KeyCode::Char('z'), KeyModifiers::CONTROL),
-            &mut state,
-        );
-        assert_eq!(state.diagram().sub_mode(), None);
-        assert!(state.diagram().selected().is_some());
-    }
-
-    #[test]
-    fn redo_in_sub_mode_cancels_sub_mode_and_keeps_selection() {
-        let mut state = a_drawn_state_over(A_BOX);
-        let _ = send(&click(3, 3), &mut state);
-        let _ = send(&key(KeyCode::Right), &mut state);
-        let _ = send(
-            &key_with(KeyCode::Char('z'), KeyModifiers::CONTROL),
-            &mut state,
-        );
-        assert!(state.diagram().can_redo());
-
-        let _ = send(&key(KeyCode::Char('s')), &mut state);
-        assert_eq!(
-            state.diagram().sub_mode(),
-            Some(crate::diagram_state::SubMode::StrokeSelect)
-        );
-
-        let _ = send(
-            &key_with(
-                KeyCode::Char('Z'),
-                KeyModifiers::CONTROL | KeyModifiers::SHIFT,
-            ),
-            &mut state,
-        );
-        assert_eq!(state.diagram().sub_mode(), None);
-        assert!(state.diagram().selected().is_some());
-    }
-
-    #[test]
     fn click_outside_cancels_sub_mode_and_clears_selection() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
@@ -2749,7 +2684,43 @@ mod tests {
     }
 
     #[test]
-    fn moving_focus_to_bar_cancels_sub_mode() {
+    fn clicking_another_figure_cancels_sub_mode_and_changes_selection() {
+        let mut state = a_drawn_state_over(A_BOX_AND_WHAT_HANGS_FROM_IT);
+        let _ = send(&click(3, 3), &mut state);
+        let first = state.diagram().selected();
+        assert!(first.is_some());
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(&click(18, 3), &mut state);
+        let second = state.diagram().selected();
+        assert!(second.is_some());
+        assert_ne!(first, second);
+        assert_eq!(state.diagram().sub_mode(), None);
+    }
+
+    #[test]
+    fn clicking_the_same_figure_in_sub_mode_preserves_sub_mode() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(&click(3, 3), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+    }
+
+    #[test]
+    fn moving_focus_to_bar_and_returning_preserves_sub_mode() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         let _ = send(&key(KeyCode::Char('s')), &mut state);
@@ -2760,12 +2731,22 @@ mod tests {
 
         let _ = send(&key(KeyCode::F(10)), &mut state);
         assert_eq!(state.chrome().leaf(), Focus::Bar);
-        assert_eq!(state.diagram().sub_mode(), None);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(&key(KeyCode::Esc), &mut state);
+        assert_eq!(state.chrome().leaf(), Focus::Region);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
         assert!(state.diagram().selected().is_some());
     }
 
     #[test]
-    fn opening_dialog_cancels_sub_mode() {
+    fn opening_dialog_and_closing_preserves_sub_mode() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         let _ = send(&key(KeyCode::Char('s')), &mut state);
@@ -2779,7 +2760,18 @@ mod tests {
             &mut state,
         );
         assert!(state.save().active());
-        assert_eq!(state.diagram().sub_mode(), None);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(&key(KeyCode::Esc), &mut state);
+        assert!(!state.save().active());
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+        assert!(state.diagram().selected().is_some());
     }
 
     /// **Escape drops the active selection** (D1 of #279): pressing Escape while a shape is
