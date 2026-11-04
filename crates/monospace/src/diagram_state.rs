@@ -241,8 +241,7 @@ impl DiagramState {
     /// the drawing, and a person who wants the figure selected clicks it again.
     pub(crate) fn remove(&mut self, id: ShapeId) {
         self.perform(Command::Remove { id });
-        self.selected = None;
-        self.sub_mode = None;
+        self.select(None);
     }
 
     /// Displaces the shape `id` by `(dx, dy)` cells and keeps the selection.
