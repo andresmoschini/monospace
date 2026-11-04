@@ -431,6 +431,14 @@ falls below 2 (or below its current dimension if it was already smaller) nor exc
 Resizing a line or a connector leaves the shape unchanged. Resizing builds a value and changes
 nothing in a diagram; replacing is what puts the value in.
 
+Re-stroking is a replacement too: the new shape is the old one with another stroke. Setting the
+stroke of a box, a line, or a connector replaces its `stroke` while keeping every other parameter
+unchanged. Re-stroking builds a value and changes nothing in a diagram; replacing is what puts the
+value in. Together, `Shape::displaced_by`, `Shape::resized_by`, and `Shape::with_stroke` are the
+three figure mutations: each produces a new shape value, so looking up a figure and replacing it
+with the modified copy — such as `diagram.get(&id).map(|shape| shape.with_stroke(stroke))` followed
+by `replace` — is the complete operation.
+
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A
 shape put back under the removed identity is not re-hung from, because nothing went looking for the
