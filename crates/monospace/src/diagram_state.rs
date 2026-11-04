@@ -188,14 +188,9 @@ impl DiagramState {
         self.sub_mode
     }
 
-    /// Sets the active sub-mode, and says whether it changed.
-    pub(crate) fn set_sub_mode(&mut self, sub_mode: Option<SubMode>) -> bool {
-        if self.sub_mode == sub_mode {
-            false
-        } else {
-            self.sub_mode = sub_mode;
-            true
-        }
+    /// Sets the active sub-mode.
+    pub(crate) fn set_sub_mode(&mut self, sub_mode: Option<SubMode>) {
+        self.sub_mode = sub_mode;
     }
 
     /// Makes `selection` the shape a click selected, and says whether the screen has to be painted
