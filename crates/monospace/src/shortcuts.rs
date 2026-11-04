@@ -135,6 +135,11 @@ pub(crate) fn handle_unclaimed(event: &Event) -> Reply {
     handle(event, Reach::Unclaimed)
 }
 
+/// Whether `event` is answered by the unclaimed global shortcut table.
+pub(crate) fn answers_unclaimed(event: &Event) -> bool {
+    handle(event, Reach::Unclaimed) != Reply::Ignored
+}
+
 /// What the event means to a shortcut of this reach.
 ///
 /// **A shortcut is the combination it shows and not another one**, and it answers to that
@@ -171,6 +176,17 @@ pub(crate) fn events_answered_first() -> Vec<Event> {
     SHORTCUTS
         .iter()
         .filter(|shortcut| shortcut.reach == Reach::Always)
+        .map(|shortcut| Event::Key(KeyEvent::new(shortcut.key, shortcut.modifiers)))
+        .collect()
+}
+
+#[cfg(test)]
+pub(crate) fn events_unclaimed() -> Vec<Event> {
+    use ratatui_crossterm::crossterm::event::KeyEvent;
+
+    SHORTCUTS
+        .iter()
+        .filter(|shortcut| shortcut.reach == Reach::Unclaimed)
         .map(|shortcut| Event::Key(KeyEvent::new(shortcut.key, shortcut.modifiers)))
         .collect()
 }

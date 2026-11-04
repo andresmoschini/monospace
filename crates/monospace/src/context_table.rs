@@ -5,8 +5,10 @@
 //! exactly the keys the table offers.
 
 use monospace_diagram::Shape;
+use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::diagram_state::DiagramState;
+use crate::vocabulary::{Action, Reply};
 
 /// Condition required for a contextual block to be active.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,9 +19,75 @@ pub(crate) enum Condition {
     Size,
 }
 
+/// A pattern of key combinations matched by contextual actions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum KeyPattern {
+    /// Any of the four bare arrow keys (Up, Down, Left, Right).
+    Arrows,
+    /// Shift plus any of the four arrow keys.
+    ShiftArrows,
+    /// A single key code with no modifiers.
+    Code(KeyCode),
+}
+
+impl KeyPattern {
+    /// Whether `event` matches this pattern.
+    #[must_use]
+    pub(crate) fn matches(self, event: &KeyEvent) -> bool {
+        match self {
+            Self::Arrows => {
+                event.modifiers == KeyModifiers::NONE
+                    && matches!(
+                        event.code,
+                        KeyCode::Right | KeyCode::Left | KeyCode::Up | KeyCode::Down
+                    )
+            }
+            Self::ShiftArrows => {
+                event.modifiers == KeyModifiers::SHIFT
+                    && matches!(
+                        event.code,
+                        KeyCode::Right | KeyCode::Left | KeyCode::Up | KeyCode::Down
+                    )
+            }
+            Self::Code(code) => event.modifiers == KeyModifiers::NONE && event.code == code,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn samples(self) -> Vec<(KeyCode, KeyModifiers)> {
+        match self {
+            Self::Arrows => vec![
+                (KeyCode::Right, KeyModifiers::NONE),
+                (KeyCode::Left, KeyModifiers::NONE),
+                (KeyCode::Up, KeyModifiers::NONE),
+                (KeyCode::Down, KeyModifiers::NONE),
+            ],
+            Self::ShiftArrows => vec![
+                (KeyCode::Right, KeyModifiers::SHIFT),
+                (KeyCode::Left, KeyModifiers::SHIFT),
+                (KeyCode::Up, KeyModifiers::SHIFT),
+                (KeyCode::Down, KeyModifiers::SHIFT),
+            ],
+            Self::Code(code) => vec![(code, KeyModifiers::NONE)],
+        }
+    }
+}
+
+/// What a contextual keypress means.
+pub(crate) enum ContextMeaning {
+    /// Dispatches a direct application action.
+    Act(Action),
+    /// Dispatches a directional action taking `(dx, dy)`.
+    Directional(fn(i16, i16) -> Action),
+    /// Deselects the active figure.
+    Deselect,
+}
+
 /// One contextual action offered by a block.
 pub(crate) struct ContextAction {
+    pub(crate) pattern: KeyPattern,
     pub(crate) display: &'static str,
+    pub(crate) meaning: ContextMeaning,
 }
 
 /// A group of related contextual actions sharing a category prefix and condition.
@@ -34,31 +102,53 @@ static SELECTION: &[ContextBlock] = &[
         category: Some("MOVE"),
         condition: Condition::Always,
         actions: &[ContextAction {
-            display: "↑↓←→"
+            pattern: KeyPattern::Arrows,
+            display: "↑↓←→",
+            meaning: ContextMeaning::Directional(Action::Move),
         }],
     },
     ContextBlock {
         category: Some("RESIZE"),
         condition: Condition::Size,
         actions: &[ContextAction {
+            pattern: KeyPattern::ShiftArrows,
             display: "Shift+↑↓←→",
+            meaning: ContextMeaning::Directional(Action::Resize),
         }],
     },
     ContextBlock {
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Delete),
             display: "[Del] Delete",
+            meaning: ContextMeaning::Act(Action::Delete),
         }],
     },
     ContextBlock {
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Esc),
             display: "[Esc] Deselect",
+            meaning: ContextMeaning::Deselect,
         }],
     },
 ];
+
+/// The delta along screen axes named by the four arrow keys, or `None` for any other key code.
+///
+/// Right is one cell along the x axis, Down along the y one, and the two negatives are the other
+/// directions.
+pub(crate) fn arrow_direction(code: KeyCode) -> Option<(i16, i16)> {
+    match code {
+        KeyCode::Right => Some((1, 0)),
+        KeyCode::Left => Some((-1, 0)),
+        KeyCode::Up => Some((0, -1)),
+        KeyCode::Down => Some((0, 1)),
+        _ => None,
+    }
+}
 
 /// The contextual blocks active for `state`.
 pub(crate) fn context_blocks(
@@ -105,4 +195,43 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
     } else {
         result
     }
+}
+
+/// Dispatches a keyboard event in the diagram region using the contextual table.
+pub(crate) fn dispatch_key(state: &mut DiagramState, event: &Event) -> Reply {
+    let Event::Key(key) = event else {
+        return Reply::Ignored;
+    };
+
+    if key.kind != KeyEventKind::Press {
+        return Reply::Ignored;
+    }
+
+    for block in context_blocks(state) {
+        for action in block.actions {
+            if action.pattern.matches(key) {
+                return match action.meaning {
+                    ContextMeaning::Act(ref act) => Reply::Act(act.clone()),
+                    ContextMeaning::Directional(f) => {
+                        let (dx, dy) =
+                            arrow_direction(key.code).expect("arrow pattern matched arrow key");
+                        Reply::Act(f(dx, dy))
+                    }
+                    ContextMeaning::Deselect => {
+                        if state.select(None) {
+                            Reply::Repaint
+                        } else {
+                            Reply::Ignored
+                        }
+                    }
+                };
+            }
+        }
+    }
+
+    if crate::shortcuts::answers_unclaimed(event) {
+        return Reply::Ignored;
+    }
+
+    Reply::Ignored
 }
