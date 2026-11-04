@@ -281,7 +281,7 @@ sub-mode (such as `STROKE_SELECT`) is active:
    unclaimed by any layer are ignored by the application (`Control::Continue`), preserving the
    active sub-mode and canvas state without unwanted mutation. The forced exit `Ctrl+C` is
    `Reach::Always` and is answered before the region, so it is not part of this rule. The selection
-   stays as #181 says, and clearing it on a walk is
+   stays as #181 says, and the active sub-mode stays with it; clearing the selection on a walk is
    [#297](https://github.com/andresmoschini/monospace/issues/297)'s question.
 
 **A sub-mode ends when the thing it edits stops being the thing selected.** A click that changes the
@@ -581,11 +581,12 @@ framework's buffer one at a time.
 - In `StrokeSelect`, pressing `Esc` cancels the sub-mode (`sub_mode = None`) and returns to
   selection without altering the stroke.
 - In `StrokeSelect`, every key the region is asked about that the table does not offer (arrows,
-  Shift+arrows, letters, Delete, Tab, Enter, Home, End, function keys, other digits) is consumed
-  (`Reply::Consumed`); the chrome's keys are asked before the region.
+  Shift+arrows, letters, Delete, Tab, Enter, Home, End, function keys, other digits) is ignored
+  (`Reply::Ignored`) and falls through; the chrome's keys are asked before the region.
 - In `StrokeSelect`, a key the unclaimed global shortcut table answers (`Ctrl+Z`, `Ctrl+Shift+Z`,
   `Ctrl+S`, `Ctrl+Q`, `Ctrl+N`, `Ctrl+O`) is ignored by the region (`Reply::Ignored`) and falls
   through to the global handler; `Ctrl+C` is answered before the region.
+- A history walk leaves an active sub-mode in place, because it leaves the selection in place.
 - Losing or changing the selection (clicking another figure or outside, or removing the selected
   figure) cancels an active sub-mode (`sub_mode = None`); transferring focus to the menu bar or
   opening an application dialog keeps the sub-mode while the figure remains selected.
@@ -606,8 +607,8 @@ framework's buffer one at a time.
   table of actions would be another. Contextual actions (such as `Delete`) are removed from the
   global menu and managed by the unified context table (Option D), leaving only universal actions
   (`Undo`, `Redo`) in the Edit menu.
-- **The selection when the history is walked.** #181 leaves it alone, and #292 cancels only the
-  active sub-mode. Whether a walk should clear it is
+- **The selection when the history is walked.** #181 leaves it alone, and #292 leaves the active
+  sub-mode in place with it. Whether a walk should clear it is
   [#297](https://github.com/andresmoschini/monospace/issues/297).
 - **What the status bar says.** The contextual two-row bar format and its idle and selection content
   are settled by [#279](https://github.com/andresmoschini/monospace/issues/279). Multi-line wrapping
