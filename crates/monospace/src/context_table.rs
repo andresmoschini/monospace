@@ -10,6 +10,9 @@ use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyMo
 use crate::diagram_state::{DiagramState, SubMode};
 use crate::vocabulary::{Action, Reply};
 
+/// What the command row offers while no figure is selected.
+const PICK: &str = "SELECT: [Click] Pick";
+
 /// Condition required for a contextual block to be active.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Condition {
@@ -237,10 +240,6 @@ pub(crate) fn context_blocks(
 
 /// Formats the contextual command row (row 1) from the diagram state.
 pub(crate) fn format_command_line(state: &DiagramState) -> String {
-    if state.selected_shape().is_none() {
-        return "SELECT: [Click] Pick".to_owned();
-    }
-
     let mut result = String::new();
     for (i, block) in context_blocks(state).enumerate() {
         if i > 0 {
@@ -258,7 +257,7 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
         }
     }
     if result.is_empty() {
-        "SELECT: [Click] Pick".to_owned()
+        PICK.to_owned()
     } else {
         result
     }
