@@ -153,31 +153,32 @@ fn handle(event: &Event, reach: Reach) -> Reply {
         .map_or(Reply::Ignored, |shortcut| shortcut.reply.clone())
 }
 
-/// The events that trigger the shortcuts answered before any handler.
+/// The events that trigger the shortcuts of `reach`.
 ///
-/// **It exists for the test that the promise holds** — that a shortcut answered before the chrome
-/// answers with a drop-down open — and it is compiled for tests alone: a test that named the keys
+/// **They exist for the tests that the promise holds** — that a shortcut of a reach answers where
+/// the order says it does — and they are compiled for tests alone: a test that named the keys
 /// would stop covering the next shortcut added to the table.
 #[cfg(test)]
-pub(crate) fn events_answered_first() -> Vec<Event> {
+fn events_at(reach: Reach) -> Vec<Event> {
     use ratatui_crossterm::crossterm::event::KeyEvent;
 
     SHORTCUTS
         .iter()
-        .filter(|shortcut| shortcut.reach == Reach::Always)
+        .filter(|shortcut| shortcut.reach == reach)
         .map(|shortcut| Event::Key(KeyEvent::new(shortcut.key, shortcut.modifiers)))
         .collect()
 }
 
+/// The events that trigger the shortcuts answered before any handler.
+#[cfg(test)]
+pub(crate) fn events_answered_first() -> Vec<Event> {
+    events_at(Reach::Always)
+}
+
+/// The events that trigger the shortcuts nobody has claimed.
 #[cfg(test)]
 pub(crate) fn events_unclaimed() -> Vec<Event> {
-    use ratatui_crossterm::crossterm::event::KeyEvent;
-
-    SHORTCUTS
-        .iter()
-        .filter(|shortcut| shortcut.reach == Reach::Unclaimed)
-        .map(|shortcut| Event::Key(KeyEvent::new(shortcut.key, shortcut.modifiers)))
-        .collect()
+    events_at(Reach::Unclaimed)
 }
 
 #[cfg(test)]
