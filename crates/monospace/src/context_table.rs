@@ -219,8 +219,9 @@ pub(crate) fn context_blocks(
     state: &DiagramState,
 ) -> impl Iterator<Item = &'static ContextBlock> + use<> {
     let sub_mode = state.sub_mode();
-    let has_size = state.selected_shape().is_some_and(Shape::has_size);
-    let selected = state.selected_shape().is_some();
+    let selected_shape = state.selected_shape();
+    let has_size = selected_shape.is_some_and(Shape::has_size);
+    let selected = selected_shape.is_some();
 
     let slice: &'static [ContextBlock] = match sub_mode {
         Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,

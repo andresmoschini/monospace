@@ -60,9 +60,7 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
     let session = diagram_state.session();
     let diagram = session.diagram();
 
-    let selected_shape = diagram_state
-        .selected()
-        .and_then(|id| diagram.get(id).map(|shape| (id, shape)));
+    let selected_shape = diagram_state.selected_entry();
 
     if diagram_state.sub_mode() == Some(crate::diagram_state::SubMode::StrokeSelect)
         && let Some((id, shape)) = selected_shape

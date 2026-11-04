@@ -167,10 +167,20 @@ impl DiagramState {
         self.selected
     }
 
+    /// The selected identity and the shape it names, or `None` if nothing is selected or the
+    /// selected id is not in the diagram.
+    ///
+    /// **One answer rather than two reads**: a caller that needs the identity and the shape asks
+    /// once, so the two cannot name different figures.
+    pub(crate) fn selected_entry(&self) -> Option<(ShapeId, &Shape)> {
+        let id = self.selected?;
+        self.session.diagram().get(id).map(|shape| (id, shape))
+    }
+
     /// The shape currently selected, or `None` if nothing is selected or the selected id is not in
     /// the diagram.
     pub(crate) fn selected_shape(&self) -> Option<&Shape> {
-        self.selected.and_then(|id| self.session.diagram().get(id))
+        self.selected_entry().map(|(_, shape)| shape)
     }
 
     /// The active sub-mode, or `None` if in normal mode.
