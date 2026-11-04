@@ -199,6 +199,7 @@ impl DiagramState {
         }
 
         self.selected = selection;
+        self.sub_mode = None;
         true
     }
 
@@ -296,6 +297,7 @@ impl DiagramState {
     /// **The selection is not restored**: the removal dropped the identity, and the drawing that
     /// comes back arrives with nothing selected.
     pub(crate) fn undo(&mut self) {
+        self.sub_mode = None;
         self.session = self.session.undo();
     }
 
@@ -308,6 +310,7 @@ impl DiagramState {
     /// **The selection is not touched**: a redo takes the drawing ahead, and the identity the state
     /// holds survives the walk even where no cell of the restored drawing records it.
     pub(crate) fn redo(&mut self) {
+        self.sub_mode = None;
         self.session = self.session.redo();
     }
 
