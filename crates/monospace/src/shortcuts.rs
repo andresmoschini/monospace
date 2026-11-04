@@ -58,9 +58,9 @@ struct Shortcut {
 /// **The rows differ in one column, and that column is the whole of the precedence.** The forced
 /// exit is answered before anything, and the other four after everything: they are the same
 /// mechanism with a different scope, rather than one mechanism per row and an `if` somewhere else.
-/// The deletion, the undo and the redo are `Unclaimed` because they are not the chrome's to
-/// swallow: which keys the chrome keeps is the focus rule #189 owns, and none of the three is one
-/// of the bar's own (D3 of #178, D3 of #181).
+/// The undo and the redo are `Unclaimed` because they are not the chrome's to swallow: which keys
+/// the chrome keeps is the focus rule #189 owns, and neither of the two is one of the bar's own
+/// (D3 of #181).
 ///
 /// **A slice rather than an array of a counted length**: the count of an array is a number beside
 /// the rows it counts, and a row added without it is an error the compiler reports about the wrong
@@ -112,12 +112,6 @@ const SHORTCUTS: &[Shortcut] = &[
         reply: Reply::Act(Action::Redo),
         reach: Reach::Unclaimed,
     },
-    Shortcut {
-        key: KeyCode::Delete,
-        modifiers: KeyModifiers::NONE,
-        reply: Reply::Act(Action::Delete),
-        reach: Reach::Unclaimed,
-    },
 ];
 
 /// What the event means to a shortcut answered before any handler.
@@ -159,20 +153,32 @@ fn handle(event: &Event, reach: Reach) -> Reply {
         .map_or(Reply::Ignored, |shortcut| shortcut.reply.clone())
 }
 
-/// The events that trigger the shortcuts answered before any handler.
+/// The events that trigger the shortcuts of `reach`.
 ///
-/// **It exists for the test that the promise holds** — that a shortcut answered before the chrome
-/// answers with a drop-down open — and it is compiled for tests alone: a test that named the keys
+/// **They exist for the tests that the promise holds** — that a shortcut of a reach answers where
+/// the order says it does — and they are compiled for tests alone: a test that named the keys
 /// would stop covering the next shortcut added to the table.
 #[cfg(test)]
-pub(crate) fn events_answered_first() -> Vec<Event> {
+fn events_at(reach: Reach) -> Vec<Event> {
     use ratatui_crossterm::crossterm::event::KeyEvent;
 
     SHORTCUTS
         .iter()
-        .filter(|shortcut| shortcut.reach == Reach::Always)
+        .filter(|shortcut| shortcut.reach == reach)
         .map(|shortcut| Event::Key(KeyEvent::new(shortcut.key, shortcut.modifiers)))
         .collect()
+}
+
+/// The events that trigger the shortcuts answered before any handler.
+#[cfg(test)]
+pub(crate) fn events_answered_first() -> Vec<Event> {
+    events_at(Reach::Always)
+}
+
+/// The events that trigger the shortcuts nobody has claimed.
+#[cfg(test)]
+pub(crate) fn events_unclaimed() -> Vec<Event> {
+    events_at(Reach::Unclaimed)
 }
 
 #[cfg(test)]
@@ -246,10 +252,9 @@ mod tests {
     /// **A shortcut is the combination it shows and not another one.** Every combination a terminal
     /// can report other than the row's own is handed to its reach, and none of them answers.
     ///
-    /// **The alternatives are walked rather than named**: `Delete` is the first row whose own
-    /// combination is no modifier at all, so the walk has to contain the empty set, and a row with
-    /// two modifiers has to be handed the ones it does not have — a hand-written list of single
-    /// modifiers would try neither.
+    /// **The alternatives are walked rather than named**: the walk has to contain the empty set,
+    /// and a row with two modifiers has to be handed the ones it does not have — a hand-written
+    /// list of single modifiers would try neither.
     #[test]
     fn a_shortcut_is_the_combination_it_shows_and_not_another_one() {
         for shortcut in SHORTCUTS {

@@ -61,28 +61,30 @@ thing a script would have to write either way, since a line of a script is made 
 of a blob handed to a method.
 
 **Each command says which operation it becomes.** That mapping is the layer's work and it is not
-free: a command that resizes knows how to rebuild a figure at another size (`replace` with
-`Shape::resized_by`), and resizing a figure that has no size (lines and connectors) leaves the
-figure unchanged. The diagram never has to answer either question, because it is handed the finished
-figure and never asks what became of it.
+free: a command that re-strokes knows how to rebuild the figure at another stroke (`replace` with
+`Shape::with_stroke`), a command that resizes knows how to rebuild a figure at another size
+(`replace` with `Shape::resized_by`), and resizing a figure that has no size (lines and connectors)
+leaves the figure unchanged. The diagram never has to answer either question, because it is handed
+the finished figure and never asks what became of it.
 
 ### The initial set
 
 The set is **open**, and a command added to it is additive: the session already does whatever a
 command says, and one more meaning is one more arm.
 
-| Command                     | What it means                                     | The change it becomes              |
-| --------------------------- | ------------------------------------------------- | ---------------------------------- |
-| `Move { id, by }`           | the figure goes so much, along each axis          | `replace` with it displaced        |
-| `Resize { id, by }`         | the figure becomes so much wider and taller       | `replace` with it resized          |
-| `Hang { id, from, anchor }` | one end of a connector hangs from a figure's side | `replace` with a rebuilt connector |
-| `Forward { id }`            | one place toward the front of the order           | `forward`                          |
-| `Remove { id }`             | the figure is taken out                           | `remove`                           |
+| Command                     | What it means                                     | The change it becomes               |
+| --------------------------- | ------------------------------------------------- | ----------------------------------- |
+| `Move { id, by }`           | the figure goes so much, along each axis          | `replace` with it displaced         |
+| `Resize { id, by }`         | the figure becomes so much wider and taller       | `replace` with it resized           |
+| `SetStroke { id, stroke }`  | figure cells are drawn in another stroke          | `replace` with `Shape::with_stroke` |
+| `Hang { id, from, anchor }` | one end of a connector hangs from a figure's side | `replace` with a rebuilt connector  |
+| `Forward { id }`            | one place toward the front of the order           | `forward`                           |
+| `Remove { id }`             | the figure is taken out                           | `remove`                            |
 
-These four are what [`docs/model.md`](model.md) calls _The initial set_ for shapes: enough to work
-with, and no promise that four is the number. `Hang` is the one that shows what the layer is for —
-it reads the connector that is there, keeps what it does not change, and rebuilds the one end that
-changes, which is logic a caller otherwise writes and gets subtly wrong.
+The commands above are what [`docs/model.md`](model.md) calls _The initial set_ for shapes: enough
+to work with, and no promise that this is the final number. `Hang` is the one that shows what the
+layer is for — it reads the connector that is there, keeps what it does not change, and rebuilds the
+one end that changes, which is logic a caller otherwise writes and gets subtly wrong.
 
 ## 3. A command operates on the session
 
@@ -165,8 +167,9 @@ unresolved_ says what is left to write.
 **A command that changes nothing records no step.** The diagram's operations cannot fail, so a
 command naming a figure the diagram does not hold changes nothing, and neither does one whose change
 gives back the figure it found — a box at its smallest shrunk again, a line resized, a figure
-brought forward when it is already at the front. **A step is a change**, and a step that gives the
-same diagram back is one `Undo` presses past: a person who presses it once sees nothing happen.
+brought forward when it is already at the front, or a figure set to the stroke it already has. **A
+step is a change**, and a step that gives the same diagram back is one `Undo` presses past: a person
+who presses it once sees nothing happen.
 
 **What answers it is the command, and not the caller.** The session does not ask what was meant; it
 asks the command what it did, and `apply_to` answers with the diagram it leaves or with nothing at

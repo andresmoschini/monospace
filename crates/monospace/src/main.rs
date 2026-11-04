@@ -12,6 +12,7 @@ mod callbacks;
 mod chrome;
 mod config;
 mod context;
+mod context_table;
 mod diagram_state;
 mod diagram_widget;
 mod dialog;

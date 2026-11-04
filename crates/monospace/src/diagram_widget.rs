@@ -21,18 +21,17 @@ use rat_widget::scrolled::{Scroll, ScrollbarPolicy};
 use ratatui_widgets::block::Block;
 
 use monospace_core::{GlyphCatalog, Offset};
-use monospace_diagram::Shape;
 use ratatui_core::{
     buffer::Buffer,
     layout::Rect,
     style::Style,
     widgets::{StatefulWidget, Widget},
 };
-use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui_crossterm::crossterm::event::Event;
 
 use crate::chrome::{Focus, Target};
 use crate::diagram_state::DiagramState;
-use crate::vocabulary::{Action, Reply};
+use crate::vocabulary::Reply;
 
 /// Paints the region, and the diagram the state draws inside it.
 pub(crate) fn draw(
@@ -55,9 +54,10 @@ pub(crate) fn draw(
 /// press or a drag on either bar are the bars' own answers, and only what they leave alone is a
 /// question about the drawing.
 ///
-/// **The region answers a click and the four arrows.** A click is the region's whatever leaf holds
-/// the keyboard (D1), and a key is the region's only while it does: the arrows are what the region
-/// does with the keyboard it is given.
+/// **The region answers a click and the keys the contextual table offers.** A click is the
+/// region's whatever leaf holds the keyboard (D1), and a key is the region's only while it does.
+/// [`crate::context_table::dispatch_key`] is what the region does with the keyboard it is given,
+/// and a key the table does not offer is `Reply::Ignored` so that the next handler is asked.
 ///
 /// **Everything else is answered with nothing** so that the event goes on to the next handler
 /// (rule 3).
@@ -69,7 +69,7 @@ pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus, target
 
     match raw {
         Event::Mouse(_) => click(target, state),
-        Event::Key(_) if focus == Focus::Region => key(raw, state),
+        Event::Key(key) if focus == Focus::Region => crate::context_table::dispatch_key(state, key),
         _ => Reply::Ignored,
     }
 }
@@ -89,108 +89,6 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
     let answer = state.scroll_area(area).handle(raw, MouseOnly);
 
     state.scrolled(answer)
-}
-
-/// What a key means to the region.
-///
-/// **The four arrows displace the selected figure one cell** (rule 1 of #179): the action carries
-/// the delta the arrow names and no identity, and the selection is read where the action is carried
-/// out. An arrow with nothing selected dispatches no `Move`.
-///
-/// **Shift plus an arrow resizes the selected figure one cell** (rules 1 and 4 of #284): if the
-/// selected figure has a size, `Action::Resize(dx, dy)` is emitted; if nothing is selected or the
-/// selected figure has no size (such as a line or a connector), the key is ignored so the loop
-/// continues without a step or repaint.
-///
-/// **Escape clears the active selection** (D1 of #279): pressing Escape while a shape is selected
-/// drops the selection and requests a repaint; pressing Escape with nothing selected changes nothing
-/// and is ignored. A key that is neither an arrow nor Escape is not the region's.
-fn key(raw: &Event, state: &mut DiagramState) -> Reply {
-    if let Event::Key(KeyEvent {
-        code: KeyCode::Esc,
-        modifiers: KeyModifiers::NONE,
-        kind: KeyEventKind::Press,
-        ..
-    }) = raw
-    {
-        if state.select(None) {
-            return Reply::Repaint;
-        }
-        return Reply::Ignored;
-    }
-
-    if let Some((dx, dy)) = resize_delta(raw) {
-        let resizable = state
-            .selected()
-            .and_then(|id| state.session().diagram().get(id))
-            .is_some_and(Shape::has_size);
-
-        if resizable {
-            return Reply::Act(Action::Resize(dx, dy));
-        }
-        return Reply::Ignored;
-    }
-
-    let Some((dx, dy)) = displacement(raw) else {
-        return Reply::Ignored;
-    };
-
-    if state.selected().is_none() {
-        return Reply::Ignored;
-    }
-
-    Reply::Act(Action::Move(dx, dy))
-}
-
-/// The delta Shift plus an arrow names, or `None` for any other event.
-///
-/// **A press with Shift and no other modifier** (rules 1 and 8 of #284): `Ctrl+Shift+arrow` and
-/// other combinations are ignored, and a release or repeat does nothing.
-fn resize_delta(event: &Event) -> Option<(i16, i16)> {
-    let Event::Key(KeyEvent {
-        code,
-        modifiers: KeyModifiers::SHIFT,
-        kind: KeyEventKind::Press,
-        ..
-    }) = event
-    else {
-        return None;
-    };
-
-    arrow_direction(*code)
-}
-
-/// The delta the four arrows name, or `None` for any other event.
-///
-/// **A press with no modifiers and nothing else** (rule 8): a release and a repeat are not a press,
-/// and a modified arrow is another combination. Right is one cell along the x axis, Down along the
-/// y one, and the two negatives are the other directions.
-fn displacement(event: &Event) -> Option<(i16, i16)> {
-    let Event::Key(KeyEvent {
-        code,
-        modifiers: KeyModifiers::NONE,
-        kind: KeyEventKind::Press,
-        ..
-    }) = event
-    else {
-        return None;
-    };
-
-    arrow_direction(*code)
-}
-
-/// The delta along screen axes named by the four arrow keys, or `None` for any other key code.
-///
-/// Right is one cell along the x axis, Down along the y one, and the two negatives are the other
-/// directions.
-fn arrow_direction(code: KeyCode) -> Option<(i16, i16)> {
-    match code {
-        KeyCode::Right => Some((1, 0)),
-        KeyCode::Left => Some((-1, 0)),
-        KeyCode::Up => Some((0, -1)),
-        KeyCode::Down => Some((0, 1)),
-        _ => None,
-    }
 }
 
 /// What a click means to the region.
@@ -332,10 +230,11 @@ fn inner_region(area: Rect) -> Rect {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::vocabulary::Action;
     use monospace_core::ShapeId;
     use ratatui_core::layout::Position;
     use ratatui_crossterm::crossterm::event::{
-        KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
     use std::num::NonZeroU16;
 
@@ -823,7 +722,20 @@ mod tests {
         assert!(state.selected().is_some(), "the box lost its selection");
     }
 
-    const ALL_CONTEXTUAL_KEYS: [(KeyCode, KeyModifiers); 9] = [
+    /// Keys the region must never answer, whatever the context: another change's shortcuts,
+    /// the bar's own (`Tab`), and keys nobody claims.
+    const NEVER_AN_ACTION: [(KeyCode, KeyModifiers); 8] = [
+        (KeyCode::Char('x'), KeyModifiers::NONE),
+        (KeyCode::Char('a'), KeyModifiers::NONE),
+        (KeyCode::Enter, KeyModifiers::NONE),
+        (KeyCode::Tab, KeyModifiers::NONE),
+        (KeyCode::BackTab, KeyModifiers::SHIFT),
+        (KeyCode::Home, KeyModifiers::NONE),
+        (KeyCode::End, KeyModifiers::NONE),
+        (KeyCode::F(1), KeyModifiers::NONE),
+    ];
+
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 16] = [
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -832,110 +744,106 @@ mod tests {
         (KeyCode::Left, KeyModifiers::SHIFT),
         (KeyCode::Up, KeyModifiers::SHIFT),
         (KeyCode::Down, KeyModifiers::SHIFT),
-        (KeyCode::Esc, KeyModifiers::NONE),
-    ];
-
-    const ARROWS_AND_ESC: [(KeyCode, KeyModifiers); 5] = [
-        (KeyCode::Right, KeyModifiers::NONE),
-        (KeyCode::Left, KeyModifiers::NONE),
-        (KeyCode::Up, KeyModifiers::NONE),
-        (KeyCode::Down, KeyModifiers::NONE),
-        (KeyCode::Esc, KeyModifiers::NONE),
-    ];
-
-    /// Keys the region must never answer, whatever the context: another change's shortcuts, the
-    /// global table's (`Delete`, `Ctrl+Shift+Z`), the bar's own (`Tab`), and keys nobody claims.
-    ///
-    /// **This is the direction a table of offers cannot see.** The list above says what the bar
-    /// offers; this one says that the region answers nothing else, which is the other half of the
-    /// Representation Rule.
-    const NOT_THE_REGIONS: [(KeyCode, KeyModifiers); 10] = [
-        (KeyCode::Char('x'), KeyModifiers::NONE),
         (KeyCode::Char('s'), KeyModifiers::NONE),
-        (KeyCode::Enter, KeyModifiers::NONE),
-        (KeyCode::Tab, KeyModifiers::NONE),
-        (KeyCode::BackTab, KeyModifiers::SHIFT),
+        (KeyCode::Char('1'), KeyModifiers::NONE),
+        (KeyCode::Char('2'), KeyModifiers::NONE),
+        (KeyCode::Char('3'), KeyModifiers::NONE),
+        (KeyCode::Char('4'), KeyModifiers::NONE),
+        (KeyCode::Char('5'), KeyModifiers::NONE),
         (KeyCode::Delete, KeyModifiers::NONE),
-        (KeyCode::Home, KeyModifiers::NONE),
-        (KeyCode::End, KeyModifiers::NONE),
-        (KeyCode::F(1), KeyModifiers::NONE),
-        (
-            KeyCode::Char('Z'),
-            KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
-        ),
+        (KeyCode::Esc, KeyModifiers::NONE),
     ];
 
     /// **The rule holds three ways**: the table the test writes, the bar the application draws and
     /// the keys the region answers all say the same thing.
     ///
-    /// The bar is checked for the three blocks it can carry, the table decides which keys a context
-    /// offers, every key outside it is asserted `Ignored`, and `NOT_THE_REGIONS` closes the other
-    /// direction: a key the bar never shows is not the region's, whichever context is asking.
+    /// **An unoffered key is answered with `Reply::Ignored`**, so it falls through to whatever
+    /// comes after the region; a key the table offers is never ignored, because the bar said it
+    /// was there.
     fn assert_offer_matches_acceptance(
         fixture: &str,
         selected: Option<u16>,
-        offered_keys: &[(KeyCode, KeyModifiers)],
+        sub_mode: Option<crate::diagram_state::SubMode>,
     ) {
         let make_state = || {
             let mut state = a_state_over(fixture);
             if let Some(id) = selected {
                 state.select(Some(ShapeId::new(NonZeroU16::new(id).unwrap())));
             }
+            if let Some(mode) = sub_mode {
+                state.set_sub_mode(Some(mode));
+            }
             state
         };
 
-        let bar = crate::status::command_line(&make_state());
+        let state = make_state();
+        let bar = crate::status::command_line(&state);
 
-        let offers_move = offered_keys.contains(&(KeyCode::Right, KeyModifiers::NONE));
-        let offers_resize = offered_keys.contains(&(KeyCode::Right, KeyModifiers::SHIFT));
-        let offers_esc = offered_keys.contains(&(KeyCode::Esc, KeyModifiers::NONE));
-
-        assert_eq!(
-            bar.contains("MOVE: ↑↓←→"),
-            offers_move,
-            "bar MOVE offer disagreement with test table in: {bar}"
-        );
-        assert_eq!(
-            bar.contains("RESIZE: Shift+↑↓←→"),
-            offers_resize,
-            "bar RESIZE offer disagreement with test table in: {bar}"
-        );
-        assert_eq!(
-            bar.contains("[Esc] Deselect"),
-            offers_esc,
-            "bar [Esc] offer disagreement with test table in: {bar}"
-        );
-
-        for (code, modifiers) in ALL_CONTEXTUAL_KEYS {
-            let mut state = make_state();
-            let event = Event::Key(KeyEvent::new(code, modifiers));
-            let reply = handle(&event, &mut state, Focus::Region);
-            let is_offered = offered_keys.contains(&(code, modifiers));
-
-            if is_offered {
-                assert_ne!(
-                    reply,
-                    Reply::Ignored,
-                    "offered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} was ignored"
+        let mut offered_keys = Vec::new();
+        for block in crate::context_table::context_blocks(&state) {
+            if let Some(category) = block.category {
+                assert!(
+                    bar.contains(category),
+                    "bar missing category {category} in: {bar}"
                 );
-            } else {
+            }
+            for action in block.actions {
+                assert!(
+                    bar.contains(action.display),
+                    "bar missing action display {:?} in: {bar}",
+                    action.display
+                );
+                for (code, modifiers) in action.pattern.samples() {
+                    offered_keys.push((code, modifiers));
+                    let mut s = make_state();
+                    let event = Event::Key(KeyEvent::new(code, modifiers));
+                    let reply = handle(&event, &mut s, Focus::Region);
+                    assert_ne!(
+                        reply,
+                        Reply::Ignored,
+                        "offered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} was ignored"
+                    );
+                }
+            }
+        }
+
+        for (code, modifiers) in ALL_POSSIBLE_CONTEXT_KEYS {
+            if !offered_keys.contains(&(code, modifiers)) {
+                let mut s = make_state();
+                let event = Event::Key(KeyEvent::new(code, modifiers));
+                let reply = handle(&event, &mut s, Focus::Region);
                 assert_eq!(
                     reply,
                     Reply::Ignored,
-                    "unoffered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} was NOT ignored: {reply:?}"
+                    "unoffered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} answered unexpected reply: {reply:?}"
                 );
             }
         }
 
-        for (code, modifiers) in NOT_THE_REGIONS {
-            let mut state = make_state();
+        for (code, modifiers) in NEVER_AN_ACTION {
+            let mut s = make_state();
             let event = Event::Key(KeyEvent::new(code, modifiers));
-            let reply = handle(&event, &mut state, Focus::Region);
+            let reply = handle(&event, &mut s, Focus::Region);
 
             assert_eq!(
                 reply,
                 Reply::Ignored,
-                "{code:?} with modifiers {modifiers:?} was the region's in: {bar}"
+                "{code:?} with modifiers {modifiers:?} was unexpected in: {bar}"
+            );
+        }
+
+        for event in crate::shortcuts::events_unclaimed() {
+            if let Event::Key(k) = event
+                && offered_keys.contains(&(k.code, k.modifiers))
+            {
+                continue;
+            }
+            let mut s = make_state();
+            let reply = handle(&event, &mut s, Focus::Region);
+            assert_eq!(
+                reply,
+                Reply::Ignored,
+                "global unclaimed shortcut {event:?} was NOT ignored in: {bar}"
             );
         }
     }
@@ -944,21 +852,21 @@ mod tests {
     /// selection via click, so all contextual keys (arrows, Shift+arrows, Esc) are ignored.
     #[test]
     fn key_acceptance_matches_contextual_bar_in_idle() {
-        assert_offer_matches_acceptance(A_BOX, None, &[]);
+        assert_offer_matches_acceptance(A_BOX, None, None);
     }
 
     /// **For a selected box, key acceptance matches what the contextual bar offers**: the bar offers
     /// MOVE, RESIZE, and Deselect, so plain arrows, Shift+arrows, and Esc are all accepted.
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_box() {
-        assert_offer_matches_acceptance(A_BOX, Some(1), &ALL_CONTEXTUAL_KEYS);
+        assert_offer_matches_acceptance(A_BOX, Some(1), None);
     }
 
     /// **For a selected line, key acceptance matches what the contextual bar offers**: the bar offers
     /// MOVE and Deselect, but no RESIZE; plain arrows and Esc are accepted, and Shift+arrows are ignored.
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_line() {
-        assert_offer_matches_acceptance(A_LINE, Some(1), &ARROWS_AND_ESC);
+        assert_offer_matches_acceptance(A_LINE, Some(1), None);
     }
 
     /// **For a selected connector, key acceptance matches what the contextual bar offers**: the bar
@@ -966,6 +874,163 @@ mod tests {
     /// are ignored.
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_connector() {
-        assert_offer_matches_acceptance(A_CONNECTOR, Some(1), &ARROWS_AND_ESC);
+        assert_offer_matches_acceptance(A_CONNECTOR, Some(1), None);
+    }
+
+    /// **In `STROKE_SELECT`, key acceptance matches what the contextual bar offers**: the bar offers
+    /// digits 1..=5 and Esc Cancel; offered keys are accepted, and unoffered keys are ignored.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_in_stroke_select() {
+        assert_offer_matches_acceptance(
+            A_BOX,
+            Some(1),
+            Some(crate::diagram_state::SubMode::StrokeSelect),
+        );
+    }
+
+    #[test]
+    fn arrows_are_ignored_when_the_selection_names_a_figure_the_drawing_does_not_record() {
+        let mut state = a_state_over(A_BOX);
+        state.select(Some(ShapeId::new(NonZeroU16::new(999).unwrap())));
+        assert_eq!(state.selected_shape(), None);
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Ignored);
+    }
+
+    #[test]
+    fn pressing_s_on_selected_shape_enters_stroke_select_sub_mode() {
+        let mut state = a_state_over(A_BOX);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(
+            state.sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+    }
+
+    #[test]
+    fn pressing_s_in_idle_is_ignored() {
+        let mut state = a_state_over(A_BOX);
+        assert_eq!(state.selected(), None);
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Ignored);
+        assert_eq!(state.sub_mode(), None);
+    }
+
+    #[test]
+    fn digits_in_stroke_select_dispatch_set_stroke_and_clear_sub_mode() {
+        use monospace_diagram::Stroke;
+
+        let pairs = [
+            ('1', "light"),
+            ('2', "double"),
+            ('3', "light-round"),
+            ('4', "heavy"),
+            ('5', "ascii"),
+        ];
+
+        for (c, stroke_name) in pairs {
+            let mut state = a_state_over(A_BOX);
+            state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+            state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
+
+            let answer = handle(
+                &Event::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE)),
+                &mut state,
+                Focus::Region,
+            );
+            assert_eq!(
+                answer,
+                Reply::Act(Action::SetStroke(Stroke::from(stroke_name)))
+            );
+            assert_eq!(state.sub_mode(), None);
+        }
+    }
+
+    #[test]
+    fn escape_in_stroke_select_cancels_sub_mode_and_leaves_figure_selected() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(state.sub_mode(), None);
+        assert_eq!(state.selected(), Some(id));
+    }
+
+    #[test]
+    fn unoffered_keys_in_stroke_select_are_ignored() {
+        let mut state = a_state_over(A_BOX);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
+
+        let unoffered = [
+            KeyCode::Char('x'),
+            KeyCode::Char('a'),
+            KeyCode::Right,
+            KeyCode::Delete,
+            KeyCode::Enter,
+            KeyCode::Tab,
+            KeyCode::Char('6'),
+        ];
+
+        for code in unoffered {
+            let answer = handle(
+                &Event::Key(KeyEvent::new(code, KeyModifiers::NONE)),
+                &mut state,
+                Focus::Region,
+            );
+            assert_eq!(answer, Reply::Ignored, "{code:?} was not ignored");
+            assert_eq!(
+                state.sub_mode(),
+                Some(crate::diagram_state::SubMode::StrokeSelect)
+            );
+        }
+    }
+
+    #[test]
+    fn unclaimed_global_shortcuts_in_stroke_select_are_ignored() {
+        let mut state = a_state_over(A_BOX);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
+
+        let global_shortcuts = [
+            (KeyCode::Char('z'), KeyModifiers::CONTROL),
+            (KeyCode::Char('s'), KeyModifiers::CONTROL),
+            (KeyCode::Char('q'), KeyModifiers::CONTROL),
+            (KeyCode::Char('n'), KeyModifiers::CONTROL),
+            (KeyCode::Char('o'), KeyModifiers::CONTROL),
+        ];
+
+        for (code, modifiers) in global_shortcuts {
+            let answer = handle(
+                &Event::Key(KeyEvent::new(code, modifiers)),
+                &mut state,
+                Focus::Region,
+            );
+            assert_eq!(answer, Reply::Ignored, "{code:?} was not ignored");
+        }
     }
 }

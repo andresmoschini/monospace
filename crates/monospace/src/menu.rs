@@ -58,10 +58,7 @@ static MENU: StaticMenu = StaticMenu {
                 "_Quit|Ctrl+Q",
             ],
         ),
-        (
-            "_Edit",
-            &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z", "_Delete|Del"],
-        ),
+        ("_Edit", &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z"]),
         ("_Help", &["_About"]),
     ],
 };
@@ -92,9 +89,6 @@ const UNDO: usize = 0;
 
 /// The entry that gives back the step ahead.
 const REDO: usize = 1;
-
-/// The entry that removes the selected figure.
-const DELETE: usize = 2;
 
 /// The label of the dialog.
 const HELP: usize = 2;
@@ -305,7 +299,6 @@ fn meaning(label: usize, entry: usize) -> Reply {
         (FILE, QUIT) => Reply::quit(),
         (EDIT, UNDO) => Reply::Act(Action::Undo),
         (EDIT, REDO) => Reply::Act(Action::Redo),
-        (EDIT, DELETE) => Reply::Act(Action::Delete),
         (HELP, ABOUT) => Reply::Act(Action::About),
 
         _ => Reply::Repaint,
@@ -797,26 +790,6 @@ mod tests {
         );
     }
 
-    /// **The Edit menu's entry is the key's action, and the bar holds no selection to condition
-    /// it on.** The entry is always offered, and with nothing selected the application carries the
-    /// action out as a deletion that removes nothing rather than the menu refusing to open it.
-    #[test]
-    fn taking_the_delete_entry_becomes_the_action_of_the_key() {
-        let mut chrome = drawn();
-        open_with(&mut chrome, 'e');
-
-        let outcome = take(&mut chrome, "Delete");
-
-        assert!(
-            matches!(outcome, Reply::Act(Action::Delete)),
-            "the entry did not become the action of the delete key: {outcome:?}"
-        );
-        assert!(
-            !chrome.popup_active(),
-            "the drop-down stayed open behind it"
-        );
-    }
-
     /// **The Edit menu's entries are the keys' actions.** The undo is the first, and taking it says
     /// `Action::Undo` rather than a second spelling of the walk.
     #[test]
@@ -898,8 +871,8 @@ mod tests {
         );
     }
 
-    /// **The Edit menu holds the three entries in the order the keys are learned**: Undo, Redo and
-    /// Delete, each with the shortcut the table answers to (rule 9).
+    /// **The Edit menu holds Undo and Redo with their shortcuts**: Undo and Redo, each with the
+    /// shortcut the table answers to (rule 9).
     #[test]
     fn the_edit_menu_shows_undo_and_redo_with_their_shortcuts() {
         let mut chrome = drawn();
@@ -926,18 +899,12 @@ mod tests {
 
         let undo = frame.find("Undo").expect("the undo entry is on the frame");
         let redo = frame.find("Redo").expect("the redo entry is on the frame");
-        let delete = frame
-            .find("Delete")
-            .expect("the delete entry is on the frame");
 
-        assert!(
-            undo < redo && redo < delete,
-            "the entries are not Undo, Redo, Delete: {frame:?}"
-        );
+        assert!(undo < redo, "the entries are not Undo, Redo: {frame:?}");
     }
 
     #[test]
-    fn the_edit_menu_is_on_the_bar_and_shows_the_delete_entry() {
+    fn the_edit_menu_shows_undo_and_redo_and_nothing_else() {
         let mut chrome = drawn();
         open_with(&mut chrome, 'e');
 
@@ -948,12 +915,12 @@ mod tests {
             "the bar has no Edit menu: {frame:?}"
         );
         assert!(
-            frame.contains("Delete"),
-            "the Edit menu offers no delete: {frame:?}"
+            !frame.contains("Delete"),
+            "the Edit menu still offers delete: {frame:?}"
         );
         assert!(
-            frame.contains("Del"),
-            "the entry shows no shortcut: {frame:?}"
+            !frame.contains("Del"),
+            "the Edit menu still shows Del: {frame:?}"
         );
     }
 

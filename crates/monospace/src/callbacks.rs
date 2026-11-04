@@ -223,6 +223,12 @@ fn apply(action: &Action, state: &mut AppState) {
             }
         }
 
+        Action::SetStroke(stroke) => {
+            if let Some(selected) = state.diagram().selected() {
+                state.diagram_mut().set_stroke(selected, stroke.clone());
+            }
+        }
+
         // **The two actions that open the overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
         Action::About => about::open(state.dialog_mut()),
@@ -2599,17 +2605,16 @@ mod tests {
         );
     }
 
-    /// **A press with nothing selected is not a command.** It removes nothing and records no step,
-    /// and the frame is painted again because the action was carried out: that is the repaint an
-    /// entry taken with nothing selected needs, and the key costs the same one.
+    /// **A press with nothing selected is ignored** (D3 of #292). Deletion is contextual and
+    /// offered only when a shape is selected; with nothing selected, the key is ignored and the
+    /// loop continues without a step or repaint.
     #[test]
-    fn the_delete_key_with_nothing_selected_removes_nothing() {
+    fn the_delete_key_with_nothing_selected_is_ignored() {
         let mut state = a_drawn_state_over(A_BOX);
 
         let outcome = send(&key(KeyCode::Delete), &mut state);
-        let _ = draw(&mut state);
 
-        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
             !state.diagram().can_undo(),
             "a press with nothing selected recorded a step"
@@ -2625,120 +2630,312 @@ mod tests {
         );
     }
 
-    /// **The Edit menu's entry is the delete key's action.** The menu carries no selection, so the
-    /// entry is offered and taken with a figure selected, and it removes it.
+    /// **With the drop-down open, Delete is ignored and the menu stays open** (D3 of #292).
+    /// Deletion is no longer a global unclaimed shortcut or an edit menu entry; with focus on the
+    /// bar/drop-down, Delete does not remove the figure and the menu remains active.
     #[test]
-    fn the_edit_menus_delete_entry_removes_the_selected_shape() {
-        let mut state = a_drawn_state_over(A_BOX);
-        let _ = send(&click(3, 3), &mut state);
-        assert!(
-            state.diagram().selected().is_some(),
-            "the box was not selected"
-        );
-
-        let outcome = take_the_entry(&mut state, 'e', "Delete");
-
-        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(
-            !state.chrome().popup_active(),
-            "the entry left the menu open"
-        );
-        assert_eq!(
-            state.diagram().selected(),
-            None,
-            "the entry kept the identity it removed"
-        );
-
-        let _ = draw(&mut state);
-        assert!(
-            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
-            "the entry did not remove the selected shape"
-        );
-    }
-
-    /// **The entry is offered with nothing selected**, not only when a figure is. Taking it removes
-    /// nothing and records no step, and the frame is still painted: the action was carried out, and
-    /// the drop-down the person saw was closed by the entry.
-    #[test]
-    fn the_edit_menus_delete_entry_is_offered_with_nothing_selected() {
-        let mut state = a_drawn_state_over(A_BOX);
-
-        let outcome = take_the_entry(&mut state, 'e', "Delete");
-
-        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(
-            !state.chrome().popup_active(),
-            "the entry stayed open with nothing to remove"
-        );
-        assert!(
-            !state.diagram().can_undo(),
-            "the entry recorded a step with nothing selected"
-        );
-
-        let _ = draw(&mut state);
-        assert!(
-            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
-            "a figure was removed with nothing selected"
-        );
-    }
-
-    /// **`Delete` is `Unclaimed`, so the drop-down does not keep it** (D3): the figure behind the
-    /// open menu is removed, which is what proves the key reached the session. **The keyboard then
-    /// goes back to the region** (rule 13), so the drop-down the bar was showing closes with it —
-    /// the removal is taken and the person is left looking at the drawing.
-    #[test]
-    fn the_delete_key_with_the_drop_down_open_removes_and_takes_the_keyboard_back() {
+    fn the_drop_down_keeps_the_delete_key() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         open_the_drop_down(&mut state, 'f');
 
         let outcome = send(&key(KeyCode::Delete), &mut state);
 
-        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert_eq!(
-            state.diagram().selected(),
-            None,
-            "the drop-down kept the selection"
-        );
-        assert_eq!(
-            state.chrome().leaf(),
-            Focus::Region,
-            "the removal left the keyboard on the bar"
-        );
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
-            !state.chrome().popup_active(),
-            "a drop-down is open with the keyboard on the region"
+            state.diagram().selected().is_some(),
+            "the figure was deleted"
         );
+        assert_eq!(state.chrome().leaf(), Focus::Bar, "focus left the bar");
+        assert!(state.chrome().popup_active(), "the drop-down was closed");
+    }
 
-        let _ = draw(&mut state);
+    /// **Delete on the bar does nothing** (D3 of #292). Even with a figure selected, when the bar
+    /// holds the keyboard without a drop-down, Delete is ignored.
+    #[test]
+    fn the_delete_key_on_the_bar_does_nothing() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::F(10)), &mut state);
+        assert_eq!(state.chrome().leaf(), Focus::Bar);
+
+        let outcome = send(&key(KeyCode::Delete), &mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
-            state.diagram().owner(Offset { x: 2, y: 1 }).is_none(),
-            "the drop-down kept the delete key from the diagram"
+            state.diagram().selected().is_some(),
+            "the figure was deleted"
         );
     }
 
-    /// **The Edit menu's entry leaves the keyboard on the region** (rule 13): the shape the person
-    /// acted on is gone, and what is left to do is in the drawing.
     #[test]
-    fn taking_the_delete_entry_gives_the_keyboard_back_to_the_region() {
+    fn click_outside_cancels_sub_mode_and_clears_selection() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        assert!(
-            state.diagram().selected().is_some(),
-            "the box was not selected, so the test proves nothing"
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
         );
 
-        let outcome = take_the_entry(&mut state, 'e', "Delete");
+        let _ = send(&click(1, 2), &mut state);
+        assert_eq!(state.diagram().sub_mode(), None);
+        assert_eq!(state.diagram().selected(), None);
+    }
+
+    #[test]
+    fn clicking_another_figure_cancels_sub_mode_and_changes_selection() {
+        let mut state = a_drawn_state_over(A_BOX_AND_WHAT_HANGS_FROM_IT);
+        let _ = send(&click(3, 3), &mut state);
+        let first = state.diagram().selected();
+        assert!(first.is_some());
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(&click(18, 3), &mut state);
+        let second = state.diagram().selected();
+        assert!(second.is_some());
+        assert_ne!(first, second);
+        assert_eq!(state.diagram().sub_mode(), None);
+    }
+
+    #[test]
+    fn clicking_the_same_figure_in_sub_mode_preserves_sub_mode() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(&click(3, 3), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+    }
+
+    #[test]
+    fn moving_focus_to_bar_and_returning_preserves_sub_mode() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(&key(KeyCode::F(10)), &mut state);
+        assert_eq!(state.chrome().leaf(), Focus::Bar);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(&key(KeyCode::Esc), &mut state);
+        assert_eq!(state.chrome().leaf(), Focus::Region);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+        assert!(state.diagram().selected().is_some());
+    }
+
+    #[test]
+    fn opening_dialog_and_closing_preserves_sub_mode() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(
+            &key_with(KeyCode::Char('s'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+        assert!(state.save().active());
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+
+        let _ = send(&key(KeyCode::Esc), &mut state);
+        assert!(!state.save().active());
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+        assert!(state.diagram().selected().is_some());
+    }
+
+    /// The stroke `shape` carries, whichever kind of figure it is.
+    fn stroke_of(shape: &monospace_diagram::Shape) -> monospace_diagram::Stroke {
+        match shape {
+            monospace_diagram::Shape::Box { stroke, .. }
+            | monospace_diagram::Shape::Line { stroke, .. }
+            | monospace_diagram::Shape::Connector { stroke, .. } => stroke.clone(),
+        }
+    }
+
+    /// **A stroke the figure already carries changes nothing** (#285): the command leaves the
+    /// diagram as it found it, so the session records no step and an undo has nothing to give
+    /// back. The key was offered and carried out all the same, so the sub-mode ends and the
+    /// identity stays.
+    #[test]
+    fn setting_identical_stroke_leaves_diagram_untouched_and_records_no_step() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+
+        let outcome = send(&key(KeyCode::Char('1')), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
-            state.chrome().leaf(),
-            Focus::Region,
-            "the entry left the keyboard on the bar"
+            state.diagram().sub_mode(),
+            None,
+            "the sub-mode survived the stroke it was asked for"
+        );
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("light"),
+            "the stroke changed"
         );
         assert!(
-            !state.chrome().popup_active(),
-            "the entry left a drop-down open"
+            !state.diagram().can_undo(),
+            "an unchanged stroke recorded a step"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the identity went with the stroke"
+        );
+    }
+
+    /// **A stroke the figure does not carry is one step** (#292, behavior 5): the diagram holds
+    /// the new stroke, and one undo gives the old one back with nothing behind it.
+    #[test]
+    fn setting_different_stroke_records_one_step_in_session_history() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+
+        let outcome = send(&key(KeyCode::Char('2')), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().sub_mode(),
+            None,
+            "the sub-mode survived the stroke it was asked for"
+        );
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("double"),
+            "the stroke did not change"
+        );
+        assert!(state.diagram().can_undo(), "no step was recorded");
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the identity went with the stroke"
+        );
+
+        let _ = send(&undo_key(), &mut state);
+
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("light"),
+            "one undo did not give the old stroke back"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "the stroke recorded more than one step"
+        );
+    }
+
+    /// **Undo and redo walk the history from inside the sub-mode and leave it alone** (behavior 9):
+    /// the global keys fall through the region, and the sub-mode belongs to the selection, which a
+    /// walk does not touch.
+    #[test]
+    fn undo_and_redo_in_stroke_select_walk_history() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        let _ = send(&key(KeyCode::Char('2')), &mut state);
+        let _ = send(&key(KeyCode::Char('s')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect),
+            "the sub-mode was not entered again"
+        );
+
+        let outcome = send(&undo_key(), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("light"),
+            "the undo did not give the old stroke back"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect),
+            "the undo ended the sub-mode"
+        );
+
+        let outcome = send(&redo_key(), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            stroke_of(
+                state
+                    .diagram()
+                    .selected_shape()
+                    .expect("the box is still there")
+            ),
+            monospace_diagram::Stroke::from("double"),
+            "the redo did not give the new stroke back"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect),
+            "the redo ended the sub-mode"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the walk changed the selection"
         );
     }
 
@@ -2766,22 +2963,6 @@ mod tests {
         let second = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(second, Control::Continue), "{second:?}");
-    }
-
-    /// **The table answers a meaning, and not an identity** (D2): `Action::Delete` has no field to
-    /// carry one, and the shape is read from the state by `apply` rather than minted by a handler.
-    #[test]
-    fn the_delete_shortcut_says_only_that_it_deletes() {
-        assert_eq!(
-            shortcuts::handle_unclaimed(&key(KeyCode::Delete)),
-            Reply::Act(Action::Delete),
-            "the delete key is not a row of the table, or says something else"
-        );
-        assert_eq!(
-            shortcuts::handle_always(&key(KeyCode::Delete)),
-            Reply::Ignored,
-            "the delete key reaches before the chrome"
-        );
     }
 
     /// **An entry with nothing to give back changes nothing and paints** (rule 11): the drop-down

@@ -7,8 +7,12 @@
 //! the count of shapes, and the viewport origin; the lower row offers `[Click] Pick`.
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
-//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect`, with
-//! `RESIZE: Shift+↑↓←→` added while the selected figure has a size.
+//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc]
+//! Deselect`, with `RESIZE: Shift+↑↓←→` between the first two while the selected figure has a
+//! size.
+//!
+//! **In `STROKE_SELECT`**, the upper row reports the figure and the stroke it carries, and the
+//! lower row offers the five catalog strokes and `[Esc] Cancel`.
 
 use monospace_core::Footprint;
 use monospace_diagram::{Diagram, EndpointAt, Shape};
@@ -60,9 +64,18 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
     let session = diagram_state.session();
     let diagram = session.diagram();
 
-    let selected_shape = diagram_state
-        .selected()
-        .and_then(|id| diagram.get(id).map(|shape| (id, shape)));
+    let selected_shape = diagram_state.selected_entry();
+
+    if diagram_state.sub_mode() == Some(crate::diagram_state::SubMode::StrokeSelect)
+        && let Some((id, shape)) = selected_shape
+    {
+        let (kind, current_stroke) = match shape {
+            Shape::Box { stroke, .. } => ("Box", stroke.0.as_str()),
+            Shape::Line { stroke, .. } => ("Line", stroke.0.as_str()),
+            Shape::Connector { stroke, .. } => ("Connector", stroke.0.as_str()),
+        };
+        return format!("STROKE SELECTION for {kind} #{id} · Current: {current_stroke}");
+    }
 
     match selected_shape {
         Some((
@@ -169,18 +182,7 @@ fn endpoint_text(at: EndpointAt, diagram: &Diagram) -> String {
 
 /// Formats the contextual command row (row 1) from the diagram state.
 pub(crate) fn command_line(diagram_state: &DiagramState) -> String {
-    let session = diagram_state.session();
-    let diagram = session.diagram();
-
-    let selected_shape = diagram_state.selected().and_then(|id| diagram.get(id));
-
-    match selected_shape {
-        Some(shape) if shape.has_size() => {
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned()
-        }
-        Some(_) => "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect".to_owned(),
-        None => "SELECT: [Click] Pick".to_owned(),
-    }
+    crate::context_table::format_command_line(diagram_state)
 }
 
 /// Paints the contextual status and command bar.
@@ -366,7 +368,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -429,7 +431,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -460,7 +462,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -543,19 +545,41 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+        );
+    }
+
+    #[test]
+    fn stroke_selection_sub_mode_shows_title_and_stroke_options() {
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
+
+        assert_eq!(
+            status_line(&state),
+            "STROKE SELECTION for Box #1 · Current: light"
+        );
+        assert_eq!(
+            command_line(&state),
+            "STROKE: [1] light ┌─┐ [2] double ╔═╗ [3] light-round ╭─╮ [4] heavy ┏━┓ [5] ascii +-+ · [Esc] Cancel"
         );
     }
 }
