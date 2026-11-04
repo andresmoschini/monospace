@@ -7,7 +7,7 @@
 use monospace_diagram::Shape;
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::diagram_state::DiagramState;
+use crate::diagram_state::{DiagramState, SubMode};
 use crate::vocabulary::{Action, Reply};
 
 /// Condition required for a contextual block to be active.
@@ -28,6 +28,8 @@ pub(crate) enum KeyPattern {
     ShiftArrows,
     /// A single key code with no modifiers.
     Code(KeyCode),
+    /// A single bare character key.
+    Char(char),
 }
 
 impl KeyPattern {
@@ -50,6 +52,9 @@ impl KeyPattern {
                     )
             }
             Self::Code(code) => event.modifiers == KeyModifiers::NONE && event.code == code,
+            Self::Char(c) => {
+                event.modifiers == KeyModifiers::NONE && event.code == KeyCode::Char(c)
+            }
         }
     }
 
@@ -69,6 +74,7 @@ impl KeyPattern {
                 (KeyCode::Down, KeyModifiers::SHIFT),
             ],
             Self::Code(code) => vec![(code, KeyModifiers::NONE)],
+            Self::Char(c) => vec![(KeyCode::Char(c), KeyModifiers::NONE)],
         }
     }
 }
@@ -79,6 +85,12 @@ pub(crate) enum ContextMeaning {
     Act(Action),
     /// Dispatches a directional action taking `(dx, dy)`.
     Directional(fn(i16, i16) -> Action),
+    /// Sets the stroke of the selected figure to the catalog name.
+    SetStroke(&'static str),
+    /// Enters an inline sub-mode.
+    EnterSubMode(SubMode),
+    /// Leaves an inline sub-mode back to normal selection.
+    LeaveSubMode,
     /// Deselects the active figure.
     Deselect,
 }
@@ -117,6 +129,15 @@ static SELECTION: &[ContextBlock] = &[
         }],
     },
     ContextBlock {
+        category: Some("STROKE"),
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('s'),
+            display: "[s]",
+            meaning: ContextMeaning::EnterSubMode(SubMode::StrokeSelect),
+        }],
+    },
+    ContextBlock {
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
@@ -132,6 +153,49 @@ static SELECTION: &[ContextBlock] = &[
             pattern: KeyPattern::Code(KeyCode::Esc),
             display: "[Esc] Deselect",
             meaning: ContextMeaning::Deselect,
+        }],
+    },
+];
+
+static STROKE_SELECT: &[ContextBlock] = &[
+    ContextBlock {
+        category: Some("STROKE"),
+        condition: Condition::Always,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::Char('1'),
+                display: "[1] light ┌─┐",
+                meaning: ContextMeaning::SetStroke("light"),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('2'),
+                display: "[2] double ╔═╗",
+                meaning: ContextMeaning::SetStroke("double"),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('3'),
+                display: "[3] light-round ╭─╮",
+                meaning: ContextMeaning::SetStroke("light-round"),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('4'),
+                display: "[4] heavy ┏━┓",
+                meaning: ContextMeaning::SetStroke("heavy"),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('5'),
+                display: "[5] ascii +-+",
+                meaning: ContextMeaning::SetStroke("ascii"),
+            },
+        ],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Esc),
+            display: "[Esc] Cancel",
+            meaning: ContextMeaning::LeaveSubMode,
         }],
     },
 ];
@@ -154,17 +218,19 @@ pub(crate) fn arrow_direction(code: KeyCode) -> Option<(i16, i16)> {
 pub(crate) fn context_blocks(
     state: &DiagramState,
 ) -> impl Iterator<Item = &'static ContextBlock> + use<> {
+    let sub_mode = state.sub_mode();
     let has_size = state.selected_shape().is_some_and(Shape::has_size);
     let selected = state.selected_shape().is_some();
 
-    SELECTION.iter().filter(move |block| {
-        if !selected {
-            return false;
-        }
-        match block.condition {
-            Condition::Always => true,
-            Condition::Size => has_size,
-        }
+    let slice: &'static [ContextBlock] = match sub_mode {
+        Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,
+        _ if selected => SELECTION,
+        _ => &[],
+    };
+
+    slice.iter().filter(move |block| match block.condition {
+        Condition::Always => true,
+        Condition::Size => has_size,
     })
 }
 
@@ -217,6 +283,18 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, event: &Event) -> Reply {
                             arrow_direction(key.code).expect("arrow pattern matched arrow key");
                         Reply::Act(f(dx, dy))
                     }
+                    ContextMeaning::SetStroke(name) => {
+                        state.set_sub_mode(None);
+                        Reply::Act(Action::SetStroke(monospace_diagram::Stroke::from(name)))
+                    }
+                    ContextMeaning::EnterSubMode(sub_mode) => {
+                        state.set_sub_mode(Some(sub_mode));
+                        Reply::Repaint
+                    }
+                    ContextMeaning::LeaveSubMode => {
+                        state.set_sub_mode(None);
+                        Reply::Repaint
+                    }
                     ContextMeaning::Deselect => {
                         if state.select(None) {
                             Reply::Repaint
@@ -231,6 +309,10 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, event: &Event) -> Reply {
 
     if crate::shortcuts::answers_unclaimed(event) {
         return Reply::Ignored;
+    }
+
+    if state.sub_mode().is_some() {
+        return Reply::Consumed;
     }
 
     Reply::Ignored

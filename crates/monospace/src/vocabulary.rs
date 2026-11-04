@@ -82,6 +82,12 @@ pub(crate) enum Action {
     /// state where the action is carried out.
     Resize(i16, i16),
 
+    /// The selected shape's stroke is replaced with `stroke`.
+    ///
+    /// **The meaning and not the identity**: the shape is read from the state where the action is
+    /// carried out.
+    SetStroke(monospace_diagram::Stroke),
+
     /// The About dialog is opened, and the frame is owed.
     ///
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,

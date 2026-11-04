@@ -725,7 +725,7 @@ mod tests {
     /// the bar's own (`Tab`), and keys nobody claims.
     const NEVER_AN_ACTION: [(KeyCode, KeyModifiers); 8] = [
         (KeyCode::Char('x'), KeyModifiers::NONE),
-        (KeyCode::Char('s'), KeyModifiers::NONE),
+        (KeyCode::Char('a'), KeyModifiers::NONE),
         (KeyCode::Enter, KeyModifiers::NONE),
         (KeyCode::Tab, KeyModifiers::NONE),
         (KeyCode::BackTab, KeyModifiers::SHIFT),
@@ -734,7 +734,7 @@ mod tests {
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 10] = [
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 11] = [
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -743,6 +743,7 @@ mod tests {
         (KeyCode::Left, KeyModifiers::SHIFT),
         (KeyCode::Up, KeyModifiers::SHIFT),
         (KeyCode::Down, KeyModifiers::SHIFT),
+        (KeyCode::Char('s'), KeyModifiers::NONE),
         (KeyCode::Delete, KeyModifiers::NONE),
         (KeyCode::Esc, KeyModifiers::NONE),
     ];
@@ -871,5 +872,137 @@ mod tests {
             Focus::Region,
         );
         assert_eq!(answer, Reply::Ignored);
+    }
+
+    #[test]
+    fn pressing_s_on_selected_shape_enters_stroke_select_sub_mode() {
+        let mut state = a_state_over(A_BOX);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(
+            state.sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+    }
+
+    #[test]
+    fn pressing_s_in_idle_is_ignored() {
+        let mut state = a_state_over(A_BOX);
+        assert_eq!(state.selected(), None);
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Ignored);
+        assert_eq!(state.sub_mode(), None);
+    }
+
+    #[test]
+    fn digits_in_stroke_select_dispatch_set_stroke_and_clear_sub_mode() {
+        use monospace_diagram::Stroke;
+
+        let pairs = [
+            ('1', "light"),
+            ('2', "double"),
+            ('3', "light-round"),
+            ('4', "heavy"),
+            ('5', "ascii"),
+        ];
+
+        for (c, stroke_name) in pairs {
+            let mut state = a_state_over(A_BOX);
+            state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+            state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
+
+            let answer = handle(
+                &Event::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE)),
+                &mut state,
+                Focus::Region,
+            );
+            assert_eq!(
+                answer,
+                Reply::Act(Action::SetStroke(Stroke::from(stroke_name)))
+            );
+            assert_eq!(state.sub_mode(), None);
+        }
+    }
+
+    #[test]
+    fn escape_in_stroke_select_cancels_sub_mode_and_leaves_figure_selected() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(state.sub_mode(), None);
+        assert_eq!(state.selected(), Some(id));
+    }
+
+    #[test]
+    fn unoffered_keys_in_stroke_select_are_consumed() {
+        let mut state = a_state_over(A_BOX);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
+
+        let unoffered = [
+            KeyCode::Char('x'),
+            KeyCode::Char('a'),
+            KeyCode::Right,
+            KeyCode::Delete,
+            KeyCode::Enter,
+            KeyCode::Tab,
+            KeyCode::Char('6'),
+        ];
+
+        for code in unoffered {
+            let answer = handle(
+                &Event::Key(KeyEvent::new(code, KeyModifiers::NONE)),
+                &mut state,
+                Focus::Region,
+            );
+            assert_eq!(answer, Reply::Consumed, "{code:?} was not consumed");
+            assert_eq!(
+                state.sub_mode(),
+                Some(crate::diagram_state::SubMode::StrokeSelect)
+            );
+        }
+    }
+
+    #[test]
+    fn unclaimed_global_shortcuts_in_stroke_select_are_ignored() {
+        let mut state = a_state_over(A_BOX);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
+
+        let global_shortcuts = [
+            (KeyCode::Char('z'), KeyModifiers::CONTROL),
+            (KeyCode::Char('s'), KeyModifiers::CONTROL),
+            (KeyCode::Char('q'), KeyModifiers::CONTROL),
+            (KeyCode::Char('n'), KeyModifiers::CONTROL),
+            (KeyCode::Char('o'), KeyModifiers::CONTROL),
+        ];
+
+        for (code, modifiers) in global_shortcuts {
+            let answer = handle(
+                &Event::Key(KeyEvent::new(code, modifiers)),
+                &mut state,
+                Focus::Region,
+            );
+            assert_eq!(answer, Reply::Ignored, "{code:?} was not ignored");
+        }
     }
 }

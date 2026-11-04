@@ -74,9 +74,19 @@ pub(crate) struct DiagramState {
     /// drawing records is kept and inverts nothing (rule 7).
     selected: Option<ShapeId>,
 
+    /// The active sub-mode, or `None` if in normal mode.
+    sub_mode: Option<SubMode>,
+
     /// **The session is read on every frame and changed by the Edit menu's three actions**: Delete
     /// performs its one command, Undo and Redo give a step back, and every other slice reads it.
     session: Session,
+}
+
+/// An inline sub-mode of the diagram region.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SubMode {
+    /// Choosing a stroke for the selected figure.
+    StrokeSelect,
 }
 
 impl DiagramState {
@@ -100,6 +110,7 @@ impl DiagramState {
             interior: Rect::new(0, 0, 0, 0),
             region: Rect::new(0, 0, 0, 0),
             selected: None,
+            sub_mode: None,
             session,
         }
     }
@@ -160,6 +171,21 @@ impl DiagramState {
     /// the diagram.
     pub(crate) fn selected_shape(&self) -> Option<&Shape> {
         self.selected.and_then(|id| self.session.diagram().get(id))
+    }
+
+    /// The active sub-mode, or `None` if in normal mode.
+    pub(crate) fn sub_mode(&self) -> Option<SubMode> {
+        self.sub_mode
+    }
+
+    /// Sets the active sub-mode, and says whether it changed.
+    pub(crate) fn set_sub_mode(&mut self, sub_mode: Option<SubMode>) -> bool {
+        if self.sub_mode == sub_mode {
+            false
+        } else {
+            self.sub_mode = sub_mode;
+            true
+        }
     }
 
     /// Makes `selection` the shape a click selected, and says whether the screen has to be painted
@@ -238,6 +264,14 @@ impl DiagramState {
             id,
             by: (dx, dy).into(),
         });
+    }
+
+    /// Sets the stroke of `id` on the session.
+    ///
+    /// **The identity survives**: the figure is still there with its new stroke, so the next
+    /// frame inverts the cells it owns.
+    pub(crate) fn set_stroke(&mut self, id: ShapeId, stroke: monospace_diagram::Stroke) {
+        self.perform(Command::SetStroke { id, stroke });
     }
 
     /// Performs `command` on the session, recording a step when it changes the diagram.

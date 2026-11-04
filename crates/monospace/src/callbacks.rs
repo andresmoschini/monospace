@@ -223,6 +223,12 @@ fn apply(action: &Action, state: &mut AppState) {
             }
         }
 
+        Action::SetStroke(stroke) => {
+            if let Some(selected) = state.diagram().selected() {
+                state.diagram_mut().set_stroke(selected, stroke.clone());
+            }
+        }
+
         // **The two actions that open the overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
         Action::About => about::open(state.dialog_mut()),
