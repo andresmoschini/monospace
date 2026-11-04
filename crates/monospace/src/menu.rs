@@ -790,6 +790,87 @@ mod tests {
         );
     }
 
+    /// **The Edit menu's entries are the keys' actions.** The undo is the first, and taking it says
+    /// `Action::Undo` rather than a second spelling of the walk.
+    #[test]
+    fn taking_the_undo_entry_becomes_the_action_of_the_key() {
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'e');
+
+        let outcome = take(&mut chrome, "Undo");
+
+        assert!(
+            matches!(outcome, Reply::Act(Action::Undo)),
+            "the entry did not become the action of the undo key: {outcome:?}"
+        );
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
+    }
+
+    /// **Help is the third label and About its only entry, with no shortcut drawn** (rule 8):
+    /// About opens a dialog rather than a command, so there is no key to show beside it.
+    #[test]
+    fn the_help_menu_holds_about_and_draws_no_shortcut() {
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'h');
+
+        let buffer = draw(&mut chrome);
+        let frame = picture(&buffer);
+
+        assert!(frame.contains("Help"), "the bar has no Help: {frame:?}");
+        assert!(
+            frame.contains("About"),
+            "the Help menu offers no About: {frame:?}"
+        );
+
+        let (_, row) = cell_of(&buffer, "About");
+        let line = row_of(&buffer, row);
+
+        assert!(
+            !line.contains("Ctrl") && !line.contains("Del"),
+            "the About entry draws a shortcut: {line:?}"
+        );
+    }
+
+    /// **Taking About mints `Action::About`** (rule 8): the entry is a meaning, and the dialog is
+    /// opened where the action is carried out rather than by the bar.
+    #[test]
+    fn taking_the_about_entry_mints_the_about_action() {
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'h');
+
+        let outcome = take(&mut chrome, "About");
+
+        assert!(
+            matches!(outcome, Reply::Act(Action::About)),
+            "the entry did not become the action of the About dialog: {outcome:?}"
+        );
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
+    }
+
+    /// **The redo entry is the redo key's action**, the same way.
+    #[test]
+    fn taking_the_redo_entry_becomes_the_action_of_the_key() {
+        let mut chrome = drawn();
+        open_with(&mut chrome, 'e');
+
+        let outcome = take(&mut chrome, "Redo");
+
+        assert!(
+            matches!(outcome, Reply::Act(Action::Redo)),
+            "the entry did not become the action of the redo key: {outcome:?}"
+        );
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
+        );
+    }
+
     /// **The Edit menu holds Undo and Redo with their shortcuts**: Undo and Redo, each with the
     /// shortcut the table answers to (rule 9).
     #[test]
