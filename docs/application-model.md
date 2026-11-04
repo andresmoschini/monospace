@@ -10,8 +10,9 @@
 [#179](../specs/179-move-the-selected-shape-with-the-arrow-k.md),
 [#181](../specs/181-undo-and-redo.md),
 [#189](../specs/189-the-chrome-is-a-real-interface-the-pop-u.md),
-[#238](../specs/238-show-the-origin-and-size-of-the-diagram.md) and
-[#279](../specs/279-replace-the-status-line-with-the-context.md) — every specification that names
+[#238](../specs/238-show-the-origin-and-size-of-the-diagram.md),
+[#279](../specs/279-replace-the-status-line-with-the-context.md) and
+[#292](../specs/292-select-the-stroke-of-the-selected-figure.md) — every specification that names
 this document in its _Model slice_, and the one that created it. §6 _Deliberately unresolved_ and §8
 _Open questions_ are what a later change answers. Amend this document when reality contradicts it,
 and say so in the commit.
@@ -32,19 +33,22 @@ they are decided rather than repeating them.
 
 ## 1. Vocabulary
 
-| Term            | Meaning                                                                                    |
-| --------------- | ------------------------------------------------------------------------------------------ |
-| `Event`         | What the application is told: the terminal's, or the framework's own                       |
-| `Reply`         | What a handler says about an event: ignored, consumed, a frame owed, an action, or an exit |
-| `Action`        | What the application does about an event                                                   |
-| `Frame`         | One picture of the whole screen                                                            |
-| `Region`        | One of the three parts of the screen                                                       |
-| `Bar`           | The region across the top, which holds the menus                                           |
-| `Status bar`    | The region along the bottom, which shows current status and available commands             |
-| `Chrome`        | Everything on the screen that is not the diagram                                           |
-| `Shortcut`      | A key the application answers to, and how far it reaches before the chrome is asked        |
-| `Configuration` | What the application is configured with, read once at startup                              |
-| `Session`       | The diagram being edited — [the editing model](editing-model.md) owns it                   |
+| Term                | Meaning                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| `Event`             | What the application is told: the terminal's, or the framework's own                       |
+| `Reply`             | What a handler says about an event: ignored, consumed, a frame owed, an action, or an exit |
+| `Action`            | What the application does about an event                                                   |
+| `Frame`             | One picture of the whole screen                                                            |
+| `Region`            | One of the three parts of the screen                                                       |
+| `Bar`               | The region across the top, which holds the menus                                           |
+| `Status bar`        | The region along the bottom, which shows current status and available commands             |
+| `Chrome`            | Everything on the screen that is not the diagram                                           |
+| `Shortcut`          | A key the application answers to, and how far it reaches before the chrome is asked        |
+| `Configuration`     | What the application is configured with, read once at startup                              |
+| `Session`           | The diagram being edited — [the editing model](editing-model.md) owns it                   |
+| `Sub-mode`          | An ephemeral modal interaction of the diagram region for focused attribute editing         |
+| `Global action`     | An action of the process lifecycle, session, history, or chrome, valid regardless of mode  |
+| `Contextual action` | An action belonging to the selected shape or active sub-mode, governed by representation   |
 
 **An event is not an action, and the two are kept apart.** The framework hands the application
 events — a key, a click, a resize — and a handler answers each with a reply that may carry an
@@ -59,7 +63,10 @@ status bar along the bottom.** The bar takes 1 row across the top, the status ba
 the bottom (the top row for diagram or shape status, the bottom row for contextual commands),
 whatever the size of the screen; the region between them takes the rest of it, and a screen too
 short to hold the three of them gives the region what is left over. The bar offers the menus —
-`File` (holding `New`, `Open`, `Save`, `Open Demo`, and `Quit`), `Edit`, and `Help`.
+`File` (holding `New`, `Open`, `Save`, `Open Demo`, and `Quit`), `Edit` (holding `Undo` and `Redo`),
+and `Help` (holding `About`). `Delete` is not a menu entry: it is a contextual action of the
+selected figure on the canvas and is offered in the status bar's command row rather than in the
+global menu.
 
 **Every cell of the screen is painted on every frame.** The terminal diffs against the previous
 frame rather than clearing, so a cell that is not painted keeps whatever was last in it. The frame
@@ -166,10 +173,18 @@ same as an unfocused one. The status bar is not a leaf: a press on it moves noth
 ahead are the session's, and the state holds no position and no copy of a step: `Session::undo` and
 `Session::redo` are one call each, and the next frame is drawn from what the session holds then.
 **Nothing on the screen is drawn from where the walk stands** — every entry is offered all the time
-— so there is nothing for the application to remember. **A walk does not restore the selection**: a
-step carries the drawing and nothing else, and the drawing that comes back arrives with nothing
-selected; a person who wants the figure selected clicks it again. A selection the restored drawing
-does not record is kept and inverts nothing, as it is for any other drawing.
+— so there is nothing for the application to remember. **A walk cancels sub-modes and clears the
+selection**: walking history moves the drawing across its chronological timeline, so any active
+ephemeral sub-mode is dropped (`sub_mode = None`) and the selection is cleared (`selected = None`),
+returning the application cleanly to `IDLE`; a person who wants a figure selected clicks it again.
+This avoids orphan references to shapes that do not exist at the restored position and removes the
+visual clutter of selection inversion while examining changes.
+
+**The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
+interaction mode is entered (such as `STROKE_SELECT` via `s`), `DiagramState` records
+`sub_mode: Option<SubMode>`. The sub-mode is transient: selecting a value or pressing `Esc` exits it
+back to normal selection; clicking outside, walking history (`Undo`/`Redo`), opening a modal dialog,
+or transferring focus to the menu bar drops it immediately (`sub_mode = None`).
 
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
@@ -242,20 +257,30 @@ border is the region's. **No key moves the view**:
 [#237](https://github.com/andresmoschini/monospace/issues/237) decides which keys do and how far a
 press moves, and the plain arrows stay what #179 made them.
 
-**`Delete` is the first action that changes the session, and it carries a meaning rather than a
-shape.** It is reached by the key and by the Edit menu's entry, and both apply that same action
-rather than a code path each. The action names no identity — the identity is read from the state
-where the action is carried out, so the key lives in the one table every shortcut is a row of rather
-than beside the click that minted a selection. The session performs one `Command::Remove` and
+**`Delete` is a contextual action that changes the session, and it carries a meaning rather than an
+identity.** It is offered on the contextual status bar as `[Del] Delete` whenever a figure is
+selected (`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`), and the key is dispatched by the
+diagram region from the active context table. The action names no identity — the identity is read
+from the state where the action is carried out. The session performs one `Command::Remove` and
 records one step, which is what #181 gives back; the state drops the selection in the same action,
-so the next frame inverts nothing. **The removal is not confirmed**: the dialog that asks is a later
-change's, and until it arrives an accidental `Delete` is given back by `Undo` and by nothing else.
-`Delete` is a shortcut nobody has claimed, so an open drop-down does not keep it: the key removes
-the figure behind the menu and the menu stays open, which is what costs this slice the feedback of a
-deletion a person cannot see until the menu closes. **The entry is always offered**, with nothing
-selected as well as with a figure: the bar holds no selection to condition it on, and taking it with
-nothing selected performs no command while the frame is still owed, because carrying the action out
-paints the frame that closes the menu.
+so the next frame inverts nothing. **The removal is not confirmed**: until a confirmation dialog
+arrives, an accidental `Delete` is given back by `Undo` and by nothing else. `Delete` is strictly
+contextual: with nothing selected (`IDLE`), or while in an ephemeral sub-mode (`STROKE_SELECT`), it
+is not offered and performs no deletion; and it is not an entry in the global `Edit` menu.
+
+**Sub-modes use a two-layer dispatch to protect the canvas while preserving global commands.** While
+an ephemeral sub-mode (such as `STROKE_SELECT`) is active:
+
+1. Keys offered by the sub-mode (`1..=5` to apply a stroke and exit, `Esc` to cancel and return to
+   the enclosing selection) are handled directly by the region widget.
+2. Unoffered local keys (arrows, `Shift+arrows`, letters, `Delete`, and out-of-range digits) answer
+   `Reply::Consumed`. Consuming them stops event propagation, preventing unwanted cursor movement,
+   selection shifts, or accidental deletion.
+3. Global application shortcuts carrying the `Control` modifier (`Ctrl+Z` Undo, `Ctrl+Shift+Z` Redo,
+   `Ctrl+S` Save, `Ctrl+Q` Quit, `Ctrl+N` New, `Ctrl+O` Open) answer `Reply::Ignored`. This allows
+   them to pass through the region handler to `shortcuts::handle_unclaimed`, keeping universal
+   productivity controls active. Invoking `Undo` or `Redo` cancels the sub-mode (`sub_mode = None`),
+   clears the selection (`selected = None`), and walks the session history to `IDLE`.
 
 **The four arrows move what is selected, and the movement is one action carrying a delta.** A press
 of an arrow while the region holds the keyboard displaces the selected figure one cell along the
@@ -289,16 +314,16 @@ menu's entry, and both apply that same action rather than a code path each: `Ctr
 `Ctrl+Shift+Z` and **Redo**. **The application keeps no position**, so each action asks the session
 to walk one step rather than naming where to go; at either end the session answers with itself, and
 a press there changes nothing and still owes the frame, because the action was carried out. **The
-entries are offered all the time**, as **Delete** is: the list never changes, no entry carries a
-flag, and nothing on the screen says the walk has reached an end. Drawing one disabled needs the
-three states of a control, which §6 leaves to #189, and greying the two here is
+entries are offered all the time**: the list never changes, no entry carries a flag, and nothing on
+the screen says the walk has reached an end. Drawing one disabled needs the three states of a
+control, which §6 leaves to #189, and greying the two here is
 [#231](https://github.com/andresmoschini/monospace/issues/231)'s.
 
-**The two walks are shortcuts nobody has claimed**, as `Delete` is, so an open drop-down does not
-keep them: the history walks behind the menu and the menu stays open. Nothing in the bar's own
-vocabulary is `Ctrl+Z` or `Ctrl+Shift+Z` either, so there is no conflict for the chrome to settle
-today. **A terminal that reports `Ctrl+Shift+Z` as `Ctrl+Z` reports the undo**, and no event tells
-the two apart, so the Edit menu's entry is the way to redo there.
+**The two walks are shortcuts nobody has claimed**, so an open drop-down does not keep them: the
+history walks behind the menu and the menu stays open. Nothing in the bar's own vocabulary is
+`Ctrl+Z` or `Ctrl+Shift+Z` either, so there is no conflict for the chrome to settle today. **A
+terminal that reports `Ctrl+Shift+Z` as `Ctrl+Z` reports the undo**, and no event tells the two
+apart, so the Edit menu's entry is the way to redo there.
 
 **The way out is one answer.** It is reached by the shortcut the menu shows and by the menu's own
 entry, and both answer the same `Reply::Quit` rather than a code path each: the entry and the key
@@ -367,11 +392,12 @@ table's two reaches say how far a shortcut is asked rather than which leaf answe
 
 **The table of shortcuts and the menu are two places that can disagree.** The menu shows the
 shortcut of each entry on the right of it, and the application answers to the shortcut with a table
-of its own. **Three meanings are written in both** — the menu draws `Ctrl+Z`, `Ctrl+Shift+Z` and
-`Del`, and the table answers `Undo`, `Redo` and `Delete` — so the two places can disagree about
-three, and nothing checks that they do not. Joining them is not this document's problem and not this
-slice's: #180 is where reading one from the other is worth doing, and the two entries this slice
-adds did not force the join.
+of its own. **Two meanings are written in both** — the menu draws `Ctrl+Z` and `Ctrl+Shift+Z`, and
+the table answers `Undo` and `Redo` — so the two places can disagree about two, and nothing checks
+that they do not. (Contextual actions such as `Delete` are offered exclusively in the status bar's
+command row and dispatched by the region, leaving the global shortcut table for application-wide
+shortcuts). Joining them is not this document's problem and not this slice's: #180 is where reading
+one from the other is worth doing, and the two entries this slice adds did not force the join.
 
 **An error is reported once, and the loop does not spin on it.** The framework hands a failure to
 the application's handler and takes back a control; answering with the failure again is the
@@ -490,14 +516,10 @@ framework's buffer one at a time.
 - The selection survives a resize, because it is an identity rather than the cells it covered.
 - A click changes no diagram: it is not a command and it records no step.
 - `Delete` removes the selected figure, records one step, and leaves the state holding no selection.
-- The Edit menu's entry carries the same action as the key, and it is offered with nothing selected.
-- Taking the Edit menu's entry paints even when it removes nothing, because carrying the action out
-  owes the frame.
-- `Delete` with nothing selected removes nothing and records no step, and the frame is painted
-  again.
-- The delete shortcut carries the meaning and not an identity: the table answers `Action::Delete`,
-  and the selected shape is read from the state.
-- An open drop-down does not keep the `Delete` key.
+- The contextual status bar offers `[Del] Delete` while a figure is selected (`SELECTED_BOX`,
+  `SELECTED_LINE`, `SELECTED_CONNECTOR`), and the key is answered by the region widget.
+- `Delete` with nothing selected or while in an ephemeral sub-mode performs no deletion.
+- `Delete` is not an entry in the Edit menu and not a global unclaimed shortcut.
 - A frame after a removal draws what hung from the removed figure where it stood.
 - An arrow moves the selected figure one cell along its own axis, records one step, and leaves the
   selection on it.
@@ -538,7 +560,21 @@ framework's buffer one at a time.
 - The Edit menu's Undo and Redo entries carry the same actions as the keys, and they are offered at
   every position of the history: no entry is drawn differently when there is nothing to give back.
 - Taking an entry with nothing to give back changes nothing and still paints.
-- Undo and redo leave the selection alone: an undo does not restore it and a redo does not drop it.
+- Undo and redo cancel any active sub-mode (`sub_mode = None`) and clear the selection
+  (`selected = None`), returning the application to `IDLE`.
+- Pressing `s` while a box, line, or connector is selected transitions `DiagramState` to
+  `SubMode::StrokeSelect` and requests a repaint.
+- In `StrokeSelect`, keys `1..=5` set the corresponding stroke, reset `sub_mode = None`, and return
+  to selection; setting the same stroke produces no change and records no step in history (#285).
+- In `StrokeSelect`, pressing `Esc` cancels the sub-mode (`sub_mode = None`) and returns to
+  selection without altering the stroke.
+- In `StrokeSelect`, unoffered local keys (arrows, Shift+arrows, letters, Delete, other digits) are
+  consumed (`Reply::Consumed`).
+- In `StrokeSelect`, global shortcuts with `Control` (`Ctrl+Z`, `Ctrl+Shift+Z`, `Ctrl+S`, `Ctrl+Q`,
+  `Ctrl+N`, `Ctrl+O`) are ignored by the region (`Reply::Ignored`) and fall through to the global
+  handler.
+- The contextual command row and the widget dispatcher derive offered and accepted keys from a
+  unified context table (Option D), guaranteeing offer equals acceptance.
 - An open drop-down does not keep either key.
 - A frame after an undo draws the restored diagram.
 - The application keeps no history and reads no position: its whole use of the steps is the two
@@ -549,9 +585,9 @@ framework's buffer one at a time.
 
 - **The shortcut table and the menu.** Two places that can disagree, and the question is where they
   are joined: a table of shortcuts that the menu reads would be one place, and a menu that reads a
-  table of actions would be another. What would settle it: the first command that needs a name. Undo
-  did not force it — the two entries are written in both places as `Delete` is, and nothing reads
-  one from the other yet.
+  table of actions would be another. Contextual actions (such as `Delete`) are removed from the
+  global menu and managed by the unified context table (Option D), leaving only universal actions
+  (`Undo`, `Redo`) in the Edit menu.
 - **What the status bar says.** The contextual two-row bar format and its idle and selection content
   are settled by [#279](https://github.com/andresmoschini/monospace/issues/279). Multi-line wrapping
   without truncation and dynamic bar height are tracked in
