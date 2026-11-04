@@ -308,8 +308,10 @@ impl DiagramState {
     /// **The walk clears the selection** (#297): walking history returns the application to `IDLE`
     /// and makes the restored drawing a clean starting point. Any active sub-mode drops with it.
     pub(crate) fn undo(&mut self) {
-        self.session = self.session.undo();
-        self.select(None);
+        if self.session.can_undo() {
+            self.session = self.session.undo();
+            self.select(None);
+        }
     }
 
     /// Gives back the step ahead of the session, if there is one.
@@ -321,8 +323,10 @@ impl DiagramState {
     /// **The walk clears the selection, here too** (#297): the restored drawing starts with
     /// nothing selected and any active sub-mode dropped.
     pub(crate) fn redo(&mut self) {
-        self.session = self.session.redo();
-        self.select(None);
+        if self.session.can_redo() {
+            self.session = self.session.redo();
+            self.select(None);
+        }
     }
 
     /// Whether a step is behind the session.
@@ -1079,5 +1083,41 @@ mod tests {
 
         assert_eq!(state.selected(), None, "the redo kept the selection");
         assert_eq!(state.sub_mode(), None, "the redo kept the sub-mode");
+
+        // When can_undo or can_redo is false, no action is performed and selection is preserved.
+        state.select(Some(shape));
+        state.set_sub_mode(Some(SubMode::StrokeSelect));
+
+        assert!(!state.can_redo());
+        state.redo();
+        assert_eq!(
+            state.selected(),
+            Some(shape),
+            "ineffective redo cleared the selection"
+        );
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::StrokeSelect),
+            "ineffective redo cleared the sub-mode"
+        );
+
+        state.undo();
+        assert_eq!(state.selected(), None);
+
+        state.select(Some(shape));
+        state.set_sub_mode(Some(SubMode::StrokeSelect));
+
+        assert!(!state.can_undo());
+        state.undo();
+        assert_eq!(
+            state.selected(),
+            Some(shape),
+            "ineffective undo cleared the selection"
+        );
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::StrokeSelect),
+            "ineffective undo cleared the sub-mode"
+        );
     }
 }
