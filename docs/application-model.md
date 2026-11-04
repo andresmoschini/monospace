@@ -395,9 +395,10 @@ which answers to them without asking anybody. What the application answers to is
 key that means an action, with a reach that says whether anything may consume it first. The table of
 shortcuts is the application's own, and the menu draws the shortcut of an entry rather than
 answering to it. **A leaf's handler answers the keys it owns, so not every key is a row of that
-table**: the bar answers its own three, and the region answers the four arrows while it holds the
-keyboard. The handler is handed the focus along with its own state, as the bar already is, and the
-table's two reaches say how far a shortcut is asked rather than which leaf answers it.
+table**: the bar answers its own three, and the region answers the keys its contextual table offers
+— the arrows, `Shift` plus the arrows, `s`, the stroke digits, `Delete` and `Esc` — while it holds
+the keyboard. The handler is handed the focus along with its own state, as the bar already is, and
+the table's two reaches say how far a shortcut is asked rather than which leaf answers it.
 
 **The table of shortcuts and the menu are two places that can disagree.** The menu shows the
 shortcut of each entry on the right of it, and the application answers to the shortcut with a table

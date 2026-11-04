@@ -3,6 +3,12 @@
 //! **One definition for offer and acceptance** (Representation Rule, #288): the contextual
 //! status bar displays the actions offered by the current context, and the region dispatches
 //! exactly the keys the table offers.
+//!
+//! **Two tables, one mechanism**: `SELECTION` is the context of a selected figure and
+//! `STROKE_SELECT` the stroke sub-mode; `context_blocks` chooses between them from the state, and
+//! a block's condition says whether it is active. `format_command_line` renders what
+//! `dispatch_key` answers, so a key cannot be offered without being accepted; `PICK` is the one
+//! label the row carries with no key behind it.
 
 use monospace_diagram::Shape;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};

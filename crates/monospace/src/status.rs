@@ -7,8 +7,12 @@
 //! the count of shapes, and the viewport origin; the lower row offers `[Click] Pick`.
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
-//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · [Del] Delete · [Esc] Deselect`, with
-//! `RESIZE: Shift+↑↓←→` added while the selected figure has a size.
+//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc]
+//! Deselect`, with `RESIZE: Shift+↑↓←→` between the first two while the selected figure has a
+//! size.
+//!
+//! **In `STROKE_SELECT`**, the upper row reports the figure and the stroke it carries, and the
+//! lower row offers the five catalog strokes and `[Esc] Cancel`.
 
 use monospace_core::Footprint;
 use monospace_diagram::{Diagram, EndpointAt, Shape};

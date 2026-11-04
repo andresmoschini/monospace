@@ -54,9 +54,10 @@ pub(crate) fn draw(
 /// press or a drag on either bar are the bars' own answers, and only what they leave alone is a
 /// question about the drawing.
 ///
-/// **The region answers a click and the four arrows.** A click is the region's whatever leaf holds
-/// the keyboard (D1), and a key is the region's only while it does: the arrows are what the region
-/// does with the keyboard it is given.
+/// **The region answers a click and the keys the contextual table offers.** A click is the
+/// region's whatever leaf holds the keyboard (D1), and a key is the region's only while it does.
+/// [`crate::context_table::dispatch_key`] is what the region does with the keyboard it is given,
+/// and a key the table does not offer is `Reply::Ignored` so that the next handler is asked.
 ///
 /// **Everything else is answered with nothing** so that the event goes on to the next handler
 /// (rule 3).
