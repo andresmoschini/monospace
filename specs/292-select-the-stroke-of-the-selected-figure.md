@@ -1,5 +1,6 @@
 ---
-status: draft
+status: agreed
+decided: "#293"
 date: 2026-11-03
 ---
 
@@ -206,7 +207,7 @@ maintainer.
 
 ## Model slice
 
-- `docs/diagram-model.md` §4: document `Shape::with_stroke`, which replaces the stroke of `Box`,
+- `docs/diagram-model.md` §9: document `Shape::with_stroke`, which replaces the stroke of `Box`,
   `Line`, or `Connector` while preserving all other properties.
 - `docs/editing-model.md` §2 and §5: document `Command::SetStroke`, which changes the stroke of a
   figure by its `ShapeId`, and note that setting the same stroke produces `None` and records no step
