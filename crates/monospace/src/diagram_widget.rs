@@ -68,7 +68,7 @@ pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus, target
 
     match raw {
         Event::Mouse(_) => click(target, state),
-        Event::Key(_) if focus == Focus::Region => crate::context_table::dispatch_key(state, raw),
+        Event::Key(key) if focus == Focus::Region => crate::context_table::dispatch_key(state, key),
         _ => Reply::Ignored,
     }
 }
@@ -802,11 +802,7 @@ mod tests {
             }
         }
 
-        let unoffered_expected = if sub_mode.is_some() {
-            Reply::Consumed
-        } else {
-            Reply::Ignored
-        };
+        let unoffered_expected = Reply::Ignored;
 
         for (code, modifiers) in ALL_POSSIBLE_CONTEXT_KEYS {
             if !offered_keys.contains(&(code, modifiers)) {
@@ -877,7 +873,7 @@ mod tests {
     }
 
     /// **In `STROKE_SELECT`, key acceptance matches what the contextual bar offers**: the bar offers
-    /// digits 1..=5 and Esc Cancel; offered keys are accepted, and unoffered keys are consumed.
+    /// digits 1..=5 and Esc Cancel; offered keys are accepted, and unoffered keys are ignored.
     #[test]
     fn key_acceptance_matches_contextual_bar_in_stroke_select() {
         assert_offer_matches_acceptance(
@@ -980,7 +976,7 @@ mod tests {
     }
 
     #[test]
-    fn unoffered_keys_in_stroke_select_are_consumed() {
+    fn unoffered_keys_in_stroke_select_are_ignored() {
         let mut state = a_state_over(A_BOX);
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
@@ -1001,7 +997,7 @@ mod tests {
                 &mut state,
                 Focus::Region,
             );
-            assert_eq!(answer, Reply::Consumed, "{code:?} was not consumed");
+            assert_eq!(answer, Reply::Ignored, "{code:?} was not ignored");
             assert_eq!(
                 state.sub_mode(),
                 Some(crate::diagram_state::SubMode::StrokeSelect)

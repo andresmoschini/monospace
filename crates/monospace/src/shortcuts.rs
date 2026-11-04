@@ -129,11 +129,6 @@ pub(crate) fn handle_unclaimed(event: &Event) -> Reply {
     handle(event, Reach::Unclaimed)
 }
 
-/// Whether `event` is answered by the unclaimed global shortcut table.
-pub(crate) fn answers_unclaimed(event: &Event) -> bool {
-    handle(event, Reach::Unclaimed) != Reply::Ignored
-}
-
 /// What the event means to a shortcut of this reach.
 ///
 /// **A shortcut is the combination it shows and not another one**, and it answers to that

@@ -5,7 +5,7 @@
 //! exactly the keys the table offers.
 
 use monospace_diagram::Shape;
-use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::diagram_state::{DiagramState, SubMode};
 use crate::vocabulary::{Action, Reply};
@@ -264,11 +264,7 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
 }
 
 /// Dispatches a keyboard event in the diagram region using the contextual table.
-pub(crate) fn dispatch_key(state: &mut DiagramState, event: &Event) -> Reply {
-    let Event::Key(key) = event else {
-        return Reply::Ignored;
-    };
-
+pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply {
     if key.kind != KeyEventKind::Press {
         return Reply::Ignored;
     }
@@ -305,14 +301,6 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, event: &Event) -> Reply {
                 };
             }
         }
-    }
-
-    if crate::shortcuts::answers_unclaimed(event) {
-        return Reply::Ignored;
-    }
-
-    if state.sub_mode().is_some() {
-        return Reply::Consumed;
     }
 
     Reply::Ignored

@@ -269,21 +269,19 @@ arrives, an accidental `Delete` is given back by `Undo` and by nothing else. `De
 contextual: with nothing selected (`IDLE`), or while in an ephemeral sub-mode (`STROKE_SELECT`), it
 is not offered and performs no deletion; and it is not an entry in the global `Edit` menu.
 
-**Sub-modes use a two-layer dispatch to protect the canvas while preserving global commands.** While
-an ephemeral sub-mode (such as `STROKE_SELECT`) is active:
+**Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
+sub-mode (such as `STROKE_SELECT`) is active:
 
 1. Keys offered by the sub-mode (`1..=5` to apply a stroke and exit, `Esc` to cancel and return to
    the enclosing selection) are handled directly by the region widget.
-2. Every key the region is asked about that the table does not offer — arrows, `Shift+arrows`,
-   letters, `Delete`, `Tab`, `Enter`, `Home`, `End`, function keys, and out-of-range digits —
-   answers `Reply::Consumed`. Consuming them stops event propagation, preventing unwanted cursor
-   movement, selection shifts, or other mutations. The chrome's own keys (`F10`, `Alt` plus a
-   navigation character) are claimed by the menu before the region and never reach it.
-3. A key the unclaimed global shortcut table answers (`Ctrl+Z` Undo, `Ctrl+Shift+Z` Redo, `Ctrl+S`
-   Save, `Ctrl+Q` Quit, `Ctrl+N` New, `Ctrl+O` Open) answers `Reply::Ignored`. This allows it to
-   pass through the region handler to `shortcuts::handle_unclaimed`, keeping universal productivity
-   controls active. The forced exit `Ctrl+C` is `Reach::Always` and is answered before the region,
-   so it is not part of this rule. The selection stays as #181 says, and clearing it on a walk is
+2. Any key the context table does not offer answers `Reply::Ignored`. The routing chain in
+   `callbacks::route` offers the event to `shortcuts::handle_unclaimed`, allowing universal
+   shortcuts (`Ctrl+Z` Undo, `Ctrl+Shift+Z` Redo, `Ctrl+S` Save, `Ctrl+Q` Quit, `Ctrl+N` New,
+   `Ctrl+O` Open) to be carried out without coupling the context table to the shortcut table. Keys
+   unclaimed by any layer are ignored by the application (`Control::Continue`), preserving the
+   active sub-mode and canvas state without unwanted mutation. The forced exit `Ctrl+C` is
+   `Reach::Always` and is answered before the region, so it is not part of this rule. The selection
+   stays as #181 says, and clearing it on a walk is
    [#297](https://github.com/andresmoschini/monospace/issues/297)'s question.
 
 **A sub-mode ends when the thing it edits stops being the thing selected.** A click that changes the

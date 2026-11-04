@@ -117,14 +117,15 @@ transitions `sub_mode` to `Some(SubMode::StrokeSelect)` and returns `Reply::Repa
   figure's selection state), and return `Reply::Act(...)`.
 - `Esc` resets `sub_mode` to `None` without modifying the diagram, leaving the figure selected, and
   returns `Reply::Repaint`.
-- Every key the region is asked about that the table does not offer returns `Reply::Consumed`. That
-  includes arrows, `Shift+arrows`, letters, `Delete`, `Tab`, `Enter`, `Home`, `End`, function keys
-  and out-of-range digits. The chrome's own keys (`F10`, `Alt` plus a navigation character) are
-  claimed by the menu before the region, so they never reach this rule.
-- A key the unclaimed global shortcut table answers (`Ctrl+N`, `Ctrl+O`, `Ctrl+S`, `Ctrl+Q`,
-  `Ctrl+Z`, `Ctrl+Shift+Z`) returns `Reply::Ignored`, so it falls through to
-  `shortcuts::handle_unclaimed`. The forced exit `Ctrl+C` is `Reach::Always` and is answered before
-  the region, so it is not part of this rule.
+- Every key the region is asked about that the context table does not offer returns
+  `Reply::Ignored`. That includes arrows, `Shift+arrows`, letters, `Delete`, `Tab`, `Enter`, `Home`,
+  `End`, function keys and out-of-range digits. The routing chain in `callbacks::route` falls
+  through to `shortcuts::handle_unclaimed`, so unclaimed global shortcuts (`Ctrl+N`, `Ctrl+O`,
+  `Ctrl+S`, `Ctrl+Q`, `Ctrl+Z`, `Ctrl+Shift+Z`) are handled by the application, while any unoffered
+  key unclaimed by the application is ignored (`Control::Continue`) without mutating the canvas or
+  active sub-mode. The chrome's own keys (`F10`, `Alt` plus a navigation character) are claimed by
+  the menu before the region, and the forced exit `Ctrl+C` is `Reach::Always` and is answered before
+  the region, so neither reaches this rule.
 - History walks (`Undo` / `Redo`) walk the session history; clearing the selection is #297's.
 - While the figure remains selected, opening an application-level dialog (`Save`, `Open`, `About`,
   `ShowError`) or transferring keyboard focus to the menu bar (`Focus::Bar`) preserves the active
@@ -137,14 +138,12 @@ interaction mode of the diagram region where the canvas remains visible and inte
 in `AppState` would decouple it from `DiagramState::selected` and require redundant synchronization
 across modules. **Why not** deselecting on `Esc`: `Esc` in a sub-mode cancels the sub-mode back to
 the enclosing selection, requiring a second `Esc` to drop selection, ensuring consistent
-non-destructive escape semantics. **Why not** returning `Reply::Ignored` for all unoffered keys:
-`callbacks::route` falls through to `shortcuts::handle_unclaimed`, so a key the bar does not offer
-could reach a global row or a row added later, and the sub-mode would not own the keyboard it says
-it owns. `Consumed` is the same answer a dialog gives an event it traps: "mine, and nothing
-changed". `Delete` is contextual now, so it would not delete today; the rule does not rest on that
-accident. **Why not** returning `Reply::Consumed` for all keys: silences `Ctrl+Z`, `Ctrl+S`, and
-`Ctrl+Q`, trapping users in the sub-mode without access to universal global operations. **Why not**
-clearing the selection on a walk: that amends the rule of #181 and is a separate question, owned by
+non-destructive escape semantics. **Why not** consuming unoffered keys with `Reply::Consumed` in
+`dispatch_key`: requires `context_table` to know about `shortcuts::answers_unclaimed` to carve out
+an exception for universal shortcuts, breaking layer encapsulation between contextual actions and
+application shortcuts. Returning `Reply::Ignored` allows `callbacks::route` to naturally delegate to
+`shortcuts::handle_unclaimed` without cross-layer coupling. **Why not** clearing the selection on a
+walk: that amends the rule of #181 and is a separate question, owned by
 [#297](https://github.com/andresmoschini/monospace/issues/297); this slice only cancels the
 sub-mode. **Answered by** the maintainer.
 
@@ -217,12 +216,11 @@ maintainer.
     action.
   - §3: document `sub_mode: Option<SubMode>` in `DiagramState` and establish that losing or changing
     the selection cancels active sub-modes; clearing selection on a walk is #297's.
-  - §4: document two-layer dispatching in sub-modes (keys the table does not offer are consumed,
-    keys the unclaimed global table answers are ignored, the chrome's keys are asked before the
-    region) and document that `Delete` is a contextual action of selection contexts.
-  - §7: document acceptance properties for sub-modes, two-layer dispatching, the context table, and
-    `Delete` as a contextual action; and that a walk cancels the sub-mode without touching the
-    selection.
+  - §4: document sub-mode dispatching (keys the context table offers are dispatched, unoffered keys
+    are ignored and fall through to global unclaimed shortcuts in `callbacks::route`) and document
+    that `Delete` is a contextual action of selection contexts.
+  - §7: document acceptance properties for sub-modes, the context table, and `Delete` as a
+    contextual action; and that a walk cancels the sub-mode without touching the selection.
   - §8: record that clearing the selection on a walk is
     [#297](https://github.com/andresmoschini/monospace/issues/297)'s, not this slice's.
 
@@ -389,8 +387,8 @@ run.
 | `STROKE_SELECT` (light) | `2` (`double`)  | `None` (box)    | `SetStroke("double")` | yes              | yes (1 step)       |
 | `STROKE_SELECT` (light) | `1` (`light`)   | `None` (box)    | `SetStroke("light")`  | no               | no (0 steps, #285) |
 | `STROKE_SELECT` (light) | `Esc`           | `None` (box)    | none (`Repaint`)      | no               | no                 |
-| `STROKE_SELECT` (light) | `Delete`        | `StrokeSelect`  | none (`Consumed`)     | no               | no                 |
-| `STROKE_SELECT` (light) | `↑`             | `StrokeSelect`  | none (`Consumed`)     | no               | no                 |
+| `STROKE_SELECT` (light) | `Delete`        | `StrokeSelect`  | none (`Ignored`)      | no               | no                 |
+| `STROKE_SELECT` (light) | `↑`             | `StrokeSelect`  | none (`Ignored`)      | no               | no                 |
 | `STROKE_SELECT` (light) | `Ctrl+Z` (Undo) | `None` (box)    | `Action::Undo`        | yes              | walks back         |
 | `STROKE_SELECT` (light) | `Ctrl+S` (Save) | `None` (box)    | `Action::Save`        | no               | opens save dialog  |
 | `IDLE`                  | `s`             | `None` (`IDLE`) | none (`Ignored`)      | no               | no                 |
@@ -419,7 +417,7 @@ whole prompt, and Phase 4 is the slice that makes it fit.
 | 4    | `setting_identical_stroke_leaves_diagram_untouched_and_records_no_step` |
 | 5    | `setting_different_stroke_records_one_step_in_session_history`          |
 | 6    | `pressing_escape_in_stroke_select_cancels_sub_mode_without_deselecting` |
-| 7    | `unoffered_local_keys_in_stroke_select_are_consumed`                    |
+| 7    | `unoffered_keys_in_stroke_select_are_ignored`                           |
 | 8    | `global_unclaimed_shortcuts_pass_through_from_stroke_select`            |
 | 9    | `undo_and_redo_in_stroke_select_walk_history`                           |
 | 10   | `opening_overlay_or_focusing_menu_preserves_sub_mode`                   |
