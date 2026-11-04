@@ -734,7 +734,7 @@ mod tests {
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 11] = [
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 16] = [
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -744,17 +744,29 @@ mod tests {
         (KeyCode::Up, KeyModifiers::SHIFT),
         (KeyCode::Down, KeyModifiers::SHIFT),
         (KeyCode::Char('s'), KeyModifiers::NONE),
+        (KeyCode::Char('1'), KeyModifiers::NONE),
+        (KeyCode::Char('2'), KeyModifiers::NONE),
+        (KeyCode::Char('3'), KeyModifiers::NONE),
+        (KeyCode::Char('4'), KeyModifiers::NONE),
+        (KeyCode::Char('5'), KeyModifiers::NONE),
         (KeyCode::Delete, KeyModifiers::NONE),
         (KeyCode::Esc, KeyModifiers::NONE),
     ];
 
     /// **The rule holds three ways**: the table the test writes, the bar the application draws and
     /// the keys the region answers all say the same thing.
-    fn assert_offer_matches_acceptance(fixture: &str, selected: Option<u16>) {
+    fn assert_offer_matches_acceptance(
+        fixture: &str,
+        selected: Option<u16>,
+        sub_mode: Option<crate::diagram_state::SubMode>,
+    ) {
         let make_state = || {
             let mut state = a_state_over(fixture);
             if let Some(id) = selected {
                 state.select(Some(ShapeId::new(NonZeroU16::new(id).unwrap())));
+            }
+            if let Some(mode) = sub_mode {
+                state.set_sub_mode(Some(mode));
             }
             state
         };
@@ -790,15 +802,20 @@ mod tests {
             }
         }
 
+        let unoffered_expected = if sub_mode.is_some() {
+            Reply::Consumed
+        } else {
+            Reply::Ignored
+        };
+
         for (code, modifiers) in ALL_POSSIBLE_CONTEXT_KEYS {
             if !offered_keys.contains(&(code, modifiers)) {
                 let mut s = make_state();
                 let event = Event::Key(KeyEvent::new(code, modifiers));
                 let reply = handle(&event, &mut s, Focus::Region);
                 assert_eq!(
-                    reply,
-                    Reply::Ignored,
-                    "unoffered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} was NOT ignored: {reply:?}"
+                    reply, unoffered_expected,
+                    "unoffered key {code:?} with modifiers {modifiers:?} in context with bar {bar:?} answered unexpected reply: {reply:?}"
                 );
             }
         }
@@ -809,9 +826,8 @@ mod tests {
             let reply = handle(&event, &mut s, Focus::Region);
 
             assert_eq!(
-                reply,
-                Reply::Ignored,
-                "{code:?} with modifiers {modifiers:?} was the region's in: {bar}"
+                reply, unoffered_expected,
+                "{code:?} with modifiers {modifiers:?} was unexpected in: {bar}"
             );
         }
 
@@ -835,21 +851,21 @@ mod tests {
     /// selection via click, so all contextual keys (arrows, Shift+arrows, Esc) are ignored.
     #[test]
     fn key_acceptance_matches_contextual_bar_in_idle() {
-        assert_offer_matches_acceptance(A_BOX, None);
+        assert_offer_matches_acceptance(A_BOX, None, None);
     }
 
     /// **For a selected box, key acceptance matches what the contextual bar offers**: the bar offers
     /// MOVE, RESIZE, and Deselect, so plain arrows, Shift+arrows, and Esc are all accepted.
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_box() {
-        assert_offer_matches_acceptance(A_BOX, Some(1));
+        assert_offer_matches_acceptance(A_BOX, Some(1), None);
     }
 
     /// **For a selected line, key acceptance matches what the contextual bar offers**: the bar offers
     /// MOVE and Deselect, but no RESIZE; plain arrows and Esc are accepted, and Shift+arrows are ignored.
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_line() {
-        assert_offer_matches_acceptance(A_LINE, Some(1));
+        assert_offer_matches_acceptance(A_LINE, Some(1), None);
     }
 
     /// **For a selected connector, key acceptance matches what the contextual bar offers**: the bar
@@ -857,7 +873,18 @@ mod tests {
     /// are ignored.
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_connector() {
-        assert_offer_matches_acceptance(A_CONNECTOR, Some(1));
+        assert_offer_matches_acceptance(A_CONNECTOR, Some(1), None);
+    }
+
+    /// **In `STROKE_SELECT`, key acceptance matches what the contextual bar offers**: the bar offers
+    /// digits 1..=5 and Esc Cancel; offered keys are accepted, and unoffered keys are consumed.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_in_stroke_select() {
+        assert_offer_matches_acceptance(
+            A_BOX,
+            Some(1),
+            Some(crate::diagram_state::SubMode::StrokeSelect),
+        );
     }
 
     #[test]
