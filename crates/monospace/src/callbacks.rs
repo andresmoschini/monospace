@@ -2862,12 +2862,18 @@ mod tests {
         let _ = send(&undo_key(), &mut state);
 
         assert_eq!(
-            stroke_of(
-                state
-                    .diagram()
-                    .selected_shape()
-                    .expect("the box is still there")
-            ),
+            state.diagram().selected(),
+            None,
+            "the undo kept the selection"
+        );
+        let restored_shape = state
+            .diagram()
+            .session()
+            .diagram()
+            .get(selected.unwrap())
+            .expect("the box is still in the diagram");
+        assert_eq!(
+            stroke_of(restored_shape),
             monospace_diagram::Stroke::from("light"),
             "one undo did not give the old stroke back"
         );
@@ -2877,9 +2883,9 @@ mod tests {
         );
     }
 
-    /// **Undo and redo walk the history from inside the sub-mode and leave it alone** (behavior 9):
-    /// the global keys fall through the region, and the sub-mode belongs to the selection, which a
-    /// walk does not touch.
+    /// **Undo and redo walk the history from inside the sub-mode and clear the selection** (#297):
+    /// the global keys fall through the region, the walk clears the selection, and dropping the
+    /// selection ends the active sub-mode.
     #[test]
     fn undo_and_redo_in_stroke_select_walk_history() {
         let mut state = a_drawn_state_over(A_BOX);
@@ -2898,44 +2904,51 @@ mod tests {
         let outcome = send(&undo_key(), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        let restored_shape = state
+            .diagram()
+            .session()
+            .diagram()
+            .get(selected.unwrap())
+            .expect("the box is still in the diagram");
         assert_eq!(
-            stroke_of(
-                state
-                    .diagram()
-                    .selected_shape()
-                    .expect("the box is still there")
-            ),
+            stroke_of(restored_shape),
             monospace_diagram::Stroke::from("light"),
             "the undo did not give the old stroke back"
         );
         assert_eq!(
             state.diagram().sub_mode(),
-            Some(crate::diagram_state::SubMode::StrokeSelect),
-            "the undo ended the sub-mode"
+            None,
+            "the undo kept the sub-mode"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            None,
+            "the undo kept the selection"
         );
 
         let outcome = send(&redo_key(), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        let redone_shape = state
+            .diagram()
+            .session()
+            .diagram()
+            .get(selected.unwrap())
+            .expect("the box is still in the diagram");
         assert_eq!(
-            stroke_of(
-                state
-                    .diagram()
-                    .selected_shape()
-                    .expect("the box is still there")
-            ),
+            stroke_of(redone_shape),
             monospace_diagram::Stroke::from("double"),
             "the redo did not give the new stroke back"
         );
         assert_eq!(
             state.diagram().sub_mode(),
-            Some(crate::diagram_state::SubMode::StrokeSelect),
-            "the redo ended the sub-mode"
+            None,
+            "the redo restored a sub-mode"
         );
         assert_eq!(
             state.diagram().selected(),
-            selected,
-            "the walk changed the selection"
+            None,
+            "the redo restored a selection"
         );
     }
 
@@ -3192,26 +3205,38 @@ mod tests {
         );
     }
 
-    /// **A walk does not touch the selection** (rule 7). The box is selected again after the undo,
-    /// the redo takes the drawing out from under it, and the identity survives: no cell of the
-    /// restored drawing records it, so the next frame inverts nothing.
+    /// **A walk clears the selection** (#297). The box is selected before the undo; the undo gives
+    /// the step back and clears the selection, returning the application to `IDLE`. Selecting the
+    /// box again and redoing clears the selection too, leaving the frame with no cell inverted.
     #[test]
-    fn the_undo_and_redo_keys_leave_the_selection_alone() {
+    fn the_undo_and_redo_keys_clear_the_selection() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let _ = send(&key(KeyCode::Delete), &mut state);
-        let _ = send(&undo_key(), &mut state);
-        let _ = draw(&mut state);
+        let _ = send(&key(KeyCode::Right), &mut state);
+        assert!(
+            state.diagram().selected().is_some(),
+            "the box was not selected"
+        );
 
+        let outcome = send(&undo_key(), &mut state);
+        let buffer = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
             state.diagram().selected(),
             None,
-            "the undo restored a selection"
+            "the undo kept the selection"
+        );
+        assert!(
+            !reversed(&buffer, 3, 3),
+            "the frame after the undo inverts a cell"
         );
 
         let _ = send(&click(3, 3), &mut state);
-        let selected = state.diagram().selected();
-        assert!(selected.is_some(), "the box was not selected again");
+        assert!(
+            state.diagram().selected().is_some(),
+            "the box was not selected again"
+        );
 
         let outcome = send(&redo_key(), &mut state);
         let buffer = draw(&mut state);
@@ -3219,11 +3244,11 @@ mod tests {
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
             state.diagram().selected(),
-            selected,
-            "the redo changed the selection"
+            None,
+            "the redo kept the selection"
         );
         assert!(
-            !reversed(&buffer, 3, 3),
+            !reversed(&buffer, 4, 3),
             "the frame after the redo inverts a cell"
         );
     }
