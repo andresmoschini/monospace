@@ -95,6 +95,9 @@ pub(crate) enum ContextMeaning {
     /// Leaves an inline sub-mode back to normal selection.
     LeaveSubMode,
     /// Deselects the active figure.
+    ///
+    /// **Always owes a frame**: the action is offered only while a figure is selected, so the
+    /// table reaches it with something to drop.
     Deselect,
 }
 
@@ -292,11 +295,8 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply {
                         Reply::Repaint
                     }
                     ContextMeaning::Deselect => {
-                        if state.select(None) {
-                            Reply::Repaint
-                        } else {
-                            Reply::Ignored
-                        }
+                        state.select(None);
+                        Reply::Repaint
                     }
                 };
             }
