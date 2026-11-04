@@ -304,6 +304,24 @@ fn each_command_becomes_one_of_the_diagrams_five_operations() {
     );
 
     assert_eq!(
+        after(&Command::SetStroke {
+            id: id(1),
+            stroke: Stroke::from("double"),
+        }),
+        after_operating(|diagram| {
+            let updated = diagram
+                .get(id(1))
+                .map(|shape| shape.with_stroke(Stroke::from("double")));
+            if let Some(updated) = updated {
+                diagram.replace(id(1), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`SetStroke` is `replace` with the figure's stroke changed"
+    );
+
+    assert_eq!(
         after(&Command::Hang {
             id: id(3),
             from: id(1),
@@ -1068,4 +1086,74 @@ fn two_resizes_are_two_steps() {
             height: 3
         }
     );
+}
+
+#[test]
+fn setting_a_figures_stroke_records_one_step() {
+    let session = Session::new(one_box(ORIGIN));
+    let updated = session.perform(Command::SetStroke {
+        id: id(1),
+        stroke: Stroke::from("double"),
+    });
+
+    assert!(
+        updated.can_undo(),
+        "setting a different stroke records a step"
+    );
+    let Shape::Box { stroke, .. } = updated.diagram().get(id(1)).expect("box") else {
+        panic!("expected box");
+    };
+    assert_eq!(*stroke, Stroke::from("double"));
+
+    let undone = updated.undo();
+    let Shape::Box {
+        stroke: orig_stroke,
+        ..
+    } = undone.diagram().get(id(1)).expect("box")
+    else {
+        panic!("expected box");
+    };
+    assert_eq!(*orig_stroke, Stroke::from("light"));
+}
+
+#[test]
+fn setting_the_stroke_a_figure_already_has_records_no_step() {
+    let session = Session::new(one_box(ORIGIN));
+    let moved = session.perform(Command::Move {
+        id: id(1),
+        by: Delta { dx: 1, dy: 0 },
+    });
+    let moved_pic = picture(&moved);
+
+    let undone = moved.undo();
+    assert!(undone.can_redo());
+
+    let no_op = undone.perform(Command::SetStroke {
+        id: id(1),
+        stroke: Stroke::from("light"),
+    });
+    assert!(
+        no_op.can_redo(),
+        "setting the stroke the figure already has preserves what was ahead"
+    );
+
+    let redone = no_op.redo();
+    assert_eq!(
+        picture(&redone),
+        moved_pic,
+        "and redo restores the state that was ahead"
+    );
+}
+
+#[test]
+fn setting_the_stroke_of_a_figure_the_diagram_does_not_hold_changes_nothing() {
+    let session = Session::new(one_box(ORIGIN));
+    let initial_pic = picture(&session);
+
+    let no_op = session.perform(Command::SetStroke {
+        id: id(999),
+        stroke: Stroke::from("heavy"),
+    });
+    assert_eq!(picture(&no_op), initial_pic);
+    assert!(!no_op.can_undo(), "and no step was recorded");
 }
