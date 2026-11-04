@@ -403,6 +403,51 @@ impl Shape {
         matches!(self, Self::Box { .. })
     }
 
+    /// This figure drawn with `stroke`.
+    ///
+    /// It takes `&self` and gives back a `Self` rather than consuming either, composing with
+    /// `Diagram::get` in the same way [`Self::displaced_by`] and [`Self::resized_by`] do:
+    /// `diagram.get(&id).map(|shape| shape.with_stroke(stroke))` is the whole read-and-re-stroke
+    /// step.
+    ///
+    /// **All three kinds of shape change their stroke**: a [`Box`](Self::Box), a
+    /// [`Line`](Self::Line), and a [`Connector`](Self::Connector) each replace their `stroke` with
+    /// `stroke`, leaving all other parameters unchanged.
+    #[must_use]
+    pub fn with_stroke(&self, stroke: Stroke) -> Self {
+        match self {
+            Self::Box {
+                at,
+                size,
+                fill,
+                text,
+                ..
+            } => Self::Box {
+                at: *at,
+                size: *size,
+                stroke,
+                fill: fill.clone(),
+                text: text.clone(),
+            },
+            Self::Line {
+                at,
+                len,
+                orientation,
+                ..
+            } => Self::Line {
+                at: *at,
+                len: *len,
+                orientation: *orientation,
+                stroke,
+            },
+            Self::Connector { from, to, .. } => Self::Connector {
+                from: from.clone(),
+                to: to.clone(),
+                stroke,
+            },
+        }
+    }
+
     /// This figure with every reference **naming `id`** replaced by the point it was resolving to,
     /// or `None` when this figure holds no such reference and nothing changed.
     ///
@@ -1130,5 +1175,82 @@ mod tests {
         let the_box = box_at(0);
         assert!(the_box.has_size());
         assert_ne!(the_box.resized_by(Delta { dx: 2, dy: 3 }), the_box);
+    }
+
+    #[test]
+    fn a_box_changes_only_its_stroke() {
+        let the_box = Shape::Box {
+            at: Pos { x: 2, y: 3 },
+            size: Size {
+                width: 5,
+                height: 4,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("x").unwrap()),
+            text: Some(Text::new("hi").unwrap()),
+        };
+        let double = Stroke::from("double");
+        let updated = the_box.with_stroke(double.clone());
+        assert_eq!(
+            updated,
+            Shape::Box {
+                at: Pos { x: 2, y: 3 },
+                size: Size {
+                    width: 5,
+                    height: 4,
+                },
+                stroke: double,
+                fill: Some(Glyph::new("x").unwrap()),
+                text: Some(Text::new("hi").unwrap()),
+            }
+        );
+    }
+
+    #[test]
+    fn a_line_changes_only_its_stroke() {
+        let the_line = Shape::Line {
+            at: Pos { x: 1, y: 2 },
+            len: 4,
+            orientation: Orientation::Vertical,
+            stroke: light(),
+        };
+        let heavy = Stroke::from("heavy");
+        let updated = the_line.with_stroke(heavy.clone());
+        assert_eq!(
+            updated,
+            Shape::Line {
+                at: Pos { x: 1, y: 2 },
+                len: 4,
+                orientation: Orientation::Vertical,
+                stroke: heavy,
+            }
+        );
+    }
+
+    #[test]
+    fn a_connector_changes_only_its_stroke() {
+        let the_connector = connector(Terminal::Arm, Terminal::Arm);
+        let ascii = Stroke::from("ascii");
+        let updated = the_connector.with_stroke(ascii.clone());
+        match (the_connector, updated) {
+            (
+                Shape::Connector {
+                    from: f1,
+                    to: t1,
+                    stroke: s1,
+                },
+                Shape::Connector {
+                    from: f2,
+                    to: t2,
+                    stroke: s2,
+                },
+            ) => {
+                assert_eq!(f1, f2);
+                assert_eq!(t1, t2);
+                assert_eq!(s1, light());
+                assert_eq!(s2, ascii);
+            }
+            _ => unreachable!(),
+        }
     }
 }
