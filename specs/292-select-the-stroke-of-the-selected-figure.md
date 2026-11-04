@@ -24,10 +24,11 @@ nothing record no step in session history, and issue
 Adding the `s` sub-mode (`STROKE_SELECT`) provides the first interactive sub-mode in Monospace and
 establishes the Option D unified context table architecture (Phase 5 of the contextual functions
 plan). Concurrently, it settles the boundary between global actions and contextual actions:
-unoffered local keys inside sub-modes are consumed, while the keys the unclaimed global table
-answers remain active; `Delete` is removed from the global `Edit` menu and global shortcut table to
-become strictly a contextual action of figure selection; and history walks (`Undo`/`Redo`) cancel
-active sub-modes. Whether a walk should also clear the selection is a separate question, owned by
+unoffered local keys inside sub-modes are ignored, so the keys the unclaimed global table answers
+remain active; `Delete` is removed from the global `Edit` menu and global shortcut table to become
+strictly a contextual action of figure selection; and history walks (`Undo`/`Redo`) leave an active
+sub-mode alone, because they leave the selection alone. Whether a walk should also clear the
+selection is a separate question, owned by
 [#297](https://github.com/andresmoschini/monospace/issues/297).
 
 ## Scope
@@ -41,23 +42,24 @@ active sub-modes. Whether a walk should also clear the selection is a separate q
   - `2`: `Stroke("double")` (`╔═╗`)
   - `3`: `Stroke("light-round")` (`╭─╮`)
   - `4`: `Stroke("heavy")` (`┏━┓`)
-  - `5`: `Stroke("ascii")` (`+-+`) Pressing `1..=5` applies the chosen stroke, clears
+  - `5`: `Stroke("ascii")` (`+-+`). Pressing `1..=5` applies the chosen stroke, clears
     `STROKE_SELECT`, returns to the previous selection context, and requests a repaint.
 - Pressing `Esc` while in `STROKE_SELECT` cancels the sub-mode and returns to the previous selection
   context without applying any change and without deselecting the figure.
 - Two-layer key dispatching in sub-modes:
   - Every key the region is asked about that the table does not offer (arrows, `Shift+arrows`,
     letters, `Delete`, `Tab`, `Enter`, `Home`, `End`, function keys, out-of-range digits) returns
-    `Reply::Consumed`, stopping event propagation and preventing canvas mutations. The chrome's own
-    keys (`F10`, `Alt` plus a navigation character) are claimed by the menu before the region and
-    never reach it.
+    `Reply::Ignored`, so the event falls through without mutating the canvas or the active sub-mode.
+    The chrome's own keys (`F10`, `Alt` plus a navigation character) are claimed by the menu before
+    the region and never reach it.
   - A key the unclaimed global shortcut table answers (`Ctrl+N`, `Ctrl+O`, `Ctrl+S`, `Ctrl+Q`,
-    `Ctrl+Z`, `Ctrl+Shift+Z`) returns `Reply::Ignored`, allowing it to fall through to
-    `shortcuts::handle_unclaimed`. The forced exit `Ctrl+C` is `Reach::Always` and is answered
-    before the region, so it is not part of this rule.
+    `Ctrl+Z`, `Ctrl+Shift+Z`) is likewise `Reply::Ignored` at the region, allowing it to fall
+    through to `shortcuts::handle_unclaimed`. The forced exit `Ctrl+C` is `Reach::Always` and is
+    answered before the region, so it is not part of this rule.
 - Explicit interaction between global actions, sub-modes, and selection:
   - Executing `Undo` (`Ctrl+Z`) or `Redo` (`Ctrl+Shift+Z`) walks the session history. The selection
-    is left as [#181](https://github.com/andresmoschini/monospace/issues/181) says; clearing it is
+    is left as [#181](https://github.com/andresmoschini/monospace/issues/181) says, and the active
+    sub-mode is preserved because it belongs to that selection; clearing the selection is
     [#297](https://github.com/andresmoschini/monospace/issues/297)'s question (which in turn will
     cancel any active sub-mode when selection is cleared).
   - Opening an application-level modal dialog (`Save`, `Open`, `About`, `ShowError`) or transferring
@@ -86,7 +88,7 @@ active sub-modes. Whether a walk should also clear the selection is a separate q
 - Unified context table (Option D) implemented in `crates/monospace/src/context_table.rs`: single
   source of truth for contextual key bindings, visual labels, and actions shared by status bar
   formatting and widget key dispatching.
-- Guardian tests in `diagram_widget.rs` updated: `'s'` and `Delete` removed from `NOT_THE_REGIONS`,
+- Guardian tests in `diagram_widget.rs` updated: `'s'` and `Delete` removed from `NEVER_AN_ACTION`,
   `Delete` checked via the contextual table, and offer == acceptance verified against context table
   entries.
 
@@ -126,7 +128,8 @@ transitions `sub_mode` to `Some(SubMode::StrokeSelect)` and returns `Reply::Repa
   active sub-mode. The chrome's own keys (`F10`, `Alt` plus a navigation character) are claimed by
   the menu before the region, and the forced exit `Ctrl+C` is `Reach::Always` and is answered before
   the region, so neither reaches this rule.
-- History walks (`Undo` / `Redo`) walk the session history; clearing the selection is #297's.
+- History walks (`Undo` / `Redo`) walk the session history and leave an active sub-mode in place,
+  because they leave the selection in place; clearing the selection is #297's.
 - While the figure remains selected, opening an application-level dialog (`Save`, `Open`, `About`,
   `ShowError`) or transferring keyboard focus to the menu bar (`Focus::Bar`) preserves the active
   sub-mode, resuming it when returning to the diagram region.
@@ -166,8 +169,8 @@ recording a step when stroke is unchanged: violates #285 contract and creates gh
 
 **Answer:** The context bar and the widget event dispatcher derive their offered keys, labels, and
 actions from a unified context table implemented in `crates/monospace/src/context_table.rs` (Option
-D). The module defines `ContextBlock`, `ContextAction`, `KeyPattern`, `ContextMeaning`, and
-`SubMode`.
+D). The module defines `Condition`, `ContextBlock`, `ContextAction`, `KeyPattern` and
+`ContextMeaning`; `SubMode` lives in `diagram_state.rs`, beside the state it describes.
 
 - Visual grammar: inside a `ContextBlock`, actions are separated by a single space (`" "`).
   Categories are prefixed with uppercase names (`"STROKE: "` or `"MOVE: "`) or omitted for trailing
@@ -181,10 +184,10 @@ D). The module defines `ContextBlock`, `ContextAction`, `KeyPattern`, `ContextMe
   unified context table for `SELECTED_BOX`, `SELECTED_LINE`, and `SELECTED_CONNECTOR`. With nothing
   selected (`IDLE`) or in a sub-mode (`STROKE_SELECT`), `Delete` is not offered and performs no
   action.
-- Dispatching: `diagram_widget::key` delegates key matching to `context_table::dispatch_key`. In
+- Dispatching: `diagram_widget::handle` delegates key matching to `context_table::dispatch_key`. In
   selection contexts, matching keys dispatch corresponding actions (`Move`, `Resize`, `SetStroke`,
-  `Delete`). In `STROKE_SELECT`, every key the table does not offer returns `Reply::Consumed`, and a
-  key the unclaimed global shortcut table answers returns `Reply::Ignored`.
+  `Delete`). In `STROKE_SELECT`, every key the table does not offer returns `Reply::Ignored`, and a
+  key the unclaimed global shortcut table answers is answered there.
 - Static table: the stroke options carry a borrowed name (`ContextMeaning::SetStroke(&'static str)`)
   and `dispatch_key` builds the `Stroke` when the action is dispatched. A `Stroke` owns a `String`,
   so it cannot be a field of a `&'static [ContextBlock]`; the table stays static and the owned value
@@ -220,7 +223,7 @@ maintainer.
     are ignored and fall through to global unclaimed shortcuts in `callbacks::route`) and document
     that `Delete` is a contextual action of selection contexts.
   - §7: document acceptance properties for sub-modes, the context table, and `Delete` as a
-    contextual action; and that a walk cancels the sub-mode without touching the selection.
+    contextual action; and that a walk leaves the sub-mode and the selection alone.
   - §8: record that clearing the selection on a walk is
     [#297](https://github.com/andresmoschini/monospace/issues/297)'s, not this slice's.
 
@@ -262,8 +265,9 @@ maintainer.
   // crates/monospace/src/context_table.rs
 
   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-  pub(crate) enum SubMode {
-      StrokeSelect,
+  pub(crate) enum Condition {
+      Always,
+      Size,
   }
 
   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -291,28 +295,36 @@ maintainer.
   // cannot live in the `&'static` table; `dispatch_key` builds it at dispatch time.
 
   pub(crate) struct ContextAction {
-      pub pattern: KeyPattern,
-      pub display: &'static str,
-      pub meaning: ContextMeaning,
+      pub(crate) pattern: KeyPattern,
+      pub(crate) display: &'static str,
+      pub(crate) meaning: ContextMeaning,
   }
 
   pub(crate) struct ContextBlock {
-      pub category: Option<&'static str>,
-      pub actions: &'static [ContextAction],
+      pub(crate) category: Option<&'static str>,
+      pub(crate) condition: Condition,
+      pub(crate) actions: &'static [ContextAction],
   }
 
-  pub(crate) fn context_blocks(state: &DiagramState) -> &'static [ContextBlock];
+  pub(crate) fn context_blocks(
+      state: &DiagramState,
+  ) -> impl Iterator<Item = &'static ContextBlock> + use<>;
   pub(crate) fn format_command_line(state: &DiagramState) -> String;
-  pub(crate) fn dispatch_key(state: &mut DiagramState, event: &KeyEvent) -> Reply;
+  pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply;
 
   // crates/monospace/src/diagram_state.rs
+
+  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+  pub(crate) enum SubMode {
+      StrokeSelect,
+  }
 
   impl DiagramState {
       pub(crate) fn sub_mode(&self) -> Option<SubMode>;
       pub(crate) fn set_sub_mode(&mut self, sub_mode: Option<SubMode>);
       pub(crate) fn undo(&mut self);
       pub(crate) fn redo(&mut self);
-      pub(crate) fn select(&mut self, id: Option<ShapeId>);
+      pub(crate) fn select(&mut self, selection: Option<ShapeId>) -> bool;
   }
 
   // `select` and `remove` clear `sub_mode` when the selection changes or is dropped.
@@ -351,15 +363,15 @@ maintainer.
    without modifying the diagram or recording any step, leaving the figure selected, and requests a
    repaint (`Reply::Repaint`).
 7. While in `STROKE_SELECT`, every key the region is asked about that the table does not offer is
-   consumed (`Reply::Consumed`): arrows, `Shift+arrows`, letters, `Delete`, `Tab`, `Enter`, `Home`,
+   ignored (`Reply::Ignored`): arrows, `Shift+arrows`, letters, `Delete`, `Tab`, `Enter`, `Home`,
    `End`, function keys, and out-of-range digits. The chrome's keys (`F10`, `Alt` plus a navigation
    character) are claimed by the menu before the region and are not part of this rule.
 8. While in `STROKE_SELECT`, a key the unclaimed global shortcut table answers (`Ctrl+Z`,
    `Ctrl+Shift+Z`, `Ctrl+S`, `Ctrl+Q`, `Ctrl+N`, `Ctrl+O`) is ignored (`Reply::Ignored`), allowing
    it to fall through to `shortcuts::handle_unclaimed`. `Ctrl+C` is `Reach::Always` and is answered
    before the region.
-9. Invoking `Undo` (`Ctrl+Z`) or `Redo` (`Ctrl+Shift+Z`) walks session history. The selection is
-   left alone, as #181 says; clearing it is
+9. Invoking `Undo` (`Ctrl+Z`) or `Redo` (`Ctrl+Shift+Z`) walks session history and leaves an active
+   sub-mode in place. The selection is left alone, as #181 says; clearing it is
    [#297](https://github.com/andresmoschini/monospace/issues/297)'s.
 10. Opening an application-level modal overlay (`Save`, `Open`, `About`, `ShowError`) or moving
     focus to the menu bar (`Focus::Bar`) preserves the active sub-mode while the figure remains
@@ -389,8 +401,8 @@ run.
 | `STROKE_SELECT` (light) | `Esc`           | `None` (box)    | none (`Repaint`)      | no               | no                 |
 | `STROKE_SELECT` (light) | `Delete`        | `StrokeSelect`  | none (`Ignored`)      | no               | no                 |
 | `STROKE_SELECT` (light) | `↑`             | `StrokeSelect`  | none (`Ignored`)      | no               | no                 |
-| `STROKE_SELECT` (light) | `Ctrl+Z` (Undo) | `None` (box)    | `Action::Undo`        | yes              | walks back         |
-| `STROKE_SELECT` (light) | `Ctrl+S` (Save) | `None` (box)    | `Action::Save`        | no               | opens save dialog  |
+| `STROKE_SELECT` (light) | `Ctrl+Z` (Undo) | `StrokeSelect`  | `Action::Undo`        | yes              | walks back         |
+| `STROKE_SELECT` (light) | `Ctrl+S` (Save) | `StrokeSelect`  | `Action::Save`        | no               | opens save dialog  |
 | `IDLE`                  | `s`             | `None` (`IDLE`) | none (`Ignored`)      | no               | no                 |
 | `IDLE`                  | `Delete`        | `None` (`IDLE`) | none (`Ignored`)      | no               | no                 |
 | `SELECTED_BOX` (light)  | `Delete`        | `None` (`IDLE`) | `Action::Delete`      | yes              | yes (1 step)       |
@@ -409,34 +421,45 @@ whole prompt, and Phase 4 is the slice that makes it fit.
 
 ## What proves it
 
-| Rule | Test                                                                    |
-| ---- | ----------------------------------------------------------------------- |
-| 1    | `pressing_s_on_selected_figure_enters_stroke_select_sub_mode`           |
-| 2    | `pressing_s_in_idle_is_ignored`                                         |
-| 3    | `pressing_1_to_5_in_stroke_select_applies_stroke_and_exits_sub_mode`    |
-| 4    | `setting_identical_stroke_leaves_diagram_untouched_and_records_no_step` |
-| 5    | `setting_different_stroke_records_one_step_in_session_history`          |
-| 6    | `pressing_escape_in_stroke_select_cancels_sub_mode_without_deselecting` |
-| 7    | `unoffered_keys_in_stroke_select_are_ignored`                           |
-| 8    | `global_unclaimed_shortcuts_pass_through_from_stroke_select`            |
-| 9    | `undo_and_redo_in_stroke_select_walk_history`                           |
-| 10   | `opening_overlay_or_focusing_menu_preserves_sub_mode`                   |
-| 11   | `clicking_another_figure_or_outside_cancels_sub_mode`                   |
-| 12   | `command_row_offers_stroke_s_and_delete_for_selected_figures`           |
-| 13   | `delete_in_idle_is_ignored`                                             |
-| 14   | `stroke_select_context_formats_canonical_prompt_and_status_row`         |
-| 15   | `context_table_guarantees_offer_equals_acceptance_across_all_contexts`  |
+| Rule | Test                                                                                |
+| ---- | ----------------------------------------------------------------------------------- |
+| 1    | `pressing_s_on_selected_shape_enters_stroke_select_sub_mode`                        |
+| 2    | `pressing_s_in_idle_is_ignored`                                                     |
+| 3    | `digits_in_stroke_select_dispatch_set_stroke_and_clear_sub_mode`                    |
+| 4    | `setting_identical_stroke_leaves_diagram_untouched_and_records_no_step`             |
+| 5    | `setting_different_stroke_records_one_step_in_session_history`                      |
+| 6    | `escape_in_stroke_select_cancels_sub_mode_and_leaves_figure_selected`               |
+| 7    | `unoffered_keys_in_stroke_select_are_ignored`                                       |
+| 8    | `unclaimed_global_shortcuts_in_stroke_select_are_ignored`                           |
+| 9    | `undo_and_redo_in_stroke_select_walk_history`                                       |
+| 10   | `opening_dialog_and_closing_preserves_sub_mode`                                     |
+| 10   | `moving_focus_to_bar_and_returning_preserves_sub_mode`                              |
+| 11   | `clicking_another_figure_cancels_sub_mode_and_changes_selection`                    |
+| 11   | `click_outside_cancels_sub_mode_and_clears_selection`                               |
+| 12   | `selected_box_shows_identity_label_pos_size_stroke_fill_and_selection_commands`     |
+| 12   | `selected_line_shows_identity_pos_length_orientation_stroke_and_selection_commands` |
+| 12   | `selected_connector_shows_stroke_before_both_endpoints_and_selection_commands`      |
+| 13   | `the_delete_key_with_nothing_selected_is_ignored`                                   |
+| 14   | `stroke_selection_sub_mode_shows_title_and_stroke_options`                          |
+| 15   | `key_acceptance_matches_contextual_bar_in_idle`                                     |
+| 15   | `key_acceptance_matches_contextual_bar_for_selected_box`                            |
+| 15   | `key_acceptance_matches_contextual_bar_for_selected_line`                           |
+| 15   | `key_acceptance_matches_contextual_bar_for_selected_connector`                      |
+| 15   | `key_acceptance_matches_contextual_bar_in_stroke_select`                            |
 
 Existing guardian tests updated during building:
 
-- `crates/monospace/src/diagram_widget.rs`: `'s'` and `Delete` removed from `NOT_THE_REGIONS`; the
+- `crates/monospace/src/diagram_widget.rs`: `'s'` and `Delete` removed from `NEVER_AN_ACTION`; the
   `STROKE_SELECT` fixture added; `assert_offer_matches_acceptance` reads `context_blocks` instead of
   its own list.
-- `crates/monospace/src/callbacks.rs`: the delete-entry tests removed or rewritten for the
-  contextual key; `the_undo_and_redo_keys_leave_the_selection_alone` stays as #181 wrote it, and the
-  sub-mode cancellation is asserted separately.
-- `crates/monospace/src/menu.rs`: `_Edit` menu tested for `_Undo` and `_Redo` only; the `DELETE`
-  entry and its meaning arm removed.
+- `crates/monospace/src/callbacks.rs`: the delete tests rewritten for the contextual key
+  (`the_delete_key_removes_the_selected_shape`, `the_delete_key_drops_the_selection`,
+  `the_delete_key_with_nothing_selected_is_ignored`, `the_drop_down_keeps_the_delete_key`,
+  `the_delete_key_on_the_bar_does_nothing`); `the_undo_and_redo_keys_leave_the_selection_alone`
+  stays as #181 wrote it, and `undo_and_redo_in_stroke_select_walk_history` asserts the sub-mode
+  stays with it.
+- `crates/monospace/src/menu.rs`: `_Edit` menu tested for `_Undo` and `_Redo`, `_Help` for `_About`;
+  the `DELETE` entry and its meaning arm removed.
 - `crates/monospace/src/shortcuts.rs`: the `Delete` row removed, and the doc comment that used it as
   the no-modifier row rewritten.
 - `crates/monospace/src/status.rs`: the `STROKE: [s]` block and the `STROKE_SELECT` prompt/status
