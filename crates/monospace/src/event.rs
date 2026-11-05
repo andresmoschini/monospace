@@ -49,7 +49,10 @@ mod tests {
     #[test]
     fn everything_the_terminal_says_travels_whole() {
         for event in [
-            Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            Event::Key(KeyEvent::new(
+                KeyCode::Char('Q'),
+                KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+            )),
             Event::Resize(80, 24),
             Event::Paste("pasted".to_string()),
             Event::FocusGained,

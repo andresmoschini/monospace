@@ -193,7 +193,7 @@ impl Reply {
         Reply::Quit { forced: false }
     }
 
-    /// The forced exit, as `Ctrl+C` answers it.
+    /// The forced exit, as `Ctrl+Shift+Q` answers it.
     pub(crate) const fn force_quit() -> Reply {
         Reply::Quit { forced: true }
     }

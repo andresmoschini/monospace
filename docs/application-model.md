@@ -278,7 +278,7 @@ sub-mode (such as `STROKE_SELECT`) is active:
    shortcuts (`Ctrl+Z` Undo, `Ctrl+Shift+Z` Redo, `Ctrl+S` Save, `Ctrl+Q` Quit, `Ctrl+N` New,
    `Ctrl+O` Open) to be carried out without coupling the context table to the shortcut table. Keys
    unclaimed by any layer are ignored by the application (`Control::Continue`), preserving the
-   active sub-mode and canvas state without unwanted mutation. The forced exit `Ctrl+C` is
+   active sub-mode and canvas state without unwanted mutation. The forced exit `Ctrl+Shift+Q` is
    `Reach::Always` and is answered before the region, so it is not part of this rule. A history walk
    clears the selection and drops any active sub-mode
    ([#297](https://github.com/andresmoschini/monospace/issues/297)).
@@ -382,9 +382,9 @@ screen, which is `Reply::Repaint` and not a meaning, and the way out, which is n
 all. The rule is one place and not a line in each action (rule 13 of
 [#189](https://github.com/andresmoschini/monospace/issues/189)).
 
-**`Ctrl+C` is not the way out.** It is the forced exit: it ends the application whatever the state
-is, and it is the same `Reply::Quit` with `forced` set — the difference is not a second answer but
-whether the application may ask before it goes, which is #189's. **It is a shortcut like the way
+**`Ctrl+Shift+Q` is not the way out.** It is the forced exit: it ends the application whatever the
+state is, and it is the same `Reply::Quit` with `forced` set — the difference is not a second answer
+but whether the application may ask before it goes, which is #189's. **It is a shortcut like the way
 out, and it differs in one thing — its reach.** Every shortcut is a row of one table, and a row says
 how far the row reaches: a shortcut that reaches everything is answered before any handler, so a
 drop-down that is open and holds the keyboard, and the dialog that takes every other key, are not
@@ -513,8 +513,8 @@ framework's buffer one at a time.
 - The palette is the dark BASE16 theme, read once.
 - The way out is reached by the shortcut and by the menu's entry.
 - A click on the entry and its shortcut apply the same action.
-- `Ctrl+C` ends the application whatever the state is, with the drop-down open and with the dialog
-  up: the promise belongs to the reach, not to the key that happens to hold it.
+- `Ctrl+Shift+Q` ends the application whatever the state is, with the drop-down open and with the
+  dialog up: the promise belongs to the reach, not to the key that happens to hold it.
 - A key reaches the session only as an action.
 - A handler that took no interest (`Ignored`) leaves the event to the next one, and the first answer
   that is not `Ignored` ends the asking.
@@ -589,7 +589,7 @@ framework's buffer one at a time.
   (`Reply::Ignored`) and falls through; the chrome's keys are asked before the region.
 - In `StrokeSelect`, a key the unclaimed global shortcut table answers (`Ctrl+Z`, `Ctrl+Shift+Z`,
   `Ctrl+S`, `Ctrl+Q`, `Ctrl+N`, `Ctrl+O`) is ignored by the region (`Reply::Ignored`) and falls
-  through to the global handler; `Ctrl+C` is answered before the region.
+  through to the global handler; `Ctrl+Shift+Q` is answered before the region.
 - A history walk ends an active sub-mode, because it clears the selection
   ([#297](https://github.com/andresmoschini/monospace/issues/297)).
 - Losing or changing the selection (clicking another figure or outside, or removing the selected

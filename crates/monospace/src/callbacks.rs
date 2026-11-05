@@ -97,9 +97,9 @@ pub(crate) fn event(
 /// Which handler answers the event, and what it answers.
 ///
 /// **The order is the whole of the policy, and the chain is the order.** The shortcuts that reach
-/// everything are asked first: a `Ctrl+C` that reached the chrome as a key would be answered by the
-/// chrome, and the point of it is that it is answered by nothing. **Then the dialog, while it is
-/// up**: it is the overlay, it takes every key and every control, and an event it leaves alone
+/// everything are asked first: a `Ctrl+Shift+Q` that reached the chrome as a key would be answered
+/// by the chrome, and the point of it is that it is answered by nothing. **Then the dialog, while it
+/// is up**: it is the overlay, it takes every key and every control, and an event it leaves alone
 /// reaches nothing else. Then the bar, so that a key the widget uses is the widget's; then the
 /// region, so that a click a drop-down covers is the drop-down's and the one it leaves is the
 /// diagram's; then the shortcuts nobody has claimed. The first action wins, and an event all of
@@ -127,11 +127,11 @@ pub(crate) fn event(
 /// and only the first lets the region see a press the drop-down already trapped.
 fn route(event: &Event, state: &mut AppState) -> Reply {
     // **The two reaches that answer before the press is addressed come first, and in this order.**
-    // A `Ctrl+C` that reached the chrome as a key would be answered by the chrome, and the point of
-    // it is that it is answered by nothing; the dialog is the overlay, so while it is up an event it
-    // leaves alone reaches nothing else. **`Ignored` is the dialog being down**: the framework
-    // answers it while the dialog is inactive, so asking it is one call and not a question about
-    // `active()` followed by a question about the event.
+    // A `Ctrl+Shift+Q` that reached the chrome as a key would be answered by the chrome, and the
+    // point of it is that it is answered by nothing; the dialog is the overlay, so while it is up an
+    // event it leaves alone reaches nothing else. **`Ignored` is the dialog being down**: the
+    // framework answers it while the dialog is inactive, so asking it is one call and not a question
+    // about `active()` followed by a question about the event.
     //
     // **Neither of the two moves the keyboard**, which is why addressing sits below and not here: a
     // click on the bar behind the dialog moves nothing, and the press is addressed only once nobody
@@ -1492,8 +1492,8 @@ mod tests {
 
     /// **The overlay takes the controls behind it** (rule 10): `Ctrl+Q` is `Unclaimed`, so while
     /// the dialog is up the dialog answers it and nothing happens, and a click on the bar behind
-    /// it moves no keyboard and opens no menu. `Ctrl+C` is answered before the dialog, and
-    /// [`control_c_ends_the_application_whatever_the_state_is`] is where that is proven.
+    /// it moves no keyboard and opens no menu. `Ctrl+Shift+Q` is answered before the dialog, and
+    /// [`the_forced_exit_ends_the_application_whatever_the_state_is`] is where that is proven.
     #[test]
     fn control_q_does_nothing_while_the_dialog_is_up() {
         let mut state = a_drawn_state_over(A_BOX);
@@ -1606,14 +1606,17 @@ mod tests {
     }
 
     #[test]
-    fn control_c_ends_the_application_whatever_the_state_is() {
+    fn the_forced_exit_ends_the_application_whatever_the_state_is() {
         // The drop-down is open: the chrome holds the keyboard, and the forced exit is not the
         // chrome's to answer.
         let mut state = a_drawn_state();
         open_the_drop_down(&mut state, 'f');
 
         let outcome = send(
-            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &key_with(
+                KeyCode::Char('Q'),
+                KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+            ),
             &mut state,
         );
 
@@ -1626,7 +1629,10 @@ mod tests {
         assert!(state.dialog().active(), "the dialog is not open");
 
         let outcome = send(
-            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &key_with(
+                KeyCode::Char('Q'),
+                KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+            ),
             &mut state,
         );
 
@@ -1641,7 +1647,10 @@ mod tests {
         assert!(state.save().active(), "the save dialog is not open");
 
         let outcome = send(
-            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &key_with(
+                KeyCode::Char('Q'),
+                KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+            ),
             &mut state,
         );
 
@@ -1652,8 +1661,8 @@ mod tests {
     }
 
     /// **Every shortcut of the first reach, and not the one that happens to be in the table
-    /// today.** The promise is that nothing may consume these keys, and a test that named `Ctrl+C`
-    /// would keep passing the day a second one is added and the chrome swallows it.
+    /// today.** The promise is that nothing may consume these keys, and a test that named
+    /// `Ctrl+Shift+Q` would keep passing the day a second one is added and the chrome swallows it.
     #[test]
     fn every_shortcut_answered_first_is_answered_with_the_drop_down_open() {
         for event in shortcuts::events_answered_first() {
