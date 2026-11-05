@@ -245,8 +245,8 @@ impl Session {
     /// **A command that changed nothing records no step** (#285). The diagram's operations cannot
     /// fail, so a command naming a figure it does not hold changes nothing, and neither does one
     /// whose change gives the figure back as it was — a box at its smallest shrunk again, a line
-    /// resized, a figure brought forward when it is already at the front. **What comes back is
-    /// this session**: the same steps, the same position and the same diagram, so what was ahead
+    /// at its shortest shrunk again, a connector resized, a figure brought forward when it is
+    /// already at the front. **What comes back is this session**: the same steps, the same position and the same diagram, so what was ahead
     /// of the position stays ahead and a no-op discards no branch. The command knows which figure
     /// it touched and answers whether that figure changed; nothing here compares two diagrams,
     /// which a diagram has no way of doing.

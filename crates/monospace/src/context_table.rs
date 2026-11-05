@@ -10,6 +10,7 @@
 //! `dispatch_key` answers, so a key cannot be offered without being accepted; `PICK` is the one
 //! label the row carries with no key behind it.
 
+use monospace_core::Orientation;
 use monospace_diagram::Shape;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -24,8 +25,12 @@ const PICK: &str = "SELECT: [Click] Pick";
 pub(crate) enum Condition {
     /// Always active in this context.
     Always,
-    /// Active only if the selected figure has a width and height to resize.
-    Size,
+    /// Active only if the selected figure is a box.
+    Box,
+    /// Active only if the selected figure is a horizontal line.
+    HorizontalLine,
+    /// Active only if the selected figure is a vertical line.
+    VerticalLine,
 }
 
 /// A pattern of key combinations matched by contextual actions.
@@ -35,6 +40,10 @@ pub(crate) enum KeyPattern {
     Arrows,
     /// Shift plus any of the four arrow keys.
     ShiftArrows,
+    /// Shift plus horizontal arrow keys (Left, Right).
+    ShiftHorizontalArrows,
+    /// Shift plus vertical arrow keys (Up, Down).
+    ShiftVerticalArrows,
     /// A single key code with no modifiers.
     Code(KeyCode),
     /// A single bare character key.
@@ -60,6 +69,14 @@ impl KeyPattern {
                         KeyCode::Right | KeyCode::Left | KeyCode::Up | KeyCode::Down
                     )
             }
+            Self::ShiftHorizontalArrows => {
+                event.modifiers == KeyModifiers::SHIFT
+                    && matches!(event.code, KeyCode::Left | KeyCode::Right)
+            }
+            Self::ShiftVerticalArrows => {
+                event.modifiers == KeyModifiers::SHIFT
+                    && matches!(event.code, KeyCode::Up | KeyCode::Down)
+            }
             Self::Code(code) => event.modifiers == KeyModifiers::NONE && event.code == code,
             Self::Char(c) => {
                 event.modifiers == KeyModifiers::NONE && event.code == KeyCode::Char(c)
@@ -79,6 +96,14 @@ impl KeyPattern {
             Self::ShiftArrows => vec![
                 (KeyCode::Right, KeyModifiers::SHIFT),
                 (KeyCode::Left, KeyModifiers::SHIFT),
+                (KeyCode::Up, KeyModifiers::SHIFT),
+                (KeyCode::Down, KeyModifiers::SHIFT),
+            ],
+            Self::ShiftHorizontalArrows => vec![
+                (KeyCode::Left, KeyModifiers::SHIFT),
+                (KeyCode::Right, KeyModifiers::SHIFT),
+            ],
+            Self::ShiftVerticalArrows => vec![
                 (KeyCode::Up, KeyModifiers::SHIFT),
                 (KeyCode::Down, KeyModifiers::SHIFT),
             ],
@@ -133,10 +158,28 @@ static SELECTION: &[ContextBlock] = &[
     },
     ContextBlock {
         category: Some("RESIZE"),
-        condition: Condition::Size,
+        condition: Condition::Box,
         actions: &[ContextAction {
             pattern: KeyPattern::ShiftArrows,
             display: "Shift+↑↓←→",
+            meaning: ContextMeaning::Directional(Action::Resize),
+        }],
+    },
+    ContextBlock {
+        category: Some("RESIZE"),
+        condition: Condition::HorizontalLine,
+        actions: &[ContextAction {
+            pattern: KeyPattern::ShiftHorizontalArrows,
+            display: "Shift+←→",
+            meaning: ContextMeaning::Directional(Action::Resize),
+        }],
+    },
+    ContextBlock {
+        category: Some("RESIZE"),
+        condition: Condition::VerticalLine,
+        actions: &[ContextAction {
+            pattern: KeyPattern::ShiftVerticalArrows,
+            display: "Shift+↑↓",
             meaning: ContextMeaning::Directional(Action::Resize),
         }],
     },
@@ -232,8 +275,26 @@ pub(crate) fn context_blocks(
 ) -> impl Iterator<Item = &'static ContextBlock> + use<> {
     let sub_mode = state.sub_mode();
     let selected_shape = state.selected_shape();
-    let has_size = selected_shape.is_some_and(Shape::has_size);
     let selected = selected_shape.is_some();
+    let is_box = selected_shape.is_some_and(|s| matches!(s, Shape::Box { .. }));
+    let is_horizontal_line = selected_shape.is_some_and(|s| {
+        matches!(
+            s,
+            Shape::Line {
+                orientation: Orientation::Horizontal,
+                ..
+            }
+        )
+    });
+    let is_vertical_line = selected_shape.is_some_and(|s| {
+        matches!(
+            s,
+            Shape::Line {
+                orientation: Orientation::Vertical,
+                ..
+            }
+        )
+    });
 
     let slice: &'static [ContextBlock] = match sub_mode {
         Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,
@@ -243,7 +304,9 @@ pub(crate) fn context_blocks(
 
     slice.iter().filter(move |block| match block.condition {
         Condition::Always => true,
-        Condition::Size => has_size,
+        Condition::Box => is_box,
+        Condition::HorizontalLine => is_horizontal_line,
+        Condition::VerticalLine => is_vertical_line,
     })
 }
 

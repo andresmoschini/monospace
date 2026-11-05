@@ -297,12 +297,15 @@ pub(crate) fn error(
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU16;
+
     use super::*;
     use crate::chrome::Focus;
     use crate::config::Config;
     use crate::status;
     use crate::vocabulary::AppError;
     use monospace_core::{Offset, Pos};
+    use monospace_diagram::ShapeId;
     use ratatui_core::layout::Rect;
     use ratatui_core::style::Modifier;
     use ratatui_crossterm::crossterm::event::{
@@ -341,6 +344,34 @@ mod tests {
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
                       "size": { "width": 2, "height": 2 }, "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light horizontal line of length 6 at `(2, 1)`.
+    const A_HORIZONTAL_LINE: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
+                      "len": 6, "orientation": "horizontal", "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light vertical line of length 3 at `(2, 1)`.
+    const A_VERTICAL_LINE: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
+                      "len": 3, "orientation": "vertical", "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a horizontal line of length 1 at `(2, 1)`.
+    const A_LINE_AT_ITS_MINIMUM: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
+                      "len": 1, "orientation": "horizontal", "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a horizontal line of length 0 at `(2, 1)`.
+    const A_ZERO_LENGTH_LINE: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
+                      "len": 0, "orientation": "horizontal", "stroke": "light" } ]
     }"#;
 
     /// The arrangement §4 and §6 of the diagram model are shown with: a box at the left, a box at
@@ -2133,6 +2164,188 @@ mod tests {
             panic!("expected box");
         };
         assert_eq!(size.width, 5);
+    }
+
+    /// **Shift arrows resize a horizontal line along its row; vertical arrows are ignored** (D1 of #301).
+    #[test]
+    fn shift_arrows_resize_the_selected_horizontal_line_along_its_orientation() {
+        let mut state = a_drawn_state_over(A_HORIZONTAL_LINE);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the line was not selected");
+
+        let shift_up = Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT));
+        let shift_down = Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::SHIFT));
+        assert!(matches!(send(&shift_up, &mut state), Control::Continue));
+        assert!(matches!(send(&shift_down, &mut state), Control::Continue));
+        assert!(!state.diagram().can_undo());
+
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let outcome = send(&shift_right, &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 7);
+        assert!(state.diagram().can_undo());
+
+        let shift_left = Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT));
+        let outcome = send(&shift_left, &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 6);
+    }
+
+    /// **Shift arrows resize a vertical line along its column; horizontal arrows are ignored** (D1 of #301).
+    #[test]
+    fn shift_arrows_resize_the_selected_vertical_line_along_its_orientation() {
+        let mut state = a_drawn_state_over(A_VERTICAL_LINE);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the line was not selected");
+
+        let shift_left = Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT));
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        assert!(matches!(send(&shift_left, &mut state), Control::Continue));
+        assert!(matches!(send(&shift_right, &mut state), Control::Continue));
+        assert!(!state.diagram().can_undo());
+
+        let shift_down = Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::SHIFT));
+        let outcome = send(&shift_down, &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 4);
+
+        let shift_up = Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT));
+        let outcome = send(&shift_up, &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 3);
+    }
+
+    /// **A line at its minimum length accepts the resize and records no step** (rule 3 of #301, #285).
+    #[test]
+    fn a_line_at_its_minimum_accepts_the_resize_and_records_no_step() {
+        let mut state = a_drawn_state_over(A_LINE_AT_ITS_MINIMUM);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram().selected().is_some(),
+            "the line was not selected"
+        );
+
+        let shift_left = Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT));
+        let outcome = send(&shift_left, &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.diagram().can_undo(),
+            "a resize that changes no length records no step"
+        );
+    }
+
+    /// **A zero-length line is not shrunk and grows to one in the application** (rule 3 of #301).
+    #[test]
+    fn a_zero_length_line_is_not_shrunk_and_grows_to_one_in_the_application() {
+        let mut state = a_drawn_state_over(A_ZERO_LENGTH_LINE);
+        state
+            .diagram_mut()
+            .select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+
+        let shift_left = Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT));
+        let outcome = send(&shift_left, &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+
+        let shape = state
+            .diagram()
+            .session()
+            .diagram()
+            .get(ShapeId::new(NonZeroU16::new(1).unwrap()));
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 0);
+        assert!(!state.diagram().can_undo());
+
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let outcome = send(&shift_right, &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+
+        let shape = state
+            .diagram()
+            .session()
+            .diagram()
+            .get(ShapeId::new(NonZeroU16::new(1).unwrap()));
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 1);
+        assert!(state.diagram().can_undo());
+    }
+
+    /// **Two line resizes are two steps** (rule 5 of #301): undo gives back one cell per press.
+    #[test]
+    fn two_line_resizes_are_two_steps() {
+        let mut state = a_drawn_state_over(A_HORIZONTAL_LINE);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let _ = send(&shift_right, &mut state);
+        let _ = send(&shift_right, &mut state);
+
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 8);
+
+        state.diagram_mut().undo();
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 7);
+
+        state.diagram_mut().undo();
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 6);
+
+        state.diagram_mut().redo();
+        let shape = state.diagram().session().diagram().get(selected.unwrap());
+        let Some(monospace_diagram::Shape::Line { len, .. }) = shape else {
+            panic!("expected line");
+        };
+        assert_eq!(*len, 7);
+    }
+
+    /// **A line resize keeps the selection** (rule 5 of #301).
+    #[test]
+    fn a_line_resize_keeps_the_selection() {
+        let mut state = a_drawn_state_over(A_HORIZONTAL_LINE);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        let shift_right = Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        let _ = send(&shift_right, &mut state);
+
+        assert_eq!(state.diagram().selected(), selected);
     }
 
     /// **A plain arrow still moves** (rule 8 of #284).

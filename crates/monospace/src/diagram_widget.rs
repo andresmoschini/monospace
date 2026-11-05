@@ -256,6 +256,13 @@ mod tests {
                       "len": 6, "orientation": "horizontal", "stroke": "light" } ]
     }"#;
 
+    /// A description whose only shape is a light vertical line of length 3 at `(2, 1)`.
+    const A_VERTICAL_LINE: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
+                      "len": 3, "orientation": "vertical", "stroke": "light" } ]
+    }"#;
+
     /// A description whose only shape is a light connector between `(2, 1)` and `(10, 1)`.
     const A_CONNECTOR: &str = r#"{
         "next_id": 2,
@@ -613,11 +620,76 @@ mod tests {
         }
     }
 
-    /// **Shift plus an arrow is ignored when a line is selected** (rule 5 of contextual bar).
+    /// **Shift plus horizontal arrows resize a horizontal line; vertical arrows are ignored** (D1 of #301).
     #[test]
-    fn shift_arrows_are_ignored_when_a_line_is_selected() {
+    fn shift_arrows_resize_a_horizontal_line_along_its_row() {
         let mut state = a_state_over(A_LINE);
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Act(Action::Resize(-1, 0))
+        );
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Act(Action::Resize(1, 0))
+        );
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Ignored
+        );
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Ignored
+        );
+    }
+
+    /// **Shift plus vertical arrows resize a vertical line; horizontal arrows are ignored** (D1 of #301).
+    #[test]
+    fn shift_arrows_resize_a_vertical_line_along_its_column() {
+        let mut state = a_state_over(A_VERTICAL_LINE);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Act(Action::Resize(0, -1))
+        );
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Act(Action::Resize(0, 1))
+        );
+        assert_eq!(
+            handle(
+                &Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT)),
+                &mut state,
+                Focus::Region,
+            ),
+            Reply::Ignored
+        );
         assert_eq!(
             handle(
                 &Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT)),
@@ -862,11 +934,20 @@ mod tests {
         assert_offer_matches_acceptance(A_BOX, Some(1), None);
     }
 
-    /// **For a selected line, key acceptance matches what the contextual bar offers**: the bar offers
-    /// MOVE and Deselect, but no RESIZE; plain arrows and Esc are accepted, and Shift+arrows are ignored.
+    /// **For a selected horizontal line, key acceptance matches what the contextual bar offers**:
+    /// the bar offers MOVE, RESIZE: Shift+←→, and Deselect; horizontal Shift+arrows are accepted,
+    /// and vertical Shift+arrows are ignored.
     #[test]
-    fn key_acceptance_matches_contextual_bar_for_selected_line() {
+    fn key_acceptance_matches_contextual_bar_for_selected_horizontal_line() {
         assert_offer_matches_acceptance(A_LINE, Some(1), None);
+    }
+
+    /// **For a selected vertical line, key acceptance matches what the contextual bar offers**:
+    /// the bar offers MOVE, RESIZE: Shift+↑↓, and Deselect; vertical Shift+arrows are accepted,
+    /// and horizontal Shift+arrows are ignored.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_for_selected_vertical_line() {
+        assert_offer_matches_acceptance(A_VERTICAL_LINE, Some(1), None);
     }
 
     /// **For a selected connector, key acceptance matches what the contextual bar offers**: the bar

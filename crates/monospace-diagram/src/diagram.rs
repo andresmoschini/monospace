@@ -1893,7 +1893,7 @@ mod tests {
 
     /// Whether a figure can move forward is the answer `forward` obeys.
     ///
-    /// **Both sides of one rule**, as `Shape::has_size` and `Shape::resized_by` are: the front-most
+    /// **Both sides of one rule**, as `Shape::can_resize` and `Shape::resized_by` are: the front-most
     /// figure cannot, the one behind it can, and an identity the diagram does not hold cannot — and
     /// each answer is checked against whether `forward` changed the drawing, so a predicate that was
     /// right about the examples and wrong about the rule fails.

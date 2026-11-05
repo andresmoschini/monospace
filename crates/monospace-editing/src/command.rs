@@ -32,11 +32,12 @@ pub enum Command {
         /// How far, along each screen axis. Negative amounts move against it.
         by: Delta,
     },
-    /// The figure becomes so much wider and taller.
+    /// The figure becomes so much wider and taller, or a line longer or shorter along its orientation.
     Resize {
         /// The figure to resize.
         id: ShapeId,
-        /// How much the size changes: `dx` is width, `dy` is height.
+        /// How much the size changes along screen axes: for a box `dx` is width and `dy` is height;
+        /// for a line the component along its orientation changes its length.
         by: Delta,
     },
     /// The figure's stroke is replaced with `stroke`.

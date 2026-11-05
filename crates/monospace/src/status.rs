@@ -8,8 +8,9 @@
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
 //! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc]
-//! Deselect`, with `RESIZE: Shift+↑↓←→` between the first two while the selected figure has a
-//! size.
+//! Deselect`, with `RESIZE` between the first two offering the cursor keys the selected figure can
+//! use — all four for a box (`Shift+↑↓←→`), the row's two for a horizontal line (`Shift+←→`), the
+//! column's two for a vertical line (`Shift+↑↓`), and none for a connector.
 //!
 //! **In `STROKE_SELECT`**, the upper row reports the figure and the stroke it carries, and the
 //! lower row offers the five catalog strokes and `[Esc] Cancel`.
@@ -431,7 +432,28 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+        );
+    }
+
+    /// **A selected vertical line offers the vertical resize** (D1 of #301).
+    #[test]
+    fn selected_vertical_line_offers_the_vertical_resize() {
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "line", "id": 1, "at": { "x": 0, "y": 5 },
+                          "len": 8, "orientation": "vertical", "stroke": "light" } ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            status_line(&state),
+            "Line #1 · Pos: (0, 5) · Length: 8 · Orientation: Vertical · Stroke: light"
+        );
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -520,17 +542,19 @@ mod tests {
         assert_eq!(narrow0, status_line(&state)[..10]);
     }
 
-    /// **The command row offers RESIZE for a box only** (rule 10 of #284).
+    /// **The command row offers RESIZE for a box and a line** (rule 10 of #284, D1 of #301).
     #[test]
-    fn the_command_row_offers_resize_for_a_box_only() {
+    fn the_command_row_offers_resize_for_a_box_and_a_line() {
         let text = r#"{
-            "next_id": 4,
+            "next_id": 5,
             "shapes": [
                 { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
                   "size": { "width": 4, "height": 3 }, "stroke": "light" },
                 { "kind": "line", "id": 2, "at": { "x": 0, "y": 5 },
                   "len": 8, "orientation": "horizontal", "stroke": "light" },
-                { "kind": "connector", "id": 3,
+                { "kind": "line", "id": 3, "at": { "x": 5, "y": 0 },
+                  "len": 6, "orientation": "vertical", "stroke": "light" },
+                { "kind": "connector", "id": 4,
                   "from": { "at": { "kind": "point", "x": 1, "y": 2 }, "leaving": "right",
                             "terminal": { "kind": "arm" } },
                   "to":   { "at": { "kind": "point", "x": 5, "y": 6 }, "leaving": "left",
@@ -551,10 +575,16 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+        );
+
+        state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));
         assert_eq!(
             command_line(&state),
             "MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"

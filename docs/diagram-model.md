@@ -427,9 +427,12 @@ that is a reference is stated under _Positions_.
 
 Resizing is a replacement too: the new shape is the old one resized by a delta in width and height.
 Resizing a box changes its `size` while keeping its anchor `at`, clamped so that neither dimension
-falls below 2 (or below its current dimension if it was already smaller) nor exceeds `u16::MAX`.
-Resizing a line or a connector leaves the shape unchanged. Resizing builds a value and changes
-nothing in a diagram; replacing is what puts the value in.
+falls below 2 (or below its current dimension if it was already smaller) nor exceeds `u16::MAX`. A
+line changes its `len` along its orientation (`dx` for a horizontal line, `dy` for a vertical one),
+keeping `at`, `orientation` and `stroke`; the length is clamped so it never falls below 1 (or below
+its current length when it is already 0) and never exceeds `u16::MAX`; a delta across the
+orientation changes nothing. A connector still comes back unchanged. Resizing builds a value and
+changes nothing in a diagram; replacing is what puts the value in.
 
 Re-stroking is a replacement too: the new shape is the old one with another stroke. Setting the
 stroke of a box, a line, or a connector replaces its `stroke` while keeping every other parameter
