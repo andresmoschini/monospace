@@ -362,14 +362,20 @@ impl Shape {
     /// `Diagram::get` in the same way [`Self::displaced_by`] does: `diagram.get(&id).map(|shape| shape.resized_by(by))`
     /// is the whole read-and-resize step.
     ///
-    /// **Only a [`Box`](Self::Box) is resized**: its width changes by `by.dx` and its height by
+    /// **A [`Box`](Self::Box) is resized**: its width changes by `by.dx` and its height by
     /// `by.dy`, clamped to `min(current, 2)..=u16::MAX`. A box does not shrink below **2×2**,
     /// the size under which a box draws nothing, while a box already below 2 in a dimension is not
     /// touched by shrinking in that dimension, and growing it by one is allowed. Its position,
     /// stroke, fill and text are preserved.
     ///
-    /// **A [`Line`](Self::Line) and a [`Connector`](Self::Connector) come back equal**: their
-    /// resize is out of scope and leaves them untouched.
+    /// **A [`Line`](Self::Line) is resized along its orientation**: its length changes by `by.dx`
+    /// for a horizontal line and by `by.dy` for a vertical line, clamped to
+    /// `min(current, 1)..=u16::MAX`. A line does not shrink below **1**, while a line already below
+    /// 1 (length 0) is not touched by shrinking, and growing it by one is allowed. An orthogonal
+    /// delta changes nothing. Its position, orientation and stroke are preserved.
+    ///
+    /// **A [`Connector`](Self::Connector) comes back equal**: its resize is out of scope and leaves
+    /// it untouched.
     #[must_use]
     pub fn resized_by(&self, by: Delta) -> Self {
         match self {
@@ -382,25 +388,42 @@ impl Shape {
             } => Self::Box {
                 at: *at,
                 size: Size {
-                    width: clamp_dimension(size.width, by.dx),
-                    height: clamp_dimension(size.height, by.dy),
+                    width: clamp_dimension(size.width, by.dx, 2),
+                    height: clamp_dimension(size.height, by.dy, 2),
                 },
                 stroke: stroke.clone(),
                 fill: fill.clone(),
                 text: text.clone(),
             },
-            Self::Line { .. } | Self::Connector { .. } => self.clone(),
+            Self::Line {
+                at,
+                len,
+                orientation,
+                stroke,
+            } => {
+                let delta = match orientation {
+                    Orientation::Horizontal => by.dx,
+                    Orientation::Vertical => by.dy,
+                };
+                Self::Line {
+                    at: *at,
+                    len: clamp_dimension(*len, delta, 1),
+                    orientation: *orientation,
+                    stroke: stroke.clone(),
+                }
+            }
+            Self::Connector { .. } => self.clone(),
         }
     }
 
-    /// Whether this figure has a width and a height for a resize to change.
+    /// Whether this figure can be resized.
     ///
-    /// **Only a box has them.** A line has a length and a connector has two endpoints, and neither
-    /// is a `Size`; `resized_by` leaves both unchanged. The predicate is here, beside that method,
+    /// **A box and a line can be resized.** A connector has two endpoints and its resize is out of
+    /// scope; `resized_by` leaves it unchanged. The predicate is here, beside that method,
     /// because the two are the same rule read from two sides.
     #[must_use]
-    pub const fn has_size(&self) -> bool {
-        matches!(self, Self::Box { .. })
+    pub const fn can_resize(&self) -> bool {
+        matches!(self, Self::Box { .. } | Self::Line { .. })
     }
 
     /// This figure drawn with `stroke`.
@@ -501,13 +524,14 @@ impl Shape {
     }
 }
 
-/// Clamps `current + delta` to `min(current, 2)..=u16::MAX`.
+/// Clamps `current + delta` to `min(current, floor)..=u16::MAX`.
 ///
-/// A box dimension does not shrink below 2 (where `BoxShape` draws nothing), and growth stops
-/// at `u16::MAX`. A dimension already below 2 is not touched by shrinking, and growing it by
-/// one is allowed (D2 of #284).
-fn clamp_dimension(current: u16, delta: i16) -> u16 {
-    let min = i64::from(current.min(2));
+/// A box dimension does not shrink below 2 (where `BoxShape` draws nothing, D2 of #284) and a line
+/// length does not shrink below 1 (where `Line` draws nothing, D2 of #301). Growth stops at
+/// `u16::MAX`. A dimension already below the floor is not touched by shrinking, and growing it by
+/// one is allowed.
+fn clamp_dimension(current: u16, delta: i16, floor: u16) -> u16 {
+    let min = i64::from(current.min(floor));
     let max = i64::from(u16::MAX);
     let target = i64::from(current) + i64::from(delta);
     u16::try_from(target.clamp(min, max)).expect("clamped to u16 range")
@@ -1138,9 +1162,163 @@ mod tests {
     }
 
     #[test]
-    fn a_line_is_not_resized() {
-        let line = line_at(0);
-        assert_eq!(line.resized_by(Delta { dx: 2, dy: 3 }), line);
+    fn a_horizontal_line_is_resized_along_its_row() {
+        let line = Shape::Line {
+            at: Pos { x: 2, y: 3 },
+            len: 4,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        assert_eq!(
+            line.resized_by(Delta { dx: 1, dy: 0 }),
+            Shape::Line {
+                at: Pos { x: 2, y: 3 },
+                len: 5,
+                orientation: Orientation::Horizontal,
+                stroke: light(),
+            }
+        );
+        assert_eq!(
+            line.resized_by(Delta { dx: -1, dy: 0 }),
+            Shape::Line {
+                at: Pos { x: 2, y: 3 },
+                len: 3,
+                orientation: Orientation::Horizontal,
+                stroke: light(),
+            }
+        );
+        assert_eq!(line.resized_by(Delta { dx: 0, dy: 1 }), line);
+        assert_eq!(line.resized_by(Delta { dx: 0, dy: -1 }), line);
+    }
+
+    #[test]
+    fn a_vertical_line_is_resized_along_its_column() {
+        let line = Shape::Line {
+            at: Pos { x: 2, y: 3 },
+            len: 4,
+            orientation: Orientation::Vertical,
+            stroke: light(),
+        };
+        assert_eq!(
+            line.resized_by(Delta { dx: 0, dy: 1 }),
+            Shape::Line {
+                at: Pos { x: 2, y: 3 },
+                len: 5,
+                orientation: Orientation::Vertical,
+                stroke: light(),
+            }
+        );
+        assert_eq!(
+            line.resized_by(Delta { dx: 0, dy: -1 }),
+            Shape::Line {
+                at: Pos { x: 2, y: 3 },
+                len: 3,
+                orientation: Orientation::Vertical,
+                stroke: light(),
+            }
+        );
+        assert_eq!(line.resized_by(Delta { dx: 1, dy: 0 }), line);
+        assert_eq!(line.resized_by(Delta { dx: -1, dy: 0 }), line);
+    }
+
+    #[test]
+    fn a_line_keeps_its_position_orientation_and_stroke_when_resized() {
+        let stroke = Stroke::from("heavy");
+        let line = Shape::Line {
+            at: Pos { x: 5, y: 7 },
+            len: 4,
+            orientation: Orientation::Horizontal,
+            stroke: stroke.clone(),
+        };
+        let resized = line.resized_by(Delta { dx: 2, dy: 0 });
+        let Shape::Line {
+            at,
+            len,
+            orientation,
+            stroke: actual_stroke,
+        } = resized
+        else {
+            panic!("expected line");
+        };
+        assert_eq!(at, Pos { x: 5, y: 7 });
+        assert_eq!(len, 6);
+        assert_eq!(orientation, Orientation::Horizontal);
+        assert_eq!(actual_stroke, stroke);
+    }
+
+    #[test]
+    fn a_line_does_not_shrink_below_one() {
+        let line = Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 5,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        assert_eq!(
+            line.resized_by(Delta { dx: -1, dy: 0 }),
+            Shape::Line {
+                at: Pos { x: 0, y: 0 },
+                len: 4,
+                orientation: Orientation::Horizontal,
+                stroke: light(),
+            }
+        );
+        let min_line = Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 1,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        assert_eq!(min_line.resized_by(Delta { dx: -1, dy: 0 }), min_line);
+        assert_eq!(min_line.resized_by(Delta { dx: -50, dy: 0 }), min_line);
+    }
+
+    #[test]
+    fn a_zero_length_line_is_not_shrunk_and_grows_to_one() {
+        let h_zero = Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 0,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        assert_eq!(h_zero.resized_by(Delta { dx: -1, dy: 0 }), h_zero);
+        assert_eq!(
+            h_zero.resized_by(Delta { dx: 1, dy: 0 }),
+            Shape::Line {
+                at: Pos { x: 0, y: 0 },
+                len: 1,
+                orientation: Orientation::Horizontal,
+                stroke: light(),
+            }
+        );
+
+        let v_zero = Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 0,
+            orientation: Orientation::Vertical,
+            stroke: light(),
+        };
+        assert_eq!(v_zero.resized_by(Delta { dx: 0, dy: -1 }), v_zero);
+        assert_eq!(
+            v_zero.resized_by(Delta { dx: 0, dy: 1 }),
+            Shape::Line {
+                at: Pos { x: 0, y: 0 },
+                len: 1,
+                orientation: Orientation::Vertical,
+                stroke: light(),
+            }
+        );
+    }
+
+    #[test]
+    fn a_line_grows_no_further_than_u16_max() {
+        let max_line = Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: u16::MAX,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        assert_eq!(max_line.resized_by(Delta { dx: 1, dy: 0 }), max_line);
     }
 
     #[test]
@@ -1150,30 +1328,24 @@ mod tests {
     }
 
     #[test]
-    fn a_box_has_size_and_a_line_and_connector_do_not() {
-        assert!(box_at(0).has_size());
-        assert!(!line_at(0).has_size());
-        assert!(!connector(Terminal::Arm, Terminal::Arm).has_size());
+    fn a_box_and_a_line_can_be_resized_and_a_connector_cannot() {
+        assert!(box_at(0).can_resize());
+        assert!(line_at(0).can_resize());
+        assert!(!connector(Terminal::Arm, Terminal::Arm).can_resize());
     }
 
     #[test]
-    fn a_figure_without_size_is_never_resized() {
+    fn a_connector_is_never_resized() {
         let delta = Delta { dx: 2, dy: 3 };
-        for shape in [
-            box_at(0),
-            line_at(0),
-            connector(Terminal::Arm, Terminal::Arm),
-        ] {
-            if !shape.has_size() {
-                assert_eq!(shape.resized_by(delta), shape);
-            }
-        }
+        let conn = connector(Terminal::Arm, Terminal::Arm);
+        assert!(!conn.can_resize());
+        assert_eq!(conn.resized_by(delta), conn);
     }
 
     #[test]
-    fn a_box_with_size_can_be_resized() {
+    fn a_box_can_be_resized() {
         let the_box = box_at(0);
-        assert!(the_box.has_size());
+        assert!(the_box.can_resize());
         assert_ne!(the_box.resized_by(Delta { dx: 2, dy: 3 }), the_box);
     }
 

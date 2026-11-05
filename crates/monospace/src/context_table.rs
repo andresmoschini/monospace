@@ -232,7 +232,7 @@ pub(crate) fn context_blocks(
 ) -> impl Iterator<Item = &'static ContextBlock> + use<> {
     let sub_mode = state.sub_mode();
     let selected_shape = state.selected_shape();
-    let has_size = selected_shape.is_some_and(Shape::has_size);
+    let has_size = selected_shape.is_some_and(|shape| matches!(shape, Shape::Box { .. }));
     let selected = selected_shape.is_some();
 
     let slice: &'static [ContextBlock] = match sub_mode {
