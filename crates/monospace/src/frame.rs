@@ -136,6 +136,7 @@ mod tests {
     use crate::status;
     use crate::vocabulary::Reply;
     use monospace_core::{Offset, ShapeId};
+    use monospace_diagram::Text;
     use rat_theme4::palettes::dark::BASE16;
     use rat_theme4::themes::create_dark;
     use ratatui_core::buffer::Buffer;
@@ -180,6 +181,14 @@ mod tests {
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light 4×3 box at `(2, 1)` holding `hi`.
+    const A_BOX_WITH_TEXT: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "light",
+                      "text": "hi" } ]
     }"#;
 
     /// A description whose only shape is a 2×2 light box at `(2, 1)` of the window.
@@ -1208,6 +1217,65 @@ mod tests {
             &format!(
                 "the status bar below the region, {WIDTH}x{HEIGHT}\n{}",
                 described(&buffer, regions)
+            ),
+        );
+    }
+
+    #[test]
+    fn the_status_bar_is_unchanged_while_editing() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.diagram_mut().select(Some(id));
+
+        let before = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+        let status = regions(Rect::new(0, 0, WIDTH, HEIGHT)).status;
+        let before_rows: Vec<String> = (status.top()..status.bottom())
+            .map(|line| row_of(&before, line))
+            .collect();
+
+        let text = Text::new("hi").unwrap();
+        state.text_mut().open(id, Some(&text));
+
+        let after = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+        let after_rows: Vec<String> = (status.top()..status.bottom())
+            .map(|line| row_of(&after, line))
+            .collect();
+
+        assert_eq!(
+            before_rows, after_rows,
+            "opening the editor changed the status bar"
+        );
+    }
+
+    #[test]
+    fn the_text_editor_over_a_box() {
+        let mut state = a_state_over(A_BOX_WITH_TEXT);
+        let global = a_global();
+        let area = Rect::new(0, 0, WIDTH, HEIGHT);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.diagram_mut().select(Some(id));
+
+        let text = Text::new("hi").unwrap();
+        state.text_mut().open(id, Some(&text));
+
+        let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        snap(
+            "a_box_with_the_text_editor_over_it",
+            &format!(
+                "a box with the text editor over it, {WIDTH}x{HEIGHT}\n{}",
+                described(&buffer, regions(area))
+            ),
+        );
+
+        state.text_mut().close();
+        let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        snap(
+            "the_same_box_after_the_editor_closes",
+            &format!(
+                "the same box after the editor closes, {WIDTH}x{HEIGHT}\n{}",
+                described(&buffer, regions(area))
             ),
         );
     }
