@@ -95,6 +95,13 @@ pub(crate) enum Action {
     /// answer and not a comparison made here.
     SetText(Option<monospace_diagram::Text>),
 
+    /// The text editor is opened over the selected box, and the frame is owed.
+    ///
+    /// **The chrome's own and no session**, as [`Self::About`] is: it opens an overlay and records no
+    /// step. It is offered only for a box; the identity and its text are read from the state where the
+    /// action is carried out.
+    EditText,
+
     /// The About dialog is opened, and the frame is owed.
     ///
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,

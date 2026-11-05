@@ -807,7 +807,7 @@ mod tests {
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 16] = [
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 17] = [
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -816,6 +816,7 @@ mod tests {
         (KeyCode::Left, KeyModifiers::SHIFT),
         (KeyCode::Up, KeyModifiers::SHIFT),
         (KeyCode::Down, KeyModifiers::SHIFT),
+        (KeyCode::Char('t'), KeyModifiers::NONE),
         (KeyCode::Char('s'), KeyModifiers::NONE),
         (KeyCode::Char('1'), KeyModifiers::NONE),
         (KeyCode::Char('2'), KeyModifiers::NONE),

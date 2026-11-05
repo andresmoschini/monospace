@@ -155,6 +155,12 @@ impl AppState {
         &mut self.save
     }
 
+    /// The text editor's own state, for the tests that say whether it is up.
+    #[cfg(test)]
+    pub(crate) fn text(&self) -> &TextEditorState {
+        &self.text
+    }
+
     /// The text editor, for the frame that paints it, the handler that answers it and the actions
     /// that open it.
     pub(crate) fn text_mut(&mut self) -> &mut TextEditorState {

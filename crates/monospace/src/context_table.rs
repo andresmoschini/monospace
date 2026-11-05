@@ -184,6 +184,15 @@ static SELECTION: &[ContextBlock] = &[
         }],
     },
     ContextBlock {
+        category: Some("TEXT"),
+        condition: Condition::Box,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('t'),
+            display: "[t] Edit",
+            meaning: ContextMeaning::Act(Action::EditText),
+        }],
+    },
+    ContextBlock {
         category: Some("STROKE"),
         condition: Condition::Always,
         actions: &[ContextAction {

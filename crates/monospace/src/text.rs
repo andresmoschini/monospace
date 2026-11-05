@@ -23,7 +23,7 @@ use rat_theme4::WidgetStyle;
 use rat_theme4::theme::SalsaTheme;
 use rat_widget::dialog_frame::{DialogFrame, DialogFrameState};
 use rat_widget::event::{ButtonOutcome, HandleEvent, Outcome, Regular, TextOutcome};
-use rat_widget::focus::{Focus, FocusBuilder};
+use rat_widget::focus::{Focus, FocusBuilder, Navigation};
 use rat_widget::text::HasScreenCursor;
 use rat_widget::textarea::{TextArea, TextAreaState, TextWrap};
 use ratatui_core::buffer::Buffer;
@@ -67,12 +67,6 @@ impl TextEditorState {
     /// **The wrap is `Word(1)` and not the framework's default.** `TextWrap::Shift` means no
     /// wrapping at all, which is not what D6 asks for; the spec is corrected with this commit's
     /// PR (see commit 9).
-    ///
-    /// **`open` is dead until the next commit**, which adds `t` and the action that calls it.
-    #[expect(
-        dead_code,
-        reason = "the next commit opens it from `t`; the tests arrive with that commit"
-    )]
     pub(crate) fn open(&mut self, id: ShapeId, text: Option<&Text>) {
         let seed = text
             .map(|text| {
@@ -95,9 +89,23 @@ impl TextEditorState {
         let _ = self.text.select_all();
     }
 
-    // **The three test accessors — `active`, `buffer` and `selected_text` — arrive with the
-    // tests in commit 5.** A `#[cfg(test)]` accessor with no caller is dead code in the test
-    // build too, so adding them here would make `-D warnings` fail before the tests exist.
+    /// Whether the editor is up.
+    #[cfg(test)]
+    pub(crate) fn active(&self) -> bool {
+        self.active
+    }
+
+    /// The text currently in the buffer, for the tests that would otherwise read the widget.
+    #[cfg(test)]
+    pub(crate) fn buffer(&self) -> String {
+        self.text.text()
+    }
+
+    /// The selected text, for the tests that prove the buffer opens selected.
+    #[cfg(test)]
+    pub(crate) fn selected_text(&self) -> String {
+        self.text.selected_text().into_owned()
+    }
 
     /// Closes the editor and forgets the buffer.
     ///
@@ -124,10 +132,14 @@ impl TextEditorState {
     ///
     /// **It is rebuilt on every event rather than kept**, as the open and save dialogs do: the
     /// flags live in the states and the builder only says the order.
+    ///
+    /// `TextAreaState` defaults to [`Navigation::Reach`] which keeps `Tab` within the widget.
+    /// Overriding it to [`Navigation::Regular`] allows `Tab` to cycle between the buffer and
+    /// the frame buttons.
     fn build_focus(&self) -> Focus {
         let mut builder = FocusBuilder::default();
         builder
-            .widget(&self.text)
+            .widget_navigate(&self.text, Navigation::Regular)
             .widget(&self.frame.ok)
             .widget(&self.frame.cancel);
         builder.build()
@@ -276,4 +288,71 @@ fn is_tab(event: &Event) -> bool {
             ..
         })
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use monospace_core::ShapeId;
+    use ratatui_crossterm::crossterm::event::KeyModifiers;
+    use std::num::NonZeroU16;
+
+    fn id(ordinal: u16) -> ShapeId {
+        ShapeId::new(NonZeroU16::new(ordinal).expect("no test names zero"))
+    }
+
+    fn key(code: KeyCode) -> Event {
+        Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
+    }
+
+    fn saved(reply: Reply) -> Option<Text> {
+        match reply {
+            Reply::Act(Action::SetText(text)) => text,
+            other => panic!("the editor did not save: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_editor_opens_with_all_the_text_selected() {
+        let mut state = TextEditorState::default();
+        state.open(id(1), Some(&Text::new("one\ntwo").unwrap()));
+
+        assert_eq!(state.buffer(), "one\ntwo");
+        assert_eq!(state.selected_text(), "one\ntwo");
+    }
+
+    #[test]
+    fn saving_normalizes_control_characters() {
+        let mut state = TextEditorState::default();
+        state.open(id(1), None);
+        state.text.set_text("one\r\ntwo\tthree\x07");
+
+        let _ = handle(&key(KeyCode::Tab), &mut state);
+        let text = saved(handle(&key(KeyCode::Enter), &mut state))
+            .expect("the normalized text is not empty");
+
+        assert_eq!(text, Text::new("one\ntwo    three").unwrap());
+    }
+
+    #[test]
+    fn saving_whitespace_only_stores_none() {
+        let mut state = TextEditorState::default();
+        state.open(id(1), None);
+        state.text.set_text("  \n\t ");
+
+        let _ = handle(&key(KeyCode::Tab), &mut state);
+        assert_eq!(saved(handle(&key(KeyCode::Enter), &mut state)), None);
+    }
+
+    #[test]
+    fn a_wide_glyph_is_edited_in_two_columns_and_drawn_in_one_cell() {
+        let mut state = TextEditorState::default();
+        state.open(id(1), None);
+
+        let _ = handle(&key(KeyCode::Char('漢')), &mut state);
+        assert_eq!(state.buffer(), "漢");
+
+        let text = Text::new("漢").expect("the cluster is not a control character");
+        assert_eq!(text.width(), 1, "the model counts one glyph as one cell");
+    }
 }
