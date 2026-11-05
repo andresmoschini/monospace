@@ -437,10 +437,14 @@ changes nothing in a diagram; replacing is what puts the value in.
 Re-stroking is a replacement too: the new shape is the old one with another stroke. Setting the
 stroke of a box, a line, or a connector replaces its `stroke` while keeping every other parameter
 unchanged. Re-stroking builds a value and changes nothing in a diagram; replacing is what puts the
-value in. Together, `Shape::displaced_by`, `Shape::resized_by`, and `Shape::with_stroke` are the
-three figure mutations: each produces a new shape value, so looking up a figure and replacing it
-with the modified copy — such as `diagram.get(&id).map(|shape| shape.with_stroke(stroke))` followed
-by `replace` — is the complete operation.
+value in.
+
+Setting a box's text is a replacement too: the new shape is the old one with another text block, or
+with none. Only a box holds a text; a line and a connector come back unchanged. Giving a box the
+text it already holds is no change, which is the same answer `replace` gives for a stroke it already
+carries. Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke` and
+`Shape::with_text` are the four figure mutations: each produces a new shape value, so looking up a
+figure and replacing it with the modified copy is the complete operation.
 
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A
