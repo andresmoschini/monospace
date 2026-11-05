@@ -30,7 +30,7 @@ button instead; D1 and D2 say why.
 - `Shape::with_text` on `monospace-diagram`, `Command::SetText` on `monospace-editing`, and the
   application's `Action::EditText` and `Action::SetText`.
 - Saving normalizes CRLF/CR to `\n`, expands tabs to spaces and drops every other control character.
-  A buffer with no visible character saves `None`; any other buffer is stored literally.
+  A buffer that is only whitespace saves `None`; anything else is stored literally.
 - `t` joins `ALL_POSSIBLE_CONTEXT_KEYS` in the guardian; `Enter` and `a` stay where they are.
 
 ### Out
@@ -221,12 +221,9 @@ None of it has been observed: it is what the acceptance list checks, not the rec
   `Some("x")` and the session records one step.
 - A box with text `one`, `t`, `Esc`: the text is still `Some("one")` and the history is where it
   was.
-- A box with text `one`, `t`, `Tab`, `Enter`: nothing changed, no step is recorded, the editor
-  closes.
 - A box with text `one`, `t`, `Ctrl+A`, `Delete`, `Tab`, `Enter`: the text becomes `None` and the
   session records one step.
 - Pasting `a\r\n\tb` into the editor and saving stores `Some("a\n        b")`.
-- A box with only spaces or only line breaks, saved, stores `None`.
 - Typing `漢` stores `Some("漢")`; the editor shows it in two columns and the box in one.
 
 ## What proves it
@@ -239,9 +236,10 @@ None of it has been observed: it is what the acceptance list checks, not the rec
   `enter_remains_ignored_on_a_box`, `the_status_bar_is_unchanged_while_editing`,
   `the_editor_opens_with_all_the_text_selected`, `ok_saves_and_escape_discards`,
   `saving_the_same_text_records_no_step`, `saving_normalizes_control_characters`,
-  `saving_whitespace_only_stores_none`, `ctrl_c_copies_while_the_text_editor_is_up`,
-  `the_editor_consumes_every_key`, and the snapshots of a box with the editor over it and of the
-  same box after it closes.
+  `saving_whitespace_only_stores_none`,
+  `a_wide_glyph_is_edited_in_two_columns_and_drawn_in_one_cell`,
+  `ctrl_c_copies_while_the_text_editor_is_up`, `the_editor_consumes_every_key`, and the snapshots of
+  a box with the editor over it and of the same box after it closes.
 - The guardian test walks `ALL_POSSIBLE_CONTEXT_KEYS` and `NEVER_AN_ACTION` and holds `t` offered on
   a box only and `Enter` ignored everywhere in the region.
 
