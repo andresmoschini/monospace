@@ -15,7 +15,7 @@
 use std::num::NonZeroU16;
 
 use monospace_core::{
-    Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, Window, render,
+    Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, Text, Window, render,
 };
 use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Shape, ShapeId};
 use monospace_editing::{Command, Session};
@@ -268,6 +268,10 @@ fn no_session_method_changes_the_session_it_was_given() {
 /// diagram's own vocabulary — `forward`, `replace` with a figure read and rebuilt, `remove` — and
 /// so a command that did something else, or something more, disagrees with it.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the contract test covers each command in the set against its operation"
+)]
 fn each_command_becomes_one_of_the_diagrams_five_operations() {
     let two_down = Delta { dx: 0, dy: 2 };
 
@@ -319,6 +323,24 @@ fn each_command_becomes_one_of_the_diagrams_five_operations() {
             }
         }),
         "`SetStroke` is `replace` with the figure's stroke changed"
+    );
+
+    assert_eq!(
+        after(&Command::SetText {
+            id: id(1),
+            text: Some(Text::new("hi").unwrap()),
+        }),
+        after_operating(|diagram| {
+            let updated = diagram
+                .get(id(1))
+                .map(|shape| shape.with_text(Some(Text::new("hi").unwrap())));
+            if let Some(updated) = updated {
+                diagram.replace(id(1), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`SetText` is `replace` with the figure's text changed"
     );
 
     assert_eq!(
@@ -1156,4 +1178,75 @@ fn setting_the_stroke_of_a_figure_the_diagram_does_not_hold_changes_nothing() {
     });
     assert_eq!(picture(&no_op), initial_pic);
     assert!(!no_op.can_undo(), "and no step was recorded");
+}
+
+#[test]
+fn a_set_text_command_changes_only_a_box() {
+    let text = Text::new("hi").expect("\"hi\" holds no control character");
+
+    assert_eq!(
+        after(&Command::SetText {
+            id: id(1),
+            text: Some(text.clone()),
+        }),
+        after_operating(|diagram| {
+            let updated = diagram
+                .get(id(1))
+                .map(|shape| shape.with_text(Some(text.clone())));
+            if let Some(updated) = updated {
+                diagram.replace(id(1), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`SetText` is `replace` with the figure's text changed"
+    );
+}
+
+#[test]
+fn setting_the_same_text_records_no_step() {
+    let text = Text::new("hi").expect("\"hi\" holds no control character");
+    let with_text = Session::new(one_box(ORIGIN)).perform(Command::SetText {
+        id: id(1),
+        text: Some(text.clone()),
+    });
+
+    let twice = with_text.perform(Command::SetText {
+        id: id(1),
+        text: Some(text),
+    });
+    let back = twice.undo();
+
+    let Shape::Box { text: restored, .. } = back.diagram().get(id(1)).expect("box") else {
+        panic!("expected box");
+    };
+    assert_eq!(
+        *restored, None,
+        "the second command recorded a step, so one undo stayed on the same text"
+    );
+}
+
+#[test]
+fn clearing_a_text_is_one_step() {
+    let text = Text::new("hi").expect("\"hi\" holds no control character");
+    let with_text = Session::new(one_box(ORIGIN)).perform(Command::SetText {
+        id: id(1),
+        text: Some(text.clone()),
+    });
+    let cleared = with_text.perform(Command::SetText {
+        id: id(1),
+        text: None,
+    });
+
+    assert!(cleared.can_undo(), "clearing the text recorded no step");
+    let Shape::Box { text: now, .. } = cleared.diagram().get(id(1)).expect("box") else {
+        panic!("expected box");
+    };
+    assert_eq!(*now, None);
+
+    let undone = cleared.undo();
+    let Shape::Box { text: restored, .. } = undone.diagram().get(id(1)).expect("box") else {
+        panic!("expected box");
+    };
+    assert_eq!(*restored, Some(text), "one undo did not give the text back");
 }

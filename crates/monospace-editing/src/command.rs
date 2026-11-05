@@ -2,7 +2,9 @@
 //! diagram's own operation underneath. See the _Vocabulary_ row for `Command` and §2 of
 //! [`docs/editing-model.md`](../../../docs/editing-model.md).
 
-use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Reference, Shape, ShapeId, Stroke};
+use monospace_diagram::{
+    Anchor, Delta, Diagram, Endpoint, Reference, Shape, ShapeId, Stroke, Text,
+};
 
 /// One thing a caller means to do to a diagram.
 ///
@@ -46,6 +48,13 @@ pub enum Command {
         id: ShapeId,
         /// The stroke to apply.
         stroke: Stroke,
+    },
+    /// The box's text is replaced with `text`, or taken out when it is `None`.
+    SetText {
+        /// The box whose text is being set.
+        id: ShapeId,
+        /// The block to store, or `None` for no text at all.
+        text: Option<Text>,
     },
     /// The `from` end of a connector hangs from one of `from`'s four sides.
     Hang {
@@ -101,6 +110,10 @@ impl Command {
             Self::SetStroke { id, ref stroke } => {
                 let stroke = stroke.clone();
                 changed(diagram, id, |shape| shape.with_stroke(stroke))
+            }
+            Self::SetText { id, ref text } => {
+                let text = text.clone();
+                changed(diagram, id, |shape| shape.with_text(text))
             }
             Self::Hang { id, from, anchor } => changed(diagram, id, |shape| match shape {
                 Shape::Connector {
