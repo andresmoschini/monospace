@@ -235,25 +235,19 @@ The bar's row has no render marker; `## What proves it` names its tests.
 
 ## What proves it
 
-- Unit tests in `monospace-diagram`:
-  - Resizing horizontal line with `(1, 0)` increases length.
-  - Resizing horizontal line with `(-1, 0)` decreases length.
-  - Resizing horizontal line with `(0, 1)` or `(0, -1)` leaves line unchanged.
-  - Resizing vertical line with `(0, 1)` increases length.
-  - Resizing vertical line with `(0, -1)` decreases length.
-  - Resizing vertical line with `(1, 0)` or `(-1, 0)` leaves line unchanged.
-  - Clamping preserves minimum length of 1 for positive-length lines.
-  - Shrinking a line with `len == 0` leaves it at 0.
-  - Extending a line with `len == 0` grows length to 1.
-  - Resizing preserves `at`, `orientation`, and `stroke`.
-- Unit tests in `monospace` (`context_table` / widget / callbacks):
-  - Command line string formatting matches `Shift+←→` for horizontal line, `Shift+↑↓` for vertical
-    line, `Shift+↑↓←→` for box.
-  - Key dispatching accepts only the offered directional Shift+arrow keys and ignores orthogonal
-    ones.
-  - History tests verify no undo step is recorded when pressing orthogonal arrows or shrinking at
-    minimum length.
-  - Undo and Redo restore previous line lengths for a valid resize step.
+| Rule | Test                                                                                                                                                                                                                                                                                                                                     |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `a_horizontal_line_is_resized_along_its_row`, `shift_arrows_resize_a_horizontal_line_along_its_row`, `shift_arrows_resize_the_selected_horizontal_line_along_its_orientation`, `key_acceptance_matches_contextual_bar_for_selected_horizontal_line`, `selected_line_shows_identity_pos_length_orientation_stroke_and_selection_commands` |
+| 2    | `a_vertical_line_is_resized_along_its_column`, `shift_arrows_resize_a_vertical_line_along_its_column`, `shift_arrows_resize_the_selected_vertical_line_along_its_orientation`, `key_acceptance_matches_contextual_bar_for_selected_vertical_line`, `selected_vertical_line_offers_the_vertical_resize`                                   |
+| 3    | `a_line_does_not_shrink_below_one`, `a_zero_length_line_is_not_shrunk_and_grows_to_one`, `a_zero_length_line_is_not_shrunk_and_grows_to_one_in_the_application`, `a_line_grows_no_further_than_u16_max`, `a_line_at_its_minimum_accepts_the_resize_and_records_no_step`                                                                  |
+| 4    | `a_line_keeps_its_position_orientation_and_stroke_when_resized`                                                                                                                                                                                                                                                                          |
+| 5    | `two_line_resizes_are_two_steps`, `a_line_resize_keeps_the_selection`                                                                                                                                                                                                                                                                    |
+
+The contextual bar's three `RESIZE` labels are checked across figures by
+`the_command_row_offers_resize_for_a_box_and_a_line`.
+
+The two pictures are held by their render markers: `cargo xtask render` rewrites them and the gate
+fails if one is not what its description draws.
 
 ## Open questions
 
