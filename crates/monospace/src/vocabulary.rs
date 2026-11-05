@@ -88,6 +88,13 @@ pub(crate) enum Action {
     /// carried out.
     SetStroke(monospace_diagram::Stroke),
 
+    /// The selected box's text is replaced with this block, or taken out when it is `None`.
+    ///
+    /// **The meaning and not the identity**: the shape is read from the state where the action is
+    /// carried out. **A text the box already holds records no step**, which is the editing layer's
+    /// answer and not a comparison made here.
+    SetText(Option<monospace_diagram::Text>),
+
     /// The About dialog is opened, and the frame is owed.
     ///
     /// **The chrome's own and no session** (D5 of #189): it opens an overlay and records no step,

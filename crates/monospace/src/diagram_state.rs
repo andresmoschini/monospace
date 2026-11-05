@@ -15,7 +15,7 @@ use monospace_core::{
     Buffer, CellReader, Footprint, FootprintSink, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId,
     Size, Window,
 };
-use monospace_diagram::Shape;
+use monospace_diagram::{Shape, Text};
 use monospace_editing::{Command, Session};
 use rat_widget::event::ScrollOutcome;
 use rat_widget::scrolled::{ScrollAreaState, ScrollState};
@@ -284,6 +284,15 @@ impl DiagramState {
     /// frame inverts the cells it owns.
     pub(crate) fn set_stroke(&mut self, id: ShapeId, stroke: monospace_diagram::Stroke) {
         self.perform(Command::SetStroke { id, stroke });
+    }
+
+    /// Sets the text of `id` on the session.
+    ///
+    /// **The identity survives**, as it does for a stroke: the figure is still there with its new
+    /// text, so the next frame inverts the cells it owns. **A text the box already holds records no
+    /// step**: `Command::SetText` goes through the same `changed` that #285 left in the layer below.
+    pub(crate) fn set_text(&mut self, id: ShapeId, text: Option<Text>) {
+        self.perform(Command::SetText { id, text });
     }
 
     /// Performs `command` on the session, recording a step when it changes the diagram.

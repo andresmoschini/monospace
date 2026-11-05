@@ -31,6 +31,7 @@ use crate::open;
 use crate::save;
 use crate::shortcuts;
 use crate::state::AppState;
+use crate::text;
 use crate::vocabulary::{Action, AppError, Reply};
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
@@ -128,15 +129,16 @@ pub(crate) fn event(
 fn route(event: &Event, state: &mut AppState) -> Reply {
     // **The two reaches that answer before the press is addressed come first, and in this order.**
     // A `Ctrl+Shift+Q` that reached the chrome as a key would be answered by the chrome, and the
-    // point of it is that it is answered by nothing; the dialog is the overlay, so while it is up an
-    // event it leaves alone reaches nothing else. **`Ignored` is the dialog being down**: the
-    // framework answers it while the dialog is inactive, so asking it is one call and not a question
+    // point of it is that it is answered by nothing; the overlays sit above the application, so
+    // while one is up an event it leaves alone reaches nothing else. **`Ignored` is the overlay being down**:
+    // the framework answers it while inactive, so asking it is one call and not a question
     // about `active()` followed by a question about the event.
     //
-    // **Neither of the two moves the keyboard**, which is why addressing sits below and not here: a
-    // click on the bar behind the dialog moves nothing, and the press is addressed only once nobody
+    // **Neither moves the keyboard**, which is why addressing sits below and not here: a
+    // click on the bar behind an overlay moves nothing, and the press is addressed only once nobody
     // above has answered it.
     let before = shortcuts::handle_always(event)
+        .or_else(|| text::handle(event, state.text_mut()))
         .or_else(|| dialog::handle(event, state.dialog_mut()))
         .or_else(|| open::handle(event, state.open_mut()))
         .or_else(|| save::handle(event, state.save_mut()));
@@ -226,6 +228,12 @@ fn apply(action: &Action, state: &mut AppState) {
         Action::SetStroke(stroke) => {
             if let Some(selected) = state.diagram().selected() {
                 state.diagram_mut().set_stroke(selected, stroke.clone());
+            }
+        }
+
+        Action::SetText(text) => {
+            if let Some(selected) = state.diagram().selected() {
+                state.diagram_mut().set_text(selected, text.clone());
             }
         }
 

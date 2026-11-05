@@ -26,6 +26,7 @@ mod save;
 mod shortcuts;
 mod state;
 mod status;
+mod text;
 mod vocabulary;
 
 use std::process::ExitCode;
