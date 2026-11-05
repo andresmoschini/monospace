@@ -17,14 +17,13 @@
 
 use rat_theme4::WidgetStyle;
 use rat_theme4::theme::SalsaTheme;
-use rat_widget::dialog_frame::{DialogFrame, DialogFrameState, DialogFrameStyle};
+use rat_widget::dialog_frame::{DialogFrame, DialogFrameState};
 use rat_widget::event::{ButtonOutcome, HandleEvent, Outcome, Regular};
 use rat_widget::focus::{Focus, FocusBuilder, HasFocus};
 use rat_widget::text::HasScreenCursor;
 use rat_widget::text_input::{TextInput, TextInputState};
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::{Constraint, Layout, Rect};
-use ratatui_core::style::Style;
 use ratatui_core::widgets::{StatefulWidget, Widget};
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui_widgets::block::Block;
@@ -196,7 +195,7 @@ pub(crate) fn draw(
 
     DialogFrame::new()
         .block(Block::bordered().title(TITLE))
-        .styles(dialog_style(theme))
+        .styles(crate::dialog_style::style(theme))
         .left(Constraint::Length(2))
         .right(Constraint::Length(2))
         .top(Constraint::Length(0))
@@ -214,23 +213,6 @@ pub(crate) fn draw(
         .render(input, buf, &mut state.input);
 
     state.screen_cursor()
-}
-
-/// The dialog's styles, with the buttons' focus cue replaced by reverse video.
-///
-/// **Every state that is not the pointer is a state** (D3 of #189): the focused button and the
-/// pressed one are both reversed, so pressing an `Ok` the keyboard is not on cannot look like a
-/// second kind of focus. `hover` is cleared because a control under the pointer is not a state.
-fn dialog_style(theme: &SalsaTheme) -> DialogFrameStyle {
-    let mut style: DialogFrameStyle = theme.style(WidgetStyle::DIALOG_FRAME);
-
-    if let Some(button) = style.button_style.as_mut() {
-        button.focus = Some(Style::new().reversed());
-        button.armed = Some(Style::new().reversed());
-        button.hover = None;
-    }
-
-    style
 }
 
 fn is_escape(event: &Event) -> bool {

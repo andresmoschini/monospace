@@ -16,6 +16,7 @@ mod context_table;
 mod diagram_state;
 mod diagram_widget;
 mod dialog;
+mod dialog_style;
 mod error;
 mod event;
 mod frame;
