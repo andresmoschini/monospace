@@ -15,7 +15,8 @@ box nor the file dialog, so it settles what a multi-line editor is made of and w
 before the glyph palette needs the same answers. Issue
 [#304](https://github.com/andresmoschini/monospace/issues/304) proposed `Enter` to open it, but
 `Enter` is the accept key of every existing dialog, so this cut uses the free `t` and the `Ok`
-button instead; D1 and D2 say why.
+button instead; D1 and D2 say why. The first control that needs `Ctrl+C` for copy also moves the
+forced exit; D3 says why and to which key.
 
 ## Scope
 
@@ -27,6 +28,8 @@ button instead; D1 and D2 say why.
   `Cancel`. It opens with all existing text selected; `Enter` inserts a line; `Tab` moves focus;
   `Ok` saves; `Cancel` and `Esc` cancel; the text area is fixed in size, soft-wraps, scrolls and
   answers the pointer.
+- The forced exit moves from `Ctrl+C` to `Ctrl+Shift+Q` at the same reach; `Ctrl+C` becomes the text
+  area's.
 - `Shape::with_text` on `monospace-diagram`, `Command::SetText` on `monospace-editing`, and the
   application's `Action::EditText` and `Action::SetText`.
 - Saving normalizes CRLF/CR to `\n`, expands tabs to spaces and drops every other control character.
@@ -73,22 +76,25 @@ the application already has a standard "take the focused button" mechanism that 
 scrolling, the pointer and wide-glyph columns, all of which a minimal buffer would have to grow
 into.
 
-**D3 — while the editor is up, `Ctrl+C` is the editor's and not the forced exit.**
+**D3 — the forced exit moves to `Ctrl+Shift+Q`, and `Ctrl+C` is the text area's like any field's.**
 
-**Answer:** `callbacks::route` asks the active text editor before `shortcuts::handle_always`;
-`Ctrl+C` copies the current selection to the application's local clipboard, and does nothing when
-there is none. The forced exit is suspended while the editor is up: leaving means `Esc` or `Ok`, and
-then `Ctrl+C`. **Why not keep the forced exit:** `TextArea` handles `Ctrl+C` as copy by default, and
-a copy key that ends the process is a trap; the maintainer chose the editor's meaning. **Why not a
-hybrid that exits when there is no selection:** it would make the same key mean two things according
-to a selection the person cannot see, and it would be harder to explain and to test. The application
-model's promise about `Ctrl+C` with an overlay up is amended for this overlay alone.
+**Answer:** the forced-exit row of the shortcut table becomes `Ctrl+Shift+Q` at the same reach, so
+it still ends the application from anywhere — the editor, the drop-down and every dialog included.
+`Ctrl+C` is no longer bound by the application, so the text area copies with it as it does with
+`Ctrl+X`, and nothing in `callbacks::route` depends on the overlay. **Why not suspend the forced
+exit for the editor alone**, as an earlier draft did: `route`'s order becomes load-bearing for one
+key and one overlay, and the next control that wants `Ctrl+C` repeats the special case. **Why not
+`Ctrl+Break`:** it is not a key event here — `crossterm` has no code for it, and on Windows it is a
+console control event that ends the process without restoring the terminal. **Why `Ctrl+Shift+Q`:**
+the shifted form of the way out that already exists; the table tells the two apart by the character,
+and a terminal that folds the shift reports `Ctrl+Q`, the way out, rather than a dead key.
+**Answered by** the maintainer, on #304.
 
 **D4 — the buffer opens with all its text selected, and empty means "no text".**
 
 **Answer:** opening seeds the `TextArea` with the current lines joined by `\n` and selects all of
 them; a box with no text opens empty with the cursor in the one empty line. Saving normalizes the
-buffer: CRLF and a lone CR become `\n`, each tab becomes eight spaces, and every other character
+buffer: CRLF and a lone CR become `\n`, each tab becomes four spaces, and every other character
 `char::is_control` answers is dropped. If what remains is only whitespace the command saves `None`;
 otherwise `Text::new` is given the literal buffer and stores it, surrounding spaces included. **Why
 all selected:** the maintainer chose replace-first, which makes replacing a label one keystroke.
@@ -108,8 +114,8 @@ a modal's command row comes from is deferred to the glyph palette. **Why not hid
 it would diverge from the other overlays and change the frame for one modal. **The price, stated
 rather than hidden:** the row still offers `TEXT: [t] Edit`, `MOVE` and the rest while the overlay
 owns the keyboard, so those keys are dead — the same dead offer About, Open and Save already show,
-and it is not the Representation Rule's
-([#288](https://github.com/andresmoschini/monospace/issues/288)) to settle here.
+and settling that is not the Representation Rule's
+([#288](https://github.com/andresmoschini/monospace/issues/288)) job.
 
 **D6 — the modal is fixed in size, centred and clamped, and the text area soft-wraps.**
 
@@ -143,8 +149,8 @@ cut can prove.
   - _§3 The state_: the chrome gains the text editor's state — its text area, its frame and whether
     it is up — and opening it selects all the box's text.
   - _§4 The action model_: `EditText` opens the overlay and records no step; `SetText` carries the
-    new text and performs one command; `Ctrl+C` is the text editor's while it is up, and the
-    forced-exit promise is amended for that overlay.
+    new text and performs one command; the forced exit moves to `Ctrl+Shift+Q` and `Ctrl+C` becomes
+    the text area's, with the promise of the first reach unchanged.
   - _§7 Properties worth testing_: the new bullets below.
 - `docs/editing-model.md` — _§2 The initial set_: `SetText { id, text }` joins the table, with
   `replace` and `Shape::with_text` as the change it becomes.
@@ -191,7 +197,7 @@ block of `context_table`.
    cancels; a click on either does the same.
 8. `Esc` cancels from any focus, discards the buffer, records no step, leaves the diagram and the
    history untouched, keeps the box selected, and closes the editor.
-9. On save, CRLF and a lone CR become `\n`, each tab becomes eight spaces, and every other control
+9. On save, CRLF and a lone CR become `\n`, each tab becomes four spaces, and every other control
    character is dropped.
 10. If the normalized buffer has no character other than whitespace, the command saves `None`;
     otherwise the buffer is stored literally, surrounding spaces included.
@@ -200,10 +206,12 @@ block of `context_table`.
     and `Ctrl+Z` gives the change back as one step while `Ctrl+Shift+Z` redoes it.
 12. `t` typed inside the editor inserts `t`; the overlay consumes it, and it neither reopens the
     editor nor reaches the region.
-13. While the editor is up, `Ctrl+C` copies the selection to the local clipboard and does not end
-    the application; with no selection it does nothing. `Ctrl+Q`, `Ctrl+S`, `Ctrl+O` and `Ctrl+N` do
-    nothing. `Ctrl+X`, `Ctrl+V`, `Ctrl+A`, `Ctrl+Z` and `Ctrl+Shift+Z` are the text area's, and its
-    undo walks the text rather than the diagram.
+13. While the editor is up, `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+A`, `Ctrl+Z` and `Ctrl+Shift+Z` are
+    the text area's: they act on the text while it holds the focus, and its undo walks the text
+    rather than the diagram. `Ctrl+C` with no selection copies the empty string, which is the
+    framework's own answer. `Ctrl+Q`, `Ctrl+S`, `Ctrl+O` and `Ctrl+N` do nothing. `Ctrl+Shift+Q` is
+    the forced exit and ends the application even from here, because it is answered before every
+    handler, the editor included.
 14. The screen cursor is shown while the text area holds the focus and is absent while a button
     does.
 15. A click inside the editor moves the caret or the selection; a click outside it reaches nothing.
@@ -223,7 +231,7 @@ None of it has been observed: it is what the acceptance list checks, not the rec
   was.
 - A box with text `one`, `t`, `Ctrl+A`, `Delete`, `Tab`, `Enter`: the text becomes `None` and the
   session records one step.
-- Pasting `a\r\n\tb` into the editor and saving stores `Some("a\n        b")`.
+- Pasting `a\r\n\tb` into the editor and saving stores `Some("a\n    b")`.
 - Typing `漢` stores `Some("漢")`; the editor shows it in two columns and the box in one.
 
 ## What proves it
@@ -232,11 +240,12 @@ None of it has been observed: it is what the acceptance list checks, not the rec
   `with_text_on_a_line_or_connector_changes_nothing`, `setting_the_same_text_is_no_change`.
 - `monospace-editing`: `a_set_text_command_changes_only_a_box`,
   `setting_the_same_text_records_no_step`, `clearing_a_text_is_one_step`.
-- `monospace`: `t_opens_the_text_editor_on_a_box`, `t_is_ignored_off_a_box`,
-  `enter_remains_ignored_on_a_box`, `the_status_bar_is_unchanged_while_editing`,
-  `the_editor_opens_with_all_the_text_selected`, `ok_saves_and_escape_discards`,
-  `saving_the_same_text_records_no_step`, `saving_normalizes_control_characters`,
-  `saving_whitespace_only_stores_none`,
+- `monospace`: `the_forced_exit_is_answered_first_and_the_way_out_last`,
+  `the_forced_exit_ends_the_application_whatever_the_state_is`, `t_opens_the_text_editor_on_a_box`,
+  `t_is_ignored_off_a_box`, `enter_remains_ignored_on_a_box`,
+  `the_status_bar_is_unchanged_while_editing`, `the_editor_opens_with_all_the_text_selected`,
+  `ok_saves_and_escape_discards`, `saving_the_same_text_records_no_step`,
+  `saving_normalizes_control_characters`, `saving_whitespace_only_stores_none`,
   `a_wide_glyph_is_edited_in_two_columns_and_drawn_in_one_cell`,
   `ctrl_c_copies_while_the_text_editor_is_up`, `the_editor_consumes_every_key`, and the snapshots of
   a box with the editor over it and of the same box after it closes.
@@ -245,5 +254,4 @@ None of it has been observed: it is what the acceptance list checks, not the rec
 
 ## Open questions
 
-- **The forced exit's reach.** `Ctrl+C` is suspended for this overlay alone; whether the other
-  overlays should follow is not decided here.
+_None._
