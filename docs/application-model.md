@@ -77,10 +77,11 @@ left in a cell is gone with the frame that follows it.
 **The order the screen is painted in is part of the picture.** The bar, then the region, then the
 status bar, then the drop-down, and the overlay last of all: a widget drawn later covers the one
 before it, and a drop-down drawn under the region could not be seen, let alone clicked. **The
-overlay layer at the end of the draw order holds the save dialog and the open dialog as well as the
-message dialog** (at most one is up at a time), so it covers the drop-down as well, and it sets the
-terminal's screen cursor when an open or save dialog's text field holds the focus. A drop-down or a
-dialog that closes therefore leaves the region exactly as it was, byte for byte.
+overlay layer at the end of the draw order holds the save dialog, the open dialog, the message
+dialog, and the text editor** (at most one is up at a time), so it covers the drop-down as well, and
+it sets the terminal's screen cursor when an open or save dialog's text field or the text editor's
+buffer holds the focus. A drop-down or a dialog that closes therefore leaves the region exactly as
+it was, byte for byte.
 
 **The region's interior is the diagram's window.** The frame is the region's, and the diagram is
 drawn inside it: the window is the interior, one cell in from each side, and a click's column and
@@ -119,13 +120,14 @@ selected, and the chrome's own.** The session is what the person is working on, 
 the last frame put on the screen, the origin is where in the plane that drawing was seen from, the
 selection is the shape that drawing answered with, and the chrome's own is what the widgets of the
 screen hold between frames — which label of the bar is selected, whether a drop-down is open, which
-of the two leaves holds the keyboard, and what the message dialog, the open dialog, and the save
-dialog hold (`MsgDialogState`, `OpenDialogState`, and `SaveDialogState`). They are one thing because
-they change together: a frame that changes one of them changes the others. Replacing the session on
-`New`, `OpenFile` or `OpenDemo` resets the state as a fresh startup does: the diagram is drawn at
-`(0, 0)`, nothing is selected, the undo and redo history is empty, and the dialogs are down. Saving
-via `SaveFile` writes the description to disk and leaves the session, its selection, and its history
-untouched.
+of the two leaves holds the keyboard, and what the message dialog, the open dialog, the save dialog,
+and the text editor hold (`MsgDialogState`, `OpenDialogState`, `SaveDialogState`, and
+`TextEditorState`). Opening the text editor selects all the text of the box. They are one thing
+because they change together: a frame that changes one of them changes the others. Replacing the
+session on `New`, `OpenFile` or `OpenDemo` resets the state as a fresh startup does: the diagram is
+drawn at `(0, 0)`, nothing is selected, the undo and redo history is empty, and the dialogs are
+down. Saving via `SaveFile` writes the description to disk and leaves the session, its selection,
+and its history untouched.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
@@ -268,6 +270,14 @@ arrives, an accidental `Delete` is given back by `Undo` and by nothing else. `De
 contextual: with nothing selected (`IDLE`), or while in an ephemeral sub-mode (`STROKE_SELECT`), it
 is not offered and performs no deletion; and it is not an entry in the global `Edit` menu.
 
+**`EditText` and `SetText` are the text editor's actions.** `EditText` is offered on the contextual
+status bar as `[t] Edit` whenever a box is selected, and pressing `t` opens the text editor overlay
+without touching the session or recording a step: the editor is seeded with the box's current text
+and selects all of it. `SetText` is answered by the editor's `Ok` button: it reads the identity from
+the state, performs one `Command::SetText`, and records a step only if the text changed (saving the
+same text records no step). Closing the editor with `Esc` or `Cancel` discards edits without
+recording a step.
+
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
 sub-mode (such as `STROKE_SELECT`) is active:
 
@@ -373,24 +383,26 @@ is written and the current session, selection, and history remain untouched; on 
 leaves the current session untouched and opens the message dialog via `ShowError(String)`.
 
 **A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Delete`,
-`Move`, `About`, `New`, `Open`, `OpenFile`, `OpenDemo`, `Save`, `SaveFile` and `ShowError` are asked
-for with the keyboard on the bar and leave nothing to do there — a walk changes what the drawing
-shows, a removal takes out what was selected, a move displaces it, and the dialog takes the whole
-screen while it is up — so carrying them out puts the leaf back where the person is looking, and the
-drop-down the bar was showing closes with it. **Only two things are not that**: a change of the
-screen, which is `Reply::Repaint` and not a meaning, and the way out, which is not carried out at
-all. The rule is one place and not a line in each action (rule 13 of
+`Move`, `About`, `New`, `Open`, `OpenFile`, `OpenDemo`, `Save`, `SaveFile`, `ShowError`, `EditText`,
+and `SetText` are asked for with the keyboard on the bar and leave nothing to do there — a walk
+changes what the drawing shows, a removal takes out what was selected, a move displaces it, and the
+dialog takes the whole screen while it is up — so carrying them out puts the leaf back where the
+person is looking, and the drop-down the bar was showing closes with it. **Only two things are not
+that**: a change of the screen, which is `Reply::Repaint` and not a meaning, and the way out, which
+is not carried out at all. The rule is one place and not a line in each action (rule 13 of
 [#189](https://github.com/andresmoschini/monospace/issues/189)).
 
 **`Ctrl+Shift+Q` is not the way out.** It is the forced exit: it ends the application whatever the
 state is, and it is the same `Reply::Quit` with `forced` set — the difference is not a second answer
-but whether the application may ask before it goes, which is #189's. **It is a shortcut like the way
-out, and it differs in one thing — its reach.** Every shortcut is a row of one table, and a row says
-how far the row reaches: a shortcut that reaches everything is answered before any handler, so a
-drop-down that is open and holds the keyboard, and the dialog that takes every other key, are not
-asked first; a shortcut nobody has claimed is answered after the chrome, so a key the widget uses
-stays the widget's. A forced exit that reached the chrome as a key would be answered by the chrome,
-and the point of it is that it is answered by nothing.
+but whether the application may ask before it goes, which is #189's. `Ctrl+C` is the universal copy
+shortcut of any text field, and the text editor is the application's first field, so the forced exit
+uses `Ctrl+Shift+Q` to keep copy working while remaining a forced exit that cannot be intercepted.
+**It is a shortcut like the way out, and it differs in one thing — its reach.** Every shortcut is a
+row of one table, and a row says how far the row reaches: a shortcut that reaches everything is
+answered before any handler, so a drop-down that is open and holds the keyboard, and the dialog that
+takes every other key, are not asked first; a shortcut nobody has claimed is answered after the
+chrome, so a key the widget uses stays the widget's. A forced exit that reached the chrome as a key
+would be answered by the chrome, and the point of it is that it is answered by nothing.
 
 **The chrome's own keys are the chrome's.** The navigation character that opens a drop-down, the
 arrows that move it, `Enter` that takes an entry and `Esc` that closes it belong to the widget,
@@ -553,9 +565,18 @@ framework's buffer one at a time.
 - `Shift` with an arrow while the bar holds the keyboard, or while an overlay is up, resizes
   nothing.
 - A resize with any modifier other than `Shift`, a release and a repeat resize nothing.
-- The command row offers `RESIZE: Shift+↑↓←→` beside `MOVE` for a box, `Shift+←→` for a horizontal
-  line, `Shift+↑↓` for a vertical line, and keeps the previous command row for connectors and empty
-  selection.
+- The command row offers `RESIZE: Shift+↑↓←→` beside `MOVE` and `TEXT: [t] Edit` beside `STROKE` for
+  a box; a line, a connector, the idle state without selection, and the stroke selection sub-mode do
+  not offer text editing.
+- Pressing `t` while a box is selected opens the text editor overlay; `Enter` remains ignored on the
+  canvas.
+- The text editor is drawn over the region, leaves the status bar byte-identical to the preceding
+  frame, and shows the terminal cursor only when the text buffer holds focus.
+- `Ok` in the text editor saves via `SetText`, while `Esc` and `Cancel` discard edits without
+  recording a step; saving identical text records no step in history.
+- While the text editor overlay is active, buffer shortcuts (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+A`)
+  belong to the text editor, while application shortcuts (`Ctrl+Q`, `Ctrl+S`, `Ctrl+O`, `Ctrl+N`) do
+  nothing; `Ctrl+Shift+Q` terminates the application even while the editor is up.
 - The view opens at `(0, 0)`, and a drawing inside the first screen does not scroll.
 - On each axis the origin lies in the content's range, and every frame puts it at the nearest value;
   a content change does not move the view unless the content no longer holds it.
