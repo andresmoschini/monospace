@@ -34,10 +34,14 @@ geometric shapes before connectors are addressed.
   - **Vertical line**: `Shift+↓` extends length by 1 cell, `Shift+↑` shrinks length by 1 cell.
     `Shift+←` and `Shift+→` are inactive (no effect, not offered, no undo entry).
 - The origin `at` of the line remains fixed; resizing adjusts the line length from its trailing end.
-- Minimum line length is **1**: a line cannot shrink below 1 cell (drawing its single point as an
-  end), preventing figures from disappearing.
-- A line already at length 1 that receives a shrink command remains unchanged. Per #285, no history
-  step is recorded.
+- Line length clamping:
+  - Minimum interactive length is **1**: a line cannot shrink below 1 cell (drawing its single point
+    as an end), preventing figures from disappearing.
+  - A line already at length 1 that receives a shrink command remains unchanged. Per #285, no
+    history step is recorded.
+  - Clamping follows `min(current, 1)..=u16::MAX`: if a diagram is loaded with a pre-existing
+    zero-length line (`len == 0`), shrinking leaves it at 0 (producing no change and no history
+    step), while extending it grows its length to 1.
 - Contextual status and command bar updates:
   - Shows `RESIZE: Shift+←→` when a horizontal line is selected.
   - Shows `RESIZE: Shift+↑↓` when a vertical line is selected.
@@ -53,8 +57,6 @@ geometric shapes before connectors are addressed.
   line resizes from its end. Moving the start point is achieved via `Move` (`↑↓←→`).
 - **Changing line orientation via resize.** `Shift` arrows orthogonal to the line orientation are
   ignored.
-- **Zero-length lines.** `monospace-core` technically permits `len: 0`, but interactive resizing
-  clamps to a minimum of 1 to keep the shape selectable and visible.
 
 ## The decision
 
@@ -78,12 +80,12 @@ across the entire application.
 
 **D2 — minimum line length and clamping behavior.**
 
-**Answer:** Minimum length is **1**, clamped via `clamp_line_len(current: u16, delta: i16) -> u16`
-with range `min(current, 1)..=u16::MAX`.
+**Answer:** Clamped via `clamp_dimension(current, delta)` with minimum bound `min(current, 1)`:
 
+- For positive-length lines, the line does not shrink below **1** (`min(current, 1) == 1`).
 - At `len == 1`, shrinking produces `len == 1` (no change). By #285, no history step is recorded.
-- If a line loaded from a description already has `len == 0`, shrinking leaves it at 0, while
-  growing by 1 produces `len == 1`.
+- If a line loaded from an external description already has `len == 0`, shrinking produces 0 (no
+  change, no history step), while extending by 1 produces `len == 1`.
 
 **Why not** minimum length 2: In `monospace-core`, a line of length 1 is a valid shape that renders
 a single terminal glyph end. Restricting to 2 would unnecessarily prevent single-cell lines.
@@ -108,11 +110,14 @@ action violates the honest interface principle of Monospace.
 
 ## Model slice
 
-- `docs/diagram-model.md` §9: `Shape::resized_by` specifies line resizing behavior, clamping `len`
-  to minimum 1 along the line's orientation and preserving `at`.
-- `docs/editing-model.md` §2: Note that `Command::Resize` applies to `Box` and `Line`.
-- `docs/application-model.md` §4: `Shift` plus cursor keys adjusts line length along its active
-  axis, and the contextual command line displays directional arrows matching the active orientation.
+- `docs/diagram-model.md` (_Changing a diagram_): Update the paragraph stating that resizing a line
+  leaves the shape unchanged to describe line resizing along its orientation, clamping length to
+  `min(current, 1)..=u16::MAX` and preserving `at`, orientation, and stroke.
+- `docs/editing-model.md` (_The initial set_): Note that `Command::Resize` applies to both `Box`
+  (width and height) and `Line` (length along orientation), while connectors remain unchanged.
+- `docs/application-model.md` (_Movement and resize_): Describe line resizing via `Shift` plus
+  cursor keys matching the line's orientation, and update contextual command line description to
+  reflect orientation-specific arrows.
 
 ## Public surface
 
@@ -137,35 +142,95 @@ action violates the honest interface principle of Monospace.
    - Pressing `Shift+Left` or `Shift+Right`: ignored, no command dispatched, no history recorded.
 3. **Boundary Clamping:**
    - If a line has length 1 and is shrunk, the resulting length is 1; no history step is recorded.
-4. **Undo / Redo:**
+   - If a line has length 0 and is shrunk, the resulting length is 0; no history step is recorded.
+   - If a line has length 0 and is extended, the resulting length is 1.
+4. **Preserved Attributes:**
+   - Resizing preserves the line's origin `at`, its `orientation`, and its `stroke`.
+5. **Undo / Redo:**
    - A valid resize step can be undone (`Ctrl+z`) and redone (`Ctrl+r`), restoring previous line
      lengths.
 
 ## Examples
 
+**A horizontal line widened with `Shift+Right`.** A horizontal line of length 4, before and after
+`Shift+Right`. One press, one `Command::Resize { id: 1, by: (1, 0) }`, one step.
+
+<!-- render: 8x3
+{
+  "next_id": 2,
+  "shapes": [
+    { "kind": "line", "id": 1, "at": { "x": 1, "y": 1 }, "len": 4, "orientation": "horizontal", "stroke": "light" }
+  ]
+}
+-->
+
 ```text
-Horizontal Line (len: 4):
-────
 
-After Shift+→ (len: 5):
-─────
+ ────
 
-After Shift+← (len: 4):
-────
 ```
 
-```text
-Vertical Line (len: 3):
-│
-│
-│
+<!-- /render -->
 
-After Shift+↓ (len: 4):
-│
-│
-│
-│
+<!-- render: 8x3
+{
+  "next_id": 2,
+  "shapes": [
+    { "kind": "line", "id": 1, "at": { "x": 1, "y": 1 }, "len": 5, "orientation": "horizontal", "stroke": "light" }
+  ]
+}
+-->
+
+```text
+
+ ─────
+
 ```
+
+<!-- /render -->
+
+**A vertical line heightened with `Shift+Down`.** A vertical line of length 3, before and after
+`Shift+Down`. One press, one `Command::Resize { id: 1, by: (0, 1) }`, one step.
+
+<!-- render: 4x5
+{
+  "next_id": 2,
+  "shapes": [
+    { "kind": "line", "id": 1, "at": { "x": 1, "y": 0 }, "len": 3, "orientation": "vertical", "stroke": "light" }
+  ]
+}
+-->
+
+```text
+ │
+ │
+ │
+
+
+```
+
+<!-- /render -->
+
+<!-- render: 4x5
+{
+  "next_id": 2,
+  "shapes": [
+    { "kind": "line", "id": 1, "at": { "x": 1, "y": 0 }, "len": 4, "orientation": "vertical", "stroke": "light" }
+  ]
+}
+-->
+
+```text
+ │
+ │
+ │
+ │
+
+```
+
+<!-- /render -->
+
+The bar's row has no render marker; `## What proves it` names its tests.
 
 ## What proves it
 
@@ -176,14 +241,18 @@ After Shift+↓ (len: 4):
   - Resizing vertical line with `(0, 1)` increases length.
   - Resizing vertical line with `(0, -1)` decreases length.
   - Resizing vertical line with `(1, 0)` or `(-1, 0)` leaves line unchanged.
-  - Clamping preserves minimum length of 1.
-- Unit tests in `monospace` (`context_table` / widget):
+  - Clamping preserves minimum length of 1 for positive-length lines.
+  - Shrinking a line with `len == 0` leaves it at 0.
+  - Extending a line with `len == 0` grows length to 1.
+  - Resizing preserves `at`, `orientation`, and `stroke`.
+- Unit tests in `monospace` (`context_table` / widget / callbacks):
   - Command line string formatting matches `Shift+←→` for horizontal line, `Shift+↑↓` for vertical
     line, `Shift+↑↓←→` for box.
   - Key dispatching accepts only the offered directional Shift+arrow keys and ignores orthogonal
     ones.
   - History tests verify no undo step is recorded when pressing orthogonal arrows or shrinking at
     minimum length.
+  - Undo and Redo restore previous line lengths for a valid resize step.
 
 ## Open questions
 
