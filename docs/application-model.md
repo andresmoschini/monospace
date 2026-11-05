@@ -303,20 +303,23 @@ selection is what the arrow is about, and the bar offers only selection while no
 position and clamps nothing — what a displacement does to a reference is `docs/diagram-model.md`
 §4's, and a figure moved past the window's edge is not drawn.
 
-**`Shift` with the four arrows resizes the selected box, and the resize is one action carrying a
+**`Shift` with cursor keys resizes the selected figure, and the resize is one action carrying a
 delta.** A press of `Shift` plus an arrow while the region holds the keyboard and a box is selected
 resizes the box by one cell: `Shift+→` widens, `Shift+←` narrows, `Shift+↓` heightens and `Shift+↑`
-lowers it, anchored at its top-left corner `at`. The action carries `(dx, dy)` rather than an
-identity: the shape is read from the state where the action is carried out. **One press is one
-`Command::Resize` and one step**, so `Undo` gives back one cell per press. **The selection
-survives**, and the next frame draws the box at its new size with the new cells inverted. **`Shift`
-with an arrow with nothing selected ignores the key (`Control::Continue`) and performs no command**,
-leaving it unhandled. **Resizing is the region's only while it holds the keyboard**, and only
-`Shift` acts — no other modifier combination (`Ctrl`, `Alt`) resizes. While a line or connector is
-selected, the key is ignored (`Control::Continue`) and performs no command, just as with nothing
-selected. While a box is at its minimum size (2×2), the command is still dispatched and leaves the
-figure unchanged, so **the frame is owed and no step is recorded** (#285): the bar and the region
-decide whether the key applies, and the session decides whether it changed anything.
+lowers it, anchored at its top-left corner `at`. While a line is selected, `Shift+←→` resizes a
+horizontal line and `Shift+↑↓` resizes a vertical line along its orientation; the arrow across the
+orientation is ignored (`Control::Continue`) and performs no command. While a connector is selected,
+all four arrows are ignored (`Control::Continue`) and perform no command, just as with nothing
+selected. The action carries `(dx, dy)` rather than an identity: the shape is read from the state
+where the action is carried out. **One press is one `Command::Resize` and one step**, so `Undo`
+gives back one cell per press. **The selection survives**, and the next frame draws the figure at
+its new size with the new cells inverted. **`Shift` with an arrow with nothing selected ignores the
+key (`Control::Continue`) and performs no command**, leaving it unhandled. **Resizing is the
+region's only while it holds the keyboard**, and only `Shift` acts — no other modifier combination
+(`Ctrl`, `Alt`) resizes. While a box is at its minimum size (2×2), or a line is at its minimum
+length (1) or already 0 and asked to shrink, the command is still dispatched and leaves the figure
+unchanged, so **the frame is owed and no step is recorded** (#285): the bar and the region decide
+whether the key applies, and the session decides whether it changed anything.
 
 **Undo and Redo are the actions that give a step back.** Each is reached by a key and by the Edit
 menu's entry, and both apply that same action rather than a code path each: `Ctrl+Z` and **Undo**,
@@ -539,19 +542,20 @@ framework's buffer one at a time.
 - A move with a modifier, a release and a repeat move nothing.
 - A carried-out move leaves the keyboard on the region.
 - A figure moved past the window's edge is not drawn.
-- `Shift` with an arrow resizes the selected box one cell along the arrow's axis, records one step,
-  and leaves the selection on it.
+- `Shift` with an arrow resizes the selected box one cell along the arrow's axis, or a selected line
+  one cell along its orientation, records one step, and leaves the selection on it.
 - A command that changes nothing records no step: a resize at the smallest size, a figure brought
   forward at the front, and a command naming a figure the drawing does not hold all leave the
   history where it was, what was ahead of the position included.
 - `Shift` with an arrow with nothing selected performs no command and leaves the key unhandled.
-- `Shift` with an arrow with a line or a connector selected performs no command and leaves the key
-  unhandled.
+- `Shift` with an arrow across a selected line's orientation, or with a connector selected, performs
+  no command and leaves the key unhandled.
 - `Shift` with an arrow while the bar holds the keyboard, or while an overlay is up, resizes
   nothing.
 - A resize with any modifier other than `Shift`, a release and a repeat resize nothing.
-- The command row offers `RESIZE: Shift+↑↓←→` beside `MOVE` only while a box is selected, and keeps
-  the previous command row for lines, connectors, and empty selection.
+- The command row offers `RESIZE: Shift+↑↓←→` beside `MOVE` for a box, `Shift+←→` for a horizontal
+  line, `Shift+↑↓` for a vertical line, and keeps the previous command row for connectors and empty
+  selection.
 - The view opens at `(0, 0)`, and a drawing inside the first screen does not scroll.
 - On each axis the origin lies in the content's range, and every frame puts it at the nearest value;
   a content change does not move the view unless the content no longer holds it.
