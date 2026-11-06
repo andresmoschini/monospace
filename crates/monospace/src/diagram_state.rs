@@ -254,23 +254,6 @@ impl DiagramState {
         self.perform(Command::Remove { id });
     }
 
-    /// Displaces the shape `id` by `(dx, dy)` cells and keeps the selection.
-    ///
-    /// **The movement is a replacement like any other** (§9 of the diagram model): one
-    /// `Command::Move` is performed, and the diagram below decides what a displacement does to a
-    /// reference hanging from the figure and to the gap of one the figure holds. The application
-    /// names no `Delta`: the pair is converted where the command is written, so this crate does not
-    /// reach below the editing layer for one value.
-    ///
-    /// **The identity survives**, unlike the removal's: the figure is still there, one cell along,
-    /// so the next frame inverts the cells it now owns.
-    pub(crate) fn move_shape(&mut self, id: ShapeId, dx: i16, dy: i16) {
-        self.perform(Command::Move {
-            id,
-            by: (dx, dy).into(),
-        });
-    }
-
     /// Performs `command` on the session, recording a step when it changes the diagram.
     ///
     /// **A command that changes nothing records no step** (#285): the session is handed back as it
@@ -911,7 +894,10 @@ mod tests {
         state.origin = Pos { x: 7, y: 2 };
         state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
 
-        state.move_shape(finding, 2, 0);
+        state.perform(Command::Move {
+            id: finding,
+            by: (2, 0).into(),
+        });
         state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
 
         assert_eq!(
@@ -1020,7 +1006,10 @@ mod tests {
         let mut state = DiagramState::new(Session::new(diagram));
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
-        state.move_shape(shape, 1, 0);
+        state.perform(Command::Move {
+            id: shape,
+            by: (1, 0).into(),
+        });
 
         assert!(state.session.can_undo(), "the move recorded no step");
         assert!(
@@ -1131,7 +1120,10 @@ mod tests {
         let mut state = DiagramState::new(Session::new(diagram));
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
-        state.move_shape(shape, 1, 0);
+        state.perform(Command::Move {
+            id: shape,
+            by: (1, 0).into(),
+        });
         state.select(Some(shape));
         state.set_sub_mode(Some(SubMode::StrokeSelect));
 

@@ -218,7 +218,10 @@ fn apply(action: &Action, state: &mut AppState) {
         // arrives from the region's handler and the identity is read here.
         Action::Move(dx, dy) => {
             if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().move_shape(selected, *dx, *dy);
+                state.diagram_mut().perform(Command::Move {
+                    id: selected,
+                    by: (*dx, *dy).into(),
+                });
             }
         }
 
