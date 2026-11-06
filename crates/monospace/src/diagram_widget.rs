@@ -232,6 +232,7 @@ mod tests {
     use crate::config::Config;
     use crate::vocabulary::Action;
     use monospace_core::ShapeId;
+    use monospace_editing::Command;
     use ratatui_core::layout::Position;
     use ratatui_crossterm::crossterm::event::{
         KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -501,7 +502,8 @@ mod tests {
     #[test]
     fn the_arrows_are_the_regions_while_it_holds_the_keyboard() {
         let mut state = a_state_over(A_BOX);
-        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
 
         for (arrow, delta) in [
             (KeyCode::Right, (1, 0)),
@@ -511,26 +513,35 @@ mod tests {
         ] {
             assert_eq!(
                 handle(&key(arrow), &mut state, Focus::Region),
-                Reply::Act(Action::Move(delta.0, delta.1)),
+                Reply::Act(Action::Command(Command::Move {
+                    id,
+                    by: (delta.0, delta.1).into(),
+                })),
                 "{arrow:?} did not answer the movement"
             );
         }
     }
 
-    /// **The action is the movement and not a figure** (rule 4): the region answers `Move` with
-    /// the delta the arrow names and no identity, and the figure is read where it is applied.
+    /// **The action is the command naming the selected figure**: the region answers `Command::Move` with
+    /// the delta the arrow names and the selected shape's identity.
     #[test]
     fn the_arrows_say_only_that_they_move() {
         let mut state = a_state_over(A_BOX);
-        let selected = Some(ShapeId::new(NonZeroU16::new(1).unwrap()));
-        state.select(selected);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
 
         let answer = handle(&key(KeyCode::Right), &mut state, Focus::Region);
 
-        assert_eq!(answer, Reply::Act(Action::Move(1, 0)));
+        assert_eq!(
+            answer,
+            Reply::Act(Action::Command(Command::Move {
+                id,
+                by: (1, 0).into(),
+            }))
+        );
         assert_eq!(
             state.selected(),
-            selected,
+            Some(id),
             "the region changed the selection"
         );
     }
@@ -600,7 +611,7 @@ mod tests {
         let _ = paint(&mut state);
         let at = screen(2, 1);
         let _ = handle(&click(at.x, at.y), &mut state, Focus::Region);
-        assert!(state.selected().is_some());
+        let id = state.selected().expect("box is selected");
 
         for (arrow, delta) in [
             (KeyCode::Right, (1, 0)),
@@ -614,7 +625,10 @@ mod tests {
                     &mut state,
                     Focus::Region,
                 ),
-                Reply::Act(Action::Resize(delta.0, delta.1)),
+                Reply::Act(Action::Command(Command::Resize {
+                    id,
+                    by: (delta.0, delta.1).into(),
+                })),
                 "{arrow:?} with Shift did not answer the resize"
             );
         }
@@ -624,7 +638,8 @@ mod tests {
     #[test]
     fn shift_arrows_resize_a_horizontal_line_along_its_row() {
         let mut state = a_state_over(A_LINE);
-        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
 
         assert_eq!(
             handle(
@@ -632,7 +647,10 @@ mod tests {
                 &mut state,
                 Focus::Region,
             ),
-            Reply::Act(Action::Resize(-1, 0))
+            Reply::Act(Action::Command(Command::Resize {
+                id,
+                by: (-1, 0).into(),
+            }))
         );
         assert_eq!(
             handle(
@@ -640,7 +658,10 @@ mod tests {
                 &mut state,
                 Focus::Region,
             ),
-            Reply::Act(Action::Resize(1, 0))
+            Reply::Act(Action::Command(Command::Resize {
+                id,
+                by: (1, 0).into(),
+            }))
         );
         assert_eq!(
             handle(
@@ -664,7 +685,8 @@ mod tests {
     #[test]
     fn shift_arrows_resize_a_vertical_line_along_its_column() {
         let mut state = a_state_over(A_VERTICAL_LINE);
-        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
 
         assert_eq!(
             handle(
@@ -672,7 +694,10 @@ mod tests {
                 &mut state,
                 Focus::Region,
             ),
-            Reply::Act(Action::Resize(0, -1))
+            Reply::Act(Action::Command(Command::Resize {
+                id,
+                by: (0, -1).into(),
+            }))
         );
         assert_eq!(
             handle(
@@ -680,7 +705,10 @@ mod tests {
                 &mut state,
                 Focus::Region,
             ),
-            Reply::Act(Action::Resize(0, 1))
+            Reply::Act(Action::Command(Command::Resize {
+                id,
+                by: (0, 1).into(),
+            }))
         );
         assert_eq!(
             handle(
@@ -1029,7 +1057,8 @@ mod tests {
 
         for (c, stroke_name) in pairs {
             let mut state = a_state_over(A_BOX);
-            state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+            let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+            state.select(Some(id));
             state.set_sub_mode(Some(crate::diagram_state::SubMode::StrokeSelect));
 
             let answer = handle(
@@ -1039,7 +1068,10 @@ mod tests {
             );
             assert_eq!(
                 answer,
-                Reply::Act(Action::SetStroke(Stroke::from(stroke_name)))
+                Reply::Act(Action::Command(Command::SetStroke {
+                    id,
+                    stroke: Stroke::from(stroke_name),
+                }))
             );
             assert_eq!(state.sub_mode(), None);
         }

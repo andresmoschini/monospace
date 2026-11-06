@@ -6,9 +6,8 @@
 //! and the action the reply carries is the only thing that changes the session — and a failure ends
 //! the loop instead of becoming one.
 //!
-//! **An action need not change anything.** `Action::Delete` takes a shape out where one is
-//! selected and owes a paint either way; `Action::Move` displaces what is selected and owes a
-//! paint whether or not there was one; `Action::Undo` and `Action::Redo` walk the session's
+//! **An action need not change anything.** `Action::Command` performs a mutation where one is
+//! valid and owes a paint either way; `Action::Undo` and `Action::Redo` walk the session's
 //! history and owe a paint whether or not there is a step to give back; and `Action::About` and
 //! `Action::ShowError` open the chrome's dialog. **The way out is not an action**: nothing about
 //! the state changes, so there is nothing to carry out, and it is [`Reply::Quit`], which says
@@ -59,41 +58,8 @@ pub(crate) enum Action {
     /// **A press with nothing ahead walks nothing**, and the action still paints.
     Redo,
 
-    /// The selected shape is taken out of the session, and the frame is owed either way.
-    ///
-    /// **The meaning and not the identity.** The shape is read from the state where the action is
-    /// carried out. Deletion is offered contextually while a figure is selected (D3 of #292).
-    /// **A deletion with nothing selected removes nothing**: `apply` continues to accept it,
-    /// although the region only emits it when a figure is selected.
-    Delete,
-
-    /// The selected shape is displaced by `(dx, dy)` cells, and the frame is owed either way.
-    ///
-    /// **The meaning and not the identity**, as [`Self::Delete`] is: the shape is read from the
-    /// state where the action is carried out, so the four arrows are one action carrying a delta
-    /// rather than four actions naming a figure each. **A move with nothing selected moves
-    /// nothing**: the action is applied all the same, and `apply` continues to accept it, although
-    /// the region no longer emits it without a selection.
-    Move(i16, i16),
-
-    /// The selected shape is resized by `(dx, dy)` cells, and the frame is owed either way.
-    ///
-    /// **The meaning and not the identity**, as [`Self::Move`] is: the shape is read from the
-    /// state where the action is carried out.
-    Resize(i16, i16),
-
-    /// The selected shape's stroke is replaced with `stroke`.
-    ///
-    /// **The meaning and not the identity**: the shape is read from the state where the action is
-    /// carried out.
-    SetStroke(monospace_diagram::Stroke),
-
-    /// The selected box's text is replaced with this block, or taken out when it is `None`.
-    ///
-    /// **The meaning and not the identity**: the shape is read from the state where the action is
-    /// carried out. **A text the box already holds records no step**, which is the editing layer's
-    /// answer and not a comparison made here.
-    SetText(Option<monospace_diagram::Text>),
+    /// A command is performed on the session.
+    Command(monospace_editing::Command),
 
     /// The text editor is opened over the selected box, and the frame is owed.
     ///

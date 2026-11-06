@@ -262,25 +262,24 @@ border is the region's. **No key moves the view**:
 [#237](https://github.com/andresmoschini/monospace/issues/237) decides which keys do and how far a
 press moves, and the plain arrows stay what #179 made them.
 
-**`Delete` is a contextual action that changes the session, and it carries a meaning rather than an
-identity.** It is offered on the contextual status bar as `[Del] Delete` whenever a figure is
-selected (`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`), and the key is dispatched by the
-diagram region from the active context table. The action names no identity — the identity is read
-from the state where the action is carried out. The session performs one `Command::Remove` and
-records one step, which is what #181 gives back; the selection stops naming a figure the diagram no
-longer has, so the removal leaves nothing selected and the next frame inverts nothing. **The removal
-is not confirmed**: until a confirmation dialog arrives, an accidental `Delete` is given back by
-`Undo` and by nothing else. `Delete` is strictly contextual: with nothing selected (`IDLE`), or
-while in an ephemeral sub-mode (`STROKE_SELECT`), it is not offered and performs no deletion; and it
-is not an entry in the global `Edit` menu.
+**`Delete` is a contextual key that changes the session via `Command::Remove`.** It is offered on
+the contextual status bar as `[Del] Delete` whenever a figure is selected (`SELECTED_BOX`,
+`SELECTED_LINE`, `SELECTED_CONNECTOR`), and the key is dispatched by the diagram region from the
+active context table as `Action::Command(Command::Remove { id })`. The session performs the command
+and records one step, which is what #181 gives back; the selection stops naming a figure the diagram
+no longer has, so the removal leaves nothing selected and the next frame inverts nothing. **The
+removal is not confirmed**: until a confirmation dialog arrives, an accidental `Delete` is given
+back by `Undo` and by nothing else. `Delete` is strictly contextual: with nothing selected (`IDLE`),
+or while in an ephemeral sub-mode (`STROKE_SELECT`), it is not offered and performs no deletion; and
+it is not an entry in the global `Edit` menu.
 
-**`EditText` and `SetText` are the text editor's actions.** `EditText` is offered on the contextual
-status bar as `[t] Edit` whenever a box is selected, and pressing `t` opens the text editor overlay
-without touching the session or recording a step: the editor is seeded with the box's current text
-and selects all of it. `SetText` is answered by the editor's `Ok` button: it reads the identity from
-the state, performs one `Command::SetText`, and records a step only if the text changed (saving the
-same text records no step). Closing the editor with `Esc` or `Cancel` discards edits without
-recording a step.
+**`EditText` and text editing change the session via `Command::SetText`.** `EditText` is offered on
+the contextual status bar as `[t] Edit` whenever a box is selected, and pressing `t` opens the text
+editor overlay without touching the session or recording a step: the editor is seeded with the box's
+current text and selects all of it. Saving from the editor's `Ok` button answers
+`Action::Command(Command::SetText { id, text })`: it performs the command on the session, and
+records a step only if the text changed (saving the same text records no step). Closing the editor
+with `Esc` or `Cancel` discards edits without recording a step.
 
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
 sub-mode (such as `STROKE_SELECT`) is active:
@@ -305,35 +304,35 @@ bar or opening an application-level overlay (`Save`, `Open`, `About`, `ShowError
 active sub-mode, resuming it when focus returns to the diagram. A dialog that belongs to the
 sub-mode itself is not an application-level overlay and does not end it either.
 
-**The four arrows move what is selected, and the movement is one action carrying a delta.** A press
-of an arrow while the region holds the keyboard displaces the selected figure one cell along the
-arrow's own axis, and the action carries `(dx, dy)` rather than an identity: the shape is read from
-the state where the action is carried out, as the deletion's is. **One press is one `Command::Move`
-and one step**, so `Undo` gives back one cell per press. **The selection survives**, because the
-figure is still there one cell along, and the next frame inverts the cells it now owns. **An arrow
-with nothing selected ignores the key** (`Control::Continue`) and dispatches no command: the
-selection is what the arrow is about, and the bar offers only selection while nothing is selected.
-**The arrows are the region's only while it holds the keyboard**, and the application names no
-position and clamps nothing — what a displacement does to a reference is `docs/diagram-model.md`
-§4's, and a figure moved past the window's edge is not drawn.
+**The four arrows move what is selected, dispatched as `Command::Move`.** A press of an arrow while
+the region holds the keyboard displaces the selected figure one cell along the arrow's own axis: the
+contextual table mints `Action::Command(Command::Move { id, by })` naming the selected figure and
+the arrow's delta. **One press is one `Command::Move` and one step**, so `Undo` gives back one cell
+per press. **The selection survives**, because the figure is still there one cell along, and the
+next frame inverts the cells it now owns. **An arrow with nothing selected ignores the key**
+(`Control::Continue`) and dispatches no command: the selection is what the arrow is about, and the
+bar offers only selection while nothing is selected. **The arrows are the region's only while it
+holds the keyboard**, and the application names no position and clamps nothing — what a displacement
+does to a reference is `docs/diagram-model.md` §4's, and a figure moved past the window's edge is
+not drawn.
 
-**`Shift` with cursor keys resizes the selected figure, and the resize is one action carrying a
-delta.** A press of `Shift` plus an arrow while the region holds the keyboard and a box is selected
-resizes the box by one cell: `Shift+→` widens, `Shift+←` narrows, `Shift+↓` heightens and `Shift+↑`
-lowers it, anchored at its top-left corner `at`. While a line is selected, `Shift+←→` resizes a
-horizontal line and `Shift+↑↓` resizes a vertical line along its orientation; the arrow across the
-orientation is ignored (`Control::Continue`) and performs no command. While a connector is selected,
-all four arrows are ignored (`Control::Continue`) and perform no command, just as with nothing
-selected. The action carries `(dx, dy)` rather than an identity: the shape is read from the state
-where the action is carried out. **One press is one `Command::Resize` and one step**, so `Undo`
-gives back one cell per press. **The selection survives**, and the next frame draws the figure at
-its new size with the new cells inverted. **`Shift` with an arrow with nothing selected ignores the
-key (`Control::Continue`) and performs no command**, leaving it unhandled. **Resizing is the
-region's only while it holds the keyboard**, and only `Shift` acts — no other modifier combination
-(`Ctrl`, `Alt`) resizes. While a box is at its minimum size (2×2), or a line is at its minimum
-length (1) or already 0 and asked to shrink, the command is still dispatched and leaves the figure
-unchanged, so **the frame is owed and no step is recorded** (#285): the bar and the region decide
-whether the key applies, and the session decides whether it changed anything.
+**`Shift` with cursor keys resizes the selected figure, dispatched as `Command::Resize`.** A press
+of `Shift` plus an arrow while the region holds the keyboard and a box is selected resizes the box
+by one cell: `Shift+→` widens, `Shift+←` narrows, `Shift+↓` heightens and `Shift+↑` lowers it,
+anchored at its top-left corner `at`. While a line is selected, `Shift+←→` resizes a horizontal line
+and `Shift+↑↓` resizes a vertical line along its orientation; the arrow across the orientation is
+ignored (`Control::Continue`) and performs no command. While a connector is selected, all four
+arrows are ignored (`Control::Continue`) and perform no command, just as with nothing selected. The
+contextual table mints `Action::Command(Command::Resize { id, by })` naming the selected figure and
+delta. **One press is one `Command::Resize` and one step**, so `Undo` gives back one cell per press.
+**The selection survives**, and the next frame draws the figure at its new size with the new cells
+inverted. **`Shift` with an arrow with nothing selected ignores the key (`Control::Continue`) and
+performs no command**, leaving it unhandled. **Resizing is the region's only while it holds the
+keyboard**, and only `Shift` acts — no other modifier combination (`Ctrl`, `Alt`) resizes. While a
+box is at its minimum size (2×2), or a line is at its minimum length (1) or already 0 and asked to
+shrink, the command is still dispatched and leaves the figure unchanged, so **the frame is owed and
+no step is recorded** (#285): the bar and the region decide whether the key applies, and the session
+decides whether it changed anything.
 
 **Undo and Redo are the actions that give a step back.** Each is reached by a key and by the Edit
 menu's entry, and both apply that same action rather than a code path each: `Ctrl+Z` and **Undo**,
@@ -386,14 +385,14 @@ dialog closes it and answers `SaveFile(String)` with the path typed in the field
 is written and the current session, selection, and history remain untouched; on any failure it
 leaves the current session untouched and opens the message dialog via `ShowError(String)`.
 
-**A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Delete`,
-`Move`, `About`, `New`, `Open`, `OpenFile`, `OpenDemo`, `Save`, `SaveFile`, `ShowError`, `EditText`,
-and `SetText` are asked for with the keyboard on the bar and leave nothing to do there — a walk
-changes what the drawing shows, a removal takes out what was selected, a move displaces it, and the
-dialog takes the whole screen while it is up — so carrying them out puts the leaf back where the
-person is looking, and the drop-down the bar was showing closes with it. **Only two things are not
-that**: a change of the screen, which is `Reply::Repaint` and not a meaning, and the way out, which
-is not carried out at all. The rule is one place and not a line in each action (rule 13 of
+**A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Command`,
+`About`, `New`, `Open`, `OpenFile`, `OpenDemo`, `Save`, `SaveFile`, `ShowError`, and `EditText` are
+asked for with the keyboard on the bar and leave nothing to do there — a walk changes what the
+drawing shows, a removal takes out what was selected, a move displaces it, and the dialog takes the
+whole screen while it is up — so carrying them out puts the leaf back where the person is looking,
+and the drop-down the bar was showing closes with it. **Only two things are not that**: a change of
+the screen, which is `Reply::Repaint` and not a meaning, and the way out, which is not carried out
+at all. The rule is one place and not a line in each action (rule 13 of
 [#189](https://github.com/andresmoschini/monospace/issues/189)).
 
 **`Ctrl+Shift+Q` is not the way out.** It is the forced exit: it ends the application whatever the
@@ -579,8 +578,8 @@ framework's buffer one at a time.
   canvas.
 - The text editor is drawn over the region, leaves the status bar byte-identical to the preceding
   frame, and shows the terminal cursor only when the text buffer holds focus.
-- `Ok` in the text editor saves via `SetText`, while `Esc` and `Cancel` discard edits without
-  recording a step; saving identical text records no step in history.
+- `Ok` in the text editor saves via `Command::SetText`, while `Esc` and `Cancel` discard edits
+  without recording a step; saving identical text records no step in history.
 - While the text editor overlay is up, buffer shortcuts (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+A`)
   belong to the text editor, while application shortcuts (`Ctrl+Q`, `Ctrl+S`, `Ctrl+O`, `Ctrl+N`) do
   nothing; `Ctrl+Shift+Q` terminates the application even while the editor is up.
