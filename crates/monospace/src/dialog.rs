@@ -5,9 +5,9 @@
 //! drawn in. **What it says is the opener's**: `crate::about` fills it with the application's name,
 //! and the `Ok` button is the framework's (D5 of #189).
 //!
-//! **It is drawn last of all and asked first of all.** The dialog is the overlay: the frame paints
-//! it after the drop-down so that it covers everything, and `callbacks` asks it before the chrome
-//! while it is up, so a key or a press behind it reaches nothing (D6).
+//! **It is painted over the chrome and asked before it.** The dialog is an overlay: the frame
+//! paints it after the drop-down so that it covers the chrome, and `callbacks` asks it before the
+//! chrome while it is up, so a key or a press behind it reaches nothing (D6).
 //!
 //! **The focus is reverse video over the theme's colors.** The theme gives the dialog its colors
 //! and the button its three states; the application replaces the button's `focus` and `armed`
