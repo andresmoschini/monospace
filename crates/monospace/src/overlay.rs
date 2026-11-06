@@ -26,12 +26,14 @@ impl<S> Overlay<S> {
         Self::Up(state)
     }
 
-    /// Whether the overlay is up.
+    /// Whether the overlay is up, for the tests that say which one is.
+    #[cfg(test)]
     pub(crate) fn is_up(&self) -> bool {
         self.get().is_some()
     }
 
-    /// The state inside, while the overlay is up.
+    /// The state inside, while the overlay is up, for the tests that read it.
+    #[cfg(test)]
     pub(crate) fn get(&self) -> Option<&S> {
         match self {
             Self::Down => None,

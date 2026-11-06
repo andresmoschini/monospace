@@ -15,6 +15,7 @@ use ratatui_core::layout::Position;
 use crate::chrome::{Chrome, Target};
 use crate::diagram_state::DiagramState;
 use crate::open::OpenDialogState;
+use crate::overlay::Overlay;
 use crate::save::SaveDialogState;
 use crate::text::TextEditorState;
 
@@ -34,11 +35,11 @@ pub(crate) struct AppState {
     /// it was, so closing the dialog gives the keyboard back unchanged.
     dialog: MsgDialogState,
 
-    /// The open dialog's own state: the path being typed, its frame, and whether it is up.
+    /// The open dialog, while it is up: the path being typed and its frame.
     ///
     /// **The dialog runs its own focus** while it is up, as the message dialog does, so closing it
     /// gives the keyboard back unchanged. It is the second overlay and the last thing painted.
-    open: OpenDialogState,
+    open: Overlay<OpenDialogState>,
 
     /// The save dialog's own state: the path being typed, its frame, and whether it is up.
     ///
@@ -66,7 +67,7 @@ impl AppState {
             diagram: DiagramState::new(diagram_session),
             chrome: Chrome::new(),
             dialog: MsgDialogState::default(),
-            open: OpenDialogState::default(),
+            open: Overlay::Down,
             save: SaveDialogState::default(),
             text: TextEditorState::default(),
         }
@@ -131,15 +132,15 @@ impl AppState {
         &mut self.dialog
     }
 
-    /// The open dialog's own state, for the tests that say whether it is up.
+    /// The open dialog, for the tests that say whether it is up.
     #[cfg(test)]
-    pub(crate) fn open(&self) -> &OpenDialogState {
+    pub(crate) fn open(&self) -> &Overlay<OpenDialogState> {
         &self.open
     }
 
     /// The open dialog, for the frame that paints it, the handler that answers it and the actions
     /// that open it.
-    pub(crate) fn open_mut(&mut self) -> &mut OpenDialogState {
+    pub(crate) fn open_mut(&mut self) -> &mut Overlay<OpenDialogState> {
         &mut self.open
     }
 

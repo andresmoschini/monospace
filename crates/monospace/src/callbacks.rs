@@ -28,6 +28,7 @@ use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
 use crate::open;
+use crate::open::OpenDialogState;
 use crate::save;
 use crate::shortcuts;
 use crate::state::AppState;
@@ -262,7 +263,7 @@ fn apply(action: &Action, state: &mut AppState) {
         Action::ShowError(message) => error::open(state.dialog_mut(), message),
 
         // **The open dialog is the chrome's own too**, and opening it changes no session.
-        Action::Open => state.open_mut().open(),
+        Action::Open => state.open_mut().show(OpenDialogState::new()),
 
         // **The path is read and parsed before anything is replaced** (D3 and D4 of #260): a
         // file that cannot be read or parsed leaves the current session untouched, and reports
@@ -677,7 +678,7 @@ mod tests {
             matches!(outcome, Control::Changed),
             "taking Open owed no frame: {outcome:?}"
         );
-        assert!(state.open().active(), "taking Open opened no dialog");
+        assert!(state.open().is_up(), "taking Open opened no dialog");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -833,16 +834,13 @@ mod tests {
         );
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(
-            state.open().active(),
-            "the shortcut did not open the dialog"
-        );
+        assert!(state.open().is_up(), "the shortcut did not open the dialog");
 
         // The entry of the menu.
         let mut state = a_drawn_state();
         open_the_open_dialog(&mut state);
         assert!(
-            state.open().active(),
+            state.open().is_up(),
             "the menu entry did not open the dialog"
         );
     }
@@ -983,14 +981,14 @@ mod tests {
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram().selected();
         open_the_open_dialog(&mut state);
-        assert!(state.open().active(), "the open dialog is not open");
+        assert!(state.open().is_up(), "the open dialog is not open");
         let focus = state.chrome().leaf();
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.open().active(),
+            !state.open().is_up(),
             "escape did not close the open dialog"
         );
         assert_eq!(
@@ -1069,7 +1067,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "the way out was answered through the open dialog: {outcome:?}"
         );
-        assert!(state.open().active(), "Ctrl+Q closed the open dialog");
+        assert!(state.open().is_up(), "Ctrl+Q closed the open dialog");
 
         let _ = send(&click(column, row), &mut state);
 
@@ -1083,7 +1081,7 @@ mod tests {
             "the click behind the dialog opened a drop-down"
         );
         assert!(
-            state.open().active(),
+            state.open().is_up(),
             "the click on the bar closed the open dialog"
         );
     }
@@ -1150,12 +1148,14 @@ mod tests {
         open_the_open_dialog(&mut state);
         state
             .open_mut()
+            .get_mut()
+            .expect("the open dialog is up")
             .set_path(path.to_str().expect("the temp path is UTF-8"));
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.open().active(), "the load left the dialog up");
+        assert!(!state.open().is_up(), "the load left the dialog up");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -1321,15 +1321,16 @@ mod tests {
         let selected = state.diagram().selected();
 
         open_the_open_dialog(&mut state);
-        state.open_mut().set_path("missing.json");
+        state
+            .open_mut()
+            .get_mut()
+            .expect("the open dialog is up")
+            .set_path("missing.json");
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(
-            !state.open().active(),
-            "the failure left the open dialog up"
-        );
+        assert!(!state.open().is_up(), "the failure left the open dialog up");
         assert!(
             state.dialog().active(),
             "the failure did not open the error dialog"
@@ -1358,15 +1359,14 @@ mod tests {
         open_the_open_dialog(&mut state);
         state
             .open_mut()
+            .get_mut()
+            .expect("the open dialog is up")
             .set_path(path.to_str().expect("the temp path is UTF-8"));
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(
-            !state.open().active(),
-            "the failure left the open dialog up"
-        );
+        assert!(!state.open().is_up(), "the failure left the open dialog up");
         assert!(
             state.dialog().active(),
             "the failure did not open the error dialog"
@@ -3477,7 +3477,7 @@ mod tests {
                 !state.dialog().active(),
                 "{code:?}: the message dialog opened"
             );
-            assert!(!state.open().active(), "{code:?}: the open dialog opened");
+            assert!(!state.open().is_up(), "{code:?}: the open dialog opened");
             assert!(!state.save().active(), "{code:?}: the save dialog opened");
             assert!(!state.diagram().can_undo(), "{code:?}: the diagram changed");
         }
