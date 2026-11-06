@@ -443,10 +443,11 @@ what to do at the start, what to paint, what to do about an event, and what to d
 and the loop owns everything else about when they are asked.
 
 **The widgets are the framework's.** The menu bar, the drop-down it opens, the `MsgDialog` the
-message dialog is drawn in, and the `DialogFrame` and `TextInput` of the open and save dialogs are
-widgets, and what they look like, how they are drawn and which keys they answer to are theirs. So is
-the rectangle a click is tested against: the widget knows where its labels are only once it has been
-drawn, and a click is tested against the areas of the frame before it.
+message dialog is drawn in, the `DialogFrame` and `TextInput` of the open and save dialogs, and the
+`DialogFrame` and `TextArea` of the text editor are widgets, and what they look like, how they are
+drawn and which keys they answer to are theirs. So is the rectangle a click is tested against: the
+widget knows where its labels are only once it has been drawn, and a click is tested against the
+areas of the frame before it.
 
 **The scrollbar is the framework's.** The bar is the helper's, with its own symbols, style and
 thumb, its own mapping from a cell of the track to an offset, and its own reading of the wheel and

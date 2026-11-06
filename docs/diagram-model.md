@@ -441,10 +441,11 @@ value in.
 
 Setting a box's text is a replacement too: the new shape is the old one with another text block, or
 with none. Only a box holds a text; a line and a connector come back unchanged. Giving a box the
-text it already holds is no change, which is the same answer `replace` gives for a stroke it already
-carries. Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke` and
-`Shape::with_text` are the four figure mutations: each produces a new shape value, so looking up a
-figure and replacing it with the modified copy is the complete operation.
+text it already holds is no change, exactly as giving it the stroke it already carries is: a
+mutation builds an equal value, and the editing layer records a step only when the value differs.
+Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke` and `Shape::with_text`
+are the four figure mutations: each produces a new shape value, so looking up a figure and replacing
+it with the modified copy is the complete operation.
 
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A

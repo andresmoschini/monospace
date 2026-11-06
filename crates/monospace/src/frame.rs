@@ -1,9 +1,10 @@
 //! One frame of the screen: the three regions, and the order they are painted in.
 //!
 //! **The order is the picture.** The bar, then the region, then the status bar, then the
-//! drop-down, and the dialog last of all: a widget drawn later covers the one before it, and a
-//! drop-down drawn under the region could not be seen, let alone clicked. **The dialog is the
-//! overlay** (D6 of #189), so it covers the drop-down as well as everything else.
+//! drop-down, and the overlays last of all: a widget drawn later covers the one before it, and a
+//! drop-down drawn under the region could not be seen, let alone clicked. **The overlays cover the
+//! drop-down as well as everything else** (D6 of #189), and at most one is up at a time; the text
+//! editor is the last of them to be painted.
 //!
 //! **Every cell of the screen is painted on every frame.** The terminal diffs against the
 //! previous frame rather than clearing, so a cell that is not painted keeps what was in it. The
@@ -93,8 +94,8 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // a region painted after it would erase it.
     menu::draw_drop_down(area, buf, state.chrome_mut().menu_mut(), &global.cfg.theme);
 
-    // **The dialog is drawn last of all** (D6): it is the overlay, so it covers the drop-down
-    // and everything else, and a control behind it is not there to be seen or clicked.
+    // **The message dialog is drawn after the drop-down** (D6): it is an overlay, so it covers the
+    // drop-down and everything else, and a control behind it is not there to be seen or clicked.
     dialog::draw(regions.region, buf, state.dialog_mut(), &global.cfg.theme);
 
     // **The open dialog and save dialog are overlays at the top layer.** At most one of the
