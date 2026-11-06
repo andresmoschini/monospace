@@ -7,6 +7,10 @@
 //! and **Redo** walk the history those commands recorded. The application keeps no history of its
 //! own: the session is the history.
 //!
+//! **The selection follows the diagram.** A selection names a figure the session holds, or nothing
+//! is selected: [`DiagramState::perform`] reconciles the two after every command, so a command that
+//! takes the selected figure away drops the identity without having to name the selection.
+//!
 //! **The view survives a frame and the offset does not** (D1 of #176): each axis's scroll offset is
 //! derived from the origin and the content, so a content change that moves the drawing's first cell
 //! does not carry the view with it.
@@ -15,7 +19,7 @@ use monospace_core::{
     Buffer, CellReader, Footprint, FootprintSink, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId,
     Size, Window,
 };
-use monospace_diagram::{Shape, Text};
+use monospace_diagram::Shape;
 use monospace_editing::{Command, Session};
 use rat_widget::event::ScrollOutcome;
 use rat_widget::scrolled::{ScrollAreaState, ScrollState};
@@ -74,6 +78,10 @@ pub(crate) struct DiagramState {
     /// the drawing of each frame, so a resize gives the window another size and the selection
     /// follows the shape rather than a rectangle left where it was. A walk over the history clears
     /// the selection (#297).
+    ///
+    /// **An identity names a figure the diagram holds, or nothing is selected**: `perform`
+    /// reconciles the selection with the diagram after every command, so one that takes the figure
+    /// away drops it without naming the selection.
     selected: Option<ShapeId>,
 
     /// The active sub-mode, or `None` if in normal mode.
@@ -231,70 +239,6 @@ impl DiagramState {
             .and_then(|position| self.buffer.owner(position))
     }
 
-    /// Takes the shape `id` out of the session, and drops the selection.
-    ///
-    /// **The removal is the session's and not the diagram's** (rule 7): one `Command::Remove` is
-    /// performed, which records the one step an undo gives back. The application names no `Diagram`
-    /// and no `Shape`, and what hung from the removed shape is frozen by `Diagram::remove`, below
-    /// this layer.
-    ///
-    /// **The identity is dropped with the command** (rule 2). A selection no cell of the next
-    /// drawing records would invert nothing on its own, but the shape is gone, so the state stops
-    /// naming it. **The undo does not bring the identity back** (D2 of #181): what comes back is
-    /// the drawing, and a person who wants the figure selected clicks it again.
-    pub(crate) fn remove(&mut self, id: ShapeId) {
-        self.perform(Command::Remove { id });
-        self.select(None);
-    }
-
-    /// Displaces the shape `id` by `(dx, dy)` cells and keeps the selection.
-    ///
-    /// **The movement is a replacement like any other** (§9 of the diagram model): one
-    /// `Command::Move` is performed, and the diagram below decides what a displacement does to a
-    /// reference hanging from the figure and to the gap of one the figure holds. The application
-    /// names no `Delta`: the pair is converted where the command is written, so this crate does not
-    /// reach below the editing layer for one value.
-    ///
-    /// **The identity survives**, unlike the removal's: the figure is still there, one cell along,
-    /// so the next frame inverts the cells it now owns.
-    pub(crate) fn move_shape(&mut self, id: ShapeId, dx: i16, dy: i16) {
-        self.perform(Command::Move {
-            id,
-            by: (dx, dy).into(),
-        });
-    }
-
-    /// Resizes `id` by `(dx, dy)` cells on the session.
-    ///
-    /// **The pair and not the delta.** As with [`Self::move_shape`], the application's vocabulary
-    /// names no `Delta`: the pair is converted where the command is written.
-    ///
-    /// **The identity survives**: the figure is still there, so the next frame inverts the cells
-    /// it now owns.
-    pub(crate) fn resize_shape(&mut self, id: ShapeId, dx: i16, dy: i16) {
-        self.perform(Command::Resize {
-            id,
-            by: (dx, dy).into(),
-        });
-    }
-
-    /// Sets the stroke of `id` on the session.
-    ///
-    /// **The identity survives**: the figure is still there with its new stroke, so the next
-    /// frame inverts the cells it owns.
-    pub(crate) fn set_stroke(&mut self, id: ShapeId, stroke: monospace_diagram::Stroke) {
-        self.perform(Command::SetStroke { id, stroke });
-    }
-
-    /// Sets the text of `id` on the session.
-    ///
-    /// **The identity survives**, as it does for a stroke: the figure is still there with its new
-    /// text, so the next frame inverts the cells it owns. **A text the box already holds records no
-    /// step**: `Command::SetText` goes through the same `changed` that #285 left in the layer below.
-    pub(crate) fn set_text(&mut self, id: ShapeId, text: Option<Text>) {
-        self.perform(Command::SetText { id, text });
-    }
-
     /// Performs `command` on the session, recording a step when it changes the diagram.
     ///
     /// **A command that changes nothing records no step** (#285): the session is handed back as it
@@ -303,8 +247,36 @@ impl DiagramState {
     /// **The session is the only thing performed on, and the application keeps no copy of it.**
     /// Every command a slice adds goes through here, so the layer below stays the one that decides
     /// what a step is.
-    fn perform(&mut self, command: Command) {
+    ///
+    /// **Callers hand it a command they have already written.** The state does not name a wrapped
+    /// meaning for each one: the client builds the `Command` and this is the one place the session
+    /// is changed by it.
+    ///
+    /// **A selection that named a figure the command took away stops being the selection.** The
+    /// question is the diagram's — is the figure still there? — and not the command's name, so
+    /// every command that removes a figure drops it without having to say so.
+    pub(crate) fn perform(&mut self, command: Command) {
         self.session = self.session.perform(command);
+        self.reconcile_selection();
+    }
+
+    /// Drops the selection when the diagram no longer holds the figure it names.
+    ///
+    /// **The selection is a reference and a command may take its referent away without naming the
+    /// selection.** Asking the diagram whether the figure is still there is what makes the rule
+    /// hold for every command that removes a figure, not only the one whose name says remove.
+    ///
+    /// **A command that leaves the figure in place changes nothing here**: Move, Resize, `SetStroke`
+    /// and `SetText` rewrite the figure under the same identity, and the selection survives them as
+    /// it did.
+    fn reconcile_selection(&mut self) {
+        let Some(selected) = self.selected else {
+            return;
+        };
+
+        if self.session.diagram().get(selected).is_none() {
+            self.select(None);
+        }
     }
 
     /// Gives back the step behind the session, if there is one.
@@ -907,7 +879,10 @@ mod tests {
         state.origin = Pos { x: 7, y: 2 };
         state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
 
-        state.move_shape(finding, 2, 0);
+        state.perform(Command::Move {
+            id: finding,
+            by: (2, 0).into(),
+        });
         state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
 
         assert_eq!(
@@ -916,8 +891,8 @@ mod tests {
             "a change to the drawing carried the view with it"
         );
 
-        state.remove(finding);
-        state.remove(line);
+        state.perform(Command::Remove { id: finding });
+        state.perform(Command::Remove { id: line });
         state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
 
         assert_eq!(
@@ -941,7 +916,7 @@ mod tests {
             "a fresh session has a step behind it"
         );
 
-        state.remove(shape);
+        state.perform(Command::Remove { id: shape });
 
         assert!(state.session.can_undo(), "the removal recorded no step");
         assert!(
@@ -959,6 +934,54 @@ mod tests {
         );
     }
 
+    /// **A command that removes the selected figure drops the selection**, and the sub-mode that
+    /// belonged to it goes with the identity: the figure the selection named is no longer in the
+    /// diagram, so there is nothing left to select.
+    #[test]
+    fn a_command_that_removes_the_selected_figure_drops_the_selection() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        let selected = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+
+        state.select(Some(selected));
+        state.set_sub_mode(Some(SubMode::StrokeSelect));
+        state.perform(Command::Remove { id: selected });
+
+        assert_eq!(
+            state.selected(),
+            None,
+            "the selection named a figure the diagram lost"
+        );
+        assert_eq!(
+            state.sub_mode(),
+            None,
+            "the sub-mode survived the figure it belonged to"
+        );
+    }
+
+    /// **A command that removes another figure keeps the selection.** The rule asks whether the
+    /// diagram still holds the figure the selection names, so a removal that takes another one away
+    /// changes nothing here. This is what distinguishes the state's rule from a cleanup tied to the
+    /// command's name: `Delete` could never produce this case.
+    #[test]
+    fn a_command_that_removes_another_figure_keeps_the_selection() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        let selected = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+        let other = ShapeId::new(NonZeroU16::new(2).expect("2 is not zero"));
+
+        state.select(Some(selected));
+        state.perform(Command::Remove { id: other });
+
+        assert!(
+            state.session.diagram().get(other).is_none(),
+            "the session still holds the figure the command removed"
+        );
+        assert_eq!(
+            state.selected(),
+            Some(selected),
+            "the selection named a figure the diagram still holds"
+        );
+    }
+
     /// **The movement is the session's too, and it records one step.** The figure stays under its
     /// identity and there is a step behind the position, which is what `Undo` gives back.
     #[test]
@@ -968,7 +991,10 @@ mod tests {
         let mut state = DiagramState::new(Session::new(diagram));
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
-        state.move_shape(shape, 1, 0);
+        state.perform(Command::Move {
+            id: shape,
+            by: (1, 0).into(),
+        });
 
         assert!(state.session.can_undo(), "the move recorded no step");
         assert!(
@@ -989,7 +1015,10 @@ mod tests {
         let mut state = DiagramState::new(Session::new(diagram));
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
-        state.resize_shape(shape, 1, 0);
+        state.perform(Command::Resize {
+            id: shape,
+            by: (1, 0).into(),
+        });
 
         assert!(state.session.can_undo(), "the resize recorded no step");
         assert!(
@@ -1019,7 +1048,7 @@ mod tests {
             "the undo at the oldest position took the box out"
         );
 
-        state.remove(shape);
+        state.perform(Command::Remove { id: shape });
 
         assert!(
             state.session.diagram().get(shape).is_none(),
@@ -1076,7 +1105,10 @@ mod tests {
         let mut state = DiagramState::new(Session::new(diagram));
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
-        state.move_shape(shape, 1, 0);
+        state.perform(Command::Move {
+            id: shape,
+            by: (1, 0).into(),
+        });
         state.select(Some(shape));
         state.set_sub_mode(Some(SubMode::StrokeSelect));
 

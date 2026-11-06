@@ -139,6 +139,7 @@ mod tests {
     use crate::vocabulary::Reply;
     use monospace_core::{Offset, ShapeId};
     use monospace_diagram::Text;
+    use monospace_editing::Command;
     use rat_theme4::palettes::dark::BASE16;
     use rat_theme4::themes::create_dark;
     use ratatui_core::buffer::Buffer;
@@ -1117,7 +1118,7 @@ mod tests {
         // position.
         state.chrome_mut().menu_mut().set_popup_active(false);
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
-        state.diagram_mut().remove(shape);
+        state.diagram_mut().perform(Command::Remove { id: shape });
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
         open_the_drop_down(&mut state, &global, 'e');
         let after_the_delete = drop_down_picture(&paint(&mut state, &global, WIDTH, HEIGHT));

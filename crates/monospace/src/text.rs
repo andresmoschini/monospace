@@ -19,6 +19,7 @@
 
 use monospace_core::Glyph;
 use monospace_diagram::{ShapeId, Text};
+use monospace_editing::Command;
 use rat_theme4::WidgetStyle;
 use rat_theme4::theme::SalsaTheme;
 use rat_widget::dialog_frame::{DialogFrame, DialogFrameState};
@@ -165,8 +166,9 @@ pub(crate) fn handle(event: &Event, editor: &mut Overlay<TextEditorState>) -> Re
 
     if state.frame.ok.handle(event, Regular) == ButtonOutcome::Pressed {
         let text = stored(&state.text.text());
+        let id = state.id;
         editor.close();
-        return Reply::Act(Action::SetText(text));
+        return Reply::Act(Action::Command(Command::SetText { id, text }));
     }
 
     if is_escape(event) {
@@ -288,7 +290,7 @@ mod tests {
 
     fn saved(reply: Reply) -> Option<Text> {
         match reply {
-            Reply::Act(Action::SetText(text)) => text,
+            Reply::Act(Action::Command(Command::SetText { text, .. })) => text,
             other => panic!("the editor did not save: {other:?}"),
         }
     }

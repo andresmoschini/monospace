@@ -12,6 +12,7 @@
 
 use monospace_core::Orientation;
 use monospace_diagram::Shape;
+use monospace_editing::Command;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::diagram_state::{DiagramState, SubMode};
@@ -117,8 +118,12 @@ impl KeyPattern {
 pub(crate) enum ContextMeaning {
     /// Dispatches a direct application action.
     Act(Action),
-    /// Dispatches a directional action taking `(dx, dy)`.
-    Directional(fn(i16, i16) -> Action),
+    /// Moves the selected figure by the arrow direction.
+    Move,
+    /// Resizes the selected figure by the arrow direction.
+    Resize,
+    /// Removes the selected figure.
+    Remove,
     /// Sets the stroke of the selected figure to the catalog name.
     SetStroke(&'static str),
     /// Enters an inline sub-mode.
@@ -153,7 +158,7 @@ static SELECTION: &[ContextBlock] = &[
         actions: &[ContextAction {
             pattern: KeyPattern::Arrows,
             display: "↑↓←→",
-            meaning: ContextMeaning::Directional(Action::Move),
+            meaning: ContextMeaning::Move,
         }],
     },
     ContextBlock {
@@ -162,7 +167,7 @@ static SELECTION: &[ContextBlock] = &[
         actions: &[ContextAction {
             pattern: KeyPattern::ShiftArrows,
             display: "Shift+↑↓←→",
-            meaning: ContextMeaning::Directional(Action::Resize),
+            meaning: ContextMeaning::Resize,
         }],
     },
     ContextBlock {
@@ -171,7 +176,7 @@ static SELECTION: &[ContextBlock] = &[
         actions: &[ContextAction {
             pattern: KeyPattern::ShiftHorizontalArrows,
             display: "Shift+←→",
-            meaning: ContextMeaning::Directional(Action::Resize),
+            meaning: ContextMeaning::Resize,
         }],
     },
     ContextBlock {
@@ -180,7 +185,7 @@ static SELECTION: &[ContextBlock] = &[
         actions: &[ContextAction {
             pattern: KeyPattern::ShiftVerticalArrows,
             display: "Shift+↑↓",
-            meaning: ContextMeaning::Directional(Action::Resize),
+            meaning: ContextMeaning::Resize,
         }],
     },
     ContextBlock {
@@ -207,7 +212,7 @@ static SELECTION: &[ContextBlock] = &[
         actions: &[ContextAction {
             pattern: KeyPattern::Code(KeyCode::Delete),
             display: "[Del] Delete",
-            meaning: ContextMeaning::Act(Action::Delete),
+            meaning: ContextMeaning::Remove,
         }],
     },
     ContextBlock {
@@ -355,14 +360,43 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply {
             if action.pattern.matches(key) {
                 return match action.meaning {
                     ContextMeaning::Act(ref act) => Reply::Act(act.clone()),
-                    ContextMeaning::Directional(f) => {
+                    ContextMeaning::Move => {
                         let (dx, dy) =
                             arrow_direction(key.code).expect("arrow pattern matched arrow key");
-                        Reply::Act(f(dx, dy))
+                        let id = state
+                            .selected()
+                            .expect("selection block matched without selection");
+                        Reply::Act(Action::Command(Command::Move {
+                            id,
+                            by: (dx, dy).into(),
+                        }))
+                    }
+                    ContextMeaning::Resize => {
+                        let (dx, dy) =
+                            arrow_direction(key.code).expect("arrow pattern matched arrow key");
+                        let id = state
+                            .selected()
+                            .expect("selection block matched without selection");
+                        Reply::Act(Action::Command(Command::Resize {
+                            id,
+                            by: (dx, dy).into(),
+                        }))
+                    }
+                    ContextMeaning::Remove => {
+                        let id = state
+                            .selected()
+                            .expect("selection block matched without selection");
+                        Reply::Act(Action::Command(Command::Remove { id }))
                     }
                     ContextMeaning::SetStroke(name) => {
                         state.set_sub_mode(None);
-                        Reply::Act(Action::SetStroke(monospace_diagram::Stroke::from(name)))
+                        let id = state
+                            .selected()
+                            .expect("stroke select block matched without selection");
+                        Reply::Act(Action::Command(Command::SetStroke {
+                            id,
+                            stroke: monospace_diagram::Stroke::from(name),
+                        }))
                     }
                     ContextMeaning::EnterSubMode(sub_mode) => {
                         state.set_sub_mode(Some(sub_mode));

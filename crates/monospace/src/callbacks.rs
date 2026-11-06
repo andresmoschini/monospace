@@ -37,6 +37,8 @@ use crate::text;
 use crate::text::TextEditorState;
 use crate::vocabulary::{Action, AppError, Reply};
 use monospace_diagram::Shape;
+#[cfg(test)]
+use monospace_editing::Command;
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
 /// of ours to set up.
@@ -204,41 +206,8 @@ fn apply(action: &Action, state: &mut AppState) {
 
         Action::Redo => state.diagram_mut().redo(),
 
-        // **The one action that performs a command.** D2: the meaning arrives from the table and
-        // the identity is asked of the state, so the removal is one place and the key that means it
-        // is another.
-        Action::Delete => {
-            if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().remove(selected);
-            }
-        }
-
-        // **The movement is the same shape of action as the deletion** (rule 4 of #179): the delta
-        // arrives from the region's handler and the identity is read here.
-        Action::Move(dx, dy) => {
-            if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().move_shape(selected, *dx, *dy);
-            }
-        }
-
-        // **The resize is the same shape of action as the movement**: the delta arrives from the
-        // region's handler and the identity is read here.
-        Action::Resize(dx, dy) => {
-            if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().resize_shape(selected, *dx, *dy);
-            }
-        }
-
-        Action::SetStroke(stroke) => {
-            if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().set_stroke(selected, stroke.clone());
-            }
-        }
-
-        Action::SetText(text) => {
-            if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().set_text(selected, text.clone());
-            }
+        Action::Command(command) => {
+            state.diagram_mut().perform(command.clone());
         }
 
         // **The editor is opened over the selected box and records no step.** The identity and the text
@@ -2142,7 +2111,7 @@ mod tests {
         );
     }
 
-    /// **The selection survives the resize**: applying `Action::Resize` keeps the selected shape.
+    /// **The selection survives the resize**: applying `Command::Resize` keeps the selected shape.
     #[test]
     fn an_action_resize_resizes_the_selected_shape_and_keeps_selection() {
         let mut state = a_drawn_state_over(A_BOX);
@@ -2150,7 +2119,13 @@ mod tests {
         let selected = state.diagram().selected();
         assert!(selected.is_some(), "the box was not selected");
 
-        apply(&Action::Resize(1, 0), &mut state);
+        apply(
+            &Action::Command(Command::Resize {
+                id: selected.unwrap(),
+                by: (1, 0).into(),
+            }),
+            &mut state,
+        );
 
         assert_eq!(state.diagram().selected(), selected);
         assert!(state.diagram().can_undo());
