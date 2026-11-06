@@ -7,6 +7,10 @@
 //! and **Redo** walk the history those commands recorded. The application keeps no history of its
 //! own: the session is the history.
 //!
+//! **The selection follows the diagram.** A selection names a figure the session holds, or nothing
+//! is selected: [`DiagramState::perform`] reconciles the two after every command, so a command that
+//! takes the selected figure away drops the identity without having to name the selection.
+//!
 //! **The view survives a frame and the offset does not** (D1 of #176): each axis's scroll offset is
 //! derived from the origin and the content, so a content change that moves the drawing's first cell
 //! does not carry the view with it.
@@ -74,6 +78,10 @@ pub(crate) struct DiagramState {
     /// the drawing of each frame, so a resize gives the window another size and the selection
     /// follows the shape rather than a rectangle left where it was. A walk over the history clears
     /// the selection (#297).
+    ///
+    /// **An identity names a figure the diagram holds, or nothing is selected**: `perform`
+    /// reconciles the selection with the diagram after every command, so one that takes the figure
+    /// away drops it without naming the selection.
     selected: Option<ShapeId>,
 
     /// The active sub-mode, or `None` if in normal mode.
@@ -244,7 +252,6 @@ impl DiagramState {
     /// the drawing, and a person who wants the figure selected clicks it again.
     pub(crate) fn remove(&mut self, id: ShapeId) {
         self.perform(Command::Remove { id });
-        self.select(None);
     }
 
     /// Displaces the shape `id` by `(dx, dy)` cells and keeps the selection.
@@ -303,8 +310,32 @@ impl DiagramState {
     /// **The session is the only thing performed on, and the application keeps no copy of it.**
     /// Every command a slice adds goes through here, so the layer below stays the one that decides
     /// what a step is.
+    ///
+    /// **A selection that named a figure the command took away stops being the selection.** The
+    /// question is the diagram's — is the figure still there? — and not the command's name, so
+    /// every command that removes a figure drops it without having to say so.
     fn perform(&mut self, command: Command) {
         self.session = self.session.perform(command);
+        self.reconcile_selection();
+    }
+
+    /// Drops the selection when the diagram no longer holds the figure it names.
+    ///
+    /// **The selection is a reference and a command may take its referent away without naming the
+    /// selection.** Asking the diagram whether the figure is still there is what makes the rule
+    /// hold for every command that removes a figure, not only the one whose name says remove.
+    ///
+    /// **A command that leaves the figure in place changes nothing here**: Move, Resize, `SetStroke`
+    /// and `SetText` rewrite the figure under the same identity, and the selection survives them as
+    /// it did.
+    fn reconcile_selection(&mut self) {
+        let Some(selected) = self.selected else {
+            return;
+        };
+
+        if self.session.diagram().get(selected).is_none() {
+            self.select(None);
+        }
     }
 
     /// Gives back the step behind the session, if there is one.
@@ -956,6 +987,54 @@ mod tests {
             state.selected(),
             None,
             "the removal kept the identity it took out"
+        );
+    }
+
+    /// **A command that removes the selected figure drops the selection**, and the sub-mode that
+    /// belonged to it goes with the identity: the figure the selection named is no longer in the
+    /// diagram, so there is nothing left to select.
+    #[test]
+    fn a_command_that_removes_the_selected_figure_drops_the_selection() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        let selected = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+
+        state.select(Some(selected));
+        state.set_sub_mode(Some(SubMode::StrokeSelect));
+        state.perform(Command::Remove { id: selected });
+
+        assert_eq!(
+            state.selected(),
+            None,
+            "the selection named a figure the diagram lost"
+        );
+        assert_eq!(
+            state.sub_mode(),
+            None,
+            "the sub-mode survived the figure it belonged to"
+        );
+    }
+
+    /// **A command that removes another figure keeps the selection.** The rule asks whether the
+    /// diagram still holds the figure the selection names, so a removal that takes another one away
+    /// changes nothing here. This is what distinguishes the state's rule from a cleanup tied to the
+    /// command's name: `Delete` could never produce this case.
+    #[test]
+    fn a_command_that_removes_another_figure_keeps_the_selection() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        let selected = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+        let other = ShapeId::new(NonZeroU16::new(2).expect("2 is not zero"));
+
+        state.select(Some(selected));
+        state.perform(Command::Remove { id: other });
+
+        assert!(
+            state.session.diagram().get(other).is_none(),
+            "the session still holds the figure the command removed"
+        );
+        assert_eq!(
+            state.selected(),
+            Some(selected),
+            "the selection named a figure the diagram still holds"
         );
     }
 
