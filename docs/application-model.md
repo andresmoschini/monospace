@@ -122,12 +122,14 @@ selection is the shape that drawing answered with, and the chrome's own is what 
 screen hold between frames — which label of the bar is selected, whether a drop-down is open, which
 of the two leaves holds the keyboard, and what the message dialog, the open dialog, the save dialog,
 and the text editor hold (`MsgDialogState`, `OpenDialogState`, `SaveDialogState`, and
-`TextEditorState`). Opening the text editor selects all the text of the box. They are one thing
-because they change together: a frame that changes one of them changes the others. Replacing the
-session on `New`, `OpenFile` or `OpenDemo` resets the state as a fresh startup does: the diagram is
-drawn at `(0, 0)`, nothing is selected, the undo and redo history is empty, and the dialogs are
-down. Saving via `SaveFile` writes the description to disk and leaves the session, its selection,
-and its history untouched.
+`TextEditorState`). **Each of the four is an `Overlay` of its own state**: down, or up over the
+state of the widget inside it, so an overlay that is down holds no buffer, no field and no box.
+Opening the text editor selects all the text of the box. They are one thing because they change
+together: a frame that changes one of them changes the others. Replacing the session on `New`,
+`OpenFile` or `OpenDemo` resets the state as a fresh startup does: the diagram is drawn at `(0, 0)`,
+nothing is selected, the undo and redo history is empty, and the dialogs are down. Saving via
+`SaveFile` writes the description to disk and leaves the session, its selection, and its history
+untouched.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
