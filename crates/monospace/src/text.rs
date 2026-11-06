@@ -63,8 +63,7 @@ impl TextEditorState {
     /// Windows would produce a buffer that `Text::new` rejects.
     ///
     /// **The wrap is `Word(1)` and not the framework's default.** `TextWrap::Shift` means no
-    /// wrapping at all, which is not what D6 asks for; the spec is corrected with this commit's
-    /// PR (see commit 9).
+    /// wrapping at all, which is not what D6 of #304 asks for.
     pub(crate) fn new(id: ShapeId, text: Option<&Text>) -> Self {
         let seed = text
             .map(|text| {
