@@ -157,11 +157,12 @@ it.
 drawing records beside the cell under it, and what the frame inverts is recomputed from the drawing
 of each frame: a resize gives the window another size, a scroll moves the origin, and a command may
 move the shape, so a rectangle would mark cells the shape no longer holds while missing the ones it
-gained. A selection no cell of a later drawing records inverts nothing; **the removal of the
-selected figure also drops the identity**, as part of carrying the action out (see §4), so the frame
-that follows a deletion inverts nothing because nothing is selected rather than because the record
-and the selection disagree. Naming the selected shape in words is the status bar's (see §2), derived
-directly from the diagram state rather than stored.
+gained. A selection no cell of a later drawing records inverts nothing; **and a selection names a
+figure the diagram holds, or nothing is selected**: after every command the application reconciles
+the identity with the diagram, so a command that takes the selected figure away drops it without
+naming the selection (see §4), and the frame that follows inverts nothing because nothing is
+selected rather than because the record and the selection disagree. Naming the selected shape in
+words is the status bar's (see §2), derived directly from the diagram state rather than stored.
 
 **The focus is the chrome's own, and it is not the selection.** Which of the two leaves — the bar
 and the diagram region — holds the keyboard is a fact about the chrome, held between frames: it
@@ -266,11 +267,12 @@ identity.** It is offered on the contextual status bar as `[Del] Delete` wheneve
 selected (`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`), and the key is dispatched by the
 diagram region from the active context table. The action names no identity — the identity is read
 from the state where the action is carried out. The session performs one `Command::Remove` and
-records one step, which is what #181 gives back; the state drops the selection in the same action,
-so the next frame inverts nothing. **The removal is not confirmed**: until a confirmation dialog
-arrives, an accidental `Delete` is given back by `Undo` and by nothing else. `Delete` is strictly
-contextual: with nothing selected (`IDLE`), or while in an ephemeral sub-mode (`STROKE_SELECT`), it
-is not offered and performs no deletion; and it is not an entry in the global `Edit` menu.
+records one step, which is what #181 gives back; the selection stops naming a figure the diagram no
+longer has, so the removal leaves nothing selected and the next frame inverts nothing. **The removal
+is not confirmed**: until a confirmation dialog arrives, an accidental `Delete` is given back by
+`Undo` and by nothing else. `Delete` is strictly contextual: with nothing selected (`IDLE`), or
+while in an ephemeral sub-mode (`STROKE_SELECT`), it is not offered and performs no deletion; and it
+is not an entry in the global `Edit` menu.
 
 **`EditText` and `SetText` are the text editor's actions.** `EditText` is offered on the contextual
 status bar as `[t] Edit` whenever a box is selected, and pressing `t` opens the text editor overlay
@@ -543,7 +545,9 @@ framework's buffer one at a time.
   inverts nothing.
 - The selection survives a resize, because it is an identity rather than the cells it covered.
 - A click changes no diagram: it is not a command and it records no step.
-- `Delete` removes the selected figure, records one step, and leaves the state holding no selection.
+- `Delete` removes the selected figure, records one step, and leaves the state holding no selection:
+  the figure the selection named is gone.
+- A command that removes a figure the selection does not name leaves the selection where it was.
 - The contextual status bar offers `[Del] Delete` while a figure is selected (`SELECTED_BOX`,
   `SELECTED_LINE`, `SELECTED_CONNECTOR`), and the key is answered by the region widget.
 - `Delete` with nothing selected or while in an ephemeral sub-mode performs no deletion.
