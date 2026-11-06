@@ -22,6 +22,7 @@ mod event;
 mod frame;
 mod menu;
 mod open;
+mod overlay;
 mod save;
 mod shortcuts;
 mod state;

@@ -8,32 +8,33 @@ use rat_widget::msgdialog::MsgDialogState;
 
 use crate::status;
 
-/// Opens the dialog over the application's own name and version.
+/// The dialog over the application's own name and version.
 ///
 /// **The message is built from `status`**, where the name and the version already live: the status
 /// line and the dialog cannot disagree about what the application is. Opening it a second time
-/// replaces the message rather than appending to it.
-pub(crate) fn open(state: &mut MsgDialogState) {
-    state.clear();
-    state.title(format!("About {}", status::NAME));
-    state.append(&format!("{} {}", status::NAME, status::VERSION));
+/// replaces the message rather than appending to it, because the overlay is replaced whole.
+pub(crate) fn open() -> MsgDialogState {
+    MsgDialogState::new_active(
+        format!("About {}", status::NAME),
+        format!("{} {}", status::NAME, status::VERSION),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::dialog::testing::{REGION, picture, theme};
+    use crate::overlay::Overlay;
     use ratatui_core::buffer::Buffer;
 
     /// **The title and the body come from the application's own name and version** (D5), so the
     /// dialog and the status line cannot say two different things.
     #[test]
     fn the_about_dialog_carries_the_name_and_the_version() {
-        let mut state = MsgDialogState::default();
-        open(&mut state);
+        let mut dialog = Overlay::up(open());
 
         let mut buffer = Buffer::empty(REGION);
-        crate::dialog::draw(REGION, &mut buffer, &mut state, &theme());
+        crate::dialog::draw(REGION, &mut buffer, &mut dialog, &theme());
         let frame = picture(&buffer);
 
         assert!(

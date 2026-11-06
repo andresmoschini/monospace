@@ -28,10 +28,13 @@ use crate::event::AppEvent;
 use crate::frame;
 use crate::menu;
 use crate::open;
+use crate::open::OpenDialogState;
 use crate::save;
+use crate::save::SaveDialogState;
 use crate::shortcuts;
 use crate::state::AppState;
 use crate::text;
+use crate::text::TextEditorState;
 use crate::vocabulary::{Action, AppError, Reply};
 use monospace_diagram::Shape;
 
@@ -131,9 +134,9 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     // **The two reaches that answer before the press is addressed come first, and in this order.**
     // A `Ctrl+Shift+Q` that reached the chrome as a key would be answered by the chrome, and the
     // point of it is that it is answered by nothing; the overlays sit above the application, so
-    // while one is up an event it leaves alone reaches nothing else. **`Ignored` is the overlay being down**:
-    // the framework answers it while inactive, so asking it is one call and not a question
-    // about `active()` followed by a question about the event.
+    // while one is up an event it leaves alone reaches nothing else. **`Ignored` is the overlay
+    // being down**: the handler hands it back without asking the widget, so routing is one call and
+    // not a question about whether the overlay is up followed by a question about the event.
     //
     // **Neither moves the keyboard**, which is why addressing sits below and not here: a
     // click on the bar behind an overlay moves nothing, and the press is addressed only once nobody
@@ -250,19 +253,21 @@ fn apply(action: &Action, state: &mut AppState) {
                 });
 
             if let Some((id, text)) = opened {
-                state.text_mut().open(id, text.as_ref());
+                state
+                    .text_mut()
+                    .show(TextEditorState::new(id, text.as_ref()));
             }
         }
 
         // **The two actions that open the overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
-        Action::About => about::open(state.dialog_mut()),
+        Action::About => state.dialog_mut().show(about::open()),
 
         // **The same overlay, over a failure's text**: it replaces whatever the dialog held.
-        Action::ShowError(message) => error::open(state.dialog_mut(), message),
+        Action::ShowError(message) => state.dialog_mut().show(error::open(message)),
 
         // **The open dialog is the chrome's own too**, and opening it changes no session.
-        Action::Open => state.open_mut().open(),
+        Action::Open => state.open_mut().show(OpenDialogState::new()),
 
         // **The path is read and parsed before anything is replaced** (D3 and D4 of #260): a
         // file that cannot be read or parsed leaves the current session untouched, and reports
@@ -284,7 +289,7 @@ fn apply(action: &Action, state: &mut AppState) {
         },
 
         // **The save dialog is the chrome's own too**, and opening it changes no session.
-        Action::Save => state.save_mut().open(),
+        Action::Save => state.save_mut().show(SaveDialogState::new()),
 
         // **The session's diagram is serialized and written to path** (D2 and D3 of #270): on
         // success the file is written and the current session is untouched; on any error it
@@ -654,7 +659,7 @@ mod tests {
             matches!(outcome, Control::Changed),
             "taking About owed no frame: {outcome:?}"
         );
-        assert!(state.dialog().active(), "taking About opened no dialog");
+        assert!(state.dialog().is_up(), "taking About opened no dialog");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -677,7 +682,7 @@ mod tests {
             matches!(outcome, Control::Changed),
             "taking Open owed no frame: {outcome:?}"
         );
-        assert!(state.open().active(), "taking Open opened no dialog");
+        assert!(state.open().is_up(), "taking Open opened no dialog");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -700,7 +705,7 @@ mod tests {
             matches!(outcome, Control::Changed),
             "taking Save owed no frame: {outcome:?}"
         );
-        assert!(state.save().active(), "taking Save opened no dialog");
+        assert!(state.save().is_up(), "taking Save opened no dialog");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -767,7 +772,7 @@ mod tests {
 
         apply(&Action::ShowError("Something failed".into()), &mut state);
 
-        assert!(state.dialog().active(), "the error left the dialog down");
+        assert!(state.dialog().is_up(), "the error left the dialog down");
 
         let mut buffer = Buffer::empty(Rect::new(0, 0, 40, 10));
         crate::dialog::draw(
@@ -833,16 +838,13 @@ mod tests {
         );
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(
-            state.open().active(),
-            "the shortcut did not open the dialog"
-        );
+        assert!(state.open().is_up(), "the shortcut did not open the dialog");
 
         // The entry of the menu.
         let mut state = a_drawn_state();
         open_the_open_dialog(&mut state);
         assert!(
-            state.open().active(),
+            state.open().is_up(),
             "the menu entry did not open the dialog"
         );
     }
@@ -860,7 +862,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            state.save().active(),
+            state.save().is_up(),
             "the shortcut did not open the save dialog"
         );
 
@@ -868,7 +870,7 @@ mod tests {
         let mut state = a_drawn_state();
         open_the_save_dialog(&mut state);
         assert!(
-            state.save().active(),
+            state.save().is_up(),
             "the menu entry did not open the save dialog"
         );
     }
@@ -882,13 +884,13 @@ mod tests {
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram().selected();
         open_the_about_dialog(&mut state);
-        assert!(state.dialog().active(), "the dialog is not open");
+        assert!(state.dialog().is_up(), "the dialog is not open");
         let focus = state.chrome().leaf();
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.dialog().active(), "escape did not close the dialog");
+        assert!(!state.dialog().is_up(), "escape did not close the dialog");
         assert_eq!(
             state.chrome().leaf(),
             focus,
@@ -983,14 +985,14 @@ mod tests {
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram().selected();
         open_the_open_dialog(&mut state);
-        assert!(state.open().active(), "the open dialog is not open");
+        assert!(state.open().is_up(), "the open dialog is not open");
         let focus = state.chrome().leaf();
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.open().active(),
+            !state.open().is_up(),
             "escape did not close the open dialog"
         );
         assert_eq!(
@@ -1021,14 +1023,14 @@ mod tests {
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram().selected();
         open_the_save_dialog(&mut state);
-        assert!(state.save().active(), "the save dialog is not open");
+        assert!(state.save().is_up(), "the save dialog is not open");
         let focus = state.chrome().leaf();
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.save().active(),
+            !state.save().is_up(),
             "escape did not close the save dialog"
         );
         assert_eq!(
@@ -1069,7 +1071,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "the way out was answered through the open dialog: {outcome:?}"
         );
-        assert!(state.open().active(), "Ctrl+Q closed the open dialog");
+        assert!(state.open().is_up(), "Ctrl+Q closed the open dialog");
 
         let _ = send(&click(column, row), &mut state);
 
@@ -1083,7 +1085,7 @@ mod tests {
             "the click behind the dialog opened a drop-down"
         );
         assert!(
-            state.open().active(),
+            state.open().is_up(),
             "the click on the bar closed the open dialog"
         );
     }
@@ -1106,7 +1108,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "the way out was answered through the save dialog: {outcome:?}"
         );
-        assert!(state.save().active(), "Ctrl+Q closed the save dialog");
+        assert!(state.save().is_up(), "Ctrl+Q closed the save dialog");
 
         let _ = send(&click(column, row), &mut state);
 
@@ -1120,7 +1122,7 @@ mod tests {
             "the click behind the save dialog opened a drop-down"
         );
         assert!(
-            state.save().active(),
+            state.save().is_up(),
             "the click on the bar closed the save dialog"
         );
     }
@@ -1150,12 +1152,14 @@ mod tests {
         open_the_open_dialog(&mut state);
         state
             .open_mut()
+            .get_mut()
+            .expect("the open dialog is up")
             .set_path(path.to_str().expect("the temp path is UTF-8"));
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.open().active(), "the load left the dialog up");
+        assert!(!state.open().is_up(), "the load left the dialog up");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -1321,17 +1325,18 @@ mod tests {
         let selected = state.diagram().selected();
 
         open_the_open_dialog(&mut state);
-        state.open_mut().set_path("missing.json");
+        state
+            .open_mut()
+            .get_mut()
+            .expect("the open dialog is up")
+            .set_path("missing.json");
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.open().is_up(), "the failure left the open dialog up");
         assert!(
-            !state.open().active(),
-            "the failure left the open dialog up"
-        );
-        assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the failure did not open the error dialog"
         );
         assert_eq!(
@@ -1358,17 +1363,16 @@ mod tests {
         open_the_open_dialog(&mut state);
         state
             .open_mut()
+            .get_mut()
+            .expect("the open dialog is up")
             .set_path(path.to_str().expect("the temp path is UTF-8"));
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.open().is_up(), "the failure left the open dialog up");
         assert!(
-            !state.open().active(),
-            "the failure left the open dialog up"
-        );
-        assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the failure did not open the error dialog"
         );
         assert_eq!(
@@ -1396,12 +1400,16 @@ mod tests {
 
         let mut state = a_drawn_state_over(A_BOX);
         open_the_save_dialog(&mut state);
-        state.save_mut().set_path(path_str);
+        state
+            .save_mut()
+            .get_mut()
+            .expect("the save dialog is up")
+            .set_path(path_str);
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.save().active(), "saving left the save dialog up");
+        assert!(!state.save().is_up(), "saving left the save dialog up");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -1441,12 +1449,16 @@ mod tests {
         assert!(state.diagram().can_undo(), "movement created no undo step");
 
         open_the_save_dialog(&mut state);
-        state.save_mut().set_path(path_str);
+        state
+            .save_mut()
+            .get_mut()
+            .expect("the save dialog is up")
+            .set_path(path_str);
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.save().active(), "saving left the save dialog up");
+        assert!(!state.save().is_up(), "saving left the save dialog up");
         assert_eq!(
             state.diagram().selected(),
             selected,
@@ -1467,17 +1479,17 @@ mod tests {
         let selected = state.diagram().selected();
 
         open_the_save_dialog(&mut state);
-        assert_eq!(state.save().path(), "");
+        assert_eq!(
+            state.save().get().expect("the save dialog is up").path(),
+            ""
+        );
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.save().is_up(), "the failure left the save dialog up");
         assert!(
-            !state.save().active(),
-            "the failure left the save dialog up"
-        );
-        assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the failure did not open the error dialog"
         );
         assert_eq!(
@@ -1507,17 +1519,18 @@ mod tests {
 
         open_the_save_dialog(&mut state);
         let missing_path = "nonexistent_dir_12345/saved.json";
-        state.save_mut().set_path(missing_path);
+        state
+            .save_mut()
+            .get_mut()
+            .expect("the save dialog is up")
+            .set_path(missing_path);
 
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.save().is_up(), "the failure left the save dialog up");
         assert!(
-            !state.save().active(),
-            "the failure left the save dialog up"
-        );
-        assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the failure did not open the error dialog"
         );
         assert_eq!(
@@ -1557,7 +1570,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "the way out was answered through the dialog: {outcome:?}"
         );
-        assert!(state.dialog().active(), "Ctrl+Q closed the dialog");
+        assert!(state.dialog().is_up(), "Ctrl+Q closed the dialog");
 
         // The bar is behind the overlay even where the dialog does not cover it.
         let _ = send(&click(column, row), &mut state);
@@ -1572,7 +1585,7 @@ mod tests {
             "the click behind the dialog opened a drop-down"
         );
         assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the click on the bar closed the dialog"
         );
     }
@@ -1673,7 +1686,7 @@ mod tests {
         // answered before it (D6 of #189).
         let mut state = a_drawn_state();
         open_the_about_dialog(&mut state);
-        assert!(state.dialog().active(), "the dialog is not open");
+        assert!(state.dialog().is_up(), "the dialog is not open");
 
         let outcome = send(
             &key_with(
@@ -1691,7 +1704,7 @@ mod tests {
         // The save dialog is up: the overlay takes every control but this one.
         let mut state = a_drawn_state();
         open_the_save_dialog(&mut state);
-        assert!(state.save().active(), "the save dialog is not open");
+        assert!(state.save().is_up(), "the save dialog is not open");
 
         let outcome = send(
             &key_with(
@@ -1710,7 +1723,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         let _ = send(&key(KeyCode::Char('t')), &mut state);
-        assert!(state.text().active(), "the text editor is not open");
+        assert!(state.text().is_up(), "the text editor is not open");
 
         let outcome = send(
             &key_with(
@@ -2536,7 +2549,7 @@ mod tests {
         let _ = send(&key(KeyCode::Right), &mut state);
 
         assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the arrow closed the dialog it should not have reached"
         );
         assert!(
@@ -3047,14 +3060,14 @@ mod tests {
             &key_with(KeyCode::Char('s'), KeyModifiers::CONTROL),
             &mut state,
         );
-        assert!(state.save().active());
+        assert!(state.save().is_up());
         assert_eq!(
             state.diagram().sub_mode(),
             Some(crate::diagram_state::SubMode::StrokeSelect)
         );
 
         let _ = send(&key(KeyCode::Esc), &mut state);
-        assert!(!state.save().active());
+        assert!(!state.save().is_up());
         assert_eq!(
             state.diagram().sub_mode(),
             Some(crate::diagram_state::SubMode::StrokeSelect)
@@ -3278,7 +3291,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Char('t')), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(state.text().active(), "t opened no editor");
+        assert!(state.text().is_up(), "t opened no editor");
         assert!(
             !state.diagram().can_undo(),
             "opening the editor recorded a step"
@@ -3297,7 +3310,7 @@ mod tests {
         );
         let outcome = send(&key(KeyCode::Char('t')), &mut line);
         assert!(matches!(outcome, Control::Continue), "line: {outcome:?}");
-        assert!(!line.text().active(), "line: t opened an editor");
+        assert!(!line.text().is_up(), "line: t opened an editor");
 
         // **A connector**, selected directly: its route is the drawing's, and what this test says
         // is that `t` is not accepted for it, not how a press selects one.
@@ -3310,7 +3323,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "connector: {outcome:?}"
         );
-        assert!(!connector.text().active(), "connector: t opened an editor");
+        assert!(!connector.text().is_up(), "connector: t opened an editor");
 
         // **Nothing selected.**
         let mut nothing = a_drawn_state_over(A_BOX);
@@ -3320,7 +3333,7 @@ mod tests {
             "nothing selected: {outcome:?}"
         );
         assert!(
-            !nothing.text().active(),
+            !nothing.text().is_up(),
             "nothing selected: t opened an editor"
         );
 
@@ -3337,7 +3350,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "sub-mode: {outcome:?}"
         );
-        assert!(!sub_mode.text().active(), "sub-mode: t opened an editor");
+        assert!(!sub_mode.text().is_up(), "sub-mode: t opened an editor");
     }
 
     #[test]
@@ -3348,7 +3361,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
-        assert!(!state.text().active(), "Enter opened the editor");
+        assert!(!state.text().is_up(), "Enter opened the editor");
     }
 
     #[test]
@@ -3364,7 +3377,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.text().active(), "Ok did not close the editor");
+        assert!(!state.text().is_up(), "Ok did not close the editor");
         assert!(state.diagram().can_undo(), "saving recorded no step");
         assert_eq!(
             state.diagram().selected(),
@@ -3378,7 +3391,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.text().active(), "Escape did not close the editor");
+        assert!(!state.text().is_up(), "Escape did not close the editor");
 
         // **`Cancel` with `Enter` discards too** (rule 7): two `Tab`s reach it from the buffer.
         let _ = send(&key(KeyCode::Char('t')), &mut state);
@@ -3389,7 +3402,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.text().active(),
+            !state.text().is_up(),
             "Enter on Cancel did not close the editor"
         );
         let Shape::Box { text: kept, .. } = state
@@ -3417,7 +3430,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.text().active(), "Ok did not close the editor");
+        assert!(!state.text().is_up(), "Ok did not close the editor");
         assert!(
             !state.diagram().can_undo(),
             "saving the same text recorded a step"
@@ -3443,7 +3456,7 @@ mod tests {
         );
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
-        assert!(state.text().active(), "Ctrl+C closed the editor");
+        assert!(state.text().is_up(), "Ctrl+C closed the editor");
         assert_eq!(
             rat_widget::text::clipboard::global_clipboard()
                 .get_string()
@@ -3472,13 +3485,13 @@ mod tests {
                 matches!(outcome, Control::Continue),
                 "{code:?}: {outcome:?}"
             );
-            assert!(state.text().active(), "{code:?}: the editor closed");
+            assert!(state.text().is_up(), "{code:?}: the editor closed");
             assert!(
-                !state.dialog().active(),
+                !state.dialog().is_up(),
                 "{code:?}: the message dialog opened"
             );
-            assert!(!state.open().active(), "{code:?}: the open dialog opened");
-            assert!(!state.save().active(), "{code:?}: the save dialog opened");
+            assert!(!state.open().is_up(), "{code:?}: the open dialog opened");
+            assert!(!state.save().is_up(), "{code:?}: the save dialog opened");
             assert!(!state.diagram().can_undo(), "{code:?}: the diagram changed");
         }
 
@@ -3489,23 +3502,27 @@ mod tests {
         let outcome = send(&key(KeyCode::Char('t')), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(state.text().active(), "t inside the editor closed it");
-        assert_eq!(state.text().buffer(), "t");
+        assert!(state.text().is_up(), "t inside the editor closed it");
+        assert_eq!(
+            state.text().get().expect("the text editor is up").buffer(),
+            "t"
+        );
 
         // `Tab` moves the focus inside the editor and inserts no tab.
         let outcome = send(&key(KeyCode::Tab), &mut state);
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(state.text().active(), "Tab closed the editor");
-        assert_eq!(state.text().buffer(), "t", "Tab inserted a tab");
+        assert!(state.text().is_up(), "Tab closed the editor");
+        assert_eq!(
+            state.text().get().expect("the text editor is up").buffer(),
+            "t",
+            "Tab inserted a tab"
+        );
 
         // A click on the bar reaches nothing: the editor stays up and the keyboard does not move.
         let leaf = state.chrome().leaf();
         let outcome = send(&click(3, 0), &mut state);
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
-        assert!(
-            state.text().active(),
-            "a click on the bar closed the editor"
-        );
+        assert!(state.text().is_up(), "a click on the bar closed the editor");
         assert_eq!(state.chrome().leaf(), leaf, "the click moved the keyboard");
     }
 

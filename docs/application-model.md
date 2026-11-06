@@ -122,12 +122,14 @@ selection is the shape that drawing answered with, and the chrome's own is what 
 screen hold between frames — which label of the bar is selected, whether a drop-down is open, which
 of the two leaves holds the keyboard, and what the message dialog, the open dialog, the save dialog,
 and the text editor hold (`MsgDialogState`, `OpenDialogState`, `SaveDialogState`, and
-`TextEditorState`). Opening the text editor selects all the text of the box. They are one thing
-because they change together: a frame that changes one of them changes the others. Replacing the
-session on `New`, `OpenFile` or `OpenDemo` resets the state as a fresh startup does: the diagram is
-drawn at `(0, 0)`, nothing is selected, the undo and redo history is empty, and the dialogs are
-down. Saving via `SaveFile` writes the description to disk and leaves the session, its selection,
-and its history untouched.
+`TextEditorState`). **Each of the four is an `Overlay` of its own state**: down, or up over the
+state of the widget inside it, so an overlay that is down holds no buffer, no field and no box.
+Opening the text editor selects all the text of the box. They are one thing because they change
+together: a frame that changes one of them changes the others. Replacing the session on `New`,
+`OpenFile` or `OpenDemo` resets the state as a fresh startup does: the diagram is drawn at `(0, 0)`,
+nothing is selected, the undo and redo history is empty, and the dialogs are down. Saving via
+`SaveFile` writes the description to disk and leaves the session, its selection, and its history
+untouched.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
@@ -513,10 +515,10 @@ framework's buffer one at a time.
 - `File > Open Demo` applies `OpenDemo`, starting a fresh session with the built-in demonstration
   diagram and resetting the state.
 - Launching with no arguments starts with a blank diagram (`nothing drawn`).
-- An overlay (the message dialog, the open dialog, or the save dialog) is drawn last of all, sets
-  the terminal's screen cursor when the field is focused, and leaves the region byte-identical when
-  it closes.
-- `Esc` and `Ok` close the dialog, and the closing event reaches nothing else.
+- An overlay (the message dialog, the open dialog, the save dialog, or the text editor) is drawn
+  last of all, sets the terminal's screen cursor when a field or buffer holds the focus, and leaves
+  the region byte-identical when it closes.
+- `Esc` and `Ok` close the overlay, and the closing event reaches nothing else.
 - `Ctrl+Q` does nothing while an overlay is up, and a click on the bar behind it reaches nothing.
 - `OpenFile` with a valid file starts a fresh session and resets the state; on any failure the
   current session is untouched and `ShowError` opens the error dialog.
@@ -551,7 +553,7 @@ framework's buffer one at a time.
 - An arrow moves the selected figure one cell along its own axis, records one step, and leaves the
   selection on it.
 - An arrow with nothing selected ignores the key and performs no command.
-- An arrow while the bar holds the keyboard, or while the dialog is up, moves nothing.
+- An arrow while the bar holds the keyboard, or while an overlay is up, moves nothing.
 - A move with a modifier, a release and a repeat move nothing.
 - A carried-out move leaves the keyboard on the region.
 - A figure moved past the window's edge is not drawn.
@@ -575,7 +577,7 @@ framework's buffer one at a time.
   frame, and shows the terminal cursor only when the text buffer holds focus.
 - `Ok` in the text editor saves via `SetText`, while `Esc` and `Cancel` discard edits without
   recording a step; saving identical text records no step in history.
-- While the text editor overlay is active, buffer shortcuts (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+A`)
+- While the text editor overlay is up, buffer shortcuts (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+A`)
   belong to the text editor, while application shortcuts (`Ctrl+Q`, `Ctrl+S`, `Ctrl+O`, `Ctrl+N`) do
   nothing; `Ctrl+Shift+Q` terminates the application even while the editor is up.
 - The view opens at `(0, 0)`, and a drawing inside the first screen does not scroll.

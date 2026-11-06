@@ -135,6 +135,7 @@ mod tests {
     use crate::context::AppGlobal;
     use crate::state::AppState;
     use crate::status;
+    use crate::text::TextEditorState;
     use crate::vocabulary::Reply;
     use monospace_core::{Offset, ShapeId};
     use monospace_diagram::Text;
@@ -763,15 +764,15 @@ mod tests {
         );
     }
 
-    /// **The dialog is drawn last of all** (rule 9): it is the overlay, so it covers the drop-down
-    /// as well as the region, and a control behind it is not there to be seen.
+    /// **The dialog is drawn over the drop-down** (rule 9): it is an overlay, so it covers the
+    /// drop-down as well as the region, and a control behind it is not there to be seen.
     #[test]
-    fn the_dialog_is_drawn_last_of_all() {
+    fn the_dialog_is_drawn_over_the_drop_down() {
         let mut state = a_state();
         let global = a_global();
 
         open_the_drop_down(&mut state, &global, 'f');
-        crate::about::open(state.dialog_mut());
+        state.dialog_mut().show(crate::about::open());
         let frame = picture(&paint(&mut state, &global, WIDTH, HEIGHT));
 
         assert!(
@@ -1235,7 +1236,7 @@ mod tests {
             .collect();
 
         let text = Text::new("hi").unwrap();
-        state.text_mut().open(id, Some(&text));
+        state.text_mut().show(TextEditorState::new(id, Some(&text)));
 
         let after = paint(&mut state, &a_global(), WIDTH, HEIGHT);
         let after_rows: Vec<String> = (status.top()..status.bottom())
@@ -1257,7 +1258,7 @@ mod tests {
         state.diagram_mut().select(Some(id));
 
         let text = Text::new("hi").unwrap();
-        state.text_mut().open(id, Some(&text));
+        state.text_mut().show(TextEditorState::new(id, Some(&text)));
 
         let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
 

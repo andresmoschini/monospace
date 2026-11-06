@@ -32,6 +32,7 @@ use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui_widgets::block::Block;
 
+use crate::overlay::Overlay;
 use crate::vocabulary::{Action, Reply};
 
 /// The largest the dialog grows: wide enough for a label, short enough to leave the region around
@@ -41,14 +42,11 @@ const MAX_WIDTH: u16 = 56;
 /// The largest the dialog grows, in rows. It includes the border and the row of buttons.
 const MAX_HEIGHT: u16 = 14;
 
-/// The state of the text editor: whether it is up, the box it edits, its frame and its buffer.
-#[derive(Debug, Default)]
+/// The state of the text editor: the box it edits, its frame and its buffer.
+#[derive(Debug)]
 pub(crate) struct TextEditorState {
-    /// Whether the editor is up. The overlay holds the keyboard only while this is true.
-    active: bool,
-
     /// The box being edited, for the title.
-    id: Option<ShapeId>,
+    id: ShapeId,
 
     /// The frame and its two buttons.
     frame: DialogFrameState,
@@ -58,16 +56,15 @@ pub(crate) struct TextEditorState {
 }
 
 impl TextEditorState {
-    /// Opens the editor over box `id`, seeded with `text` and with all of it selected.
+    /// The editor over box `id`, seeded with `text` and with all of it selected.
     ///
     /// **The line ending is set explicitly to `\n`.** `TextAreaState` defaults to `\r\n` on
     /// Windows, and the model refuses a carriage return: without this line, every `Enter` on
     /// Windows would produce a buffer that `Text::new` rejects.
     ///
     /// **The wrap is `Word(1)` and not the framework's default.** `TextWrap::Shift` means no
-    /// wrapping at all, which is not what D6 asks for; the spec is corrected with this commit's
-    /// PR (see commit 9).
-    pub(crate) fn open(&mut self, id: ShapeId, text: Option<&Text>) {
+    /// wrapping at all, which is not what D6 of #304 asks for.
+    pub(crate) fn new(id: ShapeId, text: Option<&Text>) -> Self {
         let seed = text
             .map(|text| {
                 text.lines()
@@ -78,21 +75,20 @@ impl TextEditorState {
             })
             .unwrap_or_default();
 
-        self.active = true;
-        self.id = Some(id);
-        self.frame.ok.focus.set(false);
-        self.frame.cancel.focus.set(false);
-        self.text.focus.set(true);
-        self.text.set_newline("\n");
-        self.text.set_text_wrap(TextWrap::Word(1));
-        self.text.set_text(seed);
-        let _ = self.text.select_all();
-    }
+        let mut state = Self {
+            id,
+            frame: DialogFrameState::default(),
+            text: TextAreaState::default(),
+        };
 
-    /// Whether the editor is up.
-    #[cfg(test)]
-    pub(crate) fn active(&self) -> bool {
-        self.active
+        state.frame.ok.focus.set(false);
+        state.frame.cancel.focus.set(false);
+        state.text.focus.set(true);
+        state.text.set_newline("\n");
+        state.text.set_text_wrap(TextWrap::Word(1));
+        state.text.set_text(seed);
+        let _ = state.text.select_all();
+        state
     }
 
     /// The text currently in the buffer, for the tests that would otherwise read the widget.
@@ -107,25 +103,9 @@ impl TextEditorState {
         self.text.selected_text().into_owned()
     }
 
-    /// Closes the editor and forgets the buffer.
-    ///
-    /// **The buffer is cleared rather than kept**: the next opening seeds it from the box, and a
-    /// buffer left behind would be a second copy of a text that may already have changed.
-    pub(crate) fn close(&mut self) {
-        self.active = false;
-        self.id = None;
-        self.text.focus.set(false);
-        self.text.set_text("");
-        self.frame.ok.focus.set(false);
-        self.frame.cancel.focus.set(false);
-    }
-
     /// The title the frame draws: the identity is what tells one box from another.
     fn title(&self) -> String {
-        match self.id {
-            Some(id) => format!("Text of Box #{id}"),
-            None => String::from("Text of Box"),
-        }
+        format!("Text of Box #{}", self.id)
     }
 
     /// The focus order: the buffer, then `Ok`, then `Cancel`.
@@ -153,10 +133,10 @@ impl TextEditorState {
 /// `Reply::Act(Action::SetText(text))`; `Cancel` and `Esc` close it and answer `Reply::Repaint`.
 /// **`Ctrl+C` is not special here**: it goes to the buffer like any other key, and the
 /// application binds neither it nor the copy it performs.
-pub(crate) fn handle(event: &Event, state: &mut TextEditorState) -> Reply {
-    if !state.active {
+pub(crate) fn handle(event: &Event, editor: &mut Overlay<TextEditorState>) -> Reply {
+    let Some(state) = editor.get_mut() else {
         return Reply::Ignored;
-    }
+    };
 
     // **The focus is asked first**, as in the open and save dialogs: `Tab` moves between the
     // buffer and the buttons before any of them is handed the key, and a press moves the focus
@@ -179,18 +159,18 @@ pub(crate) fn handle(event: &Event, state: &mut TextEditorState) -> Reply {
     }
 
     if state.frame.cancel.handle(event, Regular) == ButtonOutcome::Pressed {
-        state.close();
+        editor.close();
         return Reply::Repaint;
     }
 
     if state.frame.ok.handle(event, Regular) == ButtonOutcome::Pressed {
         let text = stored(&state.text.text());
-        state.close();
+        editor.close();
         return Reply::Act(Action::SetText(text));
     }
 
     if is_escape(event) {
-        state.close();
+        editor.close();
         return Reply::Repaint;
     }
 
@@ -210,12 +190,10 @@ pub(crate) fn handle(event: &Event, state: &mut TextEditorState) -> Reply {
 pub(crate) fn draw(
     area: Rect,
     buf: &mut Buffer,
-    state: &mut TextEditorState,
+    editor: &mut Overlay<TextEditorState>,
     theme: &SalsaTheme,
 ) -> Option<(u16, u16)> {
-    if !state.active {
-        return None;
-    }
+    let state = editor.get_mut()?;
 
     let pop_up = area.centered(Constraint::Max(MAX_WIDTH), Constraint::Max(MAX_HEIGHT));
 
@@ -315,20 +293,35 @@ mod tests {
         }
     }
 
+    /// The editor that is up over a box.
+    fn editor(id: ShapeId, text: Option<&Text>) -> Overlay<TextEditorState> {
+        Overlay::up(TextEditorState::new(id, text))
+    }
+
+    /// The editor's own state, while it is up.
+    fn state_of(editor: &Overlay<TextEditorState>) -> &TextEditorState {
+        editor.get().expect("the text editor is up")
+    }
+
+    /// The editor's own state, for the test that writes into its buffer.
+    fn state_of_mut(editor: &mut Overlay<TextEditorState>) -> &mut TextEditorState {
+        editor.get_mut().expect("the text editor is up")
+    }
+
     #[test]
     fn the_editor_opens_with_all_the_text_selected() {
-        let mut state = TextEditorState::default();
-        state.open(id(1), Some(&Text::new("one\ntwo").unwrap()));
+        let state = editor(id(1), Some(&Text::new("one\ntwo").unwrap()));
 
-        assert_eq!(state.buffer(), "one\ntwo");
-        assert_eq!(state.selected_text(), "one\ntwo");
+        assert_eq!(state_of(&state).buffer(), "one\ntwo");
+        assert_eq!(state_of(&state).selected_text(), "one\ntwo");
     }
 
     #[test]
     fn saving_normalizes_control_characters() {
-        let mut state = TextEditorState::default();
-        state.open(id(1), None);
-        state.text.set_text("one\r\ntwo\tthree\x07");
+        let mut state = editor(id(1), None);
+        state_of_mut(&mut state)
+            .text
+            .set_text("one\r\ntwo\tthree\x07");
 
         let _ = handle(&key(KeyCode::Tab), &mut state);
         let text = saved(handle(&key(KeyCode::Enter), &mut state))
@@ -339,8 +332,7 @@ mod tests {
 
     #[test]
     fn saving_keeps_the_blank_lines() {
-        let mut state = TextEditorState::default();
-        state.open(id(1), Some(&Text::new("one\n\ntwo").unwrap()));
+        let mut state = editor(id(1), Some(&Text::new("one\n\ntwo").unwrap()));
 
         let _ = handle(&key(KeyCode::Tab), &mut state);
         assert_eq!(
@@ -352,9 +344,8 @@ mod tests {
 
     #[test]
     fn saving_turns_a_lone_carriage_return_into_a_line_break() {
-        let mut state = TextEditorState::default();
-        state.open(id(1), None);
-        state.text.set_text("one\rtwo");
+        let mut state = editor(id(1), None);
+        state_of_mut(&mut state).text.set_text("one\rtwo");
 
         let _ = handle(&key(KeyCode::Tab), &mut state);
         assert_eq!(
@@ -365,9 +356,8 @@ mod tests {
 
     #[test]
     fn saving_whitespace_only_stores_none() {
-        let mut state = TextEditorState::default();
-        state.open(id(1), None);
-        state.text.set_text("  \n\t ");
+        let mut state = editor(id(1), None);
+        state_of_mut(&mut state).text.set_text("  \n\t ");
 
         let _ = handle(&key(KeyCode::Tab), &mut state);
         assert_eq!(saved(handle(&key(KeyCode::Enter), &mut state)), None);
@@ -375,11 +365,10 @@ mod tests {
 
     #[test]
     fn a_wide_glyph_is_edited_in_two_columns_and_drawn_in_one_cell() {
-        let mut state = TextEditorState::default();
-        state.open(id(1), None);
+        let mut state = editor(id(1), None);
 
         let _ = handle(&key(KeyCode::Char('漢')), &mut state);
-        assert_eq!(state.buffer(), "漢");
+        assert_eq!(state_of(&state).buffer(), "漢");
 
         let text = Text::new("漢").expect("the cluster is not a control character");
         assert_eq!(text.width(), 1, "the model counts one glyph as one cell");
