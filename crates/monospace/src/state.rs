@@ -38,7 +38,7 @@ pub(crate) struct AppState {
     /// The open dialog, while it is up: the path being typed and its frame.
     ///
     /// **The dialog runs its own focus** while it is up, as the message dialog does, so closing it
-    /// gives the keyboard back unchanged. It is the second overlay and the last thing painted.
+    /// gives the keyboard back unchanged. It is the second overlay, after the message dialog.
     open: Overlay<OpenDialogState>,
 
     /// The save dialog, while it is up: the path being typed and its frame.
