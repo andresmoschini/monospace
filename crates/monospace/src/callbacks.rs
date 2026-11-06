@@ -205,12 +205,15 @@ fn apply(action: &Action, state: &mut AppState) {
 
         Action::Redo => state.diagram_mut().redo(),
 
-        // **The one action that performs a command.** D2: the meaning arrives from the table and
-        // the identity is asked of the state, so the removal is one place and the key that means it
-        // is another.
+        // **The removal and the identity go together** (D2): the meaning arrives from the table and
+        // the identity is read here, so the command is written where it is applied. The identity
+        // stops being the selection because the figure it names is gone, which is the state's
+        // answer rather than this action's (rule 2).
         Action::Delete => {
             if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().remove(selected);
+                state
+                    .diagram_mut()
+                    .perform(Command::Remove { id: selected });
             }
         }
 

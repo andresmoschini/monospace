@@ -239,21 +239,6 @@ impl DiagramState {
             .and_then(|position| self.buffer.owner(position))
     }
 
-    /// Takes the shape `id` out of the session, and drops the selection.
-    ///
-    /// **The removal is the session's and not the diagram's** (rule 7): one `Command::Remove` is
-    /// performed, which records the one step an undo gives back. The application names no `Diagram`
-    /// and no `Shape`, and what hung from the removed shape is frozen by `Diagram::remove`, below
-    /// this layer.
-    ///
-    /// **The identity is dropped with the command** (rule 2). A selection no cell of the next
-    /// drawing records would invert nothing on its own, but the shape is gone, so the state stops
-    /// naming it. **The undo does not bring the identity back** (D2 of #181): what comes back is
-    /// the drawing, and a person who wants the figure selected clicks it again.
-    pub(crate) fn remove(&mut self, id: ShapeId) {
-        self.perform(Command::Remove { id });
-    }
-
     /// Performs `command` on the session, recording a step when it changes the diagram.
     ///
     /// **A command that changes nothing records no step** (#285): the session is handed back as it
@@ -906,8 +891,8 @@ mod tests {
             "a change to the drawing carried the view with it"
         );
 
-        state.remove(finding);
-        state.remove(line);
+        state.perform(Command::Remove { id: finding });
+        state.perform(Command::Remove { id: line });
         state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
 
         assert_eq!(
@@ -931,7 +916,7 @@ mod tests {
             "a fresh session has a step behind it"
         );
 
-        state.remove(shape);
+        state.perform(Command::Remove { id: shape });
 
         assert!(state.session.can_undo(), "the removal recorded no step");
         assert!(
@@ -1063,7 +1048,7 @@ mod tests {
             "the undo at the oldest position took the box out"
         );
 
-        state.remove(shape);
+        state.perform(Command::Remove { id: shape });
 
         assert!(
             state.session.diagram().get(shape).is_none(),
