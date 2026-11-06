@@ -1,9 +1,10 @@
 //! One frame of the screen: the three regions, and the order they are painted in.
 //!
 //! **The order is the picture.** The bar, then the region, then the status bar, then the
-//! drop-down, and the dialog last of all: a widget drawn later covers the one before it, and a
-//! drop-down drawn under the region could not be seen, let alone clicked. **The dialog is the
-//! overlay** (D6 of #189), so it covers the drop-down as well as everything else.
+//! drop-down, and the overlays last of all: a widget drawn later covers the one before it, and a
+//! drop-down drawn under the region could not be seen, let alone clicked. **The overlays cover the
+//! drop-down as well as everything else** (D6 of #189), and at most one is up at a time; the text
+//! editor is the last of them to be painted.
 //!
 //! **Every cell of the screen is painted on every frame.** The terminal diffs against the
 //! previous frame rather than clearing, so a cell that is not painted keeps what was in it. The
@@ -19,7 +20,7 @@ use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
 use crate::state::AppState;
-use crate::{diagram_widget, dialog, menu, open, save, status};
+use crate::{diagram_widget, dialog, menu, open, save, status, text};
 
 /// The height of the bar across the top.
 pub(crate) const BAR_HEIGHT: u16 = 1;
@@ -93,15 +94,19 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // a region painted after it would erase it.
     menu::draw_drop_down(area, buf, state.chrome_mut().menu_mut(), &global.cfg.theme);
 
-    // **The dialog is drawn last of all** (D6): it is the overlay, so it covers the drop-down
-    // and everything else, and a control behind it is not there to be seen or clicked.
+    // **The message dialog is drawn after the drop-down** (D6): it is an overlay, so it covers the
+    // drop-down and everything else, and a control behind it is not there to be seen or clicked.
     dialog::draw(regions.region, buf, state.dialog_mut(), &global.cfg.theme);
 
     // **The open dialog and save dialog are overlays at the top layer.** At most one of the
     // overlays is ever up, and the frame says where the field's cursor goes when one is.
     let open_cursor = open::draw(regions.region, buf, state.open_mut(), &global.cfg.theme);
     let save_cursor = save::draw(regions.region, buf, state.save_mut(), &global.cfg.theme);
-    global.set_screen_cursor(open_cursor.or(save_cursor));
+
+    // **The text editor is the last overlay**, after the open and save dialogs, and at most one
+    // overlay is up at a time. It sets the terminal's cursor when its buffer holds the focus.
+    let text_cursor = text::draw(regions.region, buf, state.text_mut(), &global.cfg.theme);
+    global.set_screen_cursor(text_cursor.or(open_cursor).or(save_cursor));
 }
 
 /// Where a piece of text is on a frame, found in the frame itself so that a growing label
@@ -132,6 +137,7 @@ mod tests {
     use crate::status;
     use crate::vocabulary::Reply;
     use monospace_core::{Offset, ShapeId};
+    use monospace_diagram::Text;
     use rat_theme4::palettes::dark::BASE16;
     use rat_theme4::themes::create_dark;
     use ratatui_core::buffer::Buffer;
@@ -176,6 +182,14 @@ mod tests {
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light 4×3 box at `(2, 1)` holding `hi`.
+    const A_BOX_WITH_TEXT: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "light",
+                      "text": "hi" } ]
     }"#;
 
     /// A description whose only shape is a 2×2 light box at `(2, 1)` of the window.
@@ -1204,6 +1218,65 @@ mod tests {
             &format!(
                 "the status bar below the region, {WIDTH}x{HEIGHT}\n{}",
                 described(&buffer, regions)
+            ),
+        );
+    }
+
+    #[test]
+    fn the_status_bar_is_unchanged_while_editing() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.diagram_mut().select(Some(id));
+
+        let before = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+        let status = regions(Rect::new(0, 0, WIDTH, HEIGHT)).status;
+        let before_rows: Vec<String> = (status.top()..status.bottom())
+            .map(|line| row_of(&before, line))
+            .collect();
+
+        let text = Text::new("hi").unwrap();
+        state.text_mut().open(id, Some(&text));
+
+        let after = paint(&mut state, &a_global(), WIDTH, HEIGHT);
+        let after_rows: Vec<String> = (status.top()..status.bottom())
+            .map(|line| row_of(&after, line))
+            .collect();
+
+        assert_eq!(
+            before_rows, after_rows,
+            "opening the editor changed the status bar"
+        );
+    }
+
+    #[test]
+    fn the_text_editor_over_a_box() {
+        let mut state = a_state_over(A_BOX_WITH_TEXT);
+        let global = a_global();
+        let area = Rect::new(0, 0, WIDTH, HEIGHT);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.diagram_mut().select(Some(id));
+
+        let text = Text::new("hi").unwrap();
+        state.text_mut().open(id, Some(&text));
+
+        let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        snap(
+            "a_box_with_the_text_editor_over_it",
+            &format!(
+                "a box with the text editor over it, {WIDTH}x{HEIGHT}\n{}",
+                described(&buffer, regions(area))
+            ),
+        );
+
+        state.text_mut().close();
+        let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        snap(
+            "the_same_box_after_the_editor_closes",
+            &format!(
+                "the same box after the editor closes, {WIDTH}x{HEIGHT}\n{}",
+                described(&buffer, regions(area))
             ),
         );
     }

@@ -66,9 +66,13 @@ struct Shortcut {
 /// the rows it counts, and a row added without it is an error the compiler reports about the wrong
 /// thing.
 const SHORTCUTS: &[Shortcut] = &[
+    // **The shifted character, not `q` with `SHIFT` set**, as the redo row below explains: a
+    // terminal that reports the combination at all reports the character the shift produces with
+    // `Control` and `Shift` set, and one that folds the shift reports `Ctrl+Q`, the way out, rather
+    // than a dead key.
     Shortcut {
-        key: KeyCode::Char('c'),
-        modifiers: KeyModifiers::CONTROL,
+        key: KeyCode::Char('Q'),
+        modifiers: KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
         reply: Reply::force_quit(),
         reach: Reach::Always,
     },
@@ -132,8 +136,9 @@ pub(crate) fn handle_unclaimed(event: &Event) -> Reply {
 /// What the event means to a shortcut of this reach.
 ///
 /// **A shortcut is the combination it shows and not another one**, and it answers to that
-/// combination at its own reach: `Ctrl+Q` is the way out and `Q` is not, and `Ctrl+Shift+Q` is
-/// not either. A release and a repeat are not a press, so neither answers.
+/// combination at its own reach: `Ctrl+Q` is the way out, `Q` is neither, and `Ctrl+Shift+Q` is
+/// the forced exit — the three are told apart by the character. A release and a repeat are not a
+/// press, so none of them answers.
 fn handle(event: &Event, reach: Reach) -> Reply {
     let Event::Key(key) = event else {
         return Reply::Ignored;
@@ -212,7 +217,10 @@ mod tests {
     /// one's reach.
     #[test]
     fn the_forced_exit_is_answered_first_and_the_way_out_last() {
-        let forced_exit = key(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        let forced_exit = key(
+            KeyCode::Char('Q'),
+            KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        );
         let way_out = key(KeyCode::Char('q'), KeyModifiers::CONTROL);
 
         assert_eq!(handle_always(&forced_exit), Reply::force_quit());

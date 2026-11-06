@@ -77,6 +77,7 @@ command says, and one more meaning is one more arm.
 | `Move { id, by }`           | the figure goes so much, along each axis                                 | `replace` with it displaced         |
 | `Resize { id, by }`         | the figure becomes so much wider and taller, or a line longer or shorter | `replace` with it resized           |
 | `SetStroke { id, stroke }`  | figure cells are drawn in another stroke                                 | `replace` with `Shape::with_stroke` |
+| `SetText { id, text }`      | a box's text is replaced with this block, or taken out                   | `replace` with `Shape::with_text`   |
 | `Hang { id, from, anchor }` | one end of a connector hangs from a figure's side                        | `replace` with a rebuilt connector  |
 | `Forward { id }`            | one place toward the front of the order                                  | `forward`                           |
 | `Remove { id }`             | the figure is taken out                                                  | `remove`                            |

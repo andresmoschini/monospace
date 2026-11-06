@@ -31,7 +31,9 @@ use crate::open;
 use crate::save;
 use crate::shortcuts;
 use crate::state::AppState;
+use crate::text;
 use crate::vocabulary::{Action, AppError, Reply};
+use monospace_diagram::Shape;
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
 /// of ours to set up.
@@ -97,9 +99,9 @@ pub(crate) fn event(
 /// Which handler answers the event, and what it answers.
 ///
 /// **The order is the whole of the policy, and the chain is the order.** The shortcuts that reach
-/// everything are asked first: a `Ctrl+C` that reached the chrome as a key would be answered by the
-/// chrome, and the point of it is that it is answered by nothing. **Then the dialog, while it is
-/// up**: it is the overlay, it takes every key and every control, and an event it leaves alone
+/// everything are asked first: a `Ctrl+Shift+Q` that reached the chrome as a key would be answered
+/// by the chrome, and the point of it is that it is answered by nothing. **Then the dialog, while it
+/// is up**: it is the overlay, it takes every key and every control, and an event it leaves alone
 /// reaches nothing else. Then the bar, so that a key the widget uses is the widget's; then the
 /// region, so that a click a drop-down covers is the drop-down's and the one it leaves is the
 /// diagram's; then the shortcuts nobody has claimed. The first action wins, and an event all of
@@ -127,16 +129,17 @@ pub(crate) fn event(
 /// and only the first lets the region see a press the drop-down already trapped.
 fn route(event: &Event, state: &mut AppState) -> Reply {
     // **The two reaches that answer before the press is addressed come first, and in this order.**
-    // A `Ctrl+C` that reached the chrome as a key would be answered by the chrome, and the point of
-    // it is that it is answered by nothing; the dialog is the overlay, so while it is up an event it
-    // leaves alone reaches nothing else. **`Ignored` is the dialog being down**: the framework
-    // answers it while the dialog is inactive, so asking it is one call and not a question about
-    // `active()` followed by a question about the event.
+    // A `Ctrl+Shift+Q` that reached the chrome as a key would be answered by the chrome, and the
+    // point of it is that it is answered by nothing; the overlays sit above the application, so
+    // while one is up an event it leaves alone reaches nothing else. **`Ignored` is the overlay being down**:
+    // the framework answers it while inactive, so asking it is one call and not a question
+    // about `active()` followed by a question about the event.
     //
-    // **Neither of the two moves the keyboard**, which is why addressing sits below and not here: a
-    // click on the bar behind the dialog moves nothing, and the press is addressed only once nobody
+    // **Neither moves the keyboard**, which is why addressing sits below and not here: a
+    // click on the bar behind an overlay moves nothing, and the press is addressed only once nobody
     // above has answered it.
     let before = shortcuts::handle_always(event)
+        .or_else(|| text::handle(event, state.text_mut()))
         .or_else(|| dialog::handle(event, state.dialog_mut()))
         .or_else(|| open::handle(event, state.open_mut()))
         .or_else(|| save::handle(event, state.save_mut()));
@@ -229,6 +232,28 @@ fn apply(action: &Action, state: &mut AppState) {
             }
         }
 
+        Action::SetText(text) => {
+            if let Some(selected) = state.diagram().selected() {
+                state.diagram_mut().set_text(selected, text.clone());
+            }
+        }
+
+        // **The editor is opened over the selected box and records no step.** The identity and the text
+        // are read together, so the title and the buffer cannot name different figures.
+        Action::EditText => {
+            let opened = state
+                .diagram()
+                .selected_entry()
+                .and_then(|(id, shape)| match shape {
+                    Shape::Box { text, .. } => Some((id, text.clone())),
+                    _ => None,
+                });
+
+            if let Some((id, text)) = opened {
+                state.text_mut().open(id, text.as_ref());
+            }
+        }
+
         // **The two actions that open the overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
         Action::About => about::open(state.dialog_mut()),
@@ -305,7 +330,7 @@ mod tests {
     use crate::status;
     use crate::vocabulary::AppError;
     use monospace_core::{Offset, Pos};
-    use monospace_diagram::ShapeId;
+    use monospace_diagram::{ShapeId, Text};
     use ratatui_core::layout::Rect;
     use ratatui_core::style::Modifier;
     use ratatui_crossterm::crossterm::event::{
@@ -336,6 +361,28 @@ mod tests {
         "next_id": 2,
         "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    /// A description whose only shape is a light 4×3 box at `(2, 1)` holding `hi`.
+    const A_BOX_WITH_TEXT: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "light",
+                      "text": "hi" } ]
+    }"#;
+
+    /// A description whose only shape is a light connector between `(2, 1)` and `(10, 1)`.
+    ///
+    /// **`callbacks` does not have one yet**; it is the fixture `diagram_widget` already uses, added
+    /// here because `t_is_ignored_off_a_box` needs a connector to select.
+    const A_CONNECTOR: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "connector", "id": 1,
+                      "from": { "at": { "kind": "point", "x": 2, "y": 1 },
+                                "leaving": "right", "terminal": { "kind": "arm" } },
+                      "to": { "at": { "kind": "point", "x": 10, "y": 1 },
+                              "leaving": "left", "terminal": { "kind": "arm" } },
+                      "stroke": "light" } ]
     }"#;
 
     /// A description whose only shape is a light `2×2` box at `(2, 1)`: the smallest a box shrinks to,
@@ -1492,8 +1539,8 @@ mod tests {
 
     /// **The overlay takes the controls behind it** (rule 10): `Ctrl+Q` is `Unclaimed`, so while
     /// the dialog is up the dialog answers it and nothing happens, and a click on the bar behind
-    /// it moves no keyboard and opens no menu. `Ctrl+C` is answered before the dialog, and
-    /// [`control_c_ends_the_application_whatever_the_state_is`] is where that is proven.
+    /// it moves no keyboard and opens no menu. `Ctrl+Shift+Q` is answered before the dialog, and
+    /// [`the_forced_exit_ends_the_application_whatever_the_state_is`] is where that is proven.
     #[test]
     fn control_q_does_nothing_while_the_dialog_is_up() {
         let mut state = a_drawn_state_over(A_BOX);
@@ -1606,14 +1653,17 @@ mod tests {
     }
 
     #[test]
-    fn control_c_ends_the_application_whatever_the_state_is() {
+    fn the_forced_exit_ends_the_application_whatever_the_state_is() {
         // The drop-down is open: the chrome holds the keyboard, and the forced exit is not the
         // chrome's to answer.
         let mut state = a_drawn_state();
         open_the_drop_down(&mut state, 'f');
 
         let outcome = send(
-            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &key_with(
+                KeyCode::Char('Q'),
+                KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+            ),
             &mut state,
         );
 
@@ -1626,7 +1676,10 @@ mod tests {
         assert!(state.dialog().active(), "the dialog is not open");
 
         let outcome = send(
-            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &key_with(
+                KeyCode::Char('Q'),
+                KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+            ),
             &mut state,
         );
 
@@ -1641,7 +1694,10 @@ mod tests {
         assert!(state.save().active(), "the save dialog is not open");
 
         let outcome = send(
-            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &key_with(
+                KeyCode::Char('Q'),
+                KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+            ),
             &mut state,
         );
 
@@ -1649,11 +1705,30 @@ mod tests {
             matches!(outcome, Control::Quit),
             "the save dialog swallowed the forced exit: {outcome:?}"
         );
+
+        // The text editor is up: the overlay takes every control but this one.
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('t')), &mut state);
+        assert!(state.text().active(), "the text editor is not open");
+
+        let outcome = send(
+            &key_with(
+                KeyCode::Char('Q'),
+                KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+            ),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Quit),
+            "the text editor swallowed the forced exit: {outcome:?}"
+        );
     }
 
     /// **Every shortcut of the first reach, and not the one that happens to be in the table
-    /// today.** The promise is that nothing may consume these keys, and a test that named `Ctrl+C`
-    /// would keep passing the day a second one is added and the chrome swallows it.
+    /// today.** The promise is that nothing may consume these keys, and a test that named
+    /// `Ctrl+Shift+Q` would keep passing the day a second one is added and the chrome swallows it.
     #[test]
     fn every_shortcut_answered_first_is_answered_with_the_drop_down_open() {
         for event in shortcuts::events_answered_first() {
@@ -3189,6 +3264,249 @@ mod tests {
         let second = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(second, Control::Continue), "{second:?}");
+    }
+
+    #[test]
+    fn t_opens_the_text_editor_on_a_box() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        assert!(
+            state.diagram().selected().is_some(),
+            "the box was not selected"
+        );
+
+        let outcome = send(&key(KeyCode::Char('t')), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(state.text().active(), "t opened no editor");
+        assert!(
+            !state.diagram().can_undo(),
+            "opening the editor recorded a step"
+        );
+    }
+
+    #[test]
+    fn t_is_ignored_off_a_box() {
+        // **A line**, selected by clicking it. `click(1, 3)` would select nothing here, and on
+        // `A_BOX_AND_WHAT_HANGS_FROM_IT` it is inside a box, so neither fixture is usable as-is.
+        let mut line = a_drawn_state_over(A_HORIZONTAL_LINE);
+        let _ = send(&click(3, 3), &mut line);
+        assert!(
+            line.diagram().selected().is_some(),
+            "the line was not selected"
+        );
+        let outcome = send(&key(KeyCode::Char('t')), &mut line);
+        assert!(matches!(outcome, Control::Continue), "line: {outcome:?}");
+        assert!(!line.text().active(), "line: t opened an editor");
+
+        // **A connector**, selected directly: its route is the drawing's, and what this test says
+        // is that `t` is not accepted for it, not how a press selects one.
+        let mut connector = a_drawn_state_over(A_CONNECTOR);
+        connector
+            .diagram_mut()
+            .select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        let outcome = send(&key(KeyCode::Char('t')), &mut connector);
+        assert!(
+            matches!(outcome, Control::Continue),
+            "connector: {outcome:?}"
+        );
+        assert!(!connector.text().active(), "connector: t opened an editor");
+
+        // **Nothing selected.**
+        let mut nothing = a_drawn_state_over(A_BOX);
+        let outcome = send(&key(KeyCode::Char('t')), &mut nothing);
+        assert!(
+            matches!(outcome, Control::Continue),
+            "nothing selected: {outcome:?}"
+        );
+        assert!(
+            !nothing.text().active(),
+            "nothing selected: t opened an editor"
+        );
+
+        // **A box in the stroke sub-mode**: that bar offers digits and `Esc`, and not `t` (rule 2).
+        let mut sub_mode = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut sub_mode);
+        let _ = send(&key(KeyCode::Char('s')), &mut sub_mode);
+        assert_eq!(
+            sub_mode.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::StrokeSelect)
+        );
+        let outcome = send(&key(KeyCode::Char('t')), &mut sub_mode);
+        assert!(
+            matches!(outcome, Control::Continue),
+            "sub-mode: {outcome:?}"
+        );
+        assert!(!sub_mode.text().active(), "sub-mode: t opened an editor");
+    }
+
+    #[test]
+    fn enter_remains_ignored_on_a_box() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(!state.text().active(), "Enter opened the editor");
+    }
+
+    #[test]
+    fn ok_saves_and_escape_discards() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('t')), &mut state);
+
+        for character in ['h', 'i'] {
+            let _ = send(&key(KeyCode::Char(character)), &mut state);
+        }
+        let _ = send(&key(KeyCode::Tab), &mut state);
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.text().active(), "Ok did not close the editor");
+        assert!(state.diagram().can_undo(), "saving recorded no step");
+        assert_eq!(
+            state.diagram().selected(),
+            Some(ShapeId::new(NonZeroU16::new(1).unwrap())),
+            "saving dropped the selection"
+        );
+
+        // The second opening starts from the saved text; Escape closes it without a step.
+        let _ = send(&key(KeyCode::Char('t')), &mut state);
+        let _ = send(&key(KeyCode::Char('x')), &mut state);
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.text().active(), "Escape did not close the editor");
+
+        // **`Cancel` with `Enter` discards too** (rule 7): two `Tab`s reach it from the buffer.
+        let _ = send(&key(KeyCode::Char('t')), &mut state);
+        let _ = send(&key(KeyCode::Char('y')), &mut state);
+        let _ = send(&key(KeyCode::Tab), &mut state);
+        let _ = send(&key(KeyCode::Tab), &mut state);
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.text().active(),
+            "Enter on Cancel did not close the editor"
+        );
+        let Shape::Box { text: kept, .. } = state
+            .diagram()
+            .session()
+            .diagram()
+            .get(ShapeId::new(NonZeroU16::new(1).unwrap()))
+            .expect("the box is there")
+        else {
+            panic!("expected box");
+        };
+        assert_eq!(
+            *kept,
+            Some(Text::new("hi").unwrap()),
+            "Cancel saved the buffer"
+        );
+    }
+
+    #[test]
+    fn saving_the_same_text_records_no_step() {
+        let mut state = a_drawn_state_over(A_BOX_WITH_TEXT);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('t')), &mut state);
+        let _ = send(&key(KeyCode::Tab), &mut state);
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.text().active(), "Ok did not close the editor");
+        assert!(
+            !state.diagram().can_undo(),
+            "saving the same text recorded a step"
+        );
+    }
+
+    #[test]
+    fn ctrl_c_copies_while_the_text_editor_is_up() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('t')), &mut state);
+
+        for character in ['h', 'i'] {
+            let _ = send(&key(KeyCode::Char(character)), &mut state);
+        }
+        let _ = send(
+            &key_with(KeyCode::Char('a'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+        let outcome = send(
+            &key_with(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(state.text().active(), "Ctrl+C closed the editor");
+        assert_eq!(
+            rat_widget::text::clipboard::global_clipboard()
+                .get_string()
+                .as_deref()
+                .ok(),
+            Some("hi")
+        );
+    }
+
+    #[test]
+    fn the_editor_consumes_every_key() {
+        // Ctrl+Q/S/O/N: nothing behind the overlay moves.
+        for code in [
+            KeyCode::Char('q'),
+            KeyCode::Char('s'),
+            KeyCode::Char('o'),
+            KeyCode::Char('n'),
+        ] {
+            let mut state = a_drawn_state_over(A_BOX);
+            let _ = send(&click(3, 3), &mut state);
+            let _ = send(&key(KeyCode::Char('t')), &mut state);
+
+            let outcome = send(&key_with(code, KeyModifiers::CONTROL), &mut state);
+
+            assert!(
+                matches!(outcome, Control::Continue),
+                "{code:?}: {outcome:?}"
+            );
+            assert!(state.text().active(), "{code:?}: the editor closed");
+            assert!(
+                !state.dialog().active(),
+                "{code:?}: the message dialog opened"
+            );
+            assert!(!state.open().active(), "{code:?}: the open dialog opened");
+            assert!(!state.save().active(), "{code:?}: the save dialog opened");
+            assert!(!state.diagram().can_undo(), "{code:?}: the diagram changed");
+        }
+
+        // `t` inside the editor is a character, not the key that opens it.
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('t')), &mut state);
+        let outcome = send(&key(KeyCode::Char('t')), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(state.text().active(), "t inside the editor closed it");
+        assert_eq!(state.text().buffer(), "t");
+
+        // `Tab` moves the focus inside the editor and inserts no tab.
+        let outcome = send(&key(KeyCode::Tab), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(state.text().active(), "Tab closed the editor");
+        assert_eq!(state.text().buffer(), "t", "Tab inserted a tab");
+
+        // A click on the bar reaches nothing: the editor stays up and the keyboard does not move.
+        let leaf = state.chrome().leaf();
+        let outcome = send(&click(3, 0), &mut state);
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(
+            state.text().active(),
+            "a click on the bar closed the editor"
+        );
+        assert_eq!(state.chrome().leaf(), leaf, "the click moved the keyboard");
     }
 
     /// **An entry with nothing to give back changes nothing and paints** (rule 11): the drop-down

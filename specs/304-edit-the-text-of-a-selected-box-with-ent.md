@@ -1,6 +1,7 @@
 ---
-status: agreed
+status: implemented
 decided: "#309"
+implemented: "#310"
 date: 2026-11-05
 ---
 
@@ -120,13 +121,14 @@ and settling that is not the Representation Rule's
 **D6 — the modal is fixed in size, centred and clamped, and the text area soft-wraps.**
 
 **Answer:** the dialog is at most 56 columns by 14 rows, centred in the region and clamped to it the
-way `open` and `save` clamp theirs; `TextArea` keeps its default soft wrap, scrolls with the cursor,
-answers the pointer, and has no scrollbars of its own. **Why not grow with the text:** the
-maintainer chose a fixed size; it is simpler, the modal does not jump while typing, and the text
-area already scrolls. **Why not the whole region:** it would cover the diagram and depart from the
-application's dialog shape. **Why soft wrap:** it is the framework's default and the simplest thing
-that works; the drawing still does not wrap, and the difference is written where the editor is
-described.
+way `open` and `save` clamp theirs; `TextArea` wraps at word boundaries with `TextWrap::Word(1)`,
+scrolls with the cursor, answers the pointer, and has no scrollbars of its own. **Why not the
+default:** `rat-text` defaults to `TextWrap::Shift`, which does not wrap at all; the application
+sets the wrap D6 asks for. **Why not grow with the text:** the maintainer chose a fixed size; it is
+simpler, the modal does not jump while typing, and the text area already scrolls. **Why not the
+whole region:** it would cover the diagram and depart from the application's dialog shape. **Why
+soft wrap:** it is the simplest thing that works; the drawing still does not wrap, and the
+difference is written where the editor is described.
 
 **D7 — Auto-fit and wide-glyph drawing are out of this cut; wide glyphs are accepted and
 documented.**

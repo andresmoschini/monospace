@@ -10,7 +10,8 @@
 //! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc]
 //! Deselect`, with `RESIZE` between the first two offering the cursor keys the selected figure can
 //! use — all four for a box (`Shift+↑↓←→`), the row's two for a horizontal line (`Shift+←→`), the
-//! column's two for a vertical line (`Shift+↑↓`), and none for a connector.
+//! column's two for a vertical line (`Shift+↑↓`), and none for a connector. `TEXT: [t] Edit` is
+//! offered only for a box, between `RESIZE` and `STROKE`.
 //!
 //! **In `STROKE_SELECT`**, the upper row reports the figure and the stroke it carries, and the
 //! lower row offers the five catalog strokes and `[Esc] Cancel`.
@@ -369,7 +370,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -569,7 +570,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));

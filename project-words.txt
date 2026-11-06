@@ -22,6 +22,7 @@ Nygard
 opencode
 pathspec
 PATHEXT
+peekable
 ratatui
 rpds
 RUSTFLAGS

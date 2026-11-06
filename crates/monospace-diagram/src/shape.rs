@@ -471,6 +471,36 @@ impl Shape {
         }
     }
 
+    /// This figure with `text` in its interior, or itself unchanged when it is not a box.
+    ///
+    /// **Only a box holds text.** A line has a length and a connector has two endpoints, and neither
+    /// has an interior to put a block in; `with_text` leaves both unchanged, exactly as `resized_by`
+    /// leaves a connector unchanged. The predicate and the mutation are the same rule read from two
+    /// sides, which is why the two arms that cannot change are written out rather than filtered.
+    ///
+    /// **It takes `&self` and gives back a `Self`**, composing with `Diagram::get` the way
+    /// [`Self::with_stroke`] does: `diagram.get(&id).map(|shape| shape.with_text(text))` is the whole
+    /// read-and-re-text step.
+    #[must_use]
+    pub fn with_text(&self, text: Option<Text>) -> Self {
+        match self {
+            Self::Box {
+                at,
+                size,
+                stroke,
+                fill,
+                ..
+            } => Self::Box {
+                at: *at,
+                size: *size,
+                stroke: stroke.clone(),
+                fill: fill.clone(),
+                text,
+            },
+            Self::Line { .. } | Self::Connector { .. } => self.clone(),
+        }
+    }
+
     /// This figure with every reference **naming `id`** replaced by the point it was resolving to,
     /// or `None` when this figure holds no such reference and nothing changed.
     ///
@@ -1424,5 +1454,66 @@ mod tests {
             }
             _ => unreachable!(),
         }
+    }
+
+    #[test]
+    fn with_text_changes_only_a_box() {
+        let the_box = Shape::Box {
+            at: Pos { x: 2, y: 3 },
+            size: Size {
+                width: 5,
+                height: 4,
+            },
+            stroke: light(),
+            fill: Some(Glyph::new("x").unwrap()),
+            text: None,
+        };
+        let text = Text::new("hi").unwrap();
+
+        assert_eq!(
+            the_box.with_text(Some(text.clone())),
+            Shape::Box {
+                at: Pos { x: 2, y: 3 },
+                size: Size {
+                    width: 5,
+                    height: 4,
+                },
+                stroke: light(),
+                fill: Some(Glyph::new("x").unwrap()),
+                text: Some(text),
+            }
+        );
+    }
+
+    #[test]
+    fn with_text_on_a_line_or_connector_changes_nothing() {
+        let the_line = Shape::Line {
+            at: Pos { x: 1, y: 2 },
+            len: 4,
+            orientation: Orientation::Vertical,
+            stroke: light(),
+        };
+        let the_connector = connector(Terminal::Arm, Terminal::Arm);
+        let text = Text::new("hi").unwrap();
+
+        assert_eq!(the_line.with_text(Some(text.clone())), the_line);
+        assert_eq!(the_connector.with_text(Some(text)), the_connector);
+    }
+
+    #[test]
+    fn setting_the_same_text_is_no_change() {
+        let text = Text::new("hi").unwrap();
+        let the_box = Shape::Box {
+            at: Pos { x: 2, y: 3 },
+            size: Size {
+                width: 5,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: Some(text.clone()),
+        };
+
+        assert_eq!(the_box.with_text(Some(text)), the_box);
     }
 }
