@@ -232,7 +232,10 @@ fn apply(action: &Action, state: &mut AppState) {
 
         Action::SetStroke(stroke) => {
             if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().set_stroke(selected, stroke.clone());
+                state.diagram_mut().perform(Command::SetStroke {
+                    id: selected,
+                    stroke: stroke.clone(),
+                });
             }
         }
 

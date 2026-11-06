@@ -285,14 +285,6 @@ impl DiagramState {
         });
     }
 
-    /// Sets the stroke of `id` on the session.
-    ///
-    /// **The identity survives**: the figure is still there with its new stroke, so the next
-    /// frame inverts the cells it owns.
-    pub(crate) fn set_stroke(&mut self, id: ShapeId, stroke: monospace_diagram::Stroke) {
-        self.perform(Command::SetStroke { id, stroke });
-    }
-
     /// Performs `command` on the session, recording a step when it changes the diagram.
     ///
     /// **A command that changes nothing records no step** (#285): the session is handed back as it
