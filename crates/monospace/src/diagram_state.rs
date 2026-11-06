@@ -311,10 +311,14 @@ impl DiagramState {
     /// Every command a slice adds goes through here, so the layer below stays the one that decides
     /// what a step is.
     ///
+    /// **Callers hand it a command they have already written.** The state does not name a wrapped
+    /// meaning for each one: the client builds the `Command` and this is the one place the session
+    /// is changed by it.
+    ///
     /// **A selection that named a figure the command took away stops being the selection.** The
     /// question is the diagram's — is the figure still there? — and not the command's name, so
     /// every command that removes a figure drops it without having to say so.
-    fn perform(&mut self, command: Command) {
+    pub(crate) fn perform(&mut self, command: Command) {
         self.session = self.session.perform(command);
         self.reconcile_selection();
     }
