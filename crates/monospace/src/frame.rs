@@ -772,7 +772,7 @@ mod tests {
         let global = a_global();
 
         open_the_drop_down(&mut state, &global, 'f');
-        crate::about::open(state.dialog_mut());
+        state.dialog_mut().show(crate::about::open());
         let frame = picture(&paint(&mut state, &global, WIDTH, HEIGHT));
 
         assert!(

@@ -27,6 +27,7 @@ use ratatui_core::style::Style;
 use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::Event;
 
+use crate::overlay::Overlay;
 use crate::vocabulary::Reply;
 
 /// The largest the pop-up grows: wide enough for a message, short enough to leave the chrome
@@ -55,7 +56,15 @@ const CHROME_HEIGHT: u16 = 7;
 ///
 /// **The height is read off the message on every frame**, so whoever opens the dialog decides how
 /// tall it is by what it says and nothing else.
-pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut MsgDialogState, theme: &SalsaTheme) {
+pub(crate) fn draw(
+    area: Rect,
+    buf: &mut Buffer,
+    dialog: &mut Overlay<MsgDialogState>,
+    theme: &SalsaTheme,
+) {
+    let Some(state) = dialog.get_mut() else {
+        return;
+    };
     let rows = state.message.borrow().lines().count().max(1);
     let height = u16::try_from(rows)
         .unwrap_or(u16::MAX)
@@ -70,17 +79,30 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut MsgDialogState, the
 /// What an event means to the dialog.
 ///
 /// **The dialog's own focus runs while it is up** (D6): the framework moves between the message and
-/// the `Ok` with `Tab`, arms and presses the button, and closes on `Esc`. **`Outcome` already has
-/// the three answers the router needs, and it also says whether the dialog is up**: the framework
-/// answers `Continue` while the dialog is inactive, `Unchanged` when it kept the event without
-/// changing the screen, and `Changed` when it owes a frame. One call is therefore enough — there is
-/// no separate question about `active()` — and the three answers keep their meaning in [`Reply`].
-pub(crate) fn handle(event: &Event, state: &mut MsgDialogState) -> Reply {
-    match state.handle(event, Dialog) {
+/// the `Ok` with `Tab`, arms and presses the button, and closes on `Esc`. **`Outcome` has the three
+/// answers the router needs**: the framework answers `Continue` while the dialog is inactive,
+/// `Unchanged` when it kept the event without changing the screen, and `Changed` when it owes a
+/// frame, and the three answers keep their meaning in [`Reply`].
+///
+/// **The framework's own flag is what says the `Esc` closed it**, and the overlay is dropped when
+/// it does: the dialog is a value in the application's state, and the framework only owns what is
+/// inside it.
+pub(crate) fn handle(event: &Event, dialog: &mut Overlay<MsgDialogState>) -> Reply {
+    let Some(state) = dialog.get_mut() else {
+        return Reply::Ignored;
+    };
+
+    let reply = match state.handle(event, Dialog) {
         Outcome::Continue => Reply::Ignored,
         Outcome::Unchanged => Reply::Consumed,
         Outcome::Changed => Reply::Repaint,
+    };
+
+    if !state.active() {
+        dialog.close();
     }
+
+    reply
 }
 
 /// The dialog's styles, with the button's focus cue replaced by reverse video.
@@ -144,13 +166,13 @@ mod tests {
     };
 
     /// A dialog with a message, opened and painted once.
-    fn drawn() -> (MsgDialogState, Buffer) {
-        let mut state = MsgDialogState::new_active("Title", "A message");
+    fn drawn() -> (Overlay<MsgDialogState>, Buffer) {
+        let mut dialog = Overlay::up(MsgDialogState::new_active("Title", "A message"));
 
         let mut buffer = Buffer::empty(REGION);
-        draw(REGION, &mut buffer, &mut state, &theme());
+        draw(REGION, &mut buffer, &mut dialog, &theme());
 
-        (state, buffer)
+        (dialog, buffer)
     }
 
     /// Whether the cell at a frame position is painted in reverse video.
@@ -181,7 +203,7 @@ mod tests {
     /// one that changes owes the frame.
     #[test]
     fn the_three_answers_become_the_routers_reply() {
-        let mut down = MsgDialogState::default();
+        let mut down = Overlay::Down;
         assert_eq!(
             handle(&key(KeyCode::Esc), &mut down),
             Reply::Ignored,
@@ -283,7 +305,10 @@ mod tests {
     #[test]
     fn a_message_of_several_lines_is_shown_whole() {
         let tall = Rect::new(0, 0, 40, 20);
-        let mut state = MsgDialogState::new_active("Title", "line one\nline two\nline three");
+        let mut state = Overlay::up(MsgDialogState::new_active(
+            "Title",
+            "line one\nline two\nline three",
+        ));
 
         let mut buffer = Buffer::empty(tall);
         draw(tall, &mut buffer, &mut state, &theme());

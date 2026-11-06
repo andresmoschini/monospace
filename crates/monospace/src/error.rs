@@ -17,14 +17,12 @@ use crate::dialog::TEXT_WIDTH;
 /// The title every error is shown under.
 const TITLE: &str = "Error";
 
-/// Opens the dialog over `message`, wrapped to [`TEXT_WIDTH`].
+/// The dialog over `message`, wrapped to [`TEXT_WIDTH`].
 ///
 /// **Opening it replaces whatever it held**, About included: there is one overlay, and the newest
 /// message is the one a person needs to read.
-pub(crate) fn open(state: &mut MsgDialogState, message: &str) {
-    state.clear();
-    state.title(TITLE);
-    state.append(&wrap(message, TEXT_WIDTH));
+pub(crate) fn open(message: &str) -> MsgDialogState {
+    MsgDialogState::new_active(TITLE, wrap(message, TEXT_WIDTH))
 }
 
 /// Wraps `text` on word boundaries so that no line exceeds `max_width` columns unless a single word
@@ -63,25 +61,24 @@ fn wrap(text: &str, max_width: usize) -> String {
 mod tests {
     use super::*;
     use crate::dialog::testing::{REGION, picture, theme};
+    use crate::overlay::Overlay;
     use ratatui_core::buffer::Buffer;
     use ratatui_core::layout::Rect;
 
     /// The dialog after `open`, as text.
-    fn opened_over(state: &mut MsgDialogState, message: &str) -> String {
-        open(state, message);
-
+    fn opened_over(dialog: &mut Overlay<MsgDialogState>) -> String {
         let mut buffer = Buffer::empty(REGION);
-        crate::dialog::draw(REGION, &mut buffer, state, &theme());
+        crate::dialog::draw(REGION, &mut buffer, dialog, &theme());
         picture(&buffer)
     }
 
     /// **The title is the application's and the text is the caller's**, and the way out is there.
     #[test]
     fn the_error_dialog_carries_the_title_and_the_message() {
-        let mut state = MsgDialogState::default();
-        let frame = opened_over(&mut state, "The file could not be read");
+        let mut dialog = Overlay::up(open("The file could not be read"));
+        let frame = opened_over(&mut dialog);
 
-        assert!(state.active(), "opening the error left the dialog down");
+        assert!(dialog.is_up(), "opening the error left the dialog down");
         assert!(frame.contains(TITLE), "the dialog has no title: {frame:?}");
         assert!(
             frame.contains("The file could not be read"),
@@ -93,9 +90,9 @@ mod tests {
     /// **A second message replaces the first** rather than being appended under it.
     #[test]
     fn a_second_error_replaces_the_first() {
-        let mut state = MsgDialogState::default();
-        let _ = opened_over(&mut state, "first failure");
-        let frame = opened_over(&mut state, "second failure");
+        let mut dialog = Overlay::up(open("first failure"));
+        dialog.show(open("second failure"));
+        let frame = opened_over(&mut dialog);
 
         assert!(
             frame.contains("second failure"),
@@ -112,14 +109,10 @@ mod tests {
     #[test]
     fn a_long_error_is_wrapped_across_lines_without_horizontal_scrolling() {
         let tall = Rect::new(0, 0, 40, 20);
-        let mut state = MsgDialogState::default();
-        open(
-            &mut state,
-            "This is a demonstration error, raised by Ctrl+E.",
-        );
+        let mut dialog = Overlay::up(open("This is a demonstration error, raised by Ctrl+E."));
 
         let mut buffer = Buffer::empty(tall);
-        crate::dialog::draw(tall, &mut buffer, &mut state, &theme());
+        crate::dialog::draw(tall, &mut buffer, &mut dialog, &theme());
         let frame = picture(&buffer);
 
         assert!(

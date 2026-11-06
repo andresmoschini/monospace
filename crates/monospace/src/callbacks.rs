@@ -261,10 +261,10 @@ fn apply(action: &Action, state: &mut AppState) {
 
         // **The two actions that open the overlay.** The dialog is the chrome's own, so the
         // session is untouched: no command is performed and no step is recorded (D5 of #189).
-        Action::About => about::open(state.dialog_mut()),
+        Action::About => state.dialog_mut().show(about::open()),
 
         // **The same overlay, over a failure's text**: it replaces whatever the dialog held.
-        Action::ShowError(message) => error::open(state.dialog_mut(), message),
+        Action::ShowError(message) => state.dialog_mut().show(error::open(message)),
 
         // **The open dialog is the chrome's own too**, and opening it changes no session.
         Action::Open => state.open_mut().show(OpenDialogState::new()),
@@ -659,7 +659,7 @@ mod tests {
             matches!(outcome, Control::Changed),
             "taking About owed no frame: {outcome:?}"
         );
-        assert!(state.dialog().active(), "taking About opened no dialog");
+        assert!(state.dialog().is_up(), "taking About opened no dialog");
         assert_eq!(
             state.chrome().leaf(),
             Focus::Region,
@@ -772,7 +772,7 @@ mod tests {
 
         apply(&Action::ShowError("Something failed".into()), &mut state);
 
-        assert!(state.dialog().active(), "the error left the dialog down");
+        assert!(state.dialog().is_up(), "the error left the dialog down");
 
         let mut buffer = Buffer::empty(Rect::new(0, 0, 40, 10));
         crate::dialog::draw(
@@ -884,13 +884,13 @@ mod tests {
         let _ = send(&click(3, 3), &mut state);
         let selected = state.diagram().selected();
         open_the_about_dialog(&mut state);
-        assert!(state.dialog().active(), "the dialog is not open");
+        assert!(state.dialog().is_up(), "the dialog is not open");
         let focus = state.chrome().leaf();
 
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.dialog().active(), "escape did not close the dialog");
+        assert!(!state.dialog().is_up(), "escape did not close the dialog");
         assert_eq!(
             state.chrome().leaf(),
             focus,
@@ -1336,7 +1336,7 @@ mod tests {
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.open().is_up(), "the failure left the open dialog up");
         assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the failure did not open the error dialog"
         );
         assert_eq!(
@@ -1372,7 +1372,7 @@ mod tests {
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.open().is_up(), "the failure left the open dialog up");
         assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the failure did not open the error dialog"
         );
         assert_eq!(
@@ -1489,7 +1489,7 @@ mod tests {
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.save().is_up(), "the failure left the save dialog up");
         assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the failure did not open the error dialog"
         );
         assert_eq!(
@@ -1530,7 +1530,7 @@ mod tests {
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(!state.save().is_up(), "the failure left the save dialog up");
         assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the failure did not open the error dialog"
         );
         assert_eq!(
@@ -1570,7 +1570,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "the way out was answered through the dialog: {outcome:?}"
         );
-        assert!(state.dialog().active(), "Ctrl+Q closed the dialog");
+        assert!(state.dialog().is_up(), "Ctrl+Q closed the dialog");
 
         // The bar is behind the overlay even where the dialog does not cover it.
         let _ = send(&click(column, row), &mut state);
@@ -1585,7 +1585,7 @@ mod tests {
             "the click behind the dialog opened a drop-down"
         );
         assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the click on the bar closed the dialog"
         );
     }
@@ -1686,7 +1686,7 @@ mod tests {
         // answered before it (D6 of #189).
         let mut state = a_drawn_state();
         open_the_about_dialog(&mut state);
-        assert!(state.dialog().active(), "the dialog is not open");
+        assert!(state.dialog().is_up(), "the dialog is not open");
 
         let outcome = send(
             &key_with(
@@ -2549,7 +2549,7 @@ mod tests {
         let _ = send(&key(KeyCode::Right), &mut state);
 
         assert!(
-            state.dialog().active(),
+            state.dialog().is_up(),
             "the arrow closed the dialog it should not have reached"
         );
         assert!(
@@ -3487,7 +3487,7 @@ mod tests {
             );
             assert!(state.text().is_up(), "{code:?}: the editor closed");
             assert!(
-                !state.dialog().active(),
+                !state.dialog().is_up(),
                 "{code:?}: the message dialog opened"
             );
             assert!(!state.open().is_up(), "{code:?}: the open dialog opened");

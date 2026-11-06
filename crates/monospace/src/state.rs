@@ -26,14 +26,14 @@ pub(crate) struct AppState {
     /// The bar and the keyboard, which move together: the region's leaf at startup (D1 of #189).
     chrome: Chrome,
 
-    /// The message dialog's own state: its message, its `Ok`, and whether it is up (D5 of #189).
+    /// The message dialog, while it is up: its message, its `Ok` and its focus (D5 of #189).
     ///
     /// **One overlay, whatever it says**: About and every other message open the same dialog, so
     /// a second message replaces the first rather than stacking over it.
     ///
     /// **The dialog runs its own focus** while it is up, and the application's leaf is left where
     /// it was, so closing the dialog gives the keyboard back unchanged.
-    dialog: MsgDialogState,
+    dialog: Overlay<MsgDialogState>,
 
     /// The open dialog, while it is up: the path being typed and its frame.
     ///
@@ -66,7 +66,7 @@ impl AppState {
         Self {
             diagram: DiagramState::new(diagram_session),
             chrome: Chrome::new(),
-            dialog: MsgDialogState::default(),
+            dialog: Overlay::Down,
             open: Overlay::Down,
             save: Overlay::Down,
             text: Overlay::Down,
@@ -117,18 +117,18 @@ impl AppState {
         (&mut self.chrome, &mut self.diagram)
     }
 
-    /// The message dialog's own state, for the tests that say whether it is up.
+    /// The message dialog, for the tests that say whether it is up.
     ///
     /// **The application opens, answers and paints the dialog**, and all three need it mutable, so
     /// this door is the test's for the same reason as [`Self::status`].
     #[cfg(test)]
-    pub(crate) fn dialog(&self) -> &MsgDialogState {
+    pub(crate) fn dialog(&self) -> &Overlay<MsgDialogState> {
         &self.dialog
     }
 
     /// The dialog, for the frame that paints it, the handler that answers it and the actions that
     /// open it.
-    pub(crate) fn dialog_mut(&mut self) -> &mut MsgDialogState {
+    pub(crate) fn dialog_mut(&mut self) -> &mut Overlay<MsgDialogState> {
         &mut self.dialog
     }
 
