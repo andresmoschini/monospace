@@ -226,7 +226,10 @@ fn apply(action: &Action, state: &mut AppState) {
         // region's handler and the identity is read here.
         Action::Resize(dx, dy) => {
             if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().resize_shape(selected, *dx, *dy);
+                state.diagram_mut().perform(Command::Resize {
+                    id: selected,
+                    by: (*dx, *dy).into(),
+                });
             }
         }
 

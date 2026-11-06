@@ -271,20 +271,6 @@ impl DiagramState {
         });
     }
 
-    /// Resizes `id` by `(dx, dy)` cells on the session.
-    ///
-    /// **The pair and not the delta.** As with [`Self::move_shape`], the application's vocabulary
-    /// names no `Delta`: the pair is converted where the command is written.
-    ///
-    /// **The identity survives**: the figure is still there, so the next frame inverts the cells
-    /// it now owns.
-    pub(crate) fn resize_shape(&mut self, id: ShapeId, dx: i16, dy: i16) {
-        self.perform(Command::Resize {
-            id,
-            by: (dx, dy).into(),
-        });
-    }
-
     /// Performs `command` on the session, recording a step when it changes the diagram.
     ///
     /// **A command that changes nothing records no step** (#285): the session is handed back as it
@@ -1055,7 +1041,10 @@ mod tests {
         let mut state = DiagramState::new(Session::new(diagram));
         let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
-        state.resize_shape(shape, 1, 0);
+        state.perform(Command::Resize {
+            id: shape,
+            by: (1, 0).into(),
+        });
 
         assert!(state.session.can_undo(), "the resize recorded no step");
         assert!(
