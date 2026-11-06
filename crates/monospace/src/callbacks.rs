@@ -34,6 +34,7 @@ use crate::save::SaveDialogState;
 use crate::shortcuts;
 use crate::state::AppState;
 use crate::text;
+use crate::text::TextEditorState;
 use crate::vocabulary::{Action, AppError, Reply};
 use monospace_diagram::Shape;
 
@@ -252,7 +253,9 @@ fn apply(action: &Action, state: &mut AppState) {
                 });
 
             if let Some((id, text)) = opened {
-                state.text_mut().open(id, text.as_ref());
+                state
+                    .text_mut()
+                    .show(TextEditorState::new(id, text.as_ref()));
             }
         }
 
@@ -1720,7 +1723,7 @@ mod tests {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
         let _ = send(&key(KeyCode::Char('t')), &mut state);
-        assert!(state.text().active(), "the text editor is not open");
+        assert!(state.text().is_up(), "the text editor is not open");
 
         let outcome = send(
             &key_with(
@@ -3288,7 +3291,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Char('t')), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(state.text().active(), "t opened no editor");
+        assert!(state.text().is_up(), "t opened no editor");
         assert!(
             !state.diagram().can_undo(),
             "opening the editor recorded a step"
@@ -3307,7 +3310,7 @@ mod tests {
         );
         let outcome = send(&key(KeyCode::Char('t')), &mut line);
         assert!(matches!(outcome, Control::Continue), "line: {outcome:?}");
-        assert!(!line.text().active(), "line: t opened an editor");
+        assert!(!line.text().is_up(), "line: t opened an editor");
 
         // **A connector**, selected directly: its route is the drawing's, and what this test says
         // is that `t` is not accepted for it, not how a press selects one.
@@ -3320,7 +3323,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "connector: {outcome:?}"
         );
-        assert!(!connector.text().active(), "connector: t opened an editor");
+        assert!(!connector.text().is_up(), "connector: t opened an editor");
 
         // **Nothing selected.**
         let mut nothing = a_drawn_state_over(A_BOX);
@@ -3330,7 +3333,7 @@ mod tests {
             "nothing selected: {outcome:?}"
         );
         assert!(
-            !nothing.text().active(),
+            !nothing.text().is_up(),
             "nothing selected: t opened an editor"
         );
 
@@ -3347,7 +3350,7 @@ mod tests {
             matches!(outcome, Control::Continue),
             "sub-mode: {outcome:?}"
         );
-        assert!(!sub_mode.text().active(), "sub-mode: t opened an editor");
+        assert!(!sub_mode.text().is_up(), "sub-mode: t opened an editor");
     }
 
     #[test]
@@ -3358,7 +3361,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
-        assert!(!state.text().active(), "Enter opened the editor");
+        assert!(!state.text().is_up(), "Enter opened the editor");
     }
 
     #[test]
@@ -3374,7 +3377,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.text().active(), "Ok did not close the editor");
+        assert!(!state.text().is_up(), "Ok did not close the editor");
         assert!(state.diagram().can_undo(), "saving recorded no step");
         assert_eq!(
             state.diagram().selected(),
@@ -3388,7 +3391,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Esc), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.text().active(), "Escape did not close the editor");
+        assert!(!state.text().is_up(), "Escape did not close the editor");
 
         // **`Cancel` with `Enter` discards too** (rule 7): two `Tab`s reach it from the buffer.
         let _ = send(&key(KeyCode::Char('t')), &mut state);
@@ -3399,7 +3402,7 @@ mod tests {
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert!(
-            !state.text().active(),
+            !state.text().is_up(),
             "Enter on Cancel did not close the editor"
         );
         let Shape::Box { text: kept, .. } = state
@@ -3427,7 +3430,7 @@ mod tests {
         let outcome = send(&key(KeyCode::Enter), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(!state.text().active(), "Ok did not close the editor");
+        assert!(!state.text().is_up(), "Ok did not close the editor");
         assert!(
             !state.diagram().can_undo(),
             "saving the same text recorded a step"
@@ -3453,7 +3456,7 @@ mod tests {
         );
 
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
-        assert!(state.text().active(), "Ctrl+C closed the editor");
+        assert!(state.text().is_up(), "Ctrl+C closed the editor");
         assert_eq!(
             rat_widget::text::clipboard::global_clipboard()
                 .get_string()
@@ -3482,7 +3485,7 @@ mod tests {
                 matches!(outcome, Control::Continue),
                 "{code:?}: {outcome:?}"
             );
-            assert!(state.text().active(), "{code:?}: the editor closed");
+            assert!(state.text().is_up(), "{code:?}: the editor closed");
             assert!(
                 !state.dialog().active(),
                 "{code:?}: the message dialog opened"
@@ -3499,23 +3502,27 @@ mod tests {
         let outcome = send(&key(KeyCode::Char('t')), &mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(state.text().active(), "t inside the editor closed it");
-        assert_eq!(state.text().buffer(), "t");
+        assert!(state.text().is_up(), "t inside the editor closed it");
+        assert_eq!(
+            state.text().get().expect("the text editor is up").buffer(),
+            "t"
+        );
 
         // `Tab` moves the focus inside the editor and inserts no tab.
         let outcome = send(&key(KeyCode::Tab), &mut state);
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert!(state.text().active(), "Tab closed the editor");
-        assert_eq!(state.text().buffer(), "t", "Tab inserted a tab");
+        assert!(state.text().is_up(), "Tab closed the editor");
+        assert_eq!(
+            state.text().get().expect("the text editor is up").buffer(),
+            "t",
+            "Tab inserted a tab"
+        );
 
         // A click on the bar reaches nothing: the editor stays up and the keyboard does not move.
         let leaf = state.chrome().leaf();
         let outcome = send(&click(3, 0), &mut state);
         assert!(matches!(outcome, Control::Continue), "{outcome:?}");
-        assert!(
-            state.text().active(),
-            "a click on the bar closed the editor"
-        );
+        assert!(state.text().is_up(), "a click on the bar closed the editor");
         assert_eq!(state.chrome().leaf(), leaf, "the click moved the keyboard");
     }
 

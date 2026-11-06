@@ -135,6 +135,7 @@ mod tests {
     use crate::context::AppGlobal;
     use crate::state::AppState;
     use crate::status;
+    use crate::text::TextEditorState;
     use crate::vocabulary::Reply;
     use monospace_core::{Offset, ShapeId};
     use monospace_diagram::Text;
@@ -1235,7 +1236,7 @@ mod tests {
             .collect();
 
         let text = Text::new("hi").unwrap();
-        state.text_mut().open(id, Some(&text));
+        state.text_mut().show(TextEditorState::new(id, Some(&text)));
 
         let after = paint(&mut state, &a_global(), WIDTH, HEIGHT);
         let after_rows: Vec<String> = (status.top()..status.bottom())
@@ -1257,7 +1258,7 @@ mod tests {
         state.diagram_mut().select(Some(id));
 
         let text = Text::new("hi").unwrap();
-        state.text_mut().open(id, Some(&text));
+        state.text_mut().show(TextEditorState::new(id, Some(&text)));
 
         let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
 

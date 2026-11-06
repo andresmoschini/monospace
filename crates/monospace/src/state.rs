@@ -47,11 +47,11 @@ pub(crate) struct AppState {
     /// gives the keyboard back unchanged. It is an overlay at the frame's top layer.
     save: Overlay<SaveDialogState>,
 
-    /// The text editor's own state: its buffer, its frame, and whether it is up.
+    /// The text editor, while it is up: the box it edits, its buffer and its frame.
     ///
     /// **The dialog runs its own focus** while it is up, as the message, open and save dialogs do,
     /// so closing it gives the keyboard back unchanged. It is an overlay at the frame's top layer.
-    text: TextEditorState,
+    text: Overlay<TextEditorState>,
 }
 
 impl AppState {
@@ -69,7 +69,7 @@ impl AppState {
             dialog: MsgDialogState::default(),
             open: Overlay::Down,
             save: Overlay::Down,
-            text: TextEditorState::default(),
+            text: Overlay::Down,
         }
     }
 
@@ -156,15 +156,15 @@ impl AppState {
         &mut self.save
     }
 
-    /// The text editor's own state, for the tests that say whether it is up.
+    /// The text editor, for the tests that say whether it is up.
     #[cfg(test)]
-    pub(crate) fn text(&self) -> &TextEditorState {
+    pub(crate) fn text(&self) -> &Overlay<TextEditorState> {
         &self.text
     }
 
     /// The text editor, for the frame that paints it, the handler that answers it and the actions
     /// that open it.
-    pub(crate) fn text_mut(&mut self) -> &mut TextEditorState {
+    pub(crate) fn text_mut(&mut self) -> &mut Overlay<TextEditorState> {
         &mut self.text
     }
 }
