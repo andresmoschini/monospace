@@ -37,6 +37,7 @@ use crate::text;
 use crate::text::TextEditorState;
 use crate::vocabulary::{Action, AppError, Reply};
 use monospace_diagram::Shape;
+use monospace_editing::Command;
 
 /// The terminal is the framework's: it takes the screen and gives it back, and there is nothing
 /// of ours to set up.
@@ -237,7 +238,10 @@ fn apply(action: &Action, state: &mut AppState) {
 
         Action::SetText(text) => {
             if let Some(selected) = state.diagram().selected() {
-                state.diagram_mut().set_text(selected, text.clone());
+                state.diagram_mut().perform(Command::SetText {
+                    id: selected,
+                    text: text.clone(),
+                });
             }
         }
 
