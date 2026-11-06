@@ -8,6 +8,10 @@
 //! **Every overlay is held this way** — the message dialog, the open dialog, the save dialog and
 //! the text editor — so [`crate::state`] has one shape for all four instead of a flag in each, and
 //! a handler that closes an overlay drops what it held by construction.
+//!
+//! **It is not an `Option`**: an overlay is down, not missing, and the type says so with the
+//! screen's own words. `show` and `close` also name the transition, where a `Some` and a `None`
+//! would leave the handler to spell out what putting a value there means.
 
 /// An overlay's state: down, or up over the state of the widget inside it.
 #[derive(Debug)]
