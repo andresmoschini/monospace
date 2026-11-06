@@ -134,9 +134,9 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
     // **The two reaches that answer before the press is addressed come first, and in this order.**
     // A `Ctrl+Shift+Q` that reached the chrome as a key would be answered by the chrome, and the
     // point of it is that it is answered by nothing; the overlays sit above the application, so
-    // while one is up an event it leaves alone reaches nothing else. **`Ignored` is the overlay being down**:
-    // the framework answers it while inactive, so asking it is one call and not a question
-    // about `active()` followed by a question about the event.
+    // while one is up an event it leaves alone reaches nothing else. **`Ignored` is the overlay
+    // being down**: the handler hands it back without asking the widget, so routing is one call and
+    // not a question about whether the overlay is up followed by a question about the event.
     //
     // **Neither moves the keyboard**, which is why addressing sits below and not here: a
     // click on the bar behind an overlay moves nothing, and the press is addressed only once nobody
