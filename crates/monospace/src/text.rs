@@ -242,20 +242,23 @@ pub(crate) fn draw(
 /// handed to [`Text::new`], which answers `None` only for a control character — impossible after
 /// the loop above — so a buffer with a visible character is stored literally, surrounding spaces
 /// included.
+///
+/// **Consecutive line breaks are kept.** A blank line is part of the text and not an artifact of
+/// the CRLF: only the pair is folded, so two `\n` remain two.
 fn stored(buffer: &str) -> Option<Text> {
     let mut normalized = String::with_capacity(buffer.len());
+    let mut characters = buffer.chars().peekable();
 
-    for character in buffer.chars() {
+    while let Some(character) = characters.next() {
         match character {
             '\r' => {
+                if characters.peek() == Some(&'\n') {
+                    characters.next();
+                }
                 normalized.push('\n');
             }
             '\t' => normalized.push_str("    "),
-            '\n' => {
-                if !normalized.ends_with('\n') {
-                    normalized.push('\n');
-                }
-            }
+            '\n' => normalized.push('\n'),
             other if other.is_control() => {}
             other => normalized.push(other),
         }
@@ -332,6 +335,32 @@ mod tests {
             .expect("the normalized text is not empty");
 
         assert_eq!(text, Text::new("one\ntwo    three").unwrap());
+    }
+
+    #[test]
+    fn saving_keeps_the_blank_lines() {
+        let mut state = TextEditorState::default();
+        state.open(id(1), Some(&Text::new("one\n\ntwo").unwrap()));
+
+        let _ = handle(&key(KeyCode::Tab), &mut state);
+        assert_eq!(
+            saved(handle(&key(KeyCode::Enter), &mut state)),
+            Some(Text::new("one\n\ntwo").unwrap()),
+            "a blank line was folded away"
+        );
+    }
+
+    #[test]
+    fn saving_turns_a_lone_carriage_return_into_a_line_break() {
+        let mut state = TextEditorState::default();
+        state.open(id(1), None);
+        state.text.set_text("one\rtwo");
+
+        let _ = handle(&key(KeyCode::Tab), &mut state);
+        assert_eq!(
+            saved(handle(&key(KeyCode::Enter), &mut state)),
+            Some(Text::new("one\ntwo").unwrap())
+        );
     }
 
     #[test]
