@@ -29,6 +29,7 @@ use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind
 use ratatui_widgets::block::Block;
 use ratatui_widgets::paragraph::Paragraph;
 
+use crate::overlay::Overlay;
 use crate::vocabulary::{Action, Reply};
 
 /// The largest the dialog grows: wide enough for a path, short enough to leave the chrome around
@@ -44,12 +45,9 @@ const LABEL: &str = "File name";
 /// The title of the dialog.
 const TITLE: &str = "Save description";
 
-/// The state of the save dialog: whether it is up, what has been typed, and its frame.
-#[derive(Debug, Default)]
+/// The state of the save dialog: what has been typed and its frame.
+#[derive(Debug)]
 pub(crate) struct SaveDialogState {
-    /// Whether the dialog is up. The overlay holds the keyboard only while this is true.
-    active: bool,
-
     /// The frame and its two buttons.
     frame: DialogFrameState,
 
@@ -58,22 +56,20 @@ pub(crate) struct SaveDialogState {
 }
 
 impl SaveDialogState {
-    /// Opens the dialog with an empty field.
+    /// The dialog with an empty field.
     ///
     /// **The field holds the focus when the dialog opens** (D4 of #189, D1 of #270): a person opens
     /// it to type, so the first key is the first character of the path rather than a `Tab`.
-    pub(crate) fn open(&mut self) {
-        self.active = true;
-        self.input.set_value("");
-        self.input.focus.set(true);
-        self.frame.ok.focus.set(false);
-        self.frame.cancel.focus.set(false);
-    }
+    pub(crate) fn new() -> Self {
+        let state = Self {
+            frame: DialogFrameState::default(),
+            input: TextInputState::default(),
+        };
 
-    /// Whether the dialog is up.
-    #[cfg(test)]
-    pub(crate) fn active(&self) -> bool {
-        self.active
+        state.input.focus.set(true);
+        state.frame.ok.focus.set(false);
+        state.frame.cancel.focus.set(false);
+        state
     }
 
     /// The path as it was typed, without the spaces around it.
@@ -81,18 +77,9 @@ impl SaveDialogState {
         self.input.text().trim()
     }
 
-    /// Closes the dialog and forgets what was typed.
-    pub(crate) fn close(&mut self) {
-        self.active = false;
-        self.input.set_value("");
-        self.input.focus.set(false);
-        self.frame.ok.focus.set(false);
-        self.frame.cancel.focus.set(false);
-    }
-
-    /// Where the terminal cursor goes, if the field is active and focused.
+    /// Where the terminal cursor goes, if the field is focused.
     pub(crate) fn screen_cursor(&self) -> Option<(u16, u16)> {
-        if self.active && self.input.is_focused() {
+        if self.input.is_focused() {
             self.input.screen_cursor()
         } else {
             None
@@ -125,10 +112,10 @@ impl SaveDialogState {
 /// [`Reply::Consumed`], so nothing behind the overlay is asked. `Cancel` and `Esc` close it and
 /// answer [`Reply::Repaint`]. `Ok` and `Enter` close it and answer
 /// `Reply::Act(Action::SaveFile(path))`.
-pub(crate) fn handle(event: &Event, state: &mut SaveDialogState) -> Reply {
-    if !state.active {
+pub(crate) fn handle(event: &Event, dialog: &mut Overlay<SaveDialogState>) -> Reply {
+    let Some(state) = dialog.get_mut() else {
         return Reply::Ignored;
-    }
+    };
 
     let mut changed = false;
 
@@ -145,18 +132,18 @@ pub(crate) fn handle(event: &Event, state: &mut SaveDialogState) -> Reply {
     }
 
     if state.frame.cancel.handle(event, Regular) == ButtonOutcome::Pressed {
-        state.close();
+        dialog.close();
         return Reply::Repaint;
     }
 
     if state.frame.ok.handle(event, Regular) == ButtonOutcome::Pressed {
         let path = state.path().to_owned();
-        state.close();
+        dialog.close();
         return Reply::Act(Action::SaveFile(path));
     }
 
     if is_escape(event) {
-        state.close();
+        dialog.close();
         return Reply::Repaint;
     }
 
@@ -165,7 +152,7 @@ pub(crate) fn handle(event: &Event, state: &mut SaveDialogState) -> Reply {
     // above, so `Enter` on it still cancels.
     if is_enter(event) {
         let path = state.path().to_owned();
-        state.close();
+        dialog.close();
         return Reply::Act(Action::SaveFile(path));
     }
 
@@ -184,12 +171,10 @@ pub(crate) fn handle(event: &Event, state: &mut SaveDialogState) -> Reply {
 pub(crate) fn draw(
     area: Rect,
     buf: &mut Buffer,
-    state: &mut SaveDialogState,
+    dialog: &mut Overlay<SaveDialogState>,
     theme: &SalsaTheme,
 ) -> Option<(u16, u16)> {
-    if !state.active {
-        return None;
-    }
+    let state = dialog.get_mut()?;
 
     let pop_up = area.centered(Constraint::Max(MAX_WIDTH), Constraint::Max(MAX_HEIGHT));
 
@@ -252,14 +237,23 @@ mod tests {
         crate::config::Config::default().theme
     }
 
-    fn drawn() -> (SaveDialogState, Buffer) {
-        let mut state = SaveDialogState::default();
-        state.open();
+    fn drawn() -> (Overlay<SaveDialogState>, Buffer) {
+        let mut dialog = Overlay::up(SaveDialogState::new());
 
         let mut buffer = Buffer::empty(REGION);
-        let _ = draw(REGION, &mut buffer, &mut state, &theme());
+        let _ = draw(REGION, &mut buffer, &mut dialog, &theme());
 
-        (state, buffer)
+        (dialog, buffer)
+    }
+
+    /// The dialog's own state, while it is up.
+    fn state_of(dialog: &Overlay<SaveDialogState>) -> &SaveDialogState {
+        dialog.get().expect("the save dialog is up")
+    }
+
+    /// The dialog's own state, for the test that types into it.
+    fn state_of_mut(dialog: &mut Overlay<SaveDialogState>) -> &mut SaveDialogState {
+        dialog.get_mut().expect("the save dialog is up")
     }
 
     fn picture(buffer: &Buffer) -> String {
@@ -308,15 +302,21 @@ mod tests {
         let (mut state, _) = drawn();
 
         assert!(
-            state.input.is_focused(),
+            state_of(&state).input.is_focused(),
             "the field did not start focused, so the test proves nothing"
         );
 
         let outcome = handle(&key(KeyCode::Tab), &mut state);
 
         assert_eq!(outcome, Reply::Repaint, "Tab changed nothing");
-        assert!(!state.input.is_focused(), "Tab left the focus in the field");
-        assert!(state.frame.ok.is_focused(), "Tab did not reach the Ok");
+        assert!(
+            !state_of(&state).input.is_focused(),
+            "Tab left the focus in the field"
+        );
+        assert!(
+            state_of(&state).frame.ok.is_focused(),
+            "Tab did not reach the Ok"
+        );
     }
 
     #[test]
@@ -342,13 +342,17 @@ mod tests {
             let _ = handle(&key(KeyCode::Char(character)), &mut state);
         }
 
-        assert_eq!(state.path(), "out.json", "the field did not take the keys");
+        assert_eq!(
+            state_of(&state).path(),
+            "out.json",
+            "the field did not take the keys"
+        );
     }
 
     #[test]
     fn the_field_says_where_the_cursor_goes() {
         let (mut state, _) = drawn();
-        state.set_path("out.json");
+        state_of_mut(&mut state).set_path("out.json");
 
         let mut buffer = Buffer::empty(REGION);
         let cursor = draw(REGION, &mut buffer, &mut state, &theme());
@@ -365,31 +369,31 @@ mod tests {
         let (mut state, _) = drawn();
 
         assert_eq!(handle(&key(KeyCode::Esc), &mut state), Reply::Repaint);
-        assert!(!state.active(), "escape did not close the dialog");
+        assert!(!state.is_up(), "escape did not close the dialog");
     }
 
     #[test]
     fn enter_closes_the_dialog_and_mints_save_file() {
         let (mut state, _) = drawn();
-        state.set_path("out.json");
+        state_of_mut(&mut state).set_path("out.json");
 
         assert_eq!(
             handle(&key(KeyCode::Enter), &mut state),
             Reply::Act(Action::SaveFile("out.json".to_owned())),
             "Enter in the field did not accept"
         );
-        assert!(!state.active(), "the dialog remained open after accept");
+        assert!(!state.is_up(), "the dialog remained open after accept");
     }
 
     #[test]
-    fn an_inactive_dialog_ignores_events() {
-        let mut state = SaveDialogState::default();
-        assert_eq!(handle(&key(KeyCode::Enter), &mut state), Reply::Ignored);
-        assert_eq!(handle(&key(KeyCode::Esc), &mut state), Reply::Ignored);
+    fn a_dialog_that_is_down_ignores_events() {
+        let mut dialog = Overlay::Down;
+        assert_eq!(handle(&key(KeyCode::Enter), &mut dialog), Reply::Ignored);
+        assert_eq!(handle(&key(KeyCode::Esc), &mut dialog), Reply::Ignored);
     }
 
     #[test]
-    fn an_unused_event_is_consumed_while_active() {
+    fn an_unused_event_is_consumed_while_it_is_up() {
         let (mut state, _) = drawn();
         assert_eq!(handle(&key(KeyCode::Right), &mut state), Reply::Consumed);
     }

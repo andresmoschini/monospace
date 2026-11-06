@@ -41,11 +41,11 @@ pub(crate) struct AppState {
     /// gives the keyboard back unchanged. It is the second overlay and the last thing painted.
     open: Overlay<OpenDialogState>,
 
-    /// The save dialog's own state: the path being typed, its frame, and whether it is up.
+    /// The save dialog, while it is up: the path being typed and its frame.
     ///
     /// **The dialog runs its own focus** while it is up, as the message dialog does, so closing it
     /// gives the keyboard back unchanged. It is an overlay at the frame's top layer.
-    save: SaveDialogState,
+    save: Overlay<SaveDialogState>,
 
     /// The text editor's own state: its buffer, its frame, and whether it is up.
     ///
@@ -68,7 +68,7 @@ impl AppState {
             chrome: Chrome::new(),
             dialog: MsgDialogState::default(),
             open: Overlay::Down,
-            save: SaveDialogState::default(),
+            save: Overlay::Down,
             text: TextEditorState::default(),
         }
     }
@@ -144,15 +144,15 @@ impl AppState {
         &mut self.open
     }
 
-    /// The save dialog's own state, for the tests that say whether it is up.
+    /// The save dialog, for the tests that say whether it is up.
     #[cfg(test)]
-    pub(crate) fn save(&self) -> &SaveDialogState {
+    pub(crate) fn save(&self) -> &Overlay<SaveDialogState> {
         &self.save
     }
 
     /// The save dialog, for the frame that paints it, the handler that answers it and the actions
     /// that open it.
-    pub(crate) fn save_mut(&mut self) -> &mut SaveDialogState {
+    pub(crate) fn save_mut(&mut self) -> &mut Overlay<SaveDialogState> {
         &mut self.save
     }
 
