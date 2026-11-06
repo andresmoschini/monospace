@@ -22,6 +22,11 @@ mod event;
 mod frame;
 mod menu;
 mod open;
+#[allow(
+    dead_code,
+    reason = "the first overlay that uses it lands in the next commit"
+)]
+mod overlay;
 mod save;
 mod shortcuts;
 mod state;
