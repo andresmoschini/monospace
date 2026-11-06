@@ -764,10 +764,10 @@ mod tests {
         );
     }
 
-    /// **The dialog is drawn last of all** (rule 9): it is the overlay, so it covers the drop-down
-    /// as well as the region, and a control behind it is not there to be seen.
+    /// **The dialog is drawn over the drop-down** (rule 9): it is an overlay, so it covers the
+    /// drop-down as well as the region, and a control behind it is not there to be seen.
     #[test]
-    fn the_dialog_is_drawn_last_of_all() {
+    fn the_dialog_is_drawn_over_the_drop_down() {
         let mut state = a_state();
         let global = a_global();
 
