@@ -56,6 +56,11 @@ pub enum Command {
         /// The block to store, or `None` for no text at all.
         text: Option<Text>,
     },
+    /// The connector's terminals are swapped.
+    InvertTerminals {
+        /// The connector whose terminals are being inverted.
+        id: ShapeId,
+    },
     /// The `from` end of a connector hangs from one of `from`'s four sides.
     Hang {
         /// The connector whose end is being hung.
@@ -131,6 +136,7 @@ impl Command {
                 let text = text.clone();
                 changed(diagram, id, |shape| shape.with_text(text))
             }
+            Self::InvertTerminals { id } => changed(diagram, id, Shape::with_inverted_terminals),
             Self::Hang { id, from, anchor } => changed(diagram, id, |shape| match shape {
                 Shape::Connector {
                     from: end,
