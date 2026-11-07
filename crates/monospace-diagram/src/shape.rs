@@ -62,6 +62,23 @@ impl EndpointAt {
         self.position().resolve(diagram)
     }
 
+    /// The effective outward cell count for this endpoint position given its terminal.
+    ///
+    /// Non-arm terminals (`Symbol`, `Glyph`) attached to a reference stand one cell outward by default
+    /// (`reference.out + 1`), whereas `Arm` terminals stand directly on the border cell (`reference.out + 0`)
+    /// to compose into junctions. Absolute endpoints have no anchor to offset from and return 0.
+    #[allow(dead_code, reason = "consumed by resolve in next commit")]
+    #[must_use]
+    pub(crate) fn effective_out(self, terminal: &Terminal) -> i16 {
+        match self {
+            Self::Absolute { .. } => 0,
+            Self::Reference(reference) => {
+                let base = i16::from(*terminal != Terminal::Arm);
+                reference.out.saturating_add(base)
+            }
+        }
+    }
+
     /// This endpoint, moved by `by`, changing nothing else.
     #[must_use]
     pub(crate) fn displaced_by(self, by: Delta) -> Self {
@@ -124,6 +141,13 @@ impl Endpoint {
     #[must_use]
     pub const fn leaving(&self) -> Direction {
         self.at.leaving()
+    }
+
+    /// The effective outward cell count for this endpoint.
+    #[allow(dead_code, reason = "consumed by resolve in next commit")]
+    #[must_use]
+    pub(crate) fn effective_out(&self) -> i16 {
+        self.at.effective_out(&self.terminal)
     }
 
     /// An endpoint's position, frozen against a removal of the shape `id` names, or `None` when there
@@ -1515,5 +1539,53 @@ mod tests {
         };
 
         assert_eq!(the_box.with_text(Some(text)), the_box);
+    }
+
+    #[test]
+    fn effective_out_offsets_non_arm_terminals_by_one_and_is_additive() {
+        use monospace_core::SymbolStyleName;
+
+        let nothing = Delta { dx: 0, dy: 0 };
+        let symbol = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+        let glyph = Terminal::Glyph {
+            glyph: Glyph::new("x").unwrap(),
+        };
+        let arm = Terminal::Arm;
+
+        let (_, dummy_id) = Diagram::new().add(box_at(0));
+        let at_ref =
+            |out: i16| EndpointAt::Reference(Reference::new(dummy_id, Anchor::Right, nothing, out));
+
+        // Arm terminal sits on the border (out + 0).
+        assert_eq!(at_ref(0).effective_out(&arm), 0);
+        assert_eq!(
+            Endpoint::reference(
+                Reference::new(dummy_id, Anchor::Right, nothing, 0),
+                arm.clone(),
+            )
+            .effective_out(),
+            0
+        );
+
+        // Non-arm terminals stand one cell outward by default (out + 1).
+        assert_eq!(at_ref(0).effective_out(&symbol), 1);
+        assert_eq!(at_ref(0).effective_out(&glyph), 1);
+
+        // Explicit out is additive (out + 1).
+        assert_eq!(at_ref(1).effective_out(&symbol), 2);
+        assert_eq!(at_ref(2).effective_out(&symbol), 3);
+
+        // Explicit negative out allows placing back on the border.
+        assert_eq!(at_ref(-1).effective_out(&symbol), 0);
+
+        // Absolute endpoint always yields 0 outward offset.
+        let absolute = EndpointAt::Absolute {
+            at: Pos { x: 3, y: 3 },
+            leaving: Direction::Right,
+        };
+        assert_eq!(absolute.effective_out(&symbol), 0);
+        assert_eq!(absolute.effective_out(&arm), 0);
     }
 }
