@@ -11,7 +11,7 @@ so in the commit.
 
 This document describes the layer above [the diagram model](diagram-model.md): the things a caller
 means to do to a diagram, and what holds one while it is being changed and how any state already
-seen is given back. [`diagram-model.md`](diagram-model.md) owns what a diagram is and the five
+seen is given back. [`diagram-model.md`](diagram-model.md) owns what a diagram is and the seven
 operations it answers to, and it is deliberately not extended here — the two layers are separate
 crates and separate documents for the same reason. A diagram is a value: it is constructed, copied,
 drawn and dropped. This layer is a live thing that contains one.
@@ -34,18 +34,19 @@ what a session is, and this layer knows nothing of it — the two hang off
 | `Step`     | One entry in a session's history: the diagram as it was left, and the command that left it |
 | `Position` | How far along its history a session is; how many steps a caller may still have given back  |
 
-**A command is not one of the diagram's five changes, and the two words are kept apart on purpose.**
-A change is an operation the diagram answers to; a command is a meaning a caller means. Several
-commands become one change, and one change answers to meanings that are not the same — which is the
-whole of §2.
+**A command is not one of the diagram's seven changes, and the two words are kept apart on
+purpose.** A change is an operation the diagram answers to; a command is a meaning a caller means.
+Several commands become one change, and one change answers to meanings that are not the same — which
+is the whole of §2.
 
 ## 2. A command means something the diagram does not name
 
-The diagram has five operations and they are complete: nothing else changes a diagram. They are also
-**coarse**, and coarseness that costs nothing in a diagram costs something here, because a caller is
-not the diagram. `replace` is one operation serving four meanings — a figure displaced, a figure
-resized, a figure's stroke changed, a figure's kind changed — and a caller who drags a figure and a
-caller who drags its border mean different things and did different work.
+The diagram has seven operations and they are complete: nothing else changes a diagram. They are
+also **coarse**, and coarseness that costs nothing in a diagram costs something here, because a
+caller is not the diagram. `replace` is one operation serving several meanings — a figure displaced,
+a figure resized, a figure's stroke changed, a figure's text changed, a figure's kind changed — and
+a caller who drags a figure and a caller who drags its border mean different things and did
+different work.
 
 So a command carries **its own fields rather than a finished shape**:
 
@@ -80,12 +81,19 @@ command says, and one more meaning is one more arm.
 | `SetText { id, text }`      | a box's text is replaced with this block, or taken out                   | `replace` with `Shape::with_text`   |
 | `Hang { id, from, anchor }` | one end of a connector hangs from a figure's side                        | `replace` with a rebuilt connector  |
 | `Forward { id }`            | one place toward the front of the order                                  | `forward`                           |
+| `Backward { id }`           | one place toward the back of the order                                   | `backward`                          |
+| `ToFront { id }`            | to the front of the order                                                | `to_front`                          |
+| `ToBack { id }`             | to the back of the order                                                 | `to_back`                           |
 | `Remove { id }`             | the figure is taken out                                                  | `remove`                            |
 
 The commands above are what [`docs/model.md`](model.md) calls _The initial set_ for shapes: enough
 to work with, and no promise that this is the final number. `Hang` is the one that shows what the
 layer is for — it reads the connector that is there, keeps what it does not change, and rebuilds the
 one end that changes, which is logic a caller otherwise writes and gets subtly wrong.
+
+`Backward`, `ToFront` and `ToBack` are the same mapping at the other end and at the absolute scale:
+each asks the diagram whether the figure would move and hands back `None` when it would not, so a
+figure already at the front or the back records no step (#285).
 
 ## 3. A command operates on the session
 
@@ -131,7 +139,7 @@ this is written down rather than assumed — the layer has no caller that keeps 
 the first one that does is what settles whether the persistent sequence earns its keep.
 
 **This is a claim about one diagram, not about diagrams.** `monospace-diagram` keeps its whole
-public API, and every one of its five operations stays as usable as it is today by anything that
+public API, and every one of its seven operations stays as usable as it is today by anything that
 owns a diagram of its own. The guarantee is that a diagram a session owns is changed through the
 session and nowhere else. A caller that wants to edit without a history holds a `Diagram` and edits
 it, which is what happens today and is not deprecated by this layer.
@@ -168,9 +176,10 @@ unresolved_ says what is left to write.
 **A command that changes nothing records no step.** The diagram's operations cannot fail, so a
 command naming a figure the diagram does not hold changes nothing, and neither does one whose change
 gives back the figure it found — a box at its smallest shrunk again, a line at its shortest shrunk
-again, a connector resized, a figure brought forward when it is already at the front, or a figure
-set to the stroke it already has. **A step is a change**, and a step that gives the same diagram
-back is one `Undo` presses past: a person who presses it once sees nothing happen.
+again, a connector resized, a figure brought forward or to the front when it is already at the
+front, or backward or to the back when it is already at the back, or a figure set to the stroke it
+already has. **A step is a change**, and a step that gives the same diagram back is one `Undo`
+presses past: a person who presses it once sees nothing happen.
 
 **What answers it is the command, and not the caller.** The session does not ask what was meant; it
 asks the command what it did, and `apply_to` answers with the diagram it leaves or with nothing at
@@ -190,7 +199,7 @@ nothing is inverted: the step carries the state, and undo is that state becoming
 **At the oldest position what comes back is not a step at all** but the diagram the session was
 created over, which is the one state the history does not hold — so the walk has one end that is a
 field rather than an entry, and a caller cannot tell the two apart from what it is handed. The
-diagram gives back its five operations for callers that hold one of their own; it is not what a
+diagram gives back its seven operations for callers that hold one of their own; it is not what a
 session undoes, and asking it to would be asking the value to remember. **What comes back is a
 session standing one place earlier over the same steps** — a new position rather than a new history,
 and no diagram copied to produce it.
@@ -259,14 +268,15 @@ ambiguity is worth one sentence rather than two names, because both are diagrams
 - Giving back every step in order reaches the diagram the session was created over.
 - Redoing them reaches the diagram the session held before any of it was given back.
 - A command that changes nothing — a figure the diagram does not hold, a box at its smallest, a line
-  at its shortest shrunk again, a connector resized, a figure brought forward at the front — leaves
-  the diagram equal, records no step, and leaves what was ahead of the position ahead.
+  at its shortest shrunk again, a connector resized, a figure brought forward or to the front at the
+  front, or backward or to the back at the back — leaves the diagram equal, records no step, and
+  leaves what was ahead of the position ahead.
 - A command that changed the diagram, carried out after a step was given back, leaves nothing ahead
   of the position to give.
-- Each command is what one of the diagram's five operations becomes, and no command reaches the
-  diagram by any other way. **Not the other way round**: `add` and `backward` are two of the five
-  and the initial set of commands reaches neither, because adding a figure is not one thing a caller
-  means to do to one and moving one toward the back of the order is not another.
+- Each command is what one of the diagram's seven operations becomes, and no command reaches the
+  diagram by any other way. **Not the other way round**: `add` is one of the seven and the initial
+  set of commands does not reach it, because adding a figure is not one thing a caller means to do
+  to one.
 - Drawing what a session holds and drawing the diagram it was created over produce equal buffers
   when no command has been carried out.
 - A copy a session handed out does not change when the session's diagram does.
