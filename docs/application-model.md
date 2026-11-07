@@ -185,11 +185,13 @@ makes the restored drawing a clean starting point. Any active sub-mode ends when
 drops.
 
 **The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
-interaction mode is entered (such as `STROKE_SELECT` via `s`), `DiagramState` records
-`sub_mode: Option<SubMode>`. The sub-mode is transient: selecting a value or pressing `Esc` exits it
-back to normal selection; losing or changing the selection — clicking another figure or outside, or
-removing the selected figure — drops it immediately (`sub_mode = None`). While the figure remains
-selected, transferring focus to the menu bar or opening an application dialog keeps the sub-mode.
+interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`), `DiagramState` records
+`sub_mode: Option<SubMode>`. The sub-mode is transient: `STROKE_SELECT` exits when a stroke is
+selected or `Esc` is pressed, and `ORDER_MODE` is continuous — each of its keys performs one command
+and stays, and `Esc` is the only key that leaves it. Losing or changing the selection — clicking
+another figure or outside, or removing the selected figure — drops it immediately
+(`sub_mode = None`). While the figure remains selected, transferring focus to the menu bar or
+opening an application dialog keeps the sub-mode.
 
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
@@ -270,8 +272,8 @@ and records one step, which is what #181 gives back; the selection stops naming 
 no longer has, so the removal leaves nothing selected and the next frame inverts nothing. **The
 removal is not confirmed**: until a confirmation dialog arrives, an accidental `Delete` is given
 back by `Undo` and by nothing else. `Delete` is strictly contextual: with nothing selected (`IDLE`),
-or while in an ephemeral sub-mode (`STROKE_SELECT`), it is not offered and performs no deletion; and
-it is not an entry in the global `Edit` menu.
+or while in an ephemeral sub-mode (`STROKE_SELECT` or `ORDER_MODE`), it is not offered and performs
+no deletion; and it is not an entry in the global `Edit` menu.
 
 **`EditText` and text editing change the session via `Command::SetText`.** `EditText` is offered on
 the contextual status bar as `[t] Edit` whenever a box is selected, and pressing `t` opens the text
@@ -284,8 +286,9 @@ with `Esc` or `Cancel` discards edits without recording a step.
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
 sub-mode (such as `STROKE_SELECT`) is active:
 
-1. Keys offered by the sub-mode (`1..=5` to apply a stroke and exit, `Esc` to cancel and return to
-   the enclosing selection) are handled directly by the region widget.
+1. Keys offered by the sub-mode are handled directly by the region widget: in `STROKE_SELECT`,
+   `1..=5` apply a stroke and exit, and `Esc` cancels; in `ORDER_MODE`, `PageUp`, `PageDown`, `Home`
+   and `End` perform one order command and stay, and `Esc` leaves the sub-mode.
 2. Any key the context table does not offer answers `Reply::Ignored`. The routing chain in
    `callbacks::route` offers the event to `shortcuts::handle_unclaimed`, allowing universal
    shortcuts (`Ctrl+Z` Undo, `Ctrl+Shift+Z` Redo, `Ctrl+S` Save, `Ctrl+Q` Quit, `Ctrl+N` New,
@@ -333,6 +336,21 @@ box is at its minimum size (2×2), or a line is at its minimum length (1) or alr
 shrink, the command is still dispatched and leaves the figure unchanged, so **the frame is owed and
 no step is recorded** (#285): the bar and the region decide whether the key applies, and the session
 decides whether it changed anything.
+
+**`z` opens the layer order sub-mode and its four keys move the selected figure, dispatched as
+`Command::Forward`, `Command::Backward`, `Command::ToFront` and `Command::ToBack`.** `PageUp` moves
+the figure one place toward the front, `PageDown` one place toward the back, `Home` to the front and
+`End` to the back. **Each press is one command and one step**, so one `Undo` reverses one press; an
+absolute move is one command rather than a loop, so `Home` is one step even when the figure crosses
+several places. The sub-mode is continuous: the keys perform their command and stay, and `Esc`
+leaves it without changing the order. **The bar and the region decide whether the key applies, and
+the session decides whether it changed anything** (#285): at the front, `PageUp` and `Home` are
+still offered and still dispatched, and the command returns `None`, so the frame is owed and no step
+is recorded. The status row reports
+`LAYER ORDER for <Kind> #<id> · Position: <k> of <N> · Behind: <k-1>, Ahead: <N-k>`, where `<k>` is
+`place_of(id) + 1`, and the command row offers
+`ORDER: [Home] Front [End] Back [PgUp] Forward [PgDn] Backward · [Esc] Done`. **The selection
+survives every move**, because the figure is still there under the same identity.
 
 **Undo and Redo are the actions that give a step back.** Each is reached by a key and by the Edit
 menu's entry, and both apply that same action rather than a code path each: `Ctrl+Z` and **Undo**,
@@ -563,8 +581,9 @@ framework's buffer one at a time.
 - `Shift` with an arrow resizes the selected box one cell along the arrow's axis, or a selected line
   one cell along its orientation, records one step, and leaves the selection on it.
 - A command that changes nothing records no step: a resize at the smallest size, a figure brought
-  forward at the front, and a command naming a figure the drawing does not hold all leave the
-  history where it was, what was ahead of the position included.
+  forward or to the front at the front, a figure moved backward or to the back at the back, and a
+  command naming a figure the drawing does not hold all leave the history where it was, what was
+  ahead of the position included.
 - `Shift` with an arrow with nothing selected performs no command and leaves the key unhandled.
 - `Shift` with an arrow across a selected line's orientation, or with a connector selected, performs
   no command and leaves the key unhandled.
@@ -572,8 +591,9 @@ framework's buffer one at a time.
   nothing.
 - A resize with any modifier other than `Shift`, a release and a repeat resize nothing.
 - The command row offers `RESIZE: Shift+↑↓←→` beside `MOVE` and `TEXT: [t] Edit` beside `STROKE` for
-  a box; a line, a connector, the idle state without selection, and the stroke selection sub-mode do
-  not offer text editing.
+  a box, and `ORDER: [z]` for every selected figure while no sub-mode is active; a line, a
+  connector, the idle state without selection, and the stroke selection sub-mode do not offer text
+  editing.
 - Pressing `t` while a box is selected opens the text editor overlay; `Enter` remains ignored on the
   canvas.
 - The text editor is drawn over the region, leaves the status bar byte-identical to the preceding
@@ -624,6 +644,23 @@ framework's buffer one at a time.
   opening an application dialog keeps the sub-mode while the figure remains selected.
 - The status row reports `STROKE SELECTION for <Kind> #<id> · Current: <stroke>` while the stroke
   sub-mode is active, and the command row offers the five strokes and `[Esc] Cancel`.
+- Pressing `z` while a box, line, or connector is selected transitions `DiagramState` to
+  `SubMode::OrderMode` and requests a repaint.
+- In `OrderMode`, `PageUp` dispatches `Command::Forward`, `PageDown` `Command::Backward`, `Home`
+  `Command::ToFront` and `End` `Command::ToBack`, each naming the selected figure; the sub-mode
+  remains active after each.
+- Each order key records one step when the figure moves; at the front, `PageUp` and `Home` record
+  none, and at the back, `PageDown` and `End` record none (#285).
+- In `OrderMode`, pressing `Esc` leaves the sub-mode (`sub_mode = None`) and keeps the selection.
+- In `OrderMode`, every key the table does not offer (arrows, Shift+arrows, `Delete`, `Tab`,
+  `Enter`, `s`, `z`, digits, function keys) is ignored (`Reply::Ignored`) and falls through.
+- The status row reports
+  `LAYER ORDER for <Kind> #<id> · Position: <k> of <N> · Behind: <k-1>, Ahead: <N-k>` while the
+  order sub-mode is active, and the command row offers
+  `ORDER: [Home] Front [End] Back [PgUp] Forward [PgDn] Backward · [Esc] Done`.
+- A click on another figure or outside, removing the selected figure, and an effective undo or redo
+  end `OrderMode`; moving focus to the menu bar or opening an application dialog keeps it while the
+  figure remains selected.
 - The contextual command row and the widget dispatcher derive offered and accepted keys from a
   unified context table (Option D), guaranteeing offer equals acceptance.
 - An open drop-down does not keep either key.
