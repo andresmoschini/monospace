@@ -172,14 +172,12 @@ impl Endpoint {
     /// is nothing here to freeze.
     pub(crate) fn frozen_position(&self, id: ShapeId, diagram: &Diagram) -> Option<EndpointAt> {
         match self.at {
-            EndpointAt::Reference(reference) if reference.id == id => self
-                .at
-                .position()
-                .resolve(diagram)
-                .map(|at| EndpointAt::Absolute {
+            EndpointAt::Reference(reference) if reference.id == id => {
+                self.resolve(diagram).map(|at| EndpointAt::Absolute {
                     at,
                     leaving: reference.anchor.leaving(),
-                }),
+                })
+            }
             _ => None,
         }
     }
@@ -1108,7 +1106,8 @@ mod tests {
                 unreachable!()
             };
 
-            let expected_at = the_box.anchor(anchor).expect("box answers all anchors");
+            let border_at = the_box.anchor(anchor).expect("box answers all anchors");
+            let expected_at = anchor.outward(1).apply(border_at);
             assert_eq!(
                 frozen_from.at,
                 EndpointAt::Absolute {

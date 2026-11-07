@@ -971,6 +971,89 @@ mod tests {
         );
     }
 
+    /// When a target shape is removed, an attached non-arm endpoint freezes at its resolved
+    /// effective position (one cell outward) so the symbol does not jump visually.
+    #[test]
+    fn removing_a_target_box_freezes_attached_symbol_endpoint_without_visual_jump() {
+        use monospace_core::SymbolStyleName;
+
+        let nothing = Delta { dx: 0, dy: 0 };
+        let symbol = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+        let catalog = GlyphCatalog::union([GlyphCatalog::light(), GlyphCatalog::solid()]);
+        let window = Window {
+            origin: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 12,
+                height: 3,
+            },
+        };
+
+        let d = Diagram::new();
+        let (d, left_box) = d.add(Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 3,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        });
+        let (d, right_box) = d.add(Shape::Box {
+            at: Pos { x: 8, y: 0 },
+            size: Size {
+                width: 3,
+                height: 3,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        });
+        let (d, connector_id) = d.add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(left_box, Anchor::Right, nothing, 0),
+                Terminal::Arm,
+            ),
+            to: Endpoint::reference(Reference::new(right_box, Anchor::Left, nothing, 0), symbol),
+            stroke: light(),
+        });
+
+        // The arrow head is at x=7 (one cell outward from right box's left border at x=8).
+        let mut buf_before = Buffer::new(window);
+        d.draw(&mut buf_before);
+        let rendered_before = render(&buf_before, &catalog, window);
+        assert_eq!(
+            rendered_before,
+            concat!("┌─┐     ┌─┐ \n", "│ ├────▶│ │ \n", "└─┘     └─┘ \n")
+        );
+
+        // Remove the right box. The arrow head freezes at x=7 (the resolved effective position).
+        let d_after = d.remove(right_box);
+        let Shape::Connector { to: frozen_to, .. } =
+            d_after.get(connector_id).expect("connector preserved")
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            frozen_to.at,
+            EndpointAt::Absolute {
+                at: Pos { x: 7, y: 1 },
+                leaving: Direction::Left,
+            }
+        );
+
+        let mut buf_after = Buffer::new(window);
+        d_after.draw(&mut buf_after);
+        let rendered_after = render(&buf_after, &catalog, window);
+        // The right box is gone, but the arrow head at x=7 did not move or jump!
+        assert_eq!(
+            rendered_after,
+            concat!("┌─┐         \n", "│ ├────▶    \n", "└─┘         \n")
+        );
+    }
+
     /// A shape is drawn under whatever identity it was added under, so every cell it decided is
     /// owned by it and no cell another shape decided is.
     ///
