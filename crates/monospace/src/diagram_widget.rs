@@ -824,18 +824,16 @@ mod tests {
 
     /// Keys the region must never answer, whatever the context: another change's shortcuts,
     /// the bar's own (`Tab`), and keys nobody claims.
-    const NEVER_AN_ACTION: [(KeyCode, KeyModifiers); 8] = [
+    const NEVER_AN_ACTION: [(KeyCode, KeyModifiers); 6] = [
         (KeyCode::Char('x'), KeyModifiers::NONE),
         (KeyCode::Char('a'), KeyModifiers::NONE),
         (KeyCode::Enter, KeyModifiers::NONE),
         (KeyCode::Tab, KeyModifiers::NONE),
         (KeyCode::BackTab, KeyModifiers::SHIFT),
-        (KeyCode::Home, KeyModifiers::NONE),
-        (KeyCode::End, KeyModifiers::NONE),
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 17] = [
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 21] = [
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -844,6 +842,10 @@ mod tests {
         (KeyCode::Left, KeyModifiers::SHIFT),
         (KeyCode::Up, KeyModifiers::SHIFT),
         (KeyCode::Down, KeyModifiers::SHIFT),
+        (KeyCode::Home, KeyModifiers::NONE),
+        (KeyCode::End, KeyModifiers::NONE),
+        (KeyCode::PageUp, KeyModifiers::NONE),
+        (KeyCode::PageDown, KeyModifiers::NONE),
         (KeyCode::Char('t'), KeyModifiers::NONE),
         (KeyCode::Char('s'), KeyModifiers::NONE),
         (KeyCode::Char('1'), KeyModifiers::NONE),
@@ -995,6 +997,18 @@ mod tests {
             A_BOX,
             Some(1),
             Some(crate::diagram_state::SubMode::StrokeSelect),
+        );
+    }
+
+    /// **In `ORDER_MODE`, key acceptance matches what the contextual bar offers**: the bar offers
+    /// `Home`, `End`, `PageUp`, `PageDown` and `Esc`; offered keys are accepted, and unoffered keys
+    /// are ignored.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_in_order_mode() {
+        assert_offer_matches_acceptance(
+            A_BOX,
+            Some(1),
+            Some(crate::diagram_state::SubMode::OrderMode),
         );
     }
 

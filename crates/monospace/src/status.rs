@@ -62,6 +62,10 @@ fn footprint_text(footprint: Option<Footprint>) -> String {
 }
 
 /// Formats the contextual status row (row 0) from the diagram state.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the status line formats each sub-mode and shape kind in one match"
+)]
 pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
     let session = diagram_state.session();
     let diagram = session.diagram();
@@ -80,6 +84,19 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
         return match sub_mode {
             SubMode::StrokeSelect => {
                 format!("STROKE SELECTION for {kind} #{id} · Current: {current_stroke}")
+            }
+            SubMode::OrderMode => {
+                let total = diagram.shape_count();
+                let place = diagram
+                    .place_of(id)
+                    .expect("the selected figure stands in the order");
+                let position = place + 1;
+                let behind = position - 1;
+                let ahead = total - position;
+
+                format!(
+                    "LAYER ORDER for {kind} #{id} · Position: {position} of {total} · Behind: {behind}, Ahead: {ahead}"
+                )
             }
         };
     }
@@ -616,6 +633,35 @@ mod tests {
         assert_eq!(
             command_line(&state),
             "STROKE: [1] light ┌─┐ [2] double ╔═╗ [3] light-round ╭─╮ [4] heavy ┏━┓ [5] ascii +-+ · [Esc] Cancel"
+        );
+    }
+
+    /// **`ORDER_MODE` reports the layer position and offers the four moves** (D4 of #305).
+    #[test]
+    fn order_mode_shows_the_layer_position_and_the_order_commands() {
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 2, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 3, "at": { "x": 4, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" }
+            ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
+        state.set_sub_mode(Some(SubMode::OrderMode));
+
+        assert_eq!(
+            status_line(&state),
+            "LAYER ORDER for Box #2 · Position: 2 of 3 · Behind: 1, Ahead: 1"
+        );
+        assert_eq!(
+            command_line(&state),
+            "ORDER: [Home] Front [End] Back [PgUp] Forward [PgDn] Backward · [Esc] Done"
         );
     }
 }
