@@ -3638,6 +3638,56 @@ mod tests {
     }
 
     #[test]
+    fn pressing_i_on_selected_connector_inverts_terminals() {
+        let fixture = r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "connector", "id": 1,
+                          "from": { "at": { "kind": "point", "x": 2, "y": 1 },
+                                    "leaving": "right", "terminal": { "kind": "arm" } },
+                          "to": { "at": { "kind": "point", "x": 10, "y": 1 },
+                                  "leaving": "left", "terminal": { "kind": "symbol", "style": "solid" } },
+                          "stroke": "light" } ]
+        }"#;
+        let mut state = a_drawn_state_over(fixture);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.diagram_mut().select(Some(id));
+
+        let i_key = Event::Key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+        let outcome = send(&i_key, &mut state);
+        assert!(matches!(outcome, Control::Changed));
+
+        let shape = state.diagram().session().diagram().get(id);
+        let Some(monospace_diagram::Shape::Connector { from, to, .. }) = shape else {
+            panic!("expected connector");
+        };
+        assert_eq!(
+            from.terminal,
+            monospace_core::Terminal::Symbol {
+                style: monospace_core::SymbolStyleName::from("solid")
+            }
+        );
+        assert_eq!(to.terminal, monospace_core::Terminal::Arm);
+        assert!(state.diagram().session().can_undo());
+
+        // Pressing Undo restores the original terminals
+        let undo_key = Event::Key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        let undo_outcome = send(&undo_key, &mut state);
+        assert!(matches!(undo_outcome, Control::Changed));
+
+        let shape_restored = state.diagram().session().diagram().get(id);
+        let Some(monospace_diagram::Shape::Connector { from, to, .. }) = shape_restored else {
+            panic!("expected connector");
+        };
+        assert_eq!(from.terminal, monospace_core::Terminal::Arm);
+        assert_eq!(
+            to.terminal,
+            monospace_core::Terminal::Symbol {
+                style: monospace_core::SymbolStyleName::from("solid")
+            }
+        );
+    }
+
+    #[test]
     fn enter_remains_ignored_on_a_box() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);

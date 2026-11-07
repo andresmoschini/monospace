@@ -32,6 +32,8 @@ pub(crate) enum Condition {
     HorizontalLine,
     /// Active only if the selected figure is a vertical line.
     VerticalLine,
+    /// Active only if the selected figure is a connector.
+    Connector,
 }
 
 /// A pattern of key combinations matched by contextual actions.
@@ -122,6 +124,8 @@ pub(crate) enum ContextMeaning {
     Move,
     /// Resizes the selected figure by the arrow direction.
     Resize,
+    /// Inverts the terminals of the selected connector.
+    InvertTerminals,
     /// Removes the selected figure.
     Remove,
     /// Moves the selected figure one place toward the front of the order.
@@ -203,6 +207,15 @@ static SELECTION: &[ContextBlock] = &[
             pattern: KeyPattern::Char('t'),
             display: "[t] Edit",
             meaning: ContextMeaning::Act(Action::EditText),
+        }],
+    },
+    ContextBlock {
+        category: Some("INVERT"),
+        condition: Condition::Connector,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('i'),
+            display: "[i]",
+            meaning: ContextMeaning::InvertTerminals,
         }],
     },
     ContextBlock {
@@ -364,6 +377,7 @@ pub(crate) fn context_blocks(
             }
         )
     });
+    let is_connector = selected_shape.is_some_and(|s| matches!(s, Shape::Connector { .. }));
 
     let slice: &'static [ContextBlock] = match sub_mode {
         Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,
@@ -377,6 +391,7 @@ pub(crate) fn context_blocks(
         Condition::Box => is_box,
         Condition::HorizontalLine => is_horizontal_line,
         Condition::VerticalLine => is_vertical_line,
+        Condition::Connector => is_connector,
     })
 }
 
@@ -437,6 +452,12 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply {
                             id,
                             by: (dx, dy).into(),
                         }))
+                    }
+                    ContextMeaning::InvertTerminals => {
+                        let id = state
+                            .selected()
+                            .expect("connector block matched without selection");
+                        Reply::Act(Action::Command(Command::InvertTerminals { id }))
                     }
                     ContextMeaning::Remove => {
                         let id = state
