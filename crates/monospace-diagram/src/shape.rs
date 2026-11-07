@@ -311,10 +311,8 @@ impl Shape {
             }
             .draw(surface),
             Self::Connector { from, to, stroke } => {
-                let (Some(from_at), Some(to_at)) = (
-                    from.at.position().resolve(diagram),
-                    to.at.position().resolve(diagram),
-                ) else {
+                let (Some(from_at), Some(to_at)) = (from.resolve(diagram), to.resolve(diagram))
+                else {
                     return;
                 };
                 Connector {
@@ -1695,5 +1693,86 @@ mod tests {
         let absent_ep =
             Endpoint::reference(Reference::new(absent_id, Anchor::Top, nothing, 0), symbol);
         assert_eq!(absent_ep.resolve(&diagram), None);
+    }
+
+    #[test]
+    fn attached_connectors_draw_non_arm_terminals_one_cell_outward_preserving_borders() {
+        use monospace_core::SymbolStyleName;
+
+        let nothing = Delta { dx: 0, dy: 0 };
+        let symbol = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+        let catalog = GlyphCatalog::union([GlyphCatalog::light(), GlyphCatalog::solid()]);
+        let window = Window {
+            origin: ORIGIN,
+            size: WINDOW,
+        };
+
+        // Example 1: Arm to Symbol. Left box at 0..3, right box at 8..11.
+        let d = Diagram::new();
+        let (d, left_id) = d.add(box_at(0));
+        let (d, right_id) = d.add(box_at(8));
+        let (d1, _) = d.add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(left_id, Anchor::Right, nothing, 0),
+                Terminal::Arm,
+            ),
+            to: Endpoint::reference(
+                Reference::new(right_id, Anchor::Left, nothing, 0),
+                symbol.clone(),
+            ),
+            stroke: light(),
+        });
+
+        let mut buf1 = Buffer::new(window);
+        d1.draw(&mut buf1);
+        assert_eq!(
+            render(&buf1, &catalog, window),
+            concat!("┌─┐     ┌─┐\n", "│ ├────▶│ │\n", "└─┘     └─┘\n")
+        );
+
+        // Example 3: Bidirectional arrows between both boxes.
+        let d = Diagram::new();
+        let (d, left_id) = d.add(box_at(0));
+        let (d, right_id) = d.add(box_at(8));
+        let (d3, _) = d.add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(left_id, Anchor::Right, nothing, 0),
+                symbol.clone(),
+            ),
+            to: Endpoint::reference(Reference::new(right_id, Anchor::Left, nothing, 0), symbol),
+            stroke: light(),
+        });
+
+        let mut buf3 = Buffer::new(window);
+        d3.draw(&mut buf3);
+        assert_eq!(
+            render(&buf3, &catalog, window),
+            concat!("┌─┐     ┌─┐\n", "│ │◀───▶│ │\n", "└─┘     └─┘\n")
+        );
+
+        // Arm terminals continue composing into junctions on both sides.
+        let d = Diagram::new();
+        let (d, left_id) = d.add(box_at(0));
+        let (d, right_id) = d.add(box_at(8));
+        let (da, _) = d.add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(left_id, Anchor::Right, nothing, 0),
+                Terminal::Arm,
+            ),
+            to: Endpoint::reference(
+                Reference::new(right_id, Anchor::Left, nothing, 0),
+                Terminal::Arm,
+            ),
+            stroke: light(),
+        });
+
+        let mut buf_junctions = Buffer::new(window);
+        da.draw(&mut buf_junctions);
+        assert_eq!(
+            render(&buf_junctions, &catalog, window),
+            concat!("┌─┐     ┌─┐\n", "│ ├─────┤ │\n", "└─┘     └─┘\n")
+        );
     }
 }
