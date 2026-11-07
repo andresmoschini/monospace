@@ -9,15 +9,15 @@ use monospace_diagram::{
 /// One thing a caller means to do to a diagram.
 ///
 /// **It carries the meaning and not the finished figure, and each one says which of the diagram's
-/// five operations it becomes.** `Replace(ShapeId, Shape)` would restate the diagram's own
+/// seven operations it becomes.** `Replace(ShapeId, Shape)` would restate the diagram's own
 /// operation and throw away what the caller knew — a delta is what a person reading a list of
 /// these recognizes, and what a line of a script has to be written in either way — and the
 /// decision of which operation a meaning becomes is the work of this layer rather than of every
 /// caller that has one.
 ///
 /// **The set is open and a command added to it is additive.** A session already does whatever a
-/// command says, so one more meaning is one more arm here and nothing else. The four below are
-/// what a first caller needed and are no promise that four is the number.
+/// command says, so one more meaning is one more arm here and nothing else. The set below is
+/// what the callers so far needed and is no promise that its size is final.
 ///
 /// The identities are compared by value, so one issued by another diagram is a well-formed value
 /// matching nothing here — the same answer the diagram gives everything that names a figure it
@@ -70,6 +70,21 @@ pub enum Command {
         /// The figure to move forward.
         id: ShapeId,
     },
+    /// The figure goes one place toward the back of the order.
+    Backward {
+        /// The figure to move backward.
+        id: ShapeId,
+    },
+    /// The figure goes to the front of the order.
+    ToFront {
+        /// The figure to move to the front.
+        id: ShapeId,
+    },
+    /// The figure goes to the back of the order.
+    ToBack {
+        /// The figure to move to the back.
+        id: ShapeId,
+    },
     /// The figure is taken out.
     Remove {
         /// The figure to take out.
@@ -78,7 +93,7 @@ pub enum Command {
 }
 
 impl Command {
-    /// The one of the diagram's five operations this command is, carried out on `diagram`.
+    /// The one of the diagram's seven operations this command is, carried out on `diagram`.
     ///
     /// **The whole of this method is the layer's mapping**, and it is why a caller does not have to
     /// write it: reading the figure, rebuilding the one end that changes and keeping everything
@@ -100,9 +115,10 @@ impl Command {
     /// rather than a request from outside it.
     ///
     /// **`None` is the diagram the command found, and it is not a failure.** A figure the diagram does
-    /// not hold, a change that gives the figure back as it was, and a figure brought forward when it is
-    /// already at the front are one answer: nothing changed. What `Some` holds is the whole diagram the
-    /// command left, and the session records it as the step.
+    /// not hold, a change that gives the figure back as it was, and a figure brought forward or to
+    /// the front when it is already at the front, or backward or to the back when it is already at
+    /// the back are one answer: nothing changed. What `Some` holds is the whole diagram the command
+    /// left, and the session records it as the step.
     pub(crate) fn apply_to(&self, diagram: &Diagram) -> Option<Diagram> {
         match *self {
             Self::Move { id, by } => changed(diagram, id, |shape| shape.displaced_by(by)),
@@ -131,6 +147,9 @@ impl Command {
                 Shape::Box { .. } | Shape::Line { .. } => shape.clone(),
             }),
             Self::Forward { id } => diagram.can_forward(id).then(|| diagram.forward(id)),
+            Self::Backward { id } => diagram.can_backward(id).then(|| diagram.backward(id)),
+            Self::ToFront { id } => diagram.can_forward(id).then(|| diagram.to_front(id)),
+            Self::ToBack { id } => diagram.can_backward(id).then(|| diagram.to_back(id)),
             Self::Remove { id } => diagram.get(id).map(|_| diagram.remove(id)),
         }
     }

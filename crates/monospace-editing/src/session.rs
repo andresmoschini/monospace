@@ -220,7 +220,7 @@ impl Session {
     /// it belongs to has to be handed a copy of what that command went on to replace.
     ///
     /// **What the command becomes is carried out here and nowhere else.** The mapping from a
-    /// meaning to one of the diagram's five operations is the one in [`Command`], and the session
+    /// meaning to one of the diagram's seven operations is the one in [`Command`], and the session
     /// is what carries it out because only what was asked knows whether what it was asked to do
     /// was one gesture or several: a figure dragged across a screen is one thing to the person
     /// dragging it and many displacements to the diagram. Nothing reads that answer yet — §8 of
@@ -245,8 +245,9 @@ impl Session {
     /// **A command that changed nothing records no step** (#285). The diagram's operations cannot
     /// fail, so a command naming a figure it does not hold changes nothing, and neither does one
     /// whose change gives the figure back as it was — a box at its smallest shrunk again, a line
-    /// at its shortest shrunk again, a connector resized, a figure brought forward when it is
-    /// already at the front. **What comes back is this session**: the same steps, the same position and the same diagram, so what was ahead
+    /// at its shortest shrunk again, a connector resized, a figure brought forward or to the front
+    /// when it is already at the front, or backward or to the back when it is already at the back.
+    /// **What comes back is this session**: the same steps, the same position and the same diagram, so what was ahead
     /// of the position stays ahead and a no-op discards no branch. The command knows which figure
     /// it touched and answers whether that figure changed; nothing here compares two diagrams,
     /// which a diagram has no way of doing.

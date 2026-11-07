@@ -11,7 +11,7 @@
 //! and **every one of its methods is asked over `&self` and hands a new session back**, which is
 //! what a session asks of a diagram and what a caller should be able to assume of both.
 //!
-//! **A command is a meaning and not one of the diagram's five operations.** The diagram's
+//! **A command is a meaning and not one of the diagram's seven operations.** The diagram's
 //! operations are complete and coarse at once — `replace` serves a figure displaced, a figure
 //! resized, a figure restyled and a figure changed into another kind — and a caller who drags a
 //! figure and a caller who drags its border did different work and say so differently. So a

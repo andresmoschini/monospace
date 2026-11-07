@@ -261,7 +261,7 @@ fn no_session_method_changes_the_session_it_was_given() {
     let _: fn(&Session, Command) -> Session = Session::perform;
 }
 
-/// Rule 4 — every command becomes one of the diagram's five operations.
+/// Rule 4 — every command becomes one of the diagram's seven operations.
 ///
 /// **Each command against the operation it names, over the same fixture and in the same window.**
 /// What makes it the mapping and not the command is that the right-hand side is written in the
@@ -272,7 +272,7 @@ fn no_session_method_changes_the_session_it_was_given() {
     clippy::too_many_lines,
     reason = "the contract test covers each command in the set against its operation"
 )]
-fn each_command_becomes_one_of_the_diagrams_five_operations() {
+fn each_command_becomes_one_of_the_diagrams_seven_operations() {
     let two_down = Delta { dx: 0, dy: 2 };
 
     assert_eq!(
@@ -381,6 +381,24 @@ fn each_command_becomes_one_of_the_diagrams_five_operations() {
     );
 
     assert_eq!(
+        after(&Command::Backward { id: id(2) }),
+        after_operating(|diagram| diagram.backward(id(2))),
+        "`Backward` is `backward`"
+    );
+
+    assert_eq!(
+        after(&Command::ToFront { id: id(1) }),
+        after_operating(|diagram| diagram.to_front(id(1))),
+        "`ToFront` is `to_front`"
+    );
+
+    assert_eq!(
+        after(&Command::ToBack { id: id(2) }),
+        after_operating(|diagram| diagram.to_back(id(2))),
+        "`ToBack` is `to_back`"
+    );
+
+    assert_eq!(
         after(&Command::Remove { id: id(2) }),
         after_operating(|diagram| diagram.remove(id(2))),
         "`Remove` is `remove`"
@@ -399,6 +417,9 @@ fn no_command_reaches_the_diagram_by_another_way() {
 
     for command in [
         Command::Forward { id: id(1) },
+        Command::Backward { id: id(2) },
+        Command::ToFront { id: id(1) },
+        Command::ToBack { id: id(2) },
         Command::Move {
             id: id(1),
             by: Delta { dx: 0, dy: 2 },
@@ -1249,4 +1270,46 @@ fn clearing_a_text_is_one_step() {
         panic!("expected box");
     };
     assert_eq!(*restored, Some(text), "one undo did not give the text back");
+}
+
+/// A movement at the end it is already at changes nothing and records no step.
+#[test]
+fn the_moves_that_change_nothing_record_no_step() {
+    let session = Session::new(the_fixture());
+    let initial_pic = picture_in(session.diagram(), FIXTURE);
+
+    for command in [
+        Command::Backward { id: id(1) },
+        Command::ToFront { id: id(3) },
+        Command::ToBack { id: id(1) },
+    ] {
+        let no_op = session.perform(command.clone());
+        assert_eq!(
+            picture_in(no_op.diagram(), FIXTURE),
+            initial_pic,
+            "{command:?} changed the picture"
+        );
+        assert!(!no_op.can_undo(), "{command:?} recorded a step");
+    }
+}
+
+/// `Home` and `End` are one command each, so one undo reverses them whole.
+#[test]
+fn each_absolute_move_is_one_step_that_undo_reverses() {
+    for command in [
+        Command::ToFront { id: id(1) },
+        Command::ToBack { id: id(2) },
+    ] {
+        let session = Session::new(the_fixture());
+        let before = picture_in(session.diagram(), FIXTURE);
+        let moved = session.perform(command.clone());
+
+        assert!(moved.can_undo(), "{command:?} recorded no step");
+        assert!(!moved.can_redo(), "{command:?} recorded more than one step");
+        assert_eq!(
+            picture_in(moved.undo().diagram(), FIXTURE),
+            before,
+            "one undo did not reverse {command:?}"
+        );
+    }
 }
