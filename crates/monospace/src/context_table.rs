@@ -215,6 +215,15 @@ static SELECTION: &[ContextBlock] = &[
         }],
     },
     ContextBlock {
+        category: Some("ORDER"),
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('z'),
+            display: "[z]",
+            meaning: ContextMeaning::EnterSubMode(SubMode::OrderMode),
+        }],
+    },
+    ContextBlock {
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {

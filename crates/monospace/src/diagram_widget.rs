@@ -833,7 +833,7 @@ mod tests {
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 21] = [
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 22] = [
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -848,6 +848,7 @@ mod tests {
         (KeyCode::PageDown, KeyModifiers::NONE),
         (KeyCode::Char('t'), KeyModifiers::NONE),
         (KeyCode::Char('s'), KeyModifiers::NONE),
+        (KeyCode::Char('z'), KeyModifiers::NONE),
         (KeyCode::Char('1'), KeyModifiers::NONE),
         (KeyCode::Char('2'), KeyModifiers::NONE),
         (KeyCode::Char('3'), KeyModifiers::NONE),
@@ -1159,6 +1160,168 @@ mod tests {
                 Focus::Region,
             );
             assert_eq!(answer, Reply::Ignored, "{code:?} was not ignored");
+        }
+    }
+
+    #[test]
+    fn pressing_z_on_a_selected_figure_enters_order_mode() {
+        for fixture in [A_BOX, A_LINE, A_CONNECTOR] {
+            let mut state = a_state_over(fixture);
+            state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+
+            let answer = handle(
+                &Event::Key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE)),
+                &mut state,
+                Focus::Region,
+            );
+            assert_eq!(answer, Reply::Repaint);
+            assert_eq!(
+                state.sub_mode(),
+                Some(crate::diagram_state::SubMode::OrderMode)
+            );
+        }
+    }
+
+    #[test]
+    fn pressing_z_in_idle_is_ignored() {
+        let mut state = a_state_over(A_BOX);
+        assert_eq!(state.selected(), None);
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Ignored);
+        assert_eq!(state.sub_mode(), None);
+    }
+
+    #[test]
+    fn page_up_in_order_mode_dispatches_forward() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::OrderMode));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Act(Action::Command(Command::Forward { id })));
+        assert_eq!(
+            state.sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode)
+        );
+    }
+
+    #[test]
+    fn page_down_in_order_mode_dispatches_backward() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::OrderMode));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(
+            answer,
+            Reply::Act(Action::Command(Command::Backward { id }))
+        );
+        assert_eq!(
+            state.sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode)
+        );
+    }
+
+    #[test]
+    fn home_in_order_mode_dispatches_to_front() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::OrderMode));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Act(Action::Command(Command::ToFront { id })));
+        assert_eq!(
+            state.sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode)
+        );
+    }
+
+    #[test]
+    fn end_in_order_mode_dispatches_to_back() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::OrderMode));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::End, KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Act(Action::Command(Command::ToBack { id })));
+        assert_eq!(
+            state.sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode)
+        );
+    }
+
+    #[test]
+    fn escape_in_order_mode_leaves_the_sub_mode_and_keeps_the_selection() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::OrderMode));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(state.sub_mode(), None);
+        assert_eq!(state.selected(), Some(id));
+    }
+
+    #[test]
+    fn unoffered_keys_in_order_mode_are_ignored() {
+        let mut state = a_state_over(A_BOX);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(crate::diagram_state::SubMode::OrderMode));
+
+        let unoffered = [
+            KeyCode::Right,
+            KeyCode::Left,
+            KeyCode::Delete,
+            KeyCode::Enter,
+            KeyCode::Tab,
+            KeyCode::Char('s'),
+            KeyCode::Char('z'),
+            KeyCode::Char('6'),
+            KeyCode::F(1),
+        ];
+
+        for code in unoffered {
+            let answer = handle(
+                &Event::Key(KeyEvent::new(code, KeyModifiers::NONE)),
+                &mut state,
+                Focus::Region,
+            );
+            assert_eq!(answer, Reply::Ignored, "{code:?} was not ignored");
+            assert_eq!(
+                state.sub_mode(),
+                Some(crate::diagram_state::SubMode::OrderMode)
+            );
         }
     }
 }

@@ -99,13 +99,6 @@ pub(crate) enum SubMode {
     /// Choosing a stroke for the selected figure.
     StrokeSelect,
     /// Moving the selected figure through the layer order.
-    #[cfg_attr(
-        not(test),
-        allow(
-            dead_code,
-            reason = "`z` is wired in the next commit; until then only tests construct this variant"
-        )
-    )]
     OrderMode,
 }
 
