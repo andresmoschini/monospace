@@ -919,7 +919,6 @@ mod tests {
 
         let it_resolved_to = the_hanging_end(&diagram, connector)
             .expect("the reference resolves while the figure it names is held")
-            .at
             .resolve(&diagram)
             .expect("the box answers the side it names");
 
@@ -3020,7 +3019,7 @@ mod tests {
         let Shape::Connector { from, .. } = &hanging else {
             unreachable!("the figure above is a connector")
         };
-        assert_eq!(from.at.resolve(&diagram), Some(THE_SIDE_CENTRE));
+        assert_eq!(from.resolve(&diagram), Some(THE_SIDE_CENTRE));
 
         let mut absolute = Diagram::new();
         absolute = absolute.add(the_box()).0;
@@ -3067,8 +3066,8 @@ mod tests {
         let Shape::Connector { from, .. } = &hanging else {
             unreachable!("the figure above is a connector")
         };
-        assert_eq!(from.at.resolve(&diagram), Some(Pos { x: 5, y: 1 }));
-        assert_ne!(from.at.resolve(&diagram), Some(THE_SIDE_CENTRE));
+        assert_eq!(from.resolve(&diagram), Some(Pos { x: 5, y: 1 }));
+        assert_ne!(from.resolve(&diagram), Some(THE_SIDE_CENTRE));
         assert_ne!(
             from.at,
             EndpointAt::Absolute {
@@ -3124,7 +3123,7 @@ mod tests {
             else {
                 unreachable!("the figure under test is a connector")
             };
-            from.at.resolve(d)
+            from.resolve(d)
         };
         assert_eq!(the_hanging_end(&diagram), Some(Pos { x: 5, y: 1 }));
         assert_ne!(the_hanging_end(&diagram), Some(THE_SIDE_CENTRE));
@@ -3393,7 +3392,7 @@ mod tests {
                 unreachable!("the figure above is a connector")
             };
             assert_eq!(
-                from.at.resolve(&diagram),
+                from.resolve(&diagram),
                 Some(Pos { x: 3, y: 2 }),
                 "the {what} side of a one-cell-wide box resolves to the offset once, not twice"
             );
@@ -3954,7 +3953,6 @@ mod tests {
 
         let it_resolved_to = the_hanging_end(&diagram, identity(2))
             .expect("the reference resolves while the figure it names is held")
-            .at
             .resolve(&diagram)
             .expect("the box answers the anchor the reference names");
         assert_eq!(it_resolved_to, THE_SIDE_CENTRE);
@@ -4262,10 +4260,10 @@ mod tests {
         // Each end's own point, resolved before the removal and held across it.
         let (top, bottom) = (
             the_hanging_end(&diagram, identity(2))
-                .and_then(|end| end.at.resolve(&diagram))
+                .and_then(|end| end.resolve(&diagram))
                 .expect("the first connector's reference resolves while the box is held"),
             the_hanging_end(&diagram, identity(3))
-                .and_then(|end| end.at.resolve(&diagram))
+                .and_then(|end| end.resolve(&diagram))
                 .expect("the second connector's reference resolves while the box is held"),
         );
         assert_ne!(
@@ -4552,7 +4550,7 @@ mod tests {
             else {
                 unreachable!("the figure under test is a connector")
             };
-            to.at.resolve(d)
+            to.resolve(d)
         };
         assert_eq!(the_hanging_end(&diagram), Some(THE_SIDE_CENTRE));
         let before = draw_of(&diagram, origin, size);
@@ -4791,7 +4789,7 @@ mod tests {
         else {
             unreachable!("the figure named is a connector")
         };
-        (from.at.resolve(d), to.at.resolve(d))
+        (from.resolve(d), to.resolve(d))
     }
 
     /// Displacing the connector grows the reference's offset and moves the absolute end, **asked
