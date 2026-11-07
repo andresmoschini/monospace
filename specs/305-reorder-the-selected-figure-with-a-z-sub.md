@@ -29,8 +29,8 @@ contextual status reporting.
   entered via `z` when any figure (`Box`, `Line`, `Connector`) is selected (`SELECTED_BOX`,
   `SELECTED_LINE`, `SELECTED_CONNECTOR`).
 - Immediate command execution while remaining in `ORDER_MODE`:
-  - `+` or `k`: Move figure one position toward the front (`Command::Forward`).
-  - `-` or `j`: Move figure one position toward the back (`Command::Backward`).
+  - `PageUp`: Move figure one position toward the front (`Command::Forward`).
+  - `PageDown`: Move figure one position toward the back (`Command::Backward`).
   - `Home`: Move figure to the absolute front (`Command::ToFront`).
   - `End`: Move figure to the absolute back (`Command::ToBack`).
   - `Esc`: Exit sub-mode (`Done`), retaining current order and returning to `SELECTED_*`.
@@ -45,7 +45,7 @@ contextual status reporting.
   - In `ORDER_MODE`:
     - Status row:
       `LAYER ORDER for <Kind> #<id> · Position: <pos> of <total> · Behind: <behind>, Ahead: <ahead>`.
-    - Command row: `ORDER: [Home] Front [End] Back [+] Forward [-] Backward · [Esc] Done`.
+    - Command row: `ORDER: [Home] Front [End] Back [PgUp] Forward [PgDn] Backward · [Esc] Done`.
 - Unoffered keys in `ORDER_MODE` return `Reply::Ignored` at the region level, falling through to
   global shortcuts or discarded with `Control::Continue`.
 - Deselection, figure removal, or a history walk that changes the diagram clears `ORDER_MODE`.
@@ -62,8 +62,8 @@ contextual status reporting.
 
 **D1 — continuous manipulation sub-mode vs. one-shot selection.**
 
-**Answer:** `ORDER_MODE` is a continuous manipulation sub-mode. Pressing `+`, `-`, `Home`, `End`,
-`k`, or `j` immediately applies the corresponding `Command` to the session and remains in
+**Answer:** `ORDER_MODE` is a continuous manipulation sub-mode. Pressing `PageUp`, `PageDown`,
+`Home`, or `End` immediately applies the corresponding `Command` to the session and remains in
 `ORDER_MODE`, allowing consecutive adjustments with live canvas feedback. Pressing `Esc` leaves the
 sub-mode (`Done`) without reverting previous steps.
 
@@ -86,12 +86,12 @@ single `Home` press. An absolute move must be a single atomic command.
 **Answer:** When the selected figure is already at the front, `Forward` and `ToFront` produce `None`
 in `Command::apply_to` and record no history step. When already at the back, `Backward` and `ToBack`
 produce `None` and record no step. The command row displays
-`ORDER: [Home] Front [End] Back [+] Forward [-] Backward · [Esc] Done` uniformly without dynamically
-hiding keys at the ends.
+`ORDER: [Home] Front [End] Back [PgUp] Forward [PgDn] Backward · [Esc] Done` uniformly without
+dynamically hiding keys at the ends.
 
-**Why not** dynamically removing `+` and `Home` when at the front: dynamic button hiding shifts the
-layout of the command line during interaction, violating visual stability; offer == acceptance is
-satisfied by allowing the key to be received and silently producing no state change per #285.
+**Why not** dynamically removing `PgUp` and `Home` when at the front: dynamic button hiding shifts
+the layout of the command line during interaction, violating visual stability; offer == acceptance
+is satisfied by allowing the key to be received and silently producing no state change per #285.
 
 **D4 — position reporting in the status row.**
 
@@ -105,15 +105,17 @@ not** displaying IDs of neighboring shapes: diagram layers can be dense and shap
 length, which would overflow status bar width; numeric counts of shapes behind and ahead provide
 concise, invariant feedback.
 
-**D5 — dual bindings: `+`/`-` and `k`/`j`.**
+**D5 — standard navigation cluster keys (`PageUp` / `PageDown`) vs. `+`/`-` or letter keys.**
 
-**Answer:** The sub-mode accepts both `+` and `k` for forward, and `-` and `j` for backward. The
-command row displays `[+] Forward [-] Backward`.
+**Answer:** The sub-mode uses `PageUp` for forward and `PageDown` for backward, displayed as
+`[PgUp] Forward [PgDn] Backward` in the command row.
 
-**Why not** only `+`/`-`: on many standard keyboard layouts (e.g. US, Spanish), `+` requires holding
-`Shift`, which may produce layout-dependent key events; `k`/`j` provide single-unmodified-key
-navigation. **Why not** displaying `[+/k]` in the prompt: keeping the visual prompt concise avoids
-clutter while vim keys act as ergonomics aliases.
+**Why not `+` and `-`:** `+` requires holding `Shift` on most keyboard layouts (US, Spanish, etc.),
+creating an asymmetry with bare `-` and introducing layout-dependent shift behavior in a continuous
+interaction loop. **Why not letter keys like `k`/`j` or `f`/`b`:** `f` means Fill in `SELECTED_BOX`
+and `b` means Box creation in `IDLE`; `k`/`j` are vim-specific and not obvious to general users. The
+navigation cluster keys `Home`, `End`, `PageUp`, `PageDown` exist on standard keyboards as a
+dedicated physical group, providing unambiguous, modifier-free layer navigation.
 
 ## Model slice
 
@@ -148,9 +150,9 @@ clutter while vim keys act as ergonomics aliases.
    - When a box, line, or connector is selected, pressing `z` transitions `sub_mode` to
      `Some(SubMode::OrderMode)` and repaints.
 2. **Key handling in `ORDER_MODE`:**
-   - Pressing `+` or `k`: executes `Command::Forward { id }`. If position changes, moves forward 1
+   - Pressing `PageUp`: executes `Command::Forward { id }`. If position changes, moves forward 1
      place and records 1 history step.
-   - Pressing `-` or `j`: executes `Command::Backward { id }`. If position changes, moves backward 1
+   - Pressing `PageDown`: executes `Command::Backward { id }`. If position changes, moves backward 1
      place and records 1 history step.
    - Pressing `Home`: executes `Command::ToFront { id }`. If position changes, moves to front and
      records 1 history step.
@@ -159,8 +161,8 @@ clutter while vim keys act as ergonomics aliases.
    - Pressing `Esc`: exits `ORDER_MODE` (`sub_mode = None`), returning to the active selection state
      without changing order.
 3. **Boundary limits:**
-   - If the shape is already at the front (`Ahead: 0`), `+`, `k`, and `Home` record no history step.
-   - If the shape is already at the back (`Behind: 0`), `-`, `j`, and `End` record no history step.
+   - If the shape is already at the front (`Ahead: 0`), `PageUp` and `Home` record no history step.
+   - If the shape is already at the back (`Behind: 0`), `PageDown` and `End` record no history step.
 4. **Unoffered keys:**
    - Any key not offered by `ORDER_MODE` returns `Reply::Ignored` at the region level, allowing
      unclaimed global shortcuts to process or discarding without changing state.
@@ -175,9 +177,10 @@ Given a diagram with 3 overlapping boxes: `#1` (back), `#2` (middle), `#3` (fron
 1. **Selecting Box #1 and entering `ORDER_MODE`:**
    - Press `z`. Status row displays:
      `LAYER ORDER for Box #1 · Position: 1 of 3 · Behind: 0, Ahead: 2`.
-   - Command row displays: `ORDER: [Home] Front [End] Back [+] Forward [-] Backward · [Esc] Done`.
+   - Command row displays:
+     `ORDER: [Home] Front [End] Back [PgUp] Forward [PgDn] Backward · [Esc] Done`.
 2. **Moving Forward:**
-   - Press `+` (or `k`): Box #1 moves between #2 and #3.
+   - Press `PageUp`: Box #1 moves between #2 and #3.
    - Status row updates: `LAYER ORDER for Box #1 · Position: 2 of 3 · Behind: 1, Ahead: 1`.
    - One history step recorded.
 3. **Moving to Absolute Front:**
@@ -185,7 +188,8 @@ Given a diagram with 3 overlapping boxes: `#1` (back), `#2` (middle), `#3` (fron
    - Status row updates: `LAYER ORDER for Box #1 · Position: 3 of 3 · Behind: 2, Ahead: 0`.
    - Exactly one history step recorded.
 4. **At Front Limit:**
-   - Press `Home` or `+`: diagram remains unchanged, status row unchanged, no history step recorded.
+   - Press `Home` or `PageUp`: diagram remains unchanged, status row unchanged, no history step
+     recorded.
 5. **Exiting:**
    - Press `Esc`: sub-mode exits to normal selection (`SELECTED_BOX`). Box #1 remains selected in
      its new top position.
@@ -198,7 +202,7 @@ Given a diagram with 3 overlapping boxes: `#1` (back), `#2` (middle), `#3` (fron
   verify state transformations and #285 silence at limits.
 - Integration tests in `crates/monospace`:
   - `assert_offer_matches_acceptance` guardian covers `ORDER_MODE` fixture.
-  - Sub-mode transitions with `z`, `+`, `-`, `Home`, `End`, `k`, `j`, and `Esc`.
+  - Sub-mode transitions with `z`, `PageUp`, `PageDown`, `Home`, `End`, and `Esc`.
   - Single undo step reverses `Home` or `End`.
 
 ## Open questions
