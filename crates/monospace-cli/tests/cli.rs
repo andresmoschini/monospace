@@ -524,7 +524,7 @@ fn a_file_naming_a_reference_draws_what_the_point_it_resolves_to_draws() {
     );
     let spelled = picture_of_a_connector_hanging_from(
         "with-offset-point",
-        r#"{ "kind": "point", "x": 5, "y": 1 }"#,
+        r#"{ "kind": "point", "x": 6, "y": 1 }"#,
     );
 
     assert_eq!(named, spelled);
@@ -539,7 +539,8 @@ fn a_file_naming_a_reference_draws_what_the_point_it_resolves_to_draws() {
 ///
 /// The case `{"kind": "reference", "shape": 1, "anchor": "right"}` exists for: `offset` is
 /// optional and absent is zero, so a reference on the side itself is three fields rather than five,
-/// and it has to draw the same thing a file spelling `{3, 1}` outright does.
+/// and it has to draw the same thing a file spelling `{4, 1}` outright does (standing one cell
+/// outward by default for a non-arm terminal).
 #[test]
 fn a_file_naming_a_reference_with_no_offset_draws_the_point_it_stands_on() {
     let named = picture_of_a_connector_hanging_from(
@@ -548,7 +549,7 @@ fn a_file_naming_a_reference_with_no_offset_draws_the_point_it_stands_on() {
     );
     let spelled = picture_of_a_connector_hanging_from(
         "no-offset-point",
-        r#"{ "kind": "point", "x": 3, "y": 1 }"#,
+        r#"{ "kind": "point", "x": 4, "y": 1 }"#,
     );
 
     assert_eq!(named, spelled);
@@ -558,10 +559,10 @@ fn a_file_naming_a_reference_with_no_offset_draws_the_point_it_stands_on() {
 /// offset it stands for draws.
 ///
 /// **Three routes to one cell and a fourth that is not it.** `out: 1` on a `right` side, the same
-/// gap as `offset: {dx: 1, dy: 0}`, and the point `{4, 1}` spelled outright are three spellings of
+/// gap as `offset: {dx: 1, dy: 0}`, and the point `{5, 1}` spelled outright are three spellings of
 /// one cell, so the comparison is not two files agreeing with each other because both were read
-/// wrong. The fourth is the reference with **no gap at all**, which stands on the border and draws
-/// something else — so the three agreeing is the field being read rather than ignored.
+/// wrong. The fourth is the reference with **no gap at all**, which stands at the default gap and
+/// draws something else — so the three agreeing is the field being read rather than ignored.
 #[test]
 fn a_file_naming_an_out_draws_the_point_the_offset_it_stands_for_draws() {
     let named = picture_of_a_connector_hanging_from(
@@ -574,9 +575,9 @@ fn a_file_naming_an_out_draws_the_point_the_offset_it_stands_for_draws() {
     );
     let outright = picture_of_a_connector_hanging_from(
         "with-the-point-an-out-reaches",
-        r#"{ "kind": "point", "x": 4, "y": 1 }"#,
+        r#"{ "kind": "point", "x": 5, "y": 1 }"#,
     );
-    let on_the_border = picture_of_a_connector_hanging_from(
+    let at_default_gap = picture_of_a_connector_hanging_from(
         "with-no-gap",
         r#"{ "kind": "reference", "shape": 1, "anchor": "right" }"#,
     );
@@ -587,7 +588,7 @@ fn a_file_naming_an_out_draws_the_point_the_offset_it_stands_for_draws() {
     );
     assert_eq!(named, outright, "an `out` and the point it reaches differ");
     assert_ne!(
-        named, on_the_border,
+        named, at_default_gap,
         "an `out` of one drew what a reference with no gap draws, so the field is being dropped"
     );
 }

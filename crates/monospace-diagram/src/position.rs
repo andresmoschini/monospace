@@ -17,7 +17,7 @@
 
 use monospace_core::{Direction, Orientation, Pos, Size};
 
-use crate::{Delta, Diagram, ShapeId};
+use crate::{Delta, ShapeId};
 
 /// One of the four sides of a figure a position can name.
 ///
@@ -96,8 +96,7 @@ impl Anchor {
 /// Three fields, and that is the whole of it: the model's _Vocabulary_ gives a reference an
 /// identity, an anchor and two offsets, and the third field is the offsets arrived.
 ///
-/// The offset is a gap **from the side** rather than a point, and
-/// [`Position::resolve`] adds it to whatever that side answers now — so displacing the figure a
+/// The offset is a gap **from the side** rather than a point, added to whatever that side answers now — so displacing the figure a
 /// reference hangs from carries the endpoint with it and the gap does not change. An offset of
 /// nothing puts the endpoint on the side itself, and a negative amount puts it on the far side of
 /// it; neither is checked against the side, and
@@ -175,47 +174,6 @@ impl From<Pos> for Position {
 }
 
 impl Position {
-    /// Where this position stands now, in `diagram`, or `None` when it does not resolve.
-    ///
-    /// Four steps, and the last is the whole decision. An [`Position::Absolute`] is the point it
-    /// holds, whatever the diagram holds or does not. A [`Position::Reference`] asks the diagram
-    /// for the figure it names, and a figure this diagram does not hold is `None`. Then it asks
-    /// that figure for the anchor, and an anchor the kind does not answer is `None` again. Then it
-    /// adds the reference's offset to the point that came back.
-    ///
-    /// **The offset is added to what the anchor answers now, which is what makes it a gap from the
-    /// side rather than a point.** Displace the figure a reference hangs from and its side answers
-    /// somewhere else, so the endpoint travels with it and the gap between border and endpoint does
-    /// not change. An implementation that added the offset to the anchor's position when the
-    /// reference was built would be a different type with the same name.
-    ///
-    /// Both `?`s come **before** the addition, so a reference that resolves to nothing is still
-    /// nothing however large its offset: there is no clamping, no fallback and no report, and the
-    /// figure holding it is not drawn. `Delta::apply` saturates rather than wrapping, and it is the
-    /// same function a displacement uses, so a coordinate past the end of any window a `u16` width
-    /// can describe draws nothing rather than wrapping back into one.
-    ///
-    /// A displacement is the other half and it is reached here **from the other side**: it grows
-    /// the offset this method adds, so a gap from a side grows with the figure that holds the
-    /// reference rather than moving with the figure the side belongs to. §4 _Positions_ states the
-    /// rule, and the two are one addition read at two different moments.
-    #[must_use]
-    pub fn resolve(&self, diagram: &Diagram) -> Option<Pos> {
-        match self {
-            Self::Absolute(at) => Some(*at),
-            Self::Reference(reference) => {
-                let shape = diagram.get(reference.id)?;
-                let point = shape.anchor(reference.anchor)?;
-                Some(
-                    reference
-                        .offset
-                        .grow(reference.anchor.outward(reference.out))
-                        .apply(point),
-                )
-            }
-        }
-    }
-
     /// This position, moved by `by`, changing nothing else.
     ///
     /// A displacement adds coordinates, and a point has coordinates to add to. A
@@ -344,6 +302,10 @@ mod tests {
         }
     }
 
+    fn resolve(reference: Reference, diagram: &Diagram) -> Option<Pos> {
+        Endpoint::reference(reference, Terminal::Arm).resolve(diagram)
+    }
+
     #[test]
     fn each_anchor_leaves_toward_its_outward_normal() {
         assert_eq!(Anchor::Top.leaving(), Direction::Up);
@@ -364,17 +326,11 @@ mod tests {
         let diagram = Diagram::new();
         let (diagram, id) = diagram.add(the_box_at_the_origin());
 
-        let right =
-            Position::Reference(Reference::new(id, Anchor::Right, Delta { dx: 2, dy: 0 }, 0));
-        let bottom = Position::Reference(Reference::new(
-            id,
-            Anchor::Bottom,
-            Delta { dx: 0, dy: 1 },
-            0,
-        ));
+        let right = Reference::new(id, Anchor::Right, Delta { dx: 2, dy: 0 }, 0);
+        let bottom = Reference::new(id, Anchor::Bottom, Delta { dx: 0, dy: 1 }, 0);
 
-        assert_eq!(right.resolve(&diagram), Some(Pos { x: 5, y: 1 }));
-        assert_eq!(bottom.resolve(&diagram), Some(Pos { x: 1, y: 3 }));
+        assert_eq!(resolve(right, &diagram), Some(Pos { x: 5, y: 1 }));
+        assert_eq!(resolve(bottom, &diagram), Some(Pos { x: 1, y: 3 }));
     }
 
     /// The `assert_ne!` is the whole of it: a reference carrying no offset resolves to the point
@@ -391,14 +347,16 @@ mod tests {
         let the_box = the_box_at_the_origin();
         let (diagram, id) = diagram.add(the_box.clone());
 
-        let on_the_side =
-            Position::Reference(Reference::new(id, Anchor::Right, Delta { dx: 0, dy: 0 }, 0));
+        let on_the_side = Reference::new(id, Anchor::Right, Delta { dx: 0, dy: 0 }, 0);
         let the_side_middle = the_box
             .anchor(Anchor::Right)
             .expect("a box answers all four of its sides");
 
-        assert_eq!(on_the_side.resolve(&diagram), Some(the_side_middle));
-        assert_ne!(on_the_side, Position::Absolute(the_side_middle));
+        assert_eq!(resolve(on_the_side, &diagram), Some(the_side_middle));
+        assert_ne!(
+            Position::Reference(on_the_side),
+            Position::Absolute(the_side_middle)
+        );
     }
 
     /// A four-by-three box at the origin answers all four of its side centers, and each answer is
@@ -640,7 +598,7 @@ mod tests {
         );
         assert_eq!(reference.out, 1, "out is stored in its own field");
         assert_eq!(
-            Position::Reference(reference).resolve(&diagram),
+            resolve(reference, &diagram),
             Some(Pos { x: 2, y: 6 }),
             "{{1, 2}} plus (1, 3) plus (0, 1) is {{2, 6}}"
         );
@@ -661,7 +619,7 @@ mod tests {
         let into_the_box = Reference::new(id, Anchor::Bottom, nothing, -1);
 
         assert_eq!(
-            Position::Reference(into_the_box).resolve(&diagram),
+            resolve(into_the_box, &diagram),
             Some(Pos { x: 1, y: 1 }),
             "one cell into the box from its bottom centre {{1, 2}} is {{1, 1}}"
         );
@@ -693,7 +651,7 @@ mod tests {
             (
                 reference.offset,
                 reference.out,
-                Position::Reference(reference).resolve(&diagram),
+                resolve(reference, &diagram),
             )
         };
 
@@ -808,14 +766,11 @@ mod tests {
         assert_eq!(as_out.out, 1);
 
         assert_eq!(
-            Position::Reference(as_offset).resolve(&diagram),
-            Position::Reference(as_out).resolve(&diagram),
+            resolve(as_offset, &diagram),
+            resolve(as_out, &diagram),
             "both spellings resolve to the exact same position in the diagram"
         );
-        assert_eq!(
-            Position::Reference(as_out).resolve(&diagram),
-            Some(Pos { x: 1, y: 3 })
-        );
+        assert_eq!(resolve(as_out, &diagram), Some(Pos { x: 1, y: 3 }));
     }
 
     /// A displacement grows the offset of a reference written with an `out` exactly as it grows any
@@ -851,12 +806,12 @@ mod tests {
         );
         assert_eq!(moved.out, 1, "out is preserved across displacement");
         assert_eq!(
-            Position::Reference(moved).resolve(&diagram),
+            resolve(moved, &diagram),
             Some(Pos { x: 1, y: 6 }),
             "{{1, 3}} slid three rows down and nothing else moved"
         );
         assert_eq!(
-            Position::Reference(hanging).resolve(&diagram),
+            resolve(hanging, &diagram),
             Some(Pos { x: 1, y: 3 }),
             "the gap the caller wrote is the same reference's: {{1, 2}} and one cell out"
         );
@@ -880,14 +835,14 @@ mod tests {
         assert_eq!(cancelling.offset, Delta { dx: 0, dy: -1 });
         assert_eq!(cancelling.out, 1);
         assert_eq!(
-            Position::Reference(cancelling).resolve(&diagram),
+            resolve(cancelling, &diagram),
             Some(Pos { x: 1, y: 2 }),
             "one cell up against one cell down is the side itself, which is a point and not a fault"
         );
         assert_eq!(past_the_side.offset, Delta { dx: 0, dy: -3 });
         assert_eq!(past_the_side.out, 1);
         assert_eq!(
-            Position::Reference(past_the_side).resolve(&diagram),
+            resolve(past_the_side, &diagram),
             Some(Pos { x: 1, y: 0 }),
             "three cells up against one cell down leaves two, neither clamped nor reported"
         );
@@ -960,8 +915,7 @@ mod tests {
             .anchor(Anchor::Top)
             .expect("a line answers all four of its sides");
         let nothing = Delta { dx: 0, dy: 0 };
-        let stands_at =
-            |anchor| Position::Reference(Reference::new(id, anchor, nothing, 1)).resolve(&diagram);
+        let stands_at = |anchor| resolve(Reference::new(id, anchor, nothing, 1), &diagram);
 
         for (anchor, at) in [
             (Anchor::Top, Pos { x: 2, y: -1 }),

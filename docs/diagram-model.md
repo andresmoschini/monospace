@@ -244,7 +244,9 @@ with two attached endpoints is the figure this model exists to make possible.
 
 A **frozen** endpoint is attached to **nothing**: it is an absolute point like any other, so there
 is no side for it to name and no figure to name one against. That is the whole of what a removal
-does to an attachment, and _Positions_ is where the rule it follows is stated.
+does to an attachment, and _Positions_ is where the rule it follows is stated. It freezes at the
+effective position it was resolving to, so taking a shape away preserves the connector's visual
+placement without jumping onto where the border stood.
 
 The direction an attached endpoint leaves in is derived from the anchor it attaches to: outward from
 that side (`Top` leaves `Up`, `Right` leaves `Right`, `Bottom` leaves `Down`, and `Left` leaves
@@ -252,6 +254,18 @@ that side (`Top` leaves `Up`, `Right` leaves `Right`, `Bottom` leaves `Down`, an
 freezes when its target figure is removed preserves the leaving direction of the anchor it was
 attached to. The terminal it carries remains the caller's, while what a symbol terminal writes
 follows from `leaving`.
+
+**Non-arm terminals attached to a side stand one cell outward by default.** An `Arm` terminal joins
+and composes with the border cell (`effective_out = reference.out + 0`), turning the border cell
+into a junction (`├`, `┤`, `┬`, `┴`). A non-arm terminal (`Symbol` or `Glyph`) does not compose: it
+overwrites the cell it lands on. Attached non-arm terminals therefore resolve with an automatic `+1`
+outward cell offset along the anchor's normal (`effective_out = reference.out + 1`), so an arrow
+terminates against the target shape's boundary from the outside without overwriting the border line.
+
+**An explicit `out` is additive to the base offset.** An explicit `out: 0` (or omitted) yields
+`effective_out = 1` for symbols, while `out: 1` yields `effective_out = 2` (a two-cell gap), and
+`out: -1` yields `effective_out = 0` (intentionally placing the symbol on the border cell). The rule
+is symmetric across both `from` and `to` endpoints.
 
 A connector's `from` endpoint standing on the right border of a box, and its `to` endpoint out in
 the open. The cell at `(3, 1)` reads `├`, and neither figure wrote a junction there — the box's
@@ -277,6 +291,32 @@ an anchor rather than a corner:
 ┌──┐
 │  ├────
 └──┘
+```
+
+<!-- /render -->
+
+An arrow terminal attached to the left side of a box with default `out: 0` stands at `x = 6` without
+touching or overwriting the box border at `x = 7`:
+
+<!-- render: 11x3
+{
+  "next_id": 3,
+  "shapes": [
+    { "kind": "connector", "id": 1,
+      "from": { "at": { "kind": "point", "x": 0, "y": 1 }, "leaving": "right",
+                "terminal": { "kind": "arm" } },
+      "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left" },
+                "terminal": { "kind": "symbol", "style": "solid" } },
+      "stroke": "light" },
+    { "kind": "box", "id": 2, "at": { "x": 7, "y": 0 }, "size": { "width": 4, "height": 3 },
+      "stroke": "light" }
+  ] }
+-->
+
+```text
+       ┌──┐
+──────▶│  │
+       └──┘
 ```
 
 <!-- /render -->

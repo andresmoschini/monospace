@@ -56,10 +56,38 @@ impl EndpointAt {
         }
     }
 
-    /// Where this endpoint stands now, in `diagram`, or `None` when it does not resolve.
+    /// Where this endpoint stands now in `diagram` given its `terminal`, or `None` when it does not resolve.
     #[must_use]
-    pub fn resolve(self, diagram: &Diagram) -> Option<Pos> {
-        self.position().resolve(diagram)
+    pub(crate) fn resolve(self, diagram: &Diagram, terminal: &Terminal) -> Option<Pos> {
+        match self {
+            Self::Absolute { at, .. } => Some(at),
+            Self::Reference(reference) => {
+                let shape = diagram.get(reference.id)?;
+                let point = shape.anchor(reference.anchor)?;
+                Some(
+                    reference
+                        .offset
+                        .grow(reference.anchor.outward(self.effective_out(terminal)))
+                        .apply(point),
+                )
+            }
+        }
+    }
+
+    /// The effective outward cell count for this endpoint position given its terminal.
+    ///
+    /// Non-arm terminals (`Symbol`, `Glyph`) attached to a reference stand one cell outward by default
+    /// (`reference.out + 1`), whereas `Arm` terminals stand directly on the border cell (`reference.out + 0`)
+    /// to compose into junctions. Absolute endpoints have no anchor to offset from and return 0.
+    #[must_use]
+    pub(crate) fn effective_out(self, terminal: &Terminal) -> i16 {
+        match self {
+            Self::Absolute { .. } => 0,
+            Self::Reference(reference) => {
+                let base = i16::from(*terminal != Terminal::Arm);
+                reference.out.saturating_add(base)
+            }
+        }
     }
 
     /// This endpoint, moved by `by`, changing nothing else.
@@ -126,12 +154,25 @@ impl Endpoint {
         self.at.leaving()
     }
 
+    /// The effective outward cell count for this endpoint.
+    #[must_use]
+    pub fn effective_out(&self) -> i16 {
+        self.at.effective_out(&self.terminal)
+    }
+
+    /// Where this endpoint stands now in `diagram`, taking its `terminal` into account,
+    /// or `None` when it does not resolve.
+    #[must_use]
+    pub fn resolve(&self, diagram: &Diagram) -> Option<Pos> {
+        self.at.resolve(diagram, &self.terminal)
+    }
+
     /// An endpoint's position, frozen against a removal of the shape `id` names, or `None` when there
     /// is nothing here to freeze.
     pub(crate) fn frozen_position(&self, id: ShapeId, diagram: &Diagram) -> Option<EndpointAt> {
         match self.at {
             EndpointAt::Reference(reference) if reference.id == id => {
-                self.at.resolve(diagram).map(|at| EndpointAt::Absolute {
+                self.resolve(diagram).map(|at| EndpointAt::Absolute {
                     at,
                     leaving: reference.anchor.leaving(),
                 })
@@ -195,7 +236,7 @@ impl Shape {
     /// a cycle impossible to build.
     ///
     /// It is crate-private because the anchors exist to be resolved _through_, and
-    /// [`Position::resolve`] is how. Drawing is the only consumer so far, and a caller holding a
+    /// [`Endpoint::resolve`] is how. Drawing is the only consumer so far, and a caller holding a
     /// position and the diagram can already reach the number.
     pub(crate) fn anchor(&self, anchor: Anchor) -> Option<Pos> {
         match self {
@@ -267,8 +308,7 @@ impl Shape {
             }
             .draw(surface),
             Self::Connector { from, to, stroke } => {
-                let (Some(from_at), Some(to_at)) =
-                    (from.at.resolve(diagram), to.at.resolve(diagram))
+                let (Some(from_at), Some(to_at)) = (from.resolve(diagram), to.resolve(diagram))
                 else {
                     return;
                 };
@@ -514,7 +554,7 @@ impl Shape {
     ///
     /// **It answers `Option<Self>` rather than `Self`,** for three reasons that are not all about
     /// tidiness. `None` is the ordinary answer and the crate already has that idiom — `Shape::anchor`
-    /// answers `None` for a connector and `Position::resolve` for a reference that does not resolve,
+    /// answers `None` for a connector and `Endpoint::resolve` for a reference that does not resolve,
     /// and neither is a failure. It is the shape that pays forward: the alternative pays a clone for
     /// every figure on every removal, including the two that cannot change. And it **cannot report
     /// a rewrite that changed nothing**, which a figure coming back equal to what went in cannot
@@ -1065,7 +1105,8 @@ mod tests {
                 unreachable!()
             };
 
-            let expected_at = the_box.anchor(anchor).expect("box answers all anchors");
+            let border_at = the_box.anchor(anchor).expect("box answers all anchors");
+            let expected_at = anchor.outward(1).apply(border_at);
             assert_eq!(
                 frozen_from.at,
                 EndpointAt::Absolute {
@@ -1515,5 +1556,219 @@ mod tests {
         };
 
         assert_eq!(the_box.with_text(Some(text)), the_box);
+    }
+
+    #[test]
+    fn effective_out_offsets_non_arm_terminals_by_one_and_is_additive() {
+        use monospace_core::SymbolStyleName;
+
+        let nothing = Delta { dx: 0, dy: 0 };
+        let symbol = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+        let glyph = Terminal::Glyph {
+            glyph: Glyph::new("x").unwrap(),
+        };
+        let arm = Terminal::Arm;
+
+        let (_, dummy_id) = Diagram::new().add(box_at(0));
+        let at_ref =
+            |out: i16| EndpointAt::Reference(Reference::new(dummy_id, Anchor::Right, nothing, out));
+
+        // Arm terminal sits on the border (out + 0).
+        assert_eq!(at_ref(0).effective_out(&arm), 0);
+        assert_eq!(
+            Endpoint::reference(
+                Reference::new(dummy_id, Anchor::Right, nothing, 0),
+                arm.clone(),
+            )
+            .effective_out(),
+            0
+        );
+
+        // Non-arm terminals stand one cell outward by default (out + 1).
+        assert_eq!(at_ref(0).effective_out(&symbol), 1);
+        assert_eq!(at_ref(0).effective_out(&glyph), 1);
+
+        // Explicit out is additive (out + 1).
+        assert_eq!(at_ref(1).effective_out(&symbol), 2);
+        assert_eq!(at_ref(2).effective_out(&symbol), 3);
+
+        // Explicit negative out allows placing back on the border.
+        assert_eq!(at_ref(-1).effective_out(&symbol), 0);
+
+        // Absolute endpoint always yields 0 outward offset.
+        let absolute = EndpointAt::Absolute {
+            at: Pos { x: 3, y: 3 },
+            leaving: Direction::Right,
+        };
+        assert_eq!(absolute.effective_out(&symbol), 0);
+        assert_eq!(absolute.effective_out(&arm), 0);
+    }
+
+    #[test]
+    fn endpoint_resolves_with_terminal_offsetting_non_arm_terminals_by_one() {
+        use monospace_core::SymbolStyleName;
+
+        let nothing = Delta { dx: 0, dy: 0 };
+        let symbol = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+        let glyph = Terminal::Glyph {
+            glyph: Glyph::new("x").unwrap(),
+        };
+        let arm = Terminal::Arm;
+
+        let the_box = Shape::Box {
+            at: Pos { x: 5, y: 5 },
+            size: Size {
+                width: 5,
+                height: 5,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+
+        let diagram = Diagram::new();
+        let (diagram, box_id) = diagram.add(the_box);
+
+        // Test each of the four anchors: side_centre and outward(1)
+        for (anchor, expected_normal) in [
+            (Anchor::Top, Delta { dx: 0, dy: -1 }),
+            (Anchor::Right, Delta { dx: 1, dy: 0 }),
+            (Anchor::Bottom, Delta { dx: 0, dy: 1 }),
+            (Anchor::Left, Delta { dx: -1, dy: 0 }),
+        ] {
+            let border_point = diagram.get(box_id).unwrap().anchor(anchor).unwrap();
+            let outward_point = expected_normal.apply(border_point);
+
+            // Arm sits on the border
+            let arm_ep =
+                Endpoint::reference(Reference::new(box_id, anchor, nothing, 0), arm.clone());
+            assert_eq!(arm_ep.resolve(&diagram), Some(border_point));
+
+            // Symbol stands 1 cell outward by default (D1)
+            let symbol_ep =
+                Endpoint::reference(Reference::new(box_id, anchor, nothing, 0), symbol.clone());
+            assert_eq!(symbol_ep.resolve(&diagram), Some(outward_point));
+
+            // Glyph stands 1 cell outward by default (D1)
+            let glyph_ep =
+                Endpoint::reference(Reference::new(box_id, anchor, nothing, 0), glyph.clone());
+            assert_eq!(glyph_ep.resolve(&diagram), Some(outward_point));
+
+            // Explicit out is additive (D2): out: 1 gives 2 cells outward
+            let outward_2 = Delta {
+                dx: expected_normal.dx * 2,
+                dy: expected_normal.dy * 2,
+            }
+            .apply(border_point);
+            let out_1_ep =
+                Endpoint::reference(Reference::new(box_id, anchor, nothing, 1), symbol.clone());
+            assert_eq!(out_1_ep.resolve(&diagram), Some(outward_2));
+
+            // Explicit out: -1 places non-arm back on the border (D2)
+            let out_neg1_ep =
+                Endpoint::reference(Reference::new(box_id, anchor, nothing, -1), symbol.clone());
+            assert_eq!(out_neg1_ep.resolve(&diagram), Some(border_point));
+
+            // Symmetry between from and to (D3): constructing from or to behaves identically
+            let connector_from =
+                Endpoint::reference(Reference::new(box_id, anchor, nothing, 0), symbol.clone());
+            let connector_to =
+                Endpoint::reference(Reference::new(box_id, anchor, nothing, 0), symbol.clone());
+            assert_eq!(
+                connector_from.resolve(&diagram),
+                connector_to.resolve(&diagram)
+            );
+        }
+
+        // Resolving an endpoint referencing an absent shape yields None
+        let absent_id = ShapeId::new(std::num::NonZeroU16::new(999).unwrap());
+        let absent_ep =
+            Endpoint::reference(Reference::new(absent_id, Anchor::Top, nothing, 0), symbol);
+        assert_eq!(absent_ep.resolve(&diagram), None);
+    }
+
+    #[test]
+    fn attached_connectors_draw_non_arm_terminals_one_cell_outward_preserving_borders() {
+        use monospace_core::SymbolStyleName;
+
+        let nothing = Delta { dx: 0, dy: 0 };
+        let symbol = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+        let catalog = GlyphCatalog::union([GlyphCatalog::light(), GlyphCatalog::solid()]);
+        let window = Window {
+            origin: ORIGIN,
+            size: WINDOW,
+        };
+
+        // Example 1: Arm to Symbol. Left box at 0..3, right box at 8..11.
+        let d = Diagram::new();
+        let (d, left_id) = d.add(box_at(0));
+        let (d, right_id) = d.add(box_at(8));
+        let (d1, _) = d.add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(left_id, Anchor::Right, nothing, 0),
+                Terminal::Arm,
+            ),
+            to: Endpoint::reference(
+                Reference::new(right_id, Anchor::Left, nothing, 0),
+                symbol.clone(),
+            ),
+            stroke: light(),
+        });
+
+        let mut buf1 = Buffer::new(window);
+        d1.draw(&mut buf1);
+        assert_eq!(
+            render(&buf1, &catalog, window),
+            concat!("┌─┐     ┌─┐\n", "│ ├────▶│ │\n", "└─┘     └─┘\n")
+        );
+
+        // Example 3: Bidirectional arrows between both boxes.
+        let d = Diagram::new();
+        let (d, left_id) = d.add(box_at(0));
+        let (d, right_id) = d.add(box_at(8));
+        let (d3, _) = d.add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(left_id, Anchor::Right, nothing, 0),
+                symbol.clone(),
+            ),
+            to: Endpoint::reference(Reference::new(right_id, Anchor::Left, nothing, 0), symbol),
+            stroke: light(),
+        });
+
+        let mut buf3 = Buffer::new(window);
+        d3.draw(&mut buf3);
+        assert_eq!(
+            render(&buf3, &catalog, window),
+            concat!("┌─┐     ┌─┐\n", "│ │◀───▶│ │\n", "└─┘     └─┘\n")
+        );
+
+        // Arm terminals continue composing into junctions on both sides.
+        let d = Diagram::new();
+        let (d, left_id) = d.add(box_at(0));
+        let (d, right_id) = d.add(box_at(8));
+        let (da, _) = d.add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(left_id, Anchor::Right, nothing, 0),
+                Terminal::Arm,
+            ),
+            to: Endpoint::reference(
+                Reference::new(right_id, Anchor::Left, nothing, 0),
+                Terminal::Arm,
+            ),
+            stroke: light(),
+        });
+
+        let mut buf_junctions = Buffer::new(window);
+        da.draw(&mut buf_junctions);
+        assert_eq!(
+            render(&buf_junctions, &catalog, window),
+            concat!("┌─┐     ┌─┐\n", "│ ├─────┤ │\n", "└─┘     └─┘\n")
+        );
     }
 }

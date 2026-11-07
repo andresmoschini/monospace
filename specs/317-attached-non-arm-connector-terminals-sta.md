@@ -1,5 +1,7 @@
 ---
-status: draft
+status: implemented
+decided: "#318"
+implemented: "#319"
 date: 2026-11-07
 ---
 
@@ -21,9 +23,9 @@ the border cell, overwriting the border line and pointing inward into the interi
 avoid destroying the border, a author must manually supply `out: 1` on every attached arrow
 endpoint.
 
-The spike in [`docs/spike-connector.md`](../docs/spike-connector.md) demonstrates this friction:
-Case 1 with default `out: 0` overwrites the destination box border, whereas Case 2 with `out: 1`
-renders cleanly with the arrow touching the border from the outside.
+The initial spike exploration demonstrated this friction: Case 1 with default `out: 0` overwrites
+the destination box border, whereas Case 2 with `out: 1` renders cleanly with the arrow touching the
+border from the outside.
 
 Human intuition expects an attached arrow to terminate against the shape's boundary from the outside
 by default. By introducing an automatic one-cell outward adjustment for attached non-arm terminals,
@@ -42,8 +44,8 @@ connectors naturally point at their target shapes without manual offset adjustme
   `out: 1` yields 2; `out: -1` allows intentionally placing the symbol on the border cell.
 - Freezing consistency: when a referenced shape is removed, an attached endpoint freezes to an
   absolute position matching its effective rendered position (`effective_out`).
-- Updating [`docs/spike-connector.md`](../docs/spike-connector.md) and
-  [`docs/diagram-demo.md`](../docs/diagram-demo.md) to document and reflect the new default rule.
+- Updating [`docs/diagram-demo.md`](../docs/diagram-demo.md) to document and reflect the new default
+  rule.
 
 ### Out
 
@@ -134,8 +136,6 @@ tests) must observe consistent diagram rendering without duplicating placement m
   (`effective_out = reference.out + 0`) to compose into a junction.
 - `docs/diagram-demo.md`: Update row 1 and row 3 of the offset demonstration or its explanatory text
   where the symbol terminal was historically placed on the border, noting the new default behavior.
-- `docs/spike-connector.md`: Update Case 1 and Case 2 to show Case 1 rendering cleanly without
-  explicit `out: 1`.
 
 ## Public surface
 
@@ -210,8 +210,9 @@ change upon removal of the box.
   - `Endpoint::resolve` for `Terminal::Symbol` and `Terminal::Glyph` resolves one cell outward.
   - `Endpoint::resolve` with explicit positive and negative `out`.
   - `Endpoint::frozen_position` preserves the effective resolved position.
-- Rendering tests in `docs/spike-connector.md`:
-  - Case 1 renders with the arrowhead outside the destination box border.
+- Gallery snapshot tests in `monospace-diagram`:
+  - `an_attached_symbol_terminal_on_a_side_stands_one_cell_outward_by_default.snap` covering all
+    four anchors, explicit `out`, negative `out`, and both `from`/`to` endpoints.
 - Regression tests ensuring absolute endpoints and arm attachments remain unchanged.
 
 ## Open questions

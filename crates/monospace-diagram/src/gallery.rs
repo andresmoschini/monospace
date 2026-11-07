@@ -31,8 +31,8 @@
 use std::fmt::Write as _;
 
 use monospace_core::{
-    Arm, Buffer, Cell, CellReader, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Window,
-    render,
+    Arm, Buffer, Cell, CellReader, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke,
+    SymbolStyleName, Terminal, Window, render,
 };
 
 use std::num::NonZeroU16;
@@ -172,17 +172,21 @@ fn small_box(at_: Pos, fill: Option<&str>) -> Shape {
     }
 }
 
+fn catalog() -> GlyphCatalog {
+    GlyphCatalog::union([GlyphCatalog::light(), GlyphCatalog::solid()])
+}
+
 /// Draws `diagram` into a fresh window of `size` and returns the picture and the surface.
 fn draw(size: Size, diagram: &Diagram) -> (String, String) {
     let origin = at(0, 0);
     let mut buffer = Buffer::new(Window { origin, size });
     diagram.draw(&mut buffer);
-    let picture = render(&buffer, &GlyphCatalog::light(), buffer.window());
+    let picture = render(&buffer, &catalog(), buffer.window());
     (picture, surface(&buffer, size))
 }
 
 fn surface(buffer: &Buffer, size: Size) -> String {
-    let catalog = GlyphCatalog::light();
+    let catalog = catalog();
     let mut rows: Vec<[String; 7]> = Vec::new();
     let total = size.width as usize * size.height as usize;
 
@@ -492,5 +496,104 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
     snap(
         "an_endpoint_hangs_from_a_side_and_follows_it",
         &format!("{first}\n{second}\n{third}\n{fourth}"),
+    );
+}
+
+// ----------------------- a symbol terminal attached to a side stands outward by default
+
+/// A connector with an attached symbol terminal: `from` hangs from the first box's right side
+/// with `Terminal::Arm` to compose into a junction, and `to` hangs from the second box's left side
+/// with `Terminal::Symbol` in `solid` style.
+fn symbol_connector(from_id: ShapeId, to_id: ShapeId, out: i16) -> Shape {
+    Shape::Connector {
+        from: Endpoint::reference(
+            Reference::new(from_id, Anchor::Right, Delta { dx: 0, dy: 0 }, 0),
+            Terminal::Arm,
+        ),
+        to: Endpoint::reference(
+            Reference::new(to_id, Anchor::Left, Delta { dx: 0, dy: 0 }, out),
+            Terminal::Symbol {
+                style: SymbolStyleName::from("solid"),
+            },
+        ),
+        stroke: light(),
+    }
+}
+
+/// A non-arm terminal attached to a side stands one cell outward along the anchor normal by default,
+/// so an arrowhead terminates against the target boundary from the outside rather than overwriting
+/// the border cell it lands on.
+///
+/// Five blocks show the five facets of the rule:
+/// 1. **As written (`out: 0`)**: the arrow stands at `x = 6`, leaving a one-cell gap before the target
+///    box's left border at `x = 7` so that `│` is preserved.
+/// 2. **Displaced**: displacing the target box four cells right moves the endpoint along with it,
+///    preserving the one-cell gap at the new location.
+/// 3. **Removed**: removing the target box freezes the endpoint at its effective resolved position
+///    (`x = 6`), preventing visual jumps.
+/// 4. **Explicit `out: 1`**: `out` is additive, so `out: 1` yields an effective separation of two cells.
+/// 5. **Explicit `out: -1`**: a negative offset pulls the terminal inward, allowing the author to
+///    intentionally land the symbol directly on the border cell.
+#[test]
+fn a_symbol_terminal_attached_to_a_side_stands_one_cell_outward_by_default() {
+    let labelled = "[small_box(0,0,no fill), small_box(7,0,no fill), symbol_connector(from = Reference(1, Right), to = Reference(2, Left))]";
+    let (diagram, box1_id) = Diagram::new().add(small_box(at(0, 0), None));
+    let (mut diagram, box2_id) = diagram.add(small_box(at(7, 0), None));
+    diagram = diagram.add(symbol_connector(box1_id, box2_id, 0)).0;
+    let first = block(labelled, "as written", window(15, 3), &diagram);
+
+    // Displacing the target box four cells right moves the endpoint along with it,
+    // preserving the one-cell outward gap at the new position.
+    let moved = diagram
+        .get(box2_id)
+        .expect("the target box is in the diagram")
+        .displaced_by(Delta { dx: 4, dy: 0 });
+    diagram = diagram.replace(box2_id, moved);
+    let second = block(
+        labelled,
+        "the target box displaced four cells right",
+        window(15, 3),
+        &diagram,
+    );
+
+    // Removing the target box freezes the arrow at its effective position without visual jump.
+    let (diagram3, b1) = Diagram::new().add(small_box(at(0, 0), None));
+    let (mut diagram3, b2) = diagram3.add(small_box(at(7, 0), None));
+    diagram3 = diagram3.add(symbol_connector(b1, b2, 0)).0;
+    diagram3 = diagram3.remove(b2);
+    let third = block(
+        labelled,
+        "the target box taken out",
+        window(15, 3),
+        &diagram3,
+    );
+
+    // Explicit `out: 1` produces an additive gap of two cells.
+    let labelled_out1 = "[small_box(0,0,no fill), small_box(7,0,no fill), symbol_connector(from = Reference(1, Right), to = Reference(2, Left, out=1))]";
+    let (diagram4, b1) = Diagram::new().add(small_box(at(0, 0), None));
+    let (mut diagram4, b2) = diagram4.add(small_box(at(7, 0), None));
+    diagram4 = diagram4.add(symbol_connector(b1, b2, 1)).0;
+    let fourth = block(
+        labelled_out1,
+        "the connector with explicit out: 1",
+        window(15, 3),
+        &diagram4,
+    );
+
+    // Explicit `out: -1` pulls the terminal onto the border cell, overwriting it.
+    let labelled_out_neg1 = "[small_box(0,0,no fill), small_box(7,0,no fill), symbol_connector(from = Reference(1, Right), to = Reference(2, Left, out=-1))]";
+    let (diagram5, b1) = Diagram::new().add(small_box(at(0, 0), None));
+    let (mut diagram5, b2) = diagram5.add(small_box(at(7, 0), None));
+    diagram5 = diagram5.add(symbol_connector(b1, b2, -1)).0;
+    let fifth = block(
+        labelled_out_neg1,
+        "the connector with explicit out: -1",
+        window(15, 3),
+        &diagram5,
+    );
+
+    snap(
+        "a_symbol_terminal_attached_to_a_side_stands_one_cell_outward_by_default",
+        &format!("{first}\n{second}\n{third}\n{fourth}\n{fifth}"),
     );
 }

@@ -88,8 +88,7 @@
           "kind": "reference",
           "shape": 5,
           "anchor": "bottom",
-          "offset": { "dx": 1, "dy": 0 },
-          "out": 1
+          "offset": { "dx": 1, "dy": 0 }
         },
         "terminal": { "kind": "symbol", "style": "solid" }
       },
