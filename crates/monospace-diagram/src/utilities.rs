@@ -1,10 +1,10 @@
 //! The two rewrites of a persistent sequence that `rpds::VectorSync` does not have, and this crate
-//! needs twice each.
+//! needs at more than one call site each.
 //!
 //! **`rpds::VectorSync` can be written at one place and dropped at the back.** It offers a setter per
 //! place, `push_back` and `drop_last`, and nothing else: there is no `swap` to exchange two places
 //! and no way of dropping the one place a caller names. Spelling the rewrites out here, once,
-//! rather than at each of the two call sites each, is what keeps a caller reading as the single
+//! rather than at each call site, is what keeps a caller reading as the single
 //! operation it is — *move this one place along*, *leave nothing standing under this name*.
 //!
 //! Both take the sequence by reference and hand a new one back, so **the sequence a caller holds
@@ -43,11 +43,8 @@ pub(crate) fn swapped<T: Clone>(sequence: &VectorSync<T>, a: usize, b: usize) ->
 ///
 /// **One place goes rather than every place it stood in, because one element standing twice is not
 /// a case this crate's order has.** §3 _Identity_ says an identity names one figure and one place
-/// in the order, and `remove` is the only method that writes the order apart from two additions
-/// that put a name in exactly one place. The earlier wording here said the opposite — that an
-/// identity may stand in the order more than once and dropping one place would leave the other
-/// standing and naming nothing — which was true of a diagram that held two figures under one name
-/// and is not true of one that does not.
+/// in the order. `remove`, `to_front` and `to_back` are the writes that take a name out of the
+/// order; `add` and `add_under` are the two additions that put one in exactly one place.
 #[must_use]
 pub(crate) fn without<T: Clone + PartialEq>(sequence: &VectorSync<T>, value: &T) -> VectorSync<T> {
     sequence
