@@ -200,11 +200,10 @@ impl Diagram {
     /// The place in the order the shape named by `id` stands, or `None` when this diagram holds
     /// no such shape.
     ///
-    /// **The search `forward` and `backward` go through, and it is a scan of the order rather than
-    /// of the figures**: which place an identity stands in is a question about the order, and the
-    /// map answers no position at all. The two are the only operations that ask, and
-    /// `add_under`'s check below is one comparison rather than a search because it needs to know
-    /// *whether* the identity stands in the order and not *where*.
+    /// **The search every order question goes through, and it is a scan of the order rather than of
+    /// the figures**: which place an identity stands in is a question about the order, and the map
+    /// answers no position at all. `add_under`'s check is one comparison rather than a search
+    /// because it needs to know *whether* the identity stands in the order and not *where*.
     ///
     /// `ShapeId`s are compared by value, so an identity issued by another diagram is a well-formed
     /// value that matches nothing here — the same answer the model's _Positions_ gives a reference
@@ -213,12 +212,32 @@ impl Diagram {
         self.order.iter().position(|held| *held == id)
     }
 
+    /// The place the shape named by `id` stands in the order, counting from zero at the back, or
+    /// `None` when this diagram holds no such shape.
+    ///
+    /// **The read the order row asks for.** The place a person sees is this plus one, and the total
+    /// is [`shape_count`](Self::shape_count); the pair is what turns an index into
+    /// `Position: k of N`. The search is `find`'s, and the answer is the index rather than the
+    /// figure, so nothing about the figure is copied to report where it sits.
+    #[must_use]
+    pub fn place_of(&self, id: ShapeId) -> Option<usize> {
+        self.find(id)
+    }
+
     /// Where `id` stands, when [`forward`](Self::forward) would move it.
     ///
     /// **The one place the rule is written**: a figure this diagram does not hold and one already at
     /// the front are the same answer, `None`, because neither would move.
     fn place_to_forward(&self, id: ShapeId) -> Option<usize> {
         self.find(id).filter(|index| index + 1 < self.order.len())
+    }
+
+    /// Where `id` stands, when [`backward`](Self::backward) would move it.
+    ///
+    /// **The mirror of `place_to_forward`, at the other end.** A figure this diagram does not hold
+    /// and one already at the back are the same answer, `None`, because neither would move.
+    fn place_to_backward(&self, id: ShapeId) -> Option<usize> {
+        self.find(id).filter(|index| *index > 0)
     }
 
     /// Moves the shape named by `id` one place toward the front of the order. Does nothing when
@@ -236,6 +255,21 @@ impl Diagram {
         }
     }
 
+    /// Moves the shape named by `id` one place toward the back of the order. Does nothing when
+    /// `id` names no shape here, or when it is already the back-most.
+    #[must_use]
+    pub fn backward(&self, id: ShapeId) -> Self {
+        let Some(index) = self.place_to_backward(id) else {
+            return self.clone();
+        };
+
+        Self {
+            shapes: self.shapes.clone(),
+            order: swapped(&self.order, index, index - 1),
+            next_id: self.next_id,
+        }
+    }
+
     /// Whether [`forward`](Self::forward) would move the shape `id` names: it is here, and it is not in
     /// front of everything else already.
     ///
@@ -248,22 +282,16 @@ impl Diagram {
         self.place_to_forward(id).is_some()
     }
 
-    /// Moves the shape named by `id` one place toward the back of the order. Does nothing when
-    /// `id` names no shape here, or when it is already the back-most.
+    /// Whether [`backward`](Self::backward) would move the shape `id` names: it is here, and it is
+    /// not behind everything else already.
+    ///
+    /// **Answerable without carrying it out**, as `can_forward` is, and it is the same rule
+    /// `backward` guards itself with — written once in `place_to_backward` and read from both sides.
+    /// `Command::Backward` and `Command::ToBack` ask it (#285): a figure already at the back changes
+    /// nothing, and a command that changes nothing records no step.
     #[must_use]
-    pub fn backward(&self, id: ShapeId) -> Self {
-        let Some(index) = self.find(id) else {
-            return self.clone();
-        };
-        if index == 0 {
-            return self.clone();
-        }
-
-        Self {
-            shapes: self.shapes.clone(),
-            order: swapped(&self.order, index, index - 1),
-            next_id: self.next_id,
-        }
+    pub fn can_backward(&self, id: ShapeId) -> bool {
+        self.place_to_backward(id).is_some()
     }
 
     /// The figure named by `id`, or `None` when this diagram holds no such shape.
@@ -284,6 +312,16 @@ impl Diagram {
         self.order
             .iter()
             .filter_map(|id| self.shapes.get(id).map(|shape| (*id, shape)))
+    }
+
+    /// How many figures this diagram holds.
+    ///
+    /// **The order is the count**, because the two are written together and always agree: one
+    /// identity stands once in the order and names one figure. Counting the map instead would be a
+    /// second answer to a question the order already answers.
+    #[must_use]
+    pub fn shape_count(&self) -> usize {
+        self.order.len()
     }
 
     /// The ordinal the next shape added takes.
@@ -1918,6 +1956,79 @@ mod tests {
                 "the predicate's own answer"
             );
             assert_eq!(moved, expected, "which is the answer `forward` obeys");
+        }
+    }
+
+    /// `place_of` counts from the back and answers nothing for an identity the diagram does not
+    /// hold, which is the same `None` every other operation gives that identity.
+    #[test]
+    fn place_of_reports_where_a_figure_stands() {
+        let (diagram, back, front) = two_overlapping_boxes();
+
+        assert_eq!(
+            diagram.place_of(back),
+            Some(0),
+            "the back-most figure stands at zero"
+        );
+        assert_eq!(
+            diagram.place_of(front),
+            Some(1),
+            "the front-most stands one place along"
+        );
+        assert_eq!(
+            diagram.place_of(identity(9)),
+            None,
+            "an absent identity stands nowhere"
+        );
+        assert_eq!(
+            diagram.place_of(a_foreign_identity()),
+            None,
+            "an identity from another diagram is the same absence"
+        );
+    }
+
+    /// `shape_count` is the number of figures the order holds, and it follows a removal.
+    #[test]
+    fn shape_count_is_the_number_of_figures() {
+        let empty = Diagram::new();
+        assert_eq!(empty.shape_count(), 0, "an empty diagram holds no figures");
+
+        let (diagram, back, _front) = two_overlapping_boxes();
+        assert_eq!(diagram.shape_count(), 2, "two additions are two figures");
+        assert_eq!(
+            diagram.remove(back).shape_count(),
+            1,
+            "a removal leaves one figure behind"
+        );
+    }
+
+    /// Whether a figure can move backward is the answer `backward` obeys.
+    ///
+    /// **The mirror of the forward test**, and the same three cases: the back-most figure cannot, the
+    /// one in front of it can, and an identity the diagram does not hold cannot. Each answer is
+    /// checked against whether `backward` changed the drawing, so a predicate that was right about
+    /// the examples and wrong about the rule fails.
+    #[test]
+    fn the_answer_to_whether_a_figure_can_move_backward_is_the_answer_backward_obeys() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b) = overlapping_boxes();
+        let (diagram, back) = Diagram::new().add(a);
+        let (diagram, front) = diagram.add(b);
+        let before = cells(&draw_of(&diagram, origin, size));
+
+        for (figure, expected) in [(back, false), (front, true), (identity(9), false)] {
+            let moved = cells(&draw_of(&diagram.backward(figure), origin, size)) != before;
+
+            assert_eq!(
+                diagram.can_backward(figure),
+                expected,
+                "the predicate's own answer"
+            );
+            assert_eq!(moved, expected, "which is the answer `backward` obeys");
         }
     }
 
