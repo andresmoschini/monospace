@@ -24,7 +24,7 @@ use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
 use ratatui_core::style::Style;
 
-use crate::diagram_state::DiagramState;
+use crate::diagram_state::{DiagramState, SubMode};
 
 /// The name the application answers to.
 pub(crate) const NAME: &str = "monospace";
@@ -68,7 +68,7 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
 
     let selected_shape = diagram_state.selected_entry();
 
-    if diagram_state.sub_mode() == Some(crate::diagram_state::SubMode::StrokeSelect)
+    if let Some(sub_mode) = diagram_state.sub_mode()
         && let Some((id, shape)) = selected_shape
     {
         let (kind, current_stroke) = match shape {
@@ -76,7 +76,12 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
             Shape::Line { stroke, .. } => ("Line", stroke.0.as_str()),
             Shape::Connector { stroke, .. } => ("Connector", stroke.0.as_str()),
         };
-        return format!("STROKE SELECTION for {kind} #{id} · Current: {current_stroke}");
+
+        return match sub_mode {
+            SubMode::StrokeSelect => {
+                format!("STROKE SELECTION for {kind} #{id} · Current: {current_stroke}")
+            }
+        };
     }
 
     match selected_shape {
