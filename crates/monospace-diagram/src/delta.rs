@@ -14,7 +14,7 @@ use monospace_core::Pos;
 /// **It means two things, and the model's _Vocabulary_ row carries both.** It is how far a figure
 /// *moves*, which is what a displacement and this type's own `apply` exist for, and it is how far a
 /// reference stands *from the side it hangs from*, which is `Reference`'s `offset` — a gap rather
-/// than a point, added by [`Position::resolve`](crate::Position::resolve) to whatever the anchor
+/// than a point, added by [`Endpoint::resolve`](crate::Endpoint::resolve) to whatever the anchor
 /// answers now. One type and one addition serves both, so the crate keeps exactly one place where
 /// coordinates are added. Reusing it is also why §1's `Delta` row needed the clause this rustdoc
 /// now carries: the model's own sentence named the movement and could not have named both.

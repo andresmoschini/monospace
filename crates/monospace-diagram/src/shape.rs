@@ -58,7 +58,7 @@ impl EndpointAt {
 
     /// Where this endpoint stands now in `diagram` given its `terminal`, or `None` when it does not resolve.
     #[must_use]
-    pub fn resolve(self, diagram: &Diagram, terminal: &Terminal) -> Option<Pos> {
+    pub(crate) fn resolve(self, diagram: &Diagram, terminal: &Terminal) -> Option<Pos> {
         match self {
             Self::Absolute { at, .. } => Some(at),
             Self::Reference(reference) => {
@@ -155,9 +155,8 @@ impl Endpoint {
     }
 
     /// The effective outward cell count for this endpoint.
-    #[allow(dead_code, reason = "helper for endpoint outward offset")]
     #[must_use]
-    pub(crate) fn effective_out(&self) -> i16 {
+    pub fn effective_out(&self) -> i16 {
         self.at.effective_out(&self.terminal)
     }
 
@@ -237,7 +236,7 @@ impl Shape {
     /// a cycle impossible to build.
     ///
     /// It is crate-private because the anchors exist to be resolved _through_, and
-    /// [`Position::resolve`] is how. Drawing is the only consumer so far, and a caller holding a
+    /// [`Endpoint::resolve`] is how. Drawing is the only consumer so far, and a caller holding a
     /// position and the diagram can already reach the number.
     pub(crate) fn anchor(&self, anchor: Anchor) -> Option<Pos> {
         match self {
@@ -555,7 +554,7 @@ impl Shape {
     ///
     /// **It answers `Option<Self>` rather than `Self`,** for three reasons that are not all about
     /// tidiness. `None` is the ordinary answer and the crate already has that idiom — `Shape::anchor`
-    /// answers `None` for a connector and `Position::resolve` for a reference that does not resolve,
+    /// answers `None` for a connector and `Endpoint::resolve` for a reference that does not resolve,
     /// and neither is a failure. It is the shape that pays forward: the alternative pays a clone for
     /// every figure on every removal, including the two that cannot change. And it **cannot report
     /// a rewrite that changed nothing**, which a figure coming back equal to what went in cannot
@@ -1648,13 +1647,11 @@ mod tests {
             let arm_ep =
                 Endpoint::reference(Reference::new(box_id, anchor, nothing, 0), arm.clone());
             assert_eq!(arm_ep.resolve(&diagram), Some(border_point));
-            assert_eq!(arm_ep.at.resolve(&diagram, &arm), Some(border_point));
 
             // Symbol stands 1 cell outward by default (D1)
             let symbol_ep =
                 Endpoint::reference(Reference::new(box_id, anchor, nothing, 0), symbol.clone());
             assert_eq!(symbol_ep.resolve(&diagram), Some(outward_point));
-            assert_eq!(symbol_ep.at.resolve(&diagram, &symbol), Some(outward_point));
 
             // Glyph stands 1 cell outward by default (D1)
             let glyph_ep =
