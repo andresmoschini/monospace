@@ -541,6 +541,36 @@ impl Shape {
         }
     }
 
+    /// This figure with `from.terminal` and `to.terminal` swapped, or itself unchanged when it is not
+    /// a connector.
+    ///
+    /// **Only a connector holds terminals.** A box and a line have no endpoints to swap terminals
+    /// between; `with_inverted_terminals` leaves both unchanged, exactly as `with_text` leaves lines
+    /// and connectors unchanged.
+    ///
+    /// **It leaves `from.at` and `to.at` unchanged**, preserving anchor references, offsets, outward
+    /// distances, and absolute positions while inverting semantic flow direction.
+    ///
+    /// **It takes `&self` and gives back a `Self`**, composing with `Diagram::get` the way
+    /// [`Self::with_stroke`] does.
+    #[must_use]
+    pub fn with_inverted_terminals(&self) -> Self {
+        match self {
+            Self::Connector { from, to, stroke } => Self::Connector {
+                from: Endpoint {
+                    at: from.at,
+                    terminal: to.terminal.clone(),
+                },
+                to: Endpoint {
+                    at: to.at,
+                    terminal: from.terminal.clone(),
+                },
+                stroke: stroke.clone(),
+            },
+            Self::Box { .. } | Self::Line { .. } => self.clone(),
+        }
+    }
+
     /// This figure with every reference **naming `id`** replaced by the point it was resolving to,
     /// or `None` when this figure holds no such reference and nothing changed.
     ///
@@ -1556,6 +1586,113 @@ mod tests {
         };
 
         assert_eq!(the_box.with_text(Some(text)), the_box);
+    }
+
+    #[test]
+    fn with_inverted_terminals_swaps_from_and_to_terminals_on_a_connector() {
+        use monospace_core::SymbolStyleName;
+
+        let arm = Terminal::Arm;
+        let solid = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+        let connector = connector(arm.clone(), solid.clone());
+        let inverted = connector.with_inverted_terminals();
+
+        match (connector, inverted) {
+            (
+                Shape::Connector {
+                    from: f1,
+                    to: t1,
+                    stroke: s1,
+                },
+                Shape::Connector {
+                    from: f2,
+                    to: t2,
+                    stroke: s2,
+                },
+            ) => {
+                assert_eq!(f1.terminal, arm);
+                assert_eq!(t1.terminal, solid);
+                assert_eq!(f2.terminal, solid);
+                assert_eq!(t2.terminal, arm);
+                assert_eq!(f1.at, f2.at);
+                assert_eq!(t1.at, t2.at);
+                assert_eq!(s1, s2);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn with_inverted_terminals_on_a_box_or_line_changes_nothing() {
+        let the_box = Shape::Box {
+            at: Pos { x: 2, y: 3 },
+            size: Size {
+                width: 5,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+        let the_line = Shape::Line {
+            at: Pos { x: 1, y: 2 },
+            len: 4,
+            orientation: Orientation::Vertical,
+            stroke: light(),
+        };
+
+        assert_eq!(the_box.with_inverted_terminals(), the_box);
+        assert_eq!(the_line.with_inverted_terminals(), the_line);
+    }
+
+    #[test]
+    fn with_inverted_terminals_preserves_endpoint_geometry_and_attachments() {
+        use monospace_core::SymbolStyleName;
+
+        let (_, box_id) = Diagram::new().add(box_at(0));
+        let from_at = EndpointAt::Reference(Reference::new(
+            box_id,
+            Anchor::Right,
+            Delta { dx: 1, dy: 2 },
+            3,
+        ));
+        let to_at = EndpointAt::Absolute {
+            at: Pos { x: 15, y: 8 },
+            leaving: Direction::Left,
+        };
+
+        let conn = Shape::Connector {
+            from: Endpoint {
+                at: from_at,
+                terminal: Terminal::Arm,
+            },
+            to: Endpoint {
+                at: to_at,
+                terminal: Terminal::Symbol {
+                    style: SymbolStyleName::from("solid"),
+                },
+            },
+            stroke: light(),
+        };
+
+        let inverted = conn.with_inverted_terminals();
+        match inverted {
+            Shape::Connector { from, to, stroke } => {
+                assert_eq!(from.at, from_at);
+                assert_eq!(to.at, to_at);
+                assert_eq!(
+                    from.terminal,
+                    Terminal::Symbol {
+                        style: SymbolStyleName::from("solid")
+                    }
+                );
+                assert_eq!(to.terminal, Terminal::Arm);
+                assert_eq!(stroke, light());
+            }
+            _ => unreachable!(),
+        }
     }
 
     #[test]
