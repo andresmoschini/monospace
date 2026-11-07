@@ -3228,6 +3228,315 @@ mod tests {
         );
     }
 
+    /// Two overlapping boxes: id1 at the back, id2 in front. The cell `(0, 1)` of the window belongs
+    /// only to id1, so a click there selects the back box without hitting the front one.
+    const TWO_OVERLAPPING_BOXES: &str = r#"{
+        "next_id": 3,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 1 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light", "fill": "░" },
+            { "kind": "box", "id": 2, "at": { "x": 2, "y": 2 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light", "fill": "▓" }
+        ]
+    }"#;
+
+    #[test]
+    fn z_opens_order_mode_and_escape_leaves_it() {
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(1, 3), &mut state);
+        let id = state.diagram().selected();
+        assert!(id.is_some(), "box #1 was not selected");
+
+        let outcome = send(&key(KeyCode::Char('z')), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode),
+            "z did not enter order mode"
+        );
+
+        let buffer = draw(&mut state);
+        assert!(
+            row_of(&buffer, HEIGHT - 2).starts_with("LAYER ORDER for Box #1"),
+            "status row did not report layer order: {}",
+            row_of(&buffer, HEIGHT - 2)
+        );
+        assert!(
+            row_of(&buffer, HEIGHT - 1).contains("ORDER: [Home] Front"),
+            "command row did not offer order commands: {}",
+            row_of(&buffer, HEIGHT - 1)
+        );
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().sub_mode(),
+            None,
+            "Esc did not leave order mode"
+        );
+        assert_eq!(state.diagram().selected(), id, "Esc dropped the selection");
+    }
+
+    #[test]
+    fn page_up_moves_the_selected_figure_forward_and_records_one_step() {
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(1, 3), &mut state);
+        let id1 = state.diagram().selected().expect("box #1 selected");
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id1),
+            Some(0),
+            "box #1 starts at the back"
+        );
+
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        let outcome = send(&key(KeyCode::PageUp), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id1),
+            Some(1),
+            "PageUp did not move box #1 forward"
+        );
+        assert!(
+            state.diagram().session().can_undo(),
+            "moving forward recorded no step"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode),
+            "PageUp left order mode"
+        );
+    }
+
+    #[test]
+    fn page_down_moves_the_selected_figure_backward() {
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(5, 4), &mut state);
+        let id2 = state.diagram().selected().expect("box #2 selected");
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id2),
+            Some(1),
+            "box #2 starts in front"
+        );
+
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        let outcome = send(&key(KeyCode::PageDown), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id2),
+            Some(0),
+            "PageDown did not move box #2 backward"
+        );
+        assert!(
+            state.diagram().session().can_undo(),
+            "moving backward recorded no step"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode),
+            "PageDown left order mode"
+        );
+    }
+
+    #[test]
+    fn home_moves_the_selected_figure_to_the_front_in_one_step() {
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(1, 3), &mut state);
+        let id1 = state.diagram().selected().expect("box #1 selected");
+        assert_eq!(state.diagram().session().diagram().place_of(id1), Some(0));
+
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        let outcome = send(&key(KeyCode::Home), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id1),
+            Some(1),
+            "Home did not move box #1 to the front"
+        );
+        assert!(state.diagram().session().can_undo());
+
+        let undo_outcome = send(&undo_key(), &mut state);
+        assert!(matches!(undo_outcome, Control::Changed), "{undo_outcome:?}");
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id1),
+            Some(0),
+            "undo did not restore box #1 position"
+        );
+        assert!(
+            !state.diagram().session().can_undo(),
+            "more than one step recorded"
+        );
+        assert_eq!(state.diagram().selected(), None);
+        assert_eq!(state.diagram().sub_mode(), None);
+    }
+
+    #[test]
+    fn end_moves_the_selected_figure_to_the_back_in_one_step() {
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(5, 4), &mut state);
+        let id2 = state.diagram().selected().expect("box #2 selected");
+        assert_eq!(state.diagram().session().diagram().place_of(id2), Some(1));
+
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        let outcome = send(&key(KeyCode::End), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id2),
+            Some(0),
+            "End did not move box #2 to the back"
+        );
+        assert!(state.diagram().session().can_undo());
+
+        let undo_outcome = send(&undo_key(), &mut state);
+        assert!(matches!(undo_outcome, Control::Changed), "{undo_outcome:?}");
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id2),
+            Some(1),
+            "undo did not restore box #2 position"
+        );
+        assert!(
+            !state.diagram().session().can_undo(),
+            "more than one step recorded"
+        );
+    }
+
+    #[test]
+    fn a_move_at_the_limit_records_no_step() {
+        // Case 1: id1 at back, PageDown
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(1, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        let outcome = send(&key(KeyCode::PageDown), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.diagram().session().can_undo(),
+            "PageDown at back recorded a step"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode),
+            "PageDown at back left order mode"
+        );
+
+        // Case 2: id1 at back, End
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(1, 3), &mut state);
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        let outcome = send(&key(KeyCode::End), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.diagram().session().can_undo(),
+            "End at back recorded a step"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode),
+            "End at back left order mode"
+        );
+
+        // Case 3: id2 at front, PageUp
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(5, 4), &mut state);
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        let outcome = send(&key(KeyCode::PageUp), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.diagram().session().can_undo(),
+            "PageUp at front recorded a step"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode),
+            "PageUp at front left order mode"
+        );
+
+        // Case 4: id2 at front, Home
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(5, 4), &mut state);
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        let outcome = send(&key(KeyCode::Home), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.diagram().session().can_undo(),
+            "Home at front recorded a step"
+        );
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode),
+            "Home at front left order mode"
+        );
+    }
+
+    #[test]
+    fn undo_and_redo_leave_order_mode() {
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(1, 3), &mut state);
+        let id1 = state.diagram().selected().expect("box #1 selected");
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        let _ = send(&key(KeyCode::Home), &mut state);
+        assert_eq!(state.diagram().session().diagram().place_of(id1), Some(1));
+
+        let undo_outcome = send(&undo_key(), &mut state);
+        assert!(matches!(undo_outcome, Control::Changed), "{undo_outcome:?}");
+        assert_eq!(state.diagram().selected(), None);
+        assert_eq!(state.diagram().sub_mode(), None);
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id1),
+            Some(0),
+            "undo did not restore original place"
+        );
+
+        let redo_outcome = send(&redo_key(), &mut state);
+        assert!(matches!(redo_outcome, Control::Changed), "{redo_outcome:?}");
+        assert_eq!(state.diagram().selected(), None);
+        assert_eq!(state.diagram().sub_mode(), None);
+        assert_eq!(
+            state.diagram().session().diagram().place_of(id1),
+            Some(1),
+            "redo did not restore forward place"
+        );
+    }
+
+    #[test]
+    fn clicking_another_figure_cancels_order_mode() {
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(1, 3), &mut state);
+        let id1 = state.diagram().selected();
+        assert!(id1.is_some());
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode)
+        );
+
+        let outcome = send(&click(5, 4), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        let id2 = state.diagram().selected();
+        assert!(id2.is_some());
+        assert_ne!(id1, id2);
+        assert_eq!(state.diagram().sub_mode(), None);
+    }
+
+    #[test]
+    fn clicking_outside_cancels_order_mode_and_clears_the_selection() {
+        let mut state = a_drawn_state_over(TWO_OVERLAPPING_BOXES);
+        let _ = send(&click(1, 3), &mut state);
+        assert!(state.diagram().selected().is_some());
+        let _ = send(&key(KeyCode::Char('z')), &mut state);
+        assert_eq!(
+            state.diagram().sub_mode(),
+            Some(crate::diagram_state::SubMode::OrderMode)
+        );
+
+        let outcome = send(&click(20, 2), &mut state);
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert_eq!(state.diagram().sub_mode(), None);
+        assert_eq!(state.diagram().selected(), None);
+    }
+
     /// **Escape drops the active selection** (D1 of #279): pressing Escape while a shape is
     /// selected drops the selection and owes a frame. Pressing Escape when nothing is selected
     /// changes nothing.

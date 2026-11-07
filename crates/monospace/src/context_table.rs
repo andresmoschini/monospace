@@ -124,6 +124,14 @@ pub(crate) enum ContextMeaning {
     Resize,
     /// Removes the selected figure.
     Remove,
+    /// Moves the selected figure one place toward the front of the order.
+    Forward,
+    /// Moves the selected figure one place toward the back of the order.
+    Backward,
+    /// Moves the selected figure to the front of the order.
+    ToFront,
+    /// Moves the selected figure to the back of the order.
+    ToBack,
     /// Sets the stroke of the selected figure to the catalog name.
     SetStroke(&'static str),
     /// Enters an inline sub-mode.
@@ -207,6 +215,15 @@ static SELECTION: &[ContextBlock] = &[
         }],
     },
     ContextBlock {
+        category: Some("ORDER"),
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('z'),
+            display: "[z]",
+            meaning: ContextMeaning::EnterSubMode(SubMode::OrderMode),
+        }],
+    },
+    ContextBlock {
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
@@ -269,6 +286,44 @@ static STROKE_SELECT: &[ContextBlock] = &[
     },
 ];
 
+static ORDER_MODE: &[ContextBlock] = &[
+    ContextBlock {
+        category: Some("ORDER"),
+        condition: Condition::Always,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::Code(KeyCode::Home),
+                display: "[Home] Front",
+                meaning: ContextMeaning::ToFront,
+            },
+            ContextAction {
+                pattern: KeyPattern::Code(KeyCode::End),
+                display: "[End] Back",
+                meaning: ContextMeaning::ToBack,
+            },
+            ContextAction {
+                pattern: KeyPattern::Code(KeyCode::PageUp),
+                display: "[PgUp] Forward",
+                meaning: ContextMeaning::Forward,
+            },
+            ContextAction {
+                pattern: KeyPattern::Code(KeyCode::PageDown),
+                display: "[PgDn] Backward",
+                meaning: ContextMeaning::Backward,
+            },
+        ],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Esc),
+            display: "[Esc] Done",
+            meaning: ContextMeaning::LeaveSubMode,
+        }],
+    },
+];
+
 /// The delta along screen axes named by the four arrow keys, or `None` for any other key code.
 ///
 /// Right is one cell along the x axis, Down along the y one, and the two negatives are the other
@@ -312,6 +367,7 @@ pub(crate) fn context_blocks(
 
     let slice: &'static [ContextBlock] = match sub_mode {
         Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,
+        Some(SubMode::OrderMode) if selected => ORDER_MODE,
         _ if selected => SELECTION,
         _ => &[],
     };
@@ -387,6 +443,30 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply {
                             .selected()
                             .expect("selection block matched without selection");
                         Reply::Act(Action::Command(Command::Remove { id }))
+                    }
+                    ContextMeaning::Forward => {
+                        let id = state
+                            .selected()
+                            .expect("order block matched without selection");
+                        Reply::Act(Action::Command(Command::Forward { id }))
+                    }
+                    ContextMeaning::Backward => {
+                        let id = state
+                            .selected()
+                            .expect("order block matched without selection");
+                        Reply::Act(Action::Command(Command::Backward { id }))
+                    }
+                    ContextMeaning::ToFront => {
+                        let id = state
+                            .selected()
+                            .expect("order block matched without selection");
+                        Reply::Act(Action::Command(Command::ToFront { id }))
+                    }
+                    ContextMeaning::ToBack => {
+                        let id = state
+                            .selected()
+                            .expect("order block matched without selection");
+                        Reply::Act(Action::Command(Command::ToBack { id }))
                     }
                     ContextMeaning::SetStroke(name) => {
                         state.set_sub_mode(None);

@@ -387,7 +387,7 @@ again produces a new one.
 
 ## 9. Changing a diagram
 
-Five changes, each naming a shape by its identity except the first. **Each is a function that takes
+Seven changes, each naming a shape by its identity except the first. **Each is a function that takes
 a diagram and produces a diagram**: none of them changes the one it was given, so a caller that
 drops what it was handed has changed nothing at all, and the diagram a caller holds across two
 changes is the one the second was given.
@@ -399,9 +399,17 @@ changes is the one the second was given.
 | replace  | Puts a different shape under an identity, in the same place in the order                   |
 | forward  | Moves a shape one place toward the front of the order                                      |
 | backward | Moves a shape one place toward the back of the order                                       |
+| to_front | Moves a shape to the front of the order                                                    |
+| to_back  | Moves a shape to the back of the order                                                     |
 
 None of them can fail. Naming a shape the diagram does not hold changes nothing, which is the same
 answer _Positions_ gives a reference to a shape that is not there.
+
+**Two questions about the order are reads rather than changes.** `place_of` answers the place a
+shape stands in, counting from zero at the back, or `None` when the diagram holds no such shape;
+`shape_count` answers how many figures the order holds. The status row is what asks them: the
+position a figure stands at is `place_of(id) + 1` of `shape_count()`, and a figure the diagram does
+not hold is the same `None` every other operation gives it.
 
 **`add` hands back the diagram and then the identity it gave the shape, in that order.** The caller
 needs the name, and deriving it from the counter would publish a number this model keeps to itself;
@@ -452,7 +460,10 @@ becomes the absolute point it was resolving to, and nothing else about the diagr
 shape put back under the removed identity is not re-hung from, because nothing went looking for the
 reference the frozen end was.
 
-Forward and backward at the end they are already at do nothing.
+The four moves do nothing at the end they are already at: `forward` and `to_front` at the front,
+`backward` and `to_back` at the back. `to_front` and `to_back` are one change each, not a walk: the
+figure leaves the place it stood and is put at one end, so a caller that wants it at the front does
+not loop `forward` and record a step per place crossed.
 
 ## 10. Properties worth testing
 

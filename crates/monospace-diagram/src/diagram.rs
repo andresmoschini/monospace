@@ -200,11 +200,10 @@ impl Diagram {
     /// The place in the order the shape named by `id` stands, or `None` when this diagram holds
     /// no such shape.
     ///
-    /// **The search `forward` and `backward` go through, and it is a scan of the order rather than
-    /// of the figures**: which place an identity stands in is a question about the order, and the
-    /// map answers no position at all. The two are the only operations that ask, and
-    /// `add_under`'s check below is one comparison rather than a search because it needs to know
-    /// *whether* the identity stands in the order and not *where*.
+    /// **The search every order question goes through, and it is a scan of the order rather than of
+    /// the figures**: which place an identity stands in is a question about the order, and the map
+    /// answers no position at all. `add_under`'s check is one comparison rather than a search
+    /// because it needs to know *whether* the identity stands in the order and not *where*.
     ///
     /// `ShapeId`s are compared by value, so an identity issued by another diagram is a well-formed
     /// value that matches nothing here — the same answer the model's _Positions_ gives a reference
@@ -213,12 +212,32 @@ impl Diagram {
         self.order.iter().position(|held| *held == id)
     }
 
+    /// The place the shape named by `id` stands in the order, counting from zero at the back, or
+    /// `None` when this diagram holds no such shape.
+    ///
+    /// **The read the order row asks for.** The place a person sees is this plus one, and the total
+    /// is [`shape_count`](Self::shape_count); the pair is what turns an index into
+    /// `Position: k of N`. The search is `find`'s, and the answer is the index rather than the
+    /// figure, so nothing about the figure is copied to report where it sits.
+    #[must_use]
+    pub fn place_of(&self, id: ShapeId) -> Option<usize> {
+        self.find(id)
+    }
+
     /// Where `id` stands, when [`forward`](Self::forward) would move it.
     ///
     /// **The one place the rule is written**: a figure this diagram does not hold and one already at
     /// the front are the same answer, `None`, because neither would move.
     fn place_to_forward(&self, id: ShapeId) -> Option<usize> {
         self.find(id).filter(|index| index + 1 < self.order.len())
+    }
+
+    /// Where `id` stands, when [`backward`](Self::backward) would move it.
+    ///
+    /// **The mirror of `place_to_forward`, at the other end.** A figure this diagram does not hold
+    /// and one already at the back are the same answer, `None`, because neither would move.
+    fn place_to_backward(&self, id: ShapeId) -> Option<usize> {
+        self.find(id).filter(|index| *index > 0)
     }
 
     /// Moves the shape named by `id` one place toward the front of the order. Does nothing when
@@ -236,6 +255,21 @@ impl Diagram {
         }
     }
 
+    /// Moves the shape named by `id` one place toward the back of the order. Does nothing when
+    /// `id` names no shape here, or when it is already the back-most.
+    #[must_use]
+    pub fn backward(&self, id: ShapeId) -> Self {
+        let Some(index) = self.place_to_backward(id) else {
+            return self.clone();
+        };
+
+        Self {
+            shapes: self.shapes.clone(),
+            order: swapped(&self.order, index, index - 1),
+            next_id: self.next_id,
+        }
+    }
+
     /// Whether [`forward`](Self::forward) would move the shape `id` names: it is here, and it is not in
     /// front of everything else already.
     ///
@@ -248,20 +282,58 @@ impl Diagram {
         self.place_to_forward(id).is_some()
     }
 
-    /// Moves the shape named by `id` one place toward the back of the order. Does nothing when
-    /// `id` names no shape here, or when it is already the back-most.
+    /// Whether [`backward`](Self::backward) would move the shape `id` names: it is here, and it is
+    /// not behind everything else already.
+    ///
+    /// **Answerable without carrying it out**, as `can_forward` is, and it is the same rule
+    /// `backward` guards itself with — written once in `place_to_backward` and read from both sides.
+    /// `Command::Backward` and `Command::ToBack` ask it (#285): a figure already at the back changes
+    /// nothing, and a command that changes nothing records no step.
     #[must_use]
-    pub fn backward(&self, id: ShapeId) -> Self {
-        let Some(index) = self.find(id) else {
-            return self.clone();
-        };
-        if index == 0 {
+    pub fn can_backward(&self, id: ShapeId) -> bool {
+        self.place_to_backward(id).is_some()
+    }
+
+    /// Moves the shape named by `id` to the front of the order. Does nothing when `id` names no
+    /// shape here, or when it is already the front-most.
+    ///
+    /// **One change rather than a walk.** The figure leaves the place it stood and is appended once,
+    /// so `Home` is one command and one step in the session's history (D2 of #305). A loop of
+    /// [`forward`](Self::forward) would record one step per place crossed.
+    ///
+    /// **The guard is `place_of`, not `without`.** `without` on an identity the order does not hold
+    /// answers the same order, and appending it afterwards would insert a name the diagram never
+    /// held; asking `place_of` first is what keeps a missing figure silent.
+    #[must_use]
+    pub fn to_front(&self, id: ShapeId) -> Self {
+        if self.place_of(id).is_none() {
             return self.clone();
         }
 
         Self {
             shapes: self.shapes.clone(),
-            order: swapped(&self.order, index, index - 1),
+            order: without(&self.order, &id).push_back(id),
+            next_id: self.next_id,
+        }
+    }
+
+    /// Moves the shape named by `id` to the back of the order. Does nothing when `id` names no
+    /// shape here, or when it is already the back-most.
+    ///
+    /// **The mirror of [`to_front`](Self::to_front)**, and the same single change: the identity goes
+    /// first and every other place keeps the order it had. `rpds` has no `push_front`, so the new
+    /// sequence is built from the identity and the sequence without it.
+    #[must_use]
+    pub fn to_back(&self, id: ShapeId) -> Self {
+        if self.place_of(id).is_none() {
+            return self.clone();
+        }
+
+        Self {
+            shapes: self.shapes.clone(),
+            order: std::iter::once(id)
+                .chain(without(&self.order, &id).iter().copied())
+                .collect(),
             next_id: self.next_id,
         }
     }
@@ -284,6 +356,16 @@ impl Diagram {
         self.order
             .iter()
             .filter_map(|id| self.shapes.get(id).map(|shape| (*id, shape)))
+    }
+
+    /// How many figures this diagram holds.
+    ///
+    /// **The order is the count**, because the two are written together and always agree: one
+    /// identity stands once in the order and names one figure. Counting the map instead would be a
+    /// second answer to a question the order already answers.
+    #[must_use]
+    pub fn shape_count(&self) -> usize {
+        self.order.len()
     }
 
     /// The ordinal the next shape added takes.
@@ -530,7 +612,7 @@ mod tests {
         (diagram, back, front)
     }
 
-    /// Not one of the six operations changes the diagram it was given, and the picture it draws
+    /// Not one of the eight operations changes the diagram it was given, and the picture it draws
     /// and the figures it holds are the two readings of that.
     ///
     /// **Every operation, over one arrangement, with the result dropped.** A diagram is a value
@@ -561,6 +643,8 @@ mod tests {
         drop(diagram.add_under(identity(9), the_box()));
         drop(diagram.forward(back));
         drop(diagram.backward(front));
+        drop(diagram.to_front(back));
+        drop(diagram.to_back(front));
         drop(diagram.replace(back, the_box()));
         drop(diagram.remove(back));
 
@@ -616,7 +700,7 @@ mod tests {
     /// An identity no figure is under names nothing, and every operation **looking for** it hands
     /// back a diagram that changes no cell of the picture.
     ///
-    /// **Four operations rather than six, and `add_under` is the one left out.** It does not look
+    /// **Six operations rather than eight, and `add` and `add_under` are the two left out.** It does not look
     /// for a figure under a name, it puts one there, so the premise does not survive it: an
     /// identity no figure was under is what a caller hands it. `a_second_shape_under_one_identity_replaces_it_and_is_drawn_once`
     /// is the case where there *is* a figure there already, and this is the other one.
@@ -646,6 +730,11 @@ mod tests {
                     draw_of(&diagram.backward(named), origin, size),
                 ),
                 (
+                    "`to_front`",
+                    draw_of(&diagram.to_front(named), origin, size),
+                ),
+                ("`to_back`", draw_of(&diagram.to_back(named), origin, size)),
+                (
                     "`replace`",
                     draw_of(&diagram.replace(named, the_box()), origin, size),
                 ),
@@ -660,8 +749,9 @@ mod tests {
         }
     }
 
-    /// `forward` and `backward` are the only operations that search, and what that is visible as is
-    /// **that they are the only ones that change which figure decides a cell two figures hold.**
+    /// The four moves are the only operations that change which figure decides a shared cell, and
+    /// what that is visible as is **that they are the only ones that change which figure decides a
+    /// cell two figures hold.**
     ///
     /// A search is not observable and a timing is not a test, so this pins the consequence. A move
     /// exchanges two places in the order, and the record follows: at the crossing cell the box
@@ -672,7 +762,7 @@ mod tests {
     /// moves are asked about it as well — an `add`, an `add_under`, a `replace` and a `remove` that
     /// each change the picture and none of which moves anything.
     #[test]
-    fn forward_and_backward_are_the_only_operations_that_search() {
+    fn the_four_moves_are_the_only_operations_that_change_which_figure_decides_a_shared_cell() {
         let (diagram, back, front) = two_overlapping_boxes();
         let Window { origin, size } = the_window();
         let crossing = Pos { x: 2, y: 1 };
@@ -688,6 +778,8 @@ mod tests {
                 "`backward`",
                 draw_of(&diagram.backward(front), origin, size),
             ),
+            ("`to_front`", draw_of(&diagram.to_front(back), origin, size)),
+            ("`to_back`", draw_of(&diagram.to_back(front), origin, size)),
         ] {
             assert_eq!(
                 moved.owner(crossing),
@@ -1918,6 +2010,194 @@ mod tests {
                 "the predicate's own answer"
             );
             assert_eq!(moved, expected, "which is the answer `forward` obeys");
+        }
+    }
+
+    /// `place_of` counts from the back and answers nothing for an identity the diagram does not
+    /// hold, which is the same `None` every other operation gives that identity.
+    #[test]
+    fn place_of_reports_where_a_figure_stands() {
+        let (diagram, back, front) = two_overlapping_boxes();
+
+        assert_eq!(
+            diagram.place_of(back),
+            Some(0),
+            "the back-most figure stands at zero"
+        );
+        assert_eq!(
+            diagram.place_of(front),
+            Some(1),
+            "the front-most stands one place along"
+        );
+        assert_eq!(
+            diagram.place_of(identity(9)),
+            None,
+            "an absent identity stands nowhere"
+        );
+        assert_eq!(
+            diagram.place_of(a_foreign_identity()),
+            None,
+            "an identity from another diagram is the same absence"
+        );
+    }
+
+    /// `shape_count` is the number of figures the order holds, and it follows a removal.
+    #[test]
+    fn shape_count_is_the_number_of_figures() {
+        let empty = Diagram::new();
+        assert_eq!(empty.shape_count(), 0, "an empty diagram holds no figures");
+
+        let (diagram, back, _front) = two_overlapping_boxes();
+        assert_eq!(diagram.shape_count(), 2, "two additions are two figures");
+        assert_eq!(
+            diagram.remove(back).shape_count(),
+            1,
+            "a removal leaves one figure behind"
+        );
+    }
+
+    /// Whether a figure can move backward is the answer `backward` obeys.
+    ///
+    /// **The mirror of the forward test**, and the same three cases: the back-most figure cannot, the
+    /// one in front of it can, and an identity the diagram does not hold cannot. Each answer is
+    /// checked against whether `backward` changed the drawing, so a predicate that was right about
+    /// the examples and wrong about the rule fails.
+    #[test]
+    fn the_answer_to_whether_a_figure_can_move_backward_is_the_answer_backward_obeys() {
+        let origin = Pos { x: 0, y: 0 };
+        let size = Size {
+            width: 6,
+            height: 4,
+        };
+        let (a, b) = overlapping_boxes();
+        let (diagram, back) = Diagram::new().add(a);
+        let (diagram, front) = diagram.add(b);
+        let before = cells(&draw_of(&diagram, origin, size));
+
+        for (figure, expected) in [(back, false), (front, true), (identity(9), false)] {
+            let moved = cells(&draw_of(&diagram.backward(figure), origin, size)) != before;
+
+            assert_eq!(
+                diagram.can_backward(figure),
+                expected,
+                "the predicate's own answer"
+            );
+            assert_eq!(moved, expected, "which is the answer `backward` obeys");
+        }
+    }
+
+    /// `to_front` puts the figure at the end of the order and the drawing follows.
+    #[test]
+    fn to_front_puts_the_figure_at_the_end_of_the_order() {
+        let (diagram, back, front) = two_overlapping_boxes();
+        let Window { origin, size } = the_window();
+        let crossing = Pos { x: 2, y: 1 };
+        let moved = diagram.to_front(back);
+
+        assert_eq!(
+            moved.place_of(back),
+            Some(1),
+            "the figure is now front-most"
+        );
+        assert_eq!(
+            moved.place_of(front),
+            Some(0),
+            "and the other one moved back"
+        );
+        assert_eq!(
+            draw_of(&moved, origin, size).owner(crossing),
+            Some(back),
+            "the figure that moved to the front decides the crossing cell"
+        );
+    }
+
+    /// `to_back` puts the figure at the start of the order and the drawing follows.
+    #[test]
+    fn to_back_puts_the_figure_at_the_start_of_the_order() {
+        let (diagram, back, front) = two_overlapping_boxes();
+        let Window { origin, size } = the_window();
+        let crossing = Pos { x: 2, y: 1 };
+        let moved = diagram.to_back(front);
+
+        assert_eq!(
+            moved.place_of(front),
+            Some(0),
+            "the figure is now back-most"
+        );
+        assert_eq!(
+            moved.place_of(back),
+            Some(1),
+            "and the other one moved forward"
+        );
+        assert_eq!(
+            draw_of(&moved, origin, size).owner(crossing),
+            Some(back),
+            "the figure that moved to the back no longer decides the crossing cell"
+        );
+    }
+
+    /// A figure already at the end it is sent to changes nothing.
+    #[test]
+    fn the_absolute_moves_at_the_end_they_are_already_at_change_nothing() {
+        let (diagram, back, front) = two_overlapping_boxes();
+        let Window { origin, size } = the_window();
+        let before = cells(&draw_of(&diagram, origin, size));
+
+        for (what, after) in [
+            ("`to_front`", diagram.to_front(front)),
+            ("`to_back`", diagram.to_back(back)),
+        ] {
+            assert_eq!(
+                cells(&draw_of(&after, origin, size)),
+                before,
+                "{what} at the end it was already at changed the picture"
+            );
+            assert_eq!(
+                after.place_of(back),
+                Some(0),
+                "{what} moved the back figure"
+            );
+            assert_eq!(
+                after.place_of(front),
+                Some(1),
+                "{what} moved the front figure"
+            );
+        }
+    }
+
+    /// An identity the diagram does not hold is not inserted at an end.
+    #[test]
+    fn the_absolute_moves_of_an_identity_the_diagram_does_not_hold_change_nothing() {
+        let (diagram, back, front) = two_overlapping_boxes();
+        let Window { origin, size } = the_window();
+        let before = cells(&draw_of(&diagram, origin, size));
+
+        for named in [identity(9), a_foreign_identity()] {
+            for (what, after) in [
+                ("`to_front`", diagram.to_front(named)),
+                ("`to_back`", diagram.to_back(named)),
+            ] {
+                assert_eq!(
+                    cells(&draw_of(&after, origin, size)),
+                    before,
+                    "{what} on {named:?}, which this diagram holds nothing under, changed the picture"
+                );
+                assert_eq!(
+                    after.shape_count(),
+                    2,
+                    "{what} inserted the missing identity"
+                );
+                assert_eq!(
+                    after.place_of(back),
+                    Some(0),
+                    "{what} moved the back figure"
+                );
+                assert_eq!(
+                    after.place_of(front),
+                    Some(1),
+                    "{what} moved the front figure"
+                );
+            }
         }
     }
 

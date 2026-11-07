@@ -7,14 +7,16 @@
 //! the count of shapes, and the viewport origin; the lower row offers `[Click] Pick`.
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
-//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc]
-//! Deselect`, with `RESIZE` between the first two offering the cursor keys the selected figure can
-//! use — all four for a box (`Shift+↑↓←→`), the row's two for a horizontal line (`Shift+←→`), the
-//! column's two for a vertical line (`Shift+↑↓`), and none for a connector. `TEXT: [t] Edit` is
-//! offered only for a box, between `RESIZE` and `STROKE`.
+//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Del]
+//! Delete · [Esc] Deselect`, with `RESIZE` between the first two offering the cursor keys the
+//! selected figure can use — all four for a box (`Shift+↑↓←→`), the row's two for a horizontal
+//! line (`Shift+←→`), the column's two for a vertical line (`Shift+↑↓`), and none for a
+//! connector. `TEXT: [t] Edit` is offered only for a box, between `RESIZE` and `STROKE`.
 //!
 //! **In `STROKE_SELECT`**, the upper row reports the figure and the stroke it carries, and the
-//! lower row offers the five catalog strokes and `[Esc] Cancel`.
+//! lower row offers the five catalog strokes and `[Esc] Cancel`. **In `ORDER_MODE`**, the upper
+//! row reports the figure's place in the order and the lower row offers the four order moves and
+//! `[Esc] Done`.
 
 use monospace_core::Footprint;
 use monospace_diagram::{Diagram, EndpointAt, Shape};
@@ -24,7 +26,7 @@ use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
 use ratatui_core::style::Style;
 
-use crate::diagram_state::DiagramState;
+use crate::diagram_state::{DiagramState, SubMode};
 
 /// The name the application answers to.
 pub(crate) const NAME: &str = "monospace";
@@ -62,13 +64,17 @@ fn footprint_text(footprint: Option<Footprint>) -> String {
 }
 
 /// Formats the contextual status row (row 0) from the diagram state.
+#[expect(
+    clippy::too_many_lines,
+    reason = "the status line formats each sub-mode and shape kind in one match"
+)]
 pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
     let session = diagram_state.session();
     let diagram = session.diagram();
 
     let selected_shape = diagram_state.selected_entry();
 
-    if diagram_state.sub_mode() == Some(crate::diagram_state::SubMode::StrokeSelect)
+    if let Some(sub_mode) = diagram_state.sub_mode()
         && let Some((id, shape)) = selected_shape
     {
         let (kind, current_stroke) = match shape {
@@ -76,7 +82,25 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
             Shape::Line { stroke, .. } => ("Line", stroke.0.as_str()),
             Shape::Connector { stroke, .. } => ("Connector", stroke.0.as_str()),
         };
-        return format!("STROKE SELECTION for {kind} #{id} · Current: {current_stroke}");
+
+        return match sub_mode {
+            SubMode::StrokeSelect => {
+                format!("STROKE SELECTION for {kind} #{id} · Current: {current_stroke}")
+            }
+            SubMode::OrderMode => {
+                let total = diagram.shape_count();
+                let place = diagram
+                    .place_of(id)
+                    .expect("the selected figure stands in the order");
+                let position = place + 1;
+                let behind = position - 1;
+                let ahead = total - position;
+
+                format!(
+                    "LAYER ORDER for {kind} #{id} · Position: {position} of {total} · Behind: {behind}, Ahead: {ahead}"
+                )
+            }
+        };
     }
 
     match selected_shape {
@@ -370,7 +394,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -433,7 +457,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -454,7 +478,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -485,7 +509,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -570,25 +594,25 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -611,6 +635,35 @@ mod tests {
         assert_eq!(
             command_line(&state),
             "STROKE: [1] light ┌─┐ [2] double ╔═╗ [3] light-round ╭─╮ [4] heavy ┏━┓ [5] ascii +-+ · [Esc] Cancel"
+        );
+    }
+
+    /// **`ORDER_MODE` reports the layer position and offers the four moves** (D4 of #305).
+    #[test]
+    fn order_mode_shows_the_layer_position_and_the_order_commands() {
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 2, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 3, "at": { "x": 4, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" }
+            ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
+        state.set_sub_mode(Some(SubMode::OrderMode));
+
+        assert_eq!(
+            status_line(&state),
+            "LAYER ORDER for Box #2 · Position: 2 of 3 · Behind: 1, Ahead: 1"
+        );
+        assert_eq!(
+            command_line(&state),
+            "ORDER: [Home] Front [End] Back [PgUp] Forward [PgDn] Backward · [Esc] Done"
         );
     }
 }

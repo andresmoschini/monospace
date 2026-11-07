@@ -98,6 +98,8 @@ pub(crate) struct DiagramState {
 pub(crate) enum SubMode {
     /// Choosing a stroke for the selected figure.
     StrokeSelect,
+    /// Moving the selected figure through the layer order.
+    OrderMode,
 }
 
 impl DiagramState {
@@ -939,23 +941,25 @@ mod tests {
     /// diagram, so there is nothing left to select.
     #[test]
     fn a_command_that_removes_the_selected_figure_drops_the_selection() {
-        let mut state = a_diagram_over(THE_EXAMPLE);
         let selected = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
-        state.select(Some(selected));
-        state.set_sub_mode(Some(SubMode::StrokeSelect));
-        state.perform(Command::Remove { id: selected });
+        for sub_mode in [SubMode::StrokeSelect, SubMode::OrderMode] {
+            let mut state = a_diagram_over(THE_EXAMPLE);
+            state.select(Some(selected));
+            state.set_sub_mode(Some(sub_mode));
+            state.perform(Command::Remove { id: selected });
 
-        assert_eq!(
-            state.selected(),
-            None,
-            "the selection named a figure the diagram lost"
-        );
-        assert_eq!(
-            state.sub_mode(),
-            None,
-            "the sub-mode survived the figure it belonged to"
-        );
+            assert_eq!(
+                state.selected(),
+                None,
+                "the selection named a figure the diagram lost"
+            );
+            assert_eq!(
+                state.sub_mode(),
+                None,
+                "the sub-mode survived the figure it belonged to"
+            );
+        }
     }
 
     /// **A command that removes another figure keeps the selection.** The rule asks whether the
