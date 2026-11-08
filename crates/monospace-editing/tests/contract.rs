@@ -395,6 +395,32 @@ fn each_command_becomes_one_of_the_diagrams_seven_operations() {
     );
 
     assert_eq!(
+        after(&Command::SetEndpointTerminal {
+            id: id(3),
+            end: End::From,
+            terminal: Terminal::Glyph {
+                glyph: Glyph::new("◆").unwrap(),
+            },
+        }),
+        after_operating(|diagram| {
+            let updated = diagram.get(id(3)).map(|shape| {
+                shape.with_endpoint_terminal(
+                    End::From,
+                    Terminal::Glyph {
+                        glyph: Glyph::new("◆").unwrap(),
+                    },
+                )
+            });
+            if let Some(updated) = updated {
+                diagram.replace(id(3), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`SetEndpointTerminal` is `replace` with the endpoint terminal set"
+    );
+
+    assert_eq!(
         after(&Command::Hang {
             id: id(3),
             from: id(1),
@@ -1650,4 +1676,78 @@ fn resetting_an_endpoint_clears_offset_and_out_in_one_step_and_zero_endpoint_rec
     };
     assert_eq!(r.offset, Delta { dx: 1, dy: 0 });
     assert_eq!(r.out, 2);
+}
+
+#[test]
+fn setting_endpoint_terminal_records_one_step_and_identical_terminal_records_none() {
+    let mut diagram = Diagram::new();
+    diagram = diagram.add(small_box(ORIGIN)).0; // id(1)
+    diagram = diagram
+        .add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(id(1), Anchor::Top, Delta { dx: 1, dy: 0 }, 2),
+                Terminal::Arm,
+            ),
+            to: Endpoint::absolute(Pos { x: 10, y: 0 }, Direction::Down, Terminal::Arm),
+            stroke: Stroke::from("light"),
+        })
+        .0; // id(2)
+
+    let session = Session::new(diagram);
+    assert!(!session.can_undo());
+
+    let glyph_terminal = Terminal::Glyph {
+        glyph: Glyph::new("◆").unwrap(),
+    };
+
+    // Setting a different terminal records one step and updates the targeted endpoint
+    let updated = session.perform(Command::SetEndpointTerminal {
+        id: id(2),
+        end: End::From,
+        terminal: glyph_terminal.clone(),
+    });
+    assert!(
+        updated.can_undo(),
+        "setting different terminal records a step"
+    );
+    let Shape::Connector { from, to, .. } = updated.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    assert_eq!(from.terminal, glyph_terminal);
+    assert_eq!(to.terminal, Terminal::Arm);
+
+    // Setting identical terminal records no step (#285)
+    let no_op = updated.perform(Command::SetEndpointTerminal {
+        id: id(2),
+        end: End::From,
+        terminal: glyph_terminal,
+    });
+    // Undoing should undo the first set, proving no new step was pushed
+    let undone = no_op.undo();
+    let Shape::Connector { from, .. } = undone.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    assert_eq!(from.terminal, Terminal::Arm);
+}
+
+#[test]
+fn setting_endpoint_terminal_on_non_connector_records_none() {
+    let mut diagram = Diagram::new();
+    diagram = diagram.add(small_box(ORIGIN)).0; // id(1)
+
+    let session = Session::new(diagram);
+    assert!(!session.can_undo());
+
+    let no_op = session.perform(Command::SetEndpointTerminal {
+        id: id(1),
+        end: End::From,
+        terminal: Terminal::Glyph {
+            glyph: Glyph::new("◆").unwrap(),
+        },
+    });
+
+    assert!(
+        !no_op.can_undo(),
+        "setting endpoint terminal on non-connector records no step"
+    );
 }
