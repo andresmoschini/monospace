@@ -19,6 +19,15 @@ use monospace_core::{
 use crate::position::{flat_size, side_centre};
 use crate::{Anchor, Delta, Diagram, Position, Reference, ShapeId};
 
+/// Which endpoint of a connector an operation targets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum End {
+    /// The starting endpoint (`from`).
+    From,
+    /// The ending endpoint (`to`).
+    To,
+}
+
 /// Where a connector endpoint stands and which way it leaves.
 ///
 /// An endpoint is either an absolute point on the canvas (which states its own leaving direction)

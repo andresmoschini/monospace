@@ -93,12 +93,7 @@ pub(crate) struct DiagramState {
     session: Session,
 }
 
-/// Which endpoint of a connector is being inspected or edited.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum End {
-    From,
-    To,
-}
+pub(crate) use monospace_diagram::End;
 
 /// An inline sub-mode of the diagram region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
