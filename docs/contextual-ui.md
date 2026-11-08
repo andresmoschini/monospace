@@ -117,8 +117,8 @@ Within selection states, command blocks flow from left to right in order of oper
    `INVERT: [i]`).
 2. **Sub-mode and overlay triggers:** Secondary attribute flows (`STROKE: [s]`, `FILL: [f]`,
    `ORDER: [z]`).
-3. **Destructive and exit actions:** Selection traversal and termination (`[Tab] Next`,
-   `[Del] Delete`, `[Esc] Deselect` / `Cancel` / `Done`).
+3. **Destructive and exit actions:** Selection traversal and termination
+   (`[Tab] Next [Shift+Tab] Prev`, `[Del] Delete`, `[Esc] Deselect` / `Cancel` / `Done`).
 
 ### Visual notation conventions
 
@@ -179,7 +179,8 @@ stateDiagram-v2
 
 The primary resting states of the editor: `IDLE` (no shape selected), `SELECTED_BOX`,
 `SELECTED_LINE`, and `SELECTED_CONNECTOR`. Keystrokes directly dispatch immediate domain commands
-(`Move`, `Resize`, `Remove`), navigate selection (`Tab`), or transition into sub-modes or overlays.
+(`Move`, `Resize`, `Remove`), navigate selection (`Tab` / `Shift+Tab`), or transition into sub-modes
+or overlays.
 
 ### 2. Inline sub-modes (`SubMode`)
 
@@ -217,25 +218,35 @@ contextual dock remains visible but frozen with the canvas state from the preced
 
 No figure is selected. The user is navigating the diagram or inspecting the canvas.
 
-- **Status:** Implemented (`[Click] Pick`). Planned: `Tab`/`Shift+Tab` selection cycling
-  ([#307](https://github.com/andresmoschini/monospace/issues/307)) and direct shape creation
-  (`[b] Box [l] Line [c] Connector`,
+- **Status:** Implemented (`SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when diagram has
+  shapes via [#307](https://github.com/andresmoschini/monospace/issues/307); `SELECT: [Click] Pick`
+  when empty). Planned: direct shape creation (`[b] Box [l] Line [c] Connector`,
   [#308](https://github.com/andresmoschini/monospace/issues/308)).
 
 ```text
 monospace 0.1.0 · Footprint: 46×17 at 0,0 · 27 shapes · Viewport: (0, 0)
+SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick
+```
+
+_When the diagram is empty (`0 shapes`), `Condition::HasShapes` is false and row 1 offers only click
+selection:_
+
+```text
+monospace 0.1.0 · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)
 SELECT: [Click] Pick
 ```
 
-_Planned target with shape creation and keyboard cycling:_
+_Planned target with shape creation:_
 
 ```text
 monospace 0.1.0 · Footprint: 46×17 at 0,0 · 27 shapes · Viewport: (0, 0)
-CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Click] Pick
+CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick
 ```
 
-- **Behavior:** Unselected arrow keys return `Reply::Ignored`. Clicking any figure selects it and
-  transitions to the corresponding `SELECTED_*` state.
+- **Behavior:** Unselected arrow keys return `Reply::Ignored`. On a non-empty diagram, `Tab` selects
+  the first figure in drawing order (`Diagram::shapes()`, back-most) and `Shift+Tab` (`BackTab`)
+  selects the last (front-most) figure; on an empty diagram both return `Reply::Ignored`. Clicking
+  any figure selects it and transitions to the corresponding `SELECTED_*` state.
 
 ---
 
@@ -244,19 +255,20 @@ CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Click] Pick
 A `Shape::Box` is selected.
 
 - **Status:** Implemented (`MOVE: ↑↓←→`, `RESIZE: Shift+↑↓←→`, `TEXT: [t] Edit`, `STROKE: [s]`,
-  `ORDER: [z]`, `[Del] Delete`, `[Esc] Deselect`). Planned: `FILL: [f]`, `[a] Auto-fit`, and
-  `Tab`/`Shift+Tab` cycling.
+  `ORDER: [z]`, `[Tab] Next [Shift+Tab] Prev` via
+  [#307](https://github.com/andresmoschini/monospace/issues/307), `[Del] Delete`, `[Esc] Deselect`).
+  Planned: `FILL: [f]` and `[a] Auto-fit`.
 
 ```text
 Box #2 "API Gateway" · Pos: (14, 6) · Size: 18×5 · Stroke: light
-MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
 ```
 
 _Planned target with fill selection and auto-fit:_
 
 ```text
 Box #2 "API Gateway" · Pos: (14, 6) · Size: 18×5 · Stroke: light · Fill: None
-MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit [a] Auto-fit · STROKE: [s] · FILL: [f] · ORDER: [z] · [Tab] Next · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit [a] Auto-fit · STROKE: [s] · FILL: [f] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
 ```
 
 - **Behavior:**
@@ -284,20 +296,21 @@ MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit [a] Auto-fit 
 A `Shape::Line` is selected.
 
 - **Status:** Implemented (`MOVE: ↑↓←→`, orientation-aware `RESIZE`, `STROKE: [s]`, `ORDER: [z]`,
-  `[Del] Delete`, `[Esc] Deselect`). Planned: `Tab`/`Shift+Tab` cycling.
+  `[Tab] Next [Shift+Tab] Prev` via [#307](https://github.com/andresmoschini/monospace/issues/307),
+  `[Del] Delete`, `[Esc] Deselect`).
 
 _Horizontal line mockup:_
 
 ```text
 Line #3 · Pos: (20, 10) · Length: 12 · Orientation: Horizontal · Stroke: light
-MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
 ```
 
 _Vertical line mockup:_
 
 ```text
 Line #3 · Pos: (20, 10) · Length: 8 · Orientation: Vertical · Stroke: light
-MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
 ```
 
 - **Behavior:**
@@ -459,13 +472,13 @@ The complete endpoint interaction model is specified in detail in
 [`connector-editing.md`](connector-editing.md). The table below summarizes the connector state
 catalog:
 
-| State                | Type                | Trigger                                 | Key commands & transitions                                                                                         | Description                                                                        |
-| :------------------- | :------------------ | :-------------------------------------- | :----------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
-| `SELECTED_CONNECTOR` | Base selection      | Click connector or `Tab`                | `[1]` / `[2]` endpoint edit, `[i]` invert terminals, `[s]` stroke, `[z]` order, `[Del]`, `[Esc]`                   | Top-level connector inspection. Shows endpoints, stroke, and terminals in row 0.   |
-| `ENDPOINT_EDIT`      | Continuous sub-mode | `[1]` (start) or `[2]` (end)            | `↑↓←→` offset/position, `+`/`-` out, `[r]` reset, `[0]` detach, `[t]` terminal, `[2]` / `[1]` switch, `[Esc]` Done | Fine-grained endpoint adjustment. Operates directly on `from` or `to`.             |
-| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                | `[0]` arm, `[1]` solid, `[2]` outline, `[3]` arrow, `[4]` solid-pointer, `[g]` glyph, `[Esc]` Cancel               | Selects head symbol or arm for the active endpoint.                                |
-| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)     | `[1]` Up, `[2]` Right, `[3]` Down, `[4]` Left, `[Esc]` Cancel                                                      | Sets explicit departure direction for detached (`Absolute`) endpoints.             |
-| `ATTACH_PICK`        | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` or click shape | `Tab`/`Shift+Tab` cycle shapes, `1..=4` pick face (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel               | Attaches a detached endpoint or re-attaches an existing endpoint to another shape. |
+| State                | Type                | Trigger                                 | Key commands & transitions                                                                                                    | Description                                                                        |
+| :------------------- | :------------------ | :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
+| `SELECTED_CONNECTOR` | Base selection      | Click connector or `Tab`                | `[1]` / `[2]` endpoint edit, `[i]` invert terminals, `[s]` stroke, `[z]` order, `[Tab]`/`[Shift+Tab]` cycle, `[Del]`, `[Esc]` | Top-level connector inspection. Shows endpoints, stroke, and terminals in row 0.   |
+| `ENDPOINT_EDIT`      | Continuous sub-mode | `[1]` (start) or `[2]` (end)            | `↑↓←→` offset/position, `+`/`-` out, `[r]` reset, `[0]` detach, `[t]` terminal, `[2]` / `[1]` switch, `[Esc]` Done            | Fine-grained endpoint adjustment. Operates directly on `from` or `to`.             |
+| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                | `[0]` arm, `[1]` solid, `[2]` outline, `[3]` arrow, `[4]` solid-pointer, `[g]` glyph, `[Esc]` Cancel                          | Selects head symbol or arm for the active endpoint.                                |
+| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)     | `[1]` Up, `[2]` Right, `[3]` Down, `[4]` Left, `[Esc]` Cancel                                                                 | Sets explicit departure direction for detached (`Absolute`) endpoints.             |
+| `ATTACH_PICK`        | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` or click shape | `Tab`/`Shift+Tab` cycle shapes, `1..=4` pick face (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel                          | Attaches a detached endpoint or re-attaches an existing endpoint to another shape. |
 
 ---
 
@@ -498,6 +511,8 @@ The settled architectural foundations backing the contextual interface are:
 - **Menu bar chrome and clean keyboard routing:**
   [#317](https://github.com/andresmoschini/monospace/issues/317),
   [#320](https://github.com/andresmoschini/monospace/issues/320)
+- **Selection cycling with `Tab` and `Shift+Tab`:**
+  [#307](https://github.com/andresmoschini/monospace/issues/307)
 
 ---
 
@@ -538,9 +553,10 @@ Implements self-contained contextual features that fit directly into the unified
    (`[0] none [1] space [2] light ░ [3] medium ▒ [4] heavy ▓ · [Esc] Cancel`). Generates
    `Command::SetFill`.
 2. **Selection cycling with `Tab` / `Shift+Tab`
-   ([#307](https://github.com/andresmoschini/monospace/issues/307)):** Cycles forward (`Tab`) and
-   backward (`Shift+Tab` / `BackTab`) through diagram shapes. Offered in `IDLE`
-   (`SELECT: [Tab] Next [Click] Pick`) and at the end of every `SELECTED_*` state.
+   ([#307](https://github.com/andresmoschini/monospace/issues/307)) [Implemented]:** Cycles forward
+   (`Tab`) and backward (`Shift+Tab` / `BackTab`) through diagram shapes. Offered in `IDLE`
+   (`SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when populated, `[Click] Pick` when empty)
+   and immediately before `[Del] Delete · [Esc] Deselect` in all `SELECTED_*` states.
 3. **Box auto-fit to text content with `[a]` (`Auto-fit`):** Contextual action on `SELECTED_BOX`
    visible **only** when the box contains text (`text: Some(_)`). Executes a single command
    adjusting box width and height to fit the text lines (accounting for 2-column wide glyphs and
