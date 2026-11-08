@@ -73,21 +73,22 @@ what became of it.
 The set is **open**, and a command added to it is additive: the session already does whatever a
 command says, and one more meaning is one more arm.
 
-| Command                             | What it means                                                            | The change it becomes                           |
-| ----------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------- |
-| `Move { id, by }`                   | the figure goes so much, along each axis                                 | `replace` with it displaced                     |
-| `Resize { id, by }`                 | the figure becomes so much wider and taller, or a line longer or shorter | `replace` with it resized                       |
-| `SetStroke { id, stroke }`          | figure cells are drawn in another stroke                                 | `replace` with `Shape::with_stroke`             |
-| `SetText { id, text }`              | a box's text is replaced with this block, or taken out                   | `replace` with `Shape::with_text`               |
-| `InvertTerminals { id }`            | a connector's terminals are swapped                                      | `replace` with `Shape::with_inverted_terminals` |
-| `MoveEndpoint { id, end, by, out }` | an endpoint's offset or coordinates and standoff are adjusted            | `replace` with `Shape::with_endpoint_moved`     |
-| `ResetEndpoint { id, end }`         | an endpoint's offset and standoff are reset to zero                      | `replace` with `Shape::with_endpoint_reset`     |
-| `Hang { id, from, anchor }`         | one end of a connector hangs from a figure's side                        | `replace` with a rebuilt connector              |
-| `Forward { id }`                    | one place toward the front of the order                                  | `forward`                                       |
-| `Backward { id }`                   | one place toward the back of the order                                   | `backward`                                      |
-| `ToFront { id }`                    | to the front of the order                                                | `to_front`                                      |
-| `ToBack { id }`                     | to the back of the order                                                 | `to_back`                                       |
-| `Remove { id }`                     | the figure is taken out                                                  | `remove`                                        |
+| Command                                     | What it means                                                            | The change it becomes                           |
+| ------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------- |
+| `Move { id, by }`                           | the figure goes so much, along each axis                                 | `replace` with it displaced                     |
+| `Resize { id, by }`                         | the figure becomes so much wider and taller, or a line longer or shorter | `replace` with it resized                       |
+| `SetStroke { id, stroke }`                  | figure cells are drawn in another stroke                                 | `replace` with `Shape::with_stroke`             |
+| `SetText { id, text }`                      | a box's text is replaced with this block, or taken out                   | `replace` with `Shape::with_text`               |
+| `InvertTerminals { id }`                    | a connector's terminals are swapped                                      | `replace` with `Shape::with_inverted_terminals` |
+| `MoveEndpoint { id, end, by, out }`         | an endpoint's offset or coordinates and standoff are adjusted            | `replace` with `Shape::with_endpoint_moved`     |
+| `ResetEndpoint { id, end }`                 | an endpoint's offset and standoff are reset to zero                      | `replace` with `Shape::with_endpoint_reset`     |
+| `SetEndpointTerminal { id, end, terminal }` | an endpoint's terminal style is set                                      | `replace` with `Shape::with_endpoint_terminal`  |
+| `Hang { id, from, anchor }`                 | one end of a connector hangs from a figure's side                        | `replace` with a rebuilt connector              |
+| `Forward { id }`                            | one place toward the front of the order                                  | `forward`                                       |
+| `Backward { id }`                           | one place toward the back of the order                                   | `backward`                                      |
+| `ToFront { id }`                            | to the front of the order                                                | `to_front`                                      |
+| `ToBack { id }`                             | to the back of the order                                                 | `to_back`                                       |
+| `Remove { id }`                             | the figure is taken out                                                  | `remove`                                        |
 
 The commands above are what [`docs/model.md`](model.md) calls _The initial set_ for shapes: enough
 to work with, and no promise that this is the final number. `Hang` is the one that shows what the
@@ -107,6 +108,12 @@ shape value records no step (#285).
 `ResetEndpoint` asks the shape to reset `offset` and `out` to zero on the targeted endpoint
 (`End::From` or `End::To`). It records one step when either field was non-zero, and records no step
 when both fields were already zero or when the targeted endpoint is absolute (#285).
+
+`SetEndpointTerminal` asks the shape to replace the terminal on the targeted endpoint (`End::From`
+or `End::To`) with `terminal`. It updates only `endpoint.terminal`, leaving anchor attachments,
+offset, and relative standoff `out` untouched. It records one step when the terminal changed, and
+records no step when the endpoint already carried the chosen terminal or when `id` is not a
+connector (#285).
 
 `Backward`, `ToFront` and `ToBack` are the same mapping at the other end and at the absolute scale:
 each asks the diagram whether the figure would move and hands back `None` when it would not, so a

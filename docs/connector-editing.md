@@ -83,11 +83,11 @@ routing elbows and arrowheads from crowding against adjacent shape borders.
 
 Monospace supports three terminal families at the domain layer:
 
-| Family         | Domain Representation        | Visual Manifestation                                                                                                                                                                                                |
-| :------------- | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `None` / `Arm` | `Terminal::Arm`              | Unadorned line continuation that composes into the border cell to form junctions (`├`, `┬`, `─`). Represented in the UI as `none` or `arm`.                                                                         |
-| `Symbol`       | `Terminal::Symbol { style }` | Directional catalog arrowheads oriented against `leaving`: `solid` (`▶`, `▲`, `▼`, `◀`), `hollow` / `outline` (`▷`, `△`, `▽`, `◁`), `diamond` (`◆`), `arrow` (`→`, `↑`, `↓`, `←`), or `ascii` (`>`, `^`, `v`, `<`). |
-| `Glyph`        | `Terminal::Glyph { glyph }`  | An arbitrary literal character (e.g. `●`, `○`, `■`, `*`), drawn fixed at the terminal position without rotation.                                                                                                    |
+| Family         | Domain Representation        | Visual Manifestation                                                                                                                                                                          |
+| :------------- | :--------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `None` / `Arm` | `Terminal::Arm`              | Unadorned line continuation that composes into the border cell to form junctions (`├`, `┬`, `─`). Represented in the UI as `arm ─`.                                                           |
+| `Symbol`       | `Terminal::Symbol { style }` | Directional catalog arrowheads oriented against `leaving`: `solid` (`▶`, `▲`, `▼`, `◀`), `outline` (`▷`, `△`, `▽`, `◁`), `arrow` (`→`, `↑`, `↓`, `←`), or `ascii` (`>`, `^`, `v`, `<`).       |
+| `Glyph`        | `Terminal::Glyph { glyph }`  | An arbitrary literal character (e.g. `◆`, `●`, `○`, `■`, `*`), drawn fixed at the terminal position without rotation. In the terminal palette, diamond `◆` is represented as a literal glyph. |
 
 **The 1-cell glyph constraint:** Grid alignment is a foundational invariant of Monospace. Terminal
 cells occupy exactly 1 column × 1 row. Characters with a display width of 2 cells (such as East
@@ -109,7 +109,7 @@ stateDiagram-v2
     ENDPOINT_EDIT --> SELECTED_CONNECTOR: "Esc (Done)"
     ENDPOINT_EDIT --> ENDPOINT_EDIT: "1 or 2 (Switch endpoint)"
     ENDPOINT_EDIT --> TERMINAL_SELECT: "t (Terminal)"
-    TERMINAL_SELECT --> ENDPOINT_EDIT: "0..=4 or Esc"
+    TERMINAL_SELECT --> ENDPOINT_EDIT: "1..=5 or Esc"
     ENDPOINT_EDIT --> LEAVING_SELECT: "d (Leaving, detached only)"
     LEAVING_SELECT --> ENDPOINT_EDIT: "1..=4 or Esc"
     ENDPOINT_EDIT --> ATTACH_PICK: "a / c (Deferred to Stage 3)"
@@ -175,20 +175,24 @@ keystrokes directly mutate endpoint properties:
 
 ```text
 ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 0) out:0] · Term: solid ▶
-OFFSET: ↑↓←→ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
+OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
-When `offset != (0, 0)` or `out != 0`, `[r] Reset` appears after `OUT: [+] [-]`.
+When `offset != (0, 0)` or `out != 0`, `[r] Reset` appears after `OUT: [+] [-]`:
+
+```text
+OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · TERMINAL: [t] · [1] From · [Esc] Done
+```
 
 | Key       | Action / Command                                                          | History Step                                                  |
 | :-------- | :------------------------------------------------------------------------ | :------------------------------------------------------------ |
 | `↑↓←→`    | Adjust `offset` (`dx`, `dy`) relative to the anchor point                 | One step per press                                            |
 | `+` / `-` | Increment / decrement orthogonal standoff `out`                           | One step per press (negative values permitted)                |
 | `r`       | Reset `offset` to `(0, 0)` and `out` to `0`                               | One step (offered only when `offset != (0, 0)` or `out != 0`) |
-| `0`       | Detach endpoint to `Absolute` at current resolved coordinates             | One step                                                      |
 | `t`       | Open discrete `TERMINAL_SELECT`                                           | None (sub-mode)                                               |
 | `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`) without leaving sub-mode | None                                                          |
 | `Esc`     | Exit endpoint editing and return to `SELECTED_CONNECTOR` (`Done`)         | None                                                          |
+| `0`       | Detach endpoint to `Absolute` at current coordinates (_Slice 7_)          | One step                                                      |
 | `c`       | Change target shape via `ATTACH_PICK` (_Deferred to Stage 3_)             | None (sub-mode)                                               |
 
 ### 2.3 ENDPOINT_EDIT (Detached endpoint)
@@ -198,16 +202,16 @@ and leaving direction, and the bar adapts its commands (omitting `OUT` and `Rese
 
 ```text
 ENDPOINT 2. To of Connector #4 · Detached (40, 12) [Up] · Term: arrow ↓
-MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
+MOVE: ↑↓←→ · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
 | Key       | Action / Command                                                   | History Step       |
 | :-------- | :----------------------------------------------------------------- | :----------------- |
 | `↑↓←→`    | Move absolute coordinates `Pos(x, y)` across the canvas            | One step per press |
-| `d`       | Open discrete `LEAVING_SELECT`                                     | None (sub-mode)    |
 | `t`       | Open discrete `TERMINAL_SELECT`                                    | None (sub-mode)    |
 | `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`)                   | None               |
 | `Esc`     | Return to `SELECTED_CONNECTOR` (`Done`)                            | None               |
+| `d`       | Open discrete `LEAVING_SELECT` (_Slice 7_)                         | None (sub-mode)    |
 | `a`       | Attach endpoint to shape via `ATTACH_PICK` (_Deferred to Stage 3_) | None (sub-mode)    |
 
 ### 2.4 TERMINAL_SELECT
@@ -216,23 +220,23 @@ Entered by pressing `t` from `ENDPOINT_EDIT`. This is a discrete sub-mode presen
 options directly on Row 1:
 
 ```text
-TERMINAL for 2. To of Connector #4 · Current: solid ▶
-TERMINAL: [0] none [1] arm ─ [2] solid ▶ [3] hollow ▷ [4] diamond ◆ · [Esc] Cancel
+TERMINAL for 2. To of Connector #4 · Current: solid ▼
+TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel
 ```
 
 | Key   | Action / Command                                                           | History Step                         |
 | :---- | :------------------------------------------------------------------------- | :----------------------------------- |
-| `0`   | Set `Terminal::Arm` (plain unadorned termination)                          | One step, returns to `ENDPOINT_EDIT` |
-| `1`   | Set `Terminal::Arm` (line junction arm)                                    | One step, returns to `ENDPOINT_EDIT` |
+| `1`   | Set `Terminal::Arm` (plain unadorned termination)                          | One step, returns to `ENDPOINT_EDIT` |
 | `2`   | Set `Terminal::Symbol { style: "solid" }` (`▶`)                            | One step, returns to `ENDPOINT_EDIT` |
 | `3`   | Set `Terminal::Symbol { style: "outline" }` (`▷`)                          | One step, returns to `ENDPOINT_EDIT` |
-| `4`   | Set `Terminal::Symbol { style: "diamond" }` (`◆`)                          | One step, returns to `ENDPOINT_EDIT` |
+| `4`   | Set `Terminal::Symbol { style: "ascii" }` (`>`)                            | One step, returns to `ENDPOINT_EDIT` |
+| `5`   | Set `Terminal::Glyph { glyph: "◆" }` (`◆`)                                 | One step, returns to `ENDPOINT_EDIT` |
 | `m`   | Open extended glyph palette `GLYPH_PALETTE_DIALOG` (_Deferred to Stage 3_) | None (modal dialog)                  |
 | `Esc` | Cancel selection and return directly to `ENDPOINT_EDIT`                    | None                                 |
 
-> [!NOTE] Fixed directional symbols (`▶`, `▷`) in the menu provide stable visual cues regardless of
-> the connector's current angle. On the canvas and in Row 0, symbols orient dynamically against the
-> endpoint's actual `leaving` direction.
+> [!NOTE] Fixed directional symbols (`▶`, `▷`, `>`), arm (`─`), and diamond (`◆`) on Row 1 act as
+> stable menu cues regardless of the connector's current angle. On the canvas and in Row 0,
+> directional symbols orient dynamically against the endpoint's actual `leaving` direction.
 
 ### 2.5 LEAVING_SELECT
 
@@ -290,9 +294,9 @@ immediately in Stage 1.
 
 ## 3. Cross-cutting design choices
 
-### 3.1 Inline bar selector (0..=4) for common terminals
+### 3.1 Inline bar selector (1..=5) for common terminals
 
-Common terminal heads (`none`, `arm`, `solid ▶`, `hollow ▷`, `diamond ◆`) account for the vast
+Common terminal heads (`arm ─`, `solid ▶`, `outline ▷`, `ascii >`, `diamond ◆`) account for the vast
 majority of diagram authoring needs. Rather than interrupting the user's flow with a heavy modal
 popup dialog, terminal selection is resolved entirely within Row 1 of the contextual bar. A single
 keystroke selects the style, commits a reversible command, and returns focus immediately to
@@ -440,7 +444,7 @@ direction:
 
    ```text
    TERMINAL for 1. From of Connector #4 · Current: arm ─
-   TERMINAL: [0] none [1] arm ─ [2] solid ▶ [3] hollow ▷ [4] diamond ◆ · [Esc] Cancel
+   TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel
    ```
 
 3. Author presses `2` (`solid ▶`). The `From` endpoint receives a solid arrowhead facing against its
@@ -448,7 +452,7 @@ direction:
 
    ```text
    ENDPOINT 1. From of Connector #4 · Box #1 [Right (0, 0) out:0] · Term: solid ◀
-   OFFSET: ↑↓←→ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [2] To · [Esc] Done
+   OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done
    ```
 
    Canvas now shows a bidirectional connector:
@@ -522,8 +526,9 @@ with [`contextual-ui.md`](contextual-ui.md):
   position. On detached endpoints, `[d]` opens `LEAVING_SELECT` (`1..=4`) to change departure
   direction.
 - **Slice 8 — Inline terminal selector (`[t]`):** Pressing `t` in `ENDPOINT_EDIT` opens
-  `TERMINAL_SELECT` on Row 1, offering `0..=4` (`none`, `arm`, `solid ▶`, `hollow ▷`, `diamond ◆`).
-  Selecting an option applies the terminal and returns directly to `ENDPOINT_EDIT`.
+  `TERMINAL_SELECT` (`SubMode::TerminalSelect(End)`) on Row 1, offering `1..=5` (`arm ─`, `solid ▶`,
+  `outline ▷`, `ascii >`, `diamond ◆`). Selecting an option dispatches
+  `Command::SetEndpointTerminal` and returns directly to `ENDPOINT_EDIT`.
 
 ### 5.3 Stage 3: Deferred capabilities
 
