@@ -531,11 +531,18 @@ connector, the shape is returned unchanged. Because detaching freezes the positi
 `Endpoint::resolve` (which accounts for `effective_out`), the visual placement of the terminal cell
 is preserved exactly without jumping.
 
+Setting a detached endpoint's leaving direction is a replacement too: `with_endpoint_leaving`
+produces a new connector with the targeted endpoint (`End::From` or `End::To`) holding `leaving`,
+leaving its canvas position, terminal style, and the other endpoint untouched. Only a connector with
+a detached targeted endpoint is changed; a connector with an attached endpoint and non-connector
+figures come back unchanged. Setting an endpoint to the leaving direction it already carries
+produces an equal shape value.
+
 Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke`, `Shape::with_text`,
 `Shape::with_inverted_terminals`, `Shape::with_endpoint_moved`, `Shape::with_endpoint_reset`,
-`Shape::with_endpoint_terminal` and `Shape::with_endpoint_detached` are the nine figure mutations:
-each produces a new shape value, so looking up a figure and replacing it with the modified copy is
-the complete operation.
+`Shape::with_endpoint_terminal`, `Shape::with_endpoint_detached` and `Shape::with_endpoint_leaving`
+are the ten figure mutations: each produces a new shape value, so looking up a figure and replacing
+it with the modified copy is the complete operation.
 
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A
