@@ -11,7 +11,7 @@
 //! label the row carries with no key behind it.
 
 use monospace_core::Orientation;
-use monospace_diagram::{Anchor, Delta, EndpointAt, Shape};
+use monospace_diagram::{Delta, EndpointAt, Shape};
 use monospace_editing::Command;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -38,10 +38,6 @@ pub(crate) enum Condition {
     Connector,
     /// Active only if the active endpoint is detached.
     EndpointDetached,
-    /// Active only if the active endpoint is attached with a horizontal face (`Top` or `Bottom`).
-    EndpointAttachedHorizontal,
-    /// Active only if the active endpoint is attached with a vertical face (`Left` or `Right`).
-    EndpointAttachedVertical,
     /// Active only if the active endpoint is attached.
     EndpointAttached,
     /// Active only if the active endpoint is attached and either offset or out is non-zero.
@@ -53,10 +49,6 @@ pub(crate) enum Condition {
 pub(crate) enum KeyPattern {
     /// Any of the four bare arrow keys (Up, Down, Left, Right).
     Arrows,
-    /// Bare horizontal arrow keys (Left, Right).
-    HorizontalArrows,
-    /// Bare vertical arrow keys (Up, Down).
-    VerticalArrows,
     /// Shift plus any of the four arrow keys.
     ShiftArrows,
     /// Shift plus horizontal arrow keys (Left, Right).
@@ -82,14 +74,6 @@ impl KeyPattern {
                         event.code,
                         KeyCode::Right | KeyCode::Left | KeyCode::Up | KeyCode::Down
                     )
-            }
-            Self::HorizontalArrows => {
-                event.modifiers == KeyModifiers::NONE
-                    && matches!(event.code, KeyCode::Left | KeyCode::Right)
-            }
-            Self::VerticalArrows => {
-                event.modifiers == KeyModifiers::NONE
-                    && matches!(event.code, KeyCode::Up | KeyCode::Down)
             }
             Self::ShiftArrows => {
                 event.modifiers == KeyModifiers::SHIFT
@@ -123,14 +107,6 @@ impl KeyPattern {
             Self::Arrows => vec![
                 (KeyCode::Right, KeyModifiers::NONE),
                 (KeyCode::Left, KeyModifiers::NONE),
-                (KeyCode::Up, KeyModifiers::NONE),
-                (KeyCode::Down, KeyModifiers::NONE),
-            ],
-            Self::HorizontalArrows => vec![
-                (KeyCode::Left, KeyModifiers::NONE),
-                (KeyCode::Right, KeyModifiers::NONE),
-            ],
-            Self::VerticalArrows => vec![
                 (KeyCode::Up, KeyModifiers::NONE),
                 (KeyCode::Down, KeyModifiers::NONE),
             ],
@@ -413,19 +389,10 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
     },
     ContextBlock {
         category: Some("OFFSET"),
-        condition: Condition::EndpointAttachedHorizontal,
+        condition: Condition::EndpointAttached,
         actions: &[ContextAction {
-            pattern: KeyPattern::HorizontalArrows,
-            display: "←→",
-            meaning: ContextMeaning::MoveEndpoint,
-        }],
-    },
-    ContextBlock {
-        category: Some("OFFSET"),
-        condition: Condition::EndpointAttachedVertical,
-        actions: &[ContextAction {
-            pattern: KeyPattern::VerticalArrows,
-            display: "↑↓",
+            pattern: KeyPattern::Arrows,
+            display: "↑↓←→",
             meaning: ContextMeaning::MoveEndpoint,
         }],
     },
@@ -486,19 +453,10 @@ static ENDPOINT_TO: &[ContextBlock] = &[
     },
     ContextBlock {
         category: Some("OFFSET"),
-        condition: Condition::EndpointAttachedHorizontal,
+        condition: Condition::EndpointAttached,
         actions: &[ContextAction {
-            pattern: KeyPattern::HorizontalArrows,
-            display: "←→",
-            meaning: ContextMeaning::MoveEndpoint,
-        }],
-    },
-    ContextBlock {
-        category: Some("OFFSET"),
-        condition: Condition::EndpointAttachedVertical,
-        actions: &[ContextAction {
-            pattern: KeyPattern::VerticalArrows,
-            display: "↑↓",
+            pattern: KeyPattern::Arrows,
+            display: "↑↓←→",
             meaning: ContextMeaning::MoveEndpoint,
         }],
     },
@@ -591,31 +549,22 @@ pub(crate) fn context_blocks(
     let is_box_or_line =
         selected_shape.is_some_and(|s| matches!(s, Shape::Box { .. } | Shape::Line { .. }));
 
-    let (
-        is_endpoint_detached,
-        is_endpoint_attached_horizontal,
-        is_endpoint_attached_vertical,
-        is_endpoint_attached,
-        is_endpoint_reset,
-    ) = match (sub_mode, selected_shape) {
-        (Some(SubMode::Endpoint(end)), Some(Shape::Connector { from, to, .. })) => {
-            let active = match end {
-                End::From => from,
-                End::To => to,
-            };
-            match active.at {
-                EndpointAt::Absolute { .. } => (true, false, false, false, false),
-                EndpointAt::Reference(ref r) => (
-                    false,
-                    matches!(r.anchor, Anchor::Top | Anchor::Bottom),
-                    matches!(r.anchor, Anchor::Left | Anchor::Right),
-                    true,
-                    r.offset != Delta::ZERO || r.out != 0,
-                ),
+    let (is_endpoint_detached, is_endpoint_attached, is_endpoint_reset) =
+        match (sub_mode, selected_shape) {
+            (Some(SubMode::Endpoint(end)), Some(Shape::Connector { from, to, .. })) => {
+                let active = match end {
+                    End::From => from,
+                    End::To => to,
+                };
+                match active.at {
+                    EndpointAt::Absolute { .. } => (true, false, false),
+                    EndpointAt::Reference(ref r) => {
+                        (false, true, r.offset != Delta::ZERO || r.out != 0)
+                    }
+                }
             }
-        }
-        _ => (false, false, false, false, false),
-    };
+            _ => (false, false, false),
+        };
 
     let slice: &'static [ContextBlock] = match sub_mode {
         Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,
@@ -634,8 +583,6 @@ pub(crate) fn context_blocks(
         Condition::BoxOrLine => is_box_or_line,
         Condition::Connector => is_connector,
         Condition::EndpointDetached => is_endpoint_detached,
-        Condition::EndpointAttachedHorizontal => is_endpoint_attached_horizontal,
-        Condition::EndpointAttachedVertical => is_endpoint_attached_vertical,
         Condition::EndpointAttached => is_endpoint_attached,
         Condition::EndpointReset => is_endpoint_reset,
     })

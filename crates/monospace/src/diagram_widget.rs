@@ -1094,7 +1094,7 @@ mod tests {
         state.select(Some(id));
         state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
 
-        // From is on Top anchor: horizontal arrows move dx, vertical arrows are ignored
+        // From is on Top anchor: all four arrows move offset (dx, dy)
         let right_arrow = key(KeyCode::Right);
         assert_eq!(
             handle(&right_arrow, &mut state, Focus::Region),
@@ -1106,7 +1106,15 @@ mod tests {
             }))
         );
         let up_arrow = key(KeyCode::Up);
-        assert_eq!(handle(&up_arrow, &mut state, Focus::Region), Reply::Ignored);
+        assert_eq!(
+            handle(&up_arrow, &mut state, Focus::Region),
+            Reply::Act(Action::Command(Command::MoveEndpoint {
+                id,
+                end: End::From,
+                by: Delta { dx: 0, dy: -1 },
+                out: 0,
+            }))
+        );
 
         // Adjust out on attached endpoint: '+' and '-'
         let key_plus = key(KeyCode::Char('+'));
@@ -1137,7 +1145,7 @@ mod tests {
         // Switch to To endpoint (which has offset: (0, 1), out: 2 on Left anchor)
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
 
-        // Vertical arrows move dy, horizontal arrows are ignored
+        // All four arrows move offset on To endpoint too
         let down_arrow = key(KeyCode::Down);
         assert_eq!(
             handle(&down_arrow, &mut state, Focus::Region),
@@ -1150,7 +1158,12 @@ mod tests {
         );
         assert_eq!(
             handle(&right_arrow, &mut state, Focus::Region),
-            Reply::Ignored
+            Reply::Act(Action::Command(Command::MoveEndpoint {
+                id,
+                end: End::To,
+                by: Delta { dx: 1, dy: 0 },
+                out: 0,
+            }))
         );
 
         // Reset IS offered and accepted on To endpoint

@@ -787,7 +787,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓ · OUT: [+] [-] · [2] To · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [2] To · [Esc] Done"
         );
 
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
@@ -799,7 +799,7 @@ mod tests {
     }
 
     #[test]
-    fn endpoint_sub_mode_offers_axis_offset_out_and_conditional_reset() {
+    fn endpoint_sub_mode_offers_offset_out_and_conditional_reset() {
         let text = r#"{
             "next_id": 4,
             "shapes": [
@@ -817,18 +817,18 @@ mod tests {
         let mut state = a_state_over(text);
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
 
-        // From: Top anchor, offset 0, out 0 -> OFFSET: ←→ · OUT: [+] [-] · [2] To · [Esc] Done (no reset)
+        // From: Top anchor, offset 0, out 0 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [2] To · [Esc] Done (no reset)
         state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
         assert_eq!(
             command_line(&state),
-            "OFFSET: ←→ · OUT: [+] [-] · [2] To · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [2] To · [Esc] Done"
         );
 
-        // To: Left anchor, offset 1, out 2 -> OFFSET: ↑↓ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done
+        // To: Left anchor, offset 1, out 2 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done"
         );
     }
 }
