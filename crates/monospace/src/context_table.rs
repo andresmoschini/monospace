@@ -10,7 +10,7 @@
 //! `dispatch_key` answers, so a key cannot be offered without being accepted; `PICK` is the one
 //! label the row carries with no key behind it.
 
-use monospace_core::Orientation;
+use monospace_core::{Orientation, Terminal};
 use monospace_diagram::{Delta, EndpointAt, Shape};
 use monospace_editing::Command;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -134,6 +134,38 @@ impl KeyPattern {
     }
 }
 
+/// One of the five discrete terminal options offered by the inline selector.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TerminalChoice {
+    Arm,
+    Solid,
+    Outline,
+    Ascii,
+    Diamond,
+}
+
+impl TerminalChoice {
+    #[allow(dead_code)]
+    pub(crate) fn to_terminal(self) -> Terminal {
+        match self {
+            Self::Arm => Terminal::Arm,
+            Self::Solid => Terminal::Symbol {
+                style: monospace_core::SymbolStyleName::from("solid"),
+            },
+            Self::Outline => Terminal::Symbol {
+                style: monospace_core::SymbolStyleName::from("outline"),
+            },
+            Self::Ascii => Terminal::Symbol {
+                style: monospace_core::SymbolStyleName::from("ascii"),
+            },
+            Self::Diamond => Terminal::Glyph {
+                glyph: monospace_core::Glyph::new("◆").expect("valid glyph"),
+            },
+        }
+    }
+}
+
 /// What a contextual keypress means.
 pub(crate) enum ContextMeaning {
     /// Dispatches a direct application action.
@@ -162,6 +194,9 @@ pub(crate) enum ContextMeaning {
     ToBack,
     /// Sets the stroke of the selected figure to the catalog name.
     SetStroke(&'static str),
+    /// Sets the terminal style of the active connector endpoint.
+    #[allow(dead_code)]
+    SetEndpointTerminal(TerminalChoice),
     /// Enters an inline sub-mode.
     EnterSubMode(SubMode),
     /// Leaves an inline sub-mode back to normal selection.
@@ -325,6 +360,50 @@ static STROKE_SELECT: &[ContextBlock] = &[
                 pattern: KeyPattern::Char('5'),
                 display: "[5] ascii +-+",
                 meaning: ContextMeaning::SetStroke("ascii"),
+            },
+        ],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Esc),
+            display: "[Esc] Cancel",
+            meaning: ContextMeaning::LeaveSubMode,
+        }],
+    },
+];
+
+#[allow(dead_code)]
+static TERMINAL_SELECT: &[ContextBlock] = &[
+    ContextBlock {
+        category: Some("TERMINAL"),
+        condition: Condition::Always,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::Char('1'),
+                display: "[1] arm ─",
+                meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Arm),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('2'),
+                display: "[2] solid ▶",
+                meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Solid),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('3'),
+                display: "[3] outline ▷",
+                meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Outline),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('4'),
+                display: "[4] ascii >",
+                meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Ascii),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('5'),
+                display: "[5] diamond ◆",
+                meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Diamond),
             },
         ],
     },
@@ -724,9 +803,14 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
             Reply::Repaint
         }
         ContextMeaning::LeaveSubMode => {
-            state.set_sub_mode(None);
+            let next_sub_mode = match state.sub_mode() {
+                Some(SubMode::TerminalSelect(end)) => Some(SubMode::Endpoint(end)),
+                _ => None,
+            };
+            state.set_sub_mode(next_sub_mode);
             Reply::Repaint
         }
+        ContextMeaning::SetEndpointTerminal(_) => Reply::Ignored,
         ContextMeaning::Deselect => {
             state.select(None);
             Reply::Repaint
