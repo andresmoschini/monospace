@@ -84,6 +84,7 @@ command says, and one more meaning is one more arm.
 | `ResetEndpoint { id, end }`                 | an endpoint's offset and standoff are reset to zero                      | `replace` with `Shape::with_endpoint_reset`     |
 | `SetEndpointTerminal { id, end, terminal }` | an endpoint's terminal style is set                                      | `replace` with `Shape::with_endpoint_terminal`  |
 | `DetachEndpoint { id, end }`                | an attached endpoint is detached to open canvas                          | `replace` with `Shape::with_endpoint_detached`  |
+| `SetEndpointLeaving { id, end, leaving }`   | a detached endpoint's leaving direction is set                           | `replace` with `Shape::with_endpoint_leaving`   |
 | `Hang { id, from, anchor }`                 | one end of a connector hangs from a figure's side                        | `replace` with a rebuilt connector              |
 | `Forward { id }`                            | one place toward the front of the order                                  | `forward`                                       |
 | `Backward { id }`                           | one place toward the back of the order                                   | `backward`                                      |
@@ -121,6 +122,12 @@ into an absolute canvas position frozen at its resolved coordinates with
 `reference.anchor.leaving()`. It records one step when an attached endpoint resolves and detaches,
 and records no step when the endpoint is already absolute, does not resolve in `diagram`, or when
 `id` is not a connector (#285).
+
+`SetEndpointLeaving` asks the shape to replace the departure direction on the targeted endpoint
+(`End::From` or `End::To`) with `leaving`. It updates `leaving` only when the endpoint is detached
+(`EndpointAt::Absolute`), leaving its position, terminal style, and the other endpoint untouched. It
+records one step when `leaving` changed, and records no step when the endpoint already carried the
+direction or when the targeted endpoint is attached (#285).
 
 `Backward`, `ToFront` and `ToBack` are the same mapping at the other end and at the absolute scale:
 each asks the diagram whether the figure would move and hands back `None` when it would not, so a

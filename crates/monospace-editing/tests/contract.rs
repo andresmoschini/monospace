@@ -439,6 +439,25 @@ fn each_command_becomes_one_of_the_diagrams_seven_operations() {
     );
 
     assert_eq!(
+        after(&Command::SetEndpointLeaving {
+            id: id(3),
+            end: End::From,
+            leaving: Direction::Up,
+        }),
+        after_operating(|diagram| {
+            let updated = diagram
+                .get(id(3))
+                .map(|shape| shape.with_endpoint_leaving(End::From, Direction::Up));
+            if let Some(updated) = updated {
+                diagram.replace(id(3), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`SetEndpointLeaving` is `replace` with the endpoint leaving direction set"
+    );
+
+    assert_eq!(
         after(&Command::Hang {
             id: id(3),
             from: id(1),
@@ -1846,6 +1865,93 @@ fn detaching_attached_endpoint_records_one_step_and_already_detached_records_non
     assert!(
         matches!(undone_from.at, EndpointAt::Reference(_)),
         "undo restores reference endpoint"
+    );
+    assert!(!undone.can_undo(), "only one step was recorded");
+}
+
+#[test]
+fn setting_endpoint_leaving_records_one_step_and_identical_or_attached_records_none() {
+    use monospace_diagram::EndpointAt;
+
+    let mut diagram = Diagram::new();
+    diagram = diagram.add(small_box(ORIGIN)).0; // id(1)
+    diagram = diagram
+        .add(Shape::Connector {
+            from: Endpoint::absolute(Pos { x: 5, y: 5 }, Direction::Right, Terminal::Arm),
+            to: Endpoint::reference(
+                Reference::new(id(1), Anchor::Top, Delta::ZERO, 0),
+                Terminal::Arm,
+            ),
+            stroke: Stroke::from("light"),
+        })
+        .0; // id(2)
+
+    let session = Session::new(diagram);
+    assert!(!session.can_undo());
+
+    // Setting a different leaving direction on detached endpoint records one step
+    let updated = session.perform(Command::SetEndpointLeaving {
+        id: id(2),
+        end: End::From,
+        leaving: Direction::Down,
+    });
+    assert!(
+        updated.can_undo(),
+        "setting different leaving direction records a step"
+    );
+    let Shape::Connector { from, to, .. } = updated.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    assert_eq!(
+        from.at,
+        EndpointAt::Absolute {
+            at: Pos { x: 5, y: 5 },
+            leaving: Direction::Down
+        }
+    );
+    assert!(
+        matches!(to.at, EndpointAt::Reference(_)),
+        "attached endpoint remains unchanged"
+    );
+
+    // Setting identical leaving records no step (#285)
+    let no_op_identical = updated.perform(Command::SetEndpointLeaving {
+        id: id(2),
+        end: End::From,
+        leaving: Direction::Down,
+    });
+    assert_eq!(
+        no_op_identical.diagram().get(id(2)),
+        updated.diagram().get(id(2)),
+        "setting identical leaving records no step"
+    );
+
+    // Setting leaving on attached endpoint (To) records no step (#285)
+    let no_op_attached = no_op_identical.perform(Command::SetEndpointLeaving {
+        id: id(2),
+        end: End::To,
+        leaving: Direction::Left,
+    });
+    assert_eq!(
+        no_op_attached.diagram().get(id(2)),
+        updated.diagram().get(id(2)),
+        "setting leaving on attached endpoint records no step"
+    );
+
+    // Undoing should undo the first set, proving no extra steps were pushed
+    let undone = no_op_attached.undo();
+    let Shape::Connector {
+        from: undone_from, ..
+    } = undone.diagram().get(id(2)).unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(
+        undone_from.at,
+        EndpointAt::Absolute {
+            at: Pos { x: 5, y: 5 },
+            leaving: Direction::Right
+        }
     );
     assert!(!undone.can_undo(), "only one step was recorded");
 }
