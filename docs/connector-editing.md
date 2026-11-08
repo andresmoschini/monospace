@@ -104,7 +104,7 @@ reserved for Stage 3:
 
 ```mermaid
 stateDiagram-v2
-    SELECTED_CONNECTOR --> ENDPOINT_EDIT: "1 (Start) or 2 (End)"
+    SELECTED_CONNECTOR --> ENDPOINT_EDIT: "1 (From) or 2 (To)"
     SELECTED_CONNECTOR --> SELECTED_CONNECTOR: "i (Invert terminals)"
     ENDPOINT_EDIT --> SELECTED_CONNECTOR: "Esc (Done)"
     ENDPOINT_EDIT --> ENDPOINT_EDIT: "1 or 2 (Switch endpoint)"
@@ -147,26 +147,26 @@ ENDPOINTS: [1] From [2] To · INVERT: [i] · MOVE: ↑↓←→ · STROKE: [s] �
 **Target state (once `MOVE` is retired in Slice 4):**
 
 ```text
-Connector #4 · Stroke: light · 1. Start: Box #1 [Right (0, 0) out:0] arm ─ · 2. End: Box #2 [Left (0, 0) out:0] solid ▶
-ENDPOINTS: [1] Start [2] End · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
+Connector #4 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Left (0, 0) out:0] solid ▶
+ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
 ```
 
 When an endpoint is detached, Row 0 formats its absolute coordinates and leaving direction:
 
 ```text
-Connector #7 · Stroke: heavy · 1. Start: Box #3 [Bottom (0, 0) out:0] arm ┃ · 2. End: (40, 12) [Up] arrow ↓
-ENDPOINTS: [1] Start [2] End · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
+Connector #7 · Stroke: heavy · 1. From: Box #3 [Bottom (0, 0) out:0] arm ┃ · 2. To: (40, 12) [Up] arrow ↓
+ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
 ```
 
-| Key                 | Action / Command                                            | History Step                            |
-| :------------------ | :---------------------------------------------------------- | :-------------------------------------- |
-| `1` / `2`           | Enter `ENDPOINT_EDIT` for endpoint 1 (`Start`) or 2 (`End`) | None (mode transition)                  |
-| `i`                 | Invert terminals (`Command::InvertTerminals`, #320)         | One step (silent if identical per #285) |
-| `s`                 | Open stroke selector (`STROKE_SELECT`)                      | None (selector sub-mode)                |
-| `z`                 | Open ordering mode (`ORDER_MODE`)                           | None (selector sub-mode)                |
-| `Tab` / `Shift+Tab` | Cycle selection to next / previous shape (#307)             | None                                    |
-| `Del`               | Delete connector (`Command::Remove`)                        | One step                                |
-| `Esc`               | Deselect connector (return to `IDLE`)                       | None                                    |
+| Key                 | Action / Command                                          | History Step                            |
+| :------------------ | :-------------------------------------------------------- | :-------------------------------------- |
+| `1` / `2`           | Enter `ENDPOINT_EDIT` for endpoint 1 (`From`) or 2 (`To`) | None (mode transition)                  |
+| `i`                 | Invert terminals (`Command::InvertTerminals`, #320)       | One step (silent if identical per #285) |
+| `s`                 | Open stroke selector (`STROKE_SELECT`)                    | None (selector sub-mode)                |
+| `z`                 | Open ordering mode (`ORDER_MODE`)                         | None (selector sub-mode)                |
+| `Tab` / `Shift+Tab` | Cycle selection to next / previous shape (#307)           | None                                    |
+| `Del`               | Delete connector (`Command::Remove`)                      | One step                                |
+| `Esc`               | Deselect connector (return to `IDLE`)                     | None                                    |
 
 ### 2.2 ENDPOINT_EDIT (Attached endpoint)
 
@@ -174,20 +174,20 @@ Entered by pressing `1` or `2` when a connector is selected. This is a continuou
 keystrokes directly mutate endpoint properties:
 
 ```text
-ENDPOINT 2. End of Connector #4 · Box #2 [Left (0, 0) out:0] · Term: solid ▶
-OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] Start · [Esc] Done
+ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 0) out:0] · Term: solid ▶
+OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
-| Key       | Action / Command                                                            | History Step                                                  |
-| :-------- | :-------------------------------------------------------------------------- | :------------------------------------------------------------ |
-| `↑↓←→`    | Adjust tangential `offset` along face perimeter (clamped to face span)      | One step per press                                            |
-| `+` / `-` | Increment / decrement orthogonal standoff `out`                             | One step per press (`-` at `0` is a silent no-op)             |
-| `r`       | Reset `offset` to `(0, 0)` and `out` to `0`                                 | One step (offered only when `offset != (0, 0)` or `out != 0`) |
-| `0`       | Detach endpoint to `Absolute` at current resolved coordinates               | One step                                                      |
-| `t`       | Open discrete `TERMINAL_SELECT`                                             | None (sub-mode)                                               |
-| `1` / `2` | Switch active endpoint to 1 (`Start`) or 2 (`End`) without leaving sub-mode | None                                                          |
-| `Esc`     | Exit endpoint editing and return to `SELECTED_CONNECTOR` (`Done`)           | None                                                          |
-| `c`       | Change target shape via `ATTACH_PICK` (_Deferred to Stage 3_)               | None (sub-mode)                                               |
+| Key       | Action / Command                                                          | History Step                                                  |
+| :-------- | :------------------------------------------------------------------------ | :------------------------------------------------------------ |
+| `↑↓←→`    | Adjust tangential `offset` along face perimeter (clamped to face span)    | One step per press                                            |
+| `+` / `-` | Increment / decrement orthogonal standoff `out`                           | One step per press (`-` at `0` is a silent no-op)             |
+| `r`       | Reset `offset` to `(0, 0)` and `out` to `0`                               | One step (offered only when `offset != (0, 0)` or `out != 0`) |
+| `0`       | Detach endpoint to `Absolute` at current resolved coordinates             | One step                                                      |
+| `t`       | Open discrete `TERMINAL_SELECT`                                           | None (sub-mode)                                               |
+| `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`) without leaving sub-mode | None                                                          |
+| `Esc`     | Exit endpoint editing and return to `SELECTED_CONNECTOR` (`Done`)         | None                                                          |
+| `c`       | Change target shape via `ATTACH_PICK` (_Deferred to Stage 3_)             | None (sub-mode)                                               |
 
 ### 2.3 ENDPOINT_EDIT (Detached endpoint)
 
@@ -195,8 +195,8 @@ When the active endpoint is detached (`Position::Absolute`), Row 0 displays its 
 and leaving direction, and the bar adapts its commands:
 
 ```text
-ENDPOINT 2. End of Connector #4 · Detached (40, 12) [Up] · Term: arrow ↓
-MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [r] Reset · [1] Start · [Esc] Done
+ENDPOINT 2. To of Connector #4 · Detached (40, 12) [Up] · Term: arrow ↓
+MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [r] Reset · [1] From · [Esc] Done
 ```
 
 | Key       | Action / Command                                                   | History Step                                      |
@@ -206,7 +206,7 @@ MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [r] Reset
 | `d`       | Open discrete `LEAVING_SELECT`                                     | None (sub-mode)                                   |
 | `t`       | Open discrete `TERMINAL_SELECT`                                    | None (sub-mode)                                   |
 | `r`       | Reset `out` to `0`                                                 | One step (offered only when `out > 0`)            |
-| `1` / `2` | Switch active endpoint to 1 (`Start`) or 2 (`End`)                 | None                                              |
+| `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`)                   | None                                              |
 | `Esc`     | Return to `SELECTED_CONNECTOR` (`Done`)                            | None                                              |
 | `a`       | Attach endpoint to shape via `ATTACH_PICK` (_Deferred to Stage 3_) | None (sub-mode)                                   |
 
@@ -216,7 +216,7 @@ Entered by pressing `t` from `ENDPOINT_EDIT`. This is a discrete sub-mode presen
 options directly on Row 1:
 
 ```text
-TERMINAL for 2. End of Connector #4 · Current: solid ▶
+TERMINAL for 2. To of Connector #4 · Current: solid ▶
 TERMINAL: [0] none [1] arm ─ [2] solid ▶ [3] hollow ▷ [4] diamond ◆ · [Esc] Cancel
 ```
 
@@ -240,7 +240,7 @@ Entered by pressing `d` on a detached endpoint in `ENDPOINT_EDIT`. This is a dis
 allowing explicit selection of the departure direction:
 
 ```text
-LEAVING for 2. End of Connector #4 · Detached (40, 12) · Current: Up
+LEAVING for 2. To of Connector #4 · Detached (40, 12) · Current: Up
 LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel
 ```
 
@@ -265,7 +265,7 @@ To close the usability gaps identified in early designs, two additional mechanis
   (change shape on an attached endpoint) initiates `ATTACH_PICK`:
 
   ```text
-  ATTACH 2. End of Connector #4 · Target: Box #2 "Server" (1 of 4) [Left]
+  ATTACH 2. To of Connector #4 · Target: Box #2 "Server" (1 of 4) [Left]
   TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel
   ```
 
@@ -305,7 +305,7 @@ moving a connector as a whole is conceptually contradictory when its endpoints a
 figures: displacing the connector would either silently break attachments or produce invalid
 geometries.
 
-Once Slices 2 and 3 introduce individual endpoint movement (`[1]` Start and `[2]` End),
+Once Slices 2 and 3 introduce individual endpoint movement (`[1]` From and `[2]` To),
 whole-connector displacement becomes redundant and confusing. Slice 4 permanently removes
 `MOVE: ↑↓←→` from `SELECTED_CONNECTOR`.
 
@@ -317,8 +317,8 @@ constitutes a clean history step in `Session`.
 
 Crucially, sub-selectors like `TERMINAL_SELECT` and `LEAVING_SELECT` return directly to
 `ENDPOINT_EDIT` upon selection or cancellation, rather than popping all the way back to
-`SELECTED_CONNECTOR`. Furthermore, authors can toggle between endpoints by pressing `1` (Start) or
-`2` (End) directly within `ENDPOINT_EDIT`, enabling rapid end-to-end adjustments without repeated
+`SELECTED_CONNECTOR`. Furthermore, authors can toggle between endpoints by pressing `1` (From) or
+`2` (To) directly within `ENDPOINT_EDIT`, enabling rapid end-to-end adjustments without repeated
 mode re-entries. Pressing `Esc` completes the session (`Done`) and returns to `SELECTED_CONNECTOR`.
 
 ### 3.4 Explicit leaving control for detached endpoints
@@ -363,29 +363,29 @@ Initial state:
 1. Author selects Connector #4. The contextual bar shows:
 
    ```text
-   Connector #4 · Stroke: light · 1. Start: Box #1 [Right (0, 0) out:0] arm ─ · 2. End: Box #2 [Left (0, 0) out:0] solid ▶
-   ENDPOINTS: [1] Start [2] End · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
+   Connector #4 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Left (0, 0) out:0] solid ▶
+   ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
    ```
 
-2. Author presses `2` to edit the `End` endpoint:
+2. Author presses `2` to edit the `To` endpoint:
 
    ```text
-   ENDPOINT 2. End of Connector #4 · Box #2 [Left (0, 0) out:0] · Term: solid ▶
-   OFFSET: ↑↓←→ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [1] Start · [Esc] Done
+   ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 0) out:0] · Term: solid ▶
+   OFFSET: ↑↓←→ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
 3. Author presses `↓`. The attachment point moves down one row (`offset.dy = 1`):
 
    ```text
-   ENDPOINT 2. End of Connector #4 · Box #2 [Left (0, 1) out:0] · Term: solid ▶
-   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] Start · [Esc] Done
+   ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 1) out:0] · Term: solid ▶
+   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
 4. Author presses `+` twice. The standoff distance increases to `out: 2`:
 
    ```text
-   ENDPOINT 2. End of Connector #4 · Box #2 [Left (0, 1) out:2] · Term: solid ▶
-   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] Start · [Esc] Done
+   ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 1) out:2] · Term: solid ▶
+   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
    The diagram updates in real time:
@@ -410,15 +410,15 @@ downward:
    `Absolute` point at its current resolved coordinates:
 
    ```text
-   ENDPOINT 2. End of Connector #4 · Detached (20, 5) [Left] · Term: solid ◀
-   MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [1] Start · [Esc] Done
+   ENDPOINT 2. To of Connector #4 · Detached (20, 5) [Left] · Term: solid ◀
+   MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
 2. Author presses `↓` three times to move the open point lower on the canvas.
 3. Author presses `d` to change the leaving direction. The bar enters `LEAVING_SELECT`:
 
    ```text
-   LEAVING for 2. End of Connector #4 · Detached (20, 8) · Current: Left
+   LEAVING for 2. To of Connector #4 · Detached (20, 8) · Current: Left
    LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel
    ```
 
@@ -426,8 +426,8 @@ downward:
    arrowhead to point downward (`↓`). The bar immediately returns to `ENDPOINT_EDIT`:
 
    ```text
-   ENDPOINT 2. End of Connector #4 · Detached (20, 8) [Up] · Term: solid ↓
-   MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [1] Start · [Esc] Done
+   ENDPOINT 2. To of Connector #4 · Detached (20, 8) [Up] · Term: solid ↓
+   MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
 ### 4.3 Changing endpoint terminals and swapping them with i
@@ -435,20 +435,20 @@ downward:
 An author wants to turn a one-way request arrow into a two-way flow, then reverse the primary
 direction:
 
-1. Author selects Connector #4 and presses `1` to edit `Start`.
+1. Author selects Connector #4 and presses `1` to edit `From`.
 2. Author presses `t` to open `TERMINAL_SELECT`:
 
    ```text
-   TERMINAL for 1. Start of Connector #4 · Current: arm ─
+   TERMINAL for 1. From of Connector #4 · Current: arm ─
    TERMINAL: [0] none [1] arm ─ [2] solid ▶ [3] hollow ▷ [4] diamond ◆ · [Esc] Cancel
    ```
 
-3. Author presses `2` (`solid ▶`). The `Start` endpoint receives a solid arrowhead facing against
-   its leaving direction (`◀`), and the bar returns to `ENDPOINT_EDIT`:
+3. Author presses `2` (`solid ▶`). The `From` endpoint receives a solid arrowhead facing against its
+   leaving direction (`◀`), and the bar returns to `ENDPOINT_EDIT`:
 
    ```text
-   ENDPOINT 1. Start of Connector #4 · Box #1 [Right (0, 0) out:0] · Term: solid ◀
-   OFFSET: ↑↓←→ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [2] End · [Esc] Done
+   ENDPOINT 1. From of Connector #4 · Box #1 [Right (0, 0) out:0] · Term: solid ◀
+   OFFSET: ↑↓←→ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [2] To · [Esc] Done
    ```
 
    Canvas now shows a bidirectional connector:
@@ -471,14 +471,14 @@ An author wants to reconnect a detached endpoint to a new box (`Cache`) using th
 2. `ATTACH_PICK` opens, highlighting the nearest candidate box on the canvas:
 
    ```text
-   ATTACH 2. End of Connector #4 · Target: Box #3 "Server" (1 of 3) [Left]
+   ATTACH 2. To of Connector #4 · Target: Box #3 "Server" (1 of 3) [Left]
    TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel
    ```
 
 3. Author presses `Tab` to cycle target focus to `Box #5 "Cache"`:
 
    ```text
-   ATTACH 2. End of Connector #4 · Target: Box #5 "Cache" (2 of 3) [Left]
+   ATTACH 2. To of Connector #4 · Target: Box #5 "Cache" (2 of 3) [Left]
    TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel
    ```
 

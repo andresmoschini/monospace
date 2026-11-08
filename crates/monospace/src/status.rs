@@ -26,7 +26,7 @@ use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
 use ratatui_core::style::Style;
 
-use crate::diagram_state::{DiagramState, SubMode};
+use crate::diagram_state::{DiagramState, End, SubMode};
 
 /// The name the application answers to.
 pub(crate) const NAME: &str = "monospace";
@@ -99,6 +99,16 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
                 format!(
                     "LAYER ORDER for {kind} #{id} · Position: {position} of {total} · Behind: {behind}, Ahead: {ahead}"
                 )
+            }
+            SubMode::Endpoint(end) => {
+                let (n, label, endpoint) = match (shape, end) {
+                    (Shape::Connector { from, .. }, End::From) => (1, "From", from),
+                    (Shape::Connector { to, .. }, End::To) => (2, "To", to),
+                    _ => unreachable!("endpoint sub-mode requires a selected connector"),
+                };
+                let at_text = endpoint_at_text(&endpoint.at, diagram, "Detached ");
+                let term_text = terminal_text(endpoint);
+                format!("ENDPOINT {n}. {label} of Connector #{id} · {at_text} · Term: {term_text}")
             }
         };
     }
@@ -182,8 +192,8 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
     }
 }
 
-fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
-    let at_text = match endpoint.at {
+fn endpoint_at_text(at: &EndpointAt, diagram: &Diagram, detached_prefix: &str) -> String {
+    match at {
         EndpointAt::Reference(r) => {
             let kind = match diagram.get(r.id) {
                 Some(Shape::Box { .. }) => "Box",
@@ -201,10 +211,13 @@ fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
             )
         }
         EndpointAt::Absolute { at, leaving } => {
-            format!("({}, {}) [{leaving:?}]", at.x, at.y)
+            format!("{detached_prefix}({}, {}) [{leaving:?}]", at.x, at.y)
         }
-    };
+    }
+}
 
+fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
+    let at_text = endpoint_at_text(&endpoint.at, diagram, "");
     let term_text = terminal_text(endpoint);
     format!("{at_text} {term_text}")
 }
@@ -548,7 +561,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -672,7 +685,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -725,5 +738,38 @@ mod tests {
             command_line(&state),
             "ORDER: [Home] Front [End] Back [PgUp] Forward [PgDn] Backward · [Esc] Done"
         );
+    }
+
+    #[test]
+    fn endpoint_sub_mode_shows_focused_endpoint_inspector_and_switch_commands() {
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 20, "y": 5 }, "leaving": "left",
+                            "terminal": { "kind": "symbol", "style": "solid" } },
+                  "stroke": "light" }
+            ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
+
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_eq!(
+            status_line(&state),
+            "ENDPOINT 1. From of Connector #2 · Box #1 [Right (0, 0) out:0] · Term: arm ─"
+        );
+        assert_eq!(command_line(&state), "[2] To · [Esc] Done");
+
+        state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        assert_eq!(
+            status_line(&state),
+            "ENDPOINT 2. To of Connector #2 · Detached (20, 5) [Left] · Term: solid ▶"
+        );
+        assert_eq!(command_line(&state), "[1] From · [Esc] Done");
     }
 }

@@ -185,13 +185,15 @@ makes the restored drawing a clean starting point. Any active sub-mode ends when
 drops.
 
 **The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
-interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`), `DiagramState` records
+interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`, or `ENDPOINT_EDIT`
+`SubMode::Endpoint(End)` on a connector via `1` or `2`), `DiagramState` records
 `sub_mode: Option<SubMode>`. The sub-mode is transient: `STROKE_SELECT` exits when a stroke is
-selected or `Esc` is pressed, and `ORDER_MODE` is continuous — each of its keys performs one command
-and stays, and `Esc` is the only key that leaves it. Losing or changing the selection — clicking
-another figure or outside, or removing the selected figure — drops it immediately
-(`sub_mode = None`). While the figure remains selected, transferring focus to the menu bar or
-opening an application dialog keeps the sub-mode.
+selected or `Esc` is pressed, while `ORDER_MODE` and `ENDPOINT_EDIT` are continuous — each of their
+keys performs one action and stays (in `ENDPOINT_EDIT`, `1` and `2` switch between `End::From` and
+`End::To` without leaving the sub-mode), and `Esc` is the key that leaves it. Losing or changing the
+selection — clicking another figure or outside, or removing the selected figure — drops it
+immediately (`sub_mode = None`). While the figure remains selected, transferring focus to the menu
+bar or opening an application dialog keeps the sub-mode.
 
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
@@ -284,14 +286,14 @@ records a step only if the text changed (saving the same text records no step). 
 with `Esc` or `Cancel` discards edits without recording a step.
 
 **`InvertTerminals` inverts connector terminals via `Command::InvertTerminals`.** It is offered in
-the contextual command line as `INVERT: [i]` between `MOVE: ↑↓←→` and `STROKE: [s]` whenever a
-connector is selected (`SELECTED_CONNECTOR`), and pressing `i` is dispatched by the diagram region
-from the active context table as `Action::Command(Command::InvertTerminals { id })`. The session
-performs the command, swapping `from.terminal` and `to.terminal` while leaving `from.at` and `to.at`
-unchanged. Exactly one step is recorded in the session unless both endpoints share identical
-terminals (#285), in which case no step is recorded. The status row (row 0) displays each endpoint's
-terminal name and oriented glyph alongside its position. With a box or line selected, with nothing
-selected (`IDLE`), or in an ephemeral sub-mode, `i` is ignored.
+the contextual command line as `INVERT: [i]` between `ENDPOINTS: [1] From [2] To` and `STROKE: [s]`
+whenever a connector is selected (`SELECTED_CONNECTOR`), and pressing `i` is dispatched by the
+diagram region from the active context table as `Action::Command(Command::InvertTerminals { id })`.
+The session performs the command, swapping `from.terminal` and `to.terminal` while leaving `from.at`
+and `to.at` unchanged. Exactly one step is recorded in the session unless both endpoints share
+identical terminals (#285), in which case no step is recorded. The status row (row 0) displays each
+endpoint's terminal name and oriented glyph alongside its position. With a box or line selected,
+with nothing selected (`IDLE`), or in an ephemeral sub-mode, `i` is ignored.
 
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
 sub-mode (such as `STROKE_SELECT`) is active:
@@ -671,6 +673,23 @@ framework's buffer one at a time.
 - A click on another figure or outside, removing the selected figure, and an effective undo or redo
   end `OrderMode`; moving focus to the menu bar or opening an application dialog keeps it while the
   figure remains selected.
+- Pressing `1` (`End::From`) or `2` (`End::To`) while a connector is selected transitions
+  `DiagramState` to `SubMode::Endpoint(End)` and requests a repaint without recording history steps.
+- In `ENDPOINT_EDIT`, pressing `2` while inspecting `End::From` switches to `End::To`, and pressing
+  `1` while inspecting `End::To` switches to `End::From`; pressing the active endpoint's own key is
+  ignored.
+- In `ENDPOINT_EDIT`, pressing `Esc` leaves the sub-mode (`sub_mode = None`), keeps the connector
+  selected, and records zero history steps.
+- In `ENDPOINT_EDIT`, row 0 formats the active endpoint across three blocks:
+  `ENDPOINT <n>. <From|To> of Connector #<id> · <Kind> #<target_id> [<Anchor> (<dx>, <dy>) out:<out>] · Term: <terminal>`
+  for attached endpoints, and
+  `ENDPOINT <n>. <From|To> of Connector #<id> · Detached (<x>, <y>) [<Leaving>] · Term: <terminal>`
+  for detached endpoints.
+- In `ENDPOINT_EDIT`, row 1 offers `[2] To · [Esc] Done` when `End::From` is active, and
+  `[1] From · [Esc] Done` when `End::To` is active.
+- A click on another figure or outside, removing the selected connector, and an effective undo or
+  redo end `ENDPOINT_EDIT`; moving focus to the menu bar or opening an application dialog keeps it
+  while the connector remains selected.
 - The contextual command row and the widget dispatcher derive offered and accepted keys from a
   unified context table (Option D), guaranteeing offer equals acceptance.
 - An open drop-down does not keep either key.

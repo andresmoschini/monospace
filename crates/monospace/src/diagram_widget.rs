@@ -230,6 +230,7 @@ fn inner_region(area: Rect) -> Rect {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::diagram_state::{End, SubMode};
     use crate::vocabulary::Action;
     use monospace_core::ShapeId;
     use monospace_editing::Command;
@@ -1048,6 +1049,101 @@ mod tests {
             Some(1),
             Some(crate::diagram_state::SubMode::OrderMode),
         );
+    }
+
+    #[test]
+    fn key_acceptance_matches_contextual_bar_in_endpoint_sub_mode() {
+        assert_offer_matches_acceptance(A_CONNECTOR, Some(1), Some(SubMode::Endpoint(End::From)));
+        assert_offer_matches_acceptance(A_CONNECTOR, Some(1), Some(SubMode::Endpoint(End::To)));
+    }
+
+    #[test]
+    fn pressing_1_and_2_enters_and_switches_endpoint_sub_mode_until_esc() {
+        let mut state = a_state_over(A_CONNECTOR);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+
+        let key_1 = key(KeyCode::Char('1'));
+        let key_2 = key(KeyCode::Char('2'));
+        let key_esc = key(KeyCode::Esc);
+
+        // Pressing '1' enters End::From and returns Reply::Repaint
+        let answer = handle(&key_1, &mut state, Focus::Region);
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+        assert_eq!(state.selected(), Some(id));
+
+        // Pressing '1' again while in End::From returns Reply::Ignored and stays in End::From
+        let answer = handle(&key_1, &mut state, Focus::Region);
+        assert_eq!(answer, Reply::Ignored);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+
+        // Pressing '2' while in End::From switches to End::To and returns Reply::Repaint
+        let answer = handle(&key_2, &mut state, Focus::Region);
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::To)));
+        assert_eq!(state.selected(), Some(id));
+
+        // Pressing '2' again while in End::To returns Reply::Ignored and stays in End::To
+        let answer = handle(&key_2, &mut state, Focus::Region);
+        assert_eq!(answer, Reply::Ignored);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::To)));
+
+        // Pressing '1' while in End::To switches back to End::From and returns Reply::Repaint
+        let answer = handle(&key_1, &mut state, Focus::Region);
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+        assert_eq!(state.selected(), Some(id));
+
+        // Pressing Esc leaves sub-mode (None), keeps ShapeId selected, and returns Reply::Repaint
+        let answer = handle(&key_esc, &mut state, Focus::Region);
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(state.sub_mode(), None);
+        assert_eq!(state.selected(), Some(id));
+
+        // Verify state.session().can_undo() is false (zero history steps recorded)
+        assert!(!state.session().can_undo());
+
+        // Pressing '1' or '2' on a selected box returns Reply::Ignored and leaves sub_mode() as None
+        let mut box_state = a_state_over(A_BOX);
+        box_state.select(Some(id));
+        assert_eq!(
+            handle(&key_1, &mut box_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(box_state.sub_mode(), None);
+        assert_eq!(
+            handle(&key_2, &mut box_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(box_state.sub_mode(), None);
+
+        // Pressing '1' or '2' on a selected line returns Reply::Ignored and leaves sub_mode() as None
+        let mut line_state = a_state_over(A_LINE);
+        line_state.select(Some(id));
+        assert_eq!(
+            handle(&key_1, &mut line_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(line_state.sub_mode(), None);
+        assert_eq!(
+            handle(&key_2, &mut line_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(line_state.sub_mode(), None);
+
+        // Pressing '1' or '2' in IDLE returns Reply::Ignored and leaves sub_mode() as None
+        let mut idle_state = a_state_over(A_CONNECTOR);
+        assert_eq!(
+            handle(&key_1, &mut idle_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(idle_state.sub_mode(), None);
+        assert_eq!(
+            handle(&key_2, &mut idle_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(idle_state.sub_mode(), None);
     }
 
     #[test]

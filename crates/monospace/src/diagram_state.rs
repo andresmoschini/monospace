@@ -93,6 +93,13 @@ pub(crate) struct DiagramState {
     session: Session,
 }
 
+/// Which endpoint of a connector is being inspected or edited.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum End {
+    From,
+    To,
+}
+
 /// An inline sub-mode of the diagram region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SubMode {
@@ -100,6 +107,8 @@ pub(crate) enum SubMode {
     StrokeSelect,
     /// Moving the selected figure through the layer order.
     OrderMode,
+    /// Inspecting and editing a single connector endpoint.
+    Endpoint(End),
 }
 
 impl DiagramState {
@@ -943,7 +952,12 @@ mod tests {
     fn a_command_that_removes_the_selected_figure_drops_the_selection() {
         let selected = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
 
-        for sub_mode in [SubMode::StrokeSelect, SubMode::OrderMode] {
+        for sub_mode in [
+            SubMode::StrokeSelect,
+            SubMode::OrderMode,
+            SubMode::Endpoint(End::From),
+            SubMode::Endpoint(End::To),
+        ] {
             let mut state = a_diagram_over(THE_EXAMPLE);
             state.select(Some(selected));
             state.set_sub_mode(Some(sub_mode));
