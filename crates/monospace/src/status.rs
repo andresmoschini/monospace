@@ -561,7 +561,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -602,6 +602,28 @@ mod tests {
         assert_eq!(
             status_line(&state),
             "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Left (0, 0) out:0] solid ▶"
+        );
+    }
+
+    #[test]
+    fn selected_connector_omits_move_and_starts_with_endpoints() {
+        let text = r#"{
+            "next_id": 2,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 1, "y": 2 }, "leaving": "right",
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 5, "y": 6 }, "leaving": "left",
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            command_line(&state),
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -685,7 +707,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 

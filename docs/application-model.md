@@ -320,11 +320,14 @@ active sub-mode, resuming it when focus returns to the diagram. A dialog that be
 sub-mode itself is not an application-level overlay and does not end it either.
 
 **The four arrows move what is selected, dispatched as `Command::Move`.** A press of an arrow while
-the region holds the keyboard displaces the selected figure one cell along the arrow's own axis: the
-contextual table mints `Action::Command(Command::Move { id, by })` naming the selected figure and
-the arrow's delta. **One press is one `Command::Move` and one step**, so `Undo` gives back one cell
-per press. **The selection survives**, because the figure is still there one cell along, and the
-next frame inverts the cells it now owns. **An arrow with nothing selected ignores the key**
+the region holds the keyboard and a box or a line is selected displaces the selected figure one cell
+along the arrow's own axis: the contextual table mints `Action::Command(Command::Move { id, by })`
+naming the selected figure and the arrow's delta. When a connector is selected, whole-figure
+movement is not offered (`MOVE: ↑↓←→` is restricted to boxes and lines) and bare arrows are ignored
+(`Control::Continue`): connectors edit their geometry endpoint-by-endpoint in `ENDPOINT_EDIT`
+(`SubMode::Endpoint(End)`). **One press is one `Command::Move` and one step**, so `Undo` gives back
+one cell per press. **The selection survives**, because the figure is still there one cell along,
+and the next frame inverts the cells it now owns. **An arrow with nothing selected ignores the key**
 (`Control::Continue`) and dispatches no command: the selection is what the arrow is about, and the
 bar offers only selection while nothing is selected. **The arrows are the region's only while it
 holds the keyboard**, and the application names no position and clamps nothing — what a displacement

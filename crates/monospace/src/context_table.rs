@@ -32,6 +32,8 @@ pub(crate) enum Condition {
     HorizontalLine,
     /// Active only if the selected figure is a vertical line.
     VerticalLine,
+    /// Active only if the selected figure is a box or a line.
+    BoxOrLine,
     /// Active only if the selected figure is a connector.
     Connector,
 }
@@ -166,7 +168,7 @@ pub(crate) struct ContextBlock {
 static SELECTION: &[ContextBlock] = &[
     ContextBlock {
         category: Some("MOVE"),
-        condition: Condition::Always,
+        condition: Condition::BoxOrLine,
         actions: &[ContextAction {
             pattern: KeyPattern::Arrows,
             display: "↑↓←→",
@@ -436,6 +438,8 @@ pub(crate) fn context_blocks(
         )
     });
     let is_connector = selected_shape.is_some_and(|s| matches!(s, Shape::Connector { .. }));
+    let is_box_or_line =
+        selected_shape.is_some_and(|s| matches!(s, Shape::Box { .. } | Shape::Line { .. }));
 
     let slice: &'static [ContextBlock] = match sub_mode {
         Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,
@@ -451,6 +455,7 @@ pub(crate) fn context_blocks(
         Condition::Box => is_box,
         Condition::HorizontalLine => is_horizontal_line,
         Condition::VerticalLine => is_vertical_line,
+        Condition::BoxOrLine => is_box_or_line,
         Condition::Connector => is_connector,
     })
 }
