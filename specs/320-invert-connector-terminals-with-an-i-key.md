@@ -1,5 +1,7 @@
 ---
-status: draft
+status: implemented
+decided: "#321"
+implemented: "#322"
 date: 2026-11-07
 ---
 
@@ -190,21 +192,35 @@ _None of it has been observed: it is what the acceptance list checks, not the re
 
 ## What proves it
 
-- Unit tests in `monospace-diagram`:
-  - `Shape::with_inverted_terminals` swaps `from.terminal` and `to.terminal` on a `Connector`.
-  - `Shape::with_inverted_terminals` leaves non-connector shapes unchanged.
-  - Geometry (`from.at`, `to.at`) is strictly preserved across attachments and absolute points.
-- Unit tests in `monospace-editing`:
-  - `Command::InvertTerminals` swaps terminals and records exactly one step in `Session`.
-  - `Command::InvertTerminals` on identical terminals produces `None` and records no step (#285).
-  - Single `Undo` restores initial terminals.
+- Unit tests in `monospace-diagram` (`crates/monospace-diagram/src/shape.rs`):
+  - `with_inverted_terminals_swaps_from_and_to_terminals_on_a_connector`: verifies swapping
+    `from.terminal` and `to.terminal` on a `Connector`.
+  - `with_inverted_terminals_on_a_box_or_line_changes_nothing`: verifies non-connector shapes
+    (`Box`, `Line`) remain unchanged.
+  - `with_inverted_terminals_preserves_endpoint_geometry_and_attachments`: verifies `from.at` and
+    `to.at` geometry, anchors, offsets, and outwards are strictly preserved across attachments and
+    absolute points.
+- Unit tests in `monospace-editing` (`crates/monospace-editing/tests/contract.rs`):
+  - `the_commands_map_to_the_operations` & `an_invert_terminals_command_changes_only_a_connector`:
+    maps `Command::InvertTerminals` to `replace` with `with_inverted_terminals()`.
+  - `inverting_terminals_swaps_terminals_and_records_one_step`: verifies `InvertTerminals` swaps
+    terminals and records exactly one step in `Session`, undone in a single step.
+  - `inverting_identical_terminals_records_no_step`: verifies `InvertTerminals` on identical
+    terminals produces `None` and records no step (#285).
+  - `inverting_terminals_on_a_box_or_nonexistent_shape_records_no_step`: verifies silence on
+    non-connectors.
 - Integration tests in `crates/monospace`:
-  - `status::status_line` reports terminals on both endpoints of `Connector`.
-  - `status::command_line` offers `INVERT: [i]` for a selected connector, and does not offer it for
-    a box or line.
-  - `assert_offer_matches_acceptance` guardian verifies `(KeyCode::Char('i'), KeyModifiers::NONE)`
-    in `ALL_POSSIBLE_CONTEXT_KEYS`.
-  - Key `'i'` on `SELECTED_CONNECTOR` executes `InvertTerminals` and repaints.
+  - `status::tests::selected_connector_shows_stroke_before_both_endpoints_and_selection_commands`:
+    verifies `status_line` reports terminals on both endpoints of `Connector`.
+  - `status::tests::the_command_row_offers_resize_for_a_box_and_a_line`: verifies `command_line`
+    offers `INVERT: [i]` for a selected connector, and not for a box or line.
+  - `diagram_widget::tests::key_acceptance_matches_contextual_bar_for_selected_connector`: guardian
+    verifies `(KeyCode::Char('i'), KeyModifiers::NONE)` in `ALL_POSSIBLE_CONTEXT_KEYS` and matches
+    acceptance.
+  - `diagram_widget::tests::pressing_i_inverts_connector_terminals_when_selected`: verifies key
+    `'i'` on `SELECTED_CONNECTOR` dispatches `Command::InvertTerminals` and is ignored otherwise.
+  - `callbacks::tests::pressing_i_on_selected_connector_inverts_terminals`: verifies pressing `'i'`
+    in the application mutates the connector terminals and records one step that undo restores.
 
 ## Open questions
 

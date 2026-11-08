@@ -344,6 +344,19 @@ fn each_command_becomes_one_of_the_diagrams_seven_operations() {
     );
 
     assert_eq!(
+        after(&Command::InvertTerminals { id: id(3) }),
+        after_operating(|diagram| {
+            let updated = diagram.get(id(3)).map(Shape::with_inverted_terminals);
+            if let Some(updated) = updated {
+                diagram.replace(id(3), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`InvertTerminals` is `replace` with the figure's terminals swapped"
+    );
+
+    assert_eq!(
         after(&Command::Hang {
             id: id(3),
             from: id(1),
@@ -1225,6 +1238,22 @@ fn a_set_text_command_changes_only_a_box() {
 }
 
 #[test]
+fn an_invert_terminals_command_changes_only_a_connector() {
+    assert_eq!(
+        after(&Command::InvertTerminals { id: id(3) }),
+        after_operating(|diagram| {
+            let updated = diagram.get(id(3)).map(Shape::with_inverted_terminals);
+            if let Some(updated) = updated {
+                diagram.replace(id(3), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`InvertTerminals` is `replace` with the figure's terminals swapped"
+    );
+}
+
+#[test]
 fn setting_the_same_text_records_no_step() {
     let text = Text::new("hi").expect("\"hi\" holds no control character");
     let with_text = Session::new(one_box(ORIGIN)).perform(Command::SetText {
@@ -1312,4 +1341,90 @@ fn each_absolute_move_is_one_step_that_undo_reverses() {
             "one undo did not reverse {command:?}"
         );
     }
+}
+
+#[test]
+fn inverting_terminals_swaps_terminals_and_records_one_step() {
+    let session = Session::new(the_fixture());
+    let before_pic = picture_in(session.diagram(), FIXTURE);
+
+    let inverted = session.perform(Command::InvertTerminals { id: id(3) });
+    assert!(inverted.can_undo(), "inverting terminals recorded no step");
+    assert!(
+        !inverted.can_redo(),
+        "inverting terminals recorded more than one step"
+    );
+
+    let Shape::Connector { from, to, .. } = inverted.diagram().get(id(3)).expect("connector")
+    else {
+        panic!("expected connector");
+    };
+    assert_eq!(
+        from.terminal,
+        Terminal::Glyph {
+            glyph: Glyph::new("▶").expect("glyph"),
+        }
+    );
+    assert_eq!(to.terminal, Terminal::Arm);
+
+    let after_pic = picture_in(inverted.diagram(), FIXTURE);
+    assert_ne!(
+        before_pic, after_pic,
+        "picture should change after terminal swap"
+    );
+
+    let undone = inverted.undo();
+    assert_eq!(
+        picture_in(undone.diagram(), FIXTURE),
+        before_pic,
+        "single undo should restore initial terminals"
+    );
+}
+
+#[test]
+fn inverting_identical_terminals_records_no_step() {
+    let mut diagram = Diagram::new();
+    diagram = diagram
+        .add(Shape::Connector {
+            from: Endpoint::absolute(Pos { x: 0, y: 0 }, Direction::Right, Terminal::Arm),
+            to: Endpoint::absolute(Pos { x: 5, y: 0 }, Direction::Left, Terminal::Arm),
+            stroke: Stroke::from("light"),
+        })
+        .0;
+
+    let session = Session::new(diagram);
+    let initial_pic = picture_in(session.diagram(), EXAMPLE);
+
+    let no_op = session.perform(Command::InvertTerminals { id: id(1) });
+    assert_eq!(
+        picture_in(no_op.diagram(), EXAMPLE),
+        initial_pic,
+        "identical terminals should not change picture"
+    );
+    assert!(
+        !no_op.can_undo(),
+        "identical terminals should record no step (#285)"
+    );
+}
+
+#[test]
+fn inverting_terminals_on_a_box_or_nonexistent_shape_records_no_step() {
+    let session = Session::new(the_fixture());
+    let initial_pic = picture_in(session.diagram(), FIXTURE);
+
+    // Box id(1)
+    let no_op_box = session.perform(Command::InvertTerminals { id: id(1) });
+    assert_eq!(picture_in(no_op_box.diagram(), FIXTURE), initial_pic);
+    assert!(
+        !no_op_box.can_undo(),
+        "inverting terminals on a box should record no step"
+    );
+
+    // Nonexistent id(99)
+    let no_op_missing = session.perform(Command::InvertTerminals { id: id(99) });
+    assert_eq!(picture_in(no_op_missing.diagram(), FIXTURE), initial_pic);
+    assert!(
+        !no_op_missing.can_undo(),
+        "inverting terminals on nonexistent shape should record no step"
+    );
 }

@@ -283,6 +283,16 @@ current text and selects all of it. Saving from the editor's `Ok` button answers
 records a step only if the text changed (saving the same text records no step). Closing the editor
 with `Esc` or `Cancel` discards edits without recording a step.
 
+**`InvertTerminals` inverts connector terminals via `Command::InvertTerminals`.** It is offered in
+the contextual command line as `INVERT: [i]` between `MOVE: ↑↓←→` and `STROKE: [s]` whenever a
+connector is selected (`SELECTED_CONNECTOR`), and pressing `i` is dispatched by the diagram region
+from the active context table as `Action::Command(Command::InvertTerminals { id })`. The session
+performs the command, swapping `from.terminal` and `to.terminal` while leaving `from.at` and `to.at`
+unchanged. Exactly one step is recorded in the session unless both endpoints share identical
+terminals (#285), in which case no step is recorded. The status row (row 0) displays each endpoint's
+terminal name and oriented glyph alongside its position. With a box or line selected, with nothing
+selected (`IDLE`), or in an ephemeral sub-mode, `i` is ignored.
+
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
 sub-mode (such as `STROKE_SELECT`) is active:
 

@@ -18,8 +18,8 @@
 //! row reports the figure's place in the order and the lower row offers the four order moves and
 //! `[Esc] Done`.
 
-use monospace_core::Footprint;
-use monospace_diagram::{Diagram, EndpointAt, Shape};
+use monospace_core::{Direction, Footprint, Terminal};
+use monospace_diagram::{Diagram, Endpoint, EndpointAt, Shape};
 use rat_theme4::StyleName;
 use rat_theme4::theme::SalsaTheme;
 use ratatui_core::buffer::Buffer;
@@ -162,8 +162,8 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
         Some((id, Shape::Connector { from, to, stroke })) => {
             let identity = format!("Connector #{id}");
             let stroke = format!("Stroke: {}", stroke.0);
-            let from = format!("1. From: {}", endpoint_text(from.at, diagram));
-            let to = format!("2. To: {}", endpoint_text(to.at, diagram));
+            let from = format!("1. From: {}", endpoint_text(from, diagram));
+            let to = format!("2. To: {}", endpoint_text(to, diagram));
             [identity, stroke, from, to].join(SEPARATOR)
         }
         None => {
@@ -182,8 +182,8 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
     }
 }
 
-fn endpoint_text(at: EndpointAt, diagram: &Diagram) -> String {
-    match at {
+fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
+    let at_text = match endpoint.at {
         EndpointAt::Reference(r) => {
             let kind = match diagram.get(r.id) {
                 Some(Shape::Box { .. }) => "Box",
@@ -202,6 +202,45 @@ fn endpoint_text(at: EndpointAt, diagram: &Diagram) -> String {
         }
         EndpointAt::Absolute { at, leaving } => {
             format!("({}, {}) [{leaving:?}]", at.x, at.y)
+        }
+    };
+
+    let term_text = terminal_text(endpoint);
+    format!("{at_text} {term_text}")
+}
+
+static CATALOG: std::sync::LazyLock<monospace_core::GlyphCatalog> =
+    std::sync::LazyLock::new(monospace_glyph_sets::all);
+
+fn terminal_text(endpoint: &Endpoint) -> String {
+    let leaving = endpoint.leaving();
+    match &endpoint.terminal {
+        Terminal::Arm => {
+            let glyph = match leaving {
+                Direction::Left | Direction::Right => "─",
+                Direction::Up | Direction::Down => "│",
+            };
+            format!("arm {glyph}")
+        }
+        Terminal::Glyph { glyph } => {
+            format!("glyph {}", glyph.as_str())
+        }
+        Terminal::Symbol { style } => {
+            let pointing = match leaving {
+                Direction::Up => monospace_core::Symbol::DirectionDown,
+                Direction::Down => monospace_core::Symbol::DirectionUp,
+                Direction::Left => monospace_core::Symbol::DirectionRight,
+                Direction::Right => monospace_core::Symbol::DirectionLeft,
+            };
+            let key = monospace_core::SymbolCell {
+                symbol: pointing,
+                style: style.clone(),
+            };
+            if let Some(glyph) = CATALOG.symbol(&key) {
+                format!("{name} {glyph}", name = style.0, glyph = glyph.as_str())
+            } else {
+                style.0.clone()
+            }
         }
     }
 }
@@ -505,11 +544,11 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] · 2. To: Box #2 [Bottom (1, 0) out:1]"
+            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Bottom (1, 0) out:1] arm │"
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -528,7 +567,28 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #1 · Stroke: light · 1. From: (1, 2) [Right] · 2. To: (5, 6) [Left]"
+            "Connector #1 · Stroke: light · 1. From: (1, 2) [Right] arm ─ · 2. To: (5, 6) [Left] arm ─"
+        );
+
+        let mut state = a_state_over(
+            r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 20, "y": 0 }, "size": { "width": 6, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "symbol", "style": "solid" } },
+                  "stroke": "light" }
+            ]
+        }"#,
+        );
+        state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
+        assert_eq!(
+            status_line(&state),
+            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Left (0, 0) out:0] solid ▶"
         );
     }
 
@@ -612,7 +672,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 

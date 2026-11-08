@@ -833,7 +833,7 @@ mod tests {
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 22] = [
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 23] = [
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -847,6 +847,7 @@ mod tests {
         (KeyCode::PageUp, KeyModifiers::NONE),
         (KeyCode::PageDown, KeyModifiers::NONE),
         (KeyCode::Char('t'), KeyModifiers::NONE),
+        (KeyCode::Char('i'), KeyModifiers::NONE),
         (KeyCode::Char('s'), KeyModifiers::NONE),
         (KeyCode::Char('z'), KeyModifiers::NONE),
         (KeyCode::Char('1'), KeyModifiers::NONE),
@@ -988,6 +989,42 @@ mod tests {
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_connector() {
         assert_offer_matches_acceptance(A_CONNECTOR, Some(1), None);
+    }
+
+    #[test]
+    fn pressing_i_inverts_connector_terminals_when_selected() {
+        let mut state = a_state_over(A_CONNECTOR);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(
+            answer,
+            Reply::Act(Action::Command(Command::InvertTerminals { id }))
+        );
+
+        // Pressing i when a box is selected is ignored.
+        let mut box_state = a_state_over(A_BOX);
+        box_state.select(Some(id));
+        let box_answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE)),
+            &mut box_state,
+            Focus::Region,
+        );
+        assert_eq!(box_answer, Reply::Ignored);
+
+        // Pressing i when nothing is selected is ignored.
+        let mut idle_state = a_state_over(A_CONNECTOR);
+        let idle_answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE)),
+            &mut idle_state,
+            Focus::Region,
+        );
+        assert_eq!(idle_answer, Reply::Ignored);
     }
 
     /// **In `STROKE_SELECT`, key acceptance matches what the contextual bar offers**: the bar offers
