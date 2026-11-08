@@ -2,7 +2,7 @@
 //! it stands. See the _Vocabulary_ rows for `Session` and for `Position`, and §4 and §6 of
 //! [`docs/editing-model.md`](../../../docs/editing-model.md).
 
-use monospace_diagram::Diagram;
+use monospace_diagram::{Diagram, Shape, ShapeId};
 use rpds::VectorSync;
 
 use crate::utilities::kept_first;
@@ -265,5 +265,34 @@ impl Session {
             steps,
             position: self.position + 1,
         }
+    }
+
+    /// Adds `shape` to the diagram this session holds, assigns it a [`ShapeId`], records the
+    /// resulting diagram as a step, and hands back the new session beside the assigned identity.
+    ///
+    /// **This session is not changed**, for the reason every method here gives: a new session is
+    /// returned holding the step ahead and the original is left intact.
+    ///
+    /// **The step records `Command::Add { shape }` and the diagram `add` produced**, so
+    /// [`undo`](Session::undo) gives the diagram back without the added figure and
+    /// [`redo`](Session::redo) restores it.
+    ///
+    /// **What was ahead of the position is discarded**, exactly as in
+    /// [`perform`](Session::perform): a branch is cut when a new figure is added from behind the
+    /// end of the history.
+    #[must_use]
+    pub fn add(&self, shape: Shape) -> (Self, ShapeId) {
+        let (made, id) = self.diagram().add(shape.clone());
+        let mut steps = kept_first(&self.steps, self.position);
+        steps.push_back_mut(Step::new(Command::Add { shape }, made));
+
+        (
+            Self {
+                initial_diagram: self.initial_diagram.clone(),
+                steps,
+                position: self.position + 1,
+            },
+            id,
+        )
     }
 }

@@ -5,8 +5,9 @@
 //!
 //! **In IDLE**, the upper row reports the application name and version, the drawing's footprint,
 //! the count of shapes, and the viewport origin; the lower row offers
-//! `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when the diagram holds at least one figure
-//! and is empty when it has no figures.
+//! `CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick`
+//! when the diagram holds at least one figure and `CREATE: [b] Box [l] Line [c] Connector` when it
+//! has no figures.
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
 //! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Tab] Next
@@ -410,7 +411,10 @@ mod tests {
             status_line(&empty_state),
             format!("{NAME} {VERSION} · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)")
         );
-        assert_eq!(command_line(&empty_state), "");
+        assert_eq!(
+            command_line(&empty_state),
+            "CREATE: [b] Box [l] Line [c] Connector"
+        );
 
         let single_box = a_state_over(
             r#"{
@@ -425,7 +429,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&single_box),
-            "SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
+            "CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
         );
 
         let two_shapes = a_state_over(
@@ -464,7 +468,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
+            "CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
         );
     }
 
@@ -676,7 +680,7 @@ mod tests {
                           "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
         }"#,
         );
-        let area = Rect::new(0, 0, 80, 2);
+        let area = Rect::new(0, 0, 100, 2);
         let mut buffer = Buffer::empty(area);
         draw(area, &mut buffer, &state, &Config::default().theme);
 
@@ -725,7 +729,7 @@ mod tests {
         let mut state = a_state_over(text);
         assert_eq!(
             command_line(&state),
-            "SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
+            "CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
@@ -1015,7 +1019,10 @@ mod tests {
     #[test]
     fn idle_command_row_offers_tab_and_shift_tab_only_when_diagram_has_shapes() {
         let empty = a_state_over(r#"{ "next_id": 1, "shapes": [] }"#);
-        assert_eq!(command_line(&empty), "");
+        assert_eq!(
+            command_line(&empty),
+            "CREATE: [b] Box [l] Line [c] Connector"
+        );
 
         let populated = a_state_over(
             r#"{
@@ -1026,7 +1033,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&populated),
-            "SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
+            "CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
         );
     }
 

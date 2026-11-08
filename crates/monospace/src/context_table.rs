@@ -222,6 +222,12 @@ pub(crate) enum ContextMeaning {
     SelectNext,
     /// Selects the previous figure in drawing order (`Diagram::shapes()`, front-to-back).
     SelectPrevious,
+    /// Creates a 5×5 box at viewport center and selects it.
+    CreateBox,
+    /// Creates a vertical line of length 5 at viewport center and selects it.
+    CreateLine,
+    /// Creates a detached connector at viewport center and selects it.
+    CreateConnector,
 }
 
 /// One contextual action offered by a block.
@@ -238,22 +244,45 @@ pub(crate) struct ContextBlock {
     pub(crate) actions: &'static [ContextAction],
 }
 
-static IDLE: &[ContextBlock] = &[ContextBlock {
-    category: Some("SELECT"),
-    condition: Condition::HasShapes,
-    actions: &[
-        ContextAction {
-            pattern: KeyPattern::Code(KeyCode::Tab),
-            display: "[Tab] Next",
-            meaning: ContextMeaning::SelectNext,
-        },
-        ContextAction {
-            pattern: KeyPattern::BackTab,
-            display: "[Shift+Tab] Prev",
-            meaning: ContextMeaning::SelectPrevious,
-        },
-    ],
-}];
+static IDLE: &[ContextBlock] = &[
+    ContextBlock {
+        category: Some("CREATE"),
+        condition: Condition::Always,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::Char('b'),
+                display: "[b] Box",
+                meaning: ContextMeaning::CreateBox,
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('l'),
+                display: "[l] Line",
+                meaning: ContextMeaning::CreateLine,
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('c'),
+                display: "[c] Connector",
+                meaning: ContextMeaning::CreateConnector,
+            },
+        ],
+    },
+    ContextBlock {
+        category: Some("SELECT"),
+        condition: Condition::HasShapes,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::Code(KeyCode::Tab),
+                display: "[Tab] Next",
+                meaning: ContextMeaning::SelectNext,
+            },
+            ContextAction {
+                pattern: KeyPattern::BackTab,
+                display: "[Shift+Tab] Prev",
+                meaning: ContextMeaning::SelectPrevious,
+            },
+        ],
+    },
+];
 
 static SELECTION: &[ContextBlock] = &[
     ContextBlock {
@@ -829,7 +858,7 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
             result.push_str(action.display);
         }
     }
-    if !result.is_empty() && state.selected_shape().is_none() {
+    if state.session().diagram().shape_count() > 0 && state.selected_shape().is_none() {
         result.push_str(" [Click] Pick");
     }
     result
@@ -1007,6 +1036,18 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
             } else {
                 Reply::Consumed
             }
+        }
+        ContextMeaning::CreateBox => {
+            state.create_box();
+            Reply::Repaint
+        }
+        ContextMeaning::CreateLine => {
+            state.create_line();
+            Reply::Repaint
+        }
+        ContextMeaning::CreateConnector => {
+            state.create_connector();
+            Reply::Repaint
         }
         ContextMeaning::MoveEndpoint
         | ContextMeaning::AdjustEndpointOut(_)

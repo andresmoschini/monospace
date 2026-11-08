@@ -441,8 +441,8 @@ mod tests {
             "the status bar says nothing: {status_bar:?}"
         );
         assert!(
-            command_bar.trim().is_empty(),
-            "the command bar is not empty when diagram has no shapes: {command_bar:?}"
+            command_bar.starts_with("CREATE: [b] Box [l] Line [c] Connector"),
+            "the command bar offers shape creation when diagram has no shapes: {command_bar:?}"
         );
     }
 
@@ -1211,8 +1211,8 @@ mod tests {
             "the status bar says nothing: {status_bar:?}"
         );
         assert!(
-            command_bar.trim().is_empty(),
-            "the command bar is not empty when diagram has no shapes: {command_bar:?}"
+            command_bar.starts_with("CREATE: [b] Box [l] Line [c] Connector"),
+            "the command bar offers shape creation when diagram has no shapes: {command_bar:?}"
         );
 
         snap(

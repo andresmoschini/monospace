@@ -13,6 +13,6 @@ File Edit Help
 │    │    └──┘    │    ▲               ▼
 └◄██████████████████████████████══════►┘
 monospace 0.1.0 · Footprint: 46×17 at 0,
-SELECT: [Tab] Next [Shift+Tab] Prev [Cli
+CREATE: [b] Box [l] Line [c] Connector ·
 the bar is 1 row, the region is 7 rows and the status is 2 rows
-268 of 400 cells are not blank
+266 of 400 cells are not blank

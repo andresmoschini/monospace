@@ -848,11 +848,14 @@ mod tests {
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 31] = [
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 34] = [
         (KeyCode::Tab, KeyModifiers::NONE),
         (KeyCode::BackTab, KeyModifiers::SHIFT),
         (KeyCode::BackTab, KeyModifiers::NONE),
         (KeyCode::Tab, KeyModifiers::SHIFT),
+        (KeyCode::Char('b'), KeyModifiers::NONE),
+        (KeyCode::Char('l'), KeyModifiers::NONE),
+        (KeyCode::Char('c'), KeyModifiers::NONE),
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -1967,5 +1970,68 @@ mod tests {
                 crate::diagram_state::End::From,
             )),
         );
+    }
+
+    #[test]
+    fn pressing_b_l_c_in_idle_creates_shapes_selects_and_repaints() {
+        use monospace_diagram::Shape;
+
+        const EMPTY: &str = r#"{ "next_id": 1, "shapes": [] }"#;
+        let mut state = a_state_over(EMPTY);
+        let b = Event::Key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
+        let l = Event::Key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        let c = Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
+        let esc = Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+
+        assert_eq!(handle(&b, &mut state, Focus::Region), Reply::Repaint);
+        let box_id = state.selected().expect("shape selected after b");
+        assert!(matches!(state.selected_shape(), Some(Shape::Box { .. })));
+        assert_eq!(state.sub_mode(), None);
+
+        // Deselect back to IDLE
+        assert_eq!(handle(&esc, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected(), None);
+
+        assert_eq!(handle(&l, &mut state, Focus::Region), Reply::Repaint);
+        let line_id = state.selected().expect("shape selected after l");
+        assert_ne!(line_id, box_id);
+        assert!(matches!(state.selected_shape(), Some(Shape::Line { .. })));
+        assert_eq!(state.sub_mode(), None);
+
+        // Deselect back to IDLE
+        assert_eq!(handle(&esc, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected(), None);
+
+        assert_eq!(handle(&c, &mut state, Focus::Region), Reply::Repaint);
+        let conn_id = state.selected().expect("shape selected after c");
+        assert_ne!(conn_id, line_id);
+        assert!(matches!(
+            state.selected_shape(),
+            Some(Shape::Connector { .. })
+        ));
+        assert_eq!(state.sub_mode(), None);
+    }
+
+    #[test]
+    fn pressing_b_l_c_while_shape_is_selected_is_ignored() {
+        let mut state = a_state_over(A_BOX);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id1));
+
+        let b = Event::Key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
+        let l = Event::Key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        let c = Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
+
+        assert_eq!(handle(&b, &mut state, Focus::Region), Reply::Ignored);
+        assert_eq!(handle(&l, &mut state, Focus::Region), Reply::Ignored);
+        assert_eq!(handle(&c, &mut state, Focus::Region), Reply::Ignored);
+        assert_eq!(state.selected(), Some(id1));
+        assert_eq!(state.session().diagram().shape_count(), 1);
+    }
+
+    #[test]
+    fn key_acceptance_matches_contextual_bar_in_idle_on_empty_diagram() {
+        const EMPTY: &str = r#"{ "next_id": 1, "shapes": [] }"#;
+        assert_offer_matches_acceptance(EMPTY, None, None);
     }
 }

@@ -218,28 +218,22 @@ contextual dock remains visible but frozen with the canvas state from the preced
 
 No figure is selected. The user is navigating the diagram or inspecting the canvas.
 
-- **Status:** Implemented (`SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when diagram has
-  shapes via [#307](https://github.com/andresmoschini/monospace/issues/307); empty line when 0
-  shapes). Planned: direct shape creation (`[b] Box [l] Line [c] Connector`,
-  [#308](https://github.com/andresmoschini/monospace/issues/308)).
-
-```text
-monospace 0.1.0 · Footprint: 46×17 at 0,0 · 27 shapes · Viewport: (0, 0)
-SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick
-```
-
-_When the diagram is empty (`0 shapes`), `Condition::HasShapes` is false and row 1 is empty:_
-
-```text
-monospace 0.1.0 · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)
-
-```
-
-_Planned target with shape creation:_
+- **Status:** Implemented (`CREATE: [b] Box [l] Line [c] Connector` unconditionally via
+  [#308](https://github.com/andresmoschini/monospace/issues/308);
+  `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when diagram has shapes via
+  [#307](https://github.com/andresmoschini/monospace/issues/307)).
 
 ```text
 monospace 0.1.0 · Footprint: 46×17 at 0,0 · 27 shapes · Viewport: (0, 0)
 CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick
+```
+
+_When the diagram is empty (`0 shapes`), `Condition::HasShapes` is false and row 1 offers creation
+alone:_
+
+```text
+monospace 0.1.0 · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)
+CREATE: [b] Box [l] Line [c] Connector
 ```
 
 - **Behavior:** Unselected arrow keys return `Reply::Ignored`. On a non-empty diagram, `Tab` selects
@@ -512,6 +506,8 @@ The settled architectural foundations backing the contextual interface are:
   [#320](https://github.com/andresmoschini/monospace/issues/320)
 - **Selection cycling with `Tab` and `Shift+Tab`:**
   [#307](https://github.com/andresmoschini/monospace/issues/307)
+- **Direct shape creation from `IDLE` (`b`, `l`, `c`):**
+  [#308](https://github.com/andresmoschini/monospace/issues/308)
 
 ---
 
@@ -571,8 +567,9 @@ flow, and terminal behavior before designing or building higher-complexity workf
 - **Defining and changing connector attachments:** Evaluating keyboard attachment selection
   (`ATTACH_PICK` via `Tab` candidate cycling and `1..=4` face selection) vs. direct mouse click
   attachment, and the two-click interactive connection wizard (`CONNECT_WIZARD`).
-- **Interactive shape creation on the canvas (`[b]`, `[l]`, `[c]`):** Assessing direct keyboard
-  insertion centered in the current viewport vs. placement modes or mouse drawing.
+- **Interactive shape creation on the canvas (`[b]`, `[l]`, `[c]`,
+  [#308](https://github.com/andresmoschini/monospace/issues/308)) [Implemented]:** Direct keyboard
+  creation of default figures (`b` Box, `l` Line, `c` Connector) at viewport center `C` in `IDLE`.
 - **Extended glyph palette modal (`[m]` / `GLYPH_PALETTE_DIALOG`):** Evaluating grid navigation and
   custom Unicode grapheme input for fill patterns and terminal heads.
 - **Dynamic multi-line dock wrapping
