@@ -3,7 +3,7 @@
 //! [`docs/editing-model.md`](../../../docs/editing-model.md).
 
 use monospace_diagram::{
-    Anchor, Delta, Diagram, Endpoint, Reference, Shape, ShapeId, Stroke, Text,
+    Anchor, Delta, Diagram, End, Endpoint, Reference, Shape, ShapeId, Stroke, Text,
 };
 
 /// One thing a caller means to do to a diagram.
@@ -60,6 +60,24 @@ pub enum Command {
     InvertTerminals {
         /// The connector whose terminals are being inverted.
         id: ShapeId,
+    },
+    /// The connector's endpoint specified by `end` goes `by` and adjusts standoff by `out`.
+    MoveEndpoint {
+        /// The connector whose endpoint is being moved.
+        id: ShapeId,
+        /// Which endpoint is targeted (`From` or `To`).
+        end: End,
+        /// How far to move the endpoint along screen axes.
+        by: Delta,
+        /// How far outward to adjust standoff.
+        out: i16,
+    },
+    /// The connector's endpoint specified by `end` has its offset and standoff reset to zero.
+    ResetEndpoint {
+        /// The connector whose endpoint is being reset.
+        id: ShapeId,
+        /// Which endpoint is targeted (`From` or `To`).
+        end: End,
     },
     /// The `from` end of a connector hangs from one of `from`'s four sides.
     Hang {
@@ -137,6 +155,12 @@ impl Command {
                 changed(diagram, id, |shape| shape.with_text(text))
             }
             Self::InvertTerminals { id } => changed(diagram, id, Shape::with_inverted_terminals),
+            Self::MoveEndpoint { id, end, by, out } => {
+                changed(diagram, id, |shape| shape.with_endpoint_moved(end, by, out))
+            }
+            Self::ResetEndpoint { id, end } => {
+                changed(diagram, id, |shape| shape.with_endpoint_reset(end))
+            }
             Self::Hang { id, from, anchor } => changed(diagram, id, |shape| match shape {
                 Shape::Connector {
                     from: end,

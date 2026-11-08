@@ -561,7 +561,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -602,6 +602,28 @@ mod tests {
         assert_eq!(
             status_line(&state),
             "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Left (0, 0) out:0] solid ▶"
+        );
+    }
+
+    #[test]
+    fn selected_connector_omits_move_and_starts_with_endpoints() {
+        let text = r#"{
+            "next_id": 2,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 1, "y": 2 }, "leaving": "right",
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 5, "y": 6 }, "leaving": "left",
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            command_line(&state),
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -685,7 +707,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -763,13 +785,50 @@ mod tests {
             status_line(&state),
             "ENDPOINT 1. From of Connector #2 · Box #1 [Right (0, 0) out:0] · Term: arm ─"
         );
-        assert_eq!(command_line(&state), "[2] To · [Esc] Done");
+        assert_eq!(
+            command_line(&state),
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [2] To · [Esc] Done"
+        );
 
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             status_line(&state),
             "ENDPOINT 2. To of Connector #2 · Detached (20, 5) [Left] · Term: solid ▶"
         );
-        assert_eq!(command_line(&state), "[1] From · [Esc] Done");
+        assert_eq!(command_line(&state), "MOVE: ↑↓←→ · [1] From · [Esc] Done");
+    }
+
+    #[test]
+    fn endpoint_sub_mode_offers_offset_out_and_conditional_reset() {
+        let text = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 4 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 20, "y": 0 }, "size": { "width": 8, "height": 4 }, "stroke": "light" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "top", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left", "offset": { "dx": 0, "dy": 1 }, "out": 2 },
+                            "terminal": { "kind": "symbol", "style": "solid" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
+
+        // From: Top anchor, offset 0, out 0 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [2] To · [Esc] Done (no reset)
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_eq!(
+            command_line(&state),
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [2] To · [Esc] Done"
+        );
+
+        // To: Left anchor, offset 1, out 2 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done
+        state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        assert_eq!(
+            command_line(&state),
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done"
+        );
     }
 }

@@ -31,5 +31,6 @@ mod step;
 mod utilities;
 
 pub use command::Command;
+pub use monospace_diagram::End;
 pub use session::Session;
 pub(crate) use step::Step;

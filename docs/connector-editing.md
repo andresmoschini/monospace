@@ -175,13 +175,15 @@ keystrokes directly mutate endpoint properties:
 
 ```text
 ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 0) out:0] · Term: solid ▶
-OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
+OFFSET: ↑↓←→ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
 ```
+
+When `offset != (0, 0)` or `out != 0`, `[r] Reset` appears after `OUT: [+] [-]`.
 
 | Key       | Action / Command                                                          | History Step                                                  |
 | :-------- | :------------------------------------------------------------------------ | :------------------------------------------------------------ |
-| `↑↓←→`    | Adjust tangential `offset` along face perimeter (clamped to face span)    | One step per press                                            |
-| `+` / `-` | Increment / decrement orthogonal standoff `out`                           | One step per press (`-` at `0` is a silent no-op)             |
+| `↑↓←→`    | Adjust `offset` (`dx`, `dy`) relative to the anchor point                 | One step per press                                            |
+| `+` / `-` | Increment / decrement orthogonal standoff `out`                           | One step per press (negative values permitted)                |
 | `r`       | Reset `offset` to `(0, 0)` and `out` to `0`                               | One step (offered only when `offset != (0, 0)` or `out != 0`) |
 | `0`       | Detach endpoint to `Absolute` at current resolved coordinates             | One step                                                      |
 | `t`       | Open discrete `TERMINAL_SELECT`                                           | None (sub-mode)                                               |
@@ -192,23 +194,21 @@ OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t
 ### 2.3 ENDPOINT_EDIT (Detached endpoint)
 
 When the active endpoint is detached (`Position::Absolute`), Row 0 displays its canvas coordinates
-and leaving direction, and the bar adapts its commands:
+and leaving direction, and the bar adapts its commands (omitting `OUT` and `Reset`):
 
 ```text
 ENDPOINT 2. To of Connector #4 · Detached (40, 12) [Up] · Term: arrow ↓
-MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [r] Reset · [1] From · [Esc] Done
+MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
-| Key       | Action / Command                                                   | History Step                                      |
-| :-------- | :----------------------------------------------------------------- | :------------------------------------------------ |
-| `↑↓←→`    | Move absolute coordinates `Pos(x, y)` across the canvas            | One step per press                                |
-| `+` / `-` | Increment / decrement orthogonal standoff `out`                    | One step per press (`-` at `0` is a silent no-op) |
-| `d`       | Open discrete `LEAVING_SELECT`                                     | None (sub-mode)                                   |
-| `t`       | Open discrete `TERMINAL_SELECT`                                    | None (sub-mode)                                   |
-| `r`       | Reset `out` to `0`                                                 | One step (offered only when `out > 0`)            |
-| `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`)                   | None                                              |
-| `Esc`     | Return to `SELECTED_CONNECTOR` (`Done`)                            | None                                              |
-| `a`       | Attach endpoint to shape via `ATTACH_PICK` (_Deferred to Stage 3_) | None (sub-mode)                                   |
+| Key       | Action / Command                                                   | History Step       |
+| :-------- | :----------------------------------------------------------------- | :----------------- |
+| `↑↓←→`    | Move absolute coordinates `Pos(x, y)` across the canvas            | One step per press |
+| `d`       | Open discrete `LEAVING_SELECT`                                     | None (sub-mode)    |
+| `t`       | Open discrete `TERMINAL_SELECT`                                    | None (sub-mode)    |
+| `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`)                   | None               |
+| `Esc`     | Return to `SELECTED_CONNECTOR` (`Done`)                            | None               |
+| `a`       | Attach endpoint to shape via `ATTACH_PICK` (_Deferred to Stage 3_) | None (sub-mode)    |
 
 ### 2.4 TERMINAL_SELECT
 
@@ -411,7 +411,7 @@ downward:
 
    ```text
    ENDPOINT 2. To of Connector #4 · Detached (20, 5) [Left] · Term: solid ◀
-   MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
+   MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
 2. Author presses `↓` three times to move the open point lower on the canvas.
@@ -427,7 +427,7 @@ downward:
 
    ```text
    ENDPOINT 2. To of Connector #4 · Detached (20, 8) [Up] · Term: solid ↓
-   MOVE: ↑↓←→ · OUT: [+] [-] · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
+   MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
 ### 4.3 Changing endpoint terminals and swapping them with i

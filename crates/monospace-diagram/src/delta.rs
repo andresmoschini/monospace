@@ -37,6 +37,9 @@ impl From<(i16, i16)> for Delta {
 }
 
 impl Delta {
+    /// A delta of zero on both axes.
+    pub const ZERO: Self = Self { dx: 0, dy: 0 };
+
     /// Moves `at` by this delta, one axis at a time.
     ///
     /// One of the two additions in this crate — [`Delta::grow`] is the other — and it saturates

@@ -19,6 +19,15 @@ use monospace_core::{
 use crate::position::{flat_size, side_centre};
 use crate::{Anchor, Delta, Diagram, Position, Reference, ShapeId};
 
+/// Which endpoint of a connector an operation targets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum End {
+    /// The starting endpoint (`from`).
+    From,
+    /// The ending endpoint (`to`).
+    To,
+}
+
 /// Where a connector endpoint stands and which way it leaves.
 ///
 /// An endpoint is either an absolute point on the canvas (which states its own leaving direction)
@@ -571,6 +580,95 @@ impl Shape {
         }
     }
 
+    /// Produces a copy of `self` with the targeted [`End`] moved by `by` cells and standoff
+    /// adjusted by `out`.
+    ///
+    /// Non-connector figures have no endpoints and come back unchanged.
+    ///
+    /// For a connector:
+    /// - If the targeted endpoint is [`EndpointAt::Absolute`], its `at` is displaced by `by`, `out`
+    ///   is ignored, and its leaving direction and terminal are preserved.
+    /// - If the targeted endpoint is [`EndpointAt::Reference`], its `offset` is grown by `by` on
+    ///   both axes and its standoff `out` is adjusted by `out` using saturating arithmetic.
+    #[must_use]
+    pub fn with_endpoint_moved(&self, end: End, by: Delta, out: i16) -> Self {
+        let Self::Connector { from, to, stroke } = self else {
+            return self.clone();
+        };
+
+        let move_endpoint = |ep: &Endpoint| -> Endpoint {
+            match ep.at {
+                EndpointAt::Absolute { at, leaving } => Endpoint {
+                    at: EndpointAt::Absolute {
+                        at: by.apply(at),
+                        leaving,
+                    },
+                    terminal: ep.terminal.clone(),
+                },
+                EndpointAt::Reference(reference) => Endpoint {
+                    at: EndpointAt::Reference(Reference {
+                        id: reference.id,
+                        anchor: reference.anchor,
+                        offset: reference.offset.grow(by),
+                        out: reference.out.saturating_add(out),
+                    }),
+                    terminal: ep.terminal.clone(),
+                },
+            }
+        };
+
+        match end {
+            End::From => Self::Connector {
+                from: move_endpoint(from),
+                to: to.clone(),
+                stroke: stroke.clone(),
+            },
+            End::To => Self::Connector {
+                from: from.clone(),
+                to: move_endpoint(to),
+                stroke: stroke.clone(),
+            },
+        }
+    }
+
+    /// This figure with the offset and standoff `out` of the targeted endpoint reset to zero.
+    ///
+    /// Non-connector figures and connectors with an absolute targeted endpoint come back unchanged.
+    /// When the targeted endpoint is an attached [`EndpointAt::Reference`], its `offset` is set to
+    /// `Delta::ZERO` and its `out` is set to `0`, leaving all other parameters and the other endpoint
+    /// untouched.
+    #[must_use]
+    pub fn with_endpoint_reset(&self, end: End) -> Self {
+        let Self::Connector { from, to, stroke } = self else {
+            return self.clone();
+        };
+
+        let reset_endpoint = |ep: &Endpoint| match ep.at {
+            EndpointAt::Reference(reference) => Endpoint {
+                at: EndpointAt::Reference(Reference {
+                    offset: Delta::ZERO,
+                    out: 0,
+                    ..reference
+                }),
+                terminal: ep.terminal.clone(),
+            },
+            EndpointAt::Absolute { .. } => ep.clone(),
+        };
+
+        match end {
+            End::From => Self::Connector {
+                from: reset_endpoint(from),
+                to: to.clone(),
+                stroke: stroke.clone(),
+            },
+            End::To => Self::Connector {
+                from: from.clone(),
+                to: reset_endpoint(to),
+                stroke: stroke.clone(),
+            },
+        }
+    }
+
     /// This figure with every reference **naming `id`** replaced by the point it was resolving to,
     /// or `None` when this figure holds no such reference and nothing changed.
     ///
@@ -639,7 +737,9 @@ fn clamp_dimension(current: u16, delta: i16, floor: u16) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Delta, Endpoint, EndpointAt, Shape};
+    use std::num::NonZeroU16;
+
+    use super::{Delta, End, Endpoint, EndpointAt, Shape};
     use crate::{Anchor, Diagram, Reference, ShapeId};
     use monospace_core::{
         Buffer, CellReader, Direction, FigureLayer, Glyph, GlyphCatalog, Orientation, Pos, Size,
@@ -1907,5 +2007,158 @@ mod tests {
             render(&buf_junctions, &catalog, window),
             concat!("┌─┐     ┌─┐\n", "│ ├─────┤ │\n", "└─┘     └─┘\n")
         );
+    }
+
+    #[test]
+    fn with_endpoint_moved_adjusts_attached_offset_on_both_axes_without_clamping() {
+        let connector = Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(
+                    ShapeId::new(NonZeroU16::new(1).unwrap()),
+                    Anchor::Top,
+                    Delta::ZERO,
+                    0,
+                ),
+                Terminal::Arm,
+            ),
+            to: Endpoint::absolute(Pos { x: 20, y: 0 }, Direction::Down, Terminal::Arm),
+            stroke: light(),
+        };
+
+        // Move horizontally and vertically without clamping or orientation gating
+        let moved = connector.with_endpoint_moved(End::From, Delta { dx: 15, dy: -8 }, 0);
+        let Shape::Connector { ref from, .. } = moved else {
+            panic!()
+        };
+        let EndpointAt::Reference(ref r) = from.at else {
+            panic!()
+        };
+        assert_eq!(r.offset, Delta { dx: 15, dy: -8 });
+
+        // Further adjustment accumulates freely on both axes
+        let moved_more = moved.with_endpoint_moved(End::From, Delta { dx: -5, dy: 10 }, 0);
+        let Shape::Connector { from, .. } = moved_more else {
+            panic!()
+        };
+        let EndpointAt::Reference(ref r) = from.at else {
+            panic!()
+        };
+        assert_eq!(r.offset, Delta { dx: 10, dy: 2 });
+    }
+
+    #[test]
+    fn with_endpoint_moved_displaces_detached_endpoint_on_both_axes() {
+        let connector = Shape::Connector {
+            from: Endpoint::absolute(Pos { x: 5, y: 10 }, Direction::Right, Terminal::Arm),
+            to: Endpoint::absolute(Pos { x: 20, y: 30 }, Direction::Left, Terminal::Arm),
+            stroke: light(),
+        };
+
+        let moved = connector.with_endpoint_moved(End::From, Delta { dx: 2, dy: -3 }, 5);
+        let Shape::Connector { from, to, stroke } = moved else {
+            panic!()
+        };
+        assert_eq!(
+            from,
+            Endpoint::absolute(Pos { x: 7, y: 7 }, Direction::Right, Terminal::Arm)
+        );
+        assert_eq!(
+            to,
+            Endpoint::absolute(Pos { x: 20, y: 30 }, Direction::Left, Terminal::Arm)
+        );
+        assert_eq!(stroke, light());
+    }
+
+    #[test]
+    fn with_endpoint_moved_adjusts_out_including_negative_values() {
+        let connector = Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(
+                    ShapeId::new(NonZeroU16::new(1).unwrap()),
+                    Anchor::Top,
+                    Delta::ZERO,
+                    0,
+                ),
+                Terminal::Arm,
+            ),
+            to: Endpoint::absolute(Pos { x: 20, y: 0 }, Direction::Down, Terminal::Arm),
+            stroke: light(),
+        };
+
+        // Increment out
+        let moved_plus = connector.with_endpoint_moved(End::From, Delta::ZERO, 2);
+        let Shape::Connector { from, .. } = moved_plus else {
+            panic!()
+        };
+        let EndpointAt::Reference(ref r) = from.at else {
+            panic!()
+        };
+        assert_eq!(r.out, 2);
+
+        // Negative out is permitted
+        let moved_neg = connector.with_endpoint_moved(End::From, Delta::ZERO, -3);
+        let Shape::Connector { from, .. } = moved_neg else {
+            panic!()
+        };
+        let EndpointAt::Reference(ref r) = from.at else {
+            panic!()
+        };
+        assert_eq!(r.out, -3);
+    }
+
+    #[test]
+    fn with_endpoint_reset_clears_offset_and_out_on_targeted_reference_only() {
+        let box_id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let connector = Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(box_id, Anchor::Top, Delta { dx: 2, dy: 0 }, 3),
+                Terminal::Arm,
+            ),
+            to: Endpoint::reference(
+                Reference::new(box_id, Anchor::Left, Delta { dx: 0, dy: -1 }, -2),
+                Terminal::Arm,
+            ),
+            stroke: light(),
+        };
+
+        // Reset From
+        let reset_from = connector.with_endpoint_reset(End::From);
+        let Shape::Connector { from, to, .. } = reset_from else {
+            panic!()
+        };
+        let EndpointAt::Reference(ref r_from) = from.at else {
+            panic!()
+        };
+        let EndpointAt::Reference(ref r_to) = to.at else {
+            panic!()
+        };
+        assert_eq!(r_from.offset, Delta::ZERO);
+        assert_eq!(r_from.out, 0);
+        assert_eq!(r_to.offset, Delta { dx: 0, dy: -1 });
+        assert_eq!(r_to.out, -2);
+
+        // Reset To
+        let reset_to = connector.with_endpoint_reset(End::To);
+        let Shape::Connector { from, to, .. } = reset_to else {
+            panic!()
+        };
+        let EndpointAt::Reference(ref r_from) = from.at else {
+            panic!()
+        };
+        let EndpointAt::Reference(ref r_to) = to.at else {
+            panic!()
+        };
+        assert_eq!(r_from.offset, Delta { dx: 2, dy: 0 });
+        assert_eq!(r_from.out, 3);
+        assert_eq!(r_to.offset, Delta::ZERO);
+        assert_eq!(r_to.out, 0);
+
+        // Resetting an absolute endpoint is no change
+        let absolute_conn = Shape::Connector {
+            from: Endpoint::absolute(Pos { x: 1, y: 1 }, Direction::Up, Terminal::Arm),
+            to: Endpoint::absolute(Pos { x: 5, y: 5 }, Direction::Down, Terminal::Arm),
+            stroke: light(),
+        };
+        assert_eq!(absolute_conn.with_endpoint_reset(End::From), absolute_conn);
     }
 }
