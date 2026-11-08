@@ -498,9 +498,27 @@ back unchanged. Swapping leaves `from.at` and `to.at` unchanged, preserving anch
 offsets, outward clearance, and absolute positions. Giving a connector whose endpoints already share
 identical terminals an inversion is an equal value, and the editing layer records no step.
 
-Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke`, `Shape::with_text` and
-`Shape::with_inverted_terminals` are the five figure mutations: each produces a new shape value, so
-looking up a figure and replacing it with the modified copy is the complete operation.
+Moving a connector's endpoint is a replacement too: `with_endpoint_moved` produces a new connector
+with the targeted endpoint (`End::From` or `End::To`) moved by a delta and adjusted outward by
+standoff `out`. Only a connector has endpoints; a box and a line come back unchanged. When the
+targeted endpoint is absolute, its point `at` is displaced by the delta, ignoring `out` and
+preserving leaving direction and terminal. When the targeted endpoint is attached to another shape
+in the diagram, the tangential offset is displaced by the delta and clamped to the extent of the
+referenced shape's face around its side center, orthogonal offset is preserved, and `out` is
+adjusted using saturating arithmetic. Nudging past the corner or against a boundary produces an
+equal shape value.
+
+Resetting a connector's endpoint is a replacement too: `with_endpoint_reset` produces a new
+connector with `offset` reset to `Delta::ZERO` and `out` reset to `0` on the targeted endpoint
+(`End::From` or `End::To`), leaving the other endpoint and all other parameters untouched. Only a
+connector with an attached endpoint is changed; a connector with an absolute endpoint and
+non-connector figures come back unchanged. Resetting an endpoint whose offset and out are already
+zero produces an equal shape value.
+
+Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke`, `Shape::with_text`,
+`Shape::with_inverted_terminals`, `Shape::with_endpoint_moved` and `Shape::with_endpoint_reset` are
+the seven figure mutations: each produces a new shape value, so looking up a figure and replacing it
+with the modified copy is the complete operation.
 
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A
