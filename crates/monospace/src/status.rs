@@ -561,7 +561,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -685,7 +685,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -763,11 +763,13 @@ mod tests {
             status_line(&state),
             "ENDPOINT 1. From of Connector #2 · Box #1 [Right (0, 0) out:0] · Term: arm ─"
         );
+        assert_eq!(command_line(&state), "[2] To · [Esc] Done");
 
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             status_line(&state),
             "ENDPOINT 2. To of Connector #2 · Detached (20, 5) [Left] · Term: solid ▶"
         );
+        assert_eq!(command_line(&state), "[1] From · [Esc] Done");
     }
 }

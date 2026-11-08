@@ -94,7 +94,6 @@ pub(crate) struct DiagramState {
 }
 
 /// Which endpoint of a connector is being inspected or edited.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum End {
     From,
@@ -109,7 +108,6 @@ pub(crate) enum SubMode {
     /// Moving the selected figure through the layer order.
     OrderMode,
     /// Inspecting and editing a single connector endpoint.
-    #[allow(dead_code)]
     Endpoint(End),
 }
 

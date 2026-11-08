@@ -15,7 +15,7 @@ use monospace_diagram::Shape;
 use monospace_editing::Command;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::diagram_state::{DiagramState, SubMode};
+use crate::diagram_state::{DiagramState, End, SubMode};
 use crate::vocabulary::{Action, Reply};
 
 /// What the command row offers while no figure is selected.
@@ -210,6 +210,22 @@ static SELECTION: &[ContextBlock] = &[
         }],
     },
     ContextBlock {
+        category: Some("ENDPOINTS"),
+        condition: Condition::Connector,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::Char('1'),
+                display: "[1] From",
+                meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::From)),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('2'),
+                display: "[2] To",
+                meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::To)),
+            },
+        ],
+    },
+    ContextBlock {
         category: Some("INVERT"),
         condition: Condition::Connector,
         actions: &[ContextAction {
@@ -337,6 +353,48 @@ static ORDER_MODE: &[ContextBlock] = &[
     },
 ];
 
+static ENDPOINT_FROM: &[ContextBlock] = &[
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('2'),
+            display: "[2] To",
+            meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::To)),
+        }],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Esc),
+            display: "[Esc] Done",
+            meaning: ContextMeaning::LeaveSubMode,
+        }],
+    },
+];
+
+static ENDPOINT_TO: &[ContextBlock] = &[
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('1'),
+            display: "[1] From",
+            meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::From)),
+        }],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Esc),
+            display: "[Esc] Done",
+            meaning: ContextMeaning::LeaveSubMode,
+        }],
+    },
+];
+
 /// The delta along screen axes named by the four arrow keys, or `None` for any other key code.
 ///
 /// Right is one cell along the x axis, Down along the y one, and the two negatives are the other
@@ -382,6 +440,8 @@ pub(crate) fn context_blocks(
     let slice: &'static [ContextBlock] = match sub_mode {
         Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,
         Some(SubMode::OrderMode) if selected => ORDER_MODE,
+        Some(SubMode::Endpoint(End::From)) if selected && is_connector => ENDPOINT_FROM,
+        Some(SubMode::Endpoint(End::To)) if selected && is_connector => ENDPOINT_TO,
         _ if selected => SELECTION,
         _ => &[],
     };
