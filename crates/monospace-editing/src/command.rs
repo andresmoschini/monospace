@@ -155,9 +155,9 @@ impl Command {
                 changed(diagram, id, |shape| shape.with_text(text))
             }
             Self::InvertTerminals { id } => changed(diagram, id, Shape::with_inverted_terminals),
-            Self::MoveEndpoint { id, end, by, out } => changed(diagram, id, |shape| {
-                shape.with_endpoint_moved(end, by, out, diagram)
-            }),
+            Self::MoveEndpoint { id, end, by, out } => {
+                changed(diagram, id, |shape| shape.with_endpoint_moved(end, by, out))
+            }
             Self::ResetEndpoint { id, end } => {
                 changed(diagram, id, |shape| shape.with_endpoint_reset(end))
             }

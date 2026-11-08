@@ -364,9 +364,9 @@ fn each_command_becomes_one_of_the_diagrams_seven_operations() {
             out: 0,
         }),
         after_operating(|diagram| {
-            let updated = diagram.get(id(3)).map(|shape| {
-                shape.with_endpoint_moved(End::From, Delta { dx: 1, dy: 0 }, 0, diagram)
-            });
+            let updated = diagram
+                .get(id(3))
+                .map(|shape| shape.with_endpoint_moved(End::From, Delta { dx: 1, dy: 0 }, 0));
             if let Some(updated) = updated {
                 diagram.replace(id(3), updated)
             } else {
@@ -1478,7 +1478,7 @@ fn inverting_terminals_on_a_box_or_nonexistent_shape_records_no_step() {
 }
 
 #[test]
-fn moving_an_endpoint_records_one_step_and_clamped_nudge_records_none() {
+fn moving_an_endpoint_records_one_step_and_zero_delta_records_none() {
     let mut diagram = Diagram::new();
     diagram = diagram.add(small_box(ORIGIN)).0; // id(1): 4x3 at (0,0)
     diagram = diagram
@@ -1495,39 +1495,47 @@ fn moving_an_endpoint_records_one_step_and_clamped_nudge_records_none() {
     let session = Session::new(diagram);
     assert!(!session.can_undo());
 
-    // Box width 4 on Top anchor: span 4, span_sub_1 3, half 1.
-    // min_bound = -1, max_bound = 2.
-    // Move within bounds (from 0 to 1) records one step
-    let moved = session.perform(Command::MoveEndpoint {
+    // Move horizontally records one step
+    let moved_x = session.perform(Command::MoveEndpoint {
         id: id(2),
         end: End::From,
         by: Delta { dx: 1, dy: 0 },
         out: 0,
     });
     assert!(
-        moved.can_undo(),
-        "moving endpoint within bounds records a step"
+        moved_x.can_undo(),
+        "moving endpoint horizontally records a step"
     );
 
-    // Move to max_bound (2)
-    let at_max = moved.perform(Command::MoveEndpoint {
+    // Move vertically records another step
+    let moved_xy = moved_x.perform(Command::MoveEndpoint {
         id: id(2),
         end: End::From,
-        by: Delta { dx: 1, dy: 0 },
+        by: Delta { dx: 0, dy: 2 },
         out: 0,
     });
-    assert!(at_max.can_undo());
+    assert!(
+        moved_xy.can_undo(),
+        "moving endpoint vertically records a step"
+    );
+    let Shape::Connector { from, .. } = moved_xy.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    let monospace_diagram::EndpointAt::Reference(ref r) = from.at else {
+        panic!()
+    };
+    assert_eq!(r.offset, Delta { dx: 1, dy: 2 });
 
-    // Nudging past max_bound (2 -> 3 clamped to 2) leaves shape unchanged and records no step (#285)
-    let pic_before = picture_in(at_max.diagram(), FIXTURE);
-    let clamped = at_max.perform(Command::MoveEndpoint {
+    // Moving with zero delta and zero out records no step (#285)
+    let pic_before = picture_in(moved_xy.diagram(), FIXTURE);
+    let no_op = moved_xy.perform(Command::MoveEndpoint {
         id: id(2),
         end: End::From,
-        by: Delta { dx: 1, dy: 0 },
+        by: Delta::ZERO,
         out: 0,
     });
-    assert_eq!(picture_in(clamped.diagram(), FIXTURE), pic_before);
-    let undone = clamped.undo();
+    assert_eq!(picture_in(no_op.diagram(), FIXTURE), pic_before);
+    let undone = no_op.undo();
     let Shape::Connector { from, .. } = undone.diagram().get(id(2)).unwrap() else {
         panic!()
     };
@@ -1537,29 +1545,7 @@ fn moving_an_endpoint_records_one_step_and_clamped_nudge_records_none() {
     assert_eq!(
         r.offset,
         Delta { dx: 1, dy: 0 },
-        "no-op clamped nudge recorded no step"
-    );
-
-    // Orthogonal nudge on attached Top anchor is ignored and records no step (#285)
-    let pic_at_max = picture_in(at_max.diagram(), FIXTURE);
-    let ortho = at_max.perform(Command::MoveEndpoint {
-        id: id(2),
-        end: End::From,
-        by: Delta { dx: 0, dy: 1 },
-        out: 0,
-    });
-    assert_eq!(picture_in(ortho.diagram(), FIXTURE), pic_at_max);
-    let undone_ortho = ortho.undo();
-    let Shape::Connector { from, .. } = undone_ortho.diagram().get(id(2)).unwrap() else {
-        panic!()
-    };
-    let monospace_diagram::EndpointAt::Reference(ref r) = from.at else {
-        panic!()
-    };
-    assert_eq!(
-        r.offset,
-        Delta { dx: 1, dy: 0 },
-        "orthogonal nudge recorded no step"
+        "zero delta move was a no-op so undo stepped back to moved_x"
     );
 }
 
