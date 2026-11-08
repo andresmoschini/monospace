@@ -112,9 +112,10 @@ selected, the status row instead describes that shape's identity, geometry, and 
 shows label, position, size, stroke, and fill; a `Line` shows identity, position, length,
 orientation, and stroke; a `Connector` shows identity, stroke, and both endpoints. Below it, the
 command row shows the contextual actions available for that state: in `IDLE`,
-`SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when the diagram holds shapes
-(`Condition::HasShapes`) and empty when the diagram has 0 shapes; in base selection states,
-`[Tab] Next [Shift+Tab] Prev` sits immediately before `[Del] Delete · [Esc] Deselect`.
+`CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when the
+diagram holds shapes (`Condition::HasShapes`), and `CREATE: [b] Box [l] Line [c] Connector` when the
+diagram has 0 shapes; in base selection states, `[Tab] Next [Shift+Tab] Prev` sits immediately
+before `[Del] Delete · [Esc] Deselect`.
 
 ## 3. The state
 
@@ -177,6 +178,17 @@ previous figure (wrapping from back-most to front-most). On a single-figure diag
 `SELECTED_*` stays on the sole figure and answers `Reply::Consumed` with no repaint or history step.
 On an empty diagram, `Condition::HasShapes` is false, cycling is not offered, and `Tab` /
 `Shift+Tab` return `Reply::Ignored`.
+
+**`b`, `l`, and `c` create default figures in `IDLE` at the viewport center**
+([#308](https://github.com/andresmoschini/monospace/issues/308)). In `IDLE` (`selected == None` and
+`sub_mode == None`), pressing `b` creates a 5×5 box with `"light"` stroke, pressing `l` creates a
+vertical line of length 5 with `"light"` stroke, and pressing `c` creates a detached connector with
+outline (`▷`) and solid (`◀`) arrow terminals and `"light"` stroke. Each figure is positioned at the
+viewport center $C = (x_0 + \lfloor W / 2 \rfloor, y_0 + \lfloor H / 2 \rfloor)$, where $(x_0, y_0)$
+is the scroll origin and $(W, H)$ is the buffer window size. Creation records a single step that can
+be undone via `Session::add` and immediately selects the newly assigned `ShapeId` (`SELECTED_BOX`,
+`SELECTED_LINE`, or `SELECTED_CONNECTOR`). When a figure is already selected or an inline sub-mode
+is active, `b`, `l`, and `c` are neither offered nor accepted (`Reply::Ignored`).
 
 **The focus is the chrome's own, and it is not the selection.** Which of the two leaves — the bar
 and the diagram region — holds the keyboard is a fact about the chrome, held between frames: it
@@ -803,8 +815,8 @@ framework's buffer one at a time.
   unified context table (Option D), guaranteeing offer equals acceptance.
 - `Tab` in `IDLE` on a diagram with shapes selects the first figure in drawing order and repaints;
   `Shift+Tab` (`BackTab`) selects the last figure in drawing order and repaints.
-- `Tab` in `IDLE` on an empty diagram is ignored (`Reply::Ignored`), and the command row remains
-  empty.
+- `Tab` in `IDLE` on an empty diagram is ignored (`Reply::Ignored`), and the command row displays
+  `CREATE: [b] Box [l] Line [c] Connector` without `SELECT`.
 - `Tab` while a figure is selected advances selection to the next figure in drawing order (wrapping
   to first); `Shift+Tab` retreats to the previous figure (wrapping to last).
 - On a single-figure diagram, pressing `Tab` or `Shift+Tab` while the shape is selected consumes the
@@ -812,8 +824,12 @@ framework's buffer one at a time.
 - In all inline sub-modes (`StrokeSelect`, `OrderMode`, `Endpoint`, `TerminalSelect`,
   `LeavingSelect`), `Tab` and `Shift+Tab` are ignored (`Reply::Ignored`) and leave the sub-mode
   intact.
-- The contextual bar in `IDLE` offers `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when shapes
-  exist, and is empty when the diagram has 0 shapes.
+- The contextual bar in `IDLE` offers
+  `CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when
+  shapes exist, and `CREATE: [b] Box [l] Line [c] Connector` when the diagram has 0 shapes.
+- In `IDLE`, pressing `b`, `l`, or `c` creates a default box, line, or connector at the viewport
+  center, records one step in the session, and selects the new shape; pressing them while a shape is
+  selected is ignored.
 - Base selection states (`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`) offer
   `... · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`.
 - An open drop-down does not keep either key.

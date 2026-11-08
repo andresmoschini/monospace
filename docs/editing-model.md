@@ -90,12 +90,18 @@ command says, and one more meaning is one more arm.
 | `Backward { id }`                           | one place toward the back of the order                                   | `backward`                                      |
 | `ToFront { id }`                            | to the front of the order                                                | `to_front`                                      |
 | `ToBack { id }`                             | to the back of the order                                                 | `to_back`                                       |
+| `Add { shape }`                             | a shape is added to the diagram                                          | `add`                                           |
 | `Remove { id }`                             | the figure is taken out                                                  | `remove`                                        |
 
 The commands above are what [`docs/model.md`](model.md) calls _The initial set_ for shapes: enough
 to work with, and no promise that this is the final number. `Hang` is the one that shows what the
 layer is for — it reads the connector that is there, keeps what it does not change, and rebuilds the
 one end that changes, which is logic a caller otherwise writes and gets subtly wrong.
+
+`Add` places a new figure at the front of the drawing order via the diagram's `add` operation. When
+the caller needs the assigned `ShapeId` immediately (for instance to select the newly created figure
+in an interactive editor), `Session::add(&self, shape) -> (Session, ShapeId)` performs the addition,
+records the step, and returns the assigned identity alongside the advanced session.
 
 `InvertTerminals` asks the shape to swap `from.terminal` and `to.terminal` while preserving
 attachments and coordinates, and records no step when both endpoints carry identical terminals or
@@ -312,9 +318,8 @@ ambiguity is worth one sentence rather than two names, because both are diagrams
 - A command that changed the diagram, carried out after a step was given back, leaves nothing ahead
   of the position to give.
 - Each command is what one of the diagram's seven operations becomes, and no command reaches the
-  diagram by any other way. **Not the other way round**: `add` is one of the seven and the initial
-  set of commands does not reach it, because adding a figure is not one thing a caller means to do
-  to one.
+  diagram by any other way. All seven diagram operations are reached by commands (`add`, `replace`,
+  `forward`, `backward`, `to_front`, `to_back`, and `remove`).
 - Drawing what a session holds and drawing the diagram it was created over produce equal buffers
   when no command has been carried out.
 - A copy a session handed out does not change when the session's diagram does.
