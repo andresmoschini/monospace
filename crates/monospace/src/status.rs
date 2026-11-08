@@ -182,8 +182,8 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
     }
 }
 
-fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
-    let at_text = match endpoint.at {
+fn endpoint_at_text(at: &EndpointAt, diagram: &Diagram, detached_prefix: &str) -> String {
+    match at {
         EndpointAt::Reference(r) => {
             let kind = match diagram.get(r.id) {
                 Some(Shape::Box { .. }) => "Box",
@@ -201,10 +201,13 @@ fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
             )
         }
         EndpointAt::Absolute { at, leaving } => {
-            format!("({}, {}) [{leaving:?}]", at.x, at.y)
+            format!("{detached_prefix}({}, {}) [{leaving:?}]", at.x, at.y)
         }
-    };
+    }
+}
 
+fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
+    let at_text = endpoint_at_text(&endpoint.at, diagram, "");
     let term_text = terminal_text(endpoint);
     format!("{at_text} {term_text}")
 }
