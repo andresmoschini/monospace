@@ -43,7 +43,6 @@ pub(crate) enum Condition {
     /// Active only if the active endpoint is attached and either offset or out is non-zero.
     EndpointReset,
     /// Active only if the diagram holds at least one figure.
-    #[allow(dead_code)]
     HasShapes,
 }
 
@@ -61,7 +60,6 @@ pub(crate) enum KeyPattern {
     /// A single key code with no modifiers.
     Code(KeyCode),
     /// `Shift+Tab` (`KeyCode::BackTab` with `NONE` or `SHIFT`, or `KeyCode::Tab` with `SHIFT`).
-    #[allow(dead_code)]
     BackTab,
     /// A single bare character key.
     Char(char),
@@ -224,10 +222,8 @@ pub(crate) enum ContextMeaning {
     /// table reaches it with something to drop.
     Deselect,
     /// Selects the next figure in drawing order (`Diagram::shapes()`, back-to-front).
-    #[allow(dead_code)]
     SelectNext,
     /// Selects the previous figure in drawing order (`Diagram::shapes()`, front-to-back).
-    #[allow(dead_code)]
     SelectPrevious,
 }
 
@@ -244,6 +240,23 @@ pub(crate) struct ContextBlock {
     pub(crate) condition: Condition,
     pub(crate) actions: &'static [ContextAction],
 }
+
+static IDLE: &[ContextBlock] = &[ContextBlock {
+    category: Some("SELECT"),
+    condition: Condition::HasShapes,
+    actions: &[
+        ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Tab),
+            display: "[Tab] Next",
+            meaning: ContextMeaning::SelectNext,
+        },
+        ContextAction {
+            pattern: KeyPattern::BackTab,
+            display: "[Shift+Tab] Prev",
+            meaning: ContextMeaning::SelectPrevious,
+        },
+    ],
+}];
 
 static SELECTION: &[ContextBlock] = &[
     ContextBlock {
@@ -333,6 +346,22 @@ static SELECTION: &[ContextBlock] = &[
             display: "[z]",
             meaning: ContextMeaning::EnterSubMode(SubMode::OrderMode),
         }],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::Code(KeyCode::Tab),
+                display: "[Tab] Next",
+                meaning: ContextMeaning::SelectNext,
+            },
+            ContextAction {
+                pattern: KeyPattern::BackTab,
+                display: "[Shift+Tab] Prev",
+                meaning: ContextMeaning::SelectPrevious,
+            },
+        ],
     },
     ContextBlock {
         category: None,
@@ -768,7 +797,7 @@ pub(crate) fn context_blocks(
         Some(SubMode::TerminalSelect(_)) if selected && is_connector => TERMINAL_SELECT,
         Some(SubMode::LeavingSelect(_)) if selected && is_connector => LEAVING_SELECT,
         _ if selected => SELECTION,
-        _ => &[],
+        _ => IDLE,
     };
 
     slice.iter().filter(move |block| match block.condition {
@@ -806,6 +835,9 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
     if result.is_empty() {
         PICK.to_owned()
     } else {
+        if state.selected_shape().is_none() {
+            result.push_str(" [Click] Pick");
+        }
         result
     }
 }

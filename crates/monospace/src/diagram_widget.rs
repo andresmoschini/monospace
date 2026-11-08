@@ -839,18 +839,20 @@ mod tests {
         assert!(state.selected().is_some(), "the box lost its selection");
     }
 
-    /// Keys the region must never answer, whatever the context: another change's shortcuts,
-    /// the bar's own (`Tab`), and keys nobody claims.
-    const NEVER_AN_ACTION: [(KeyCode, KeyModifiers); 6] = [
+    /// Keys the region must never answer, whatever the context: another change's shortcuts and
+    /// keys nobody claims.
+    const NEVER_AN_ACTION: [(KeyCode, KeyModifiers); 4] = [
         (KeyCode::Char('x'), KeyModifiers::NONE),
         (KeyCode::Char('a'), KeyModifiers::NONE),
         (KeyCode::Enter, KeyModifiers::NONE),
-        (KeyCode::Tab, KeyModifiers::NONE),
-        (KeyCode::BackTab, KeyModifiers::SHIFT),
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 27] = [
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 31] = [
+        (KeyCode::Tab, KeyModifiers::NONE),
+        (KeyCode::BackTab, KeyModifiers::SHIFT),
+        (KeyCode::BackTab, KeyModifiers::NONE),
+        (KeyCode::Tab, KeyModifiers::SHIFT),
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -1825,5 +1827,145 @@ mod tests {
                 Some(crate::diagram_state::SubMode::OrderMode)
             );
         }
+    }
+
+    #[test]
+    fn tab_and_shift_tab_cycle_selection_in_drawing_order_and_wrap() {
+        const THREE_SHAPES: &str = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 10, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 16, "y": 0 }, "size": { "width": 10, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" }, "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "reference", "shape": 2, "anchor": "left" }, "terminal": { "kind": "symbol", "style": "solid" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+        let mut state = a_state_over(THREE_SHAPES);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        let tab = Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        let back_tab = Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+
+        assert_eq!(handle(&tab, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected(), Some(id1));
+
+        assert_eq!(handle(&tab, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected(), Some(id2));
+
+        assert_eq!(handle(&tab, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected(), Some(id3));
+
+        assert_eq!(handle(&tab, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected(), Some(id1));
+
+        assert_eq!(handle(&back_tab, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected(), Some(id3));
+
+        assert_eq!(handle(&back_tab, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected(), Some(id2));
+
+        state.select(None);
+        assert_eq!(handle(&back_tab, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected(), Some(id3));
+        assert!(!state.can_undo());
+    }
+
+    #[test]
+    fn tab_and_shift_tab_on_empty_diagram_or_active_sub_mode_are_ignored() {
+        const EMPTY: &str = r#"{ "next_id": 1, "shapes": [] }"#;
+        let mut empty = a_state_over(EMPTY);
+        let tab = Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        let back_tab = Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+
+        assert_eq!(handle(&tab, &mut empty, Focus::Region), Reply::Ignored);
+        assert_eq!(handle(&back_tab, &mut empty, Focus::Region), Reply::Ignored);
+        assert_eq!(empty.selected(), None);
+
+        let mut state = a_state_over(A_CONNECTOR);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let sub_modes = [
+            crate::diagram_state::SubMode::StrokeSelect,
+            crate::diagram_state::SubMode::OrderMode,
+            crate::diagram_state::SubMode::Endpoint(crate::diagram_state::End::From),
+            crate::diagram_state::SubMode::Endpoint(crate::diagram_state::End::To),
+            crate::diagram_state::SubMode::TerminalSelect(crate::diagram_state::End::From),
+            crate::diagram_state::SubMode::LeavingSelect(crate::diagram_state::End::From),
+        ];
+
+        for mode in sub_modes {
+            state.select(Some(id1));
+            state.set_sub_mode(Some(mode));
+            assert_eq!(handle(&tab, &mut state, Focus::Region), Reply::Ignored);
+            assert_eq!(handle(&back_tab, &mut state, Focus::Region), Reply::Ignored);
+            assert_eq!(state.selected(), Some(id1));
+            assert_eq!(state.sub_mode(), Some(mode));
+        }
+    }
+
+    #[test]
+    fn tab_on_single_selected_shape_is_consumed_without_history_step() {
+        let mut state = a_state_over(A_BOX);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id1));
+
+        let tab = Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        let back_tab = Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+
+        assert_eq!(handle(&tab, &mut state, Focus::Region), Reply::Consumed);
+        assert_eq!(state.selected(), Some(id1));
+        assert!(!state.can_undo());
+
+        assert_eq!(
+            handle(&back_tab, &mut state, Focus::Region),
+            Reply::Consumed
+        );
+        assert_eq!(state.selected(), Some(id1));
+        assert!(!state.can_undo());
+    }
+
+    #[test]
+    fn guardian_offer_equals_acceptance_across_idle_selected_and_sub_modes() {
+        const EMPTY: &str = r#"{ "next_id": 1, "shapes": [] }"#;
+        assert_offer_matches_acceptance(EMPTY, None, None);
+        assert_offer_matches_acceptance(A_BOX, None, None);
+        assert_offer_matches_acceptance(A_BOX, Some(1), None);
+        assert_offer_matches_acceptance(A_LINE, Some(1), None);
+        assert_offer_matches_acceptance(A_VERTICAL_LINE, Some(1), None);
+        assert_offer_matches_acceptance(A_CONNECTOR, Some(1), None);
+        assert_offer_matches_acceptance(
+            A_BOX,
+            Some(1),
+            Some(crate::diagram_state::SubMode::StrokeSelect),
+        );
+        assert_offer_matches_acceptance(
+            A_BOX,
+            Some(1),
+            Some(crate::diagram_state::SubMode::OrderMode),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
+            Some(crate::diagram_state::SubMode::Endpoint(
+                crate::diagram_state::End::From,
+            )),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
+            Some(crate::diagram_state::SubMode::TerminalSelect(
+                crate::diagram_state::End::From,
+            )),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
+            Some(crate::diagram_state::SubMode::LeavingSelect(
+                crate::diagram_state::End::From,
+            )),
+        );
     }
 }
