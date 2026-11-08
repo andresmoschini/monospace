@@ -232,6 +232,44 @@ impl DiagramState {
         true
     }
 
+    /// Selects the next figure in drawing order (`Diagram::shapes()`, back-to-front), wrapping from
+    /// the front-most figure back to the first. When nothing is selected, selects the first
+    /// (back-most) figure. Returns `true` if the selection changed.
+    #[allow(dead_code)]
+    pub(crate) fn select_next(&mut self) -> bool {
+        let ids: Vec<ShapeId> = self.session.diagram().shapes().map(|(id, _)| id).collect();
+        if ids.is_empty() {
+            return false;
+        }
+        let next = match self
+            .selected
+            .and_then(|current| ids.iter().position(|&id| id == current))
+        {
+            Some(index) => ids[(index + 1) % ids.len()],
+            None => ids[0],
+        };
+        self.select(Some(next))
+    }
+
+    /// Selects the previous figure in drawing order (`Diagram::shapes()`, front-to-back), wrapping
+    /// from the first (back-most) figure to the last (front-most). When nothing is selected,
+    /// selects the last (front-most) figure. Returns `true` if the selection changed.
+    #[allow(dead_code)]
+    pub(crate) fn select_previous(&mut self) -> bool {
+        let ids: Vec<ShapeId> = self.session.diagram().shapes().map(|(id, _)| id).collect();
+        if ids.is_empty() {
+            return false;
+        }
+        let prev = match self
+            .selected
+            .and_then(|current| ids.iter().position(|&id| id == current))
+        {
+            Some(index) => ids[(index + ids.len() - 1) % ids.len()],
+            None => *ids.last().expect("non-empty diagram has a last shape"),
+        };
+        self.select(Some(prev))
+    }
+
     /// The shape the drawing of the last frame records at `at`, or `None` where nobody holds the
     /// cell.
     ///
@@ -1181,5 +1219,57 @@ mod tests {
             Some(SubMode::StrokeSelect),
             "ineffective undo cleared the sub-mode"
         );
+    }
+
+    #[test]
+    fn select_next_and_select_previous_cycle_in_drawing_order_and_wrap() {
+        let mut empty = DiagramState::new(Session::new(monospace_diagram::Diagram::new()));
+        assert!(!empty.select_next());
+        assert!(!empty.select_previous());
+        assert_eq!(empty.selected(), None);
+
+        let single_diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let mut single = DiagramState::new(Session::new(single_diagram));
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+        assert!(single.select_next());
+        assert_eq!(single.selected(), Some(id1));
+        assert!(!single.select_next());
+        assert_eq!(single.selected(), Some(id1));
+        assert!(!single.select_previous());
+        assert_eq!(single.selected(), Some(id1));
+
+        let three_shapes = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 6, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 3, "at": { "x": 12, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" }
+            ]
+        }"#;
+        let diagram = monospace_description::parse(three_shapes).expect("valid description");
+        let mut state = DiagramState::new(Session::new(diagram));
+        let id2 = ShapeId::new(NonZeroU16::new(2).expect("2 is not zero"));
+        let id3 = ShapeId::new(NonZeroU16::new(3).expect("3 is not zero"));
+
+        assert!(state.select_next());
+        assert_eq!(state.selected(), Some(id1));
+        assert!(state.select_next());
+        assert_eq!(state.selected(), Some(id2));
+        assert!(state.select_next());
+        assert_eq!(state.selected(), Some(id3));
+        assert!(state.select_next());
+        assert_eq!(state.selected(), Some(id1));
+
+        assert!(state.select_previous());
+        assert_eq!(state.selected(), Some(id3));
+        assert!(state.select_previous());
+        assert_eq!(state.selected(), Some(id2));
+        assert!(state.select_previous());
+        assert_eq!(state.selected(), Some(id1));
+
+        state.select(None);
+        assert!(state.select_previous());
+        assert_eq!(state.selected(), Some(id3));
     }
 }
