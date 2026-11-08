@@ -522,10 +522,20 @@ clearance for non-arm terminals (`Symbol` or `Glyph`) and 0 cells for `Terminal:
 between `Arm` and a symbol or glyph terminal automatically adjusts the rendered standoff cell
 without modifying the stored `out` value.
 
+Detaching a connector's endpoint is a replacement too: `with_endpoint_detached` produces a new
+connector with the targeted endpoint (`End::From` or `End::To`) frozen at its current resolved
+canvas position and anchor departure direction (`reference.anchor.leaving()`), leaving its terminal
+style and the other endpoint untouched. When the targeted endpoint is already an
+`EndpointAt::Absolute`, or its reference does not resolve in `diagram`, or the figure is not a
+connector, the shape is returned unchanged. Because detaching freezes the position resolved via
+`Endpoint::resolve` (which accounts for `effective_out`), the visual placement of the terminal cell
+is preserved exactly without jumping.
+
 Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke`, `Shape::with_text`,
-`Shape::with_inverted_terminals`, `Shape::with_endpoint_moved`, `Shape::with_endpoint_reset` and
-`Shape::with_endpoint_terminal` are the eight figure mutations: each produces a new shape value, so
-looking up a figure and replacing it with the modified copy is the complete operation.
+`Shape::with_inverted_terminals`, `Shape::with_endpoint_moved`, `Shape::with_endpoint_reset`,
+`Shape::with_endpoint_terminal` and `Shape::with_endpoint_detached` are the nine figure mutations:
+each produces a new shape value, so looking up a figure and replacing it with the modified copy is
+the complete operation.
 
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A
