@@ -1,5 +1,7 @@
 ---
-status: draft
+status: implemented
+decided: "#326"
+implemented: "#327"
 date: 2026-11-07
 ---
 
@@ -206,9 +208,15 @@ _None of it has been observed: it is what the acceptance list checks, not the re
 ## What proves it
 
 - Unit and integration tests in `crates/monospace`:
+  - `diagram_state::tests::a_command_that_removes_the_selected_figure_drops_the_selection`: verifies
+    `SubMode::Endpoint(End::From)` and `SubMode::Endpoint(End::To)` drop when the selected figure is
+    removed.
   - `status::tests::selected_connector_shows_stroke_before_both_endpoints_and_selection_commands`:
     verifies `SELECTED_CONNECTOR` command line includes `ENDPOINTS: [1] From [2] To` between
     `MOVE: ↑↓←→` and `INVERT: [i]`.
+  - `status::tests::the_command_row_offers_resize_for_a_box_and_a_line`: verifies connector command
+    line offers `ENDPOINTS: [1] From [2] To` alongside `MOVE`, `INVERT`, `STROKE`, `ORDER`,
+    `Delete`, and `Deselect`.
   - `status::tests::endpoint_sub_mode_shows_focused_endpoint_inspector_and_switch_commands`:
     verifies row 0 and row 1 for both `SubMode::Endpoint(End::From)` and
     `SubMode::Endpoint(End::To)` across attached (`Reference`) and detached (`Absolute`) endpoints.
@@ -218,7 +226,7 @@ _None of it has been observed: it is what the acceptance list checks, not the re
   - `diagram_widget::tests::pressing_1_and_2_enters_and_switches_endpoint_sub_mode_until_esc`:
     verifies pressing `1` and `2` on a selected connector enters `ENDPOINT_EDIT`, toggles between
     `From` and `To`, ignores the already-active endpoint key, exits to `SELECTED_CONNECTOR` on
-    `Esc`, is ignored on boxes and lines, and records zero history steps.
+    `Esc`, is ignored on boxes, lines, and in idle, and records zero history steps.
 
 ## Open questions
 
