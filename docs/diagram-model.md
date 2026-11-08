@@ -513,10 +513,19 @@ connector with an attached endpoint is changed; a connector with an absolute end
 non-connector figures come back unchanged. Resetting an endpoint whose offset and out are already
 zero produces an equal shape value.
 
+Setting a connector's endpoint terminal is a replacement too: `with_endpoint_terminal` produces a
+new connector with the targeted endpoint (`End::From` or `End::To`) holding `terminal`, leaving the
+endpoint's position, anchor reference, offset, and relative standoff `out` untouched. Only a
+connector has endpoints; a box and a line come back unchanged. Setting an endpoint to the terminal
+it already carries produces an equal shape value. Because `effective_out` (§6) adds 1 cell of
+clearance for non-arm terminals (`Symbol` or `Glyph`) and 0 cells for `Terminal::Arm`, switching
+between `Arm` and a symbol or glyph terminal automatically adjusts the rendered standoff cell
+without modifying the stored `out` value.
+
 Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke`, `Shape::with_text`,
-`Shape::with_inverted_terminals`, `Shape::with_endpoint_moved` and `Shape::with_endpoint_reset` are
-the seven figure mutations: each produces a new shape value, so looking up a figure and replacing it
-with the modified copy is the complete operation.
+`Shape::with_inverted_terminals`, `Shape::with_endpoint_moved`, `Shape::with_endpoint_reset` and
+`Shape::with_endpoint_terminal` are the eight figure mutations: each produces a new shape value, so
+looking up a figure and replacing it with the modified copy is the complete operation.
 
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A

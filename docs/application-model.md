@@ -185,15 +185,18 @@ makes the restored drawing a clean starting point. Any active sub-mode ends when
 drops.
 
 **The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
-interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`, or `ENDPOINT_EDIT`
-`SubMode::Endpoint(End)` on a connector via `1` or `2`), `DiagramState` records
+interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`, `ENDPOINT_EDIT`
+`SubMode::Endpoint(End)` on a connector via `1` or `2`, or `TERMINAL_SELECT`
+`SubMode::TerminalSelect(End)` via `t` in `ENDPOINT_EDIT`), `DiagramState` records
 `sub_mode: Option<SubMode>`. The sub-mode is transient: `STROKE_SELECT` exits when a stroke is
 selected or `Esc` is pressed, while `ORDER_MODE` and `ENDPOINT_EDIT` are continuous — each of their
 keys performs one action and stays (in `ENDPOINT_EDIT`, `1` and `2` switch between `End::From` and
-`End::To` without leaving the sub-mode), and `Esc` is the key that leaves it. Losing or changing the
-selection — clicking another figure or outside, or removing the selected figure — drops it
-immediately (`sub_mode = None`). While the figure remains selected, transferring focus to the menu
-bar or opening an application dialog keeps the sub-mode.
+`End::To` without leaving the sub-mode), and `Esc` is the key that leaves it. `TERMINAL_SELECT` is
+discrete: selecting a terminal via `1..=5` dispatches `Command::SetEndpointTerminal` and returns
+directly to `SubMode::Endpoint(End)`, and `Esc` cancels directly back to `SubMode::Endpoint(End)`.
+Losing or changing the selection — clicking another figure or outside, or removing the selected
+figure — drops it immediately (`sub_mode = None`). While the figure remains selected, transferring
+focus to the menu bar or opening an application dialog keeps the sub-mode.
 
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
@@ -294,6 +297,19 @@ and `to.at` unchanged. Exactly one step is recorded in the session unless both e
 identical terminals (#285), in which case no step is recorded. The status row (row 0) displays each
 endpoint's terminal name and oriented glyph alongside its position. With a box or line selected,
 with nothing selected (`IDLE`), or in an ephemeral sub-mode, `i` is ignored.
+
+**`SetEndpointTerminal` sets an endpoint's terminal style via `Command::SetEndpointTerminal`.** It
+is offered in the contextual command line as
+`TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel` whenever
+`TERMINAL_SELECT` (`SubMode::TerminalSelect(End)`) is entered by pressing `t` in `ENDPOINT_EDIT`
+(`SubMode::Endpoint(End)`). Pressing `1..=5` dispatches the command naming the selected connector,
+the active endpoint (`End::From` or `End::To`), and the chosen `Terminal`, and transitions back to
+`SubMode::Endpoint(end)`. The session performs the command, replacing `endpoint.terminal` while
+leaving position `at`, anchor offset, and relative standoff `out` unchanged. Exactly one step is
+recorded in the session unless the endpoint already carried the chosen terminal (#285), in which
+case no step is recorded. Pressing `Esc` cancels the selection, restores `SubMode::Endpoint(end)`,
+and records zero steps. While in `TerminalSelect`, any key not offered is ignored (`Reply::Ignored`)
+and falls through to unclaimed universal shortcuts.
 
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
 sub-mode (such as `STROKE_SELECT`) is active:
@@ -688,8 +704,27 @@ framework's buffer one at a time.
   for attached endpoints, and
   `ENDPOINT <n>. <From|To> of Connector #<id> · Detached (<x>, <y>) [<Leaving>] · Term: <terminal>`
   for detached endpoints.
-- In `ENDPOINT_EDIT`, row 1 offers `[2] To · [Esc] Done` when `End::From` is active, and
-  `[1] From · [Esc] Done` when `End::To` is active.
+- In `ENDPOINT_EDIT`, row 1 offers `TERMINAL: [t]` immediately before the endpoint switch key
+  (`[2] To` or `[1] From`), alongside `OFFSET: ↑↓←→` and `OUT: [+] [-]` (and conditional
+  `[r] Reset`) on attached endpoints, or `MOVE: ↑↓←→` on detached endpoints.
+- Pressing `t` while in `ENDPOINT_EDIT` transitions `DiagramState` to `SubMode::TerminalSelect(End)`
+  and requests a repaint without recording history steps.
+- In `TerminalSelect(end)`, row 0 formats
+  `TERMINAL for <n>. <From|To> of Connector #<id> · Current: <terminal>` where `<terminal>`
+  dynamically orients directional symbols against the endpoint's leaving direction.
+- In `TerminalSelect(end)`, row 1 offers
+  `TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel`.
+- In `TerminalSelect(end)`, keys `1..=5` dispatch `Command::SetEndpointTerminal`, transition back to
+  `SubMode::Endpoint(end)`, and request a repaint. Selecting the terminal the endpoint already
+  carries produces no change and records no step in history (#285).
+- In `TerminalSelect(end)`, pressing `Esc` cancels the selection, transitions back to
+  `SubMode::Endpoint(end)`, and requests a repaint without altering the terminal or recording
+  history steps.
+- In `TerminalSelect(end)`, every key the table does not offer (arrows, letters, other digits,
+  function keys) is ignored (`Reply::Ignored`) and falls through to unclaimed universal shortcuts.
+- A click on another figure or outside, removing the selected connector, and an effective undo or
+  redo end `TerminalSelect(End)`; moving focus to the menu bar or opening an application dialog
+  keeps it while the connector remains selected.
 - A click on another figure or outside, removing the selected connector, and an effective undo or
   redo end `ENDPOINT_EDIT`; moving focus to the menu bar or opening an application dialog keeps it
   while the connector remains selected.
