@@ -271,10 +271,6 @@ impl DiagramState {
     /// The canvas position at the center of the viewport window.
     ///
     /// Computed from the current scroll origin and half the buffer window dimensions.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "wired to context table in next commit")
-    )]
     pub(crate) fn viewport_center(&self) -> Pos {
         let window = self.buffer.window();
         Pos {
@@ -292,10 +288,6 @@ impl DiagramState {
     }
 
     /// Creates a 5×5 box with `"light"` stroke at the viewport center and selects it.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "wired to context table in next commit")
-    )]
     pub(crate) fn create_box(&mut self) -> ShapeId {
         let center = self.viewport_center();
         self.add_shape(Shape::Box {
@@ -312,10 +304,6 @@ impl DiagramState {
 
     /// Creates a vertical line of length 5 with `"light"` stroke at the viewport center and selects
     /// it.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "wired to context table in next commit")
-    )]
     pub(crate) fn create_line(&mut self) -> ShapeId {
         let center = self.viewport_center();
         self.add_shape(Shape::Line {
@@ -327,10 +315,6 @@ impl DiagramState {
     }
 
     /// Creates a detached connector with `"light"` stroke at the viewport center and selects it.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "wired to context table in next commit")
-    )]
     pub(crate) fn create_connector(&mut self) -> ShapeId {
         let center = self.viewport_center();
         self.add_shape(Shape::Connector {
