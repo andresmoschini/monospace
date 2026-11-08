@@ -83,6 +83,7 @@ command says, and one more meaning is one more arm.
 | `MoveEndpoint { id, end, by, out }`         | an endpoint's offset or coordinates and standoff are adjusted            | `replace` with `Shape::with_endpoint_moved`     |
 | `ResetEndpoint { id, end }`                 | an endpoint's offset and standoff are reset to zero                      | `replace` with `Shape::with_endpoint_reset`     |
 | `SetEndpointTerminal { id, end, terminal }` | an endpoint's terminal style is set                                      | `replace` with `Shape::with_endpoint_terminal`  |
+| `DetachEndpoint { id, end }`                | an attached endpoint is detached to open canvas                          | `replace` with `Shape::with_endpoint_detached`  |
 | `Hang { id, from, anchor }`                 | one end of a connector hangs from a figure's side                        | `replace` with a rebuilt connector              |
 | `Forward { id }`                            | one place toward the front of the order                                  | `forward`                                       |
 | `Backward { id }`                           | one place toward the back of the order                                   | `backward`                                      |
@@ -114,6 +115,12 @@ or `End::To`) with `terminal`. It updates only `endpoint.terminal`, leaving anch
 offset, and relative standoff `out` untouched. It records one step when the terminal changed, and
 records no step when the endpoint already carried the chosen terminal or when `id` is not a
 connector (#285).
+
+`DetachEndpoint` asks the shape to detach the targeted attached endpoint (`End::From` or `End::To`)
+into an absolute canvas position frozen at its resolved coordinates with
+`reference.anchor.leaving()`. It records one step when an attached endpoint resolves and detaches,
+and records no step when the endpoint is already absolute, does not resolve in `diagram`, or when
+`id` is not a connector (#285).
 
 `Backward`, `ToFront` and `ToBack` are the same mapping at the other end and at the absolute scale:
 each asks the diagram whether the figure would move and hands back `None` when it would not, so a

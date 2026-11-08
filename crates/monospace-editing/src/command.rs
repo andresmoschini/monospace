@@ -88,6 +88,13 @@ pub enum Command {
         /// The terminal style to apply.
         terminal: Terminal,
     },
+    /// The connector's endpoint specified by `end` is detached into an absolute canvas position.
+    DetachEndpoint {
+        /// The connector whose endpoint is being detached.
+        id: ShapeId,
+        /// Which endpoint is targeted (`From` or `To`).
+        end: End,
+    },
     /// The `from` end of a connector hangs from one of `from`'s four sides.
     Hang {
         /// The connector whose end is being hung.
@@ -180,6 +187,9 @@ impl Command {
                     shape.with_endpoint_terminal(end, terminal)
                 })
             }
+            Self::DetachEndpoint { id, end } => changed(diagram, id, |shape| {
+                shape.with_endpoint_detached(end, diagram)
+            }),
             Self::Hang { id, from, anchor } => changed(diagram, id, |shape| match shape {
                 Shape::Connector {
                     from: end,
