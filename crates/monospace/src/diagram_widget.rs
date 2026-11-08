@@ -1216,6 +1216,33 @@ mod tests {
     }
 
     #[test]
+    fn pressing_0_on_attached_endpoint_dispatches_detach_endpoint() {
+        let mut state = a_state_over(AN_ATTACHED_CONNECTOR);
+        let id = ShapeId::new(NonZeroU16::new(3).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        let bar = crate::status::command_line(&state);
+        assert!(bar.contains("[0] Detach"), "bar was: {bar}");
+
+        let answer = handle(&key(KeyCode::Char('0')), &mut state, Focus::Region);
+        assert_eq!(
+            answer,
+            Reply::Act(Action::Command(Command::DetachEndpoint {
+                id,
+                end: End::From
+            }))
+        );
+
+        // On detached endpoint (A_CONNECTOR), '0' is ignored
+        let mut detached_state = a_state_over(A_CONNECTOR);
+        detached_state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        detached_state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        let answer = handle(&key(KeyCode::Char('0')), &mut detached_state, Focus::Region);
+        assert_eq!(answer, Reply::Ignored);
+    }
+
+    #[test]
     fn pressing_1_and_2_enters_and_switches_endpoint_sub_mode_until_esc() {
         let mut state = a_state_over(A_CONNECTOR);
         let id = ShapeId::new(NonZeroU16::new(1).unwrap());

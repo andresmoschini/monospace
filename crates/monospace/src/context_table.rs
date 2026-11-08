@@ -176,6 +176,8 @@ pub(crate) enum ContextMeaning {
     AdjustEndpointOut(i16),
     /// Resets the active endpoint's offset and standoff to zero.
     ResetEndpoint,
+    /// Detaches the active attached endpoint into an open canvas position.
+    DetachEndpoint,
     /// Resizes the selected figure by the arrow direction.
     Resize,
     /// Inverts the terminals of the selected connector.
@@ -497,6 +499,15 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         }],
     },
     ContextBlock {
+        category: None,
+        condition: Condition::EndpointAttached,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('0'),
+            display: "[0] Detach",
+            meaning: ContextMeaning::DetachEndpoint,
+        }],
+    },
+    ContextBlock {
         category: Some("TERMINAL"),
         condition: Condition::Always,
         actions: &[ContextAction {
@@ -567,6 +578,15 @@ static ENDPOINT_TO: &[ContextBlock] = &[
             pattern: KeyPattern::Char('r'),
             display: "[r] Reset",
             meaning: ContextMeaning::ResetEndpoint,
+        }],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::EndpointAttached,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('0'),
+            display: "[0] Detach",
+            meaning: ContextMeaning::DetachEndpoint,
         }],
     },
     ContextBlock {
@@ -740,6 +760,9 @@ fn dispatch_endpoint_meaning(
         ContextMeaning::ResetEndpoint => {
             Reply::Act(Action::Command(Command::ResetEndpoint { id, end }))
         }
+        ContextMeaning::DetachEndpoint => {
+            Reply::Act(Action::Command(Command::DetachEndpoint { id, end }))
+        }
         _ => Reply::Ignored,
     }
 }
@@ -849,7 +872,8 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
         }
         ContextMeaning::MoveEndpoint
         | ContextMeaning::AdjustEndpointOut(_)
-        | ContextMeaning::ResetEndpoint => dispatch_endpoint_meaning(meaning, state, key),
+        | ContextMeaning::ResetEndpoint
+        | ContextMeaning::DetachEndpoint => dispatch_endpoint_meaning(meaning, state, key),
     }
 }
 

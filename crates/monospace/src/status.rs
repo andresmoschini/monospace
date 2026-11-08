@@ -796,7 +796,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To · [Esc] Done"
         );
 
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
@@ -829,18 +829,18 @@ mod tests {
         let mut state = a_state_over(text);
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
 
-        // From: Top anchor, offset 0, out 0 -> OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done (no reset)
+        // From: Top anchor, offset 0, out 0 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To · [Esc] Done (no reset)
         state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To · [Esc] Done"
         );
 
-        // To: Left anchor, offset 1, out 2 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · TERMINAL: [t] · [1] From · [Esc] Done
+        // To: Left anchor, offset 1, out 2 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · TERMINAL: [t] · [1] From · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done"
         );
     }
 
