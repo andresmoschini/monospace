@@ -31,6 +31,6 @@ mod step;
 mod utilities;
 
 pub use command::Command;
-pub use monospace_diagram::{End, Terminal};
+pub use monospace_diagram::{Direction, End, Terminal};
 pub use session::Session;
 pub(crate) use step::Step;

@@ -175,13 +175,13 @@ keystrokes directly mutate endpoint properties:
 
 ```text
 ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 0) out:0] · Term: solid ▶
-OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [1] From · [Esc] Done
+OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
 When `offset != (0, 0)` or `out != 0`, `[r] Reset` appears after `OUT: [+] [-]`:
 
 ```text
-OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · TERMINAL: [t] · [1] From · [Esc] Done
+OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
 | Key       | Action / Command                                                          | History Step                                                  |
@@ -192,7 +192,7 @@ OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · TERMINAL: [t] · [1] From �
 | `t`       | Open discrete `TERMINAL_SELECT`                                           | None (sub-mode)                                               |
 | `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`) without leaving sub-mode | None                                                          |
 | `Esc`     | Exit endpoint editing and return to `SELECTED_CONNECTOR` (`Done`)         | None                                                          |
-| `0`       | Detach endpoint to `Absolute` at current coordinates (_Slice 7_)          | One step                                                      |
+| `0`       | Detach endpoint to `Absolute` at current coordinates                      | One step                                                      |
 | `c`       | Change target shape via `ATTACH_PICK` (_Deferred to Stage 3_)             | None (sub-mode)                                               |
 
 ### 2.3 ENDPOINT_EDIT (Detached endpoint)
@@ -202,7 +202,7 @@ and leaving direction, and the bar adapts its commands (omitting `OUT` and `Rese
 
 ```text
 ENDPOINT 2. To of Connector #4 · Detached (40, 12) [Up] · Term: arrow ↓
-MOVE: ↑↓←→ · TERMINAL: [t] · [1] From · [Esc] Done
+MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
 | Key       | Action / Command                                                   | History Step       |
@@ -211,7 +211,7 @@ MOVE: ↑↓←→ · TERMINAL: [t] · [1] From · [Esc] Done
 | `t`       | Open discrete `TERMINAL_SELECT`                                    | None (sub-mode)    |
 | `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`)                   | None               |
 | `Esc`     | Return to `SELECTED_CONNECTOR` (`Done`)                            | None               |
-| `d`       | Open discrete `LEAVING_SELECT` (_Slice 7_)                         | None (sub-mode)    |
+| `d`       | Open discrete `LEAVING_SELECT`                                     | None (sub-mode)    |
 | `a`       | Attach endpoint to shape via `ATTACH_PICK` (_Deferred to Stage 3_) | None (sub-mode)    |
 
 ### 2.4 TERMINAL_SELECT
@@ -375,21 +375,21 @@ Initial state:
 
    ```text
    ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 0) out:0] · Term: solid ▶
-   OFFSET: ↑↓←→ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
+   OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
 3. Author presses `↓`. The attachment point moves down one row (`offset.dy = 1`):
 
    ```text
    ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 1) out:0] · Term: solid ▶
-   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
+   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
 4. Author presses `+` twice. The standoff distance increases to `out: 2`:
 
    ```text
    ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 1) out:2] · Term: solid ▶
-   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
+   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
    The diagram updates in real time:
@@ -502,6 +502,11 @@ with [`contextual-ui.md`](contextual-ui.md):
   [#320](../specs/320-invert-connector-terminals-with-an-i-key.md). Added
   `Command::InvertTerminals`, `INVERT: [i]` action on `SELECTED_CONNECTOR`, and detailed terminal
   inspection (`solid ▶`, `arm ─`) in Row 0.
+- **Slice 7 — Detach endpoint (`[0]`) and select leaving direction (`[d]`):** Implemented in
+  [#334](../specs/334-detach-connector-endpoints-with-0-and-se.md). Added
+  `Shape::with_endpoint_detached`, `Shape::with_endpoint_leaving`, `Command::DetachEndpoint`,
+  `Command::SetEndpointLeaving`, `[0] Detach` in `ENDPOINT_EDIT`, and `SubMode::LeavingSelect`
+  (`LEAVING: [d]`).
 
 ### 5.2 Stage 1: Easy connector functions (Active target)
 
@@ -521,10 +526,6 @@ with [`contextual-ui.md`](contextual-ui.md):
 - **Slice 6 — Reset `offset` and `out` with `[r]`:** Displays `[r] Reset` in `ENDPOINT_EDIT`
   whenever `offset != (0, 0)` or `out != 0`. Pressing `r` resets both parameters to `0` in a single
   command step.
-- **Slice 7 — Detach endpoint (`[0]`) and select leaving direction (`[d]`):** Pressing `0` on an
-  attached endpoint converts it to a detached `Absolute` point at its current resolved canvas
-  position. On detached endpoints, `[d]` opens `LEAVING_SELECT` (`1..=4`) to change departure
-  direction.
 - **Slice 8 — Inline terminal selector (`[t]`):** Pressing `t` in `ENDPOINT_EDIT` opens
   `TERMINAL_SELECT` (`SubMode::TerminalSelect(End)`) on Row 1, offering `1..=5` (`arm ─`, `solid ▶`,
   `outline ▷`, `ascii >`, `diamond ◆`). Selecting an option dispatches

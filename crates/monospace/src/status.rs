@@ -18,7 +18,7 @@
 //! row reports the figure's place in the order and the lower row offers the four order moves and
 //! `[Esc] Done`.
 
-use monospace_core::{Direction, Footprint, Terminal};
+use monospace_core::{Direction, Footprint, Pos, Terminal};
 use monospace_diagram::{Diagram, Endpoint, EndpointAt, Shape};
 use rat_theme4::StyleName;
 use rat_theme4::theme::SalsaTheme;
@@ -118,6 +118,28 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
                 };
                 let term_text = terminal_text(endpoint);
                 format!("TERMINAL for {n}. {label} of Connector #{id} · Current: {term_text}")
+            }
+            SubMode::LeavingSelect(end) => {
+                let (n, label, endpoint) = match (shape, end) {
+                    (Shape::Connector { from, .. }, End::From) => (1, "From", from),
+                    (Shape::Connector { to, .. }, End::To) => (2, "To", to),
+                    _ => unreachable!("leaving select sub-mode requires a selected connector"),
+                };
+                let (pos_text, leaving) = match endpoint.at {
+                    EndpointAt::Absolute { at, leaving } => {
+                        (format!("Detached ({}, {})", at.x, at.y), leaving)
+                    }
+                    EndpointAt::Reference(ref r) => {
+                        let pos = endpoint.resolve(diagram).unwrap_or(Pos { x: 0, y: 0 });
+                        (
+                            format!("Attached ({}, {})", pos.x, pos.y),
+                            r.anchor.leaving(),
+                        )
+                    }
+                };
+                format!(
+                    "LEAVING for {n}. {label} of Connector #{id} · {pos_text} · Current: {leaving:?}"
+                )
             }
         };
     }
@@ -796,7 +818,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To · [Esc] Done"
         );
 
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
@@ -806,7 +828,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · TERMINAL: [t] · [1] From · [Esc] Done"
+            "MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done"
         );
     }
 
@@ -829,18 +851,18 @@ mod tests {
         let mut state = a_state_over(text);
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
 
-        // From: Top anchor, offset 0, out 0 -> OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done (no reset)
+        // From: Top anchor, offset 0, out 0 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To · [Esc] Done (no reset)
         state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To · [Esc] Done"
         );
 
-        // To: Left anchor, offset 1, out 2 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · TERMINAL: [t] · [1] From · [Esc] Done
+        // To: Left anchor, offset 1, out 2 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · TERMINAL: [t] · [1] From · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done"
         );
     }
 
@@ -905,6 +927,77 @@ mod tests {
         assert_eq!(
             command_line(&state),
             "TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel"
+        );
+    }
+
+    #[test]
+    fn endpoint_sub_mode_offers_detach_when_attached_and_leaving_when_detached() {
+        let text = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 4 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 20, "y": 5 }, "leaving": "left",
+                            "terminal": { "kind": "symbol", "style": "solid" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
+
+        // From (attached): offers [0] Detach, not LEAVING
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_eq!(
+            command_line(&state),
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To · [Esc] Done"
+        );
+
+        // To (detached): offers LEAVING: [d], not Detach or Offset/Out
+        state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done"
+        );
+    }
+
+    #[test]
+    fn leaving_select_sub_mode_inspects_detached_endpoint_and_offers_compass_directions() {
+        let text = r#"{
+            "next_id": 2,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 2, "y": 1 },
+                            "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 10, "y": 5 },
+                            "leaving": "up", "terminal": { "kind": "symbol", "style": "solid" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+
+        state.set_sub_mode(Some(SubMode::LeavingSelect(End::From)));
+        assert_eq!(
+            status_line(&state),
+            "LEAVING for 1. From of Connector #1 · Detached (2, 1) · Current: Right"
+        );
+        assert_eq!(
+            command_line(&state),
+            "LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel"
+        );
+
+        state.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
+        assert_eq!(
+            status_line(&state),
+            "LEAVING for 2. To of Connector #1 · Detached (10, 5) · Current: Up"
+        );
+        assert_eq!(
+            command_line(&state),
+            "LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel"
         );
     }
 }

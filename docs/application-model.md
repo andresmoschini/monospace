@@ -186,17 +186,18 @@ drops.
 
 **The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
 interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`, `ENDPOINT_EDIT`
-`SubMode::Endpoint(End)` on a connector via `1` or `2`, or `TERMINAL_SELECT`
-`SubMode::TerminalSelect(End)` via `t` in `ENDPOINT_EDIT`), `DiagramState` records
+`SubMode::Endpoint(End)` on a connector via `1` or `2`, `TERMINAL_SELECT`
+`SubMode::TerminalSelect(End)` via `t` in `ENDPOINT_EDIT`, or `LEAVING_SELECT`
+`SubMode::LeavingSelect(End)` via `d` in `ENDPOINT_EDIT`), `DiagramState` records
 `sub_mode: Option<SubMode>`. The sub-mode is transient: `STROKE_SELECT` exits when a stroke is
 selected or `Esc` is pressed, while `ORDER_MODE` and `ENDPOINT_EDIT` are continuous — each of their
 keys performs one action and stays (in `ENDPOINT_EDIT`, `1` and `2` switch between `End::From` and
-`End::To` without leaving the sub-mode), and `Esc` is the key that leaves it. `TERMINAL_SELECT` is
-discrete: selecting a terminal via `1..=5` dispatches `Command::SetEndpointTerminal` and returns
-directly to `SubMode::Endpoint(End)`, and `Esc` cancels directly back to `SubMode::Endpoint(End)`.
-Losing or changing the selection — clicking another figure or outside, or removing the selected
-figure — drops it immediately (`sub_mode = None`). While the figure remains selected, transferring
-focus to the menu bar or opening an application dialog keeps the sub-mode.
+`End::To` without leaving the sub-mode), and `Esc` is the key that leaves it. `TERMINAL_SELECT` and
+`LEAVING_SELECT` are discrete: selecting an option via `1..=5` or `1..=4` dispatches the command and
+returns directly to `SubMode::Endpoint(End)`, and `Esc` cancels directly back to
+`SubMode::Endpoint(End)`. Losing or changing the selection — clicking another figure or outside, or
+removing the selected figure — drops it immediately (`sub_mode = None`). While the figure remains
+selected, transferring focus to the menu bar or opening an application dialog keeps the sub-mode.
 
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
@@ -310,6 +311,30 @@ recorded in the session unless the endpoint already carried the chosen terminal 
 case no step is recorded. Pressing `Esc` cancels the selection, restores `SubMode::Endpoint(end)`,
 and records zero steps. While in `TerminalSelect`, any key not offered is ignored (`Reply::Ignored`)
 and falls through to unclaimed universal shortcuts.
+
+**`DetachEndpoint` detaches an attached connector endpoint via `Command::DetachEndpoint`.** It is
+offered in the contextual command line as uncategorized `[0] Detach` whenever the active endpoint in
+`ENDPOINT_EDIT` (`SubMode::Endpoint(End)`) is attached (`Condition::EndpointAttached`), placed after
+`OUT: [+] [-]` (and after `[r] Reset` when offset or out is non-zero) and before `TERMINAL: [t]`.
+Pressing `0` dispatches the command naming the selected connector and active endpoint, converting
+the endpoint to an absolute canvas point frozen at its resolved position with
+`reference.anchor.leaving()`. Exactly one step is recorded in the session unless the endpoint is
+already detached or does not resolve (#285), in which case no step is recorded. The status bar
+immediately transitions to the detached layout on the next frame while maintaining
+`SubMode::Endpoint(end)` focus.
+
+**`SetEndpointLeaving` sets a detached endpoint's leaving direction via
+`Command::SetEndpointLeaving`.** It is offered in the contextual command line as
+`LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel` whenever `LEAVING_SELECT`
+(`SubMode::LeavingSelect(End)`) is entered by pressing `d` in `ENDPOINT_EDIT` on a detached endpoint
+(`Condition::EndpointDetached`). Pressing `1..=4` dispatches the command naming the selected
+connector, the active endpoint (`End::From` or `End::To`), and the chosen `Direction`, and
+transitions back to `SubMode::Endpoint(end)`. The session performs the command, updating `leaving`
+while leaving position `at` and `terminal` unchanged. Exactly one step is recorded in the session
+unless the endpoint already held the chosen leaving direction (#285), in which case no step is
+recorded. Pressing `Esc` cancels the selection, restores `SubMode::Endpoint(end)`, and records zero
+steps. While in `LeavingSelect`, any key not offered is ignored (`Reply::Ignored`) and falls through
+to unclaimed universal shortcuts.
 
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
 sub-mode (such as `STROKE_SELECT`) is active:
@@ -704,9 +729,29 @@ framework's buffer one at a time.
   for attached endpoints, and
   `ENDPOINT <n>. <From|To> of Connector #<id> · Detached (<x>, <y>) [<Leaving>] · Term: <terminal>`
   for detached endpoints.
-- In `ENDPOINT_EDIT`, row 1 offers `TERMINAL: [t]` immediately before the endpoint switch key
-  (`[2] To` or `[1] From`), alongside `OFFSET: ↑↓←→` and `OUT: [+] [-]` (and conditional
-  `[r] Reset`) on attached endpoints, or `MOVE: ↑↓←→` on detached endpoints.
+- In `ENDPOINT_EDIT`, row 1 offers uncategorized `[0] Detach` (on attached endpoints, after
+  `OUT: [+] [-]` / `[r] Reset`) or `LEAVING: [d]` (on detached endpoints, after `MOVE: ↑↓←→`),
+  before `TERMINAL: [t]` and the endpoint switch key (`[2] To` or `[1] From`).
+- In `ENDPOINT_EDIT` on an attached endpoint, pressing `0` dispatches `Command::DetachEndpoint`,
+  freezing the endpoint at its resolved canvas coordinates with `reference.anchor.leaving()`, and
+  transitions the status bar to the detached layout while remaining in `SubMode::Endpoint(end)`.
+- Pressing `d` while in `ENDPOINT_EDIT` on a detached endpoint transitions `DiagramState` to
+  `SubMode::LeavingSelect(End)` and requests a repaint without recording history steps.
+- In `LeavingSelect(end)`, row 0 formats
+  `LEAVING for <n>. <From|To> of Connector #<id> · Detached (<x>, <y>) · Current: <leaving>`.
+- In `LeavingSelect(end)`, row 1 offers
+  `LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel`.
+- In `LeavingSelect(end)`, keys `1..=4` dispatch `Command::SetEndpointLeaving`, transition back to
+  `SubMode::Endpoint(end)`, and request a repaint. Selecting the leaving direction the endpoint
+  already carries produces no change and records no step in history (#285).
+- In `LeavingSelect(end)`, pressing `Esc` cancels the selection, transitions back to
+  `SubMode::Endpoint(end)`, and requests a repaint without altering the leaving direction or
+  recording history steps.
+- In `LeavingSelect(end)`, every key the table does not offer (arrows, letters, other digits,
+  function keys) is ignored (`Reply::Ignored`) and falls through to unclaimed universal shortcuts.
+- A click on another figure or outside, removing the selected connector, and an effective undo or
+  redo end `LeavingSelect(End)`; moving focus to the menu bar or opening an application dialog keeps
+  it while the connector remains selected.
 - Pressing `t` while in `ENDPOINT_EDIT` transitions `DiagramState` to `SubMode::TerminalSelect(End)`
   and requests a repaint without recording history steps.
 - In `TerminalSelect(end)`, row 0 formats

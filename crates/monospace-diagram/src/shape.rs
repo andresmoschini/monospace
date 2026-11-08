@@ -700,6 +700,86 @@ impl Shape {
         }
     }
 
+    /// This figure with the targeted attached endpoint detached into an absolute canvas position.
+    ///
+    /// Non-connector figures, connectors with an already-detached targeted endpoint, and connectors
+    /// whose targeted reference does not resolve in `diagram` come back unchanged. When the targeted
+    /// endpoint is an attached [`EndpointAt::Reference`], it is converted into
+    /// [`EndpointAt::Absolute`] at its current resolved canvas position and anchor departure
+    /// direction (`reference.anchor.leaving()`), preserving its terminal style and leaving the other
+    /// endpoint untouched.
+    #[must_use]
+    pub fn with_endpoint_detached(&self, end: End, diagram: &Diagram) -> Self {
+        let Self::Connector { from, to, stroke } = self else {
+            return self.clone();
+        };
+
+        let detach_endpoint = |ep: &Endpoint| match ep.at {
+            EndpointAt::Reference(reference) => {
+                if let Some(at) = ep.resolve(diagram) {
+                    Endpoint {
+                        at: EndpointAt::Absolute {
+                            at,
+                            leaving: reference.anchor.leaving(),
+                        },
+                        terminal: ep.terminal.clone(),
+                    }
+                } else {
+                    ep.clone()
+                }
+            }
+            EndpointAt::Absolute { .. } => ep.clone(),
+        };
+
+        match end {
+            End::From => Self::Connector {
+                from: detach_endpoint(from),
+                to: to.clone(),
+                stroke: stroke.clone(),
+            },
+            End::To => Self::Connector {
+                from: from.clone(),
+                to: detach_endpoint(to),
+                stroke: stroke.clone(),
+            },
+        }
+    }
+
+    /// This figure with the departure direction of the targeted detached endpoint replaced.
+    ///
+    /// Non-connector figures, connectors with an attached targeted endpoint ([`EndpointAt::Reference`]),
+    /// and connectors where the targeted endpoint already holds `leaving` come back unchanged.
+    /// When the targeted endpoint is detached ([`EndpointAt::Absolute`]), its `leaving` direction is
+    /// set to `leaving`, preserving its position and terminal style and leaving the other endpoint
+    /// untouched.
+    #[must_use]
+    pub fn with_endpoint_leaving(&self, end: End, leaving: Direction) -> Self {
+        let Self::Connector { from, to, stroke } = self else {
+            return self.clone();
+        };
+
+        let update_endpoint = |ep: &Endpoint| match ep.at {
+            EndpointAt::Absolute { at, .. } => Endpoint {
+                at: EndpointAt::Absolute { at, leaving },
+                terminal: ep.terminal.clone(),
+            },
+            EndpointAt::Reference(_) => ep.clone(),
+        };
+
+        match end {
+            End::From => Self::Connector {
+                from: update_endpoint(from),
+                to: to.clone(),
+                stroke: stroke.clone(),
+            },
+            End::To => Self::Connector {
+                from: from.clone(),
+                to: update_endpoint(to),
+                stroke: stroke.clone(),
+            },
+        }
+    }
+
     /// This figure with every reference **naming `id`** replaced by the point it was resolving to,
     /// or `None` when this figure holds no such reference and nothing changed.
     ///
@@ -2300,6 +2380,205 @@ mod tests {
         assert_eq!(
             line_shape.with_endpoint_terminal(End::To, Terminal::Arm),
             line_shape
+        );
+    }
+
+    #[test]
+    fn with_endpoint_detached_freezes_reference_at_resolved_pos_and_anchor_leaving() {
+        use monospace_core::SymbolStyleName;
+
+        let mut diagram = Diagram::new();
+        let box_shape = Shape::Box {
+            at: Pos { x: 10, y: 10 },
+            size: Size {
+                width: 8,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+        let (d, box_id) = diagram.add(box_shape);
+        diagram = d;
+
+        let offset = Delta { dx: 1, dy: 2 };
+        let out = 3;
+        let arm_terminal = Terminal::Arm;
+        let symbol_terminal = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+
+        let arm_ref_endpoint = Endpoint::reference(
+            Reference::new(box_id, Anchor::Right, offset, out),
+            arm_terminal.clone(),
+        );
+        let symbol_ref_endpoint = Endpoint::reference(
+            Reference::new(box_id, Anchor::Right, offset, out),
+            symbol_terminal.clone(),
+        );
+
+        let resolved_arm_pos = arm_ref_endpoint.resolve(&diagram).unwrap();
+        let resolved_symbol_pos = symbol_ref_endpoint.resolve(&diagram).unwrap();
+
+        assert_eq!(resolved_symbol_pos.x, resolved_arm_pos.x + 1);
+        assert_eq!(resolved_symbol_pos.y, resolved_arm_pos.y);
+
+        let connector = Shape::Connector {
+            from: arm_ref_endpoint.clone(),
+            to: symbol_ref_endpoint.clone(),
+            stroke: light(),
+        };
+
+        let detached_from = connector.with_endpoint_detached(End::From, &diagram);
+        match detached_from {
+            Shape::Connector { from, to, stroke } => {
+                assert_eq!(
+                    from,
+                    Endpoint::absolute(resolved_arm_pos, Direction::Right, arm_terminal)
+                );
+                assert_eq!(to, symbol_ref_endpoint);
+                assert_eq!(stroke, light());
+            }
+            _ => unreachable!(),
+        }
+
+        let detached_to = connector.with_endpoint_detached(End::To, &diagram);
+        match detached_to {
+            Shape::Connector { from, to, stroke } => {
+                assert_eq!(from, arm_ref_endpoint);
+                assert_eq!(
+                    to,
+                    Endpoint::absolute(resolved_symbol_pos, Direction::Right, symbol_terminal)
+                );
+                assert_eq!(stroke, light());
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn with_endpoint_detached_on_absolute_or_unresolved_or_non_connector_is_unchanged() {
+        let diagram = Diagram::new();
+        let missing_id = ShapeId::new(NonZeroU16::new(99).unwrap());
+
+        let connector = Shape::Connector {
+            from: Endpoint::absolute(Pos { x: 5, y: 5 }, Direction::Up, Terminal::Arm),
+            to: Endpoint::reference(
+                Reference::new(missing_id, Anchor::Left, Delta::ZERO, 0),
+                Terminal::Arm,
+            ),
+            stroke: light(),
+        };
+
+        assert_eq!(
+            connector.with_endpoint_detached(End::From, &diagram),
+            connector
+        );
+
+        assert_eq!(
+            connector.with_endpoint_detached(End::To, &diagram),
+            connector
+        );
+
+        let box_shape = Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 10,
+                height: 5,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+        assert_eq!(
+            box_shape.with_endpoint_detached(End::From, &diagram),
+            box_shape
+        );
+        assert_eq!(
+            box_shape.with_endpoint_detached(End::To, &diagram),
+            box_shape
+        );
+    }
+
+    #[test]
+    fn with_endpoint_leaving_updates_detached_endpoint_and_ignores_attached_or_non_connector() {
+        let box_id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let attached_endpoint = Endpoint::reference(
+            Reference::new(box_id, Anchor::Left, Delta::ZERO, 0),
+            Terminal::Arm,
+        );
+        let detached_endpoint =
+            Endpoint::absolute(Pos { x: 10, y: 5 }, Direction::Right, Terminal::Arm);
+
+        let connector = Shape::Connector {
+            from: detached_endpoint.clone(),
+            to: attached_endpoint.clone(),
+            stroke: light(),
+        };
+
+        // Updating leaving on detached From updates leaving and preserves pos & terminal
+        let updated_from = connector.with_endpoint_leaving(End::From, Direction::Down);
+        match updated_from {
+            Shape::Connector { from, to, stroke } => {
+                assert_eq!(
+                    from,
+                    Endpoint::absolute(Pos { x: 10, y: 5 }, Direction::Down, Terminal::Arm)
+                );
+                assert_eq!(to, attached_endpoint);
+                assert_eq!(stroke, light());
+            }
+            _ => unreachable!(),
+        }
+
+        // Updating to identical leaving returns equal shape
+        assert_eq!(
+            connector.with_endpoint_leaving(End::From, Direction::Right),
+            connector
+        );
+
+        // Updating attached endpoint (To) ignores update and returns unchanged
+        assert_eq!(
+            connector.with_endpoint_leaving(End::To, Direction::Up),
+            connector
+        );
+
+        // Updating detached To
+        let connector2 = Shape::Connector {
+            from: attached_endpoint.clone(),
+            to: detached_endpoint.clone(),
+            stroke: light(),
+        };
+        let updated_to = connector2.with_endpoint_leaving(End::To, Direction::Left);
+        match updated_to {
+            Shape::Connector { from, to, stroke } => {
+                assert_eq!(from, attached_endpoint);
+                assert_eq!(
+                    to,
+                    Endpoint::absolute(Pos { x: 10, y: 5 }, Direction::Left, Terminal::Arm)
+                );
+                assert_eq!(stroke, light());
+            }
+            _ => unreachable!(),
+        }
+
+        // Non-connector shapes return unchanged
+        let box_shape = Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 10,
+                height: 5,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+        assert_eq!(
+            box_shape.with_endpoint_leaving(End::From, Direction::Up),
+            box_shape
+        );
+        assert_eq!(
+            box_shape.with_endpoint_leaving(End::To, Direction::Up),
+            box_shape
         );
     }
 }

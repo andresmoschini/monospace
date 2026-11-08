@@ -232,7 +232,7 @@ mod tests {
     use crate::config::Config;
     use crate::diagram_state::{End, SubMode};
     use crate::vocabulary::Action;
-    use monospace_core::{ShapeId, Terminal};
+    use monospace_core::{Direction, ShapeId, Terminal};
     use monospace_diagram::Delta;
     use monospace_editing::Command;
     use ratatui_core::layout::Position;
@@ -1102,6 +1102,20 @@ mod tests {
     }
 
     #[test]
+    fn key_acceptance_matches_contextual_bar_in_leaving_select_sub_mode() {
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
+            Some(SubMode::LeavingSelect(End::From)),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
+            Some(SubMode::LeavingSelect(End::To)),
+        );
+    }
+
+    #[test]
     fn endpoint_sub_mode_moves_adjusts_out_and_resets_endpoints() {
         let mut state = a_state_over(AN_ATTACHED_CONNECTOR);
         let id = ShapeId::new(NonZeroU16::new(3).unwrap());
@@ -1213,6 +1227,33 @@ mod tests {
             handle(&key_r, &mut detached_state, Focus::Region),
             Reply::Ignored
         );
+    }
+
+    #[test]
+    fn pressing_0_on_attached_endpoint_dispatches_detach_endpoint() {
+        let mut state = a_state_over(AN_ATTACHED_CONNECTOR);
+        let id = ShapeId::new(NonZeroU16::new(3).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        let bar = crate::status::command_line(&state);
+        assert!(bar.contains("[0] Detach"), "bar was: {bar}");
+
+        let answer = handle(&key(KeyCode::Char('0')), &mut state, Focus::Region);
+        assert_eq!(
+            answer,
+            Reply::Act(Action::Command(Command::DetachEndpoint {
+                id,
+                end: End::From
+            }))
+        );
+
+        // On detached endpoint (A_CONNECTOR), '0' is ignored
+        let mut detached_state = a_state_over(A_CONNECTOR);
+        detached_state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        detached_state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        let answer = handle(&key(KeyCode::Char('0')), &mut detached_state, Focus::Region);
+        assert_eq!(answer, Reply::Ignored);
     }
 
     #[test]
@@ -1409,6 +1450,69 @@ mod tests {
             );
             assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::To)));
         }
+    }
+
+    #[test]
+    fn pressing_d_enters_leaving_select_and_1_to_4_or_esc_returns_to_endpoint() {
+        let mut state = a_state_over(A_CONNECTOR);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+
+        // Test End::From
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        let bar = crate::status::command_line(&state);
+        assert!(bar.contains("LEAVING: [d]"), "bar was: {bar}");
+
+        let answer_d = handle(&key(KeyCode::Char('d')), &mut state, Focus::Region);
+        assert_eq!(answer_d, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::LeavingSelect(End::From)));
+
+        // Pressing Esc in LeavingSelect returns to Endpoint(End::From)
+        let answer_esc = handle(&key(KeyCode::Esc), &mut state, Focus::Region);
+        assert_eq!(answer_esc, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+        assert_eq!(state.selected(), Some(id));
+
+        // Keys 1..=4 dispatch SetEndpointLeaving and return to Endpoint(end)
+        let cases = [
+            ('1', Direction::Up),
+            ('2', Direction::Right),
+            ('3', Direction::Down),
+            ('4', Direction::Left),
+        ];
+
+        for (ch, direction) in cases {
+            state.set_sub_mode(Some(SubMode::LeavingSelect(End::From)));
+            let answer = handle(&key(KeyCode::Char(ch)), &mut state, Focus::Region);
+            assert_eq!(
+                answer,
+                Reply::Act(Action::Command(Command::SetEndpointLeaving {
+                    id,
+                    end: End::From,
+                    leaving: direction,
+                }))
+            );
+            assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+
+            state.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
+            let answer_to = handle(&key(KeyCode::Char(ch)), &mut state, Focus::Region);
+            assert_eq!(
+                answer_to,
+                Reply::Act(Action::Command(Command::SetEndpointLeaving {
+                    id,
+                    end: End::To,
+                    leaving: direction,
+                }))
+            );
+            assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::To)));
+        }
+
+        // On attached endpoint (AN_ATTACHED_CONNECTOR), 'd' is ignored
+        let mut attached_state = a_state_over(AN_ATTACHED_CONNECTOR);
+        attached_state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
+        attached_state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        let answer = handle(&key(KeyCode::Char('d')), &mut attached_state, Focus::Region);
+        assert_eq!(answer, Reply::Ignored);
     }
 
     #[test]
