@@ -58,24 +58,22 @@ Implementing Slices 3, 4, 5, and 6 of [`docs/connector-editing.md`](../docs/conn
 
 ## The decision
 
-**D1 — orientation-gated `OFFSET` arrows and face-span clamping on attached endpoints.**
+**D1 — unconstrained 2D `OFFSET` arrows on attached endpoints.**
 
 **Answer:** For an attached endpoint (`EndpointAt::Reference`), `ENDPOINT_EDIT` offers and accepts
-only the two arrows running along the anchor face: `OFFSET: ←→` for `Anchor::Top` and
-`Anchor::Bottom` (adjusting `offset.dx`), and `OFFSET: ↑↓` for `Anchor::Left` and `Anchor::Right`
-(adjusting `offset.dy`). The tangential offset is clamped to the target figure's face span around
-its `side_centre` (`-((span - 1) / 2) ..= span - 1 - ((span - 1) / 2)`, where `span` is `width` for
-`Top`/`Bottom` and `height` for `Left`/`Right`, expanded with `min(current, min_offset)` and
-`max(current, max_offset)` so pre-existing out-of-range offsets are not jumped on a clamp). Arrows
-orthogonal to the face are not offered and return `Reply::Ignored`. For a detached endpoint
-(`EndpointAt::Absolute`), `ENDPOINT_EDIT` offers and accepts all four arrows as `MOVE: ↑↓←→`.
+all four arrow keys as `OFFSET: ↑↓←→`, allowing authors to adjust `offset: Delta` freely on both
+axes (`dx`, `dy`) via `Delta::grow`. The displacement is unconstrained and is not orientation-gated
+or clamped to the target figure's face dimensions, directly reflecting the internal
+`Reference { offset: Delta, out: i16 }` model. `Shape::with_endpoint_moved` operates without needing
+a `&Diagram` lookup. For a detached endpoint (`EndpointAt::Absolute`), `ENDPOINT_EDIT` offers and
+accepts all four arrows as `MOVE: ↑↓←→`.
 
-**Why not** offering `OFFSET: ↑↓←→` on all attached endpoints and ignoring orthogonal arrows inside
-the command: in #301 (D3), horizontal and vertical lines established that when an operation acts
-along a single axis, the contextual bar offers `←→` or `↑↓` and the dispatcher ignores orthogonal
-keys in accordance with the Representation Rule (#288). Furthermore, normal displacement away from a
-face is the role of `out` (`+` / `-`), not `offset`
-([`docs/connector-editing.md`](../docs/connector-editing.md) §1.3).
+**Why not** orientation-gated arrows (`←→` or `↑↓`) and face-span clamping: gating arrows by face
+orientation and clamping to the target shape's span introduced artificial constraints, required
+target figure lookups in `with_endpoint_moved`, and complicated the editing model with special rules
+for corner clamping and out-of-range recovery. Allowing unconstrained 2D adjustment on both axes
+directly matches the internal `Reference { offset: Delta, out: i16 }` model, keeps the command and
+domain logic pure, simple, and self-contained, and preserves full authorial flexibility.
 
 **D2 — retiring whole-connector `MOVE: ↑↓←→` from `SELECTED_CONNECTOR`.**
 
@@ -131,8 +129,8 @@ Geometric modifications to an endpoint are unified into a single command:
 **Why not** separate `MoveEndpoint` and `AdjustEndpointOut` commands: tangential movement and
 orthogonal standoff are two components of the same spatial displacement vector relative to the
 anchor face. Unifying them into `MoveEndpoint` keeps the command inventory compact, matches
-`Shape::with_endpoint_moved(end, by, out, diagram)`, and allows a future caller or gesture to adjust
-both offset and standoff in a single atomic command step.
+`Shape::with_endpoint_moved(end, by, out)`, and allows a future caller or gesture to adjust both
+offset and standoff in a single atomic command step.
 
 ## Model slice
 
@@ -142,15 +140,16 @@ both offset and standoff in a single atomic command step.
   `ResetEndpoint { id, end }` to the command table and document their #285 silence conditions.
 - `docs/application-model.md` (§4 _The action model_): Update `Move` to note it applies to boxes and
   lines while connectors edit geometry through `ENDPOINT_EDIT` (`MoveEndpoint`, `ResetEndpoint`).
-- `docs/connector-editing.md` (§2.2, §2.3, §4.2): Align `OFFSET` directional arrows (`←→` vs `↑↓`)
-  on attached endpoints and note negative `out` support (e.g. `out: -1`).
+- `docs/connector-editing.md` (§2.2, §2.3, §4.1, §4.2): Restore `OFFSET: ↑↓←→` and describe
+  unconstrained 2D `offset` adjustment with arrows alongside `OUT: [+] [-]` and conditional
+  `[r] Reset`.
 
 ## Public surface
 
 - `monospace-diagram`:
   - `pub enum End { From, To }`
   - `impl Shape`:
-    - `pub fn with_endpoint_moved(&self, end: End, by: Delta, out: i16, diagram: &Diagram) -> Self`
+    - `pub fn with_endpoint_moved(&self, end: End, by: Delta, out: i16) -> Self`
     - `pub fn with_endpoint_reset(&self, end: End) -> Self`
 - `monospace-editing`:
   - `pub enum Command`:
@@ -163,14 +162,11 @@ both offset and standoff in a single atomic command step.
    `ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect`,
    and bare arrow keys return `Reply::Ignored`.
 2. In `SubMode::Endpoint(end)` on an attached endpoint (`EndpointAt::Reference(r)`):
-   - When `r.anchor` is `Top` or `Bottom`, row 1 begins with `OFFSET: ←→ · OUT: [+] [-]`; pressing
-     `←` or `→` dispatches `Command::MoveEndpoint { id, end, by, out: 0 }`, while `↑` and `↓` are
-     ignored.
-   - When `r.anchor` is `Left` or `Right`, row 1 begins with `OFFSET: ↑↓ · OUT: [+] [-]`; pressing
-     `↑` or `↓` dispatches `Command::MoveEndpoint { id, end, by, out: 0 }`, while `←` and `→` are
-     ignored.
-   - `with_endpoint_moved` clamps the tangential offset to the referenced shape's face span; nudging
-     past the corner leaves the shape unchanged and records no step (#285).
+   - Row 1 begins with `OFFSET: ↑↓←→ · OUT: [+] [-]`; pressing any of `↑`, `↓`, `←`, or `→`
+     dispatches `Command::MoveEndpoint { id, end, by, out: 0 }`, adjusting `offset: Delta` on both
+     axes via `Delta::grow`.
+   - `with_endpoint_moved` updates `offset` directly without orientation gating or clamping. A move
+     with zero delta and zero out leaves the shape unchanged and records no step (#285).
 3. In `SubMode::Endpoint(end)` on an attached endpoint, pressing `+` dispatches
    `Command::MoveEndpoint { id, end, by: Delta::ZERO, out: 1 }` and pressing `-` dispatches
    `Command::MoveEndpoint { id, end, by: Delta::ZERO, out: -1 }`. Negative `out` values (such as
@@ -192,7 +188,7 @@ tests in `## What proves it`._
 **Sliding `offset` down a vertical face and increasing `out` by 2, then resetting with `r`.** Box 1
 (`8×3` at `(0, 0)`) connected to box 2 (`8×4` at `(18, 0)`), with `to` attached to box 2's `Left`
 anchor (`side_centre` at `(18, 1)`). Pressing `↓` in `ENDPOINT 2. To` moves `offset` to `(0, 1)`
-(row 1 shows `OFFSET: ↑↓ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done`), and pressing `+`
+(row 1 shows `OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done`), and pressing `+`
 twice sets `out: 2`. Pressing `r` restores `offset: (0, 0)` and `out: 0`:
 
 <!-- render: 26x4
@@ -244,17 +240,17 @@ twice sets `out: 2`. Pressing `r` restores `offset: (0, 0)` and `out: 0`:
 ## What proves it
 
 - `monospace-diagram` (`crates/monospace-diagram/src/shape.rs`):
-  - `with_endpoint_moved_slides_attached_offset_within_face_span_and_clamps_at_corners`
+  - `with_endpoint_moved_adjusts_attached_offset_on_both_axes_without_clamping`
   - `with_endpoint_moved_displaces_detached_endpoint_on_both_axes`
   - `with_endpoint_moved_adjusts_out_including_negative_values`
   - `with_endpoint_reset_clears_offset_and_out_on_targeted_reference_only`
 - `monospace-editing` (`crates/monospace-editing/tests/contract.rs`):
-  - `moving_an_endpoint_records_one_step_and_clamped_nudge_records_none`
+  - `moving_an_endpoint_records_one_step_and_zero_delta_records_none`
   - `adjusting_endpoint_out_via_move_endpoint_records_one_step_including_negative_out`
   - `resetting_an_endpoint_clears_offset_and_out_in_one_step_and_zero_endpoint_records_none`
 - `monospace` (`crates/monospace`):
   - `status::tests::selected_connector_omits_move_and_starts_with_endpoints`
-  - `status::tests::endpoint_sub_mode_offers_axis_offset_out_and_conditional_reset`
+  - `status::tests::endpoint_sub_mode_offers_offset_out_and_conditional_reset`
   - `diagram_widget::tests::key_acceptance_matches_contextual_bar_in_endpoint_sub_mode`
   - `diagram_widget::tests::endpoint_sub_mode_moves_adjusts_out_and_resets_endpoints`
 

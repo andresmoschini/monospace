@@ -175,23 +175,21 @@ keystrokes directly mutate endpoint properties:
 
 ```text
 ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 0) out:0] · Term: solid ▶
-OFFSET: ↑↓ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
+OFFSET: ↑↓←→ · OUT: [+] [-] · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
-When `offset != (0, 0)` or `out != 0`, `[r] Reset` appears after `OUT: [+] [-]`. Tangential arrows
-follow the face orientation: `OFFSET: ←→` for `Top` and `Bottom`, and `OFFSET: ↑↓` for `Left` and
-`Right`.
+When `offset != (0, 0)` or `out != 0`, `[r] Reset` appears after `OUT: [+] [-]`.
 
-| Key          | Action / Command                                                          | History Step                                                  |
-| :----------- | :------------------------------------------------------------------------ | :------------------------------------------------------------ |
-| `←→` or `↑↓` | Adjust tangential `offset` along face perimeter (clamped to face span)    | One step per press                                            |
-| `+` / `-`    | Increment / decrement orthogonal standoff `out`                           | One step per press (negative values permitted)                |
-| `r`          | Reset `offset` to `(0, 0)` and `out` to `0`                               | One step (offered only when `offset != (0, 0)` or `out != 0`) |
-| `0`          | Detach endpoint to `Absolute` at current resolved coordinates             | One step                                                      |
-| `t`          | Open discrete `TERMINAL_SELECT`                                           | None (sub-mode)                                               |
-| `1` / `2`    | Switch active endpoint to 1 (`From`) or 2 (`To`) without leaving sub-mode | None                                                          |
-| `Esc`        | Exit endpoint editing and return to `SELECTED_CONNECTOR` (`Done`)         | None                                                          |
-| `c`          | Change target shape via `ATTACH_PICK` (_Deferred to Stage 3_)             | None (sub-mode)                                               |
+| Key       | Action / Command                                                          | History Step                                                  |
+| :-------- | :------------------------------------------------------------------------ | :------------------------------------------------------------ |
+| `↑↓←→`    | Adjust `offset` (`dx`, `dy`) relative to the anchor point                 | One step per press                                            |
+| `+` / `-` | Increment / decrement orthogonal standoff `out`                           | One step per press (negative values permitted)                |
+| `r`       | Reset `offset` to `(0, 0)` and `out` to `0`                               | One step (offered only when `offset != (0, 0)` or `out != 0`) |
+| `0`       | Detach endpoint to `Absolute` at current resolved coordinates             | One step                                                      |
+| `t`       | Open discrete `TERMINAL_SELECT`                                           | None (sub-mode)                                               |
+| `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`) without leaving sub-mode | None                                                          |
+| `Esc`     | Exit endpoint editing and return to `SELECTED_CONNECTOR` (`Done`)         | None                                                          |
+| `c`       | Change target shape via `ATTACH_PICK` (_Deferred to Stage 3_)             | None (sub-mode)                                               |
 
 ### 2.3 ENDPOINT_EDIT (Detached endpoint)
 
@@ -380,14 +378,14 @@ Initial state:
 
    ```text
    ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 1) out:0] · Term: solid ▶
-   OFFSET: ↑↓ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
+   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
 4. Author presses `+` twice. The standoff distance increases to `out: 2`:
 
    ```text
    ENDPOINT 2. To of Connector #4 · Box #2 [Left (0, 1) out:2] · Term: solid ▶
-   OFFSET: ↑↓ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
+   OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · DETACH: [0] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
    The diagram updates in real time:

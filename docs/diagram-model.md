@@ -502,11 +502,9 @@ Moving a connector's endpoint is a replacement too: `with_endpoint_moved` produc
 with the targeted endpoint (`End::From` or `End::To`) moved by a delta and adjusted outward by
 standoff `out`. Only a connector has endpoints; a box and a line come back unchanged. When the
 targeted endpoint is absolute, its point `at` is displaced by the delta, ignoring `out` and
-preserving leaving direction and terminal. When the targeted endpoint is attached to another shape
-in the diagram, the tangential offset is displaced by the delta and clamped to the extent of the
-referenced shape's face around its side center, orthogonal offset is preserved, and `out` is
-adjusted using saturating arithmetic. Nudging past the corner or against a boundary produces an
-equal shape value.
+preserving leaving direction and terminal. When the targeted endpoint is attached to another shape,
+its `offset` is grown by the delta on both axes and its standoff `out` is adjusted using saturating
+arithmetic, without needing target lookups or face-span clamping.
 
 Resetting a connector's endpoint is a replacement too: `with_endpoint_reset` produces a new
 connector with `offset` reset to `Delta::ZERO` and `out` reset to `0` on the targeted endpoint

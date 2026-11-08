@@ -80,7 +80,7 @@ command says, and one more meaning is one more arm.
 | `SetStroke { id, stroke }`          | figure cells are drawn in another stroke                                 | `replace` with `Shape::with_stroke`             |
 | `SetText { id, text }`              | a box's text is replaced with this block, or taken out                   | `replace` with `Shape::with_text`               |
 | `InvertTerminals { id }`            | a connector's terminals are swapped                                      | `replace` with `Shape::with_inverted_terminals` |
-| `MoveEndpoint { id, end, by, out }` | an endpoint is moved along the face or canvas and standoff adjusted      | `replace` with `Shape::with_endpoint_moved`     |
+| `MoveEndpoint { id, end, by, out }` | an endpoint's offset or coordinates and standoff are adjusted            | `replace` with `Shape::with_endpoint_moved`     |
 | `ResetEndpoint { id, end }`         | an endpoint's offset and standoff are reset to zero                      | `replace` with `Shape::with_endpoint_reset`     |
 | `Hang { id, from, anchor }`         | one end of a connector hangs from a figure's side                        | `replace` with a rebuilt connector              |
 | `Forward { id }`                    | one place toward the front of the order                                  | `forward`                                       |
@@ -99,11 +99,10 @@ attachments and coordinates, and records no step when both endpoints carry ident
 when the shape is not a connector (#285).
 
 `MoveEndpoint` asks the shape to move the targeted endpoint (`End::From` or `End::To`) by `by` and
-adjust standoff by `out`. On an attached endpoint, tangential offset is clamped to the referenced
-face span around its side center, orthogonal offset is preserved, and standoff `out` is adjusted
-using saturating arithmetic; on an absolute endpoint, position `at` is displaced by `by` and `out`
-is ignored. A nudge against the corner or bounds that produces an equal shape value records no step
-(#285).
+adjust standoff by `out`. On an attached endpoint, `offset` is grown by `by` on both axes and
+standoff `out` is adjusted using saturating arithmetic; on an absolute endpoint, position `at` is
+displaced by `by` and `out` is ignored. A move with zero delta and zero out that produces an equal
+shape value records no step (#285).
 
 `ResetEndpoint` asks the shape to reset `offset` and `out` to zero on the targeted endpoint
 (`End::From` or `End::To`). It records one step when either field was non-zero, and records no step
