@@ -16,10 +16,10 @@
 //! does not carry the view with it.
 
 use monospace_core::{
-    Buffer, CellReader, Footprint, FootprintSink, GlyphCatalog, Offset, OwnerReader, Pos, ShapeId,
-    Size, Window,
+    Buffer, CellReader, Direction, Footprint, FootprintSink, GlyphCatalog, Offset, Orientation,
+    OwnerReader, Pos, ShapeId, Size, Stroke, SymbolStyleName, Terminal, Window,
 };
-use monospace_diagram::Shape;
+use monospace_diagram::{Endpoint, Shape};
 use monospace_editing::{Command, Session};
 use rat_widget::event::ScrollOutcome;
 use rat_widget::scrolled::{ScrollAreaState, ScrollState};
@@ -266,6 +266,93 @@ impl DiagramState {
             None => *ids.last().expect("non-empty diagram has a last shape"),
         };
         self.select(Some(prev))
+    }
+
+    /// The canvas position at the center of the viewport window.
+    ///
+    /// Computed from the current scroll origin and half the buffer window dimensions.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "wired to context table in next commit")
+    )]
+    pub(crate) fn viewport_center(&self) -> Pos {
+        let window = self.buffer.window();
+        Pos {
+            x: self.origin.x + window.size.width.cast_signed() / 2,
+            y: self.origin.y + window.size.height.cast_signed() / 2,
+        }
+    }
+
+    /// Adds `shape` to the session, selects the newly assigned identity, and returns it.
+    pub(crate) fn add_shape(&mut self, shape: Shape) -> ShapeId {
+        let (session, id) = self.session.add(shape);
+        self.session = session;
+        self.select(Some(id));
+        id
+    }
+
+    /// Creates a 5×5 box with `"light"` stroke at the viewport center and selects it.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "wired to context table in next commit")
+    )]
+    pub(crate) fn create_box(&mut self) -> ShapeId {
+        let center = self.viewport_center();
+        self.add_shape(Shape::Box {
+            at: center,
+            size: Size {
+                width: 5,
+                height: 5,
+            },
+            stroke: Stroke::from("light"),
+            fill: None,
+            text: None,
+        })
+    }
+
+    /// Creates a vertical line of length 5 with `"light"` stroke at the viewport center and selects
+    /// it.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "wired to context table in next commit")
+    )]
+    pub(crate) fn create_line(&mut self) -> ShapeId {
+        let center = self.viewport_center();
+        self.add_shape(Shape::Line {
+            at: center,
+            len: 5,
+            orientation: Orientation::Vertical,
+            stroke: Stroke::from("light"),
+        })
+    }
+
+    /// Creates a detached connector with `"light"` stroke at the viewport center and selects it.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "wired to context table in next commit")
+    )]
+    pub(crate) fn create_connector(&mut self) -> ShapeId {
+        let center = self.viewport_center();
+        self.add_shape(Shape::Connector {
+            from: Endpoint::absolute(
+                center,
+                Direction::Right,
+                Terminal::Symbol {
+                    style: SymbolStyleName::from("outline"),
+                },
+            ),
+            to: Endpoint::absolute(
+                Pos {
+                    x: center.x + 5,
+                    y: center.y + 5,
+                },
+                Direction::Left,
+                Terminal::Symbol {
+                    style: SymbolStyleName::from("solid"),
+                },
+            ),
+            stroke: Stroke::from("light"),
+        })
     }
 
     /// The shape the drawing of the last frame records at `at`, or `None` where nobody holds the
@@ -1269,5 +1356,122 @@ mod tests {
         state.select(None);
         assert!(state.select_previous());
         assert_eq!(state.selected(), Some(id3));
+    }
+
+    #[test]
+    fn create_box_creates_default_5x5_box_at_viewport_center_and_selects_it() {
+        let mut state = DiagramState::new(Session::new(monospace_diagram::Diagram::new()));
+        state.redraw(Rect::new(0, 0, 20, 10), Rect::new(0, 0, 20, 10));
+        assert_eq!(state.viewport_center(), Pos { x: 10, y: 5 });
+
+        let box_id = state.create_box();
+        assert_eq!(state.selected(), Some(box_id));
+        assert_eq!(state.sub_mode(), None);
+
+        let shape = state.selected_shape().expect("box is in diagram");
+        assert_eq!(
+            shape,
+            &Shape::Box {
+                at: Pos { x: 10, y: 5 },
+                size: Size {
+                    width: 5,
+                    height: 5
+                },
+                stroke: Stroke::from("light"),
+                fill: None,
+                text: None,
+            }
+        );
+
+        // Undo removes the box
+        state.session = state.session.undo();
+        assert_eq!(state.session.diagram().shape_count(), 0);
+    }
+
+    #[test]
+    fn create_line_creates_vertical_line_on_scrolled_viewport_and_selects_it() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        // Scrolled viewport where origin != (0, 0)
+        state.origin = Pos { x: 6, y: 2 };
+        state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+        let center = state.viewport_center();
+        assert_eq!(
+            center,
+            Pos {
+                x: state.origin().x + EXAMPLE_INTERIOR.width.cast_signed() / 2,
+                y: state.origin().y + EXAMPLE_INTERIOR.height.cast_signed() / 2,
+            }
+        );
+
+        let prior_count = state.session.diagram().shape_count();
+        let line_id = state.create_line();
+        assert_eq!(state.selected(), Some(line_id));
+        assert_eq!(state.sub_mode(), None);
+        assert_eq!(state.session.diagram().shape_count(), prior_count + 1);
+
+        let shape = state.selected_shape().expect("line is in diagram");
+        assert_eq!(
+            shape,
+            &Shape::Line {
+                at: center,
+                len: 5,
+                orientation: Orientation::Vertical,
+                stroke: Stroke::from("light"),
+            }
+        );
+
+        // Undo removes the line
+        state.session = state.session.undo();
+        assert_eq!(state.session.diagram().shape_count(), prior_count);
+    }
+
+    #[test]
+    fn create_connector_creates_detached_connector_with_terminals_and_selects_it() {
+        use monospace_diagram::EndpointAt;
+
+        let mut state = DiagramState::new(Session::new(monospace_diagram::Diagram::new()));
+        state.redraw(Rect::new(0, 0, 16, 8), Rect::new(0, 0, 16, 8));
+        let center = state.viewport_center();
+        assert_eq!(center, Pos { x: 8, y: 4 });
+
+        let conn_id = state.create_connector();
+        assert_eq!(state.selected(), Some(conn_id));
+        assert_eq!(state.sub_mode(), None);
+
+        let shape = state.selected_shape().expect("connector is in diagram");
+        let Shape::Connector { from, to, stroke } = shape else {
+            panic!("expected connector shape");
+        };
+        assert_eq!(
+            from.at,
+            EndpointAt::Absolute {
+                at: Pos { x: 8, y: 4 },
+                leaving: Direction::Right,
+            }
+        );
+        assert_eq!(
+            from.terminal,
+            Terminal::Symbol {
+                style: SymbolStyleName::from("outline"),
+            }
+        );
+        assert_eq!(
+            to.at,
+            EndpointAt::Absolute {
+                at: Pos { x: 13, y: 9 },
+                leaving: Direction::Left,
+            }
+        );
+        assert_eq!(
+            to.terminal,
+            Terminal::Symbol {
+                style: SymbolStyleName::from("solid"),
+            }
+        );
+        assert_eq!(*stroke, Stroke::from("light"));
+
+        // Undo restores prior diagram
+        state.session = state.session.undo();
+        assert_eq!(state.session.diagram().shape_count(), 0);
     }
 }
