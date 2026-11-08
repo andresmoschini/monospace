@@ -106,6 +106,8 @@ pub(crate) enum SubMode {
     Endpoint(End),
     /// Choosing a terminal style for the active connector endpoint.
     TerminalSelect(End),
+    /// Choosing a leaving direction for the active detached connector endpoint.
+    LeavingSelect(End),
 }
 
 impl DiagramState {
@@ -954,6 +956,10 @@ mod tests {
             SubMode::OrderMode,
             SubMode::Endpoint(End::From),
             SubMode::Endpoint(End::To),
+            SubMode::TerminalSelect(End::From),
+            SubMode::TerminalSelect(End::To),
+            SubMode::LeavingSelect(End::From),
+            SubMode::LeavingSelect(End::To),
         ] {
             let mut state = a_diagram_over(THE_EXAMPLE);
             state.select(Some(selected));

@@ -11,7 +11,7 @@
 //! label the row carries with no key behind it.
 
 use monospace_core::{Orientation, Terminal};
-use monospace_diagram::{Delta, EndpointAt, Shape};
+use monospace_diagram::{Delta, Direction, EndpointAt, Shape};
 use monospace_editing::Command;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -196,6 +196,8 @@ pub(crate) enum ContextMeaning {
     SetStroke(&'static str),
     /// Sets the terminal style of the active connector endpoint.
     SetEndpointTerminal(TerminalChoice),
+    /// Sets the departure direction of the active detached connector endpoint.
+    SetEndpointLeaving(Direction),
     /// Enters an inline sub-mode.
     EnterSubMode(SubMode),
     /// Leaves an inline sub-mode back to normal selection.
@@ -416,6 +418,44 @@ static TERMINAL_SELECT: &[ContextBlock] = &[
     },
 ];
 
+static LEAVING_SELECT: &[ContextBlock] = &[
+    ContextBlock {
+        category: Some("LEAVING"),
+        condition: Condition::Always,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::Char('1'),
+                display: "[1] ↑ North",
+                meaning: ContextMeaning::SetEndpointLeaving(Direction::Up),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('2'),
+                display: "[2] → East",
+                meaning: ContextMeaning::SetEndpointLeaving(Direction::Right),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('3'),
+                display: "[3] ↓ South",
+                meaning: ContextMeaning::SetEndpointLeaving(Direction::Down),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('4'),
+                display: "[4] ← West",
+                meaning: ContextMeaning::SetEndpointLeaving(Direction::Left),
+            },
+        ],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Esc),
+            display: "[Esc] Cancel",
+            meaning: ContextMeaning::LeaveSubMode,
+        }],
+    },
+];
+
 static ORDER_MODE: &[ContextBlock] = &[
     ContextBlock {
         category: Some("ORDER"),
@@ -462,6 +502,15 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
             pattern: KeyPattern::Arrows,
             display: "↑↓←→",
             meaning: ContextMeaning::MoveEndpoint,
+        }],
+    },
+    ContextBlock {
+        category: Some("LEAVING"),
+        condition: Condition::EndpointDetached,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('d'),
+            display: "[d]",
+            meaning: ContextMeaning::EnterSubMode(SubMode::LeavingSelect(End::From)),
         }],
     },
     ContextBlock {
@@ -544,6 +593,15 @@ static ENDPOINT_TO: &[ContextBlock] = &[
             pattern: KeyPattern::Arrows,
             display: "↑↓←→",
             meaning: ContextMeaning::MoveEndpoint,
+        }],
+    },
+    ContextBlock {
+        category: Some("LEAVING"),
+        condition: Condition::EndpointDetached,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('d'),
+            display: "[d]",
+            meaning: ContextMeaning::EnterSubMode(SubMode::LeavingSelect(End::To)),
         }],
     },
     ContextBlock {
@@ -685,6 +743,7 @@ pub(crate) fn context_blocks(
         Some(SubMode::Endpoint(End::From)) if selected && is_connector => ENDPOINT_FROM,
         Some(SubMode::Endpoint(End::To)) if selected && is_connector => ENDPOINT_TO,
         Some(SubMode::TerminalSelect(_)) if selected && is_connector => TERMINAL_SELECT,
+        Some(SubMode::LeavingSelect(_)) if selected && is_connector => LEAVING_SELECT,
         _ if selected => SELECTION,
         _ => &[],
     };
@@ -846,7 +905,9 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
         }
         ContextMeaning::LeaveSubMode => {
             let next_sub_mode = match state.sub_mode() {
-                Some(SubMode::TerminalSelect(end)) => Some(SubMode::Endpoint(end)),
+                Some(SubMode::TerminalSelect(end) | SubMode::LeavingSelect(end)) => {
+                    Some(SubMode::Endpoint(end))
+                }
                 _ => None,
             };
             state.set_sub_mode(next_sub_mode);
@@ -864,6 +925,20 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
                 id,
                 end,
                 terminal: choice.to_terminal(),
+            }))
+        }
+        ContextMeaning::SetEndpointLeaving(leaving) => {
+            let Some(SubMode::LeavingSelect(end)) = state.sub_mode() else {
+                return Reply::Ignored;
+            };
+            let id = state
+                .selected()
+                .expect("leaving select block matched without selection");
+            state.set_sub_mode(Some(SubMode::Endpoint(end)));
+            Reply::Act(Action::Command(Command::SetEndpointLeaving {
+                id,
+                end,
+                leaving,
             }))
         }
         ContextMeaning::Deselect => {
