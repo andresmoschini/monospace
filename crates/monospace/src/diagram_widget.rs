@@ -232,7 +232,7 @@ mod tests {
     use crate::config::Config;
     use crate::diagram_state::{End, SubMode};
     use crate::vocabulary::Action;
-    use monospace_core::ShapeId;
+    use monospace_core::{ShapeId, Terminal};
     use monospace_diagram::Delta;
     use monospace_editing::Command;
     use ratatui_core::layout::Position;
@@ -1088,6 +1088,20 @@ mod tests {
     }
 
     #[test]
+    fn key_acceptance_matches_contextual_bar_in_terminal_select_sub_mode() {
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
+            Some(SubMode::TerminalSelect(End::From)),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
+            Some(SubMode::TerminalSelect(End::To)),
+        );
+    }
+
+    #[test]
     fn endpoint_sub_mode_moves_adjusts_out_and_resets_endpoints() {
         let mut state = a_state_over(AN_ATTACHED_CONNECTOR);
         let id = ShapeId::new(NonZeroU16::new(3).unwrap());
@@ -1288,6 +1302,113 @@ mod tests {
             Reply::Ignored
         );
         assert_eq!(idle_state.sub_mode(), None);
+    }
+
+    #[test]
+    fn endpoint_sub_mode_offers_terminal_t_action() {
+        let mut state = a_state_over(A_CONNECTOR);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        let bar = crate::status::command_line(&state);
+        assert!(bar.contains("TERMINAL: [t]"), "bar was: {bar}");
+
+        let answer = handle(&key(KeyCode::Char('t')), &mut state, Focus::Region);
+        assert_eq!(answer, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::TerminalSelect(End::From)));
+    }
+
+    #[test]
+    fn pressing_t_enters_terminal_select_and_esc_returns_to_endpoint() {
+        let mut state = a_state_over(A_CONNECTOR);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+
+        // Test End::From
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        let answer_t = handle(&key(KeyCode::Char('t')), &mut state, Focus::Region);
+        assert_eq!(answer_t, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::TerminalSelect(End::From)));
+
+        let answer_esc = handle(&key(KeyCode::Esc), &mut state, Focus::Region);
+        assert_eq!(answer_esc, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+        assert_eq!(state.selected(), Some(id));
+
+        // Test End::To
+        state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        let answer_t_to = handle(&key(KeyCode::Char('t')), &mut state, Focus::Region);
+        assert_eq!(answer_t_to, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::TerminalSelect(End::To)));
+
+        let answer_esc_to = handle(&key(KeyCode::Esc), &mut state, Focus::Region);
+        assert_eq!(answer_esc_to, Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::To)));
+        assert_eq!(state.selected(), Some(id));
+    }
+
+    #[test]
+    fn terminal_select_dispatches_set_endpoint_terminal_and_returns_to_endpoint() {
+        use monospace_core::SymbolStyleName;
+
+        let mut state = a_state_over(A_CONNECTOR);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+
+        let cases = [
+            ('1', Terminal::Arm),
+            (
+                '2',
+                Terminal::Symbol {
+                    style: SymbolStyleName::from("solid"),
+                },
+            ),
+            (
+                '3',
+                Terminal::Symbol {
+                    style: SymbolStyleName::from("outline"),
+                },
+            ),
+            (
+                '4',
+                Terminal::Symbol {
+                    style: SymbolStyleName::from("ascii"),
+                },
+            ),
+            (
+                '5',
+                Terminal::Glyph {
+                    glyph: monospace_core::Glyph::new("◆").unwrap(),
+                },
+            ),
+        ];
+
+        for (key_char, expected_terminal) in cases {
+            state.set_sub_mode(Some(SubMode::TerminalSelect(End::From)));
+            let answer = handle(&key(KeyCode::Char(key_char)), &mut state, Focus::Region);
+            assert_eq!(
+                answer,
+                Reply::Act(Action::Command(Command::SetEndpointTerminal {
+                    id,
+                    end: End::From,
+                    terminal: expected_terminal.clone(),
+                }))
+            );
+            assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+
+            state.set_sub_mode(Some(SubMode::TerminalSelect(End::To)));
+            let answer_to = handle(&key(KeyCode::Char(key_char)), &mut state, Focus::Region);
+            assert_eq!(
+                answer_to,
+                Reply::Act(Action::Command(Command::SetEndpointTerminal {
+                    id,
+                    end: End::To,
+                    terminal: expected_terminal,
+                }))
+            );
+            assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::To)));
+        }
     }
 
     #[test]

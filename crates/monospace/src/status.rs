@@ -796,7 +796,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓←→ · OUT: [+] [-] · [2] To · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done"
         );
 
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
@@ -804,7 +804,10 @@ mod tests {
             status_line(&state),
             "ENDPOINT 2. To of Connector #2 · Detached (20, 5) [Left] · Term: solid ▶"
         );
-        assert_eq!(command_line(&state), "MOVE: ↑↓←→ · [1] From · [Esc] Done");
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · TERMINAL: [t] · [1] From · [Esc] Done"
+        );
     }
 
     #[test]
@@ -826,18 +829,18 @@ mod tests {
         let mut state = a_state_over(text);
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
 
-        // From: Top anchor, offset 0, out 0 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [2] To · [Esc] Done (no reset)
+        // From: Top anchor, offset 0, out 0 -> OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done (no reset)
         state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓←→ · OUT: [+] [-] · [2] To · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · TERMINAL: [t] · [2] To · [Esc] Done"
         );
 
-        // To: Left anchor, offset 1, out 2 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done
+        // To: Left anchor, offset 1, out 2 -> OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · TERMINAL: [t] · [1] From · [Esc] Done
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             command_line(&state),
-            "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done"
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · TERMINAL: [t] · [1] From · [Esc] Done"
         );
     }
 
@@ -871,6 +874,37 @@ mod tests {
         assert_eq!(
             status_line(&state),
             "TERMINAL for 2. To of Connector #2 · Current: glyph ◆"
+        );
+    }
+
+    #[test]
+    fn terminal_select_sub_mode_offers_one_to_five_palette_and_cancel() {
+        let text = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "top", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 20, "y": 5 }, "leaving": "left",
+                            "terminal": { "kind": "symbol", "style": "solid" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
+
+        state.set_sub_mode(Some(SubMode::TerminalSelect(End::From)));
+        assert_eq!(
+            command_line(&state),
+            "TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel"
+        );
+
+        state.set_sub_mode(Some(SubMode::TerminalSelect(End::To)));
+        assert_eq!(
+            command_line(&state),
+            "TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel"
         );
     }
 }
