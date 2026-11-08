@@ -920,11 +920,11 @@ mod tests {
             }
             for action in block.actions {
                 assert!(
-                    bar.contains(action.display),
+                    bar.contains(&action.text()),
                     "bar missing action display {:?} in: {bar}",
-                    action.display
+                    action.text()
                 );
-                for (code, modifiers) in action.pattern.samples() {
+                for (code, modifiers) in action.trigger.samples() {
                     offered_keys.push((code, modifiers));
                     let mut s = make_state();
                     let event = Event::Key(KeyEvent::new(code, modifiers));

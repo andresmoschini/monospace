@@ -65,6 +65,20 @@ pub(crate) enum KeyPattern {
 }
 
 impl KeyPattern {
+    /// The bracketed key symbol or symbols representing this pattern in the contextual bar.
+    #[must_use]
+    pub(crate) fn notation(self) -> String {
+        match self {
+            Self::Arrows => "↑↓←→".to_string(),
+            Self::ShiftArrows => "Shift+↑↓←→".to_string(),
+            Self::ShiftHorizontalArrows => "Shift+←→".to_string(),
+            Self::ShiftVerticalArrows => "Shift+↑↓".to_string(),
+            Self::Code(code) => format!("[{}]", key_name(code)),
+            Self::BackTab => "[Shift+Tab]".to_string(),
+            Self::Char(c) | Self::CharOrShift(c) => format!("[{c}]"),
+        }
+    }
+
     /// Whether `event` matches this pattern.
     #[must_use]
     pub(crate) fn matches(self, event: &KeyEvent) -> bool {
@@ -145,6 +159,54 @@ impl KeyPattern {
     }
 }
 
+fn key_name(code: KeyCode) -> &'static str {
+    match code {
+        KeyCode::Tab => "Tab",
+        KeyCode::Delete => "Del",
+        KeyCode::Esc => "Esc",
+        KeyCode::Home => "Home",
+        KeyCode::End => "End",
+        KeyCode::PageUp => "PgUp",
+        KeyCode::PageDown => "PgDn",
+        _ => "?",
+    }
+}
+
+/// What invokes a contextual action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Trigger {
+    /// A keyboard event matched by `pattern`.
+    Key(KeyPattern),
+    /// A left press inside the region, answered by the region's click handler.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "constructed in subsequent stage of mouse action modeling"
+        )
+    )]
+    Click,
+}
+
+impl Trigger {
+    /// The bracketed notation representing this trigger in the contextual bar.
+    #[must_use]
+    pub(crate) fn notation(self) -> String {
+        match self {
+            Self::Click => "[Click]".to_string(),
+            Self::Key(pattern) => pattern.notation(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn samples(self) -> Vec<(KeyCode, KeyModifiers)> {
+        match self {
+            Self::Key(pattern) => pattern.samples(),
+            Self::Click => Vec::new(),
+        }
+    }
+}
+
 /// One of the five discrete terminal options offered by the inline selector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TerminalChoice {
@@ -176,6 +238,7 @@ impl TerminalChoice {
 }
 
 /// What a contextual keypress means.
+#[derive(Debug)]
 pub(crate) enum ContextMeaning {
     /// Dispatches a direct application action.
     Act(Action),
@@ -231,10 +294,23 @@ pub(crate) enum ContextMeaning {
 }
 
 /// One contextual action offered by a block.
+#[derive(Debug)]
 pub(crate) struct ContextAction {
-    pub(crate) pattern: KeyPattern,
-    pub(crate) display: &'static str,
+    pub(crate) trigger: Trigger,
+    /// The words after the notation, or `""` when the notation is the whole label.
+    pub(crate) label: &'static str,
     pub(crate) meaning: ContextMeaning,
+}
+
+impl ContextAction {
+    pub(crate) fn text(&self) -> String {
+        let notation = self.trigger.notation();
+        if self.label.is_empty() {
+            notation
+        } else {
+            format!("{notation} {}", self.label)
+        }
+    }
 }
 
 /// A group of related contextual actions sharing a category prefix and condition.
@@ -250,18 +326,18 @@ static IDLE: &[ContextBlock] = &[
         condition: Condition::Always,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::Char('b'),
-                display: "[b] Box",
+                trigger: Trigger::Key(KeyPattern::Char('b')),
+                label: "Box",
                 meaning: ContextMeaning::CreateBox,
             },
             ContextAction {
-                pattern: KeyPattern::Char('l'),
-                display: "[l] Line",
+                trigger: Trigger::Key(KeyPattern::Char('l')),
+                label: "Line",
                 meaning: ContextMeaning::CreateLine,
             },
             ContextAction {
-                pattern: KeyPattern::Char('c'),
-                display: "[c] Connector",
+                trigger: Trigger::Key(KeyPattern::Char('c')),
+                label: "Connector",
                 meaning: ContextMeaning::CreateConnector,
             },
         ],
@@ -271,13 +347,13 @@ static IDLE: &[ContextBlock] = &[
         condition: Condition::HasShapes,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::Code(KeyCode::Tab),
-                display: "[Tab] Next",
+                trigger: Trigger::Key(KeyPattern::Code(KeyCode::Tab)),
+                label: "Next",
                 meaning: ContextMeaning::SelectNext,
             },
             ContextAction {
-                pattern: KeyPattern::BackTab,
-                display: "[Shift+Tab] Prev",
+                trigger: Trigger::Key(KeyPattern::BackTab),
+                label: "Prev",
                 meaning: ContextMeaning::SelectPrevious,
             },
         ],
@@ -289,8 +365,8 @@ static SELECTION: &[ContextBlock] = &[
         category: Some("MOVE"),
         condition: Condition::BoxOrLine,
         actions: &[ContextAction {
-            pattern: KeyPattern::Arrows,
-            display: "↑↓←→",
+            trigger: Trigger::Key(KeyPattern::Arrows),
+            label: "",
             meaning: ContextMeaning::Move,
         }],
     },
@@ -298,8 +374,8 @@ static SELECTION: &[ContextBlock] = &[
         category: Some("RESIZE"),
         condition: Condition::Box,
         actions: &[ContextAction {
-            pattern: KeyPattern::ShiftArrows,
-            display: "Shift+↑↓←→",
+            trigger: Trigger::Key(KeyPattern::ShiftArrows),
+            label: "",
             meaning: ContextMeaning::Resize,
         }],
     },
@@ -307,8 +383,8 @@ static SELECTION: &[ContextBlock] = &[
         category: Some("RESIZE"),
         condition: Condition::HorizontalLine,
         actions: &[ContextAction {
-            pattern: KeyPattern::ShiftHorizontalArrows,
-            display: "Shift+←→",
+            trigger: Trigger::Key(KeyPattern::ShiftHorizontalArrows),
+            label: "",
             meaning: ContextMeaning::Resize,
         }],
     },
@@ -316,8 +392,8 @@ static SELECTION: &[ContextBlock] = &[
         category: Some("RESIZE"),
         condition: Condition::VerticalLine,
         actions: &[ContextAction {
-            pattern: KeyPattern::ShiftVerticalArrows,
-            display: "Shift+↑↓",
+            trigger: Trigger::Key(KeyPattern::ShiftVerticalArrows),
+            label: "",
             meaning: ContextMeaning::Resize,
         }],
     },
@@ -325,8 +401,8 @@ static SELECTION: &[ContextBlock] = &[
         category: Some("TEXT"),
         condition: Condition::Box,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('t'),
-            display: "[t] Edit",
+            trigger: Trigger::Key(KeyPattern::Char('t')),
+            label: "Edit",
             meaning: ContextMeaning::Act(Action::EditText),
         }],
     },
@@ -335,13 +411,13 @@ static SELECTION: &[ContextBlock] = &[
         condition: Condition::Connector,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::Char('1'),
-                display: "[1] From",
+                trigger: Trigger::Key(KeyPattern::Char('1')),
+                label: "From",
                 meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::From)),
             },
             ContextAction {
-                pattern: KeyPattern::Char('2'),
-                display: "[2] To",
+                trigger: Trigger::Key(KeyPattern::Char('2')),
+                label: "To",
                 meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::To)),
             },
         ],
@@ -350,8 +426,8 @@ static SELECTION: &[ContextBlock] = &[
         category: Some("INVERT"),
         condition: Condition::Connector,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('i'),
-            display: "[i]",
+            trigger: Trigger::Key(KeyPattern::Char('i')),
+            label: "",
             meaning: ContextMeaning::InvertTerminals,
         }],
     },
@@ -359,8 +435,8 @@ static SELECTION: &[ContextBlock] = &[
         category: Some("STROKE"),
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('s'),
-            display: "[s]",
+            trigger: Trigger::Key(KeyPattern::Char('s')),
+            label: "",
             meaning: ContextMeaning::EnterSubMode(SubMode::StrokeSelect),
         }],
     },
@@ -368,8 +444,8 @@ static SELECTION: &[ContextBlock] = &[
         category: Some("ORDER"),
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('z'),
-            display: "[z]",
+            trigger: Trigger::Key(KeyPattern::Char('z')),
+            label: "",
             meaning: ContextMeaning::EnterSubMode(SubMode::OrderMode),
         }],
     },
@@ -378,13 +454,13 @@ static SELECTION: &[ContextBlock] = &[
         condition: Condition::Always,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::Code(KeyCode::Tab),
-                display: "[Tab] Next",
+                trigger: Trigger::Key(KeyPattern::Code(KeyCode::Tab)),
+                label: "Next",
                 meaning: ContextMeaning::SelectNext,
             },
             ContextAction {
-                pattern: KeyPattern::BackTab,
-                display: "[Shift+Tab] Prev",
+                trigger: Trigger::Key(KeyPattern::BackTab),
+                label: "Prev",
                 meaning: ContextMeaning::SelectPrevious,
             },
         ],
@@ -393,8 +469,8 @@ static SELECTION: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Code(KeyCode::Delete),
-            display: "[Del] Delete",
+            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Delete)),
+            label: "Delete",
             meaning: ContextMeaning::Remove,
         }],
     },
@@ -402,8 +478,8 @@ static SELECTION: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Code(KeyCode::Esc),
-            display: "[Esc] Deselect",
+            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+            label: "Deselect",
             meaning: ContextMeaning::Deselect,
         }],
     },
@@ -415,28 +491,28 @@ static STROKE_SELECT: &[ContextBlock] = &[
         condition: Condition::Always,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::Char('1'),
-                display: "[1] light ┌─┐",
+                trigger: Trigger::Key(KeyPattern::Char('1')),
+                label: "light ┌─┐",
                 meaning: ContextMeaning::SetStroke("light"),
             },
             ContextAction {
-                pattern: KeyPattern::Char('2'),
-                display: "[2] double ╔═╗",
+                trigger: Trigger::Key(KeyPattern::Char('2')),
+                label: "double ╔═╗",
                 meaning: ContextMeaning::SetStroke("double"),
             },
             ContextAction {
-                pattern: KeyPattern::Char('3'),
-                display: "[3] light-round ╭─╮",
+                trigger: Trigger::Key(KeyPattern::Char('3')),
+                label: "light-round ╭─╮",
                 meaning: ContextMeaning::SetStroke("light-round"),
             },
             ContextAction {
-                pattern: KeyPattern::Char('4'),
-                display: "[4] heavy ┏━┓",
+                trigger: Trigger::Key(KeyPattern::Char('4')),
+                label: "heavy ┏━┓",
                 meaning: ContextMeaning::SetStroke("heavy"),
             },
             ContextAction {
-                pattern: KeyPattern::Char('5'),
-                display: "[5] ascii +-+",
+                trigger: Trigger::Key(KeyPattern::Char('5')),
+                label: "ascii +-+",
                 meaning: ContextMeaning::SetStroke("ascii"),
             },
         ],
@@ -445,8 +521,8 @@ static STROKE_SELECT: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Code(KeyCode::Esc),
-            display: "[Esc] Cancel",
+            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+            label: "Cancel",
             meaning: ContextMeaning::LeaveSubMode,
         }],
     },
@@ -458,28 +534,28 @@ static TERMINAL_SELECT: &[ContextBlock] = &[
         condition: Condition::Always,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::Char('1'),
-                display: "[1] arm ─",
+                trigger: Trigger::Key(KeyPattern::Char('1')),
+                label: "arm ─",
                 meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Arm),
             },
             ContextAction {
-                pattern: KeyPattern::Char('2'),
-                display: "[2] solid ▶",
+                trigger: Trigger::Key(KeyPattern::Char('2')),
+                label: "solid ▶",
                 meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Solid),
             },
             ContextAction {
-                pattern: KeyPattern::Char('3'),
-                display: "[3] outline ▷",
+                trigger: Trigger::Key(KeyPattern::Char('3')),
+                label: "outline ▷",
                 meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Outline),
             },
             ContextAction {
-                pattern: KeyPattern::Char('4'),
-                display: "[4] ascii >",
+                trigger: Trigger::Key(KeyPattern::Char('4')),
+                label: "ascii >",
                 meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Ascii),
             },
             ContextAction {
-                pattern: KeyPattern::Char('5'),
-                display: "[5] diamond ◆",
+                trigger: Trigger::Key(KeyPattern::Char('5')),
+                label: "diamond ◆",
                 meaning: ContextMeaning::SetEndpointTerminal(TerminalChoice::Diamond),
             },
         ],
@@ -488,8 +564,8 @@ static TERMINAL_SELECT: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Code(KeyCode::Esc),
-            display: "[Esc] Cancel",
+            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+            label: "Cancel",
             meaning: ContextMeaning::LeaveSubMode,
         }],
     },
@@ -501,23 +577,23 @@ static LEAVING_SELECT: &[ContextBlock] = &[
         condition: Condition::Always,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::Char('1'),
-                display: "[1] ↑ North",
+                trigger: Trigger::Key(KeyPattern::Char('1')),
+                label: "↑ North",
                 meaning: ContextMeaning::SetEndpointLeaving(Direction::Up),
             },
             ContextAction {
-                pattern: KeyPattern::Char('2'),
-                display: "[2] → East",
+                trigger: Trigger::Key(KeyPattern::Char('2')),
+                label: "→ East",
                 meaning: ContextMeaning::SetEndpointLeaving(Direction::Right),
             },
             ContextAction {
-                pattern: KeyPattern::Char('3'),
-                display: "[3] ↓ South",
+                trigger: Trigger::Key(KeyPattern::Char('3')),
+                label: "↓ South",
                 meaning: ContextMeaning::SetEndpointLeaving(Direction::Down),
             },
             ContextAction {
-                pattern: KeyPattern::Char('4'),
-                display: "[4] ← West",
+                trigger: Trigger::Key(KeyPattern::Char('4')),
+                label: "← West",
                 meaning: ContextMeaning::SetEndpointLeaving(Direction::Left),
             },
         ],
@@ -526,8 +602,8 @@ static LEAVING_SELECT: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Code(KeyCode::Esc),
-            display: "[Esc] Cancel",
+            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+            label: "Cancel",
             meaning: ContextMeaning::LeaveSubMode,
         }],
     },
@@ -539,23 +615,23 @@ static ORDER_MODE: &[ContextBlock] = &[
         condition: Condition::Always,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::Code(KeyCode::Home),
-                display: "[Home] Front",
+                trigger: Trigger::Key(KeyPattern::Code(KeyCode::Home)),
+                label: "Front",
                 meaning: ContextMeaning::ToFront,
             },
             ContextAction {
-                pattern: KeyPattern::Code(KeyCode::End),
-                display: "[End] Back",
+                trigger: Trigger::Key(KeyPattern::Code(KeyCode::End)),
+                label: "Back",
                 meaning: ContextMeaning::ToBack,
             },
             ContextAction {
-                pattern: KeyPattern::Code(KeyCode::PageUp),
-                display: "[PgUp] Forward",
+                trigger: Trigger::Key(KeyPattern::Code(KeyCode::PageUp)),
+                label: "Forward",
                 meaning: ContextMeaning::Forward,
             },
             ContextAction {
-                pattern: KeyPattern::Code(KeyCode::PageDown),
-                display: "[PgDn] Backward",
+                trigger: Trigger::Key(KeyPattern::Code(KeyCode::PageDown)),
+                label: "Backward",
                 meaning: ContextMeaning::Backward,
             },
         ],
@@ -564,8 +640,8 @@ static ORDER_MODE: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Code(KeyCode::Esc),
-            display: "[Esc] Done",
+            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+            label: "Done",
             meaning: ContextMeaning::LeaveSubMode,
         }],
     },
@@ -576,8 +652,8 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         category: Some("MOVE"),
         condition: Condition::EndpointDetached,
         actions: &[ContextAction {
-            pattern: KeyPattern::Arrows,
-            display: "↑↓←→",
+            trigger: Trigger::Key(KeyPattern::Arrows),
+            label: "",
             meaning: ContextMeaning::MoveEndpoint,
         }],
     },
@@ -585,8 +661,8 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         category: Some("LEAVING"),
         condition: Condition::EndpointDetached,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('d'),
-            display: "[d]",
+            trigger: Trigger::Key(KeyPattern::Char('d')),
+            label: "",
             meaning: ContextMeaning::EnterSubMode(SubMode::LeavingSelect(End::From)),
         }],
     },
@@ -594,8 +670,8 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         category: Some("OFFSET"),
         condition: Condition::EndpointAttached,
         actions: &[ContextAction {
-            pattern: KeyPattern::Arrows,
-            display: "↑↓←→",
+            trigger: Trigger::Key(KeyPattern::Arrows),
+            label: "",
             meaning: ContextMeaning::MoveEndpoint,
         }],
     },
@@ -604,13 +680,13 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         condition: Condition::EndpointAttached,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::CharOrShift('+'),
-                display: "[+]",
+                trigger: Trigger::Key(KeyPattern::CharOrShift('+')),
+                label: "",
                 meaning: ContextMeaning::AdjustEndpointOut(1),
             },
             ContextAction {
-                pattern: KeyPattern::Char('-'),
-                display: "[-]",
+                trigger: Trigger::Key(KeyPattern::Char('-')),
+                label: "",
                 meaning: ContextMeaning::AdjustEndpointOut(-1),
             },
         ],
@@ -619,8 +695,8 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         category: None,
         condition: Condition::EndpointReset,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('r'),
-            display: "[r] Reset",
+            trigger: Trigger::Key(KeyPattern::Char('r')),
+            label: "Reset",
             meaning: ContextMeaning::ResetEndpoint,
         }],
     },
@@ -628,8 +704,8 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         category: None,
         condition: Condition::EndpointAttached,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('0'),
-            display: "[0] Detach",
+            trigger: Trigger::Key(KeyPattern::Char('0')),
+            label: "Detach",
             meaning: ContextMeaning::DetachEndpoint,
         }],
     },
@@ -637,8 +713,8 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         category: Some("TERMINAL"),
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('t'),
-            display: "[t]",
+            trigger: Trigger::Key(KeyPattern::Char('t')),
+            label: "",
             meaning: ContextMeaning::EnterSubMode(SubMode::TerminalSelect(End::From)),
         }],
     },
@@ -646,8 +722,8 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('2'),
-            display: "[2] To",
+            trigger: Trigger::Key(KeyPattern::Char('2')),
+            label: "To",
             meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::To)),
         }],
     },
@@ -655,8 +731,8 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Code(KeyCode::Esc),
-            display: "[Esc] Done",
+            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+            label: "Done",
             meaning: ContextMeaning::LeaveSubMode,
         }],
     },
@@ -667,8 +743,8 @@ static ENDPOINT_TO: &[ContextBlock] = &[
         category: Some("MOVE"),
         condition: Condition::EndpointDetached,
         actions: &[ContextAction {
-            pattern: KeyPattern::Arrows,
-            display: "↑↓←→",
+            trigger: Trigger::Key(KeyPattern::Arrows),
+            label: "",
             meaning: ContextMeaning::MoveEndpoint,
         }],
     },
@@ -676,8 +752,8 @@ static ENDPOINT_TO: &[ContextBlock] = &[
         category: Some("LEAVING"),
         condition: Condition::EndpointDetached,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('d'),
-            display: "[d]",
+            trigger: Trigger::Key(KeyPattern::Char('d')),
+            label: "",
             meaning: ContextMeaning::EnterSubMode(SubMode::LeavingSelect(End::To)),
         }],
     },
@@ -685,8 +761,8 @@ static ENDPOINT_TO: &[ContextBlock] = &[
         category: Some("OFFSET"),
         condition: Condition::EndpointAttached,
         actions: &[ContextAction {
-            pattern: KeyPattern::Arrows,
-            display: "↑↓←→",
+            trigger: Trigger::Key(KeyPattern::Arrows),
+            label: "",
             meaning: ContextMeaning::MoveEndpoint,
         }],
     },
@@ -695,13 +771,13 @@ static ENDPOINT_TO: &[ContextBlock] = &[
         condition: Condition::EndpointAttached,
         actions: &[
             ContextAction {
-                pattern: KeyPattern::CharOrShift('+'),
-                display: "[+]",
+                trigger: Trigger::Key(KeyPattern::CharOrShift('+')),
+                label: "",
                 meaning: ContextMeaning::AdjustEndpointOut(1),
             },
             ContextAction {
-                pattern: KeyPattern::Char('-'),
-                display: "[-]",
+                trigger: Trigger::Key(KeyPattern::Char('-')),
+                label: "",
                 meaning: ContextMeaning::AdjustEndpointOut(-1),
             },
         ],
@@ -710,8 +786,8 @@ static ENDPOINT_TO: &[ContextBlock] = &[
         category: None,
         condition: Condition::EndpointReset,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('r'),
-            display: "[r] Reset",
+            trigger: Trigger::Key(KeyPattern::Char('r')),
+            label: "Reset",
             meaning: ContextMeaning::ResetEndpoint,
         }],
     },
@@ -719,8 +795,8 @@ static ENDPOINT_TO: &[ContextBlock] = &[
         category: None,
         condition: Condition::EndpointAttached,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('0'),
-            display: "[0] Detach",
+            trigger: Trigger::Key(KeyPattern::Char('0')),
+            label: "Detach",
             meaning: ContextMeaning::DetachEndpoint,
         }],
     },
@@ -728,8 +804,8 @@ static ENDPOINT_TO: &[ContextBlock] = &[
         category: Some("TERMINAL"),
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('t'),
-            display: "[t]",
+            trigger: Trigger::Key(KeyPattern::Char('t')),
+            label: "",
             meaning: ContextMeaning::EnterSubMode(SubMode::TerminalSelect(End::To)),
         }],
     },
@@ -737,8 +813,8 @@ static ENDPOINT_TO: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Char('1'),
-            display: "[1] From",
+            trigger: Trigger::Key(KeyPattern::Char('1')),
+            label: "From",
             meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::From)),
         }],
     },
@@ -746,8 +822,8 @@ static ENDPOINT_TO: &[ContextBlock] = &[
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
-            pattern: KeyPattern::Code(KeyCode::Esc),
-            display: "[Esc] Done",
+            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+            label: "Done",
             meaning: ContextMeaning::LeaveSubMode,
         }],
     },
@@ -855,7 +931,7 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
             if j > 0 {
                 result.push(' ');
             }
-            result.push_str(action.display);
+            result.push_str(&action.text());
         }
     }
     if state.session().diagram().shape_count() > 0 && state.selected_shape().is_none() {
@@ -1064,11 +1140,98 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply {
 
     for block in context_blocks(state) {
         for action in block.actions {
-            if action.pattern.matches(key) {
+            let Trigger::Key(pattern) = action.trigger else {
+                continue;
+            };
+            if pattern.matches(key) {
                 return execute_meaning(&action.meaning, state, key);
             }
         }
     }
 
     Reply::Ignored
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn key_pattern_notation_covers_all_variants() {
+        assert_eq!(KeyPattern::Arrows.notation(), "↑↓←→");
+        assert_eq!(KeyPattern::ShiftArrows.notation(), "Shift+↑↓←→");
+        assert_eq!(KeyPattern::ShiftHorizontalArrows.notation(), "Shift+←→");
+        assert_eq!(KeyPattern::ShiftVerticalArrows.notation(), "Shift+↑↓");
+        assert_eq!(KeyPattern::Code(KeyCode::Tab).notation(), "[Tab]");
+        assert_eq!(KeyPattern::Code(KeyCode::Delete).notation(), "[Del]");
+        assert_eq!(KeyPattern::Code(KeyCode::Esc).notation(), "[Esc]");
+        assert_eq!(KeyPattern::Code(KeyCode::Home).notation(), "[Home]");
+        assert_eq!(KeyPattern::Code(KeyCode::End).notation(), "[End]");
+        assert_eq!(KeyPattern::Code(KeyCode::PageUp).notation(), "[PgUp]");
+        assert_eq!(KeyPattern::Code(KeyCode::PageDown).notation(), "[PgDn]");
+        assert_eq!(KeyPattern::Code(KeyCode::F(1)).notation(), "[?]");
+        assert_eq!(KeyPattern::BackTab.notation(), "[Shift+Tab]");
+        assert_eq!(KeyPattern::Char('b').notation(), "[b]");
+        assert_eq!(KeyPattern::CharOrShift('+').notation(), "[+]");
+    }
+
+    #[test]
+    fn trigger_notation_covers_keys_and_click() {
+        assert_eq!(Trigger::Click.notation(), "[Click]");
+        assert_eq!(Trigger::Key(KeyPattern::Char('x')).notation(), "[x]");
+    }
+
+    #[test]
+    fn context_action_text_with_empty_and_non_empty_label() {
+        let action_with_label = ContextAction {
+            trigger: Trigger::Key(KeyPattern::Char('b')),
+            label: "Box",
+            meaning: ContextMeaning::CreateBox,
+        };
+        assert_eq!(action_with_label.text(), "[b] Box");
+
+        let action_without_label = ContextAction {
+            trigger: Trigger::Key(KeyPattern::Arrows),
+            label: "",
+            meaning: ContextMeaning::Move,
+        };
+        assert_eq!(action_without_label.text(), "↑↓←→");
+
+        let click_action = ContextAction {
+            trigger: Trigger::Click,
+            label: "Pick",
+            meaning: ContextMeaning::SelectNext,
+        };
+        assert_eq!(click_action.text(), "[Click] Pick");
+    }
+
+    #[test]
+    fn all_actions_in_all_tables_have_valid_notation() {
+        let all_tables: &[&[ContextBlock]] = &[
+            IDLE,
+            SELECTION,
+            STROKE_SELECT,
+            TERMINAL_SELECT,
+            LEAVING_SELECT,
+            ORDER_MODE,
+            ENDPOINT_FROM,
+            ENDPOINT_TO,
+        ];
+        for table in all_tables {
+            for block in *table {
+                for action in block.actions {
+                    let notation = action.trigger.notation();
+                    assert!(
+                        !notation.contains("[?]"),
+                        "action in table produced [?]: {notation}"
+                    );
+                    assert!(
+                        !action.text().contains("[?]"),
+                        "action text produced [?]: {}",
+                        action.text()
+                    );
+                }
+            }
+        }
+    }
 }
