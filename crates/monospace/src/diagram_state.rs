@@ -235,7 +235,6 @@ impl DiagramState {
     /// Selects the next figure in drawing order (`Diagram::shapes()`, back-to-front), wrapping from
     /// the front-most figure back to the first. When nothing is selected, selects the first
     /// (back-most) figure. Returns `true` if the selection changed.
-    #[allow(dead_code)]
     pub(crate) fn select_next(&mut self) -> bool {
         let ids: Vec<ShapeId> = self.session.diagram().shapes().map(|(id, _)| id).collect();
         if ids.is_empty() {
@@ -254,7 +253,6 @@ impl DiagramState {
     /// Selects the previous figure in drawing order (`Diagram::shapes()`, front-to-back), wrapping
     /// from the first (back-most) figure to the last (front-most). When nothing is selected,
     /// selects the last (front-most) figure. Returns `true` if the selection changed.
-    #[allow(dead_code)]
     pub(crate) fn select_previous(&mut self) -> bool {
         let ids: Vec<ShapeId> = self.session.diagram().shapes().map(|(id, _)| id).collect();
         if ids.is_empty() {

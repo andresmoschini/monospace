@@ -42,6 +42,9 @@ pub(crate) enum Condition {
     EndpointAttached,
     /// Active only if the active endpoint is attached and either offset or out is non-zero.
     EndpointReset,
+    /// Active only if the diagram holds at least one figure.
+    #[allow(dead_code)]
+    HasShapes,
 }
 
 /// A pattern of key combinations matched by contextual actions.
@@ -57,6 +60,9 @@ pub(crate) enum KeyPattern {
     ShiftVerticalArrows,
     /// A single key code with no modifiers.
     Code(KeyCode),
+    /// `Shift+Tab` (`KeyCode::BackTab` with `NONE` or `SHIFT`, or `KeyCode::Tab` with `SHIFT`).
+    #[allow(dead_code)]
+    BackTab,
     /// A single bare character key.
     Char(char),
     /// A single character key with no modifiers or Shift.
@@ -91,6 +97,11 @@ impl KeyPattern {
                     && matches!(event.code, KeyCode::Up | KeyCode::Down)
             }
             Self::Code(code) => event.modifiers == KeyModifiers::NONE && event.code == code,
+            Self::BackTab => {
+                (matches!(event.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT)
+                    && event.code == KeyCode::BackTab)
+                    || (event.modifiers == KeyModifiers::SHIFT && event.code == KeyCode::Tab)
+            }
             Self::Char(c) => {
                 event.modifiers == KeyModifiers::NONE && event.code == KeyCode::Char(c)
             }
@@ -125,6 +136,11 @@ impl KeyPattern {
                 (KeyCode::Down, KeyModifiers::SHIFT),
             ],
             Self::Code(code) => vec![(code, KeyModifiers::NONE)],
+            Self::BackTab => vec![
+                (KeyCode::BackTab, KeyModifiers::SHIFT),
+                (KeyCode::BackTab, KeyModifiers::NONE),
+                (KeyCode::Tab, KeyModifiers::SHIFT),
+            ],
             Self::Char(c) => vec![(KeyCode::Char(c), KeyModifiers::NONE)],
             Self::CharOrShift(c) => vec![
                 (KeyCode::Char(c), KeyModifiers::NONE),
@@ -207,6 +223,12 @@ pub(crate) enum ContextMeaning {
     /// **Always owes a frame**: the action is offered only while a figure is selected, so the
     /// table reaches it with something to drop.
     Deselect,
+    /// Selects the next figure in drawing order (`Diagram::shapes()`, back-to-front).
+    #[allow(dead_code)]
+    SelectNext,
+    /// Selects the previous figure in drawing order (`Diagram::shapes()`, front-to-back).
+    #[allow(dead_code)]
+    SelectPrevious,
 }
 
 /// One contextual action offered by a block.
@@ -719,6 +741,7 @@ pub(crate) fn context_blocks(
     let is_connector = selected_shape.is_some_and(|s| matches!(s, Shape::Connector { .. }));
     let is_box_or_line =
         selected_shape.is_some_and(|s| matches!(s, Shape::Box { .. } | Shape::Line { .. }));
+    let has_shapes = state.session().diagram().shape_count() > 0;
 
     let (is_endpoint_detached, is_endpoint_attached, is_endpoint_reset) =
         match (sub_mode, selected_shape) {
@@ -758,6 +781,7 @@ pub(crate) fn context_blocks(
         Condition::EndpointDetached => is_endpoint_detached,
         Condition::EndpointAttached => is_endpoint_attached,
         Condition::EndpointReset => is_endpoint_reset,
+        Condition::HasShapes => has_shapes,
     })
 }
 
@@ -944,6 +968,20 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
         ContextMeaning::Deselect => {
             state.select(None);
             Reply::Repaint
+        }
+        ContextMeaning::SelectNext => {
+            if state.select_next() {
+                Reply::Repaint
+            } else {
+                Reply::Consumed
+            }
+        }
+        ContextMeaning::SelectPrevious => {
+            if state.select_previous() {
+                Reply::Repaint
+            } else {
+                Reply::Consumed
+            }
         }
         ContextMeaning::MoveEndpoint
         | ContextMeaning::AdjustEndpointOut(_)
