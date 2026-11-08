@@ -110,6 +110,15 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
                 let term_text = terminal_text(endpoint);
                 format!("ENDPOINT {n}. {label} of Connector #{id} · {at_text} · Term: {term_text}")
             }
+            SubMode::TerminalSelect(end) => {
+                let (n, label, endpoint) = match (shape, end) {
+                    (Shape::Connector { from, .. }, End::From) => (1, "From", from),
+                    (Shape::Connector { to, .. }, End::To) => (2, "To", to),
+                    _ => unreachable!("terminal select sub-mode requires a selected connector"),
+                };
+                let term_text = terminal_text(endpoint);
+                format!("TERMINAL for {n}. {label} of Connector #{id} · Current: {term_text}")
+            }
         };
     }
 
@@ -829,6 +838,39 @@ mod tests {
         assert_eq!(
             command_line(&state),
             "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [1] From · [Esc] Done"
+        );
+    }
+
+    #[test]
+    fn terminal_select_sub_mode_inspects_active_endpoint_and_current_terminal() {
+        let text = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 6, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "top", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "symbol", "style": "solid" } },
+                  "to":   { "at": { "kind": "point", "x": 20, "y": 5 }, "leaving": "left",
+                            "terminal": { "kind": "glyph", "glyph": "◆" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
+
+        // From: anchor is Top -> leaving is Up -> pointing is Down -> "solid ▼"
+        state.set_sub_mode(Some(SubMode::TerminalSelect(End::From)));
+        assert_eq!(
+            status_line(&state),
+            "TERMINAL for 1. From of Connector #2 · Current: solid ▼"
+        );
+
+        // To: glyph ◆ -> "glyph ◆"
+        state.set_sub_mode(Some(SubMode::TerminalSelect(End::To)));
+        assert_eq!(
+            status_line(&state),
+            "TERMINAL for 2. To of Connector #2 · Current: glyph ◆"
         );
     }
 }

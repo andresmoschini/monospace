@@ -104,6 +104,9 @@ pub(crate) enum SubMode {
     OrderMode,
     /// Inspecting and editing a single connector endpoint.
     Endpoint(End),
+    /// Choosing a terminal style for the active connector endpoint.
+    #[allow(dead_code)]
+    TerminalSelect(End),
 }
 
 impl DiagramState {
