@@ -669,6 +669,37 @@ impl Shape {
         }
     }
 
+    /// This figure with the terminal style of the targeted endpoint replaced.
+    ///
+    /// Non-connector figures come back unchanged. For connectors, only the targeted endpoint's
+    /// `terminal` is updated to `terminal`, preserving its `at` position or reference (including
+    /// `offset` and `out`) and leaving the other endpoint untouched.
+    #[must_use]
+    pub fn with_endpoint_terminal(&self, end: End, terminal: Terminal) -> Self {
+        let Self::Connector { from, to, stroke } = self else {
+            return self.clone();
+        };
+
+        match end {
+            End::From => Self::Connector {
+                from: Endpoint {
+                    at: from.at,
+                    terminal,
+                },
+                to: to.clone(),
+                stroke: stroke.clone(),
+            },
+            End::To => Self::Connector {
+                from: from.clone(),
+                to: Endpoint {
+                    at: to.at,
+                    terminal,
+                },
+                stroke: stroke.clone(),
+            },
+        }
+    }
+
     /// This figure with every reference **naming `id`** replaced by the point it was resolving to,
     /// or `None` when this figure holds no such reference and nothing changed.
     ///
@@ -2160,5 +2191,115 @@ mod tests {
             stroke: light(),
         };
         assert_eq!(absolute_conn.with_endpoint_reset(End::From), absolute_conn);
+    }
+
+    #[test]
+    fn with_endpoint_terminal_sets_targeted_endpoint_terminal_preserving_other_properties() {
+        use monospace_core::SymbolStyleName;
+
+        let box_id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let orig_from = Endpoint::reference(
+            Reference::new(box_id, Anchor::Top, Delta { dx: 2, dy: 1 }, 3),
+            Terminal::Arm,
+        );
+        let orig_to = Endpoint::absolute(Pos { x: 20, y: 10 }, Direction::Down, Terminal::Arm);
+        let connector = Shape::Connector {
+            from: orig_from.clone(),
+            to: orig_to.clone(),
+            stroke: light(),
+        };
+
+        let new_from_terminal = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+        let updated_from = connector.with_endpoint_terminal(End::From, new_from_terminal.clone());
+        let Shape::Connector { from, to, .. } = &updated_from else {
+            panic!();
+        };
+        assert_eq!(from.terminal, new_from_terminal);
+        let EndpointAt::Reference(ref r) = from.at else {
+            panic!();
+        };
+        assert_eq!(r.offset, Delta { dx: 2, dy: 1 });
+        assert_eq!(r.out, 3);
+        assert_eq!(r.id, box_id);
+        assert_eq!(r.anchor, Anchor::Top);
+        assert_eq!(to, &orig_to);
+
+        let new_to_terminal = Terminal::Glyph {
+            glyph: Glyph::new("◆").unwrap(),
+        };
+        let updated_to = connector.with_endpoint_terminal(End::To, new_to_terminal.clone());
+        let Shape::Connector { from, to, .. } = &updated_to else {
+            panic!();
+        };
+        assert_eq!(to.terminal, new_to_terminal);
+        assert_eq!(
+            to.at,
+            EndpointAt::Absolute {
+                at: Pos { x: 20, y: 10 },
+                leaving: Direction::Down,
+            }
+        );
+        assert_eq!(from, &orig_from);
+    }
+
+    #[test]
+    fn with_endpoint_terminal_on_identical_terminal_produces_equal_shape() {
+        let box_id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let connector = Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(box_id, Anchor::Top, Delta { dx: 2, dy: 0 }, 1),
+                Terminal::Arm,
+            ),
+            to: Endpoint::absolute(Pos { x: 10, y: 5 }, Direction::Right, Terminal::Arm),
+            stroke: light(),
+        };
+
+        assert_eq!(
+            connector.with_endpoint_terminal(End::From, Terminal::Arm),
+            connector
+        );
+        assert_eq!(
+            connector.with_endpoint_terminal(End::To, Terminal::Arm),
+            connector
+        );
+    }
+
+    #[test]
+    fn with_endpoint_terminal_on_non_connector_returns_shape_unchanged() {
+        let box_shape = Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 10,
+                height: 5,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+        let line_shape = Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 10,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+
+        assert_eq!(
+            box_shape.with_endpoint_terminal(End::From, Terminal::Arm),
+            box_shape
+        );
+        assert_eq!(
+            box_shape.with_endpoint_terminal(End::To, Terminal::Arm),
+            box_shape
+        );
+        assert_eq!(
+            line_shape.with_endpoint_terminal(End::From, Terminal::Arm),
+            line_shape
+        );
+        assert_eq!(
+            line_shape.with_endpoint_terminal(End::To, Terminal::Arm),
+            line_shape
+        );
     }
 }

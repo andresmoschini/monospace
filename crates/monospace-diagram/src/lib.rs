@@ -14,6 +14,6 @@ mod gallery;
 
 pub use delta::Delta;
 pub use diagram::Diagram;
-pub use monospace_core::{ShapeId, Stroke, Text};
+pub use monospace_core::{ShapeId, Stroke, Terminal, Text};
 pub use position::{Anchor, Position, Reference};
 pub use shape::{End, Endpoint, EndpointAt, Shape};
