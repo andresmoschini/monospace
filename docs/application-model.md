@@ -691,8 +691,10 @@ framework's buffer one at a time.
   modified by an undo or redo is tracked by
   [#299](https://github.com/andresmoschini/monospace/issues/299).
 - **What the status bar says.** The contextual two-row bar format and its idle and selection content
-  are settled by [#279](https://github.com/andresmoschini/monospace/issues/279). Multi-line wrapping
-  without truncation and dynamic bar height are tracked in
+  are settled by [#279](https://github.com/andresmoschini/monospace/issues/279). The non-binding
+  design direction and three-stage roadmap for the remaining contextual states and connector editing
+  live in [`contextual-ui.md`](contextual-ui.md) and [`connector-editing.md`](connector-editing.md).
+  Multi-line wrapping without truncation and dynamic bar height are tracked in
   [#280](https://github.com/andresmoschini/monospace/issues/280). What the bar says about the state
   of the session — what has been changed and what can be undone — is the editing surface's, and
   [#226](https://github.com/andresmoschini/monospace/issues/226) owns it.
