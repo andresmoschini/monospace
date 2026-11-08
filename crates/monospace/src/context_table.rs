@@ -11,7 +11,7 @@
 //! label the row carries with no key behind it.
 
 use monospace_core::Orientation;
-use monospace_diagram::Shape;
+use monospace_diagram::{Anchor, Delta, EndpointAt, Shape};
 use monospace_editing::Command;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -36,6 +36,21 @@ pub(crate) enum Condition {
     BoxOrLine,
     /// Active only if the selected figure is a connector.
     Connector,
+    /// Active only if the active endpoint is detached.
+    #[allow(dead_code)]
+    EndpointDetached,
+    /// Active only if the active endpoint is attached with a horizontal face (`Top` or `Bottom`).
+    #[allow(dead_code)]
+    EndpointAttachedHorizontal,
+    /// Active only if the active endpoint is attached with a vertical face (`Left` or `Right`).
+    #[allow(dead_code)]
+    EndpointAttachedVertical,
+    /// Active only if the active endpoint is attached.
+    #[allow(dead_code)]
+    EndpointAttached,
+    /// Active only if the active endpoint is attached and either offset or out is non-zero.
+    #[allow(dead_code)]
+    EndpointReset,
 }
 
 /// A pattern of key combinations matched by contextual actions.
@@ -43,6 +58,12 @@ pub(crate) enum Condition {
 pub(crate) enum KeyPattern {
     /// Any of the four bare arrow keys (Up, Down, Left, Right).
     Arrows,
+    /// Bare horizontal arrow keys (Left, Right).
+    #[allow(dead_code)]
+    HorizontalArrows,
+    /// Bare vertical arrow keys (Up, Down).
+    #[allow(dead_code)]
+    VerticalArrows,
     /// Shift plus any of the four arrow keys.
     ShiftArrows,
     /// Shift plus horizontal arrow keys (Left, Right).
@@ -53,6 +74,9 @@ pub(crate) enum KeyPattern {
     Code(KeyCode),
     /// A single bare character key.
     Char(char),
+    /// A single character key with no modifiers or Shift.
+    #[allow(dead_code)]
+    CharOrShift(char),
 }
 
 impl KeyPattern {
@@ -66,6 +90,14 @@ impl KeyPattern {
                         event.code,
                         KeyCode::Right | KeyCode::Left | KeyCode::Up | KeyCode::Down
                     )
+            }
+            Self::HorizontalArrows => {
+                event.modifiers == KeyModifiers::NONE
+                    && matches!(event.code, KeyCode::Left | KeyCode::Right)
+            }
+            Self::VerticalArrows => {
+                event.modifiers == KeyModifiers::NONE
+                    && matches!(event.code, KeyCode::Up | KeyCode::Down)
             }
             Self::ShiftArrows => {
                 event.modifiers == KeyModifiers::SHIFT
@@ -86,6 +118,10 @@ impl KeyPattern {
             Self::Char(c) => {
                 event.modifiers == KeyModifiers::NONE && event.code == KeyCode::Char(c)
             }
+            Self::CharOrShift(c) => {
+                (event.modifiers == KeyModifiers::NONE || event.modifiers == KeyModifiers::SHIFT)
+                    && event.code == KeyCode::Char(c)
+            }
         }
     }
 
@@ -95,6 +131,14 @@ impl KeyPattern {
             Self::Arrows => vec![
                 (KeyCode::Right, KeyModifiers::NONE),
                 (KeyCode::Left, KeyModifiers::NONE),
+                (KeyCode::Up, KeyModifiers::NONE),
+                (KeyCode::Down, KeyModifiers::NONE),
+            ],
+            Self::HorizontalArrows => vec![
+                (KeyCode::Left, KeyModifiers::NONE),
+                (KeyCode::Right, KeyModifiers::NONE),
+            ],
+            Self::VerticalArrows => vec![
                 (KeyCode::Up, KeyModifiers::NONE),
                 (KeyCode::Down, KeyModifiers::NONE),
             ],
@@ -114,6 +158,10 @@ impl KeyPattern {
             ],
             Self::Code(code) => vec![(code, KeyModifiers::NONE)],
             Self::Char(c) => vec![(KeyCode::Char(c), KeyModifiers::NONE)],
+            Self::CharOrShift(c) => vec![
+                (KeyCode::Char(c), KeyModifiers::NONE),
+                (KeyCode::Char(c), KeyModifiers::SHIFT),
+            ],
         }
     }
 }
@@ -124,6 +172,15 @@ pub(crate) enum ContextMeaning {
     Act(Action),
     /// Moves the selected figure by the arrow direction.
     Move,
+    /// Moves the active endpoint along face or canvas coordinates.
+    #[allow(dead_code)]
+    MoveEndpoint,
+    /// Adjusts the active endpoint's outward standoff.
+    #[allow(dead_code)]
+    AdjustEndpointOut(i16),
+    /// Resets the active endpoint's offset and standoff to zero.
+    #[allow(dead_code)]
+    ResetEndpoint,
     /// Resizes the selected figure by the arrow direction.
     Resize,
     /// Inverts the terminals of the selected connector.
@@ -441,6 +498,32 @@ pub(crate) fn context_blocks(
     let is_box_or_line =
         selected_shape.is_some_and(|s| matches!(s, Shape::Box { .. } | Shape::Line { .. }));
 
+    let (
+        is_endpoint_detached,
+        is_endpoint_attached_horizontal,
+        is_endpoint_attached_vertical,
+        is_endpoint_attached,
+        is_endpoint_reset,
+    ) = match (sub_mode, selected_shape) {
+        (Some(SubMode::Endpoint(end)), Some(Shape::Connector { from, to, .. })) => {
+            let active = match end {
+                End::From => from,
+                End::To => to,
+            };
+            match active.at {
+                EndpointAt::Absolute { .. } => (true, false, false, false, false),
+                EndpointAt::Reference(ref r) => (
+                    false,
+                    matches!(r.anchor, Anchor::Top | Anchor::Bottom),
+                    matches!(r.anchor, Anchor::Left | Anchor::Right),
+                    true,
+                    r.offset != Delta::ZERO || r.out != 0,
+                ),
+            }
+        }
+        _ => (false, false, false, false, false),
+    };
+
     let slice: &'static [ContextBlock] = match sub_mode {
         Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,
         Some(SubMode::OrderMode) if selected => ORDER_MODE,
@@ -457,6 +540,11 @@ pub(crate) fn context_blocks(
         Condition::VerticalLine => is_vertical_line,
         Condition::BoxOrLine => is_box_or_line,
         Condition::Connector => is_connector,
+        Condition::EndpointDetached => is_endpoint_detached,
+        Condition::EndpointAttachedHorizontal => is_endpoint_attached_horizontal,
+        Condition::EndpointAttachedVertical => is_endpoint_attached_vertical,
+        Condition::EndpointAttached => is_endpoint_attached,
+        Condition::EndpointReset => is_endpoint_reset,
     })
 }
 
@@ -576,6 +664,9 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply {
                         state.select(None);
                         Reply::Repaint
                     }
+                    ContextMeaning::MoveEndpoint
+                    | ContextMeaning::AdjustEndpointOut(_)
+                    | ContextMeaning::ResetEndpoint => Reply::Ignored,
                 };
             }
         }
