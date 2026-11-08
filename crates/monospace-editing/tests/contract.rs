@@ -17,7 +17,7 @@ use std::num::NonZeroU16;
 use monospace_core::{
     Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, Text, Window, render,
 };
-use monospace_diagram::{Anchor, Delta, Diagram, Endpoint, Shape, ShapeId};
+use monospace_diagram::{Anchor, Delta, Diagram, End, Endpoint, Reference, Shape, ShapeId};
 use monospace_editing::{Command, Session};
 
 /// The specification's window: `window(8, 3)`, wide enough for a four-cell box at the origin and
@@ -357,6 +357,44 @@ fn each_command_becomes_one_of_the_diagrams_seven_operations() {
     );
 
     assert_eq!(
+        after(&Command::MoveEndpoint {
+            id: id(3),
+            end: End::From,
+            by: Delta { dx: 1, dy: 0 },
+            out: 0,
+        }),
+        after_operating(|diagram| {
+            let updated = diagram.get(id(3)).map(|shape| {
+                shape.with_endpoint_moved(End::From, Delta { dx: 1, dy: 0 }, 0, diagram)
+            });
+            if let Some(updated) = updated {
+                diagram.replace(id(3), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`MoveEndpoint` is `replace` with the endpoint moved"
+    );
+
+    assert_eq!(
+        after(&Command::ResetEndpoint {
+            id: id(3),
+            end: End::From,
+        }),
+        after_operating(|diagram| {
+            let updated = diagram
+                .get(id(3))
+                .map(|shape| shape.with_endpoint_reset(End::From));
+            if let Some(updated) = updated {
+                diagram.replace(id(3), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`ResetEndpoint` is `replace` with the endpoint reset"
+    );
+
+    assert_eq!(
         after(&Command::Hang {
             id: id(3),
             from: id(1),
@@ -441,6 +479,16 @@ fn no_command_reaches_the_diagram_by_another_way() {
             id: id(3),
             from: id(1),
             anchor: Anchor::Bottom,
+        },
+        Command::MoveEndpoint {
+            id: id(3),
+            end: End::From,
+            by: Delta { dx: 1, dy: 0 },
+            out: 0,
+        },
+        Command::ResetEndpoint {
+            id: id(3),
+            end: End::From,
         },
         Command::Forward { id: id(7) },
         Command::Move {
@@ -1427,4 +1475,193 @@ fn inverting_terminals_on_a_box_or_nonexistent_shape_records_no_step() {
         !no_op_missing.can_undo(),
         "inverting terminals on nonexistent shape should record no step"
     );
+}
+
+#[test]
+fn moving_an_endpoint_records_one_step_and_clamped_nudge_records_none() {
+    let mut diagram = Diagram::new();
+    diagram = diagram.add(small_box(ORIGIN)).0; // id(1): 4x3 at (0,0)
+    diagram = diagram
+        .add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(id(1), Anchor::Top, Delta::ZERO, 0),
+                Terminal::Arm,
+            ),
+            to: Endpoint::absolute(Pos { x: 10, y: 0 }, Direction::Down, Terminal::Arm),
+            stroke: Stroke::from("light"),
+        })
+        .0; // id(2)
+
+    let session = Session::new(diagram);
+    assert!(!session.can_undo());
+
+    // Box width 4 on Top anchor: span 4, span_sub_1 3, half 1.
+    // min_bound = -1, max_bound = 2.
+    // Move within bounds (from 0 to 1) records one step
+    let moved = session.perform(Command::MoveEndpoint {
+        id: id(2),
+        end: End::From,
+        by: Delta { dx: 1, dy: 0 },
+        out: 0,
+    });
+    assert!(
+        moved.can_undo(),
+        "moving endpoint within bounds records a step"
+    );
+
+    // Move to max_bound (2)
+    let at_max = moved.perform(Command::MoveEndpoint {
+        id: id(2),
+        end: End::From,
+        by: Delta { dx: 1, dy: 0 },
+        out: 0,
+    });
+    assert!(at_max.can_undo());
+
+    // Nudging past max_bound (2 -> 3 clamped to 2) leaves shape unchanged and records no step (#285)
+    let pic_before = picture_in(at_max.diagram(), FIXTURE);
+    let clamped = at_max.perform(Command::MoveEndpoint {
+        id: id(2),
+        end: End::From,
+        by: Delta { dx: 1, dy: 0 },
+        out: 0,
+    });
+    assert_eq!(picture_in(clamped.diagram(), FIXTURE), pic_before);
+    let undone = clamped.undo();
+    let Shape::Connector { from, .. } = undone.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    let monospace_diagram::EndpointAt::Reference(ref r) = from.at else {
+        panic!()
+    };
+    assert_eq!(
+        r.offset,
+        Delta { dx: 1, dy: 0 },
+        "no-op clamped nudge recorded no step"
+    );
+
+    // Orthogonal nudge on attached Top anchor is ignored and records no step (#285)
+    let pic_at_max = picture_in(at_max.diagram(), FIXTURE);
+    let ortho = at_max.perform(Command::MoveEndpoint {
+        id: id(2),
+        end: End::From,
+        by: Delta { dx: 0, dy: 1 },
+        out: 0,
+    });
+    assert_eq!(picture_in(ortho.diagram(), FIXTURE), pic_at_max);
+    let undone_ortho = ortho.undo();
+    let Shape::Connector { from, .. } = undone_ortho.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    let monospace_diagram::EndpointAt::Reference(ref r) = from.at else {
+        panic!()
+    };
+    assert_eq!(
+        r.offset,
+        Delta { dx: 1, dy: 0 },
+        "orthogonal nudge recorded no step"
+    );
+}
+
+#[test]
+fn adjusting_endpoint_out_via_move_endpoint_records_one_step_including_negative_out() {
+    let mut diagram = Diagram::new();
+    diagram = diagram.add(small_box(ORIGIN)).0; // id(1)
+    diagram = diagram
+        .add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(id(1), Anchor::Top, Delta::ZERO, 0),
+                Terminal::Arm,
+            ),
+            to: Endpoint::absolute(Pos { x: 10, y: 0 }, Direction::Down, Terminal::Arm),
+            stroke: Stroke::from("light"),
+        })
+        .0; // id(2)
+
+    let session = Session::new(diagram);
+
+    // Increase out by 1
+    let out_plus = session.perform(Command::MoveEndpoint {
+        id: id(2),
+        end: End::From,
+        by: Delta::ZERO,
+        out: 1,
+    });
+    assert!(out_plus.can_undo(), "adjusting out records a step");
+    let Shape::Connector { from, .. } = out_plus.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    let monospace_diagram::EndpointAt::Reference(ref r) = from.at else {
+        panic!()
+    };
+    assert_eq!(r.out, 1);
+
+    // Decrease out to negative (-1)
+    let out_neg = out_plus.perform(Command::MoveEndpoint {
+        id: id(2),
+        end: End::From,
+        by: Delta::ZERO,
+        out: -2,
+    });
+    assert!(out_neg.can_undo(), "negative out records a step");
+    let Shape::Connector { from, .. } = out_neg.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    let monospace_diagram::EndpointAt::Reference(ref r) = from.at else {
+        panic!()
+    };
+    assert_eq!(r.out, -1);
+}
+
+#[test]
+fn resetting_an_endpoint_clears_offset_and_out_in_one_step_and_zero_endpoint_records_none() {
+    let mut diagram = Diagram::new();
+    diagram = diagram.add(small_box(ORIGIN)).0; // id(1)
+    diagram = diagram
+        .add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(id(1), Anchor::Top, Delta { dx: 1, dy: 0 }, 2),
+                Terminal::Arm,
+            ),
+            to: Endpoint::absolute(Pos { x: 10, y: 0 }, Direction::Down, Terminal::Arm),
+            stroke: Stroke::from("light"),
+        })
+        .0; // id(2)
+
+    let session = Session::new(diagram);
+    assert!(!session.can_undo());
+
+    // Resetting displaced endpoint records one step and clears both offset and out
+    let reset = session.perform(Command::ResetEndpoint {
+        id: id(2),
+        end: End::From,
+    });
+    assert!(
+        reset.can_undo(),
+        "resetting non-zero endpoint records a step"
+    );
+    let Shape::Connector { from, .. } = reset.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    let monospace_diagram::EndpointAt::Reference(ref r) = from.at else {
+        panic!()
+    };
+    assert_eq!(r.offset, Delta::ZERO);
+    assert_eq!(r.out, 0);
+
+    // Resetting when already at zero records no step (#285)
+    let no_op = reset.perform(Command::ResetEndpoint {
+        id: id(2),
+        end: End::From,
+    });
+    // Undoing should undo the first reset, proving no new step was pushed
+    let undone = no_op.undo();
+    let Shape::Connector { from, .. } = undone.diagram().get(id(2)).unwrap() else {
+        panic!()
+    };
+    let monospace_diagram::EndpointAt::Reference(ref r) = from.at else {
+        panic!()
+    };
+    assert_eq!(r.offset, Delta { dx: 1, dy: 0 });
+    assert_eq!(r.out, 2);
 }
