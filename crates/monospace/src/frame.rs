@@ -441,8 +441,8 @@ mod tests {
             "the status bar says nothing: {status_bar:?}"
         );
         assert!(
-            command_bar.contains("SELECT: [Click] Pick"),
-            "the command bar says nothing: {command_bar:?}"
+            command_bar.trim().is_empty(),
+            "the command bar is not empty when diagram has no shapes: {command_bar:?}"
         );
     }
 
@@ -1211,8 +1211,8 @@ mod tests {
             "the status bar says nothing: {status_bar:?}"
         );
         assert!(
-            command_bar.contains("SELECT: [Click] Pick"),
-            "the command bar says nothing: {command_bar:?}"
+            command_bar.trim().is_empty(),
+            "the command bar is not empty when diagram has no shapes: {command_bar:?}"
         );
 
         snap(

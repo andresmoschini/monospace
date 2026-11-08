@@ -111,7 +111,10 @@ and the viewport origin; a drawing that stamped nothing says `nothing drawn`. Wh
 selected, the status row instead describes that shape's identity, geometry, and styling: a `Box`
 shows label, position, size, stroke, and fill; a `Line` shows identity, position, length,
 orientation, and stroke; a `Connector` shows identity, stroke, and both endpoints. Below it, the
-command row shows the contextual actions available for that state.
+command row shows the contextual actions available for that state: in `IDLE`,
+`SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when the diagram holds shapes
+(`Condition::HasShapes`) and empty when the diagram has 0 shapes; in base selection states,
+`[Tab] Next [Shift+Tab] Prev` sits immediately before `[Del] Delete · [Esc] Deselect`.
 
 ## 3. The state
 
@@ -163,6 +166,17 @@ the identity with the diagram, so a command that takes the selected figure away 
 naming the selection (see §4), and the frame that follows inverts nothing because nothing is
 selected rather than because the record and the selection disagree. Naming the selected shape in
 words is the status bar's (see §2), derived directly from the diagram state rather than stored.
+
+**`Tab` and `Shift+Tab` cycle the selection through the diagram's figures in drawing order**
+([#307](https://github.com/andresmoschini/monospace/issues/307)). In `IDLE` on a diagram with at
+least one figure (`Condition::HasShapes`), `Tab` selects the back-most figure (the first shape
+yielded by `Diagram::shapes()`) and `Shift+Tab` (`BackTab`) selects the front-most figure (the last
+shape), both answering `Reply::Repaint`. While a figure is selected, `Tab` advances selection to the
+next figure in drawing order (wrapping from front-most to back-most) and `Shift+Tab` retreats to the
+previous figure (wrapping from back-most to front-most). On a single-figure diagram, cycling from
+`SELECTED_*` stays on the sole figure and answers `Reply::Consumed` with no repaint or history step.
+On an empty diagram, `Condition::HasShapes` is false, cycling is not offered, and `Tab` /
+`Shift+Tab` return `Reply::Ignored`.
 
 **The focus is the chrome's own, and it is not the selection.** Which of the two leaves — the bar
 and the diagram region — holds the keyboard is a fact about the chrome, held between frames: it
@@ -335,6 +349,18 @@ unless the endpoint already held the chosen leaving direction (#285), in which c
 recorded. Pressing `Esc` cancels the selection, restores `SubMode::Endpoint(end)`, and records zero
 steps. While in `LeavingSelect`, any key not offered is ignored (`Reply::Ignored`) and falls through
 to unclaimed universal shortcuts.
+
+**`SelectNext` and `SelectPrevious` cycle the selection without touching the session.** Offered in
+`IDLE` when `Condition::HasShapes` holds, and in `SELECTED_BOX`, `SELECTED_LINE`, and
+`SELECTED_CONNECTOR` as uncategorized `[Tab] Next [Shift+Tab] Prev` immediately preceding
+`[Del] Delete · [Esc] Deselect`. `Tab` dispatches `ContextMeaning::SelectNext` and `Shift+Tab`
+(`BackTab`) dispatches `ContextMeaning::SelectPrevious`. Neither action modifies session history or
+records an undo step. While an inline sub-mode (`STROKE_SELECT`, `ORDER_MODE`, `ENDPOINT_EDIT`,
+`TERMINAL_SELECT`, `LEAVING_SELECT`) is active, `Tab` and `Shift+Tab` are not offered and return
+`Reply::Ignored`. While a modal overlay (`DialogFrame`) is open, keyboard routing directs `Tab` and
+`Shift+Tab` to dialog widget focus traversal
+([#304](https://github.com/andresmoschini/monospace/issues/304),
+[#311](https://github.com/andresmoschini/monospace/issues/311)), never reaching the diagram region.
 
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
 sub-mode (such as `STROKE_SELECT`) is active:
@@ -775,6 +801,21 @@ framework's buffer one at a time.
   while the connector remains selected.
 - The contextual command row and the widget dispatcher derive offered and accepted keys from a
   unified context table (Option D), guaranteeing offer equals acceptance.
+- `Tab` in `IDLE` on a diagram with shapes selects the first figure in drawing order and repaints;
+  `Shift+Tab` (`BackTab`) selects the last figure in drawing order and repaints.
+- `Tab` in `IDLE` on an empty diagram is ignored (`Reply::Ignored`), and the command row remains
+  empty.
+- `Tab` while a figure is selected advances selection to the next figure in drawing order (wrapping
+  to first); `Shift+Tab` retreats to the previous figure (wrapping to last).
+- On a single-figure diagram, pressing `Tab` or `Shift+Tab` while the shape is selected consumes the
+  key (`Reply::Consumed`) without repainting or changing selection.
+- In all inline sub-modes (`StrokeSelect`, `OrderMode`, `Endpoint`, `TerminalSelect`,
+  `LeavingSelect`), `Tab` and `Shift+Tab` are ignored (`Reply::Ignored`) and leave the sub-mode
+  intact.
+- The contextual bar in `IDLE` offers `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when shapes
+  exist, and is empty when the diagram has 0 shapes.
+- Base selection states (`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`) offer
+  `... · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`.
 - An open drop-down does not keep either key.
 - A frame after an undo draws the restored diagram.
 - The application keeps no history and reads no position: its whole use of the steps is the two

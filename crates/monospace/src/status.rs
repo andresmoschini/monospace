@@ -4,14 +4,16 @@
 //! status blocks, and row 1 renders the available command shortcuts in the current context.
 //!
 //! **In IDLE**, the upper row reports the application name and version, the drawing's footprint,
-//! the count of shapes, and the viewport origin; the lower row offers `[Click] Pick`.
+//! the count of shapes, and the viewport origin; the lower row offers
+//! `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when the diagram holds at least one figure
+//! and is empty when it has no figures.
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
-//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Del]
-//! Delete · [Esc] Deselect`, with `RESIZE` between the first two offering the cursor keys the
-//! selected figure can use — all four for a box (`Shift+↑↓←→`), the row's two for a horizontal
-//! line (`Shift+←→`), the column's two for a vertical line (`Shift+↑↓`), and none for a
-//! connector. `TEXT: [t] Edit` is offered only for a box, between `RESIZE` and `STROKE`.
+//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Tab] Next
+//! [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`, with `RESIZE` between the first two offering
+//! the cursor keys the selected figure can use — all four for a box (`Shift+↑↓←→`), the row's two
+//! for a horizontal line (`Shift+←→`), the column's two for a vertical line (`Shift+↑↓`), and none
+//! for a connector. `TEXT: [t] Edit` is offered only for a box, between `RESIZE` and `STROKE`.
 //!
 //! **In `STROKE_SELECT`**, the upper row reports the figure and the stroke it carries, and the
 //! lower row offers the five catalog strokes and `[Esc] Cancel`. **In `ORDER_MODE`**, the upper
@@ -408,7 +410,7 @@ mod tests {
             status_line(&empty_state),
             format!("{NAME} {VERSION} · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)")
         );
-        assert_eq!(command_line(&empty_state), "SELECT: [Click] Pick");
+        assert_eq!(command_line(&empty_state), "");
 
         let single_box = a_state_over(
             r#"{
@@ -421,7 +423,10 @@ mod tests {
             status_line(&single_box),
             format!("{NAME} {VERSION} · Footprint: 46×13 at 0,0 · 1 shape · Viewport: (0, 0)")
         );
-        assert_eq!(command_line(&single_box), "SELECT: [Click] Pick");
+        assert_eq!(
+            command_line(&single_box),
+            "SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
+        );
 
         let two_shapes = a_state_over(
             r#"{
@@ -457,7 +462,10 @@ mod tests {
             status_line(&state),
             format!("{NAME} {VERSION} · Footprint: 4×3 at 0,0 · 1 shape · Viewport: (0, 0)")
         );
-        assert_eq!(command_line(&state), "SELECT: [Click] Pick");
+        assert_eq!(
+            command_line(&state),
+            "SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
+        );
     }
 
     /// **A selected box formats its identity, optional label, pos, size, stroke, and fill.**
@@ -477,7 +485,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -540,7 +548,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -561,7 +569,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -592,7 +600,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
 
         let mut state = a_state_over(
@@ -654,7 +662,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             command_line(&state),
-            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -715,30 +723,33 @@ mod tests {
         }"#;
 
         let mut state = a_state_over(text);
-        assert_eq!(command_line(&state), "SELECT: [Click] Pick");
+        assert_eq!(
+            command_line(&state),
+            "SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
+        );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));
         assert_eq!(
             command_line(&state),
-            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect"
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -999,5 +1010,55 @@ mod tests {
             command_line(&state),
             "LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel"
         );
+    }
+
+    #[test]
+    fn idle_command_row_offers_tab_and_shift_tab_only_when_diagram_has_shapes() {
+        let empty = a_state_over(r#"{ "next_id": 1, "shapes": [] }"#);
+        assert_eq!(command_line(&empty), "");
+
+        let populated = a_state_over(
+            r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                          "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+        }"#,
+        );
+        assert_eq!(
+            command_line(&populated),
+            "SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
+        );
+    }
+
+    #[test]
+    fn selected_shapes_offer_tab_next_and_shift_tab_prev_before_delete_and_deselect() {
+        let text = r#"{
+            "next_id": 5,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "line", "id": 2, "at": { "x": 0, "y": 5 },
+                  "len": 8, "orientation": "horizontal", "stroke": "light" },
+                { "kind": "line", "id": 3, "at": { "x": 5, "y": 0 },
+                  "len": 6, "orientation": "vertical", "stroke": "light" },
+                { "kind": "connector", "id": 4,
+                  "from": { "at": { "kind": "point", "x": 1, "y": 2 }, "leaving": "right",
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 5, "y": 6 }, "leaving": "left",
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        for id in 1..=4 {
+            state.select(Some(ShapeId::new(NonZeroU16::new(id).unwrap())));
+            assert!(
+                command_line(&state)
+                    .ends_with(" · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"),
+                "unexpected command row for shape #{id}: {}",
+                command_line(&state)
+            );
+        }
     }
 }

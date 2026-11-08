@@ -1,5 +1,7 @@
 ---
-status: draft
+status: implemented
+decided: "#337"
+implemented: "#338"
 date: 2026-11-08
 ---
 
@@ -32,7 +34,7 @@ diagram from the keyboard.
   `crates/monospace/src/context_table.rs`) alongside `[Click] Pick`.
 - Adding `Condition::HasShapes` (`!state.session().diagram().is_empty()`) so `IDLE` offers
   `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when the diagram contains at least one figure,
-  and `SELECT: [Click] Pick` when the diagram is empty.
+  and leaves row 1 empty when the diagram has 0 shapes.
 - Offering the uncategorized block `[Tab] Next [Shift+Tab] Prev` in all base selection states
   (`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`) immediately before
   `[Del] Delete · [Esc] Deselect`.
@@ -98,8 +100,8 @@ cycling as a silent no-op.**
 **Answer:** Represent `IDLE` in `context_table.rs` via `static IDLE: &[ContextBlock]` and add
 `Condition::HasShapes` (`!state.session().diagram().is_empty()`):
 
-- On an **empty diagram** (`0` figures), `Condition::HasShapes` is `false`: `IDLE` offers only
-  `SELECT: [Click] Pick`, and pressing `Tab` or `Shift+Tab` returns `Reply::Ignored`.
+- On an **empty diagram** (`0` figures), `Condition::HasShapes` is `false`: row 1 is empty (no
+  figures to pick or cycle), and pressing `Tab` or `Shift+Tab` returns `Reply::Ignored`.
 - On a **single-figure diagram** (`1` figure), `Condition::HasShapes` is `true`: in `IDLE`, pressing
   `Tab` or `Shift+Tab` selects that figure (`Reply::Repaint`). While that sole figure is selected
   (`SELECTED_*`), `[Tab] Next [Shift+Tab] Prev` remains offered; pressing either wraps to the same
@@ -155,7 +157,7 @@ different figure, breaking sub-mode modal isolation
 ## Behavior
 
 1. When `state.selected()` is `None` (`IDLE`) and `state.session().diagram().is_empty()` is `true`,
-   `format_command_line(state)` returns `"SELECT: [Click] Pick"`, and pressing `Tab` or `Shift+Tab`
+   `format_command_line(state)` returns `""` (empty row 1), and pressing `Tab` or `Shift+Tab`
    (`BackTab`) in the diagram region returns `Reply::Ignored`.
 2. When `state.selected()` is `None` (`IDLE`) and the diagram contains at least one figure
    (`Condition::HasShapes`), `format_command_line(state)` returns

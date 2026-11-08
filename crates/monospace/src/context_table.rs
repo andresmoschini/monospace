@@ -7,8 +7,8 @@
 //! **Two tables, one mechanism**: `SELECTION` is the context of a selected figure and
 //! `STROKE_SELECT` the stroke sub-mode; `context_blocks` chooses between them from the state, and
 //! a block's condition says whether it is active. `format_command_line` renders what
-//! `dispatch_key` answers, so a key cannot be offered without being accepted; `PICK` is the one
-//! label the row carries with no key behind it.
+//! `dispatch_key` answers, so a key cannot be offered without being accepted; mouse pick is
+//! offered alongside Tab selection when shapes exist.
 
 use monospace_core::{Orientation, Terminal};
 use monospace_diagram::{Delta, Direction, EndpointAt, Shape};
@@ -17,9 +17,6 @@ use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyMo
 
 use crate::diagram_state::{DiagramState, End, SubMode};
 use crate::vocabulary::{Action, Reply};
-
-/// What the command row offers while no figure is selected.
-const PICK: &str = "SELECT: [Click] Pick";
 
 /// Condition required for a contextual block to be active.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +39,8 @@ pub(crate) enum Condition {
     EndpointAttached,
     /// Active only if the active endpoint is attached and either offset or out is non-zero.
     EndpointReset,
+    /// Active only if the diagram holds at least one figure.
+    HasShapes,
 }
 
 /// A pattern of key combinations matched by contextual actions.
@@ -57,6 +56,8 @@ pub(crate) enum KeyPattern {
     ShiftVerticalArrows,
     /// A single key code with no modifiers.
     Code(KeyCode),
+    /// `Shift+Tab` (`KeyCode::BackTab` with `NONE` or `SHIFT`, or `KeyCode::Tab` with `SHIFT`).
+    BackTab,
     /// A single bare character key.
     Char(char),
     /// A single character key with no modifiers or Shift.
@@ -91,6 +92,11 @@ impl KeyPattern {
                     && matches!(event.code, KeyCode::Up | KeyCode::Down)
             }
             Self::Code(code) => event.modifiers == KeyModifiers::NONE && event.code == code,
+            Self::BackTab => {
+                (matches!(event.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT)
+                    && event.code == KeyCode::BackTab)
+                    || (event.modifiers == KeyModifiers::SHIFT && event.code == KeyCode::Tab)
+            }
             Self::Char(c) => {
                 event.modifiers == KeyModifiers::NONE && event.code == KeyCode::Char(c)
             }
@@ -125,6 +131,11 @@ impl KeyPattern {
                 (KeyCode::Down, KeyModifiers::SHIFT),
             ],
             Self::Code(code) => vec![(code, KeyModifiers::NONE)],
+            Self::BackTab => vec![
+                (KeyCode::BackTab, KeyModifiers::SHIFT),
+                (KeyCode::BackTab, KeyModifiers::NONE),
+                (KeyCode::Tab, KeyModifiers::SHIFT),
+            ],
             Self::Char(c) => vec![(KeyCode::Char(c), KeyModifiers::NONE)],
             Self::CharOrShift(c) => vec![
                 (KeyCode::Char(c), KeyModifiers::NONE),
@@ -207,6 +218,10 @@ pub(crate) enum ContextMeaning {
     /// **Always owes a frame**: the action is offered only while a figure is selected, so the
     /// table reaches it with something to drop.
     Deselect,
+    /// Selects the next figure in drawing order (`Diagram::shapes()`, back-to-front).
+    SelectNext,
+    /// Selects the previous figure in drawing order (`Diagram::shapes()`, front-to-back).
+    SelectPrevious,
 }
 
 /// One contextual action offered by a block.
@@ -222,6 +237,23 @@ pub(crate) struct ContextBlock {
     pub(crate) condition: Condition,
     pub(crate) actions: &'static [ContextAction],
 }
+
+static IDLE: &[ContextBlock] = &[ContextBlock {
+    category: Some("SELECT"),
+    condition: Condition::HasShapes,
+    actions: &[
+        ContextAction {
+            pattern: KeyPattern::Code(KeyCode::Tab),
+            display: "[Tab] Next",
+            meaning: ContextMeaning::SelectNext,
+        },
+        ContextAction {
+            pattern: KeyPattern::BackTab,
+            display: "[Shift+Tab] Prev",
+            meaning: ContextMeaning::SelectPrevious,
+        },
+    ],
+}];
 
 static SELECTION: &[ContextBlock] = &[
     ContextBlock {
@@ -311,6 +343,22 @@ static SELECTION: &[ContextBlock] = &[
             display: "[z]",
             meaning: ContextMeaning::EnterSubMode(SubMode::OrderMode),
         }],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::Code(KeyCode::Tab),
+                display: "[Tab] Next",
+                meaning: ContextMeaning::SelectNext,
+            },
+            ContextAction {
+                pattern: KeyPattern::BackTab,
+                display: "[Shift+Tab] Prev",
+                meaning: ContextMeaning::SelectPrevious,
+            },
+        ],
     },
     ContextBlock {
         category: None,
@@ -719,6 +767,7 @@ pub(crate) fn context_blocks(
     let is_connector = selected_shape.is_some_and(|s| matches!(s, Shape::Connector { .. }));
     let is_box_or_line =
         selected_shape.is_some_and(|s| matches!(s, Shape::Box { .. } | Shape::Line { .. }));
+    let has_shapes = state.session().diagram().shape_count() > 0;
 
     let (is_endpoint_detached, is_endpoint_attached, is_endpoint_reset) =
         match (sub_mode, selected_shape) {
@@ -745,7 +794,7 @@ pub(crate) fn context_blocks(
         Some(SubMode::TerminalSelect(_)) if selected && is_connector => TERMINAL_SELECT,
         Some(SubMode::LeavingSelect(_)) if selected && is_connector => LEAVING_SELECT,
         _ if selected => SELECTION,
-        _ => &[],
+        _ => IDLE,
     };
 
     slice.iter().filter(move |block| match block.condition {
@@ -758,6 +807,7 @@ pub(crate) fn context_blocks(
         Condition::EndpointDetached => is_endpoint_detached,
         Condition::EndpointAttached => is_endpoint_attached,
         Condition::EndpointReset => is_endpoint_reset,
+        Condition::HasShapes => has_shapes,
     })
 }
 
@@ -779,11 +829,10 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
             result.push_str(action.display);
         }
     }
-    if result.is_empty() {
-        PICK.to_owned()
-    } else {
-        result
+    if !result.is_empty() && state.selected_shape().is_none() {
+        result.push_str(" [Click] Pick");
     }
+    result
 }
 
 fn dispatch_endpoint_meaning(
@@ -944,6 +993,20 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
         ContextMeaning::Deselect => {
             state.select(None);
             Reply::Repaint
+        }
+        ContextMeaning::SelectNext => {
+            if state.select_next() {
+                Reply::Repaint
+            } else {
+                Reply::Consumed
+            }
+        }
+        ContextMeaning::SelectPrevious => {
+            if state.select_previous() {
+                Reply::Repaint
+            } else {
+                Reply::Consumed
+            }
         }
         ContextMeaning::MoveEndpoint
         | ContextMeaning::AdjustEndpointOut(_)

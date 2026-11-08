@@ -13,6 +13,6 @@ File Edit Help
 │ Quit   Ctrl+Q │                      │
 └───────────────┘──────────────────────┘
 monospace 0.1.0 · Footprint: nothing dra
-SELECT: [Click] Pick
+
 the bar is 1 row, the region is 7 rows and the status is 2 rows
-207 of 400 cells are not blank
+189 of 400 cells are not blank
