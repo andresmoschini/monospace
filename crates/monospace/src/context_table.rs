@@ -7,8 +7,8 @@
 //! **Two tables, one mechanism**: `SELECTION` is the context of a selected figure and
 //! `STROKE_SELECT` the stroke sub-mode; `context_blocks` chooses between them from the state, and
 //! a block's condition says whether it is active. `format_command_line` renders what
-//! `dispatch_key` answers, so a key cannot be offered without being accepted; `PICK` is the one
-//! label the row carries with no key behind it.
+//! `dispatch_key` answers, so a key cannot be offered without being accepted; mouse pick is
+//! offered alongside Tab selection when shapes exist.
 
 use monospace_core::{Orientation, Terminal};
 use monospace_diagram::{Delta, Direction, EndpointAt, Shape};
@@ -17,9 +17,6 @@ use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyMo
 
 use crate::diagram_state::{DiagramState, End, SubMode};
 use crate::vocabulary::{Action, Reply};
-
-/// What the command row offers while no figure is selected.
-const PICK: &str = "SELECT: [Click] Pick";
 
 /// Condition required for a contextual block to be active.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -832,14 +829,10 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
             result.push_str(action.display);
         }
     }
-    if result.is_empty() {
-        PICK.to_owned()
-    } else {
-        if state.selected_shape().is_none() {
-            result.push_str(" [Click] Pick");
-        }
-        result
+    if !result.is_empty() && state.selected_shape().is_none() {
+        result.push_str(" [Click] Pick");
     }
+    result
 }
 
 fn dispatch_endpoint_meaning(

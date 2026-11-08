@@ -113,7 +113,7 @@ shows label, position, size, stroke, and fill; a `Line` shows identity, position
 orientation, and stroke; a `Connector` shows identity, stroke, and both endpoints. Below it, the
 command row shows the contextual actions available for that state: in `IDLE`,
 `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when the diagram holds shapes
-(`Condition::HasShapes`) or `SELECT: [Click] Pick` when empty; in base selection states,
+(`Condition::HasShapes`) and empty when the diagram has 0 shapes; in base selection states,
 `[Tab] Next [Shift+Tab] Prev` sits immediately before `[Del] Delete · [Esc] Deselect`.
 
 ## 3. The state
@@ -803,8 +803,8 @@ framework's buffer one at a time.
   unified context table (Option D), guaranteeing offer equals acceptance.
 - `Tab` in `IDLE` on a diagram with shapes selects the first figure in drawing order and repaints;
   `Shift+Tab` (`BackTab`) selects the last figure in drawing order and repaints.
-- `Tab` in `IDLE` on an empty diagram is ignored (`Reply::Ignored`), and the bar offers only
-  `SELECT: [Click] Pick`.
+- `Tab` in `IDLE` on an empty diagram is ignored (`Reply::Ignored`), and the command row remains
+  empty.
 - `Tab` while a figure is selected advances selection to the next figure in drawing order (wrapping
   to first); `Shift+Tab` retreats to the previous figure (wrapping to last).
 - On a single-figure diagram, pressing `Tab` or `Shift+Tab` while the shape is selected consumes the
@@ -813,7 +813,7 @@ framework's buffer one at a time.
   `LeavingSelect`), `Tab` and `Shift+Tab` are ignored (`Reply::Ignored`) and leave the sub-mode
   intact.
 - The contextual bar in `IDLE` offers `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when shapes
-  exist, and `SELECT: [Click] Pick` when empty.
+  exist, and is empty when the diagram has 0 shapes.
 - Base selection states (`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`) offer
   `... · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`.
 - An open drop-down does not keep either key.

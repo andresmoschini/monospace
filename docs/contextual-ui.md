@@ -219,8 +219,8 @@ contextual dock remains visible but frozen with the canvas state from the preced
 No figure is selected. The user is navigating the diagram or inspecting the canvas.
 
 - **Status:** Implemented (`SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when diagram has
-  shapes via [#307](https://github.com/andresmoschini/monospace/issues/307); `SELECT: [Click] Pick`
-  when empty). Planned: direct shape creation (`[b] Box [l] Line [c] Connector`,
+  shapes via [#307](https://github.com/andresmoschini/monospace/issues/307); empty line when 0
+  shapes). Planned: direct shape creation (`[b] Box [l] Line [c] Connector`,
   [#308](https://github.com/andresmoschini/monospace/issues/308)).
 
 ```text
@@ -228,12 +228,11 @@ monospace 0.1.0 · Footprint: 46×17 at 0,0 · 27 shapes · Viewport: (0, 0)
 SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick
 ```
 
-_When the diagram is empty (`0 shapes`), `Condition::HasShapes` is false and row 1 offers only click
-selection:_
+_When the diagram is empty (`0 shapes`), `Condition::HasShapes` is false and row 1 is empty:_
 
 ```text
 monospace 0.1.0 · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)
-SELECT: [Click] Pick
+
 ```
 
 _Planned target with shape creation:_
@@ -555,8 +554,8 @@ Implements self-contained contextual features that fit directly into the unified
 2. **Selection cycling with `Tab` / `Shift+Tab`
    ([#307](https://github.com/andresmoschini/monospace/issues/307)) [Implemented]:** Cycles forward
    (`Tab`) and backward (`Shift+Tab` / `BackTab`) through diagram shapes. Offered in `IDLE`
-   (`SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when populated, `[Click] Pick` when empty)
-   and immediately before `[Del] Delete · [Esc] Deselect` in all `SELECTED_*` states.
+   (`SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when populated, empty when diagram has 0
+   shapes) and immediately before `[Del] Delete · [Esc] Deselect` in all `SELECTED_*` states.
 3. **Box auto-fit to text content with `[a]` (`Auto-fit`):** Contextual action on `SELECTED_BOX`
    visible **only** when the box contains text (`text: Some(_)`). Executes a single command
    adjusting box width and height to fit the text lines (accounting for 2-column wide glyphs and

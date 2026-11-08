@@ -6,7 +6,7 @@
 //! **In IDLE**, the upper row reports the application name and version, the drawing's footprint,
 //! the count of shapes, and the viewport origin; the lower row offers
 //! `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when the diagram holds at least one figure
-//! and `SELECT: [Click] Pick` when it is empty.
+//! and is empty when it has no figures.
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
 //! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Tab] Next
@@ -410,7 +410,7 @@ mod tests {
             status_line(&empty_state),
             format!("{NAME} {VERSION} · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)")
         );
-        assert_eq!(command_line(&empty_state), "SELECT: [Click] Pick");
+        assert_eq!(command_line(&empty_state), "");
 
         let single_box = a_state_over(
             r#"{
@@ -1015,7 +1015,7 @@ mod tests {
     #[test]
     fn idle_command_row_offers_tab_and_shift_tab_only_when_diagram_has_shapes() {
         let empty = a_state_over(r#"{ "next_id": 1, "shapes": [] }"#);
-        assert_eq!(command_line(&empty), "SELECT: [Click] Pick");
+        assert_eq!(command_line(&empty), "");
 
         let populated = a_state_over(
             r#"{
