@@ -233,6 +233,7 @@ mod tests {
     use crate::diagram_state::{End, SubMode};
     use crate::vocabulary::Action;
     use monospace_core::ShapeId;
+    use monospace_diagram::Delta;
     use monospace_editing::Command;
     use ratatui_core::layout::Position;
     use ratatui_crossterm::crossterm::event::{
@@ -274,6 +275,21 @@ mod tests {
                       "to": { "at": { "kind": "point", "x": 10, "y": 1 },
                               "leaving": "left", "terminal": { "kind": "arm" } },
                       "stroke": "light" } ]
+    }"#;
+
+    /// A description with two boxes and a connector attached between them.
+    const AN_ATTACHED_CONNECTOR: &str = r#"{
+        "next_id": 4,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 4 }, "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 20, "y": 0 }, "size": { "width": 8, "height": 4 }, "stroke": "light" },
+            { "kind": "connector", "id": 3,
+              "from": { "at": { "kind": "reference", "shape": 1, "anchor": "top", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                        "terminal": { "kind": "arm" } },
+              "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left", "offset": { "dx": 0, "dy": 1 }, "out": 2 },
+                        "terminal": { "kind": "symbol", "style": "solid" } },
+              "stroke": "light" }
+        ]
     }"#;
 
     /// A description whose only shape is a light 30×9 box at `(0, 0)`: larger than the region's
@@ -834,7 +850,7 @@ mod tests {
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 23] = [
+    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 27] = [
         (KeyCode::Right, KeyModifiers::NONE),
         (KeyCode::Left, KeyModifiers::NONE),
         (KeyCode::Up, KeyModifiers::NONE),
@@ -851,6 +867,10 @@ mod tests {
         (KeyCode::Char('i'), KeyModifiers::NONE),
         (KeyCode::Char('s'), KeyModifiers::NONE),
         (KeyCode::Char('z'), KeyModifiers::NONE),
+        (KeyCode::Char('r'), KeyModifiers::NONE),
+        (KeyCode::Char('+'), KeyModifiers::NONE),
+        (KeyCode::Char('+'), KeyModifiers::SHIFT),
+        (KeyCode::Char('-'), KeyModifiers::NONE),
         (KeyCode::Char('1'), KeyModifiers::NONE),
         (KeyCode::Char('2'), KeyModifiers::NONE),
         (KeyCode::Char('3'), KeyModifiers::NONE),
@@ -1055,6 +1075,117 @@ mod tests {
     fn key_acceptance_matches_contextual_bar_in_endpoint_sub_mode() {
         assert_offer_matches_acceptance(A_CONNECTOR, Some(1), Some(SubMode::Endpoint(End::From)));
         assert_offer_matches_acceptance(A_CONNECTOR, Some(1), Some(SubMode::Endpoint(End::To)));
+        assert_offer_matches_acceptance(
+            AN_ATTACHED_CONNECTOR,
+            Some(3),
+            Some(SubMode::Endpoint(End::From)),
+        );
+        assert_offer_matches_acceptance(
+            AN_ATTACHED_CONNECTOR,
+            Some(3),
+            Some(SubMode::Endpoint(End::To)),
+        );
+    }
+
+    #[test]
+    fn endpoint_sub_mode_moves_adjusts_out_and_resets_endpoints() {
+        let mut state = a_state_over(AN_ATTACHED_CONNECTOR);
+        let id = ShapeId::new(NonZeroU16::new(3).unwrap());
+        state.select(Some(id));
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        // From is on Top anchor: horizontal arrows move dx, vertical arrows are ignored
+        let right_arrow = key(KeyCode::Right);
+        assert_eq!(
+            handle(&right_arrow, &mut state, Focus::Region),
+            Reply::Act(Action::Command(Command::MoveEndpoint {
+                id,
+                end: End::From,
+                by: Delta { dx: 1, dy: 0 },
+                out: 0,
+            }))
+        );
+        let up_arrow = key(KeyCode::Up);
+        assert_eq!(handle(&up_arrow, &mut state, Focus::Region), Reply::Ignored);
+
+        // Adjust out on attached endpoint: '+' and '-'
+        let key_plus = key(KeyCode::Char('+'));
+        assert_eq!(
+            handle(&key_plus, &mut state, Focus::Region),
+            Reply::Act(Action::Command(Command::MoveEndpoint {
+                id,
+                end: End::From,
+                by: Delta::ZERO,
+                out: 1,
+            }))
+        );
+        let key_minus = key(KeyCode::Char('-'));
+        assert_eq!(
+            handle(&key_minus, &mut state, Focus::Region),
+            Reply::Act(Action::Command(Command::MoveEndpoint {
+                id,
+                end: End::From,
+                by: Delta::ZERO,
+                out: -1,
+            }))
+        );
+
+        // Reset is not offered when offset is 0 and out is 0
+        let key_r = key(KeyCode::Char('r'));
+        assert_eq!(handle(&key_r, &mut state, Focus::Region), Reply::Ignored);
+
+        // Switch to To endpoint (which has offset: (0, 1), out: 2 on Left anchor)
+        state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+
+        // Vertical arrows move dy, horizontal arrows are ignored
+        let down_arrow = key(KeyCode::Down);
+        assert_eq!(
+            handle(&down_arrow, &mut state, Focus::Region),
+            Reply::Act(Action::Command(Command::MoveEndpoint {
+                id,
+                end: End::To,
+                by: Delta { dx: 0, dy: 1 },
+                out: 0,
+            }))
+        );
+        assert_eq!(
+            handle(&right_arrow, &mut state, Focus::Region),
+            Reply::Ignored
+        );
+
+        // Reset IS offered and accepted on To endpoint
+        assert_eq!(
+            handle(&key_r, &mut state, Focus::Region),
+            Reply::Act(Action::Command(Command::ResetEndpoint { id, end: End::To }))
+        );
+
+        // On detached endpoint (A_CONNECTOR): all 4 arrows move, '+', '-', 'r' are ignored
+        let mut detached_state = a_state_over(A_CONNECTOR);
+        let conn_id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        detached_state.select(Some(conn_id));
+        detached_state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        assert_eq!(
+            handle(&up_arrow, &mut detached_state, Focus::Region),
+            Reply::Act(Action::Command(Command::MoveEndpoint {
+                id: conn_id,
+                end: End::From,
+                by: Delta { dx: 0, dy: -1 },
+                out: 0,
+            }))
+        );
+        assert_eq!(
+            handle(&key_plus, &mut detached_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(
+            handle(&key_minus, &mut detached_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(
+            handle(&key_r, &mut detached_state, Focus::Region),
+            Reply::Ignored
+        );
     }
 
     #[test]

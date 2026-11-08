@@ -37,19 +37,14 @@ pub(crate) enum Condition {
     /// Active only if the selected figure is a connector.
     Connector,
     /// Active only if the active endpoint is detached.
-    #[allow(dead_code)]
     EndpointDetached,
     /// Active only if the active endpoint is attached with a horizontal face (`Top` or `Bottom`).
-    #[allow(dead_code)]
     EndpointAttachedHorizontal,
     /// Active only if the active endpoint is attached with a vertical face (`Left` or `Right`).
-    #[allow(dead_code)]
     EndpointAttachedVertical,
     /// Active only if the active endpoint is attached.
-    #[allow(dead_code)]
     EndpointAttached,
     /// Active only if the active endpoint is attached and either offset or out is non-zero.
-    #[allow(dead_code)]
     EndpointReset,
 }
 
@@ -59,10 +54,8 @@ pub(crate) enum KeyPattern {
     /// Any of the four bare arrow keys (Up, Down, Left, Right).
     Arrows,
     /// Bare horizontal arrow keys (Left, Right).
-    #[allow(dead_code)]
     HorizontalArrows,
     /// Bare vertical arrow keys (Up, Down).
-    #[allow(dead_code)]
     VerticalArrows,
     /// Shift plus any of the four arrow keys.
     ShiftArrows,
@@ -75,7 +68,6 @@ pub(crate) enum KeyPattern {
     /// A single bare character key.
     Char(char),
     /// A single character key with no modifiers or Shift.
-    #[allow(dead_code)]
     CharOrShift(char),
 }
 
@@ -173,13 +165,10 @@ pub(crate) enum ContextMeaning {
     /// Moves the selected figure by the arrow direction.
     Move,
     /// Moves the active endpoint along face or canvas coordinates.
-    #[allow(dead_code)]
     MoveEndpoint,
     /// Adjusts the active endpoint's outward standoff.
-    #[allow(dead_code)]
     AdjustEndpointOut(i16),
     /// Resets the active endpoint's offset and standoff to zero.
-    #[allow(dead_code)]
     ResetEndpoint,
     /// Resizes the selected figure by the arrow direction.
     Resize,
@@ -414,6 +403,58 @@ static ORDER_MODE: &[ContextBlock] = &[
 
 static ENDPOINT_FROM: &[ContextBlock] = &[
     ContextBlock {
+        category: Some("MOVE"),
+        condition: Condition::EndpointDetached,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Arrows,
+            display: "↑↓←→",
+            meaning: ContextMeaning::MoveEndpoint,
+        }],
+    },
+    ContextBlock {
+        category: Some("OFFSET"),
+        condition: Condition::EndpointAttachedHorizontal,
+        actions: &[ContextAction {
+            pattern: KeyPattern::HorizontalArrows,
+            display: "←→",
+            meaning: ContextMeaning::MoveEndpoint,
+        }],
+    },
+    ContextBlock {
+        category: Some("OFFSET"),
+        condition: Condition::EndpointAttachedVertical,
+        actions: &[ContextAction {
+            pattern: KeyPattern::VerticalArrows,
+            display: "↑↓",
+            meaning: ContextMeaning::MoveEndpoint,
+        }],
+    },
+    ContextBlock {
+        category: Some("OUT"),
+        condition: Condition::EndpointAttached,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::CharOrShift('+'),
+                display: "[+]",
+                meaning: ContextMeaning::AdjustEndpointOut(1),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('-'),
+                display: "[-]",
+                meaning: ContextMeaning::AdjustEndpointOut(-1),
+            },
+        ],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::EndpointReset,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('r'),
+            display: "[r] Reset",
+            meaning: ContextMeaning::ResetEndpoint,
+        }],
+    },
+    ContextBlock {
         category: None,
         condition: Condition::Always,
         actions: &[ContextAction {
@@ -434,6 +475,58 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
 ];
 
 static ENDPOINT_TO: &[ContextBlock] = &[
+    ContextBlock {
+        category: Some("MOVE"),
+        condition: Condition::EndpointDetached,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Arrows,
+            display: "↑↓←→",
+            meaning: ContextMeaning::MoveEndpoint,
+        }],
+    },
+    ContextBlock {
+        category: Some("OFFSET"),
+        condition: Condition::EndpointAttachedHorizontal,
+        actions: &[ContextAction {
+            pattern: KeyPattern::HorizontalArrows,
+            display: "←→",
+            meaning: ContextMeaning::MoveEndpoint,
+        }],
+    },
+    ContextBlock {
+        category: Some("OFFSET"),
+        condition: Condition::EndpointAttachedVertical,
+        actions: &[ContextAction {
+            pattern: KeyPattern::VerticalArrows,
+            display: "↑↓",
+            meaning: ContextMeaning::MoveEndpoint,
+        }],
+    },
+    ContextBlock {
+        category: Some("OUT"),
+        condition: Condition::EndpointAttached,
+        actions: &[
+            ContextAction {
+                pattern: KeyPattern::CharOrShift('+'),
+                display: "[+]",
+                meaning: ContextMeaning::AdjustEndpointOut(1),
+            },
+            ContextAction {
+                pattern: KeyPattern::Char('-'),
+                display: "[-]",
+                meaning: ContextMeaning::AdjustEndpointOut(-1),
+            },
+        ],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::EndpointReset,
+        actions: &[ContextAction {
+            pattern: KeyPattern::Char('r'),
+            display: "[r] Reset",
+            meaning: ContextMeaning::ResetEndpoint,
+        }],
+    },
     ContextBlock {
         category: None,
         condition: Condition::Always,
@@ -573,6 +666,130 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
     }
 }
 
+fn dispatch_endpoint_meaning(
+    meaning: &ContextMeaning,
+    state: &DiagramState,
+    key: &KeyEvent,
+) -> Reply {
+    let Some(SubMode::Endpoint(end)) = state.sub_mode() else {
+        return Reply::Ignored;
+    };
+    let id = state
+        .selected()
+        .expect("endpoint block matched without selection");
+
+    match *meaning {
+        ContextMeaning::MoveEndpoint => {
+            let (dx, dy) = arrow_direction(key.code).expect("arrow pattern matched arrow key");
+            Reply::Act(Action::Command(Command::MoveEndpoint {
+                id,
+                end,
+                by: (dx, dy).into(),
+                out: 0,
+            }))
+        }
+        ContextMeaning::AdjustEndpointOut(out) => {
+            Reply::Act(Action::Command(Command::MoveEndpoint {
+                id,
+                end,
+                by: Delta::ZERO,
+                out,
+            }))
+        }
+        ContextMeaning::ResetEndpoint => {
+            Reply::Act(Action::Command(Command::ResetEndpoint { id, end }))
+        }
+        _ => Reply::Ignored,
+    }
+}
+
+fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &KeyEvent) -> Reply {
+    match *meaning {
+        ContextMeaning::Act(ref act) => Reply::Act(act.clone()),
+        ContextMeaning::Move => {
+            let (dx, dy) = arrow_direction(key.code).expect("arrow pattern matched arrow key");
+            let id = state
+                .selected()
+                .expect("selection block matched without selection");
+            Reply::Act(Action::Command(Command::Move {
+                id,
+                by: (dx, dy).into(),
+            }))
+        }
+        ContextMeaning::Resize => {
+            let (dx, dy) = arrow_direction(key.code).expect("arrow pattern matched arrow key");
+            let id = state
+                .selected()
+                .expect("selection block matched without selection");
+            Reply::Act(Action::Command(Command::Resize {
+                id,
+                by: (dx, dy).into(),
+            }))
+        }
+        ContextMeaning::InvertTerminals => {
+            let id = state
+                .selected()
+                .expect("connector block matched without selection");
+            Reply::Act(Action::Command(Command::InvertTerminals { id }))
+        }
+        ContextMeaning::Remove => {
+            let id = state
+                .selected()
+                .expect("selection block matched without selection");
+            Reply::Act(Action::Command(Command::Remove { id }))
+        }
+        ContextMeaning::Forward => {
+            let id = state
+                .selected()
+                .expect("order block matched without selection");
+            Reply::Act(Action::Command(Command::Forward { id }))
+        }
+        ContextMeaning::Backward => {
+            let id = state
+                .selected()
+                .expect("order block matched without selection");
+            Reply::Act(Action::Command(Command::Backward { id }))
+        }
+        ContextMeaning::ToFront => {
+            let id = state
+                .selected()
+                .expect("order block matched without selection");
+            Reply::Act(Action::Command(Command::ToFront { id }))
+        }
+        ContextMeaning::ToBack => {
+            let id = state
+                .selected()
+                .expect("order block matched without selection");
+            Reply::Act(Action::Command(Command::ToBack { id }))
+        }
+        ContextMeaning::SetStroke(name) => {
+            state.set_sub_mode(None);
+            let id = state
+                .selected()
+                .expect("stroke select block matched without selection");
+            Reply::Act(Action::Command(Command::SetStroke {
+                id,
+                stroke: monospace_diagram::Stroke::from(name),
+            }))
+        }
+        ContextMeaning::EnterSubMode(sub_mode) => {
+            state.set_sub_mode(Some(sub_mode));
+            Reply::Repaint
+        }
+        ContextMeaning::LeaveSubMode => {
+            state.set_sub_mode(None);
+            Reply::Repaint
+        }
+        ContextMeaning::Deselect => {
+            state.select(None);
+            Reply::Repaint
+        }
+        ContextMeaning::MoveEndpoint
+        | ContextMeaning::AdjustEndpointOut(_)
+        | ContextMeaning::ResetEndpoint => dispatch_endpoint_meaning(meaning, state, key),
+    }
+}
+
 /// Dispatches a keyboard event in the diagram region using the contextual table.
 pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply {
     if key.kind != KeyEventKind::Press {
@@ -582,92 +799,7 @@ pub(crate) fn dispatch_key(state: &mut DiagramState, key: &KeyEvent) -> Reply {
     for block in context_blocks(state) {
         for action in block.actions {
             if action.pattern.matches(key) {
-                return match action.meaning {
-                    ContextMeaning::Act(ref act) => Reply::Act(act.clone()),
-                    ContextMeaning::Move => {
-                        let (dx, dy) =
-                            arrow_direction(key.code).expect("arrow pattern matched arrow key");
-                        let id = state
-                            .selected()
-                            .expect("selection block matched without selection");
-                        Reply::Act(Action::Command(Command::Move {
-                            id,
-                            by: (dx, dy).into(),
-                        }))
-                    }
-                    ContextMeaning::Resize => {
-                        let (dx, dy) =
-                            arrow_direction(key.code).expect("arrow pattern matched arrow key");
-                        let id = state
-                            .selected()
-                            .expect("selection block matched without selection");
-                        Reply::Act(Action::Command(Command::Resize {
-                            id,
-                            by: (dx, dy).into(),
-                        }))
-                    }
-                    ContextMeaning::InvertTerminals => {
-                        let id = state
-                            .selected()
-                            .expect("connector block matched without selection");
-                        Reply::Act(Action::Command(Command::InvertTerminals { id }))
-                    }
-                    ContextMeaning::Remove => {
-                        let id = state
-                            .selected()
-                            .expect("selection block matched without selection");
-                        Reply::Act(Action::Command(Command::Remove { id }))
-                    }
-                    ContextMeaning::Forward => {
-                        let id = state
-                            .selected()
-                            .expect("order block matched without selection");
-                        Reply::Act(Action::Command(Command::Forward { id }))
-                    }
-                    ContextMeaning::Backward => {
-                        let id = state
-                            .selected()
-                            .expect("order block matched without selection");
-                        Reply::Act(Action::Command(Command::Backward { id }))
-                    }
-                    ContextMeaning::ToFront => {
-                        let id = state
-                            .selected()
-                            .expect("order block matched without selection");
-                        Reply::Act(Action::Command(Command::ToFront { id }))
-                    }
-                    ContextMeaning::ToBack => {
-                        let id = state
-                            .selected()
-                            .expect("order block matched without selection");
-                        Reply::Act(Action::Command(Command::ToBack { id }))
-                    }
-                    ContextMeaning::SetStroke(name) => {
-                        state.set_sub_mode(None);
-                        let id = state
-                            .selected()
-                            .expect("stroke select block matched without selection");
-                        Reply::Act(Action::Command(Command::SetStroke {
-                            id,
-                            stroke: monospace_diagram::Stroke::from(name),
-                        }))
-                    }
-                    ContextMeaning::EnterSubMode(sub_mode) => {
-                        state.set_sub_mode(Some(sub_mode));
-                        Reply::Repaint
-                    }
-                    ContextMeaning::LeaveSubMode => {
-                        state.set_sub_mode(None);
-                        Reply::Repaint
-                    }
-                    ContextMeaning::Deselect => {
-                        state.select(None);
-                        Reply::Repaint
-                    }
-                    ContextMeaning::MoveEndpoint
-                    | ContextMeaning::AdjustEndpointOut(_)
-                    | ContextMeaning::ResetEndpoint => Reply::Ignored,
-                };
+                return execute_meaning(&action.meaning, state, key);
             }
         }
     }
