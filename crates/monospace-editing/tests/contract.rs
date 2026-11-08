@@ -259,6 +259,7 @@ fn no_session_method_changes_the_session_it_was_given() {
     let _: fn(&Session) -> Session = Session::undo;
     let _: fn(&Session) -> Session = Session::redo;
     let _: fn(&Session, Command) -> Session = Session::perform;
+    let _: fn(&Session, Shape) -> (Session, ShapeId) = Session::add;
 }
 
 /// Rule 4 — every command becomes one of the diagram's seven operations.
@@ -510,6 +511,14 @@ fn each_command_becomes_one_of_the_diagrams_seven_operations() {
         after(&Command::ToBack { id: id(2) }),
         after_operating(|diagram| diagram.to_back(id(2))),
         "`ToBack` is `to_back`"
+    );
+
+    assert_eq!(
+        after(&Command::Add {
+            shape: an_extra_box(),
+        }),
+        after_operating(|diagram| diagram.add(an_extra_box()).0),
+        "`Add` is `add`"
     );
 
     assert_eq!(
@@ -1954,4 +1963,69 @@ fn setting_endpoint_leaving_records_one_step_and_identical_or_attached_records_n
         }
     );
     assert!(!undone.can_undo(), "only one step was recorded");
+}
+
+#[test]
+fn adding_a_shape_via_session_add_assigns_id_records_one_step_and_undo_redo_walk_it() {
+    let session = Session::new(Diagram::new());
+    assert!(!session.can_undo());
+    assert!(!session.can_redo());
+    assert_eq!(session.diagram().shape_count(), 0);
+
+    let (added, assigned_id) = session.add(small_box(ORIGIN));
+    assert_eq!(assigned_id, id(1));
+    assert_eq!(added.diagram().shape_count(), 1);
+    assert!(added.diagram().get(assigned_id).is_some());
+    assert!(added.can_undo());
+    assert!(!added.can_redo());
+    assert_eq!(picture(&added), AS_WRITTEN);
+
+    let undone = added.undo();
+    assert_eq!(undone.diagram().shape_count(), 0);
+    assert!(!undone.can_undo());
+    assert!(undone.can_redo());
+
+    let redone = undone.redo();
+    assert_eq!(redone.diagram().shape_count(), 1);
+    assert_eq!(picture(&redone), AS_WRITTEN);
+    assert_eq!(
+        redone.diagram().get(assigned_id),
+        added.diagram().get(assigned_id)
+    );
+}
+
+#[test]
+fn adding_a_shape_truncates_redo_history_when_called_after_undo() {
+    let session = Session::new(Diagram::new());
+    let (s1, id1) = session.add(small_box(ORIGIN));
+    let s2 = s1.perform(Command::Move {
+        id: id1,
+        by: Delta { dx: 4, dy: 0 },
+    });
+    assert_eq!(picture(&s2), FOUR_RIGHT);
+
+    let s_undone = s2.undo();
+    assert_eq!(picture(&s_undone), AS_WRITTEN);
+    assert!(s_undone.can_redo());
+
+    // Adding a shape while in the middle of history truncates what was ahead
+    let (s_branched, id2) = s_undone.add(an_extra_box());
+    assert_eq!(id2, id(2));
+    assert!(!s_branched.can_redo(), "redo history is truncated");
+    assert!(s_branched.can_undo());
+    assert_eq!(s_branched.diagram().shape_count(), 2);
+}
+
+#[test]
+fn performing_command_add_via_session_perform_records_step_and_adds_shape() {
+    let session = Session::new(Diagram::new());
+    let added = session.perform(Command::Add {
+        shape: small_box(ORIGIN),
+    });
+    assert_eq!(added.diagram().shape_count(), 1);
+    assert_eq!(picture(&added), AS_WRITTEN);
+    assert!(added.can_undo());
+
+    let undone = added.undo();
+    assert_eq!(undone.diagram().shape_count(), 0);
 }

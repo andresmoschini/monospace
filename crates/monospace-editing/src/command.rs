@@ -134,6 +134,11 @@ pub enum Command {
         /// The figure to move to the back.
         id: ShapeId,
     },
+    /// The figure is added to the front of the drawing order.
+    Add {
+        /// The figure to add.
+        shape: Shape,
+    },
     /// The figure is taken out.
     Remove {
         /// The figure to take out.
@@ -170,6 +175,7 @@ impl Command {
     /// left, and the session records it as the step.
     pub(crate) fn apply_to(&self, diagram: &Diagram) -> Option<Diagram> {
         match *self {
+            Self::Add { ref shape } => Some(diagram.add(shape.clone()).0),
             Self::Move { id, by } => changed(diagram, id, |shape| shape.displaced_by(by)),
             Self::Resize { id, by } => changed(diagram, id, |shape| shape.resized_by(by)),
             Self::SetStroke { id, ref stroke } => {
