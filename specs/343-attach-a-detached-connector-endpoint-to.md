@@ -47,7 +47,7 @@ the canvas the way an idle selection is.
   `Shape::with_endpoint_attached`, which act only on a detached endpoint and a target that answers
   `anchor`.
 - The [#285](285-a-command-that-changes-nothing-records-n.md) silence rule: an attached endpoint, a
-  missing target, an anchor the target does not answer, or a no-op attachment records zero steps.
+  missing target, a target that is a connector, or a no-op attachment records zero steps.
 
 ### Out
 
@@ -101,9 +101,22 @@ inverting only the target: the author would lose sight of the connector being ed
 
 **Answer:** grow `Hang` with `end`, rename its target field `from` to `target`, and restrict it to
 detached endpoints. **Why not** a new `AttachEndpoint`: `Hang` already means "one end of a connector
-hangs from a figure's side" in [`docs/editing-model.md`](../docs/editing-model.md) §2 and has no
-caller, so a second command would keep two names for one action. The rename says what the field is
-when either end can hang.
+hangs from a figure's side" in [`docs/editing-model.md`](../docs/editing-model.md) §2, so a second
+command would keep two names for one action. Its only caller is the CLI demonstration, which hangs
+an end that is already attached and so records no step; the detached-only restriction keeps that
+call silent and the demonstration's output unchanged. The rename says what the field is when either
+end can hang.
+
+**D7 — what does a left press do while the picker is open?**
+
+**Answer:** it focuses the `Box` or `Line` that owns the cell, and nothing else: it neither selects
+that shape nor commits. A press on a connector, an empty cell or outside the interior leaves the
+focus where it was. **Why not** the idle behavior, where a press selects its owner: it would end the
+picker and drop the connector being edited, so the click a picker invites would destroy it. **Why
+not** committing on the click: it would need a default anchor, which D4 refuses. **Why not** leaving
+the mouse out of this slice: a press inside the picker has to mean something, and focusing is the
+cheapest meaning that keeps the picker alive; without it, a diagram of many shapes is only reachable
+by repeated `Tab`.
 
 ## Model slice
 
@@ -118,6 +131,9 @@ when either end can hang.
 - [`docs/connector-editing.md`](../docs/connector-editing.md) §2.6, §4.4 and §5.3: replace the
   deferred `ATTACH_PICK` description with this slice. `[c]` reassignment and the glyph palette
   remain deferred; the mouse click no longer is.
+- [`docs/contextual-ui.md`](../docs/contextual-ui.md) §2, §4.9 and Stage 3: replace `ATTACH_PICK`
+  with `ATTACH_SELECT`, its trigger, its keys and the detached-only scope; §4.9 today says it also
+  re-attaches an attached endpoint, which this slice leaves out.
 
 ## Public surface
 
@@ -132,7 +148,9 @@ when either end can hang.
   - `pub(crate) enum SubMode`:
     - `AttachSelect { end: End, target: ShapeId }`
   - `pub(crate) enum Condition`:
-    - `HasAttachableShapes`
+    - `AttachableEndpoint` — the active endpoint is detached and the diagram holds at least one
+      `Box` or `Line`. A block carries one condition, so the two facts are one variant, as
+      `EndpointReset` already joins "attached" with "offset or out non-zero".
 
 ## Behavior
 
@@ -161,38 +179,61 @@ when either end can hang.
    for `Arm`, 1 for `Symbol` or `Glyph`, per
    [#317](317-attached-non-arm-connector-terminals-sta.md)).
 9. The attach records one step when the targeted endpoint is detached and the target is a `Box` or
-   `Line` that answers `anchor`; it records zero steps when the endpoint is already attached, the
-   target is absent, the target is a connector, or the attachment changes nothing (#285).
+   `Line`, both of which answer all four anchors; it records zero steps when the endpoint is already
+   attached, the target is absent, the target is a connector, or the attachment changes nothing
+   (#285).
 10. In `AttachSelect`, `Esc` cancels and returns to `SubMode::Endpoint(end)` with zero history steps
     (`SubMode::parent` maps `AttachSelect { end, .. }` to `Endpoint(end)`); unoffered keys return
     `Reply::Ignored` and fall through to universal shortcuts.
 11. While `AttachSelect` is active, the copy paints reverse video on the cells the record says
     belong to the selected connector and on the cells it says belong to the focused target, and on
     no others. A shape clipped by the window inverts only the part the window holds.
-12. Losing or changing the selection, or removing the selected connector, ends `AttachSelect` with
-    the rest of the sub-mode (`sub_mode = None`). When the focused target is no longer in the
-    diagram, the picker focuses the first remaining candidate, or returns to
-    `SubMode::Endpoint(end)` when none remains, with zero steps.
+12. Losing or changing the selection, an effective undo or redo among them, ends `AttachSelect` with
+    the rest of the sub-mode (`sub_mode = None`). No key the picker leaves to the universal
+    shortcuts adds or removes a shape while the selection survives, so the focused target cannot
+    vanish under an open picker and the picker carries no reconciliation of its own; a `Hang` that
+    names a missing target would still record zero steps (rule 9).
 
 ## Examples
 
-_None of it has been observed: it is what the acceptance list checks, not the record of a run._
+_The pictures are generated from the descriptions they carry; the bars and the key sequences have
+not been observed: they are what the acceptance list checks, not the record of a run._
 
 **Attaching one detached end to the only box.** Box 1 (`8×3` at `(0, 0)`) and Connector #2, detached
-from `(8, 1)` leaving right to `(20, 1)` leaving left, with an arm terminal at `From` and a solid
+from `(10, 1)` leaving right to `(20, 1)` leaving left, with an arm terminal at `From` and a solid
 terminal at `To`:
+
+<!-- render: 22x3
+{
+  "next_id": 3,
+  "shapes": [
+    { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 }, "stroke": "light" },
+    { "kind": "connector", "id": 2,
+      "from": { "at": { "kind": "point", "x": 10, "y": 1 }, "leaving": "right", "terminal": { "kind": "arm" } },
+      "to": { "at": { "kind": "point", "x": 20, "y": 1 }, "leaving": "left", "terminal": { "kind": "symbol", "style": "solid" } },
+      "stroke": "light" }
+  ]
+}
+-->
 
 ```text
 ┌──────┐
-│      │ ──────────▶
+│      │  ──────────▶
 └──────┘
 ```
 
-Select Connector #2, press `1` to edit `From`, then `a`. The picker focuses the only candidate, and
-the bars read:
+<!-- /render -->
+
+Select Connector #2 and press `1` to edit `From`. Row 1 offers the new action:
 
 ```text
-ATTACH for 1. From of Connector #2 · Detached at (8, 1), leaving right · Target: Box #1 · 1 of 1
+MOVE: ↑↓←→ · LEAVING: [d] · ATTACH: [a] · TERMINAL: [t] · [2] To · [Esc] Done
+```
+
+Press `a`. The picker focuses the only candidate, and the bars read:
+
+```text
+ATTACH for 1. From of Connector #2 · Detached at (10, 1), leaving right · Target: Box #1 · 1 of 1
 TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel
 ```
 
@@ -206,11 +247,26 @@ OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To ·
 
 The connector now starts at the box:
 
+<!-- render: 22x3
+{
+  "next_id": 3,
+  "shapes": [
+    { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 3 }, "stroke": "light" },
+    { "kind": "connector", "id": 2,
+      "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right" }, "terminal": { "kind": "arm" } },
+      "to": { "at": { "kind": "point", "x": 20, "y": 1 }, "leaving": "left", "terminal": { "kind": "symbol", "style": "solid" } },
+      "stroke": "light" }
+  ]
+}
+-->
+
 ```text
 ┌──────┐
-│      ├───────────▶
+│      ├────────────▶
 └──────┘
 ```
+
+<!-- /render -->
 
 **The mouse focuses, the digit commits.** With Box 1, Line 2 and Box 3, pressing `a` focuses Box 1
 and row 0 ends `1 of 3`. Clicking a cell Line 2 owns focuses Line 2, and row 0 ends `2 of 3`;
