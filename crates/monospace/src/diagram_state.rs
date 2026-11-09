@@ -110,6 +110,18 @@ pub(crate) enum SubMode {
     LeavingSelect(End),
 }
 
+impl SubMode {
+    /// The parent sub-mode to return to when leaving this sub-mode, or `None` if leaving returns to
+    /// normal selection.
+    #[must_use]
+    pub(crate) fn parent(self) -> Option<Self> {
+        match self {
+            Self::TerminalSelect(end) | Self::LeavingSelect(end) => Some(Self::Endpoint(end)),
+            Self::StrokeSelect | Self::OrderMode | Self::Endpoint(_) => None,
+        }
+    }
+}
+
 impl DiagramState {
     /// A state over `session` that has not drawn a frame yet.
     #[must_use]
@@ -1084,6 +1096,30 @@ mod tests {
                 "the sub-mode survived the figure it belonged to"
             );
         }
+    }
+
+    #[test]
+    fn sub_mode_parent_returns_expected_parent() {
+        assert_eq!(
+            SubMode::TerminalSelect(End::From).parent(),
+            Some(SubMode::Endpoint(End::From))
+        );
+        assert_eq!(
+            SubMode::TerminalSelect(End::To).parent(),
+            Some(SubMode::Endpoint(End::To))
+        );
+        assert_eq!(
+            SubMode::LeavingSelect(End::From).parent(),
+            Some(SubMode::Endpoint(End::From))
+        );
+        assert_eq!(
+            SubMode::LeavingSelect(End::To).parent(),
+            Some(SubMode::Endpoint(End::To))
+        );
+        assert_eq!(SubMode::StrokeSelect.parent(), None);
+        assert_eq!(SubMode::OrderMode.parent(), None);
+        assert_eq!(SubMode::Endpoint(End::From).parent(), None);
+        assert_eq!(SubMode::Endpoint(End::To).parent(), None);
     }
 
     /// **A command that removes another figure keeps the selection.** The rule asks whether the

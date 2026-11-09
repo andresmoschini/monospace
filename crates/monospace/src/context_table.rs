@@ -843,39 +843,90 @@ pub(crate) fn arrow_direction(code: KeyCode) -> Option<(i16, i16)> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SelectionKind {
+    Box,
+    HorizontalLine,
+    VerticalLine,
+    Connector,
+}
+
+impl SelectionKind {
+    fn of(shape: &Shape) -> Self {
+        match shape {
+            Shape::Box { .. } => Self::Box,
+            Shape::Line {
+                orientation: Orientation::Horizontal,
+                ..
+            } => Self::HorizontalLine,
+            Shape::Line {
+                orientation: Orientation::Vertical,
+                ..
+            } => Self::VerticalLine,
+            Shape::Connector { .. } => Self::Connector,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Context {
+    Idle,
+    Selection,
+    Stroke,
+    Order,
+    Endpoint(End),
+    Terminal(End),
+    Leaving(End),
+    /// A sub-mode and a selection that do not fit. No action is offered.
+    Inconsistent,
+}
+
+pub(crate) fn context(state: &DiagramState) -> Context {
+    let kind = state.selected_shape().map(SelectionKind::of);
+
+    match state.sub_mode() {
+        None => match kind {
+            None => Context::Idle,
+            Some(_) => Context::Selection,
+        },
+        Some(SubMode::StrokeSelect) if kind.is_some() => Context::Stroke,
+        Some(SubMode::OrderMode) if kind.is_some() => Context::Order,
+        Some(SubMode::Endpoint(end)) if kind == Some(SelectionKind::Connector) => {
+            Context::Endpoint(end)
+        }
+        Some(SubMode::TerminalSelect(end)) if kind == Some(SelectionKind::Connector) => {
+            Context::Terminal(end)
+        }
+        Some(SubMode::LeavingSelect(end)) if kind == Some(SelectionKind::Connector) => {
+            Context::Leaving(end)
+        }
+        Some(
+            SubMode::StrokeSelect
+            | SubMode::OrderMode
+            | SubMode::Endpoint(_)
+            | SubMode::TerminalSelect(_)
+            | SubMode::LeavingSelect(_),
+        ) => Context::Inconsistent,
+    }
+}
+
 /// The contextual blocks active for `state`.
 pub(crate) fn context_blocks(
     state: &DiagramState,
 ) -> impl Iterator<Item = &'static ContextBlock> + use<> {
-    let sub_mode = state.sub_mode();
-    let selected_shape = state.selected_shape();
-    let selected = selected_shape.is_some();
-    let is_box = selected_shape.is_some_and(|s| matches!(s, Shape::Box { .. }));
-    let is_horizontal_line = selected_shape.is_some_and(|s| {
-        matches!(
-            s,
-            Shape::Line {
-                orientation: Orientation::Horizontal,
-                ..
-            }
-        )
-    });
-    let is_vertical_line = selected_shape.is_some_and(|s| {
-        matches!(
-            s,
-            Shape::Line {
-                orientation: Orientation::Vertical,
-                ..
-            }
-        )
-    });
-    let is_connector = selected_shape.is_some_and(|s| matches!(s, Shape::Connector { .. }));
-    let is_box_or_line =
-        selected_shape.is_some_and(|s| matches!(s, Shape::Box { .. } | Shape::Line { .. }));
+    let kind = state.selected_shape().map(SelectionKind::of);
+    let is_box = kind == Some(SelectionKind::Box);
+    let is_horizontal_line = kind == Some(SelectionKind::HorizontalLine);
+    let is_vertical_line = kind == Some(SelectionKind::VerticalLine);
+    let is_connector = kind == Some(SelectionKind::Connector);
+    let is_box_or_line = matches!(
+        kind,
+        Some(SelectionKind::Box | SelectionKind::HorizontalLine | SelectionKind::VerticalLine)
+    );
     let has_shapes = state.session().diagram().shape_count() > 0;
 
     let (is_endpoint_detached, is_endpoint_attached, is_endpoint_reset) =
-        match (sub_mode, selected_shape) {
+        match (state.sub_mode(), state.selected_shape()) {
             (Some(SubMode::Endpoint(end)), Some(Shape::Connector { from, to, .. })) => {
                 let active = match end {
                     End::From => from,
@@ -891,15 +942,16 @@ pub(crate) fn context_blocks(
             _ => (false, false, false),
         };
 
-    let slice: &'static [ContextBlock] = match sub_mode {
-        Some(SubMode::StrokeSelect) if selected => STROKE_SELECT,
-        Some(SubMode::OrderMode) if selected => ORDER_MODE,
-        Some(SubMode::Endpoint(End::From)) if selected && is_connector => ENDPOINT_FROM,
-        Some(SubMode::Endpoint(End::To)) if selected && is_connector => ENDPOINT_TO,
-        Some(SubMode::TerminalSelect(_)) if selected && is_connector => TERMINAL_SELECT,
-        Some(SubMode::LeavingSelect(_)) if selected && is_connector => LEAVING_SELECT,
-        _ if selected => SELECTION,
-        _ => IDLE,
+    let slice: &'static [ContextBlock] = match context(state) {
+        Context::Idle => IDLE,
+        Context::Selection => SELECTION,
+        Context::Stroke => STROKE_SELECT,
+        Context::Order => ORDER_MODE,
+        Context::Endpoint(End::From) => ENDPOINT_FROM,
+        Context::Endpoint(End::To) => ENDPOINT_TO,
+        Context::Terminal(_) => TERMINAL_SELECT,
+        Context::Leaving(_) => LEAVING_SELECT,
+        Context::Inconsistent => &[],
     };
 
     slice.iter().filter(move |block| match block.condition {
@@ -1055,13 +1107,7 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
             Reply::Repaint
         }
         ContextMeaning::LeaveSubMode => {
-            let next_sub_mode = match state.sub_mode() {
-                Some(SubMode::TerminalSelect(end) | SubMode::LeavingSelect(end)) => {
-                    Some(SubMode::Endpoint(end))
-                }
-                _ => None,
-            };
-            state.set_sub_mode(next_sub_mode);
+            state.set_sub_mode(state.sub_mode().and_then(SubMode::parent));
             Reply::Repaint
         }
         ContextMeaning::SetEndpointTerminal(choice) => {
@@ -1230,6 +1276,166 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    use monospace_core::ShapeId;
+    use std::num::NonZeroU16;
+
+    const EMPTY: &str = r#"{ "next_id": 1, "shapes": [] }"#;
+
+    const A_BOX: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+                      "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
+    }"#;
+
+    const A_LINE: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
+                      "len": 6, "orientation": "horizontal", "stroke": "light" } ]
+    }"#;
+
+    const A_VERTICAL_LINE: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
+                      "len": 3, "orientation": "vertical", "stroke": "light" } ]
+    }"#;
+
+    const A_CONNECTOR: &str = r#"{
+        "next_id": 2,
+        "shapes": [ { "kind": "connector", "id": 1,
+                      "from": { "at": { "kind": "point", "x": 2, "y": 1 },
+                                "leaving": "right", "terminal": { "kind": "arm" } },
+                      "to": { "at": { "kind": "point", "x": 10, "y": 1 },
+                              "leaving": "left", "terminal": { "kind": "arm" } },
+                      "stroke": "light" } ]
+    }"#;
+
+    fn a_state_over(json: &str) -> DiagramState {
+        let diagram =
+            monospace_description::parse(json).expect("the test's description is readable");
+        DiagramState::new(monospace_editing::Session::new(diagram))
+    }
+
+    #[test]
+    fn context_reports_expected_context_for_all_valid_states() {
+        let id = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+
+        // Idle on empty diagram
+        let empty_idle = a_state_over(EMPTY);
+        assert_eq!(context(&empty_idle), Context::Idle);
+
+        // Idle on diagram with shapes
+        let box_idle = a_state_over(A_BOX);
+        assert_eq!(context(&box_idle), Context::Idle);
+
+        // Selection: box
+        let mut box_selected = a_state_over(A_BOX);
+        box_selected.select(Some(id));
+        assert_eq!(context(&box_selected), Context::Selection);
+
+        // Selection: horizontal line
+        let mut line_selected = a_state_over(A_LINE);
+        line_selected.select(Some(id));
+        assert_eq!(context(&line_selected), Context::Selection);
+
+        // Selection: vertical line
+        let mut vertical_line_selected = a_state_over(A_VERTICAL_LINE);
+        vertical_line_selected.select(Some(id));
+        assert_eq!(context(&vertical_line_selected), Context::Selection);
+
+        // Selection: connector
+        let mut conn_selected = a_state_over(A_CONNECTOR);
+        conn_selected.select(Some(id));
+        assert_eq!(context(&conn_selected), Context::Selection);
+
+        // Stroke select
+        let mut stroke_state = a_state_over(A_BOX);
+        stroke_state.select(Some(id));
+        stroke_state.set_sub_mode(Some(SubMode::StrokeSelect));
+        assert_eq!(context(&stroke_state), Context::Stroke);
+
+        // Order mode
+        let mut order_state = a_state_over(A_BOX);
+        order_state.select(Some(id));
+        order_state.set_sub_mode(Some(SubMode::OrderMode));
+        assert_eq!(context(&order_state), Context::Order);
+
+        // Endpoint From / To
+        let mut ep_from = a_state_over(A_CONNECTOR);
+        ep_from.select(Some(id));
+        ep_from.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_eq!(context(&ep_from), Context::Endpoint(End::From));
+
+        let mut ep_to = a_state_over(A_CONNECTOR);
+        ep_to.select(Some(id));
+        ep_to.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        assert_eq!(context(&ep_to), Context::Endpoint(End::To));
+
+        // Terminal From / To
+        let mut term_from = a_state_over(A_CONNECTOR);
+        term_from.select(Some(id));
+        term_from.set_sub_mode(Some(SubMode::TerminalSelect(End::From)));
+        assert_eq!(context(&term_from), Context::Terminal(End::From));
+
+        let mut term_to = a_state_over(A_CONNECTOR);
+        term_to.select(Some(id));
+        term_to.set_sub_mode(Some(SubMode::TerminalSelect(End::To)));
+        assert_eq!(context(&term_to), Context::Terminal(End::To));
+
+        // Leaving From / To
+        let mut leaving_from = a_state_over(A_CONNECTOR);
+        leaving_from.select(Some(id));
+        leaving_from.set_sub_mode(Some(SubMode::LeavingSelect(End::From)));
+        assert_eq!(context(&leaving_from), Context::Leaving(End::From));
+
+        let mut leaving_to = a_state_over(A_CONNECTOR);
+        leaving_to.select(Some(id));
+        leaving_to.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
+        assert_eq!(context(&leaving_to), Context::Leaving(End::To));
+    }
+
+    #[test]
+    fn inconsistent_state_with_selected_box_and_endpoint_sub_mode() {
+        let id = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+        let mut state = a_state_over(A_BOX);
+        state.select(Some(id));
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        assert_eq!(context(&state), Context::Inconsistent);
+        assert_eq!(format_command_line(&state), "");
+
+        let arrow = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
+        assert_eq!(dispatch_key(&mut state, &arrow), Reply::Ignored);
+    }
+
+    #[test]
+    fn inconsistent_state_with_active_sub_mode_and_no_selection() {
+        for sub_mode in [
+            SubMode::StrokeSelect,
+            SubMode::OrderMode,
+            SubMode::Endpoint(End::From),
+            SubMode::Endpoint(End::To),
+            SubMode::TerminalSelect(End::From),
+            SubMode::LeavingSelect(End::From),
+        ] {
+            let mut state = a_state_over(A_BOX);
+            state.set_sub_mode(Some(sub_mode));
+
+            assert_eq!(
+                context(&state),
+                Context::Inconsistent,
+                "expected Inconsistent for {sub_mode:?} without selection"
+            );
+            assert_eq!(format_command_line(&state), "");
+
+            let key = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
+            assert_eq!(
+                dispatch_key(&mut state, &key),
+                Reply::Ignored,
+                "expected Ignored for {sub_mode:?} without selection"
+            );
         }
     }
 }

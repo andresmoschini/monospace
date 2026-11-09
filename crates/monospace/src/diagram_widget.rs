@@ -1959,6 +1959,13 @@ mod tests {
         assert_offer_matches_acceptance(
             A_CONNECTOR,
             Some(1),
+            Some(crate::diagram_state::SubMode::Endpoint(
+                crate::diagram_state::End::To,
+            )),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
             Some(crate::diagram_state::SubMode::TerminalSelect(
                 crate::diagram_state::End::From,
             )),
