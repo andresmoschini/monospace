@@ -829,6 +829,28 @@ static ENDPOINT_TO: &[ContextBlock] = &[
     },
 ];
 
+#[cfg(test)]
+pub(crate) static ALL_TABLES: &[&[ContextBlock]] = &[
+    IDLE,
+    SELECTION,
+    STROKE_SELECT,
+    ORDER_MODE,
+    ENDPOINT_FROM,
+    ENDPOINT_TO,
+    TERMINAL_SELECT,
+    LEAVING_SELECT,
+];
+
+#[cfg(test)]
+pub(crate) fn all_offered_samples() -> Vec<(KeyCode, KeyModifiers)> {
+    ALL_TABLES
+        .iter()
+        .flat_map(|table| table.iter())
+        .flat_map(|block| block.actions.iter())
+        .flat_map(|action| action.trigger.samples())
+        .collect()
+}
+
 /// The delta along screen axes named by the four arrow keys, or `None` for any other key code.
 ///
 /// Right is one cell along the x axis, Down along the y one, and the two negatives are the other
@@ -1251,17 +1273,7 @@ mod tests {
 
     #[test]
     fn all_actions_in_all_tables_have_valid_notation() {
-        let all_tables: &[&[ContextBlock]] = &[
-            IDLE,
-            SELECTION,
-            STROKE_SELECT,
-            TERMINAL_SELECT,
-            LEAVING_SELECT,
-            ORDER_MODE,
-            ENDPOINT_FROM,
-            ENDPOINT_TO,
-        ];
-        for table in all_tables {
+        for table in ALL_TABLES {
             for block in *table {
                 for action in block.actions {
                     let notation = action.trigger.notation();
@@ -1435,6 +1447,153 @@ mod tests {
                 dispatch_key(&mut state, &key),
                 Reply::Ignored,
                 "expected Ignored for {sub_mode:?} without selection"
+            );
+        }
+    }
+
+    const AN_ATTACHED_CONNECTOR: &str = r#"{
+        "next_id": 4,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 8, "height": 4 }, "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 20, "y": 0 }, "size": { "width": 8, "height": 4 }, "stroke": "light" },
+            { "kind": "connector", "id": 3,
+              "from": { "at": { "kind": "reference", "shape": 1, "anchor": "top", "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                        "terminal": { "kind": "arm" } },
+              "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left", "offset": { "dx": 0, "dy": 1 }, "out": 2 },
+                        "terminal": { "kind": "symbol", "style": "solid" } },
+              "stroke": "light" }
+        ]
+    }"#;
+
+    fn all_constructible_states() -> Vec<DiagramState> {
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+        let id3 = ShapeId::new(NonZeroU16::new(3).expect("3 is non-zero"));
+
+        let mut states = Vec::new();
+
+        // Idle on empty diagram
+        states.push(a_state_over(EMPTY));
+
+        // Idle on diagram with shapes
+        states.push(a_state_over(A_BOX));
+
+        // Selection: box
+        let mut s = a_state_over(A_BOX);
+        s.select(Some(id1));
+        states.push(s);
+
+        // Selection: horizontal line
+        let mut s = a_state_over(A_LINE);
+        s.select(Some(id1));
+        states.push(s);
+
+        // Selection: vertical line
+        let mut s = a_state_over(A_VERTICAL_LINE);
+        s.select(Some(id1));
+        states.push(s);
+
+        // Selection: connector
+        let mut s = a_state_over(A_CONNECTOR);
+        s.select(Some(id1));
+        states.push(s);
+
+        // Stroke select
+        let mut s = a_state_over(A_BOX);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::StrokeSelect));
+        states.push(s);
+
+        // Order mode
+        let mut s = a_state_over(A_BOX);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::OrderMode));
+        states.push(s);
+
+        // Endpoint From (detached)
+        let mut s = a_state_over(A_CONNECTOR);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        states.push(s);
+
+        // Endpoint To (detached)
+        let mut s = a_state_over(A_CONNECTOR);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        states.push(s);
+
+        // Endpoint From (attached)
+        let mut s = a_state_over(AN_ATTACHED_CONNECTOR);
+        s.select(Some(id3));
+        s.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        states.push(s);
+
+        // Endpoint To (attached, reset true)
+        let mut s = a_state_over(AN_ATTACHED_CONNECTOR);
+        s.select(Some(id3));
+        s.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        states.push(s);
+
+        // Terminal select From
+        let mut s = a_state_over(A_CONNECTOR);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::TerminalSelect(End::From)));
+        states.push(s);
+
+        // Terminal select To
+        let mut s = a_state_over(A_CONNECTOR);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::TerminalSelect(End::To)));
+        states.push(s);
+
+        // Leaving select From
+        let mut s = a_state_over(A_CONNECTOR);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::LeavingSelect(End::From)));
+        states.push(s);
+
+        // Leaving select To
+        let mut s = a_state_over(A_CONNECTOR);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
+        states.push(s);
+
+        states
+    }
+
+    #[test]
+    fn no_key_is_accepted_by_more_than_one_action_in_any_context() {
+        for state in all_constructible_states() {
+            let mut seen = std::collections::HashSet::new();
+            for block in context_blocks(&state) {
+                for action in block.actions {
+                    for key in action.trigger.samples() {
+                        assert!(
+                            seen.insert(key),
+                            "key {key:?} is accepted by more than one active action in context {:?}",
+                            context(&state)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_table_in_all_tables_is_produced_by_context_blocks_in_at_least_one_constructible_context()
+     {
+        let states = all_constructible_states();
+        for &table in ALL_TABLES {
+            let produced = states.iter().any(|state| {
+                let blocks: Vec<_> = context_blocks(state).collect();
+                !blocks.is_empty()
+                    && blocks
+                        .iter()
+                        .all(|b| table.as_ptr_range().contains(&std::ptr::from_ref(*b)))
+            });
+            assert!(
+                produced,
+                "table at {:?} was never produced by context_blocks in any constructible context",
+                table.as_ptr()
             );
         }
     }
