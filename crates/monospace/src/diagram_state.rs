@@ -270,12 +270,16 @@ impl DiagramState {
         if ids.is_empty() {
             return false;
         }
-        let prev = match self
+        let prev = if let Some(index) = self
             .selected
             .and_then(|current| ids.iter().position(|&id| id == current))
         {
-            Some(index) => ids[(index + ids.len() - 1) % ids.len()],
-            None => *ids.last().expect("non-empty diagram has a last shape"),
+            ids[(index + ids.len() - 1) % ids.len()]
+        } else {
+            let Some(&prev) = ids.last() else {
+                return false;
+            };
+            prev
         };
         self.select(Some(prev))
     }

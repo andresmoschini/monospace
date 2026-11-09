@@ -10,7 +10,7 @@
 //! `dispatch_key` answers, so a key cannot be offered without being accepted; mouse pick is
 //! offered alongside Tab selection when shapes exist.
 
-use monospace_core::{Orientation, Terminal};
+use monospace_core::{Orientation, ShapeId, Terminal};
 use monospace_diagram::{Delta, Direction, EndpointAt, Shape};
 use monospace_editing::Command;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -1011,6 +1011,15 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
     result
 }
 
+fn selected_id(state: &DiagramState) -> Option<ShapeId> {
+    let id = state.selected();
+    debug_assert!(
+        id.is_some(),
+        "a selection block matched without a selection"
+    );
+    id
+}
+
 fn dispatch_endpoint_meaning(
     meaning: &ContextMeaning,
     state: &DiagramState,
@@ -1019,13 +1028,16 @@ fn dispatch_endpoint_meaning(
     let Some(SubMode::Endpoint(end)) = state.sub_mode() else {
         return Reply::Ignored;
     };
-    let id = state
-        .selected()
-        .expect("endpoint block matched without selection");
+    let Some(id) = selected_id(state) else {
+        return Reply::Ignored;
+    };
 
     match *meaning {
         ContextMeaning::MoveEndpoint => {
-            let (dx, dy) = arrow_direction(key.code).expect("arrow pattern matched arrow key");
+            let Some((dx, dy)) = arrow_direction(key.code) else {
+                debug_assert!(false, "arrow pattern matched a non-arrow key");
+                return Reply::Ignored;
+            };
             Reply::Act(Action::Command(Command::MoveEndpoint {
                 id,
                 end,
@@ -1059,66 +1071,72 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
     match *meaning {
         ContextMeaning::Act(ref act) => Reply::Act(act.clone()),
         ContextMeaning::Move => {
-            let (dx, dy) = arrow_direction(key.code).expect("arrow pattern matched arrow key");
-            let id = state
-                .selected()
-                .expect("selection block matched without selection");
+            let Some((dx, dy)) = arrow_direction(key.code) else {
+                debug_assert!(false, "arrow pattern matched a non-arrow key");
+                return Reply::Ignored;
+            };
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             Reply::Act(Action::Command(Command::Move {
                 id,
                 by: (dx, dy).into(),
             }))
         }
         ContextMeaning::Resize => {
-            let (dx, dy) = arrow_direction(key.code).expect("arrow pattern matched arrow key");
-            let id = state
-                .selected()
-                .expect("selection block matched without selection");
+            let Some((dx, dy)) = arrow_direction(key.code) else {
+                debug_assert!(false, "arrow pattern matched a non-arrow key");
+                return Reply::Ignored;
+            };
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             Reply::Act(Action::Command(Command::Resize {
                 id,
                 by: (dx, dy).into(),
             }))
         }
         ContextMeaning::InvertTerminals => {
-            let id = state
-                .selected()
-                .expect("connector block matched without selection");
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             Reply::Act(Action::Command(Command::InvertTerminals { id }))
         }
         ContextMeaning::Remove => {
-            let id = state
-                .selected()
-                .expect("selection block matched without selection");
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             Reply::Act(Action::Command(Command::Remove { id }))
         }
         ContextMeaning::Forward => {
-            let id = state
-                .selected()
-                .expect("order block matched without selection");
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             Reply::Act(Action::Command(Command::Forward { id }))
         }
         ContextMeaning::Backward => {
-            let id = state
-                .selected()
-                .expect("order block matched without selection");
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             Reply::Act(Action::Command(Command::Backward { id }))
         }
         ContextMeaning::ToFront => {
-            let id = state
-                .selected()
-                .expect("order block matched without selection");
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             Reply::Act(Action::Command(Command::ToFront { id }))
         }
         ContextMeaning::ToBack => {
-            let id = state
-                .selected()
-                .expect("order block matched without selection");
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             Reply::Act(Action::Command(Command::ToBack { id }))
         }
         ContextMeaning::SetStroke(name) => {
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             state.set_sub_mode(None);
-            let id = state
-                .selected()
-                .expect("stroke select block matched without selection");
             Reply::Act(Action::Command(Command::SetStroke {
                 id,
                 stroke: monospace_diagram::Stroke::from(name),
@@ -1136,9 +1154,9 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
             let Some(SubMode::TerminalSelect(end)) = state.sub_mode() else {
                 return Reply::Ignored;
             };
-            let id = state
-                .selected()
-                .expect("terminal select block matched without selection");
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             state.set_sub_mode(Some(SubMode::Endpoint(end)));
             Reply::Act(Action::Command(Command::SetEndpointTerminal {
                 id,
@@ -1150,9 +1168,9 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
             let Some(SubMode::LeavingSelect(end)) = state.sub_mode() else {
                 return Reply::Ignored;
             };
-            let id = state
-                .selected()
-                .expect("leaving select block matched without selection");
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
             state.set_sub_mode(Some(SubMode::Endpoint(end)));
             Reply::Act(Action::Command(Command::SetEndpointLeaving {
                 id,
@@ -1447,6 +1465,27 @@ mod tests {
                 dispatch_key(&mut state, &key),
                 Reply::Ignored,
                 "expected Ignored for {sub_mode:?} without selection"
+            );
+        }
+    }
+
+    #[test]
+    fn inconsistent_state_with_endpoint_sub_mode_on_non_connector_returns_ignored() {
+        for sub_mode in [
+            SubMode::Endpoint(End::From),
+            SubMode::Endpoint(End::To),
+            SubMode::TerminalSelect(End::From),
+            SubMode::LeavingSelect(End::From),
+        ] {
+            let mut state = a_state_over(A_BOX);
+            state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+            state.set_sub_mode(Some(sub_mode));
+
+            let key = KeyEvent::new(KeyCode::Up, KeyModifiers::NONE);
+            assert_eq!(
+                dispatch_key(&mut state, &key),
+                Reply::Ignored,
+                "expected Ignored for {sub_mode:?} on a box"
             );
         }
     }
