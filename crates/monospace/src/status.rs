@@ -21,8 +21,8 @@
 //! row reports the figure's place in the order and the lower row offers the four order moves and
 //! `[Esc] Done`.
 
-use monospace_core::{Direction, Footprint, Pos, ShapeId, Terminal};
-use monospace_diagram::{Diagram, Endpoint, EndpointAt, Shape};
+use monospace_core::{Direction, Footprint, Orientation, Pos, ShapeId, Terminal};
+use monospace_diagram::{Anchor, Diagram, Endpoint, EndpointAt, Shape};
 use rat_theme4::StyleName;
 use rat_theme4::theme::SalsaTheme;
 use ratatui_core::buffer::Buffer;
@@ -74,6 +74,31 @@ fn connector_endpoint(shape: &Shape, end: End) -> Option<(u8, &'static str, &End
     }
 }
 
+fn anchor_text(anchor: Anchor) -> &'static str {
+    match anchor {
+        Anchor::Top => "top",
+        Anchor::Right => "right",
+        Anchor::Bottom => "bottom",
+        Anchor::Left => "left",
+    }
+}
+
+fn direction_text(direction: Direction) -> &'static str {
+    match direction {
+        Direction::Up => "North",
+        Direction::Right => "East",
+        Direction::Down => "South",
+        Direction::Left => "West",
+    }
+}
+
+fn orientation_text(orientation: Orientation) -> &'static str {
+    match orientation {
+        Orientation::Horizontal => "Horizontal",
+        Orientation::Vertical => "Vertical",
+    }
+}
+
 fn selected_shape_line(id: ShapeId, shape: &Shape, diagram: &Diagram) -> String {
     match shape {
         Shape::Box {
@@ -121,7 +146,7 @@ fn selected_shape_line(id: ShapeId, shape: &Shape, diagram: &Diagram) -> String 
             let identity = format!("Line #{id}");
             let pos = format!("Pos: ({}, {})", at.x, at.y);
             let length = format!("Length: {len}");
-            let orientation = format!("Orientation: {orientation:?}");
+            let orientation = format!("Orientation: {}", orientation_text(*orientation));
             let stroke = format!("Stroke: {}", stroke.0);
             [identity, pos, length, orientation, stroke].join(SEPARATOR)
         }
@@ -172,7 +197,7 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
                 let Some((n, label, endpoint)) = connector_endpoint(shape, end) else {
                     return selected_shape_line(id, shape, diagram);
                 };
-                let at_text = endpoint_at_text(&endpoint.at, diagram, "Detached ");
+                let at_text = endpoint_at_text(&endpoint.at, diagram);
                 let term_text = terminal_text(endpoint);
                 format!("ENDPOINT {n}. {label} of Connector #{id} · {at_text} · Term: {term_text}")
             }
@@ -189,19 +214,18 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
                 };
                 let (pos_text, leaving) = match endpoint.at {
                     EndpointAt::Absolute { at, leaving } => {
-                        (format!("Detached ({}, {})", at.x, at.y), leaving)
+                        (format!("Detached at ({}, {})", at.x, at.y), leaving)
                     }
                     EndpointAt::Reference(ref r) => {
                         let pos = endpoint.resolve(diagram).unwrap_or(Pos { x: 0, y: 0 });
                         (
-                            format!("Attached ({}, {})", pos.x, pos.y),
+                            format!("Attached at ({}, {})", pos.x, pos.y),
                             r.anchor.leaving(),
                         )
                     }
                 };
-                format!(
-                    "LEAVING for {n}. {label} of Connector #{id} · {pos_text} · Current: {leaving:?}"
-                )
+                let dir = direction_text(leaving);
+                format!("LEAVING for {n}. {label} of Connector #{id} · {pos_text} · Current: {dir}")
             }
         };
     }
@@ -223,7 +247,7 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
     }
 }
 
-fn endpoint_at_text(at: &EndpointAt, diagram: &Diagram, detached_prefix: &str) -> String {
+fn endpoint_at_text(at: &EndpointAt, diagram: &Diagram) -> String {
     match at {
         EndpointAt::Reference(r) => {
             let kind = match diagram.get(r.id) {
@@ -233,22 +257,27 @@ fn endpoint_at_text(at: &EndpointAt, diagram: &Diagram, detached_prefix: &str) -
                 None => "Shape",
             };
             format!(
-                "{kind} #{id} [{anchor:?} ({dx}, {dy}) out:{out}]",
+                "Attached to {kind} #{id} at {anchor}, offset ({dx}, {dy}), out {out}",
                 id = r.id,
-                anchor = r.anchor,
+                anchor = anchor_text(r.anchor),
                 dx = r.offset.dx,
                 dy = r.offset.dy,
                 out = r.out
             )
         }
         EndpointAt::Absolute { at, leaving } => {
-            format!("{detached_prefix}({}, {}) [{leaving:?}]", at.x, at.y)
+            format!(
+                "Detached at ({}, {}), leaving {}",
+                at.x,
+                at.y,
+                direction_text(*leaving)
+            )
         }
     }
 }
 
 fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
-    let at_text = endpoint_at_text(&endpoint.at, diagram, "");
+    let at_text = endpoint_at_text(&endpoint.at, diagram);
     let term_text = terminal_text(endpoint);
     format!("{at_text} {term_text}")
 }
@@ -597,7 +626,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Bottom (1, 0) out:1] arm │"
+            "Connector #3 · Stroke: light · 1. From: Attached to Box #1 at right, offset (0, 0), out 0 arm ─ · 2. To: Attached to Box #2 at bottom, offset (1, 0), out 1 arm │"
         );
         assert_eq!(
             command_line(&state),
@@ -620,7 +649,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #1 · Stroke: light · 1. From: (1, 2) [Right] arm ─ · 2. To: (5, 6) [Left] arm ─"
+            "Connector #1 · Stroke: light · 1. From: Detached at (1, 2), leaving East arm ─ · 2. To: Detached at (5, 6), leaving West arm ─"
         );
 
         let mut state = a_state_over(
@@ -641,7 +670,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Left (0, 0) out:0] solid ▶"
+            "Connector #3 · Stroke: light · 1. From: Attached to Box #1 at right, offset (0, 0), out 0 arm ─ · 2. To: Attached to Box #2 at left, offset (0, 0), out 0 solid ▶"
         );
     }
 
@@ -826,7 +855,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
         assert_eq!(
             status_line(&state),
-            "ENDPOINT 1. From of Connector #2 · Box #1 [Right (0, 0) out:0] · Term: arm ─"
+            "ENDPOINT 1. From of Connector #2 · Attached to Box #1 at right, offset (0, 0), out 0 · Term: arm ─"
         );
         assert_eq!(
             command_line(&state),
@@ -836,7 +865,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             status_line(&state),
-            "ENDPOINT 2. To of Connector #2 · Detached (20, 5) [Left] · Term: solid ▶"
+            "ENDPOINT 2. To of Connector #2 · Detached at (20, 5), leaving West · Term: solid ▶"
         );
         assert_eq!(
             command_line(&state),
@@ -995,7 +1024,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::LeavingSelect(End::From)));
         assert_eq!(
             status_line(&state),
-            "LEAVING for 1. From of Connector #1 · Detached (2, 1) · Current: Right"
+            "LEAVING for 1. From of Connector #1 · Detached at (2, 1) · Current: East"
         );
         assert_eq!(
             command_line(&state),
@@ -1005,7 +1034,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
         assert_eq!(
             status_line(&state),
-            "LEAVING for 2. To of Connector #1 · Detached (10, 5) · Current: Up"
+            "LEAVING for 2. To of Connector #1 · Detached at (10, 5) · Current: North"
         );
         assert_eq!(
             command_line(&state),
@@ -1089,7 +1118,7 @@ mod tests {
             assert_eq!(
                 status_line(&state),
                 base_line,
-                "expected fallback to base line for {sub_mode:?} on a box"
+                "expected fallback to base line for endpoint sub-mode on a box"
             );
         }
     }
