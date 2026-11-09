@@ -1763,9 +1763,10 @@ mod tests {
     }
 
     #[test]
-    fn every_table_in_all_tables_is_produced_by_context_blocks_in_at_least_one_constructible_context()
-     {
+    fn all_tables_and_context_blocks_cover_each_other() {
         let states = all_constructible_states();
+
+        // 1. Every declared table in ALL_TABLES is produced in at least one constructible context.
         for &table in ALL_TABLES {
             let produced = states.iter().any(|state| {
                 let blocks: Vec<_> = context_blocks(state).collect();
@@ -1778,6 +1779,26 @@ mod tests {
                 produced,
                 "table at {:?} was never produced by context_blocks in any constructible context",
                 table.as_ptr()
+            );
+        }
+
+        // 2. Every block produced by context_blocks in any constructible context belongs to a declared table in ALL_TABLES.
+        for state in &states {
+            let blocks: Vec<_> = context_blocks(state).collect();
+            assert!(
+                !blocks.is_empty(),
+                "constructible state in context {:?} produced no context blocks",
+                context(state)
+            );
+            let belongs_to_known_table = ALL_TABLES.iter().any(|table| {
+                blocks
+                    .iter()
+                    .all(|b| table.as_ptr_range().contains(&std::ptr::from_ref(*b)))
+            });
+            assert!(
+                belongs_to_known_table,
+                "context_blocks produced blocks in context {:?} that do not belong to any table in ALL_TABLES",
+                context(state)
             );
         }
     }
