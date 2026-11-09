@@ -745,6 +745,55 @@ impl Shape {
         }
     }
 
+    /// This figure with the targeted detached endpoint attached to `reference`.
+    ///
+    /// Non-connector figures, connectors whose targeted endpoint is already attached
+    /// ([`EndpointAt::Reference`]), and connectors whose `reference` names no figure or a figure
+    /// that answers no anchor come back unchanged. When the targeted endpoint is detached
+    /// ([`EndpointAt::Absolute`]), it becomes [`EndpointAt::Reference`] at `reference`,
+    /// preserving its terminal style and leaving the other endpoint untouched. The leaving
+    /// direction is `reference.anchor.leaving()` by construction.
+    #[must_use]
+    pub fn with_endpoint_attached(
+        &self,
+        end: End,
+        reference: Reference,
+        diagram: &Diagram,
+    ) -> Self {
+        let Self::Connector { from, to, stroke } = self else {
+            return self.clone();
+        };
+
+        if diagram
+            .get(reference.id)
+            .and_then(|shape| shape.anchor(reference.anchor))
+            .is_none()
+        {
+            return self.clone();
+        }
+
+        let attach_endpoint = |ep: &Endpoint| match ep.at {
+            EndpointAt::Absolute { .. } => Endpoint {
+                at: EndpointAt::Reference(reference),
+                terminal: ep.terminal.clone(),
+            },
+            EndpointAt::Reference(_) => ep.clone(),
+        };
+
+        match end {
+            End::From => Self::Connector {
+                from: attach_endpoint(from),
+                to: to.clone(),
+                stroke: stroke.clone(),
+            },
+            End::To => Self::Connector {
+                from: from.clone(),
+                to: attach_endpoint(to),
+                stroke: stroke.clone(),
+            },
+        }
+    }
+
     /// This figure with the departure direction of the targeted detached endpoint replaced.
     ///
     /// Non-connector figures, connectors with an attached targeted endpoint ([`EndpointAt::Reference`]),
@@ -2498,6 +2547,311 @@ mod tests {
             box_shape.with_endpoint_detached(End::To, &diagram),
             box_shape
         );
+    }
+
+    #[test]
+    fn with_endpoint_attached_replaces_a_detached_endpoint_and_preserves_its_terminal() {
+        use monospace_core::SymbolStyleName;
+
+        let mut diagram = Diagram::new();
+        let box_shape = Shape::Box {
+            at: Pos { x: 10, y: 10 },
+            size: Size {
+                width: 8,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+        let (d, box_id) = diagram.add(box_shape);
+        diagram = d;
+
+        let custom_terminal = Terminal::Symbol {
+            style: SymbolStyleName::from("solid"),
+        };
+        let detached_endpoint =
+            Endpoint::absolute(Pos { x: 5, y: 5 }, Direction::Left, custom_terminal.clone());
+        let other_endpoint =
+            Endpoint::absolute(Pos { x: 20, y: 20 }, Direction::Right, Terminal::Arm);
+
+        let connector = Shape::Connector {
+            from: detached_endpoint.clone(),
+            to: other_endpoint.clone(),
+            stroke: light(),
+        };
+
+        let target_ref = Reference::new(box_id, Anchor::Top, Delta { dx: 1, dy: 2 }, 3);
+
+        let attached_from = connector.with_endpoint_attached(End::From, target_ref, &diagram);
+        match attached_from {
+            Shape::Connector { from, to, stroke } => {
+                assert_eq!(
+                    from,
+                    Endpoint::reference(target_ref, custom_terminal.clone())
+                );
+                assert_eq!(to, other_endpoint);
+                assert_eq!(stroke, light());
+            }
+            _ => unreachable!(),
+        }
+
+        let attached_to = connector.with_endpoint_attached(End::To, target_ref, &diagram);
+        match attached_to {
+            Shape::Connector { from, to, stroke } => {
+                assert_eq!(from, detached_endpoint);
+                assert_eq!(to, Endpoint::reference(target_ref, Terminal::Arm));
+                assert_eq!(stroke, light());
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn with_endpoint_attached_derives_leaving_from_the_anchor() {
+        let mut diagram = Diagram::new();
+        let (d, box_id) = diagram.add(Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 10,
+                height: 10,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        });
+        diagram = d;
+
+        for (anchor, expected_leaving) in [
+            (Anchor::Top, Direction::Up),
+            (Anchor::Right, Direction::Right),
+            (Anchor::Bottom, Direction::Down),
+            (Anchor::Left, Direction::Left),
+        ] {
+            let connector = Shape::Connector {
+                from: Endpoint::absolute(Pos { x: 5, y: 5 }, Direction::Down, Terminal::Arm),
+                to: Endpoint::absolute(Pos { x: 20, y: 20 }, Direction::Up, Terminal::Arm),
+                stroke: light(),
+            };
+            let reference = Reference::new(box_id, anchor, Delta::ZERO, 0);
+            let attached = connector.with_endpoint_attached(End::From, reference, &diagram);
+            let Shape::Connector { from, .. } = attached else {
+                unreachable!()
+            };
+            assert_eq!(from.leaving(), expected_leaving);
+            assert_eq!(from.at.leaving(), expected_leaving);
+        }
+    }
+
+    #[test]
+    fn with_endpoint_attached_on_a_line_target_uses_its_anchor() {
+        let mut diagram = Diagram::new();
+        let (d, line_id) = diagram.add(Shape::Line {
+            at: Pos { x: 4, y: 4 },
+            len: 12,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        });
+        diagram = d;
+
+        let to_endpoint = Endpoint::absolute(Pos { x: 10, y: 10 }, Direction::Down, Terminal::Arm);
+        let connector = Shape::Connector {
+            from: Endpoint::absolute(Pos { x: 0, y: 0 }, Direction::Up, Terminal::Arm),
+            to: to_endpoint.clone(),
+            stroke: light(),
+        };
+
+        let target_ref = Reference::new(line_id, Anchor::Bottom, Delta::ZERO, 0);
+        let attached = connector.with_endpoint_attached(End::From, target_ref, &diagram);
+
+        match attached {
+            Shape::Connector { from, to, stroke } => {
+                assert_eq!(from, Endpoint::reference(target_ref, Terminal::Arm));
+                assert_eq!(from.resolve(&diagram), Some(Pos { x: 9, y: 4 }));
+                assert_eq!(to, to_endpoint);
+                assert_eq!(stroke, light());
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn with_endpoint_attached_on_an_attached_endpoint_is_unchanged() {
+        let mut diagram = Diagram::new();
+        let (d1, box1) = diagram.add(Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 6,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        });
+        let (d2, box2) = d1.add(Shape::Box {
+            at: Pos { x: 20, y: 0 },
+            size: Size {
+                width: 6,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        });
+        diagram = d2;
+
+        let attached_endpoint = Endpoint::reference(
+            Reference::new(box1, Anchor::Right, Delta::ZERO, 0),
+            Terminal::Arm,
+        );
+        let connector = Shape::Connector {
+            from: attached_endpoint.clone(),
+            to: attached_endpoint.clone(),
+            stroke: light(),
+        };
+
+        let target_ref = Reference::new(box2, Anchor::Left, Delta::ZERO, 0);
+        assert_eq!(
+            connector.with_endpoint_attached(End::From, target_ref, &diagram),
+            connector
+        );
+        assert_eq!(
+            connector.with_endpoint_attached(End::To, target_ref, &diagram),
+            connector
+        );
+    }
+
+    #[test]
+    fn with_endpoint_attached_on_a_missing_or_connector_target_is_unchanged() {
+        let mut diagram = Diagram::new();
+        let (d, other_connector_id) = diagram.add(Shape::Connector {
+            from: Endpoint::absolute(Pos { x: 0, y: 0 }, Direction::Right, Terminal::Arm),
+            to: Endpoint::absolute(Pos { x: 5, y: 5 }, Direction::Left, Terminal::Arm),
+            stroke: light(),
+        });
+        diagram = d;
+
+        let connector = Shape::Connector {
+            from: Endpoint::absolute(Pos { x: 1, y: 1 }, Direction::Right, Terminal::Arm),
+            to: Endpoint::absolute(Pos { x: 6, y: 6 }, Direction::Left, Terminal::Arm),
+            stroke: light(),
+        };
+
+        let missing_id = ShapeId::new(NonZeroU16::new(99).unwrap());
+        let missing_ref = Reference::new(missing_id, Anchor::Top, Delta::ZERO, 0);
+        let connector_ref = Reference::new(other_connector_id, Anchor::Top, Delta::ZERO, 0);
+
+        assert_eq!(
+            connector.with_endpoint_attached(End::From, missing_ref, &diagram),
+            connector
+        );
+        assert_eq!(
+            connector.with_endpoint_attached(End::To, missing_ref, &diagram),
+            connector
+        );
+        assert_eq!(
+            connector.with_endpoint_attached(End::From, connector_ref, &diagram),
+            connector
+        );
+        assert_eq!(
+            connector.with_endpoint_attached(End::To, connector_ref, &diagram),
+            connector
+        );
+    }
+
+    #[test]
+    fn with_endpoint_attached_on_non_connector_is_unchanged() {
+        let mut diagram = Diagram::new();
+        let (d, box_id) = diagram.add(Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 10,
+                height: 5,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        });
+        diagram = d;
+
+        let target_ref = Reference::new(box_id, Anchor::Top, Delta::ZERO, 0);
+
+        let box_shape = Shape::Box {
+            at: Pos { x: 1, y: 1 },
+            size: Size {
+                width: 4,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+        assert_eq!(
+            box_shape.with_endpoint_attached(End::From, target_ref, &diagram),
+            box_shape
+        );
+        assert_eq!(
+            box_shape.with_endpoint_attached(End::To, target_ref, &diagram),
+            box_shape
+        );
+
+        let line_shape = Shape::Line {
+            at: Pos { x: 2, y: 2 },
+            len: 5,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        assert_eq!(
+            line_shape.with_endpoint_attached(End::From, target_ref, &diagram),
+            line_shape
+        );
+        assert_eq!(
+            line_shape.with_endpoint_attached(End::To, target_ref, &diagram),
+            line_shape
+        );
+    }
+
+    #[test]
+    fn with_endpoint_attached_is_idempotent() {
+        let mut diagram = Diagram::new();
+        let (d1, box1) = diagram.add(Shape::Box {
+            at: Pos { x: 0, y: 0 },
+            size: Size {
+                width: 8,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        });
+        let (d2, box2) = d1.add(Shape::Box {
+            at: Pos { x: 20, y: 0 },
+            size: Size {
+                width: 8,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        });
+        diagram = d2;
+
+        let connector = Shape::Connector {
+            from: Endpoint::absolute(Pos { x: 5, y: 5 }, Direction::Right, Terminal::Arm),
+            to: Endpoint::absolute(Pos { x: 15, y: 5 }, Direction::Left, Terminal::Arm),
+            stroke: light(),
+        };
+
+        let ref1 = Reference::new(box1, Anchor::Right, Delta::ZERO, 0);
+        let ref2 = Reference::new(box2, Anchor::Left, Delta::ZERO, 0);
+
+        let attached_once = connector.with_endpoint_attached(End::From, ref1, &diagram);
+        let attached_twice = attached_once.with_endpoint_attached(End::From, ref1, &diagram);
+        assert_eq!(attached_once, attached_twice);
+
+        // Attempting to attach to a different reference also leaves it unchanged
+        let reattached = attached_once.with_endpoint_attached(End::From, ref2, &diagram);
+        assert_eq!(attached_once, reattached);
     }
 
     #[test]
