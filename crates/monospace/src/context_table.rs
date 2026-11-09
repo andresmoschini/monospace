@@ -41,6 +41,8 @@ pub(crate) enum Condition {
     EndpointReset,
     /// Active only if the diagram holds at least one figure.
     HasShapes,
+    /// Active only if the active endpoint is the given end.
+    ActiveEndpointIs(End),
 }
 
 /// A pattern of key combinations matched by contextual actions.
@@ -265,6 +267,10 @@ pub(crate) enum ContextMeaning {
     SetEndpointTerminal(TerminalChoice),
     /// Sets the departure direction of the active detached connector endpoint.
     SetEndpointLeaving(Direction),
+    /// Enters the leaving direction selector for the active endpoint.
+    EnterLeavingSelect,
+    /// Enters the terminal style selector for the active endpoint.
+    EnterTerminalSelect,
     /// Enters an inline sub-mode.
     EnterSubMode(SubMode),
     /// Leaves an inline sub-mode back to normal selection.
@@ -648,7 +654,7 @@ static ORDER_MODE: &[ContextBlock] = &[
     },
 ];
 
-static ENDPOINT_FROM: &[ContextBlock] = &[
+static ENDPOINT: &[ContextBlock] = &[
     ContextBlock {
         category: Some("MOVE"),
         condition: Condition::EndpointDetached,
@@ -664,7 +670,7 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         actions: &[ContextAction {
             trigger: Trigger::Key(KeyPattern::Char('d')),
             label: "",
-            meaning: ContextMeaning::EnterSubMode(SubMode::LeavingSelect(End::From)),
+            meaning: ContextMeaning::EnterLeavingSelect,
         }],
     },
     ContextBlock {
@@ -716,107 +722,25 @@ static ENDPOINT_FROM: &[ContextBlock] = &[
         actions: &[ContextAction {
             trigger: Trigger::Key(KeyPattern::Char('t')),
             label: "",
-            meaning: ContextMeaning::EnterSubMode(SubMode::TerminalSelect(End::From)),
+            meaning: ContextMeaning::EnterTerminalSelect,
         }],
     },
     ContextBlock {
         category: None,
-        condition: Condition::Always,
-        actions: &[ContextAction {
-            trigger: Trigger::Key(KeyPattern::Char('2')),
-            label: "To",
-            meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::To)),
-        }],
-    },
-    ContextBlock {
-        category: None,
-        condition: Condition::Always,
-        actions: &[ContextAction {
-            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
-            label: "Done",
-            meaning: ContextMeaning::LeaveSubMode,
-        }],
-    },
-];
-
-static ENDPOINT_TO: &[ContextBlock] = &[
-    ContextBlock {
-        category: Some("MOVE"),
-        condition: Condition::EndpointDetached,
-        actions: &[ContextAction {
-            trigger: Trigger::Key(KeyPattern::Arrows),
-            label: "",
-            meaning: ContextMeaning::MoveEndpoint,
-        }],
-    },
-    ContextBlock {
-        category: Some("LEAVING"),
-        condition: Condition::EndpointDetached,
-        actions: &[ContextAction {
-            trigger: Trigger::Key(KeyPattern::Char('d')),
-            label: "",
-            meaning: ContextMeaning::EnterSubMode(SubMode::LeavingSelect(End::To)),
-        }],
-    },
-    ContextBlock {
-        category: Some("OFFSET"),
-        condition: Condition::EndpointAttached,
-        actions: &[ContextAction {
-            trigger: Trigger::Key(KeyPattern::Arrows),
-            label: "",
-            meaning: ContextMeaning::MoveEndpoint,
-        }],
-    },
-    ContextBlock {
-        category: Some("OUT"),
-        condition: Condition::EndpointAttached,
-        actions: &[
-            ContextAction {
-                trigger: Trigger::Key(KeyPattern::CharOrShift('+')),
-                label: "",
-                meaning: ContextMeaning::AdjustEndpointOut(1),
-            },
-            ContextAction {
-                trigger: Trigger::Key(KeyPattern::Char('-')),
-                label: "",
-                meaning: ContextMeaning::AdjustEndpointOut(-1),
-            },
-        ],
-    },
-    ContextBlock {
-        category: None,
-        condition: Condition::EndpointReset,
-        actions: &[ContextAction {
-            trigger: Trigger::Key(KeyPattern::Char('r')),
-            label: "Reset",
-            meaning: ContextMeaning::ResetEndpoint,
-        }],
-    },
-    ContextBlock {
-        category: None,
-        condition: Condition::EndpointAttached,
-        actions: &[ContextAction {
-            trigger: Trigger::Key(KeyPattern::Char('0')),
-            label: "Detach",
-            meaning: ContextMeaning::DetachEndpoint,
-        }],
-    },
-    ContextBlock {
-        category: Some("TERMINAL"),
-        condition: Condition::Always,
-        actions: &[ContextAction {
-            trigger: Trigger::Key(KeyPattern::Char('t')),
-            label: "",
-            meaning: ContextMeaning::EnterSubMode(SubMode::TerminalSelect(End::To)),
-        }],
-    },
-    ContextBlock {
-        category: None,
-        condition: Condition::Always,
+        condition: Condition::ActiveEndpointIs(End::To),
         actions: &[ContextAction {
             trigger: Trigger::Key(KeyPattern::Char('1')),
             label: "From",
             meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::From)),
+        }],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::ActiveEndpointIs(End::From),
+        actions: &[ContextAction {
+            trigger: Trigger::Key(KeyPattern::Char('2')),
+            label: "To",
+            meaning: ContextMeaning::EnterSubMode(SubMode::Endpoint(End::To)),
         }],
     },
     ContextBlock {
@@ -836,8 +760,7 @@ pub(crate) static ALL_TABLES: &[&[ContextBlock]] = &[
     SELECTION,
     STROKE_SELECT,
     ORDER_MODE,
-    ENDPOINT_FROM,
-    ENDPOINT_TO,
+    ENDPOINT,
     TERMINAL_SELECT,
     LEAVING_SELECT,
 ];
@@ -965,13 +888,17 @@ pub(crate) fn context_blocks(
             _ => (false, false, false),
         };
 
+    let active_endpoint = match context(state) {
+        Context::Endpoint(end) => Some(end),
+        _ => None,
+    };
+
     let slice: &'static [ContextBlock] = match context(state) {
         Context::Idle => IDLE,
         Context::Selection => SELECTION,
         Context::Stroke => STROKE_SELECT,
         Context::Order => ORDER_MODE,
-        Context::Endpoint(End::From) => ENDPOINT_FROM,
-        Context::Endpoint(End::To) => ENDPOINT_TO,
+        Context::Endpoint(_) => ENDPOINT,
         Context::Terminal(_) => TERMINAL_SELECT,
         Context::Leaving(_) => LEAVING_SELECT,
         Context::Inconsistent => &[],
@@ -988,6 +915,7 @@ pub(crate) fn context_blocks(
         Condition::EndpointAttached => is_endpoint_attached,
         Condition::EndpointReset => is_endpoint_reset,
         Condition::HasShapes => has_shapes,
+        Condition::ActiveEndpointIs(target_end) => active_endpoint == Some(target_end),
     })
 }
 
@@ -1142,6 +1070,20 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
                 id,
                 stroke: monospace_diagram::Stroke::from(name),
             }))
+        }
+        ContextMeaning::EnterLeavingSelect => {
+            let Some(SubMode::Endpoint(end)) = state.sub_mode() else {
+                return Reply::Ignored;
+            };
+            state.set_sub_mode(Some(SubMode::LeavingSelect(end)));
+            Reply::Repaint
+        }
+        ContextMeaning::EnterTerminalSelect => {
+            let Some(SubMode::Endpoint(end)) = state.sub_mode() else {
+                return Reply::Ignored;
+            };
+            state.set_sub_mode(Some(SubMode::TerminalSelect(end)));
+            Reply::Repaint
         }
         ContextMeaning::EnterSubMode(sub_mode) => {
             state.set_sub_mode(Some(sub_mode));
@@ -1649,6 +1591,48 @@ mod tests {
                 "expected Ignored for {sub_mode:?} on a box"
             );
         }
+    }
+
+    #[test]
+    fn endpoint_sub_mode_dispatch_key_switches_endpoints_and_enters_selectors() {
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+
+        let mut state = a_state_over(A_CONNECTOR);
+        state.select(Some(id1));
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        let key_1 = KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE);
+        let key_2 = KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE);
+        let key_t = KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE);
+        let key_d = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE);
+
+        assert_eq!(dispatch_key(&mut state, &key_1), Reply::Ignored);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+
+        assert_eq!(dispatch_key(&mut state, &key_t), Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::TerminalSelect(End::From)));
+
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_eq!(dispatch_key(&mut state, &key_d), Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::LeavingSelect(End::From)));
+
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_eq!(dispatch_key(&mut state, &key_2), Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::To)));
+
+        assert_eq!(dispatch_key(&mut state, &key_2), Reply::Ignored);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::To)));
+
+        assert_eq!(dispatch_key(&mut state, &key_t), Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::TerminalSelect(End::To)));
+
+        state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        assert_eq!(dispatch_key(&mut state, &key_d), Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::LeavingSelect(End::To)));
+
+        state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        assert_eq!(dispatch_key(&mut state, &key_1), Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
     }
 
     const AN_ATTACHED_CONNECTOR: &str = r#"{
