@@ -93,10 +93,10 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
 
 /// What a click means to the region.
 ///
-/// **A left press inside the interior selects the shape the drawing records at the cell the router
-/// found, and a press on a cell nobody owns drops the selection** (rules 1 and 2). The cell is
-/// [`Target::Interior`]'s, counted from the interior's corner, so the region never reads the
-/// pointer a second time.
+/// **The acceptor of `Trigger::Click` in the `SELECT` contextual block.** A left press inside the
+/// interior selects the shape the drawing records at the cell the router found, and a press on a
+/// cell nobody owns drops the selection (rules 1 and 2). The cell is [`Target::Interior`]'s,
+/// counted from the interior's corner, so the region never reads the pointer a second time.
 ///
 /// **Everything else is not the region's**, and it is answered with nothing so that the event goes
 /// on to the next handler (rule 3): a press on the bar, the region's border or the status bar, and
@@ -2033,5 +2033,24 @@ mod tests {
     fn key_acceptance_matches_contextual_bar_in_idle_on_empty_diagram() {
         const EMPTY: &str = r#"{ "next_id": 1, "shapes": [] }"#;
         assert_offer_matches_acceptance(EMPTY, None, None);
+    }
+
+    #[test]
+    fn clicking_a_shape_when_pick_is_offered_selects_it() {
+        let mut state = a_state_over(A_BOX);
+        let bar = crate::status::command_line(&state);
+        assert!(bar.contains("[Click] Pick"));
+        assert!(state.selected().is_none());
+
+        let _ = paint(&mut state);
+        let at = screen(2, 1);
+        let reply = handle(&click(at.x, at.y), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(
+            state.selected(),
+            Some(ShapeId::new(NonZeroU16::new(1).unwrap()))
+        );
+        assert!(!crate::status::command_line(&state).contains("[Click] Pick"));
     }
 }

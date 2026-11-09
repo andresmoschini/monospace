@@ -178,13 +178,6 @@ pub(crate) enum Trigger {
     /// A keyboard event matched by `pattern`.
     Key(KeyPattern),
     /// A left press inside the region, answered by the region's click handler.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "constructed in subsequent stage of mouse action modeling"
-        )
-    )]
     Click,
 }
 
@@ -291,6 +284,8 @@ pub(crate) enum ContextMeaning {
     CreateLine,
     /// Creates a detached connector at viewport center and selects it.
     CreateConnector,
+    /// Answered by the region's click, never by a key.
+    Pick,
 }
 
 /// One contextual action offered by a block.
@@ -355,6 +350,11 @@ static IDLE: &[ContextBlock] = &[
                 trigger: Trigger::Key(KeyPattern::BackTab),
                 label: "Prev",
                 meaning: ContextMeaning::SelectPrevious,
+            },
+            ContextAction {
+                trigger: Trigger::Click,
+                label: "Pick",
+                meaning: ContextMeaning::Pick,
             },
         ],
     },
@@ -934,9 +934,6 @@ pub(crate) fn format_command_line(state: &DiagramState) -> String {
             result.push_str(&action.text());
         }
     }
-    if state.session().diagram().shape_count() > 0 && state.selected_shape().is_none() {
-        result.push_str(" [Click] Pick");
-    }
     result
 }
 
@@ -1125,6 +1122,7 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
             state.create_connector();
             Reply::Repaint
         }
+        ContextMeaning::Pick => Reply::Ignored,
         ContextMeaning::MoveEndpoint
         | ContextMeaning::AdjustEndpointOut(_)
         | ContextMeaning::ResetEndpoint
@@ -1200,7 +1198,7 @@ mod tests {
         let click_action = ContextAction {
             trigger: Trigger::Click,
             label: "Pick",
-            meaning: ContextMeaning::SelectNext,
+            meaning: ContextMeaning::Pick,
         };
         assert_eq!(click_action.text(), "[Click] Pick");
     }
