@@ -1636,4 +1636,50 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn every_offered_stroke_and_terminal_exists_in_the_catalog() {
+        let catalog = monospace_glyph_sets::all();
+
+        for block in STROKE_SELECT {
+            for action in block.actions {
+                let ContextMeaning::SetStroke(name) = &action.meaning else {
+                    continue;
+                };
+                let key = monospace_core::GlyphKey {
+                    top: None,
+                    right: None,
+                    bottom: None,
+                    left: Some(monospace_core::Stroke::from(*name)),
+                };
+                assert!(
+                    catalog.glyph(&key).is_some(),
+                    "stroke {name} has no glyph in the catalog"
+                );
+            }
+        }
+
+        let styles = catalog.symbol_styles();
+
+        for block in TERMINAL_SELECT {
+            for action in block.actions {
+                let ContextMeaning::SetEndpointTerminal(choice) = &action.meaning else {
+                    continue;
+                };
+                match (*choice).to_terminal() {
+                    monospace_core::Terminal::Arm => {}
+                    monospace_core::Terminal::Glyph { glyph } => {
+                        assert_eq!(glyph.as_str(), "◆");
+                    }
+                    monospace_core::Terminal::Symbol { style } => {
+                        assert!(
+                            styles.iter().any(|known| known.0 == style.0),
+                            "terminal style {} is missing from the catalog",
+                            style.0
+                        );
+                    }
+                }
+            }
+        }
+    }
 }
