@@ -10,19 +10,25 @@
 //! has no figures.
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
-//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Tab] Next
-//! [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`, with `RESIZE` between the first two offering
-//! the cursor keys the selected figure can use — all four for a box (`Shift+↑↓←→`), the row's two
-//! for a horizontal line (`Shift+←→`), the column's two for a vertical line (`Shift+↑↓`), and none
-//! for a connector. `TEXT: [t] Edit` is offered only for a box, between `RESIZE` and `STROKE`.
+//! or `Connector`). For a box or line, the lower row offers `MOVE: ↑↓←→`, with `RESIZE` between
+//! `MOVE` and `TEXT` or `STROKE` offering the cursor keys the figure can use — all four for a box
+//! (`Shift+↑↓←→`), the row's two for a horizontal line (`Shift+←→`), and the column's two for a
+//! vertical line (`Shift+↑↓`). `TEXT: [t] Edit` is offered only for a box. For a connector,
+//! whole-shape movement and resizing are absent, and the lower row offers
+//! `ENDPOINTS: [1] From [2] To · INVERT: [i]` instead. All selected figures conclude with
+//! `STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`.
 //!
 //! **In `STROKE_SELECT`**, the upper row reports the figure and the stroke it carries, and the
 //! lower row offers the five catalog strokes and `[Esc] Cancel`. **In `ORDER_MODE`**, the upper
 //! row reports the figure's place in the order and the lower row offers the four order moves and
-//! `[Esc] Done`.
+//! `[Esc] Done`. **In `ENDPOINT_EDIT`**, the upper row inspects the focused endpoint, and the lower
+//! row offers offset/standoff adjustment or detached movement, resetting, detachment, terminal
+//! selection, endpoint switching, and `[Esc] Done`. **In `TERMINAL_SELECT`**, the lower row offers
+//! the five terminal styles and `[Esc] Cancel`. **In `LEAVING_SELECT`**, the lower row offers the
+//! four compass departure directions and `[Esc] Cancel`.
 
-use monospace_core::{Direction, Footprint, Pos, Terminal};
-use monospace_diagram::{Diagram, Endpoint, EndpointAt, Shape};
+use monospace_core::{Direction, Footprint, Orientation, Pos, ShapeId, Terminal};
+use monospace_diagram::{Anchor, Diagram, Endpoint, EndpointAt, Shape};
 use rat_theme4::StyleName;
 use rat_theme4::theme::SalsaTheme;
 use ratatui_core::buffer::Buffer;
@@ -66,98 +72,48 @@ fn footprint_text(footprint: Option<Footprint>) -> String {
     )
 }
 
-/// Formats the contextual status row (row 0) from the diagram state.
-#[expect(
-    clippy::too_many_lines,
-    reason = "the status line formats each sub-mode and shape kind in one match"
-)]
-pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
-    let session = diagram_state.session();
-    let diagram = session.diagram();
-
-    let selected_shape = diagram_state.selected_entry();
-
-    if let Some(sub_mode) = diagram_state.sub_mode()
-        && let Some((id, shape)) = selected_shape
-    {
-        let (kind, current_stroke) = match shape {
-            Shape::Box { stroke, .. } => ("Box", stroke.0.as_str()),
-            Shape::Line { stroke, .. } => ("Line", stroke.0.as_str()),
-            Shape::Connector { stroke, .. } => ("Connector", stroke.0.as_str()),
-        };
-
-        return match sub_mode {
-            SubMode::StrokeSelect => {
-                format!("STROKE SELECTION for {kind} #{id} · Current: {current_stroke}")
-            }
-            SubMode::OrderMode => {
-                let total = diagram.shape_count();
-                let place = diagram
-                    .place_of(id)
-                    .expect("the selected figure stands in the order");
-                let position = place + 1;
-                let behind = position - 1;
-                let ahead = total - position;
-
-                format!(
-                    "LAYER ORDER for {kind} #{id} · Position: {position} of {total} · Behind: {behind}, Ahead: {ahead}"
-                )
-            }
-            SubMode::Endpoint(end) => {
-                let (n, label, endpoint) = match (shape, end) {
-                    (Shape::Connector { from, .. }, End::From) => (1, "From", from),
-                    (Shape::Connector { to, .. }, End::To) => (2, "To", to),
-                    _ => unreachable!("endpoint sub-mode requires a selected connector"),
-                };
-                let at_text = endpoint_at_text(&endpoint.at, diagram, "Detached ");
-                let term_text = terminal_text(endpoint);
-                format!("ENDPOINT {n}. {label} of Connector #{id} · {at_text} · Term: {term_text}")
-            }
-            SubMode::TerminalSelect(end) => {
-                let (n, label, endpoint) = match (shape, end) {
-                    (Shape::Connector { from, .. }, End::From) => (1, "From", from),
-                    (Shape::Connector { to, .. }, End::To) => (2, "To", to),
-                    _ => unreachable!("terminal select sub-mode requires a selected connector"),
-                };
-                let term_text = terminal_text(endpoint);
-                format!("TERMINAL for {n}. {label} of Connector #{id} · Current: {term_text}")
-            }
-            SubMode::LeavingSelect(end) => {
-                let (n, label, endpoint) = match (shape, end) {
-                    (Shape::Connector { from, .. }, End::From) => (1, "From", from),
-                    (Shape::Connector { to, .. }, End::To) => (2, "To", to),
-                    _ => unreachable!("leaving select sub-mode requires a selected connector"),
-                };
-                let (pos_text, leaving) = match endpoint.at {
-                    EndpointAt::Absolute { at, leaving } => {
-                        (format!("Detached ({}, {})", at.x, at.y), leaving)
-                    }
-                    EndpointAt::Reference(ref r) => {
-                        let pos = endpoint.resolve(diagram).unwrap_or(Pos { x: 0, y: 0 });
-                        (
-                            format!("Attached ({}, {})", pos.x, pos.y),
-                            r.anchor.leaving(),
-                        )
-                    }
-                };
-                format!(
-                    "LEAVING for {n}. {label} of Connector #{id} · {pos_text} · Current: {leaving:?}"
-                )
-            }
-        };
+fn connector_endpoint(shape: &Shape, end: End) -> Option<(u8, &'static str, &Endpoint)> {
+    match (shape, end) {
+        (Shape::Connector { from, .. }, End::From) => Some((1, "From", from)),
+        (Shape::Connector { to, .. }, End::To) => Some((2, "To", to)),
+        _ => None,
     }
+}
 
-    match selected_shape {
-        Some((
-            id,
-            Shape::Box {
-                at,
-                size,
-                stroke,
-                fill,
-                text,
-            },
-        )) => {
+fn anchor_text(anchor: Anchor) -> &'static str {
+    match anchor {
+        Anchor::Top => "top",
+        Anchor::Right => "right",
+        Anchor::Bottom => "bottom",
+        Anchor::Left => "left",
+    }
+}
+
+fn direction_text(direction: Direction) -> &'static str {
+    match direction {
+        Direction::Up => "up",
+        Direction::Right => "right",
+        Direction::Down => "down",
+        Direction::Left => "left",
+    }
+}
+
+fn orientation_text(orientation: Orientation) -> &'static str {
+    match orientation {
+        Orientation::Horizontal => "Horizontal",
+        Orientation::Vertical => "Vertical",
+    }
+}
+
+fn selected_shape_line(id: ShapeId, shape: &Shape, diagram: &Diagram) -> String {
+    match shape {
+        Shape::Box {
+            at,
+            size,
+            stroke,
+            fill,
+            text,
+        } => {
             let label = match text {
                 None => format!("Box #{id}"),
                 Some(t) => {
@@ -187,46 +143,117 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
             };
             [label, pos, size, stroke, fill].join(SEPARATOR)
         }
-        Some((
-            id,
-            Shape::Line {
-                at,
-                len,
-                orientation,
-                stroke,
-            },
-        )) => {
+        Shape::Line {
+            at,
+            len,
+            orientation,
+            stroke,
+        } => {
             let identity = format!("Line #{id}");
             let pos = format!("Pos: ({}, {})", at.x, at.y);
             let length = format!("Length: {len}");
-            let orientation = format!("Orientation: {orientation:?}");
+            let orientation = format!("Orientation: {}", orientation_text(*orientation));
             let stroke = format!("Stroke: {}", stroke.0);
             [identity, pos, length, orientation, stroke].join(SEPARATOR)
         }
-        Some((id, Shape::Connector { from, to, stroke })) => {
+        Shape::Connector { from, to, stroke } => {
             let identity = format!("Connector #{id}");
             let stroke = format!("Stroke: {}", stroke.0);
             let from = format!("1. From: {}", endpoint_text(from, diagram));
             let to = format!("2. To: {}", endpoint_text(to, diagram));
             [identity, stroke, from, to].join(SEPARATOR)
         }
-        None => {
-            let name_version = format!("{NAME} {VERSION}");
-            let footprint = format!("Footprint: {}", footprint_text(diagram_state.footprint()));
-            let count = diagram.shapes().count();
-            let count_text = if count == 1 {
-                "1 shape".to_owned()
-            } else {
-                format!("{count} shapes")
-            };
-            let origin = diagram_state.origin();
-            let viewport = format!("Viewport: ({}, {})", origin.x, origin.y);
-            [name_version, footprint, count_text, viewport].join(SEPARATOR)
-        }
     }
 }
 
-fn endpoint_at_text(at: &EndpointAt, diagram: &Diagram, detached_prefix: &str) -> String {
+/// Formats the contextual status row (row 0) from the diagram state.
+pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
+    let session = diagram_state.session();
+    let diagram = session.diagram();
+
+    let selected_shape = diagram_state.selected_entry();
+
+    if let Some(sub_mode) = diagram_state.sub_mode()
+        && let Some((id, shape)) = selected_shape
+    {
+        let (kind, current_stroke) = match shape {
+            Shape::Box { stroke, .. } => ("Box", stroke.0.as_str()),
+            Shape::Line { stroke, .. } => ("Line", stroke.0.as_str()),
+            Shape::Connector { stroke, .. } => ("Connector", stroke.0.as_str()),
+        };
+
+        return match sub_mode {
+            SubMode::StrokeSelect => {
+                format!("STROKE SELECTION for {kind} #{id} · Current: {current_stroke}")
+            }
+            SubMode::OrderMode => {
+                let Some(place) = diagram.place_of(id) else {
+                    return selected_shape_line(id, shape, diagram);
+                };
+                let total = diagram.shape_count();
+                let position = place + 1;
+                let behind = position - 1;
+                let ahead = total - position;
+
+                format!(
+                    "LAYER ORDER for {kind} #{id} · Position: {position} of {total} · Behind: {behind}, Ahead: {ahead}"
+                )
+            }
+            SubMode::Endpoint(end) => {
+                let Some((n, label, endpoint)) = connector_endpoint(shape, end) else {
+                    return selected_shape_line(id, shape, diagram);
+                };
+                let at_text = endpoint_at_text(&endpoint.at, diagram);
+                let term_text = terminal_text(endpoint);
+                format!("ENDPOINT {n}. {label} of Connector #{id} · {at_text} · Term: {term_text}")
+            }
+            SubMode::TerminalSelect(end) => {
+                let Some((n, label, endpoint)) = connector_endpoint(shape, end) else {
+                    return selected_shape_line(id, shape, diagram);
+                };
+                let term_text = terminal_text(endpoint);
+                format!("TERMINAL for {n}. {label} of Connector #{id} · Current: {term_text}")
+            }
+            SubMode::LeavingSelect(end) => {
+                let Some((n, label, endpoint)) = connector_endpoint(shape, end) else {
+                    return selected_shape_line(id, shape, diagram);
+                };
+                let (pos_text, leaving) = match endpoint.at {
+                    EndpointAt::Absolute { at, leaving } => {
+                        (format!("Detached at ({}, {})", at.x, at.y), leaving)
+                    }
+                    EndpointAt::Reference(ref r) => {
+                        let pos = endpoint.resolve(diagram).unwrap_or(Pos { x: 0, y: 0 });
+                        (
+                            format!("Attached at ({}, {})", pos.x, pos.y),
+                            r.anchor.leaving(),
+                        )
+                    }
+                };
+                let dir = direction_text(leaving);
+                format!("LEAVING for {n}. {label} of Connector #{id} · {pos_text} · Current: {dir}")
+            }
+        };
+    }
+
+    if let Some((id, shape)) = selected_shape {
+        selected_shape_line(id, shape, diagram)
+    } else {
+        let name_version = format!("{NAME} {VERSION}");
+        let footprint = format!("Footprint: {}", footprint_text(diagram_state.footprint()));
+        let count = diagram.shapes().count();
+        let count_text = if count == 1 {
+            "1 shape".to_owned()
+        } else {
+            format!("{count} shapes")
+        };
+        let origin = diagram_state.origin();
+        let viewport = format!("Viewport: ({}, {})", origin.x, origin.y);
+        [name_version, footprint, count_text, viewport].join(SEPARATOR)
+    }
+}
+
+fn endpoint_at_text(at: &EndpointAt, diagram: &Diagram) -> String {
     match at {
         EndpointAt::Reference(r) => {
             let kind = match diagram.get(r.id) {
@@ -236,24 +263,53 @@ fn endpoint_at_text(at: &EndpointAt, diagram: &Diagram, detached_prefix: &str) -
                 None => "Shape",
             };
             format!(
-                "{kind} #{id} [{anchor:?} ({dx}, {dy}) out:{out}]",
+                "Attached to {kind} #{id} at {anchor}, offset ({dx}, {dy}), out {out}",
                 id = r.id,
-                anchor = r.anchor,
+                anchor = anchor_text(r.anchor),
                 dx = r.offset.dx,
                 dy = r.offset.dy,
                 out = r.out
             )
         }
         EndpointAt::Absolute { at, leaving } => {
-            format!("{detached_prefix}({}, {}) [{leaving:?}]", at.x, at.y)
+            format!(
+                "Detached at ({}, {}), leaving {}",
+                at.x,
+                at.y,
+                direction_text(*leaving)
+            )
+        }
+    }
+}
+
+fn endpoint_at_compact(at: &EndpointAt, diagram: &Diagram) -> String {
+    match at {
+        EndpointAt::Reference(r) => {
+            let kind = match diagram.get(r.id) {
+                Some(Shape::Box { .. }) => "Box",
+                Some(Shape::Line { .. }) => "Line",
+                Some(Shape::Connector { .. }) => "Connector",
+                None => "Shape",
+            };
+            format!(
+                "{kind} #{id} [{anchor} ({dx}, {dy}) out:{out}]",
+                id = r.id,
+                anchor = anchor_text(r.anchor),
+                dx = r.offset.dx,
+                dy = r.offset.dy,
+                out = r.out
+            )
+        }
+        EndpointAt::Absolute { at, leaving } => {
+            format!("({}, {}) [{}]", at.x, at.y, direction_text(*leaving))
         }
     }
 }
 
 fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
-    let at_text = endpoint_at_text(&endpoint.at, diagram, "");
+    let at_text = endpoint_at_compact(&endpoint.at, diagram);
     let term_text = terminal_text(endpoint);
-    format!("{at_text} {term_text}")
+    format!("{at_text} ({term_text})")
 }
 
 static CATALOG: std::sync::LazyLock<monospace_core::GlyphCatalog> =
@@ -600,7 +656,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Bottom (1, 0) out:1] arm │"
+            "Connector #3 · Stroke: light · 1. From: Box #1 [right (0, 0) out:0] (arm ─) · 2. To: Box #2 [bottom (1, 0) out:1] (arm │)"
         );
         assert_eq!(
             command_line(&state),
@@ -623,7 +679,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #1 · Stroke: light · 1. From: (1, 2) [Right] arm ─ · 2. To: (5, 6) [Left] arm ─"
+            "Connector #1 · Stroke: light · 1. From: (1, 2) [right] (arm ─) · 2. To: (5, 6) [left] (arm ─)"
         );
 
         let mut state = a_state_over(
@@ -644,7 +700,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] arm ─ · 2. To: Box #2 [Left (0, 0) out:0] solid ▶"
+            "Connector #3 · Stroke: light · 1. From: Box #1 [right (0, 0) out:0] (arm ─) · 2. To: Box #2 [left (0, 0) out:0] (solid ▶)"
         );
     }
 
@@ -829,7 +885,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
         assert_eq!(
             status_line(&state),
-            "ENDPOINT 1. From of Connector #2 · Box #1 [Right (0, 0) out:0] · Term: arm ─"
+            "ENDPOINT 1. From of Connector #2 · Attached to Box #1 at right, offset (0, 0), out 0 · Term: arm ─"
         );
         assert_eq!(
             command_line(&state),
@@ -839,7 +895,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             status_line(&state),
-            "ENDPOINT 2. To of Connector #2 · Detached (20, 5) [Left] · Term: solid ▶"
+            "ENDPOINT 2. To of Connector #2 · Detached at (20, 5), leaving left · Term: solid ▶"
         );
         assert_eq!(
             command_line(&state),
@@ -998,7 +1054,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::LeavingSelect(End::From)));
         assert_eq!(
             status_line(&state),
-            "LEAVING for 1. From of Connector #1 · Detached (2, 1) · Current: Right"
+            "LEAVING for 1. From of Connector #1 · Detached at (2, 1) · Current: right"
         );
         assert_eq!(
             command_line(&state),
@@ -1008,7 +1064,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
         assert_eq!(
             status_line(&state),
-            "LEAVING for 2. To of Connector #1 · Detached (10, 5) · Current: Up"
+            "LEAVING for 2. To of Connector #1 · Detached at (10, 5) · Current: up"
         );
         assert_eq!(
             command_line(&state),
@@ -1065,6 +1121,34 @@ mod tests {
                     .ends_with(" · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"),
                 "unexpected command row for shape #{id}: {}",
                 command_line(&state)
+            );
+        }
+    }
+
+    #[test]
+    fn inconsistent_sub_mode_renders_base_shape_line_without_panicking() {
+        let text = r#"{
+            "next_id": 2,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" }
+            ]
+        }"#;
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        let base_line = status_line(&state);
+
+        for sub_mode in [
+            SubMode::Endpoint(End::From),
+            SubMode::Endpoint(End::To),
+            SubMode::TerminalSelect(End::From),
+            SubMode::LeavingSelect(End::From),
+        ] {
+            state.set_sub_mode(Some(sub_mode));
+            assert_eq!(
+                status_line(&state),
+                base_line,
+                "expected fallback to base line for endpoint sub-mode on a box"
             );
         }
     }

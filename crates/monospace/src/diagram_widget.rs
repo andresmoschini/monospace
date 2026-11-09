@@ -93,10 +93,10 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
 
 /// What a click means to the region.
 ///
-/// **A left press inside the interior selects the shape the drawing records at the cell the router
-/// found, and a press on a cell nobody owns drops the selection** (rules 1 and 2). The cell is
-/// [`Target::Interior`]'s, counted from the interior's corner, so the region never reads the
-/// pointer a second time.
+/// **The acceptor of `Trigger::Click` in the `SELECT` contextual block.** A left press inside the
+/// interior selects the shape the drawing records at the cell the router found, and a press on a
+/// cell nobody owns drops the selection (rules 1 and 2). The cell is [`Target::Interior`]'s,
+/// counted from the interior's corner, so the region never reads the pointer a second time.
 ///
 /// **Everything else is not the region's**, and it is answered with nothing so that the event goes
 /// on to the next handler (rule 3): a press on the bar, the region's border or the status bar, and
@@ -848,43 +848,6 @@ mod tests {
         (KeyCode::F(1), KeyModifiers::NONE),
     ];
 
-    const ALL_POSSIBLE_CONTEXT_KEYS: [(KeyCode, KeyModifiers); 34] = [
-        (KeyCode::Tab, KeyModifiers::NONE),
-        (KeyCode::BackTab, KeyModifiers::SHIFT),
-        (KeyCode::BackTab, KeyModifiers::NONE),
-        (KeyCode::Tab, KeyModifiers::SHIFT),
-        (KeyCode::Char('b'), KeyModifiers::NONE),
-        (KeyCode::Char('l'), KeyModifiers::NONE),
-        (KeyCode::Char('c'), KeyModifiers::NONE),
-        (KeyCode::Right, KeyModifiers::NONE),
-        (KeyCode::Left, KeyModifiers::NONE),
-        (KeyCode::Up, KeyModifiers::NONE),
-        (KeyCode::Down, KeyModifiers::NONE),
-        (KeyCode::Right, KeyModifiers::SHIFT),
-        (KeyCode::Left, KeyModifiers::SHIFT),
-        (KeyCode::Up, KeyModifiers::SHIFT),
-        (KeyCode::Down, KeyModifiers::SHIFT),
-        (KeyCode::Home, KeyModifiers::NONE),
-        (KeyCode::End, KeyModifiers::NONE),
-        (KeyCode::PageUp, KeyModifiers::NONE),
-        (KeyCode::PageDown, KeyModifiers::NONE),
-        (KeyCode::Char('t'), KeyModifiers::NONE),
-        (KeyCode::Char('i'), KeyModifiers::NONE),
-        (KeyCode::Char('s'), KeyModifiers::NONE),
-        (KeyCode::Char('z'), KeyModifiers::NONE),
-        (KeyCode::Char('r'), KeyModifiers::NONE),
-        (KeyCode::Char('+'), KeyModifiers::NONE),
-        (KeyCode::Char('+'), KeyModifiers::SHIFT),
-        (KeyCode::Char('-'), KeyModifiers::NONE),
-        (KeyCode::Char('1'), KeyModifiers::NONE),
-        (KeyCode::Char('2'), KeyModifiers::NONE),
-        (KeyCode::Char('3'), KeyModifiers::NONE),
-        (KeyCode::Char('4'), KeyModifiers::NONE),
-        (KeyCode::Char('5'), KeyModifiers::NONE),
-        (KeyCode::Delete, KeyModifiers::NONE),
-        (KeyCode::Esc, KeyModifiers::NONE),
-    ];
-
     /// **The rule holds three ways**: the table the test writes, the bar the application draws and
     /// the keys the region answers all say the same thing.
     ///
@@ -920,11 +883,11 @@ mod tests {
             }
             for action in block.actions {
                 assert!(
-                    bar.contains(action.display),
+                    bar.contains(&action.text()),
                     "bar missing action display {:?} in: {bar}",
-                    action.display
+                    action.text()
                 );
-                for (code, modifiers) in action.pattern.samples() {
+                for (code, modifiers) in action.trigger.samples() {
                     offered_keys.push((code, modifiers));
                     let mut s = make_state();
                     let event = Event::Key(KeyEvent::new(code, modifiers));
@@ -938,7 +901,15 @@ mod tests {
             }
         }
 
-        for (code, modifiers) in ALL_POSSIBLE_CONTEXT_KEYS {
+        let universe = crate::context_table::all_offered_samples();
+        let shortcut_keys = crate::shortcuts::events_unclaimed()
+            .into_iter()
+            .filter_map(|event| match event {
+                Event::Key(key) => Some((key.code, key.modifiers)),
+                _ => None,
+            });
+
+        for (code, modifiers) in universe.into_iter().chain(shortcut_keys) {
             if !offered_keys.contains(&(code, modifiers)) {
                 let mut s = make_state();
                 let event = Event::Key(KeyEvent::new(code, modifiers));
@@ -962,25 +933,11 @@ mod tests {
                 "{code:?} with modifiers {modifiers:?} was unexpected in: {bar}"
             );
         }
-
-        for event in crate::shortcuts::events_unclaimed() {
-            if let Event::Key(k) = event
-                && offered_keys.contains(&(k.code, k.modifiers))
-            {
-                continue;
-            }
-            let mut s = make_state();
-            let reply = handle(&event, &mut s, Focus::Region);
-            assert_eq!(
-                reply,
-                Reply::Ignored,
-                "global unclaimed shortcut {event:?} was NOT ignored in: {bar}"
-            );
-        }
     }
 
-    /// **In IDLE, key acceptance matches what the contextual bar offers**: the bar offers only
-    /// selection via click, so all contextual keys (arrows, Shift+arrows, Esc) are ignored.
+    /// **In IDLE, key acceptance matches what the contextual bar offers**: the bar offers creation
+    /// keys (`[b]`, `[l]`, `[c]`) unconditionally and selection cycling (`Tab`, `Shift+Tab`) when
+    /// shapes exist; navigation arrows, Shift+arrows, and Esc are ignored.
     #[test]
     fn key_acceptance_matches_contextual_bar_in_idle() {
         assert_offer_matches_acceptance(A_BOX, None, None);
@@ -1010,8 +967,9 @@ mod tests {
     }
 
     /// **For a selected connector, key acceptance matches what the contextual bar offers**: the bar
-    /// offers MOVE and Deselect, but no RESIZE; plain arrows and Esc are accepted, and Shift+arrows
-    /// are ignored.
+    /// offers ENDPOINTS, INVERT, STROKE, ORDER, selection cycling, Delete, and Deselect, but neither
+    /// MOVE nor RESIZE; plain arrows and Shift+arrows are ignored, while endpoint selectors, invert,
+    /// stroke, order, and Esc are accepted.
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_connector() {
         assert_offer_matches_acceptance(A_CONNECTOR, Some(1), None);
@@ -1959,8 +1917,36 @@ mod tests {
         assert_offer_matches_acceptance(
             A_CONNECTOR,
             Some(1),
+            Some(crate::diagram_state::SubMode::Endpoint(
+                crate::diagram_state::End::To,
+            )),
+        );
+        assert_offer_matches_acceptance(
+            AN_ATTACHED_CONNECTOR,
+            Some(3),
+            Some(crate::diagram_state::SubMode::Endpoint(
+                crate::diagram_state::End::From,
+            )),
+        );
+        assert_offer_matches_acceptance(
+            AN_ATTACHED_CONNECTOR,
+            Some(3),
+            Some(crate::diagram_state::SubMode::Endpoint(
+                crate::diagram_state::End::To,
+            )),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
             Some(crate::diagram_state::SubMode::TerminalSelect(
                 crate::diagram_state::End::From,
+            )),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
+            Some(crate::diagram_state::SubMode::TerminalSelect(
+                crate::diagram_state::End::To,
             )),
         );
         assert_offer_matches_acceptance(
@@ -1969,6 +1955,58 @@ mod tests {
             Some(crate::diagram_state::SubMode::LeavingSelect(
                 crate::diagram_state::End::From,
             )),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR,
+            Some(1),
+            Some(crate::diagram_state::SubMode::LeavingSelect(
+                crate::diagram_state::End::To,
+            )),
+        );
+    }
+
+    #[test]
+    fn d_and_0_are_tested_in_guardian_and_ignored_where_they_do_not_belong() {
+        let universe = crate::context_table::all_offered_samples();
+        assert!(universe.contains(&(KeyCode::Char('d'), KeyModifiers::NONE)));
+        assert!(universe.contains(&(KeyCode::Char('0'), KeyModifiers::NONE)));
+
+        // For a selected box, neither 'd' nor '0' is offered, so both are ignored.
+        let mut box_state = a_state_over(A_BOX);
+        box_state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            handle(&key(KeyCode::Char('d')), &mut box_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(
+            handle(&key(KeyCode::Char('0')), &mut box_state, Focus::Region),
+            Reply::Ignored
+        );
+
+        // On detached connector endpoint, 'd' is offered (leaving select), '0' is ignored.
+        let mut detached_state = a_state_over(A_CONNECTOR);
+        detached_state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        detached_state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_ne!(
+            handle(&key(KeyCode::Char('d')), &mut detached_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(
+            handle(&key(KeyCode::Char('0')), &mut detached_state, Focus::Region),
+            Reply::Ignored
+        );
+
+        // On attached connector endpoint, '0' is offered (detach), 'd' is ignored.
+        let mut attached_state = a_state_over(AN_ATTACHED_CONNECTOR);
+        attached_state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
+        attached_state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_eq!(
+            handle(&key(KeyCode::Char('d')), &mut attached_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_ne!(
+            handle(&key(KeyCode::Char('0')), &mut attached_state, Focus::Region),
+            Reply::Ignored
         );
     }
 
@@ -2033,5 +2071,24 @@ mod tests {
     fn key_acceptance_matches_contextual_bar_in_idle_on_empty_diagram() {
         const EMPTY: &str = r#"{ "next_id": 1, "shapes": [] }"#;
         assert_offer_matches_acceptance(EMPTY, None, None);
+    }
+
+    #[test]
+    fn clicking_a_shape_when_pick_is_offered_selects_it() {
+        let mut state = a_state_over(A_BOX);
+        let bar = crate::status::command_line(&state);
+        assert!(bar.contains("[Click] Pick"));
+        assert!(state.selected().is_none());
+
+        let _ = paint(&mut state);
+        let at = screen(2, 1);
+        let reply = handle(&click(at.x, at.y), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(
+            state.selected(),
+            Some(ShapeId::new(NonZeroU16::new(1).unwrap()))
+        );
+        assert!(!crate::status::command_line(&state).contains("[Click] Pick"));
     }
 }

@@ -469,8 +469,8 @@ catalog:
 | :------------------- | :------------------ | :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
 | `SELECTED_CONNECTOR` | Base selection      | Click connector or `Tab`                | `[1]` / `[2]` endpoint edit, `[i]` invert terminals, `[s]` stroke, `[z]` order, `[Tab]`/`[Shift+Tab]` cycle, `[Del]`, `[Esc]` | Top-level connector inspection. Shows endpoints, stroke, and terminals in row 0.   |
 | `ENDPOINT_EDIT`      | Continuous sub-mode | `[1]` (start) or `[2]` (end)            | `↑↓←→` offset/position, `+`/`-` out, `[r]` reset, `[0]` detach, `[t]` terminal, `[2]` / `[1]` switch, `[Esc]` Done            | Fine-grained endpoint adjustment. Operates directly on `from` or `to`.             |
-| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                | `[0]` arm, `[1]` solid, `[2]` outline, `[3]` arrow, `[4]` solid-pointer, `[g]` glyph, `[Esc]` Cancel                          | Selects head symbol or arm for the active endpoint.                                |
-| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)     | `[1]` Up, `[2]` Right, `[3]` Down, `[4]` Left, `[Esc]` Cancel                                                                 | Sets explicit departure direction for detached (`Absolute`) endpoints.             |
+| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                | `[1]` arm ─, `[2]` solid ▶, `[3]` outline ▷, `[4]` ascii >, `[5]` diamond ◆, `[Esc]` Cancel                                   | Selects head symbol or arm for the active endpoint.                                |
+| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)     | `[1]` ↑ North, `[2]` → East, `[3]` ↓ South, `[4]` ← West, `[Esc]` Cancel                                                      | Sets explicit departure direction for detached (`Absolute`) endpoints.             |
 | `ATTACH_PICK`        | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` or click shape | `Tab`/`Shift+Tab` cycle shapes, `1..=4` pick face (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel                          | Attaches a detached endpoint or re-attaches an existing endpoint to another shape. |
 
 ---
@@ -533,8 +533,7 @@ capabilities without waiting for complex attachment wizards:
   canvas position. For detached endpoints, offers `[d]` / `LEAVING_SELECT` (`1..=4`) to configure
   departure direction.
 - **Slice 8: Inline terminal selector with `[t]`:** Opens discrete `TERMINAL_SELECT` in row 1
-  offering `0..=4`
-  (`[0] arm ─ [1] solid ▶ [2] outline ▷ [3] arrow → [4] solid-pointer ► · [Esc] Cancel`).
+  offering `1..=5` (`[1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel`).
 
 ---
 
@@ -550,8 +549,9 @@ Implements self-contained contextual features that fit directly into the unified
 2. **Selection cycling with `Tab` / `Shift+Tab`
    ([#307](https://github.com/andresmoschini/monospace/issues/307)) [Implemented]:** Cycles forward
    (`Tab`) and backward (`Shift+Tab` / `BackTab`) through diagram shapes. Offered in `IDLE`
-   (`SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when populated, empty when diagram has 0
-   shapes) and immediately before `[Del] Delete · [Esc] Deselect` in all `SELECTED_*` states.
+   (`CREATE: [b] Box [l] Line [c] Connector` unconditionally, followed by
+   `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when diagram has shapes) and immediately
+   before `[Del] Delete · [Esc] Deselect` in all `SELECTED_*` states.
 3. **Box auto-fit to text content with `[a]` (`Auto-fit`):** Contextual action on `SELECTED_BOX`
    visible **only** when the box contains text (`text: Some(_)`). Executes a single command
    adjusting box width and height to fit the text lines (accounting for 2-column wide glyphs and

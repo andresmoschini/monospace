@@ -110,6 +110,18 @@ pub(crate) enum SubMode {
     LeavingSelect(End),
 }
 
+impl SubMode {
+    /// The parent sub-mode to return to when leaving this sub-mode, or `None` if leaving returns to
+    /// normal selection.
+    #[must_use]
+    pub(crate) fn parent(self) -> Option<Self> {
+        match self {
+            Self::TerminalSelect(end) | Self::LeavingSelect(end) => Some(Self::Endpoint(end)),
+            Self::StrokeSelect | Self::OrderMode | Self::Endpoint(_) => None,
+        }
+    }
+}
+
 impl DiagramState {
     /// A state over `session` that has not drawn a frame yet.
     #[must_use]
@@ -258,12 +270,16 @@ impl DiagramState {
         if ids.is_empty() {
             return false;
         }
-        let prev = match self
+        let prev = if let Some(index) = self
             .selected
             .and_then(|current| ids.iter().position(|&id| id == current))
         {
-            Some(index) => ids[(index + ids.len() - 1) % ids.len()],
-            None => *ids.last().expect("non-empty diagram has a last shape"),
+            ids[(index + ids.len() - 1) % ids.len()]
+        } else {
+            let Some(&prev) = ids.last() else {
+                return false;
+            };
+            prev
         };
         self.select(Some(prev))
     }
@@ -1084,6 +1100,30 @@ mod tests {
                 "the sub-mode survived the figure it belonged to"
             );
         }
+    }
+
+    #[test]
+    fn sub_mode_parent_returns_expected_parent() {
+        assert_eq!(
+            SubMode::TerminalSelect(End::From).parent(),
+            Some(SubMode::Endpoint(End::From))
+        );
+        assert_eq!(
+            SubMode::TerminalSelect(End::To).parent(),
+            Some(SubMode::Endpoint(End::To))
+        );
+        assert_eq!(
+            SubMode::LeavingSelect(End::From).parent(),
+            Some(SubMode::Endpoint(End::From))
+        );
+        assert_eq!(
+            SubMode::LeavingSelect(End::To).parent(),
+            Some(SubMode::Endpoint(End::To))
+        );
+        assert_eq!(SubMode::StrokeSelect.parent(), None);
+        assert_eq!(SubMode::OrderMode.parent(), None);
+        assert_eq!(SubMode::Endpoint(End::From).parent(), None);
+        assert_eq!(SubMode::Endpoint(End::To).parent(), None);
     }
 
     /// **A command that removes another figure keeps the selection.** The rule asks whether the
