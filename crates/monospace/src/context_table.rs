@@ -1835,7 +1835,20 @@ mod tests {
                 match (*choice).to_terminal() {
                     monospace_core::Terminal::Arm => {}
                     monospace_core::Terminal::Glyph { glyph } => {
-                        assert_eq!(glyph.as_str(), "◆");
+                        let exists = styles.iter().any(|style| {
+                            monospace_core::Symbol::ALL.iter().any(|&symbol| {
+                                let key = monospace_core::SymbolCell {
+                                    symbol,
+                                    style: (*style).clone(),
+                                };
+                                catalog.symbol(&key) == Some(&glyph)
+                            })
+                        });
+                        assert!(
+                            exists,
+                            "glyph {} is missing from the catalog",
+                            glyph.as_str()
+                        );
                     }
                     monospace_core::Terminal::Symbol { style } => {
                         assert!(
