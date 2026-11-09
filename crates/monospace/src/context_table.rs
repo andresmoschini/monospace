@@ -950,8 +950,16 @@ fn selected_id(state: &DiagramState) -> Option<ShapeId> {
     id
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EndpointMeaning {
+    Move,
+    AdjustOut(i16),
+    Reset,
+    Detach,
+}
+
 fn dispatch_endpoint_meaning(
-    meaning: &ContextMeaning,
+    meaning: EndpointMeaning,
     state: &DiagramState,
     key: &KeyEvent,
 ) -> Reply {
@@ -962,8 +970,8 @@ fn dispatch_endpoint_meaning(
         return Reply::Ignored;
     };
 
-    match *meaning {
-        ContextMeaning::MoveEndpoint => {
+    match meaning {
+        EndpointMeaning::Move => {
             let Some((dx, dy)) = arrow_direction(key.code) else {
                 debug_assert!(false, "arrow pattern matched a non-arrow key");
                 return Reply::Ignored;
@@ -975,21 +983,14 @@ fn dispatch_endpoint_meaning(
                 out: 0,
             }))
         }
-        ContextMeaning::AdjustEndpointOut(out) => {
-            Reply::Act(Action::Command(Command::MoveEndpoint {
-                id,
-                end,
-                by: Delta::ZERO,
-                out,
-            }))
-        }
-        ContextMeaning::ResetEndpoint => {
-            Reply::Act(Action::Command(Command::ResetEndpoint { id, end }))
-        }
-        ContextMeaning::DetachEndpoint => {
-            Reply::Act(Action::Command(Command::DetachEndpoint { id, end }))
-        }
-        _ => Reply::Ignored,
+        EndpointMeaning::AdjustOut(out) => Reply::Act(Action::Command(Command::MoveEndpoint {
+            id,
+            end,
+            by: Delta::ZERO,
+            out,
+        })),
+        EndpointMeaning::Reset => Reply::Act(Action::Command(Command::ResetEndpoint { id, end })),
+        EndpointMeaning::Detach => Reply::Act(Action::Command(Command::DetachEndpoint { id, end })),
     }
 }
 
@@ -1153,10 +1154,18 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
             Reply::Repaint
         }
         ContextMeaning::Pick => Reply::Ignored,
-        ContextMeaning::MoveEndpoint
-        | ContextMeaning::AdjustEndpointOut(_)
-        | ContextMeaning::ResetEndpoint
-        | ContextMeaning::DetachEndpoint => dispatch_endpoint_meaning(meaning, state, key),
+        ContextMeaning::MoveEndpoint => {
+            dispatch_endpoint_meaning(EndpointMeaning::Move, state, key)
+        }
+        ContextMeaning::AdjustEndpointOut(out) => {
+            dispatch_endpoint_meaning(EndpointMeaning::AdjustOut(out), state, key)
+        }
+        ContextMeaning::ResetEndpoint => {
+            dispatch_endpoint_meaning(EndpointMeaning::Reset, state, key)
+        }
+        ContextMeaning::DetachEndpoint => {
+            dispatch_endpoint_meaning(EndpointMeaning::Detach, state, key)
+        }
     }
 }
 
