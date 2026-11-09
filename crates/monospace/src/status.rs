@@ -80,6 +80,15 @@ fn connector_endpoint(shape: &Shape, end: End) -> Option<(u8, &'static str, &End
     }
 }
 
+fn anchor_name(anchor: Anchor) -> &'static str {
+    match anchor {
+        Anchor::Top => "Top",
+        Anchor::Right => "Right",
+        Anchor::Bottom => "Bottom",
+        Anchor::Left => "Left",
+    }
+}
+
 fn anchor_text(anchor: Anchor) -> &'static str {
     match anchor {
         Anchor::Top => "top",
@@ -282,10 +291,34 @@ fn endpoint_at_text(at: &EndpointAt, diagram: &Diagram) -> String {
     }
 }
 
+fn endpoint_at_compact(at: &EndpointAt, diagram: &Diagram) -> String {
+    match at {
+        EndpointAt::Reference(r) => {
+            let kind = match diagram.get(r.id) {
+                Some(Shape::Box { .. }) => "Box",
+                Some(Shape::Line { .. }) => "Line",
+                Some(Shape::Connector { .. }) => "Connector",
+                None => "Shape",
+            };
+            format!(
+                "{kind} #{id} [{anchor} ({dx}, {dy}) out:{out}]",
+                id = r.id,
+                anchor = anchor_name(r.anchor),
+                dx = r.offset.dx,
+                dy = r.offset.dy,
+                out = r.out
+            )
+        }
+        EndpointAt::Absolute { at, leaving } => {
+            format!("({}, {}) [{}]", at.x, at.y, direction_text(*leaving))
+        }
+    }
+}
+
 fn endpoint_text(endpoint: &Endpoint, diagram: &Diagram) -> String {
-    let at_text = endpoint_at_text(&endpoint.at, diagram);
+    let at_text = endpoint_at_compact(&endpoint.at, diagram);
     let term_text = terminal_text(endpoint);
-    format!("{at_text} {term_text}")
+    format!("{at_text} ({term_text})")
 }
 
 static CATALOG: std::sync::LazyLock<monospace_core::GlyphCatalog> =
@@ -632,7 +665,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #3 · Stroke: light · 1. From: Attached to Box #1 at right, offset (0, 0), out 0 arm ─ · 2. To: Attached to Box #2 at bottom, offset (1, 0), out 1 arm │"
+            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] (arm ─) · 2. To: Box #2 [Bottom (1, 0) out:1] (arm │)"
         );
         assert_eq!(
             command_line(&state),
@@ -655,7 +688,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #1 · Stroke: light · 1. From: Detached at (1, 2), leaving East arm ─ · 2. To: Detached at (5, 6), leaving West arm ─"
+            "Connector #1 · Stroke: light · 1. From: (1, 2) [East] (arm ─) · 2. To: (5, 6) [West] (arm ─)"
         );
 
         let mut state = a_state_over(
@@ -676,7 +709,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #3 · Stroke: light · 1. From: Attached to Box #1 at right, offset (0, 0), out 0 arm ─ · 2. To: Attached to Box #2 at left, offset (0, 0), out 0 solid ▶"
+            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] (arm ─) · 2. To: Box #2 [Left (0, 0) out:0] (solid ▶)"
         );
     }
 

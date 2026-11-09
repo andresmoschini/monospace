@@ -138,14 +138,14 @@ endpoints in Row 0, and offers connector-level actions in Row 1. Whole-connector
 (connectors are shaped exclusively through their endpoints):
 
 ```text
-Connector #4 · Stroke: light · 1. From: Attached to Box #1 at right, offset (0, 0), out 0 arm ─ · 2. To: Attached to Box #2 at left, offset (0, 0), out 0 solid ▶
+Connector #4 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] (arm ─) · 2. To: Box #2 [Left (0, 0) out:0] (solid ▶)
 ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
 ```
 
 When an endpoint is detached, Row 0 formats its absolute coordinates and leaving direction:
 
 ```text
-Connector #7 · Stroke: heavy · 1. From: Attached to Box #3 at bottom, offset (0, 0), out 0 arm │ · 2. To: Detached at (40, 12), leaving North arrow ↓
+Connector #7 · Stroke: heavy · 1. From: Box #3 [Bottom (0, 0) out:0] (arm │) · 2. To: (40, 12) [North] (arrow ↓)
 ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
 ```
 
@@ -359,7 +359,7 @@ Initial state:
 1. Author selects Connector #4. The contextual bar shows:
 
    ```text
-   Connector #4 · Stroke: light · 1. From: Attached to Box #1 at right, offset (0, 0), out 0 arm ─ · 2. To: Attached to Box #2 at left, offset (0, 0), out 0 solid ▶
+   Connector #4 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] (arm ─) · 2. To: Box #2 [Left (0, 0) out:0] (solid ▶)
    ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
    ```
 
