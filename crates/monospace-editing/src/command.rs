@@ -3,8 +3,7 @@
 //! [`docs/editing-model.md`](../../../docs/editing-model.md).
 
 use monospace_diagram::{
-    Anchor, Delta, Diagram, Direction, End, Endpoint, Reference, Shape, ShapeId, Stroke, Terminal,
-    Text,
+    Anchor, Delta, Diagram, Direction, End, Reference, Shape, ShapeId, Stroke, Terminal, Text,
 };
 
 /// One thing a caller means to do to a diagram.
@@ -105,12 +104,14 @@ pub enum Command {
         /// The direction the connector leaves the endpoint in.
         leaving: Direction,
     },
-    /// The `from` end of a connector hangs from one of `from`'s four sides.
+    /// One end of a connector hangs from one of `target`'s four sides.
     Hang {
         /// The connector whose end is being hung.
         id: ShapeId,
+        /// Which endpoint hangs (`From` or `To`).
+        end: End,
         /// The figure the end hangs from.
-        from: ShapeId,
+        target: ShapeId,
         /// Which of that figure's four sides it hangs from.
         anchor: Anchor,
     },
@@ -209,20 +210,17 @@ impl Command {
             Self::SetEndpointLeaving { id, end, leaving } => changed(diagram, id, |shape| {
                 shape.with_endpoint_leaving(end, leaving)
             }),
-            Self::Hang { id, from, anchor } => changed(diagram, id, |shape| match shape {
-                Shape::Connector {
-                    from: end,
-                    to,
-                    stroke,
-                } => Shape::Connector {
-                    from: Endpoint::reference(
-                        Reference::new(from, anchor, Delta { dx: 0, dy: 0 }, 0),
-                        end.terminal.clone(),
-                    ),
-                    to: to.clone(),
-                    stroke: stroke.clone(),
-                },
-                Shape::Box { .. } | Shape::Line { .. } => shape.clone(),
+            Self::Hang {
+                id,
+                end,
+                target,
+                anchor,
+            } => changed(diagram, id, |shape| {
+                shape.with_endpoint_attached(
+                    end,
+                    Reference::new(target, anchor, Delta::ZERO, 0),
+                    diagram,
+                )
             }),
             Self::Forward { id } => diagram.can_forward(id).then(|| diagram.forward(id)),
             Self::Backward { id } => diagram.can_backward(id).then(|| diagram.backward(id)),

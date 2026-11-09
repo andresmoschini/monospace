@@ -112,8 +112,8 @@ stateDiagram-v2
     TERMINAL_SELECT --> ENDPOINT_EDIT: "1..=5 or Esc"
     ENDPOINT_EDIT --> LEAVING_SELECT: "d (Leaving, detached only)"
     LEAVING_SELECT --> ENDPOINT_EDIT: "1..=4 or Esc"
-    ENDPOINT_EDIT --> ATTACH_PICK: "a / c (Deferred to Stage 3)"
-    ATTACH_PICK --> ENDPOINT_EDIT: "1..=4, Click, or Esc"
+    ENDPOINT_EDIT --> ATTACH_SELECT: "a (detached only)"
+    ATTACH_SELECT --> ENDPOINT_EDIT: "1..=4 or Esc"
     TERMINAL_SELECT --> GLYPH_PALETTE_DIALOG: "m (More..., Deferred to Stage 3)"
     GLYPH_PALETTE_DIALOG --> ENDPOINT_EDIT: "Ok"
     GLYPH_PALETTE_DIALOG --> TERMINAL_SELECT: "Cancel or Esc"
@@ -185,26 +185,27 @@ OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [0] Detach · TERMINAL: [t]
 | `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`) without leaving sub-mode | None                                                          |
 | `Esc`     | Exit endpoint editing and return to `SELECTED_CONNECTOR` (`Done`)         | None                                                          |
 | `0`       | Detach endpoint to `Absolute` at current coordinates                      | One step                                                      |
-| `c`       | Change target shape via `ATTACH_PICK` (_Deferred to Stage 3_)             | None (sub-mode)                                               |
+| `c`       | Change target shape via `ATTACH_SELECT` (_Deferred to Stage 3_)           | None (sub-mode)                                               |
 
 ### 2.3 ENDPOINT_EDIT (Detached endpoint)
 
 When the active endpoint is detached (`Position::Absolute`), Row 0 displays its canvas coordinates
-and leaving direction, and the bar adapts its commands (omitting `OUT` and `Reset`):
+and leaving direction, and the bar adapts its commands (omitting `OUT` and `Reset`, offering
+`ATTACH` when candidates exist):
 
 ```text
 ENDPOINT 2. To of Connector #4 · Detached at (40, 12), leaving up · Term: arrow ↓
-MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
+MOVE: ↑↓←→ · LEAVING: [d] · ATTACH: [a] · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
-| Key       | Action / Command                                                   | History Step       |
-| :-------- | :----------------------------------------------------------------- | :----------------- |
-| `↑↓←→`    | Move absolute coordinates `Pos(x, y)` across the canvas            | One step per press |
-| `t`       | Open discrete `TERMINAL_SELECT`                                    | None (sub-mode)    |
-| `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`)                   | None               |
-| `Esc`     | Return to `SELECTED_CONNECTOR` (`Done`)                            | None               |
-| `d`       | Open discrete `LEAVING_SELECT`                                     | None (sub-mode)    |
-| `a`       | Attach endpoint to shape via `ATTACH_PICK` (_Deferred to Stage 3_) | None (sub-mode)    |
+| Key       | Action / Command                                        | History Step       |
+| :-------- | :------------------------------------------------------ | :----------------- |
+| `↑↓←→`    | Move absolute coordinates `Pos(x, y)` across the canvas | One step per press |
+| `t`       | Open discrete `TERMINAL_SELECT`                         | None (sub-mode)    |
+| `1` / `2` | Switch active endpoint to 1 (`From`) or 2 (`To`)        | None               |
+| `Esc`     | Return to `SELECTED_CONNECTOR` (`Done`)                 | None               |
+| `d`       | Open discrete `LEAVING_SELECT`                          | None (sub-mode)    |
+| `a`       | Attach endpoint to shape via `ATTACH_SELECT`            | None (sub-mode)    |
 
 ### 2.4 TERMINAL_SELECT
 
@@ -252,35 +253,27 @@ The digit keys follow the clockwise compass sequence (`1` Up, `2` Right, `3` Dow
 matching the anchor numbering of shape sides (`Top`, `Right`, `Bottom`, `Left`) to preserve spatial
 muscle memory.
 
-### 2.6 Deferred states: ATTACH_PICK and GLYPH_PALETTE_DIALOG
+### 2.6 Deferred states: GLYPH_PALETTE_DIALOG
 
-To close the usability gaps identified in early designs, two additional mechanisms were conceived:
+To close the usability gaps identified in early designs, two additional mechanisms were originally
+conceived: an attach picker for connecting endpoints, and an extended glyph palette dialog.
 
-- **`ATTACH_PICK` (H1 & H2):** Allows keyboard-driven shape attachment and reassignment without
-  requiring a mouse or detached intermediate steps. Pressing `a` (on a detached endpoint) or `c`
-  (change shape on an attached endpoint) initiates `ATTACH_PICK`:
+The attach picker now exists as `ATTACH_SELECT` (`SubMode::AttachSelect { end, target }`), which
+allows keyboard-driven target cycling via `Tab` / `Shift+Tab` in drawing order, candidate focus by
+mouse click, and anchor face selection with `1..=4`. (Re-attaching already-attached endpoints via
+`c` remains deferred).
 
-  ```text
-  ATTACH 2. To of Connector #4 · Target: Box #2 "Server" (1 of 4) [Left]
-  TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel
-  ```
-
-  `Tab` and `Shift+Tab` cycle candidate target shapes ordered by proximity to the endpoint. Digits
-  `1..=4` snap the endpoint to the corresponding face of the target shape (with `offset = (0, 0)`
-  and `out = 0`) and return to `ENDPOINT_EDIT`. Alternatively, a mouse click directly on a target
-  shape attaches the endpoint to the nearest face.
+The remaining deferred state is:
 
 - **`GLYPH_PALETTE_DIALOG` (H5 & H7):** Envisioned for authoring custom single-cell Unicode terminal
   glyphs (`[m] More...` from `TERMINAL_SELECT`). Confining selections strictly to 1-column
   characters prevents grid disruption. Confirming a glyph with `Ok` applies `Terminal::Glyph` and
   returns directly to `ENDPOINT_EDIT`.
 
-**Deferred to Stage 3:** Both mechanisms require substantial subsystem infrastructure: `ATTACH_PICK`
-requires candidate spatial sorting, target boundary highlighting, and hit-testing routines;
-`GLYPH_PALETTE_DIALOG` requires modal dialog overlay integration. In alignment with the 3-stage
-roadmap in [`contextual-ui.md`](contextual-ui.md), these states are explicitly **deferred to Stage
-3** so that the complete inline keyboard editing workflow (Slices 2–8) can ship cleanly and
-immediately in Stage 1.
+**Deferred to Stage 3:** `GLYPH_PALETTE_DIALOG` requires modal dialog overlay integration. In
+alignment with the 3-stage roadmap in [`contextual-ui.md`](contextual-ui.md), this state is
+explicitly **deferred to Stage 3** so that inline connector workflows can ship cleanly without
+waiting for modal dialog infrastructure.
 
 ---
 
@@ -459,27 +452,29 @@ direction:
 5. Author presses `i` (`Invert`). `from.terminal` and `to.terminal` swap in a single atomic command
    step, while preserving all coordinates and anchor offsets identically.
 
-### 4.4 Connecting or reconnecting an endpoint to a shape (Deferred to Stage 3)
+### 4.4 Connecting a detached endpoint to a shape
 
-An author wants to reconnect a detached endpoint to a new box (`Cache`) using the keyboard:
+An author wants to connect a detached endpoint to a box (`Cache`):
 
 1. In `ENDPOINT_EDIT` for the detached endpoint, author presses `a` (`Attach`).
-2. `ATTACH_PICK` opens, highlighting the nearest candidate box on the canvas:
+2. `ATTACH_SELECT` opens, focusing the first candidate shape in drawing order on the canvas:
 
    ```text
-   ATTACH 2. To of Connector #4 · Target: Box #3 "Server" (1 of 3) [Left]
+   ATTACH for 2. To of Connector #4 · Detached at (40, 12), leaving up · Target: Box #3 "Server" · 1 of 3
    TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel
    ```
 
-3. Author presses `Tab` to cycle target focus to `Box #5 "Cache"`:
+3. Author presses `Tab` to advance candidate focus to `Box #5 "Cache"` in drawing order (or clicks
+   directly on `Box #5` on the canvas, which focuses it without confirming):
 
    ```text
-   ATTACH 2. To of Connector #4 · Target: Box #5 "Cache" (2 of 3) [Left]
+   ATTACH for 2. To of Connector #4 · Detached at (40, 12), leaving up · Target: Box #5 "Cache" · 2 of 3
    TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel
    ```
 
-4. Author presses `4` (`Left`). The endpoint snaps to the left anchor face of `Cache` with
-   `offset = (0, 0)` and `out = 0`, and the bar returns directly to `ENDPOINT_EDIT`.
+4. Author presses `4` (`Left`). The endpoint attaches to the left anchor face of `Cache` with
+   `offset = (0, 0)` and `out = 0`, leaving direction derived from `anchor.leaving()`, and the bar
+   returns directly to `ENDPOINT_EDIT`.
 
 ---
 
@@ -525,17 +520,21 @@ with [`contextual-ui.md`](contextual-ui.md):
   opens `TERMINAL_SELECT` (`SubMode::TerminalSelect(End)`) on Row 1, offering `1..=5` (`arm ─`,
   `solid ▶`, `outline ▷`, `ascii >`, `diamond ◆`). Selecting an option dispatches
   `Command::SetEndpointTerminal` and returns directly to `ENDPOINT_EDIT`.
+- **Slice 9 — Keyboard `ATTACH_SELECT` (`[a]`, `Tab`, `1..=4`):** Implemented in
+  [#343](../specs/343-attach-a-detached-connector-endpoint-to.md). Pressing `a` in `ENDPOINT_EDIT`
+  on a detached endpoint opens `ATTACH_SELECT` (`SubMode::AttachSelect { end, target }`), cycling
+  targets in drawing order via `Tab` / `Shift+Tab` and committing attachment via `1..=4`.
+- **Slice 10 — Mouse click focus in `ATTACH_SELECT`:** Implemented in
+  [#343](../specs/343-attach-a-detached-connector-endpoint-to.md). A canvas click on a candidate
+  shape while in `ATTACH_SELECT` focuses it as target without confirming attachment.
 
 ### 5.2 Stage 1: Easy connector functions
 
-All Stage 1 easy connector functions (Slices 1–8) are completed.
+All Stage 1 easy connector functions (Slices 1–8) and attachment of detached endpoints (Slices 9–10)
+are completed.
 
 ### 5.3 Stage 3: Deferred capabilities
 
-- **Slice 9 — Keyboard `ATTACH_PICK` (`[a]` / `[c]`, `Tab`, `1..=4`):** Keyboard-driven target
-  cycling and face selection for attaching detached endpoints or changing parent shapes.
-- **Slice 10 — Mouse click in `ATTACH_PICK`:** Direct mouse click on a canvas shape to select and
-  attach to the nearest face.
 - **Slice 11 — Extended glyph palette (`[m]`):** Modal dialog `GLYPH_PALETTE_DIALOG` filtered
   strictly to 1-column characters for custom terminal glyphs.
 - **Slice 12 — Final visual refinements:** Refinements such as omitting zero values (`(0, 0)`,

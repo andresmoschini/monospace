@@ -85,7 +85,7 @@ command says, and one more meaning is one more arm.
 | `SetEndpointTerminal { id, end, terminal }` | an endpoint's terminal style is set                                      | `replace` with `Shape::with_endpoint_terminal`  |
 | `DetachEndpoint { id, end }`                | an attached endpoint is detached to open canvas                          | `replace` with `Shape::with_endpoint_detached`  |
 | `SetEndpointLeaving { id, end, leaving }`   | a detached endpoint's leaving direction is set                           | `replace` with `Shape::with_endpoint_leaving`   |
-| `Hang { id, from, anchor }`                 | one end of a connector hangs from a figure's side                        | `replace` with a rebuilt connector              |
+| `Hang { id, end, target, anchor }`          | one end of a connector hangs from a figure's side                        | `replace` with `Shape::with_endpoint_attached`  |
 | `Forward { id }`                            | one place toward the front of the order                                  | `forward`                                       |
 | `Backward { id }`                           | one place toward the back of the order                                   | `backward`                                      |
 | `ToFront { id }`                            | to the front of the order                                                | `to_front`                                      |
@@ -95,8 +95,9 @@ command says, and one more meaning is one more arm.
 
 The commands above are what [`docs/model.md`](model.md) calls _The initial set_ for shapes: enough
 to work with, and no promise that this is the final number. `Hang` is the one that shows what the
-layer is for — it reads the connector that is there, keeps what it does not change, and rebuilds the
-one end that changes, which is logic a caller otherwise writes and gets subtly wrong.
+layer is for — it reads the connector that is there, keeps what it does not change, attaches a
+detached endpoint to a figure's side with zero offset and standoff, and leaves an already-attached
+endpoint intact, which is logic a caller otherwise writes and gets subtly wrong.
 
 `Add` places a new figure at the front of the drawing order via the diagram's `add` operation. When
 the caller needs the assigned `ShapeId` immediately (for instance to select the newly created figure
@@ -134,6 +135,13 @@ and records no step when the endpoint is already absolute, does not resolve in `
 (`EndpointAt::Absolute`), leaving its position, terminal style, and the other endpoint untouched. It
 records one step when `leaving` changed, and records no step when the endpoint already carried the
 direction or when the targeted endpoint is attached (#285).
+
+`Hang` asks the shape to attach the targeted endpoint (`End::From` or `End::To`) to `target` at
+`anchor` via `Shape::with_endpoint_attached`. It acts only when the endpoint is detached
+(`EndpointAt::Absolute`), leaving its terminal style and the other endpoint untouched. It records
+one step when the endpoint attaches to the target shape, and records no step when the targeted
+endpoint is already attached, when `target` is absent from the diagram, when `target` is a
+connector, or when the result produces an equal shape (#285).
 
 `Backward`, `ToFront` and `ToBack` are the same mapping at the other end and at the absolute scale:
 each asks the diagram whether the figure would move and hands back `None` when it would not, so a

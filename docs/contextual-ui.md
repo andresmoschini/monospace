@@ -192,7 +192,7 @@ Sub-modes follow two behavioral contracts:
   (e.g. `1..=5`), which applies the choice via a domain command and immediately returns to the
   parent selection state. Pressing `[Esc] Cancel` exits without applying changes. _Examples:_
   `STROKE_SELECT` (`[s]`), `FILL_SELECT` (`[f]`), `TERMINAL_SELECT` (`[t]`), `LEAVING_SELECT`
-  (`[d]`).
+  (`[d]`), `ATTACH_SELECT` (`[a]`).
 - **Continuous sub-modes (`_MODE` / `_EDIT`):** Iterative adjustments. Each keystroke immediately
   executes an atomic domain command on the session (recording an undo step if the diagram changed)
   and remains inside the sub-mode for further adjustments. Pressing `[Esc] Done` leaves the sub-mode
@@ -465,13 +465,13 @@ The complete endpoint interaction model is specified in detail in
 [`connector-editing.md`](connector-editing.md). The table below summarizes the connector state
 catalog:
 
-| State                | Type                | Trigger                                 | Key commands & transitions                                                                                                    | Description                                                                        |
-| :------------------- | :------------------ | :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
-| `SELECTED_CONNECTOR` | Base selection      | Click connector or `Tab`                | `[1]` / `[2]` endpoint edit, `[i]` invert terminals, `[s]` stroke, `[z]` order, `[Tab]`/`[Shift+Tab]` cycle, `[Del]`, `[Esc]` | Top-level connector inspection. Shows endpoints, stroke, and terminals in row 0.   |
-| `ENDPOINT_EDIT`      | Continuous sub-mode | `[1]` (start) or `[2]` (end)            | `↑↓←→` offset/position, `+`/`-` out, `[r]` reset, `[0]` detach, `[t]` terminal, `[2]` / `[1]` switch, `[Esc]` Done            | Fine-grained endpoint adjustment. Operates directly on `from` or `to`.             |
-| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                | `[1]` arm ─, `[2]` solid ▶, `[3]` outline ▷, `[4]` ascii >, `[5]` diamond ◆, `[Esc]` Cancel                                   | Selects head symbol or arm for the active endpoint.                                |
-| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)     | `[1]` ↑ North, `[2]` → East, `[3]` ↓ South, `[4]` ← West, `[Esc]` Cancel                                                      | Sets explicit departure direction for detached (`Absolute`) endpoints.             |
-| `ATTACH_PICK`        | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` or click shape | `Tab`/`Shift+Tab` cycle shapes, `1..=4` pick face (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel                          | Attaches a detached endpoint or re-attaches an existing endpoint to another shape. |
+| State                | Type                | Trigger                                                        | Key commands & transitions                                                                                                             | Description                                                                            |
+| :------------------- | :------------------ | :------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
+| `SELECTED_CONNECTOR` | Base selection      | Click connector or `Tab`                                       | `[1]` / `[2]` endpoint edit, `[i]` invert terminals, `[s]` stroke, `[z]` order, `[Tab]`/`[Shift+Tab]` cycle, `[Del]`, `[Esc]`          | Top-level connector inspection. Shows endpoints, stroke, and terminals in row 0.       |
+| `ENDPOINT_EDIT`      | Continuous sub-mode | `[1]` (start) or `[2]` (end)                                   | `↑↓←→` offset/position, `+`/`-` out, `[r]` reset, `[0]` detach, `[t]` terminal, `[2]` / `[1]` switch, `[Esc]` Done                     | Fine-grained endpoint adjustment. Operates directly on `from` or `to`.                 |
+| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                                       | `[1]` arm ─, `[2]` solid ▶, `[3]` outline ▷, `[4]` ascii >, `[5]` diamond ◆, `[Esc]` Cancel                                            | Selects head symbol or arm for the active endpoint.                                    |
+| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)                            | `[1]` ↑ North, `[2]` → East, `[3]` ↓ South, `[4]` ← West, `[Esc]` Cancel                                                               | Sets explicit departure direction for detached (`Absolute`) endpoints.                 |
+| `ATTACH_SELECT`      | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` (detached, with `Box`/`Line` present) | `Tab`/`Shift+Tab` cycle target focus, click candidate to focus, `1..=4` pick anchor (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel | Attaches a detached endpoint to a shape face; does not re-attach an existing endpoint. |
 
 ---
 
@@ -564,9 +564,9 @@ Implements self-contained contextual features that fit directly into the unified
 Upon completing Stages 1 and 2, implementation pauses to evaluate the resulting ergonomics, keyboard
 flow, and terminal behavior before designing or building higher-complexity workflows:
 
-- **Defining and changing connector attachments:** Evaluating keyboard attachment selection
-  (`ATTACH_PICK` via `Tab` candidate cycling and `1..=4` face selection) vs. direct mouse click
-  attachment, and the two-click interactive connection wizard (`CONNECT_WIZARD`).
+- **Changing connector attachments and connection wizards:** Evaluating re-attaching
+  already-attached endpoints (`[c]`) and the two-click interactive connection wizard
+  (`CONNECT_WIZARD`).
 - **Interactive shape creation on the canvas (`[b]`, `[l]`, `[c]`,
   [#308](https://github.com/andresmoschini/monospace/issues/308)) [Implemented]:** Direct keyboard
   creation of default figures (`b` Box, `l` Line, `c` Connector) at viewport center `C` in `IDLE`.

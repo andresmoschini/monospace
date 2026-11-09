@@ -167,6 +167,10 @@ fn selected_shape_line(id: ShapeId, shape: &Shape, diagram: &Diagram) -> String 
 }
 
 /// Formats the contextual status row (row 0) from the diagram state.
+#[expect(
+    clippy::too_many_lines,
+    reason = "formats status across all modes and selections in one match"
+)]
 pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
     let session = diagram_state.session();
     let diagram = session.diagram();
@@ -232,6 +236,29 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
                 };
                 let dir = direction_text(leaving);
                 format!("LEAVING for {n}. {label} of Connector #{id} · {pos_text} · Current: {dir}")
+            }
+            SubMode::AttachSelect { end, target } => {
+                let Some((n, label, endpoint)) = connector_endpoint(shape, end) else {
+                    return selected_shape_line(id, shape, diagram);
+                };
+                let Some(target_shape) = diagram.get(target) else {
+                    return selected_shape_line(id, shape, diagram);
+                };
+                let kind = match target_shape {
+                    Shape::Box { .. } => "Box",
+                    Shape::Line { .. } => "Line",
+                    Shape::Connector { .. } => "Connector",
+                };
+                let candidates = diagram_state.attach_candidates();
+                let position = candidates
+                    .iter()
+                    .position(|&candidate| candidate == target)
+                    .map_or(1, |position| position + 1);
+                let count = candidates.len();
+                let at_text = endpoint_at_text(&endpoint.at, diagram);
+                format!(
+                    "ATTACH for {n}. {label} of Connector #{id} · {at_text} · Target: {kind} #{target} · {position} of {count}"
+                )
             }
         };
     }
@@ -899,7 +926,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done"
+            "MOVE: ↑↓←→ · LEAVING: [d] · ATTACH: [a] · TERMINAL: [t] · [1] From · [Esc] Done"
         );
     }
 
@@ -1026,11 +1053,11 @@ mod tests {
             "OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To · [Esc] Done"
         );
 
-        // To (detached): offers LEAVING: [d], not Detach or Offset/Out
+        // To (detached): offers LEAVING: [d] and ATTACH: [a], not Detach or Offset/Out
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done"
+            "MOVE: ↑↓←→ · LEAVING: [d] · ATTACH: [a] · TERMINAL: [t] · [1] From · [Esc] Done"
         );
     }
 
@@ -1143,6 +1170,10 @@ mod tests {
             SubMode::Endpoint(End::To),
             SubMode::TerminalSelect(End::From),
             SubMode::LeavingSelect(End::From),
+            SubMode::AttachSelect {
+                end: End::From,
+                target: ShapeId::new(NonZeroU16::new(1).unwrap()),
+            },
         ] {
             state.set_sub_mode(Some(sub_mode));
             assert_eq!(
@@ -1151,5 +1182,129 @@ mod tests {
                 "expected fallback to base line for endpoint sub-mode on a box"
             );
         }
+    }
+
+    #[test]
+    fn attach_select_inspects_endpoint_and_focused_target() {
+        let text = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 2, "y": 1 }, "leaving": "right",
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 10, "y": 5 }, "leaving": "up",
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 20, "y": 0 },
+                  "size": { "width": 6, "height": 4 }, "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        let target = ShapeId::new(NonZeroU16::new(2).unwrap());
+
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target,
+        }));
+        assert_eq!(
+            status_line(&state),
+            "ATTACH for 1. From of Connector #1 · Detached at (2, 1), leaving right · Target: Box #2 · 1 of 1"
+        );
+
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::To,
+            target,
+        }));
+        assert_eq!(
+            status_line(&state),
+            "ATTACH for 2. To of Connector #1 · Detached at (10, 5), leaving up · Target: Box #2 · 1 of 1"
+        );
+    }
+
+    #[test]
+    fn attach_select_shows_the_target_position_and_count() {
+        let text = r#"{
+            "next_id": 5,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "line", "id": 2, "at": { "x": 10, "y": 0 }, "len": 5, "orientation": "horizontal", "stroke": "light" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "point", "x": 2, "y": 1 }, "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 8, "y": 1 }, "leaving": "left", "terminal": { "kind": "arm" } },
+                  "stroke": "light" },
+                { "kind": "box", "id": 4, "at": { "x": 20, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+        state.select(Some(id3));
+
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let id4 = ShapeId::new(NonZeroU16::new(4).unwrap());
+
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id1,
+        }));
+        assert_eq!(
+            status_line(&state),
+            "ATTACH for 1. From of Connector #3 · Detached at (2, 1), leaving right · Target: Box #1 · 1 of 3"
+        );
+
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id2,
+        }));
+        assert_eq!(
+            status_line(&state),
+            "ATTACH for 1. From of Connector #3 · Detached at (2, 1), leaving right · Target: Line #2 · 2 of 3"
+        );
+
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id4,
+        }));
+        assert_eq!(
+            status_line(&state),
+            "ATTACH for 1. From of Connector #3 · Detached at (2, 1), leaving right · Target: Box #4 · 3 of 3"
+        );
+    }
+
+    #[test]
+    fn attach_select_falls_back_to_the_selected_shape_when_the_target_is_gone() {
+        let text = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 2, "y": 1 }, "leaving": "right",
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 10, "y": 5 }, "leaving": "up",
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 20, "y": 0 },
+                  "size": { "width": 6, "height": 4 }, "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id1));
+        let base_line = status_line(&state);
+
+        let non_existent = ShapeId::new(NonZeroU16::new(99).unwrap());
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: non_existent,
+        }));
+
+        assert_eq!(
+            status_line(&state),
+            base_line,
+            "expected fallback to selected shape line when target does not exist"
+        );
     }
 }

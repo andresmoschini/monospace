@@ -213,17 +213,20 @@ drops.
 **The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
 interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`, `ENDPOINT_EDIT`
 `SubMode::Endpoint(End)` on a connector via `1` or `2`, `TERMINAL_SELECT`
-`SubMode::TerminalSelect(End)` via `t` in `ENDPOINT_EDIT`, or `LEAVING_SELECT`
-`SubMode::LeavingSelect(End)` via `d` in `ENDPOINT_EDIT`), `DiagramState` records
+`SubMode::TerminalSelect(End)` via `t` in `ENDPOINT_EDIT`, `LEAVING_SELECT`
+`SubMode::LeavingSelect(End)` via `d` in `ENDPOINT_EDIT`, or `ATTACH_SELECT`
+`SubMode::AttachSelect { end, target }` via `a` in `ENDPOINT_EDIT`), `DiagramState` records
 `sub_mode: Option<SubMode>`. The sub-mode is transient: `STROKE_SELECT` exits when a stroke is
 selected or `Esc` is pressed, while `ORDER_MODE` and `ENDPOINT_EDIT` are continuous — each of their
 keys performs one action and stays (in `ENDPOINT_EDIT`, `1` and `2` switch between `End::From` and
-`End::To` without leaving the sub-mode), and `Esc` is the key that leaves it. `TERMINAL_SELECT` and
-`LEAVING_SELECT` are discrete: selecting an option via `1..=5` or `1..=4` dispatches the command and
-returns directly to `SubMode::Endpoint(End)`, and `Esc` cancels directly back to
-`SubMode::Endpoint(End)`. Losing or changing the selection — clicking another figure or outside, or
-removing the selected figure — drops it immediately (`sub_mode = None`). While the figure remains
-selected, transferring focus to the menu bar or opening an application dialog keeps the sub-mode.
+`End::To` without leaving the sub-mode), and `Esc` is the key that leaves it. `TERMINAL_SELECT`,
+`LEAVING_SELECT`, and `ATTACH_SELECT` are discrete: selecting an option via `1..=5` or `1..=4`
+dispatches the command and returns directly to `SubMode::Endpoint(End)`, and `Esc` cancels directly
+back to `SubMode::Endpoint(End)`. In `ATTACH_SELECT`, `Tab` and `Shift+Tab` move target candidate
+focus without dispatching a command, and `1..=4` confirm by selecting the anchor face. Losing or
+changing the selection — clicking another figure or outside, or removing the selected figure — drops
+it immediately (`sub_mode = None`). While the figure remains selected, transferring focus to the
+menu bar or opening an application dialog keeps the sub-mode.
 
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
@@ -362,6 +365,27 @@ recorded. Pressing `Esc` cancels the selection, restores `SubMode::Endpoint(end)
 steps. While in `LeavingSelect`, any key not offered is ignored (`Reply::Ignored`) and falls through
 to unclaimed universal shortcuts.
 
+**`AttachEndpoint` attaches a detached endpoint to an existing box or line via `Command::Hang`.** It
+is offered in the contextual command line as `ATTACH: [a]` whenever the active endpoint in
+`ENDPOINT_EDIT` is detached and at least one attachable shape exists
+(`Condition::AttachableEndpoint`), placed after `LEAVING: [d]` and before `TERMINAL: [t]`. Pressing
+`a` enters `ATTACH_SELECT` (`SubMode::AttachSelect { end, target }`) with `target` focusing the
+first candidate shape in drawing order. In `AttachSelect`, row 0 formats
+`ATTACH for <n>. <From|To> of Connector #<id> · Detached at (<x>, <y>), leaving <direction> · Target: <Box|Line> #<target> · <i> of <count>`
+and row 1 formats
+`TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel`.
+Candidate focus is moved by keyboard (`Tab` advances to the next candidate in drawing order and
+`Shift+Tab` retreats, wrapping at both ends) and by mouse (clicking an attachable shape on the
+canvas focuses it without confirming). Digits `1..=4` confirm by selecting the anchor face (`Top`,
+`Right`, `Bottom`, `Left`), dispatching `Command::Hang { id, end, target, anchor }`, and
+transitioning back to `SubMode::Endpoint(end)`. The attachment sets `offset = Delta::ZERO` and
+`out = 0`, preserves the terminal, and derives the leaving direction from `anchor.leaving()`.
+Exactly one step is recorded in the session unless the endpoint is already attached, the target is
+absent or is a connector, or the result produces an equal shape (#285), in which case no step is
+recorded. Pressing `Esc` cancels the selection, restores `SubMode::Endpoint(end)`, and records zero
+steps. While in `AttachSelect`, any key not offered is ignored (`Reply::Ignored`) and falls through
+to unclaimed universal shortcuts.
+
 **`SelectNext` and `SelectPrevious` cycle the selection without touching the session.** Offered in
 `IDLE` when `Condition::HasShapes` holds, and in `SELECTED_BOX`, `SELECTED_LINE`, and
 `SELECTED_CONNECTOR` as uncategorized `[Tab] Next [Shift+Tab] Prev` immediately preceding
@@ -369,9 +393,9 @@ to unclaimed universal shortcuts.
 (`BackTab`) dispatches `ContextMeaning::SelectPrevious`. Neither action modifies session history or
 records an undo step. While an inline sub-mode (`STROKE_SELECT`, `ORDER_MODE`, `ENDPOINT_EDIT`,
 `TERMINAL_SELECT`, `LEAVING_SELECT`) is active, `Tab` and `Shift+Tab` are not offered and return
-`Reply::Ignored`. While a modal overlay (`DialogFrame`) is open, keyboard routing directs `Tab` and
-`Shift+Tab` to dialog widget focus traversal
-([#304](https://github.com/andresmoschini/monospace/issues/304),
+`Reply::Ignored` (in `ATTACH_SELECT`, they cycle target candidate focus instead). While a modal
+overlay (`DialogFrame`) is open, keyboard routing directs `Tab` and `Shift+Tab` to dialog widget
+focus traversal ([#304](https://github.com/andresmoschini/monospace/issues/304),
 [#311](https://github.com/andresmoschini/monospace/issues/311)), never reaching the diagram region.
 
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
@@ -768,8 +792,9 @@ framework's buffer one at a time.
   `ENDPOINT <n>. <From|To> of Connector #<id> · Detached (<x>, <y>) [<Leaving>] · Term: <terminal>`
   for detached endpoints.
 - In `ENDPOINT_EDIT`, row 1 offers uncategorized `[0] Detach` (on attached endpoints, after
-  `OUT: [+] [-]` / `[r] Reset`) or `LEAVING: [d]` (on detached endpoints, after `MOVE: ↑↓←→`),
-  before `TERMINAL: [t]` and the endpoint switch key (`[2] To` or `[1] From`).
+  `OUT: [+] [-]` / `[r] Reset`) or `LEAVING: [d]` and `ATTACH: [a]` (on detached endpoints, after
+  `MOVE: ↑↓←→`, with `[a]` offered when at least one attachable shape exists), before
+  `TERMINAL: [t]` and the endpoint switch key (`[2] To` or `[1] From`).
 - In `ENDPOINT_EDIT` on an attached endpoint, pressing `0` dispatches `Command::DetachEndpoint`,
   freezing the endpoint at its resolved canvas coordinates with `reference.anchor.leaving()`, and
   transitions the status bar to the detached layout while remaining in `SubMode::Endpoint(end)`.
@@ -790,6 +815,29 @@ framework's buffer one at a time.
 - A click on another figure or outside, removing the selected connector, and an effective undo or
   redo end `LeavingSelect(End)`; moving focus to the menu bar or opening an application dialog keeps
   it while the connector remains selected.
+- Pressing `a` while in `ENDPOINT_EDIT` on an attachable detached endpoint transitions
+  `DiagramState` to `SubMode::AttachSelect { end, target }` with `target` focusing the first
+  candidate shape in drawing order and requests a repaint without recording history steps.
+- In `AttachSelect { end, target }`, row 0 formats
+  `ATTACH for <n>. <From|To> of Connector #<id> · Detached at (<x>, <y>), leaving <direction> · Target: <Box|Line> #<target> · <i> of <count>`.
+- In `AttachSelect { end, target }`, row 1 offers
+  `TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel`.
+- In `AttachSelect { end, target }`, `Tab` advances candidate target focus to the next box or line
+  in drawing order (wrapping to first); `Shift+Tab` retreats to the previous candidate; a mouse
+  click on an attachable canvas shape focuses it as `target` without confirming the attachment.
+- In `AttachSelect { end, target }`, keys `1..=4` dispatch `Command::Hang`, attach the endpoint to
+  the chosen anchor face with zero offset and standoff, transition back to `SubMode::Endpoint(end)`,
+  and request a repaint. If the endpoint is already attached, the target is absent or is a
+  connector, or the target produces no change, zero steps are recorded (#285).
+- In `AttachSelect { end, target }`, pressing `Esc` cancels the selection, transitions back to
+  `SubMode::Endpoint(end)`, and requests a repaint without altering the attachment or recording
+  history steps.
+- In `AttachSelect { end, target }`, every key the table does not offer (arrows, letters, other
+  digits, function keys) is ignored (`Reply::Ignored`) and falls through to unclaimed universal
+  shortcuts.
+- A click outside attachable shapes or on the selected connector, removing the selected connector,
+  and an effective undo or redo end `AttachSelect`; moving focus to the menu bar or opening an
+  application dialog keeps it while the connector remains selected.
 - Pressing `t` while in `ENDPOINT_EDIT` transitions `DiagramState` to `SubMode::TerminalSelect(End)`
   and requests a repaint without recording history steps.
 - In `TerminalSelect(end)`, row 0 formats
@@ -823,7 +871,7 @@ framework's buffer one at a time.
   key (`Reply::Consumed`) without repainting or changing selection.
 - In all inline sub-modes (`StrokeSelect`, `OrderMode`, `Endpoint`, `TerminalSelect`,
   `LeavingSelect`), `Tab` and `Shift+Tab` are ignored (`Reply::Ignored`) and leave the sub-mode
-  intact.
+  intact (in `AttachSelect`, they cycle target candidate focus instead).
 - The contextual bar in `IDLE` offers
   `CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when
   shapes exist, and `CREATE: [b] Box [l] Line [c] Connector` when the diagram has 0 shapes.

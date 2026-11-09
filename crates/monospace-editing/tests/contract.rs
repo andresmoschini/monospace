@@ -17,7 +17,9 @@ use std::num::NonZeroU16;
 use monospace_core::{
     Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, Text, Window, render,
 };
-use monospace_diagram::{Anchor, Delta, Diagram, End, Endpoint, Reference, Shape, ShapeId};
+use monospace_diagram::{
+    Anchor, Delta, Diagram, End, Endpoint, EndpointAt, Reference, Shape, ShapeId,
+};
 use monospace_editing::{Command, Session};
 
 /// The specification's window: `window(8, 3)`, wide enough for a four-cell box at the origin and
@@ -461,32 +463,25 @@ fn each_command_becomes_one_of_the_diagrams_seven_operations() {
     assert_eq!(
         after(&Command::Hang {
             id: id(3),
-            from: id(1),
+            end: End::From,
+            target: id(1),
             anchor: Anchor::Bottom,
         }),
         after_operating(|diagram| {
-            if let Some(Shape::Connector { from, to, stroke }) = diagram.get(id(3)).cloned() {
+            if let Some(shape) = diagram.get(id(3)).cloned() {
                 diagram.replace(
                     id(3),
-                    Shape::Connector {
-                        from: Endpoint::reference(
-                            monospace_diagram::Reference::new(
-                                id(1),
-                                Anchor::Bottom,
-                                Delta { dx: 0, dy: 0 },
-                                0,
-                            ),
-                            from.terminal,
-                        ),
-                        to,
-                        stroke,
-                    },
+                    shape.with_endpoint_attached(
+                        End::From,
+                        Reference::new(id(1), Anchor::Bottom, Delta::ZERO, 0),
+                        diagram,
+                    ),
                 )
             } else {
                 diagram.clone()
             }
         }),
-        "`Hang` is `replace` with one end of the connector rebuilt"
+        "`Hang` is `replace` with one end of the connector attached"
     );
 
     assert_eq!(
@@ -549,7 +544,8 @@ fn no_command_reaches_the_diagram_by_another_way() {
         },
         Command::Hang {
             id: id(3),
-            from: id(1),
+            end: End::From,
+            target: id(1),
             anchor: Anchor::Bottom,
         },
         Command::MoveEndpoint {
@@ -1117,14 +1113,16 @@ fn hanging_an_end_where_it_already_hangs_records_no_step() {
 
     let hung = session.perform(Command::Hang {
         id: id(3),
-        from: id(1),
+        end: End::From,
+        target: id(1),
         anchor: Anchor::Bottom,
     });
     assert!(hung.can_undo(), "hanging an end records its step");
 
     let hung_again = hung.perform(Command::Hang {
         id: id(3),
-        from: id(1),
+        end: End::From,
+        target: id(1),
         anchor: Anchor::Bottom,
     });
     assert_eq!(
@@ -1138,6 +1136,122 @@ fn hanging_an_end_where_it_already_hangs_records_no_step() {
         picture_in(undone.diagram(), FIXTURE),
         initial_pic,
         "so a single undo returns to the initial state"
+    );
+}
+
+#[test]
+fn attaching_the_to_end_attaches_to_the_target() {
+    let session = Session::new(the_fixture());
+    let initial_pic = picture_in(session.diagram(), FIXTURE);
+
+    let attached = session.perform(Command::Hang {
+        id: id(3),
+        end: End::To,
+        target: id(2),
+        anchor: Anchor::Bottom,
+    });
+    assert!(attached.can_undo(), "attaching the to end records its step");
+    assert_ne!(
+        picture_in(attached.diagram(), FIXTURE),
+        initial_pic,
+        "attaching the to end changes the diagram"
+    );
+
+    let Shape::Connector { to, from, .. } = attached.diagram().get(id(3)).unwrap() else {
+        panic!("id(3) must be a connector");
+    };
+    assert_eq!(
+        to.at,
+        EndpointAt::Reference(Reference::new(id(2), Anchor::Bottom, Delta::ZERO, 0))
+    );
+    assert!(matches!(from.at, EndpointAt::Absolute { .. }));
+
+    let undone = attached.undo();
+    assert_eq!(
+        picture_in(undone.diagram(), FIXTURE),
+        initial_pic,
+        "undo returns to the initial state"
+    );
+}
+
+#[test]
+fn attaching_to_a_missing_target_records_no_step() {
+    let session = Session::new(the_fixture());
+    let initial_pic = picture_in(session.diagram(), FIXTURE);
+
+    let attempted = session.perform(Command::Hang {
+        id: id(3),
+        end: End::From,
+        target: id(99),
+        anchor: Anchor::Bottom,
+    });
+    assert!(
+        !attempted.can_undo(),
+        "attaching to a missing target records no step"
+    );
+    assert_eq!(
+        picture_in(attempted.diagram(), FIXTURE),
+        initial_pic,
+        "attaching to a missing target leaves diagram unchanged"
+    );
+}
+
+#[test]
+fn attaching_to_a_connector_records_no_step() {
+    let session = Session::new(the_fixture());
+    let initial_pic = picture_in(session.diagram(), FIXTURE);
+
+    // id(3) is a connector in the_fixture, and connectors have no anchors
+    let attempted = session.perform(Command::Hang {
+        id: id(3),
+        end: End::From,
+        target: id(3),
+        anchor: Anchor::Top,
+    });
+    assert!(
+        !attempted.can_undo(),
+        "attaching to a connector records no step"
+    );
+    assert_eq!(
+        picture_in(attempted.diagram(), FIXTURE),
+        initial_pic,
+        "attaching to a connector leaves diagram unchanged"
+    );
+}
+
+#[test]
+fn attaching_an_already_attached_end_records_no_step() {
+    let session = Session::new(the_fixture());
+
+    let hung = session.perform(Command::Hang {
+        id: id(3),
+        end: End::From,
+        target: id(1),
+        anchor: Anchor::Bottom,
+    });
+    assert!(hung.can_undo());
+
+    // Attempting to attach an already-attached end to a different target or anchor records no step
+    let hung_again = hung.perform(Command::Hang {
+        id: id(3),
+        end: End::From,
+        target: id(2),
+        anchor: Anchor::Top,
+    });
+    assert_eq!(
+        hung_again.diagram().get(id(3)),
+        hung.diagram().get(id(3)),
+        "attaching an already attached end leaves shape unchanged"
+    );
+    assert_eq!(
+        picture_in(hung_again.diagram(), FIXTURE),
+        picture_in(hung.diagram(), FIXTURE)
+    );
+    let undone = hung_again.undo();
+    assert_eq!(
+        picture_in(undone.diagram(), FIXTURE),
+        picture_in(session.diagram(), FIXTURE),
+        "only the first attach was recorded"
     );
 }
 
