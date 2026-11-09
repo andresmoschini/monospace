@@ -538,11 +538,20 @@ a detached targeted endpoint is changed; a connector with an attached endpoint a
 figures come back unchanged. Setting an endpoint to the leaving direction it already carries
 produces an equal shape value.
 
+Attaching a connector's detached endpoint is a replacement too: `with_endpoint_attached` produces a
+new connector with the targeted endpoint (`End::From` or `End::To`) attached to `target` at
+`anchor`, leaving its terminal style and the other endpoint untouched. Only a connector with a
+detached targeted endpoint (`EndpointAt::Absolute`) is changed; the target must be a `Box` or `Line`
+that answers `anchor`. The attachment reference is initialized with `Delta::ZERO` offset and
+standoff `out = 0`, and its departure direction is derived from `anchor.leaving()`. When the
+targeted endpoint is already attached, the target is absent or does not answer the anchor, or the
+figure is not a connector, the shape comes back unchanged.
+
 Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke`, `Shape::with_text`,
 `Shape::with_inverted_terminals`, `Shape::with_endpoint_moved`, `Shape::with_endpoint_reset`,
-`Shape::with_endpoint_terminal`, `Shape::with_endpoint_detached` and `Shape::with_endpoint_leaving`
-are the ten figure mutations: each produces a new shape value, so looking up a figure and replacing
-it with the modified copy is the complete operation.
+`Shape::with_endpoint_terminal`, `Shape::with_endpoint_detached`, `Shape::with_endpoint_leaving`,
+and `Shape::with_endpoint_attached` are the eleven figure mutations: each produces a new shape
+value, so looking up a figure and replacing it with the modified copy is the complete operation.
 
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A
