@@ -80,15 +80,6 @@ fn connector_endpoint(shape: &Shape, end: End) -> Option<(u8, &'static str, &End
     }
 }
 
-fn anchor_name(anchor: Anchor) -> &'static str {
-    match anchor {
-        Anchor::Top => "Top",
-        Anchor::Right => "Right",
-        Anchor::Bottom => "Bottom",
-        Anchor::Left => "Left",
-    }
-}
-
 fn anchor_text(anchor: Anchor) -> &'static str {
     match anchor {
         Anchor::Top => "top",
@@ -100,10 +91,10 @@ fn anchor_text(anchor: Anchor) -> &'static str {
 
 fn direction_text(direction: Direction) -> &'static str {
     match direction {
-        Direction::Up => "North",
-        Direction::Right => "East",
-        Direction::Down => "South",
-        Direction::Left => "West",
+        Direction::Up => "up",
+        Direction::Right => "right",
+        Direction::Down => "down",
+        Direction::Left => "left",
     }
 }
 
@@ -303,7 +294,7 @@ fn endpoint_at_compact(at: &EndpointAt, diagram: &Diagram) -> String {
             format!(
                 "{kind} #{id} [{anchor} ({dx}, {dy}) out:{out}]",
                 id = r.id,
-                anchor = anchor_name(r.anchor),
+                anchor = anchor_text(r.anchor),
                 dx = r.offset.dx,
                 dy = r.offset.dy,
                 out = r.out
@@ -665,7 +656,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] (arm ─) · 2. To: Box #2 [Bottom (1, 0) out:1] (arm │)"
+            "Connector #3 · Stroke: light · 1. From: Box #1 [right (0, 0) out:0] (arm ─) · 2. To: Box #2 [bottom (1, 0) out:1] (arm │)"
         );
         assert_eq!(
             command_line(&state),
@@ -688,7 +679,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #1 · Stroke: light · 1. From: (1, 2) [East] (arm ─) · 2. To: (5, 6) [West] (arm ─)"
+            "Connector #1 · Stroke: light · 1. From: (1, 2) [right] (arm ─) · 2. To: (5, 6) [left] (arm ─)"
         );
 
         let mut state = a_state_over(
@@ -709,7 +700,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             status_line(&state),
-            "Connector #3 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] (arm ─) · 2. To: Box #2 [Left (0, 0) out:0] (solid ▶)"
+            "Connector #3 · Stroke: light · 1. From: Box #1 [right (0, 0) out:0] (arm ─) · 2. To: Box #2 [left (0, 0) out:0] (solid ▶)"
         );
     }
 
@@ -904,7 +895,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::Endpoint(End::To)));
         assert_eq!(
             status_line(&state),
-            "ENDPOINT 2. To of Connector #2 · Detached at (20, 5), leaving West · Term: solid ▶"
+            "ENDPOINT 2. To of Connector #2 · Detached at (20, 5), leaving left · Term: solid ▶"
         );
         assert_eq!(
             command_line(&state),
@@ -1063,7 +1054,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::LeavingSelect(End::From)));
         assert_eq!(
             status_line(&state),
-            "LEAVING for 1. From of Connector #1 · Detached at (2, 1) · Current: East"
+            "LEAVING for 1. From of Connector #1 · Detached at (2, 1) · Current: right"
         );
         assert_eq!(
             command_line(&state),
@@ -1073,7 +1064,7 @@ mod tests {
         state.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
         assert_eq!(
             status_line(&state),
-            "LEAVING for 2. To of Connector #1 · Detached at (10, 5) · Current: North"
+            "LEAVING for 2. To of Connector #1 · Detached at (10, 5) · Current: up"
         );
         assert_eq!(
             command_line(&state),

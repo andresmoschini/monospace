@@ -138,14 +138,14 @@ endpoints in Row 0, and offers connector-level actions in Row 1. Whole-connector
 (connectors are shaped exclusively through their endpoints):
 
 ```text
-Connector #4 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] (arm ─) · 2. To: Box #2 [Left (0, 0) out:0] (solid ▶)
+Connector #4 · Stroke: light · 1. From: Box #1 [right (0, 0) out:0] (arm ─) · 2. To: Box #2 [left (0, 0) out:0] (solid ▶)
 ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
 ```
 
 When an endpoint is detached, Row 0 formats its absolute coordinates and leaving direction:
 
 ```text
-Connector #7 · Stroke: heavy · 1. From: Box #3 [Bottom (0, 0) out:0] (arm │) · 2. To: (40, 12) [North] (arrow ↓)
+Connector #7 · Stroke: heavy · 1. From: Box #3 [bottom (0, 0) out:0] (arm │) · 2. To: (40, 12) [up] (arrow ↓)
 ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
 ```
 
@@ -193,7 +193,7 @@ When the active endpoint is detached (`Position::Absolute`), Row 0 displays its 
 and leaving direction, and the bar adapts its commands (omitting `OUT` and `Reset`):
 
 ```text
-ENDPOINT 2. To of Connector #4 · Detached at (40, 12), leaving North · Term: arrow ↓
+ENDPOINT 2. To of Connector #4 · Detached at (40, 12), leaving up · Term: arrow ↓
 MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
 ```
 
@@ -236,7 +236,7 @@ Entered by pressing `d` on a detached endpoint in `ENDPOINT_EDIT`. This is a dis
 allowing explicit selection of the departure direction:
 
 ```text
-LEAVING for 2. To of Connector #4 · Detached at (40, 12) · Current: North
+LEAVING for 2. To of Connector #4 · Detached at (40, 12) · Current: up
 LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel
 ```
 
@@ -359,7 +359,7 @@ Initial state:
 1. Author selects Connector #4. The contextual bar shows:
 
    ```text
-   Connector #4 · Stroke: light · 1. From: Box #1 [Right (0, 0) out:0] (arm ─) · 2. To: Box #2 [Left (0, 0) out:0] (solid ▶)
+   Connector #4 · Stroke: light · 1. From: Box #1 [right (0, 0) out:0] (arm ─) · 2. To: Box #2 [left (0, 0) out:0] (solid ▶)
    ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
    ```
 
@@ -406,7 +406,7 @@ downward:
    `Absolute` point at its current resolved coordinates:
 
    ```text
-   ENDPOINT 2. To of Connector #4 · Detached at (20, 5), leaving West · Term: solid ◀
+   ENDPOINT 2. To of Connector #4 · Detached at (20, 5), leaving left · Term: solid ◀
    MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
@@ -414,7 +414,7 @@ downward:
 3. Author presses `d` to change the leaving direction. The bar enters `LEAVING_SELECT`:
 
    ```text
-   LEAVING for 2. To of Connector #4 · Detached at (20, 8) · Current: West
+   LEAVING for 2. To of Connector #4 · Detached at (20, 8) · Current: left
    LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel
    ```
 
@@ -422,7 +422,7 @@ downward:
    arrowhead to point downward (`↓`). The bar immediately returns to `ENDPOINT_EDIT`:
 
    ```text
-   ENDPOINT 2. To of Connector #4 · Detached at (20, 8), leaving North · Term: solid ↓
+   ENDPOINT 2. To of Connector #4 · Detached at (20, 8), leaving up · Term: solid ↓
    MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done
    ```
 
