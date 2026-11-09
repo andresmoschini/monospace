@@ -133,6 +133,7 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::context::AppGlobal;
+    use crate::diagram_state::{End, SubMode};
     use crate::state::AppState;
     use crate::status;
     use crate::text::TextEditorState;
@@ -674,6 +675,66 @@ mod tests {
         );
         assert!(
             !reversed(&buffer, 7, 3),
+            "the neighboring box's border is inverted"
+        );
+    }
+
+    /// A description with a box, a detached connector and a neighboring box.
+    const A_BOX_A_CONNECTOR_AND_A_NEIGHBOR: &str = r#"{
+        "next_id": 4,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 2, "y": 1 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "connector", "id": 2,
+              "from": { "at": { "kind": "point", "x": 8, "y": 2 },
+                        "leaving": "right", "terminal": { "kind": "arm" } },
+              "to": { "at": { "kind": "point", "x": 12, "y": 2 },
+                      "leaving": "left", "terminal": { "kind": "arm" } },
+              "stroke": "light" },
+            { "kind": "box", "id": 3, "at": { "x": 16, "y": 1 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" }
+        ]
+    }"#;
+
+    /// **The attach picker inverts both the focused target and the selected connector.**
+    /// Any neighboring shape that is not the target is not inverted.
+    #[test]
+    fn the_attach_picker_inverts_the_target_and_the_selected_connector() {
+        let mut state = a_state_over(A_BOX_A_CONNECTOR_AND_A_NEIGHBOR);
+        let global = a_global();
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+        let id2 = ShapeId::new(NonZeroU16::new(2).expect("2 is non-zero"));
+
+        // Select the connector first to determine its inverted cells
+        state.diagram_mut().select(Some(id2));
+        let conn_buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+        let conn_cells = inverted(&conn_buffer);
+        assert!(
+            !conn_cells.is_empty(),
+            "connector cells should not be empty"
+        );
+
+        // Focus box #1 as attach target in AttachSelect
+        state
+            .diagram_mut()
+            .set_sub_mode(Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id1,
+            }));
+        let buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+
+        let mut expected = cells_of_the_box();
+        expected.extend(conn_cells);
+        expected.sort_by_key(|&(x, y)| (y, x));
+        expected.dedup();
+
+        assert_eq!(
+            inverted(&buffer),
+            expected,
+            "the attach picker inverts exactly the target box and the selected connector"
+        );
+        assert!(
+            !reversed(&buffer, 17, 3),
             "the neighboring box's border is inverted"
         );
     }

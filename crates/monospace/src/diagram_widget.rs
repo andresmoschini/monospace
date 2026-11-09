@@ -30,7 +30,7 @@ use ratatui_core::{
 use ratatui_crossterm::crossterm::event::Event;
 
 use crate::chrome::{Focus, Target};
-use crate::diagram_state::DiagramState;
+use crate::diagram_state::{DiagramState, SubMode};
 use crate::vocabulary::Reply;
 
 /// Paints the region, and the diagram the state draws inside it.
@@ -95,23 +95,37 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
 ///
 /// **The acceptor of `Trigger::Click` in the `SELECT` contextual block.** A left press inside the
 /// interior selects the shape the drawing records at the cell the router found, and a press on a
-/// cell nobody owns drops the selection (rules 1 and 2). The cell is [`Target::Interior`]'s,
-/// counted from the interior's corner, so the region never reads the pointer a second time.
+/// cell nobody owns drops the selection (rules 1 and 2). In [`SubMode::AttachSelect`], a click on
+/// a cell the record assigns to a candidate box or line moves the focus to that candidate (D2); a
+/// click on a connector, an empty cell, or outside the window does not move the focus, and
+/// clicking the candidate that already holds the focus changes nothing. The cell is
+/// [`Target::Interior`]'s, counted from the interior's corner, so the region never reads the
+/// pointer a second time.
 ///
 /// **Everything else is not the region's**, and it is answered with nothing so that the event goes
 /// on to the next handler (rule 3): a press on the bar, the region's border or the status bar, and
 /// a press on a rectangle no frame drew into. A press of another button is no target at all, and a
 /// release is not a press, so neither is the region's either.
 ///
-/// **The answer is `Repaint` only when the selection moved.** Selecting what is already selected,
-/// or dropping a selection that is not there, changed nothing and owes no frame — but the press was
-/// still the region's, so it is `Consumed` rather than `Ignored`.
+/// **The answer is `Repaint` only when the selection or focus moved.** Selecting what is already
+/// selected, focusing the candidate that already holds the focus, or dropping a selection that is
+/// not there, changed nothing and owes no frame — but the press was still the region's, so it is
+/// `Consumed` rather than `Ignored`.
 fn click(target: Target, state: &mut DiagramState) -> Reply {
     let Target::Interior(offset) = target else {
         return Reply::Ignored;
     };
 
     let owner = state.owner(offset);
+
+    if matches!(state.sub_mode(), Some(SubMode::AttachSelect { .. })) {
+        if let Some(owner) = owner
+            && state.focus_attach_target(owner)
+        {
+            return Reply::Repaint;
+        }
+        return Reply::Consumed;
+    }
 
     if state.select(owner) {
         Reply::Repaint
@@ -126,9 +140,10 @@ fn click(target: Target, state: &mut DiagramState) -> Reply {
 /// draws, so a cell the diagram does not speak for keeps the space the clear painted.
 ///
 /// **The inversion is decided while the cell is copied** (D1): the cell's recorded owner is
-/// compared with the selected identity, and the copy paints reverse video where the two agree. A
-/// style on the core's cell would be a front end's decision in the domain, and a picture built for
-/// the inversion would be one nobody clicked.
+/// compared with the selected identity (and in [`SubMode::AttachSelect`], also with the candidate
+/// target), and the copy paints reverse video where they agree. A style on the core's cell would
+/// be a front end's decision in the domain, and a picture built for the inversion would be one
+/// nobody clicked.
 ///
 /// **A selected shape is not a second drawing.** The cells that are inverted are the ones the copy
 /// writes and the record says belong to the selection, so a shape clipped by the window inverts the
@@ -2090,5 +2105,196 @@ mod tests {
             Some(ShapeId::new(NonZeroU16::new(1).unwrap()))
         );
         assert!(!crate::status::command_line(&state).contains("[Click] Pick"));
+    }
+
+    /// A description with two boxes and a detached connector.
+    const TWO_BOXES_AND_A_CONNECTOR: &str = r#"{
+        "next_id": 4,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 8, "y": 0 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "connector", "id": 3,
+              "from": { "at": { "kind": "point", "x": 0, "y": 5 },
+                        "leaving": "right", "terminal": { "kind": "arm" } },
+              "to": { "at": { "kind": "point", "x": 6, "y": 5 },
+                      "leaving": "left", "terminal": { "kind": "arm" } },
+              "stroke": "light" }
+        ]
+    }"#;
+
+    /// A description with a detached connector and a box candidate for attaching.
+    const A_CONNECTOR_AND_A_BOX: &str = r#"{
+        "next_id": 3,
+        "shapes": [
+            { "kind": "connector", "id": 1,
+              "from": { "at": { "kind": "point", "x": 2, "y": 1 },
+                        "leaving": "right", "terminal": { "kind": "arm" } },
+              "to": { "at": { "kind": "point", "x": 10, "y": 1 },
+                      "leaving": "left", "terminal": { "kind": "arm" } },
+              "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 10, "y": 3 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" }
+        ]
+    }"#;
+
+    #[test]
+    fn clicking_a_candidate_in_attach_select_focuses_it_without_attaching() {
+        let mut state = a_state_over(TWO_BOXES_AND_A_CONNECTOR);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        state.select(Some(id3));
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id1,
+        }));
+        let _ = paint(&mut state);
+
+        let at = screen(8, 0);
+        let reply = handle(&click(at.x, at.y), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id2,
+            })
+        );
+        assert_eq!(state.selected(), Some(id3));
+        assert!(matches!(
+            state.selected_shape(),
+            Some(monospace_diagram::Shape::Connector {
+                from: monospace_diagram::Endpoint {
+                    at: monospace_diagram::EndpointAt::Absolute { .. },
+                    ..
+                },
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn clicking_the_same_target_is_consumed_without_a_repaint() {
+        let mut state = a_state_over(TWO_BOXES_AND_A_CONNECTOR);
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        state.select(Some(id3));
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id2,
+        }));
+        let _ = paint(&mut state);
+
+        let at = screen(8, 0);
+        let reply = handle(&click(at.x, at.y), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Consumed);
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id2,
+            })
+        );
+        assert_eq!(state.selected(), Some(id3));
+    }
+
+    #[test]
+    fn clicking_a_connector_or_empty_cell_in_attach_select_leaves_the_focus_unchanged() {
+        let mut state = a_state_over(TWO_BOXES_AND_A_CONNECTOR);
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        state.select(Some(id3));
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id2,
+        }));
+        let _ = paint(&mut state);
+
+        let at_conn = screen(0, 5);
+        let reply_conn = handle(&click(at_conn.x, at_conn.y), &mut state, Focus::Region);
+        assert_eq!(reply_conn, Reply::Consumed);
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id2,
+            })
+        );
+        assert_eq!(state.selected(), Some(id3));
+
+        let at_empty = screen(15, 5);
+        let reply_empty = handle(&click(at_empty.x, at_empty.y), &mut state, Focus::Region);
+        assert_eq!(reply_empty, Reply::Consumed);
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id2,
+            })
+        );
+        assert_eq!(state.selected(), Some(id3));
+    }
+
+    #[test]
+    fn clicking_outside_the_interior_in_attach_select_is_ignored() {
+        let mut state = a_state_over(TWO_BOXES_AND_A_CONNECTOR);
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        state.select(Some(id3));
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id2,
+        }));
+        let _ = paint(&mut state);
+
+        let reply_border = handle(&click(0, 0), &mut state, Focus::Region);
+        assert_eq!(reply_border, Reply::Ignored);
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id2,
+            })
+        );
+        assert_eq!(state.selected(), Some(id3));
+
+        let reply_outside = handle(&click(25, 25), &mut state, Focus::Region);
+        assert_eq!(reply_outside, Reply::Ignored);
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id2,
+            })
+        );
+        assert_eq!(state.selected(), Some(id3));
+    }
+
+    #[test]
+    fn key_acceptance_matches_contextual_bar_in_attach_select() {
+        assert_offer_matches_acceptance(
+            A_CONNECTOR_AND_A_BOX,
+            Some(1),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: ShapeId::new(NonZeroU16::new(2).unwrap()),
+            }),
+        );
+        assert_offer_matches_acceptance(
+            A_CONNECTOR_AND_A_BOX,
+            Some(1),
+            Some(SubMode::AttachSelect {
+                end: End::To,
+                target: ShapeId::new(NonZeroU16::new(2).unwrap()),
+            }),
+        );
     }
 }
