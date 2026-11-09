@@ -10,16 +10,22 @@
 //! has no figures.
 //!
 //! **When a shape is selected**, the upper row reports its identity and properties (`Box`, `Line`,
-//! or `Connector`), and the lower row offers `MOVE: ↑↓←→ · STROKE: [s] · ORDER: [z] · [Tab] Next
-//! [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`, with `RESIZE` between the first two offering
-//! the cursor keys the selected figure can use — all four for a box (`Shift+↑↓←→`), the row's two
-//! for a horizontal line (`Shift+←→`), the column's two for a vertical line (`Shift+↑↓`), and none
-//! for a connector. `TEXT: [t] Edit` is offered only for a box, between `RESIZE` and `STROKE`.
+//! or `Connector`). For a box or line, the lower row offers `MOVE: ↑↓←→`, with `RESIZE` between
+//! `MOVE` and `TEXT` or `STROKE` offering the cursor keys the figure can use — all four for a box
+//! (`Shift+↑↓←→`), the row's two for a horizontal line (`Shift+←→`), and the column's two for a
+//! vertical line (`Shift+↑↓`). `TEXT: [t] Edit` is offered only for a box. For a connector,
+//! whole-shape movement and resizing are absent, and the lower row offers
+//! `ENDPOINTS: [1] From [2] To · INVERT: [i]` instead. All selected figures conclude with
+//! `STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`.
 //!
 //! **In `STROKE_SELECT`**, the upper row reports the figure and the stroke it carries, and the
 //! lower row offers the five catalog strokes and `[Esc] Cancel`. **In `ORDER_MODE`**, the upper
 //! row reports the figure's place in the order and the lower row offers the four order moves and
-//! `[Esc] Done`.
+//! `[Esc] Done`. **In `ENDPOINT_EDIT`**, the upper row inspects the focused endpoint, and the lower
+//! row offers offset/standoff adjustment or detached movement, resetting, detachment, terminal
+//! selection, endpoint switching, and `[Esc] Done`. **In `TERMINAL_SELECT`**, the lower row offers
+//! the five terminal styles and `[Esc] Cancel`. **In `LEAVING_SELECT`**, the lower row offers the
+//! four compass departure directions and `[Esc] Cancel`.
 
 use monospace_core::{Direction, Footprint, Orientation, Pos, ShapeId, Terminal};
 use monospace_diagram::{Anchor, Diagram, Endpoint, EndpointAt, Shape};

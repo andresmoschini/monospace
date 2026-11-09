@@ -935,8 +935,9 @@ mod tests {
         }
     }
 
-    /// **In IDLE, key acceptance matches what the contextual bar offers**: the bar offers only
-    /// selection via click, so all contextual keys (arrows, Shift+arrows, Esc) are ignored.
+    /// **In IDLE, key acceptance matches what the contextual bar offers**: the bar offers creation
+    /// keys (`[b]`, `[l]`, `[c]`) unconditionally and selection cycling (`Tab`, `Shift+Tab`) when
+    /// shapes exist; navigation arrows, Shift+arrows, and Esc are ignored.
     #[test]
     fn key_acceptance_matches_contextual_bar_in_idle() {
         assert_offer_matches_acceptance(A_BOX, None, None);
@@ -966,8 +967,9 @@ mod tests {
     }
 
     /// **For a selected connector, key acceptance matches what the contextual bar offers**: the bar
-    /// offers MOVE and Deselect, but no RESIZE; plain arrows and Esc are accepted, and Shift+arrows
-    /// are ignored.
+    /// offers ENDPOINTS, INVERT, STROKE, ORDER, selection cycling, Delete, and Deselect, but neither
+    /// MOVE nor RESIZE; plain arrows and Shift+arrows are ignored, while endpoint selectors, invert,
+    /// stroke, order, and Esc are accepted.
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_connector() {
         assert_offer_matches_acceptance(A_CONNECTOR, Some(1), None);
