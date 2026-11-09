@@ -288,9 +288,43 @@ open.
 
 ## What proves it
 
-None yet. The tests do not exist; the building stage names the test that holds each rule in
-`## Behavior`, and a rule with no test named against it is unfinished.
+- `monospace-diagram` (`crates/monospace-diagram/src/shape.rs`):
+  - `with_endpoint_attached_replaces_a_detached_endpoint_and_preserves_its_terminal`
+  - `with_endpoint_attached_derives_leaving_from_the_anchor`
+  - `with_endpoint_attached_on_a_line_target_uses_its_anchor`
+  - `with_endpoint_attached_on_an_attached_endpoint_is_unchanged`
+  - `with_endpoint_attached_on_a_missing_or_connector_target_is_unchanged`
+  - `with_endpoint_attached_on_non_connector_is_unchanged`
+  - `with_endpoint_attached_is_idempotent`
+- `monospace-editing` (`crates/monospace-editing/tests/contract.rs`):
+  - `hanging_an_end_where_it_already_hangs_records_no_step`
+  - `attaching_the_to_end_attaches_to_the_target`
+  - `attaching_to_a_missing_target_records_no_step`
+  - `attaching_to_a_connector_records_no_step`
+  - `attaching_an_already_attached_end_records_no_step`
+- `monospace` (`crates/monospace`):
+  - `context_table::tests::format_command_line_in_attach_select`
+  - `context_table::tests::attach_is_offered_only_for_a_detached_endpoint_with_a_candidate`
+  - `context_table::tests::context_reports_attach_select`
+  - `context_table::tests::attach_select_dispatch_focuses_and_attaches`
+  - `context_table::tests::attach_select_esc_returns_to_endpoint_without_a_step`
+  - `diagram_state::tests::entering_attach_select_focuses_the_first_candidate_in_drawing_order`
+  - `diagram_state::tests::attach_select_tab_and_shift_tab_wrap_over_boxes_and_lines_only`
+  - `diagram_state::tests::attach_select_ignores_a_connector_or_empty_cell_as_a_target`
+  - `diagram_state::tests::attach_select_focus_does_not_touch_the_session_or_the_selection`
+  - `diagram_state::tests::attach_select_parent_is_endpoint`
+  - `diagram_state::tests::attach_select_ends_on_undo`
+  - `diagram_state::tests::is_cell_selected_inverts_the_attach_target_and_the_selected_connector`
+  - `diagram_widget::tests::clicking_a_candidate_in_attach_select_focuses_it_without_attaching`
+  - `diagram_widget::tests::clicking_the_same_target_is_consumed_without_a_repaint`
+  - `diagram_widget::tests::clicking_a_connector_or_empty_cell_in_attach_select_leaves_the_focus_unchanged`
+  - `diagram_widget::tests::clicking_outside_the_interior_in_attach_select_is_ignored`
+  - `diagram_widget::tests::key_acceptance_matches_contextual_bar_in_attach_select`
+  - `frame::tests::the_attach_picker_inverts_the_target_and_the_selected_connector`
+  - `status::tests::attach_select_inspects_endpoint_and_focused_target`
+  - `status::tests::attach_select_shows_the_target_position_and_count`
+  - `status::tests::attach_select_falls_back_to_the_selected_shape_when_the_target_is_gone`
 
 ## Open questions
 
-- None beyond the decisions above.
+- None.
