@@ -73,7 +73,7 @@ use monospace_core::{
     Symbol, SymbolCell, SymbolStyleName, Window, render,
 };
 use monospace_description::parse;
-use monospace_diagram::{Anchor, Delta, Diagram};
+use monospace_diagram::{Anchor, Delta, Diagram, End};
 use monospace_editing::{Command, Session};
 
 /// The shipped demonstration description, embedded at compile time so the no-argument run works
@@ -551,28 +551,20 @@ fn demonstrate(diagram: Diagram, window: Window) -> String {
     out.push_str("\nWith that same shape taken out:\n");
     out.push_str(&picture(session.diagram(), &catalog, window));
 
-    // The arrow's `from` is rehung from the box's right side — the point the description already
-    // spells for it, so the fifth picture opens on the same picture the fourth does and the only
-    // thing that changes about the arrow is where it starts. It is **read back** rather than
-    // restated, and `Command::Hang` is what reads it back: the command rebuilds the one end that
-    // changes and keeps `to`, the direction, the terminal and the stroke, which are then the
-    // description's by construction. A caller writing the connector out by hand instead would be
-    // agreeing with the description about four values, where a disagreement would change the
-    // picture rather than fail.
-    //
-    // **The direction and the terminal are the ones the end already had and are not derived from
-    // the anchor**: §6 of the diagram model says both are the caller's, and deriving the direction
-    // from the side is [#89](https://github.com/andresmoschini/monospace/issues/89)'s. A `Hang`
-    // carries no field for either, so the command has nowhere to put a different one.
+    // The arrow's `from` is already a reference to the box's right side in the shipped description.
+    // Because `Command::Hang` now only attaches detached endpoints, this command leaves the
+    // already-attached endpoint unchanged, changes nothing, and records no step (#285) — so the
+    // fifth picture opens on the same picture the fourth does.
     //
     // A description whose tenth entry is not a connector, one with no tenth entry at all, and one
-    // whose record names nothing at `(14, 3)`, all have nothing to rehang. Two of those the guard
+    // whose record names nothing at `(14, 3)`, all have nothing to hang. Two of those the guard
     // below catches by asking whether the record named anything at all; the third is a command
     // naming an identity the diagram does not hold, which changes nothing and records no step (#285).
     if let (Some(the_arrow), Some(the_hung_from)) = (the_arrow, the_hung_from) {
         session = session.perform(Command::Hang {
             id: the_arrow,
-            from: the_hung_from,
+            end: End::From,
+            target: the_hung_from,
             anchor: Anchor::Right,
         });
     }
