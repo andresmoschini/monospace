@@ -108,6 +108,8 @@ pub(crate) enum SubMode {
     TerminalSelect(End),
     /// Choosing a leaving direction for the active detached connector endpoint.
     LeavingSelect(End),
+    /// Choosing a target shape and an attachment point for the active detached endpoint.
+    AttachSelect { end: End, target: ShapeId },
 }
 
 impl SubMode {
@@ -116,7 +118,9 @@ impl SubMode {
     #[must_use]
     pub(crate) fn parent(self) -> Option<Self> {
         match self {
-            Self::TerminalSelect(end) | Self::LeavingSelect(end) => Some(Self::Endpoint(end)),
+            Self::TerminalSelect(end)
+            | Self::LeavingSelect(end)
+            | Self::AttachSelect { end, .. } => Some(Self::Endpoint(end)),
             Self::StrokeSelect | Self::OrderMode | Self::Endpoint(_) => None,
         }
     }
@@ -224,6 +228,103 @@ impl DiagramState {
     /// Sets the active sub-mode.
     pub(crate) fn set_sub_mode(&mut self, sub_mode: Option<SubMode>) {
         self.sub_mode = sub_mode;
+    }
+
+    /// Whether `shape` can serve as an attachment target for a connector endpoint.
+    ///
+    /// Connectors attach to boxes and lines.
+    #[must_use]
+    pub(crate) fn is_attachable(shape: &Shape) -> bool {
+        matches!(shape, Shape::Box { .. } | Shape::Line { .. })
+    }
+
+    /// The identities of all attachable figures in the diagram, in drawing order.
+    #[must_use]
+    pub(crate) fn attach_candidates(&self) -> Vec<ShapeId> {
+        self.session
+            .diagram()
+            .shapes()
+            .filter(|(_, shape)| Self::is_attachable(shape))
+            .map(|(id, _)| id)
+            .collect()
+    }
+
+    /// Enters the attach target selector for the active detached connector endpoint, focusing the
+    /// first attachable candidate in drawing order. Returns `true` if the sub-mode was entered.
+    pub(crate) fn enter_attach_select(&mut self) -> bool {
+        let Some(SubMode::Endpoint(end)) = self.sub_mode else {
+            return false;
+        };
+        let Some(&first) = self.attach_candidates().first() else {
+            return false;
+        };
+        self.sub_mode = Some(SubMode::AttachSelect { end, target: first });
+        true
+    }
+
+    /// Focuses the next attachable candidate in drawing order, wrapping to the first. Returns
+    /// `true` if the focused target changed.
+    pub(crate) fn focus_next_attach_target(&mut self) -> bool {
+        let Some(SubMode::AttachSelect {
+            target: current, ..
+        }) = self.sub_mode
+        else {
+            return false;
+        };
+        let candidates = self.attach_candidates();
+        if candidates.is_empty() {
+            return false;
+        }
+        let next = match candidates.iter().position(|&id| id == current) {
+            Some(index) => candidates[(index + 1) % candidates.len()],
+            None => candidates[0],
+        };
+        self.focus_attach_target(next)
+    }
+
+    /// Focuses the previous attachable candidate in drawing order, wrapping to the last. Returns
+    /// `true` if the focused target changed.
+    pub(crate) fn focus_previous_attach_target(&mut self) -> bool {
+        let Some(SubMode::AttachSelect {
+            target: current, ..
+        }) = self.sub_mode
+        else {
+            return false;
+        };
+        let candidates = self.attach_candidates();
+        if candidates.is_empty() {
+            return false;
+        }
+        let prev = match candidates.iter().position(|&id| id == current) {
+            Some(index) => candidates[(index + candidates.len() - 1) % candidates.len()],
+            None => *candidates.last().unwrap_or(&candidates[0]),
+        };
+        self.focus_attach_target(prev)
+    }
+
+    /// Sets the focused attach target to `target` if `target` is an attachable shape and different
+    /// from the currently focused target. Returns `true` if the focused target changed.
+    pub(crate) fn focus_attach_target(&mut self, target: ShapeId) -> bool {
+        let Some(SubMode::AttachSelect {
+            end,
+            target: current,
+        }) = self.sub_mode
+        else {
+            return false;
+        };
+        if current == target {
+            return false;
+        }
+        let is_attachable = self
+            .session
+            .diagram()
+            .get(target)
+            .is_some_and(Self::is_attachable);
+        if !is_attachable {
+            return false;
+        }
+        self.sub_mode = Some(SubMode::AttachSelect { end, target });
+        true
     }
 
     /// Makes `selection` the shape a click selected, and says whether the screen has to be painted
@@ -461,16 +562,18 @@ impl DiagramState {
         self.session.can_redo()
     }
 
-    /// Whether the shape that owns `at` of the last frame's drawing is the selected shape.
+    /// Whether the shape that owns `at` of the last frame's drawing is the selected shape or
+    /// the focused attach target in [`SubMode::AttachSelect`].
     ///
     /// **This is where the inversion is decided, and it is decided from the record** (D1): a
     /// position nobody owns is never the selection, and an identity no cell records inverts
     /// nothing because no cell asks about it (rule 7).
     pub(crate) fn is_cell_selected(&self, at: Offset) -> bool {
-        matches!(
-            (self.selected(), self.owner(at)),
-            (Some(selected), Some(owner)) if selected == owner
-        )
+        let Some(owner) = self.owner(at) else {
+            return false;
+        };
+        self.selected() == Some(owner)
+            || matches!(self.sub_mode, Some(SubMode::AttachSelect { target, .. }) if target == owner)
     }
 
     /// The offset into the last frame's drawing that the screen position `at` reaches, or `None`
@@ -1083,6 +1186,10 @@ mod tests {
             SubMode::TerminalSelect(End::To),
             SubMode::LeavingSelect(End::From),
             SubMode::LeavingSelect(End::To),
+            SubMode::AttachSelect {
+                end: End::From,
+                target: ShapeId::new(NonZeroU16::new(2).expect("2 is not zero")),
+            },
         ] {
             let mut state = a_diagram_over(THE_EXAMPLE);
             state.select(Some(selected));
@@ -1497,5 +1604,307 @@ mod tests {
         // Undo restores prior diagram
         state.session = state.session.undo();
         assert_eq!(state.session.diagram().shape_count(), 0);
+    }
+
+    #[test]
+    fn entering_attach_select_focuses_the_first_candidate_in_drawing_order() {
+        let text = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "line", "id": 1, "at": { "x": 0, "y": 0 }, "len": 3, "orientation": "horizontal", "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 5, "y": 5 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "point", "x": 10, "y": 10 }, "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 15, "y": 10 }, "leaving": "left", "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+        let mut state = a_diagram_over(text);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        state.select(Some(id3));
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        assert!(state.enter_attach_select());
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id1,
+            })
+        );
+
+        // When there are no attachable candidates
+        let text_no_candidates = r#"{
+            "next_id": 2,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 5, "y": 0 }, "leaving": "left", "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+        let mut state_none = a_diagram_over(text_no_candidates);
+        state_none.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        state_none.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert!(!state_none.enter_attach_select());
+        assert_eq!(state_none.sub_mode(), Some(SubMode::Endpoint(End::From)));
+    }
+
+    #[test]
+    fn attach_select_tab_and_shift_tab_wrap_over_boxes_and_lines_only() {
+        let text = r#"{
+            "next_id": 5,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "point", "x": 5, "y": 0 }, "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 10, "y": 0 }, "leaving": "left", "terminal": { "kind": "arm" } },
+                  "stroke": "light" },
+                { "kind": "line", "id": 3, "at": { "x": 15, "y": 0 }, "len": 4, "orientation": "horizontal", "stroke": "light" },
+                { "kind": "box", "id": 4, "at": { "x": 20, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light" }
+            ]
+        }"#;
+        let mut state = a_diagram_over(text);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+        let id4 = ShapeId::new(NonZeroU16::new(4).unwrap());
+
+        state.select(Some(id2));
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id1,
+        }));
+
+        // Forward wrap: 1 -> 3 -> 4 -> 1 (skipping connector 2)
+        assert!(state.focus_next_attach_target());
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id3,
+            })
+        );
+        assert!(state.focus_next_attach_target());
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id4,
+            })
+        );
+        assert!(state.focus_next_attach_target());
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id1,
+            })
+        );
+
+        // Backward wrap: 1 -> 4 -> 3 -> 1
+        assert!(state.focus_previous_attach_target());
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id4,
+            })
+        );
+        assert!(state.focus_previous_attach_target());
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id3,
+            })
+        );
+        assert!(state.focus_previous_attach_target());
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id1,
+            })
+        );
+    }
+
+    #[test]
+    fn attach_select_ignores_a_connector_or_empty_cell_as_a_target() {
+        let text = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "point", "x": 5, "y": 0 }, "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 10, "y": 0 }, "leaving": "left", "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+        let mut state = a_diagram_over(text);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let non_existent = ShapeId::new(NonZeroU16::new(99).unwrap());
+
+        state.select(Some(id2));
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id1,
+        }));
+
+        // Ignored when target is a connector
+        assert!(!state.focus_attach_target(id2));
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id1,
+            })
+        );
+
+        // Ignored when target does not exist
+        assert!(!state.focus_attach_target(non_existent));
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id1,
+            })
+        );
+    }
+
+    #[test]
+    fn attach_select_focus_does_not_touch_the_session_or_the_selection() {
+        let text = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 10, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "point", "x": 5, "y": 0 }, "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 10, "y": 0 }, "leaving": "left", "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+        let mut state = a_diagram_over(text);
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        state.select(Some(id3));
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        let initial_shapes = state.session().diagram().shape_count();
+        let can_undo = state.can_undo();
+        let selected = state.selected();
+
+        assert!(state.enter_attach_select());
+        assert!(state.focus_next_attach_target());
+        assert!(state.focus_previous_attach_target());
+
+        assert_eq!(state.session().diagram().shape_count(), initial_shapes);
+        assert_eq!(state.can_undo(), can_undo);
+        assert_eq!(state.selected(), selected);
+    }
+
+    #[test]
+    fn attach_select_parent_is_endpoint() {
+        let target = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+        assert_eq!(
+            SubMode::AttachSelect {
+                end: End::From,
+                target,
+            }
+            .parent(),
+            Some(SubMode::Endpoint(End::From))
+        );
+        assert_eq!(
+            SubMode::AttachSelect {
+                end: End::To,
+                target,
+            }
+            .parent(),
+            Some(SubMode::Endpoint(End::To))
+        );
+    }
+
+    #[test]
+    fn attach_select_ends_on_undo() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        let center = state.viewport_center();
+        let _conn_id = state.add_shape(Shape::Connector {
+            from: Endpoint::absolute(
+                center,
+                Direction::Right,
+                Terminal::Symbol {
+                    style: SymbolStyleName::from("outline"),
+                },
+            ),
+            to: Endpoint::absolute(
+                Pos {
+                    x: center.x + 5,
+                    y: center.y + 5,
+                },
+                Direction::Left,
+                Terminal::Symbol {
+                    style: SymbolStyleName::from("solid"),
+                },
+            ),
+            stroke: Stroke::from("light"),
+        });
+
+        assert!(state.can_undo());
+        let target = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target,
+        }));
+
+        state.undo();
+        assert_eq!(state.selected(), None);
+        assert_eq!(state.sub_mode(), None);
+    }
+
+    #[test]
+    fn is_cell_selected_inverts_the_attach_target_and_the_selected_connector() {
+        let text = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 0, "y": 0 }, "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 4, "y": 0 }, "leaving": "left", "terminal": { "kind": "arm" } },
+                  "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 10, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "line", "id": 3, "at": { "x": 20, "y": 0 }, "len": 3, "orientation": "horizontal", "stroke": "light" }
+            ]
+        }"#;
+        let mut state = a_diagram_over(text);
+        state.redraw(Rect::new(0, 0, 30, 10), Rect::new(0, 0, 30, 10));
+
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        state.select(Some(id1));
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id2,
+        }));
+
+        // The selected connector's cell is inverted
+        assert!(state.is_cell_selected(Offset { x: 0, y: 0 }));
+        assert_eq!(state.owner(Offset { x: 0, y: 0 }), Some(id1));
+
+        // The focused attach target box's cell is inverted
+        assert!(state.is_cell_selected(Offset { x: 10, y: 0 }));
+        assert_eq!(state.owner(Offset { x: 10, y: 0 }), Some(id2));
+
+        // Other shapes are NOT inverted
+        assert!(!state.is_cell_selected(Offset { x: 20, y: 0 }));
+        assert_eq!(state.owner(Offset { x: 20, y: 0 }), Some(id3));
+
+        // Empty cells are NOT inverted
+        assert!(!state.is_cell_selected(Offset { x: 28, y: 8 }));
+        assert_eq!(state.owner(Offset { x: 28, y: 8 }), None);
     }
 }

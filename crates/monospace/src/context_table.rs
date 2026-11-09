@@ -11,7 +11,7 @@
 //! offered alongside Tab selection when shapes exist.
 
 use monospace_core::{Orientation, ShapeId, Terminal};
-use monospace_diagram::{Delta, Direction, EndpointAt, Shape};
+use monospace_diagram::{Anchor, Delta, Direction, EndpointAt, Shape};
 use monospace_editing::Command;
 use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -39,6 +39,9 @@ pub(crate) enum Condition {
     EndpointAttached,
     /// Active only if the active endpoint is attached and either offset or out is non-zero.
     EndpointReset,
+    /// Active only if the active endpoint is detached and the diagram holds at least one
+    /// attachable shape (a box or a line).
+    AttachableEndpoint,
     /// Active only if the diagram holds at least one figure.
     HasShapes,
     /// Active only if the active endpoint is the given end.
@@ -271,6 +274,14 @@ pub(crate) enum ContextMeaning {
     EnterLeavingSelect,
     /// Enters the terminal style selector for the active endpoint.
     EnterTerminalSelect,
+    /// Enters the attach picker for the active detached endpoint.
+    EnterAttachSelect,
+    /// Focuses the next attachable candidate in drawing order.
+    FocusNextAttachTarget,
+    /// Focuses the previous attachable candidate in drawing order.
+    FocusPreviousAttachTarget,
+    /// Attaches the active detached endpoint to the focused target's anchor.
+    AttachEndpoint(Anchor),
     /// Enters an inline sub-mode.
     EnterSubMode(SubMode),
     /// Leaves an inline sub-mode back to normal selection.
@@ -674,6 +685,15 @@ static ENDPOINT: &[ContextBlock] = &[
         }],
     },
     ContextBlock {
+        category: Some("ATTACH"),
+        condition: Condition::AttachableEndpoint,
+        actions: &[ContextAction {
+            trigger: Trigger::Key(KeyPattern::Char('a')),
+            label: "",
+            meaning: ContextMeaning::EnterAttachSelect,
+        }],
+    },
+    ContextBlock {
         category: Some("OFFSET"),
         condition: Condition::EndpointAttached,
         actions: &[ContextAction {
@@ -754,6 +774,60 @@ static ENDPOINT: &[ContextBlock] = &[
     },
 ];
 
+static ATTACH_SELECT: &[ContextBlock] = &[
+    ContextBlock {
+        category: Some("TARGET"),
+        condition: Condition::Always,
+        actions: &[
+            ContextAction {
+                trigger: Trigger::Key(KeyPattern::Code(KeyCode::Tab)),
+                label: "Next",
+                meaning: ContextMeaning::FocusNextAttachTarget,
+            },
+            ContextAction {
+                trigger: Trigger::Key(KeyPattern::BackTab),
+                label: "Prev",
+                meaning: ContextMeaning::FocusPreviousAttachTarget,
+            },
+        ],
+    },
+    ContextBlock {
+        category: Some("ANCHOR"),
+        condition: Condition::Always,
+        actions: &[
+            ContextAction {
+                trigger: Trigger::Key(KeyPattern::Char('1')),
+                label: "Top",
+                meaning: ContextMeaning::AttachEndpoint(Anchor::Top),
+            },
+            ContextAction {
+                trigger: Trigger::Key(KeyPattern::Char('2')),
+                label: "Right",
+                meaning: ContextMeaning::AttachEndpoint(Anchor::Right),
+            },
+            ContextAction {
+                trigger: Trigger::Key(KeyPattern::Char('3')),
+                label: "Bottom",
+                meaning: ContextMeaning::AttachEndpoint(Anchor::Bottom),
+            },
+            ContextAction {
+                trigger: Trigger::Key(KeyPattern::Char('4')),
+                label: "Left",
+                meaning: ContextMeaning::AttachEndpoint(Anchor::Left),
+            },
+        ],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+            label: "Cancel",
+            meaning: ContextMeaning::LeaveSubMode,
+        }],
+    },
+];
+
 #[cfg(test)]
 pub(crate) static ALL_TABLES: &[&[ContextBlock]] = &[
     IDLE,
@@ -763,6 +837,7 @@ pub(crate) static ALL_TABLES: &[&[ContextBlock]] = &[
     ENDPOINT,
     TERMINAL_SELECT,
     LEAVING_SELECT,
+    ATTACH_SELECT,
 ];
 
 #[cfg(test)]
@@ -823,6 +898,7 @@ pub(crate) enum Context {
     Endpoint(End),
     Terminal(End),
     Leaving(End),
+    Attach(End),
     /// A sub-mode and a selection that do not fit. No action is offered.
     Inconsistent,
 }
@@ -846,12 +922,16 @@ pub(crate) fn context(state: &DiagramState) -> Context {
         Some(SubMode::LeavingSelect(end)) if kind == Some(SelectionKind::Connector) => {
             Context::Leaving(end)
         }
+        Some(SubMode::AttachSelect { end, .. }) if kind == Some(SelectionKind::Connector) => {
+            Context::Attach(end)
+        }
         Some(
             SubMode::StrokeSelect
             | SubMode::OrderMode
             | SubMode::Endpoint(_)
             | SubMode::TerminalSelect(_)
-            | SubMode::LeavingSelect(_),
+            | SubMode::LeavingSelect(_)
+            | SubMode::AttachSelect { .. },
         ) => Context::Inconsistent,
     }
 }
@@ -870,6 +950,11 @@ pub(crate) fn context_blocks(
         Some(SelectionKind::Box | SelectionKind::HorizontalLine | SelectionKind::VerticalLine)
     );
     let has_shapes = state.session().diagram().shape_count() > 0;
+    let has_attachable_shapes = state
+        .session()
+        .diagram()
+        .shapes()
+        .any(|(_, shape)| DiagramState::is_attachable(shape));
 
     let (slice, active_endpoint, is_endpoint_detached, is_endpoint_attached, is_endpoint_reset): (
         &'static [ContextBlock],
@@ -902,6 +987,7 @@ pub(crate) fn context_blocks(
         }
         Context::Terminal(_) => (TERMINAL_SELECT, None, false, false, false),
         Context::Leaving(_) => (LEAVING_SELECT, None, false, false, false),
+        Context::Attach(_) => (ATTACH_SELECT, None, false, false, false),
         Context::Inconsistent => (&[], None, false, false, false),
     };
 
@@ -915,6 +1001,7 @@ pub(crate) fn context_blocks(
         Condition::EndpointDetached => is_endpoint_detached,
         Condition::EndpointAttached => is_endpoint_attached,
         Condition::EndpointReset => is_endpoint_reset,
+        Condition::AttachableEndpoint => is_endpoint_detached && has_attachable_shapes,
         Condition::HasShapes => has_shapes,
         Condition::ActiveEndpointIs(target_end) => active_endpoint == Some(target_end),
     })
@@ -1086,6 +1173,42 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
             };
             state.set_sub_mode(Some(SubMode::TerminalSelect(end)));
             Reply::Repaint
+        }
+        ContextMeaning::EnterAttachSelect => {
+            if state.enter_attach_select() {
+                Reply::Repaint
+            } else {
+                Reply::Ignored
+            }
+        }
+        ContextMeaning::FocusNextAttachTarget => {
+            if state.focus_next_attach_target() {
+                Reply::Repaint
+            } else {
+                Reply::Consumed
+            }
+        }
+        ContextMeaning::FocusPreviousAttachTarget => {
+            if state.focus_previous_attach_target() {
+                Reply::Repaint
+            } else {
+                Reply::Consumed
+            }
+        }
+        ContextMeaning::AttachEndpoint(anchor) => {
+            let Some(SubMode::AttachSelect { end, target }) = state.sub_mode() else {
+                return Reply::Ignored;
+            };
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
+            state.set_sub_mode(Some(SubMode::Endpoint(end)));
+            Reply::Act(Action::Command(Command::Hang {
+                id,
+                end,
+                target,
+                anchor,
+            }))
         }
         ContextMeaning::EnterSubMode(sub_mode) => {
             state.set_sub_mode(Some(sub_mode));
@@ -1293,6 +1416,20 @@ mod tests {
                       "to": { "at": { "kind": "point", "x": 10, "y": 1 },
                               "leaving": "left", "terminal": { "kind": "arm" } },
                       "stroke": "light" } ]
+    }"#;
+
+    const A_CONNECTOR_AND_A_BOX: &str = r#"{
+        "next_id": 3,
+        "shapes": [
+            { "kind": "connector", "id": 1,
+              "from": { "at": { "kind": "point", "x": 2, "y": 1 },
+                        "leaving": "right", "terminal": { "kind": "arm" } },
+              "to": { "at": { "kind": "point", "x": 10, "y": 1 },
+                      "leaving": "left", "terminal": { "kind": "arm" } },
+              "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 10, "y": 10 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" }
+        ]
     }"#;
 
     fn a_state_over(json: &str) -> DiagramState {
@@ -1751,6 +1888,25 @@ mod tests {
         s.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
         states.push(s);
 
+        // Attach select From
+        let id2 = ShapeId::new(NonZeroU16::new(2).expect("2 is non-zero"));
+        let mut s = a_state_over(A_CONNECTOR_AND_A_BOX);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id2,
+        }));
+        states.push(s);
+
+        // Attach select To
+        let mut s = a_state_over(A_CONNECTOR_AND_A_BOX);
+        s.select(Some(id1));
+        s.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::To,
+            target: id2,
+        }));
+        states.push(s);
+
         states
     }
 
@@ -1870,5 +2026,190 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn format_command_line_in_attach_select() {
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+        let target = ShapeId::new(NonZeroU16::new(2).expect("2 is non-zero"));
+        let mut state = a_state_over(A_CONNECTOR_AND_A_BOX);
+        state.select(Some(id1));
+
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target,
+        }));
+        assert_eq!(
+            crate::status::status_line(&state),
+            "ATTACH for 1. From of Connector #1 · Detached at (2, 1), leaving right · Target: Box #2 · 1 of 1"
+        );
+        assert_eq!(
+            format_command_line(&state),
+            "TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel"
+        );
+
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::To,
+            target,
+        }));
+        assert_eq!(
+            crate::status::status_line(&state),
+            "ATTACH for 2. To of Connector #1 · Detached at (10, 1), leaving left · Target: Box #2 · 1 of 1"
+        );
+        assert_eq!(
+            format_command_line(&state),
+            "TARGET: [Tab] Next [Shift+Tab] Prev · ANCHOR: [1] Top [2] Right [3] Bottom [4] Left · [Esc] Cancel"
+        );
+    }
+
+    #[test]
+    fn attach_is_offered_only_for_a_detached_endpoint_with_a_candidate() {
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+
+        // 1. Present with detached connector + box
+        let mut state_detached_with_box = a_state_over(A_CONNECTOR_AND_A_BOX);
+        state_detached_with_box.select(Some(id1));
+        state_detached_with_box.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        let cmd = format_command_line(&state_detached_with_box);
+        assert!(cmd.contains("ATTACH: [a]"), "expected ATTACH in {cmd}");
+
+        // 2. Absent with attached connector + box
+        let id3 = ShapeId::new(NonZeroU16::new(3).expect("3 is non-zero"));
+        let mut state_attached_with_box = a_state_over(AN_ATTACHED_CONNECTOR);
+        state_attached_with_box.select(Some(id3));
+        state_attached_with_box.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        let cmd = format_command_line(&state_attached_with_box);
+        assert!(!cmd.contains("ATTACH"), "expected no ATTACH in {cmd}");
+
+        // 3. Absent with detached connector without box
+        let mut state_detached_without_box = a_state_over(A_CONNECTOR);
+        state_detached_without_box.select(Some(id1));
+        state_detached_without_box.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        let cmd = format_command_line(&state_detached_without_box);
+        assert!(!cmd.contains("ATTACH"), "expected no ATTACH in {cmd}");
+    }
+
+    #[test]
+    fn context_reports_attach_select() {
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+        let target = ShapeId::new(NonZeroU16::new(2).expect("2 is non-zero"));
+
+        let mut s_from = a_state_over(A_CONNECTOR_AND_A_BOX);
+        s_from.select(Some(id1));
+        s_from.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target,
+        }));
+        assert_eq!(context(&s_from), Context::Attach(End::From));
+
+        let mut s_to = a_state_over(A_CONNECTOR_AND_A_BOX);
+        s_to.select(Some(id1));
+        s_to.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::To,
+            target,
+        }));
+        assert_eq!(context(&s_to), Context::Attach(End::To));
+
+        // Inconsistent if selection is a box with AttachSelect
+        let mut inconsistent = a_state_over(A_CONNECTOR_AND_A_BOX);
+        inconsistent.select(Some(target));
+        inconsistent.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target,
+        }));
+        assert_eq!(context(&inconsistent), Context::Inconsistent);
+    }
+
+    #[test]
+    fn attach_select_dispatch_focuses_and_attaches() {
+        let text = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "connector", "id": 1,
+                  "from": { "at": { "kind": "point", "x": 2, "y": 1 },
+                            "leaving": "right", "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 10, "y": 1 },
+                          "leaving": "left", "terminal": { "kind": "arm" } },
+                  "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 10, "y": 10 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "line", "id": 3, "at": { "x": 20, "y": 10 },
+                  "len": 5, "orientation": "horizontal", "stroke": "light" }
+            ]
+        }"#;
+        let mut state = a_state_over(text);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let id3 = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        state.select(Some(id1));
+        state.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+
+        // Enter attach select with 'a'
+        let key_a = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
+        assert_eq!(dispatch_key(&mut state, &key_a), Reply::Repaint);
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id2
+            })
+        );
+
+        // Tab focuses next candidate (id3)
+        let key_tab = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(dispatch_key(&mut state, &key_tab), Reply::Repaint);
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id3
+            })
+        );
+
+        // BackTab focuses previous candidate (id2)
+        let key_back_tab = KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT);
+        assert_eq!(dispatch_key(&mut state, &key_back_tab), Reply::Repaint);
+        assert_eq!(
+            state.sub_mode(),
+            Some(SubMode::AttachSelect {
+                end: End::From,
+                target: id2
+            })
+        );
+
+        // Key '1' attaches to Top
+        let key_1 = KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE);
+        let reply = dispatch_key(&mut state, &key_1);
+        assert_eq!(
+            reply,
+            Reply::Act(Action::Command(Command::Hang {
+                id: id1,
+                end: End::From,
+                target: id2,
+                anchor: Anchor::Top,
+            }))
+        );
+        // SubMode is returned to Endpoint
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+    }
+
+    #[test]
+    fn attach_select_esc_returns_to_endpoint_without_a_step() {
+        let mut state = a_state_over(A_CONNECTOR_AND_A_BOX);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+
+        state.select(Some(id1));
+        state.set_sub_mode(Some(SubMode::AttachSelect {
+            end: End::From,
+            target: id2,
+        }));
+
+        let can_undo = state.session().can_undo();
+        let key_esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+        assert_eq!(dispatch_key(&mut state, &key_esc), Reply::Repaint);
+        assert_eq!(state.sub_mode(), Some(SubMode::Endpoint(End::From)));
+        assert_eq!(state.session().can_undo(), can_undo);
     }
 }
