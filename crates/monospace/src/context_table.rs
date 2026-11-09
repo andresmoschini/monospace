@@ -309,6 +309,7 @@ impl ContextAction {
 }
 
 /// A group of related contextual actions sharing a category prefix and condition.
+#[derive(Debug)]
 pub(crate) struct ContextBlock {
     pub(crate) category: Option<&'static str>,
     pub(crate) condition: Condition,
@@ -1424,6 +1425,166 @@ mod tests {
         leaving_to.select(Some(id));
         leaving_to.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
         assert_eq!(context(&leaving_to), Context::Leaving(End::To));
+
+        // Inconsistent
+        let mut inconsistent = a_state_over(A_BOX);
+        inconsistent.set_sub_mode(Some(SubMode::StrokeSelect));
+        assert_eq!(context(&inconsistent), Context::Inconsistent);
+    }
+
+    #[test]
+    fn format_command_line_in_idle_and_selection() {
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+
+        // 1. Idle empty
+        let empty_idle = a_state_over(EMPTY);
+        assert_eq!(
+            format_command_line(&empty_idle),
+            "CREATE: [b] Box [l] Line [c] Connector"
+        );
+
+        // 2. Idle populated
+        let populated_idle = a_state_over(A_BOX);
+        assert_eq!(
+            format_command_line(&populated_idle),
+            "CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"
+        );
+
+        // 3. Selection: Box
+        let mut box_selected = a_state_over(A_BOX);
+        box_selected.select(Some(id1));
+        assert_eq!(
+            format_command_line(&box_selected),
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+        );
+
+        // 4. Selection: Horizontal Line
+        let mut horizontal_line_selected = a_state_over(A_LINE);
+        horizontal_line_selected.select(Some(id1));
+        assert_eq!(
+            format_command_line(&horizontal_line_selected),
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+        );
+
+        // 5. Selection: Vertical Line
+        let mut vertical_line_selected = a_state_over(A_VERTICAL_LINE);
+        vertical_line_selected.select(Some(id1));
+        assert_eq!(
+            format_command_line(&vertical_line_selected),
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+        );
+
+        // 6. Selection: Connector
+        let mut conn_selected = a_state_over(A_CONNECTOR);
+        conn_selected.select(Some(id1));
+        assert_eq!(
+            format_command_line(&conn_selected),
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+        );
+    }
+
+    #[test]
+    fn format_command_line_in_sub_modes() {
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+
+        // Stroke select
+        let mut stroke_state = a_state_over(A_BOX);
+        stroke_state.select(Some(id1));
+        stroke_state.set_sub_mode(Some(SubMode::StrokeSelect));
+        assert_eq!(
+            format_command_line(&stroke_state),
+            "STROKE: [1] light ┌─┐ [2] double ╔═╗ [3] light-round ╭─╮ [4] heavy ┏━┓ [5] ascii +-+ · [Esc] Cancel"
+        );
+
+        // Order mode
+        let mut order_state = a_state_over(A_BOX);
+        order_state.select(Some(id1));
+        order_state.set_sub_mode(Some(SubMode::OrderMode));
+        assert_eq!(
+            format_command_line(&order_state),
+            "ORDER: [Home] Front [End] Back [PgUp] Forward [PgDn] Backward · [Esc] Done"
+        );
+
+        // Terminal select From / To
+        let mut term_from = a_state_over(A_CONNECTOR);
+        term_from.select(Some(id1));
+        term_from.set_sub_mode(Some(SubMode::TerminalSelect(End::From)));
+        assert_eq!(
+            format_command_line(&term_from),
+            "TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel"
+        );
+
+        let mut term_to = a_state_over(A_CONNECTOR);
+        term_to.select(Some(id1));
+        term_to.set_sub_mode(Some(SubMode::TerminalSelect(End::To)));
+        assert_eq!(
+            format_command_line(&term_to),
+            "TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel"
+        );
+
+        // Leaving select From / To
+        let mut leaving_from = a_state_over(A_CONNECTOR);
+        leaving_from.select(Some(id1));
+        leaving_from.set_sub_mode(Some(SubMode::LeavingSelect(End::From)));
+        assert_eq!(
+            format_command_line(&leaving_from),
+            "LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel"
+        );
+
+        let mut leaving_to = a_state_over(A_CONNECTOR);
+        leaving_to.select(Some(id1));
+        leaving_to.set_sub_mode(Some(SubMode::LeavingSelect(End::To)));
+        assert_eq!(
+            format_command_line(&leaving_to),
+            "LEAVING: [1] ↑ North [2] → East [3] ↓ South [4] ← West · [Esc] Cancel"
+        );
+    }
+
+    #[test]
+    fn format_command_line_in_endpoint_sub_mode_and_inconsistent() {
+        let id1 = ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero"));
+        let id3 = ShapeId::new(NonZeroU16::new(3).expect("3 is non-zero"));
+
+        // Endpoint From (detached)
+        let mut ep_from = a_state_over(A_CONNECTOR);
+        ep_from.select(Some(id1));
+        ep_from.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_eq!(
+            format_command_line(&ep_from),
+            "MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [2] To · [Esc] Done"
+        );
+
+        // Endpoint To (detached)
+        let mut ep_to = a_state_over(A_CONNECTOR);
+        ep_to.select(Some(id1));
+        ep_to.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        assert_eq!(
+            format_command_line(&ep_to),
+            "MOVE: ↑↓←→ · LEAVING: [d] · TERMINAL: [t] · [1] From · [Esc] Done"
+        );
+
+        // Endpoint From (attached, zero offset/out -> reset hidden)
+        let mut ep_from_att = a_state_over(AN_ATTACHED_CONNECTOR);
+        ep_from_att.select(Some(id3));
+        ep_from_att.set_sub_mode(Some(SubMode::Endpoint(End::From)));
+        assert_eq!(
+            format_command_line(&ep_from_att),
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [0] Detach · TERMINAL: [t] · [2] To · [Esc] Done"
+        );
+
+        // Endpoint To (attached, non-zero offset/out -> reset shown)
+        let mut ep_to_att = a_state_over(AN_ATTACHED_CONNECTOR);
+        ep_to_att.select(Some(id3));
+        ep_to_att.set_sub_mode(Some(SubMode::Endpoint(End::To)));
+        assert_eq!(
+            format_command_line(&ep_to_att),
+            "OFFSET: ↑↓←→ · OUT: [+] [-] · [r] Reset · [0] Detach · TERMINAL: [t] · [1] From · [Esc] Done"
+        );
+
+        // Inconsistent
+        let mut inconsistent = a_state_over(A_BOX);
+        inconsistent.set_sub_mode(Some(SubMode::StrokeSelect));
+        assert_eq!(format_command_line(&inconsistent), "");
     }
 
     #[test]
