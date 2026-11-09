@@ -871,37 +871,38 @@ pub(crate) fn context_blocks(
     );
     let has_shapes = state.session().diagram().shape_count() > 0;
 
-    let (is_endpoint_detached, is_endpoint_attached, is_endpoint_reset) =
-        match (state.sub_mode(), state.selected_shape()) {
-            (Some(SubMode::Endpoint(end)), Some(Shape::Connector { from, to, .. })) => {
-                let active = match end {
-                    End::From => from,
-                    End::To => to,
-                };
-                match active.at {
-                    EndpointAt::Absolute { .. } => (true, false, false),
-                    EndpointAt::Reference(ref r) => {
-                        (false, true, r.offset != Delta::ZERO || r.out != 0)
+    let (slice, active_endpoint, is_endpoint_detached, is_endpoint_attached, is_endpoint_reset): (
+        &'static [ContextBlock],
+        _,
+        _,
+        _,
+        _,
+    ) = match context(state) {
+        Context::Idle => (IDLE, None, false, false, false),
+        Context::Selection => (SELECTION, None, false, false, false),
+        Context::Stroke => (STROKE_SELECT, None, false, false, false),
+        Context::Order => (ORDER_MODE, None, false, false, false),
+        Context::Endpoint(end) => {
+            let (detached, attached, reset) = match state.selected_shape() {
+                Some(Shape::Connector { from, to, .. }) => {
+                    let active = match end {
+                        End::From => from,
+                        End::To => to,
+                    };
+                    match active.at {
+                        EndpointAt::Absolute { .. } => (true, false, false),
+                        EndpointAt::Reference(ref r) => {
+                            (false, true, r.offset != Delta::ZERO || r.out != 0)
+                        }
                     }
                 }
-            }
-            _ => (false, false, false),
-        };
-
-    let active_endpoint = match context(state) {
-        Context::Endpoint(end) => Some(end),
-        _ => None,
-    };
-
-    let slice: &'static [ContextBlock] = match context(state) {
-        Context::Idle => IDLE,
-        Context::Selection => SELECTION,
-        Context::Stroke => STROKE_SELECT,
-        Context::Order => ORDER_MODE,
-        Context::Endpoint(_) => ENDPOINT,
-        Context::Terminal(_) => TERMINAL_SELECT,
-        Context::Leaving(_) => LEAVING_SELECT,
-        Context::Inconsistent => &[],
+                _ => (false, false, false),
+            };
+            (ENDPOINT, Some(end), detached, attached, reset)
+        }
+        Context::Terminal(_) => (TERMINAL_SELECT, None, false, false, false),
+        Context::Leaving(_) => (LEAVING_SELECT, None, false, false, false),
+        Context::Inconsistent => (&[], None, false, false, false),
     };
 
     slice.iter().filter(move |block| match block.condition {
