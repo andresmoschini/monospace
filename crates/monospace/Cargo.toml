@@ -5,6 +5,11 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 # Six dependencies from crates.io and no others, which is what the specification's D2 says: the event
 # loop and the terminal it runs on, the widgets of the chrome, the theme it is drawn in, and the

@@ -18,7 +18,7 @@
 window.MONOSPACE_CONFIG = {
   version: "0.1.0",
   repoUrl: "https://github.com/andresmoschini/monospace",
-  cratesIoUrl: "https://example.com/TODO-crates-io",
+  cratesIoUrl: "https://crates.io/crates/monospace",
   releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.0",
   // Keyed by the value of each button's data-download-platform attribute. A card's
   // data-download-status badge reads "Available" once any of its buttons has a real URL.
