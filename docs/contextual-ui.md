@@ -117,13 +117,15 @@ Within selection states, command blocks flow from left to right in order of oper
    `INVERT: [i]`).
 2. **Sub-mode and overlay triggers:** Secondary attribute flows (`STROKE: [s]`, `FILL: [f]`,
    `ORDER: [z]`).
-3. **Destructive and exit actions:** Selection traversal and termination
-   (`[Tab] Next [Shift+Tab] Prev`, `[Del] Delete`, `[Esc] Deselect` / `Cancel` / `Done`).
+3. **Destructive and exit actions:** Selection traversal, duplication, and termination
+   (`[Tab] Next [Shift+Tab] Prev`, `[d] Duplicate`, `[Del] Delete`, `[Esc] Deselect` / `Cancel` /
+   `Done`).
 
 ### Visual notation conventions
 
-- **Key notation:** Discrete operable keys are enclosed in brackets: `[s]`, `[t]`, `[Del]`, `[Esc]`.
-  Directional clusters are written without brackets: `↑↓←→`, `Shift+↑↓←→`, `Shift+←→`, `Shift+↑↓`.
+- **Key notation:** Discrete operable keys are enclosed in brackets: `[s]`, `[t]`, `[d]`, `[Del]`,
+  `[Esc]`. Directional clusters are written without brackets: `↑↓←→`, `Shift+↑↓←→`, `Shift+←→`,
+  `Shift+↑↓`.
 - **Category labels:** Block categories are uppercase followed by a colon: `MOVE:`, `RESIZE:`,
   `TEXT:`, `STROKE:`, `FILL:`, `ORDER:`.
 - **Sub-mode options:** Inline choices list numbered or lettered shortcuts followed by labels:
@@ -249,19 +251,20 @@ A `Shape::Box` is selected.
 
 - **Status:** Implemented (`MOVE: ↑↓←→`, `RESIZE: Shift+↑↓←→`, `TEXT: [t] Edit`, `STROKE: [s]`,
   `ORDER: [z]`, `[Tab] Next [Shift+Tab] Prev` via
-  [#307](https://github.com/andresmoschini/monospace/issues/307), `[Del] Delete`, `[Esc] Deselect`).
+  [#307](https://github.com/andresmoschini/monospace/issues/307), `[d] Duplicate` via
+  [#349](https://github.com/andresmoschini/monospace/issues/349), `[Del] Delete`, `[Esc] Deselect`).
   Planned: `FILL: [f]` and `[a] Auto-fit`.
 
 ```text
 Box #2 "API Gateway" · Pos: (14, 6) · Size: 18×5 · Stroke: light
-MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect
 ```
 
 _Planned target with fill selection and auto-fit:_
 
 ```text
 Box #2 "API Gateway" · Pos: (14, 6) · Size: 18×5 · Stroke: light · Fill: None
-MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit [a] Auto-fit · STROKE: [s] · FILL: [f] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit [a] Auto-fit · STROKE: [s] · FILL: [f] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect
 ```
 
 - **Behavior:**
@@ -278,6 +281,8 @@ MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit [a] Auto-fit 
   - `s`: Opens `STROKE_SELECT`.
   - `f`: Opens `FILL_SELECT`.
   - `z`: Opens `ORDER_MODE`.
+  - `d`: Duplicates the selected box in place (`Shape::clone`), adding it via `Session::add` at the
+    front of the drawing order and selecting the new duplicate.
   - `Delete`: Removes box (`Command::Remove`). Connectors attached to it freeze their endpoints at
     their current resolved coordinates.
   - `Esc`: Clears selection and returns to `IDLE`.
@@ -290,20 +295,21 @@ A `Shape::Line` is selected.
 
 - **Status:** Implemented (`MOVE: ↑↓←→`, orientation-aware `RESIZE`, `ROTATE: [r]`, `STROKE: [s]`,
   `ORDER: [z]`, `[Tab] Next [Shift+Tab] Prev` via
-  [#307](https://github.com/andresmoschini/monospace/issues/307), `[Del] Delete`, `[Esc] Deselect`).
+  [#307](https://github.com/andresmoschini/monospace/issues/307), `[d] Duplicate` via
+  [#349](https://github.com/andresmoschini/monospace/issues/349), `[Del] Delete`, `[Esc] Deselect`).
 
 _Horizontal line mockup:_
 
 ```text
 Line #3 · Pos: (20, 10) · Length: 12 · Orientation: Horizontal · Stroke: light
-MOVE: ↑↓←→ · RESIZE: Shift+←→ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+←→ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect
 ```
 
 _Vertical line mockup:_
 
 ```text
 Line #3 · Pos: (20, 10) · Length: 8 · Orientation: Vertical · Stroke: light
-MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect
 ```
 
 - **Behavior:**
@@ -315,6 +321,8 @@ MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDE
     updating the status row and the `RESIZE` key hint immediately, and recording 1 step.
   - `s`: Opens `STROKE_SELECT`.
   - `z`: Opens `ORDER_MODE`.
+  - `d`: Duplicates the selected line in place (`Shape::clone`), adding it via `Session::add` at the
+    front of the drawing order and selecting the new duplicate.
   - `Delete`: Removes line and returns to `IDLE`.
   - `Esc`: Deselects and returns to `IDLE`.
 
@@ -467,13 +475,13 @@ The complete endpoint interaction model is specified in detail in
 [`connector-editing.md`](connector-editing.md). The table below summarizes the connector state
 catalog:
 
-| State                | Type                | Trigger                                                        | Key commands & transitions                                                                                                             | Description                                                                            |
-| :------------------- | :------------------ | :------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
-| `SELECTED_CONNECTOR` | Base selection      | Click connector or `Tab`                                       | `[1]` / `[2]` endpoint edit, `[i]` invert terminals, `[s]` stroke, `[z]` order, `[Tab]`/`[Shift+Tab]` cycle, `[Del]`, `[Esc]`          | Top-level connector inspection. Shows endpoints, stroke, and terminals in row 0.       |
-| `ENDPOINT_EDIT`      | Continuous sub-mode | `[1]` (start) or `[2]` (end)                                   | `↑↓←→` offset/position, `+`/`-` out, `[r]` reset, `[0]` detach, `[t]` terminal, `[2]` / `[1]` switch, `[Esc]` Done                     | Fine-grained endpoint adjustment. Operates directly on `from` or `to`.                 |
-| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                                       | `[1]` arm ─, `[2]` solid ▶, `[3]` outline ▷, `[4]` ascii >, `[5]` diamond ◆, `[Esc]` Cancel                                            | Selects head symbol or arm for the active endpoint.                                    |
-| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)                            | `[1]` ↑ North, `[2]` → East, `[3]` ↓ South, `[4]` ← West, `[Esc]` Cancel                                                               | Sets explicit departure direction for detached (`Absolute`) endpoints.                 |
-| `ATTACH_SELECT`      | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` (detached, with `Box`/`Line` present) | `Tab`/`Shift+Tab` cycle target focus, click candidate to focus, `1..=4` pick anchor (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel | Attaches a detached endpoint to a shape face; does not re-attach an existing endpoint. |
+| State                | Type                | Trigger                                                        | Key commands & transitions                                                                                                                     | Description                                                                            |
+| :------------------- | :------------------ | :------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
+| `SELECTED_CONNECTOR` | Base selection      | Click connector or `Tab`                                       | `[1]` / `[2]` endpoint edit, `[i]` invert terminals, `[s]` stroke, `[z]` order, `[Tab]`/`[Shift+Tab]` cycle, `[d]` duplicate, `[Del]`, `[Esc]` | Top-level connector inspection. Shows endpoints, stroke, and terminals in row 0.       |
+| `ENDPOINT_EDIT`      | Continuous sub-mode | `[1]` (start) or `[2]` (end)                                   | `↑↓←→` offset/position, `+`/`-` out, `[r]` reset, `[0]` detach, `[t]` terminal, `[2]` / `[1]` switch, `[Esc]` Done                             | Fine-grained endpoint adjustment. Operates directly on `from` or `to`.                 |
+| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                                       | `[1]` arm ─, `[2]` solid ▶, `[3]` outline ▷, `[4]` ascii >, `[5]` diamond ◆, `[Esc]` Cancel                                                    | Selects head symbol or arm for the active endpoint.                                    |
+| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)                            | `[1]` ↑ North, `[2]` → East, `[3]` ↓ South, `[4]` ← West, `[Esc]` Cancel                                                                       | Sets explicit departure direction for detached (`Absolute`) endpoints.                 |
+| `ATTACH_SELECT`      | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` (detached, with `Box`/`Line` present) | `Tab`/`Shift+Tab` cycle target focus, click candidate to focus, `1..=4` pick anchor (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel         | Attaches a detached endpoint to a shape face; does not re-attach an existing endpoint. |
 
 ---
 
@@ -510,6 +518,7 @@ The settled architectural foundations backing the contextual interface are:
   [#307](https://github.com/andresmoschini/monospace/issues/307)
 - **Direct shape creation from `IDLE` (`b`, `l`, `c`):**
   [#308](https://github.com/andresmoschini/monospace/issues/308)
+- **Shape duplication with `[d]`:** [#349](https://github.com/andresmoschini/monospace/issues/349)
 
 ---
 
@@ -553,11 +562,15 @@ Implements self-contained contextual features that fit directly into the unified
    (`Tab`) and backward (`Shift+Tab` / `BackTab`) through diagram shapes. Offered in `IDLE`
    (`CREATE: [b] Box [l] Line [c] Connector` unconditionally, followed by
    `SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when diagram has shapes) and immediately
-   before `[Del] Delete · [Esc] Deselect` in all `SELECTED_*` states.
+   before `[d] Duplicate · [Del] Delete · [Esc] Deselect` in all `SELECTED_*` states.
 3. **Box auto-fit to text content with `[a]` (`Auto-fit`):** Contextual action on `SELECTED_BOX`
    visible **only** when the box contains text (`text: Some(_)`). Executes a single command
    adjusting box width and height to fit the text lines (accounting for 2-column wide glyphs and
    padding).
+4. **Shape duplication with `[d]` ([#349](https://github.com/andresmoschini/monospace/issues/349))
+   [Implemented]:** Clones the selected box, line, or connector in place via `Session::add`
+   (`Command::Add`), placing it at the front of the drawing order and selecting the new duplicate.
+   Offered immediately before `[Del] Delete · [Esc] Deselect` in all `SELECTED_*` states.
 
 ---
 

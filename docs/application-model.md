@@ -115,7 +115,7 @@ command row shows the contextual actions available for that state: in `IDLE`,
 `CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick` when the
 diagram holds shapes (`Condition::HasShapes`), and `CREATE: [b] Box [l] Line [c] Connector` when the
 diagram has 0 shapes; in base selection states, `[Tab] Next [Shift+Tab] Prev` sits immediately
-before `[Del] Delete · [Esc] Deselect`.
+before `[d] Duplicate · [Del] Delete · [Esc] Deselect`.
 
 ## 3. The state
 
@@ -189,6 +189,15 @@ is the scroll origin and $(W, H)$ is the buffer window size. Creation records a 
 be undone via `Session::add` and immediately selects the newly assigned `ShapeId` (`SELECTED_BOX`,
 `SELECTED_LINE`, or `SELECTED_CONNECTOR`). When a figure is already selected or an inline sub-mode
 is active, `b`, `l`, and `c` are neither offered nor accepted (`Reply::Ignored`).
+
+**`d` duplicates the selected figure in place**
+([#349](https://github.com/andresmoschini/monospace/issues/349)). In base selection states
+(`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`), pressing `d` clones the selected `Shape`
+verbatim (`Shape::clone`) and adds it via `Session::add` (`Command::Add`), assigning a fresh
+`ShapeId` at the front of the drawing order (`to_front`). Duplication records a single step that can
+be undone and immediately moves selection to the newly created duplicate (`Some(new_id)`). When
+nothing is selected (`IDLE`) or inside any sub-mode, `d` is neither offered nor accepted
+(`Reply::Ignored`).
 
 **The focus is the chrome's own, and it is not the selection.** Which of the two leaves — the bar
 and the diagram region — holds the keyboard is a fact about the chrome, held between frames: it
@@ -401,14 +410,25 @@ to unclaimed universal shortcuts.
 **`SelectNext` and `SelectPrevious` cycle the selection without touching the session.** Offered in
 `IDLE` when `Condition::HasShapes` holds, and in `SELECTED_BOX`, `SELECTED_LINE`, and
 `SELECTED_CONNECTOR` as uncategorized `[Tab] Next [Shift+Tab] Prev` immediately preceding
-`[Del] Delete · [Esc] Deselect`. `Tab` dispatches `ContextMeaning::SelectNext` and `Shift+Tab`
-(`BackTab`) dispatches `ContextMeaning::SelectPrevious`. Neither action modifies session history or
-records an undo step. While an inline sub-mode (`STROKE_SELECT`, `ORDER_MODE`, `ENDPOINT_EDIT`,
-`TERMINAL_SELECT`, `LEAVING_SELECT`) is active, `Tab` and `Shift+Tab` are not offered and return
-`Reply::Ignored` (in `ATTACH_SELECT`, they cycle target candidate focus instead). While a modal
-overlay (`DialogFrame`) is open, keyboard routing directs `Tab` and `Shift+Tab` to dialog widget
-focus traversal ([#304](https://github.com/andresmoschini/monospace/issues/304),
+`[d] Duplicate · [Del] Delete · [Esc] Deselect`. `Tab` dispatches `ContextMeaning::SelectNext` and
+`Shift+Tab` (`BackTab`) dispatches `ContextMeaning::SelectPrevious`. Neither action modifies session
+history or records an undo step. While an inline sub-mode (`STROKE_SELECT`, `ORDER_MODE`,
+`ENDPOINT_EDIT`, `TERMINAL_SELECT`, `LEAVING_SELECT`) is active, `Tab` and `Shift+Tab` are not
+offered and return `Reply::Ignored` (in `ATTACH_SELECT`, they cycle target candidate focus instead).
+While a modal overlay (`DialogFrame`) is open, keyboard routing directs `Tab` and `Shift+Tab` to
+dialog widget focus traversal ([#304](https://github.com/andresmoschini/monospace/issues/304),
 [#311](https://github.com/andresmoschini/monospace/issues/311)), never reaching the diagram region.
+
+**`Duplicate` clones the selected figure via `Command::Add`.** It is offered on the contextual
+status bar as `[d] Duplicate` immediately before `[Del] Delete · [Esc] Deselect` whenever a figure
+is selected (`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`), and pressing `d` is dispatched
+by the diagram region from the active context table via `DiagramState::duplicate_selected`. The
+session clones the selected `Shape` verbatim (`Shape::clone`), adds it via `Session::add`
+(`Command::Add`) at the front of the drawing order, and immediately selects the newly created
+duplicate (`Some(new_id)`). Exactly one step is recorded in the session, and `Undo` gives back the
+duplicate in a single step. `Duplicate` is strictly contextual: with nothing selected (`IDLE`), or
+while in an ephemeral sub-mode (`STROKE_SELECT`, `ORDER_MODE`, `ENDPOINT_EDIT`), it is not offered
+and performs no duplication.
 
 **Sub-modes dispatch contextual keys and let unclaimed shortcuts pass through.** While an ephemeral
 sub-mode (such as `STROKE_SELECT`) is active:
@@ -562,9 +582,9 @@ key that means an action, with a reach that says whether anything may consume it
 shortcuts is the application's own, and the menu draws the shortcut of an entry rather than
 answering to it. **A leaf's handler answers the keys it owns, so not every key is a row of that
 table**: the bar answers its own three, and the region answers the keys its contextual table offers
-— the arrows, `Shift` plus the arrows, `s`, the stroke digits, `Delete` and `Esc` — while it holds
-the keyboard. The handler is handed the focus along with its own state, as the bar already is, and
-the table's two reaches say how far a shortcut is asked rather than which leaf answers it.
+— the arrows, `Shift` plus the arrows, `s`, the stroke digits, `d`, `Delete` and `Esc` — while it
+holds the keyboard. The handler is handed the focus along with its own state, as the bar already is,
+and the table's two reaches say how far a shortcut is asked rather than which leaf answers it.
 
 **The table of shortcuts and the menu are two places that can disagree.** The menu shows the
 shortcut of each entry on the right of it, and the application answers to the shortcut with a table
@@ -894,8 +914,19 @@ framework's buffer one at a time.
   center, records one step in the session, and selects the new shape; pressing them while a shape is
   selected is ignored.
 - Base selection states (`SELECTED_BOX`, `SELECTED_LINE`, `SELECTED_CONNECTOR`) offer
-  `... · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`.
+  `... · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect`.
 - An open drop-down does not keep either key.
+- The contextual status bar offers `[d] Duplicate` immediately before
+  `[Del] Delete · [Esc] Deselect` while a figure is selected (`SELECTED_BOX`, `SELECTED_LINE`,
+  `SELECTED_CONNECTOR`), and pressing `d` is answered by the region widget.
+- Pressing `d` while a box, line, or connector is selected clones the shape in place via
+  `Session::add` (`Command::Add`), places it at the front of the drawing order with a new `ShapeId`,
+  records one step in history, and immediately selects the duplicate.
+- Duplicating a shape preserves all properties (position, dimensions, orientation, stroke, fill,
+  text, and endpoint configurations); duplicating a box or line leaves existing connectors attached
+  to the original shape.
+- `d` with nothing selected (`IDLE`) or while in an ephemeral sub-mode performs no duplication and
+  is ignored (or typed in `TEXT_EDIT`).
 - A frame after an undo draws the restored diagram.
 - The application keeps no history and reads no position: its whole use of the steps is the two
   walks.
