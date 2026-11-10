@@ -5,6 +5,11 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 # Two dependencies, and the reading of them is the reading of the model's "nothing of a session
 # reaches a file, a screen, or what is selected": there is no crate here for a file, for a terminal

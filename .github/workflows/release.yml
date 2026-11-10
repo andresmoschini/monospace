@@ -97,3 +97,23 @@ jobs:
             --title "${GITHUB_REF_NAME}" \
             --generate-notes \
             --verify-tag
+
+  # Publishes every crate of the workspace to crates.io, in dependency order, once the binaries are
+  # on the Releases page. `xtask` is left out by its own `publish = false`. The token is the
+  # repository secret CARGO_REGISTRY_TOKEN, scoped on crates.io to publish-update for these crates.
+  # A version already on crates.io cannot be uploaded again, so a re-run of this job after a partial
+  # failure fails on the crates that made it; publish the rest by hand with `cargo publish -p`.
+  crates-io:
+    name: Publish to crates.io
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
+
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --workspace --locked
