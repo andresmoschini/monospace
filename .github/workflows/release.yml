@@ -1,0 +1,99 @@
+# Publishes the `monospace` binary for each platform on the Releases page when a tag of the form
+# v#.#.# is pushed. It does not run the quality gate: the tag is cut from a commit that already
+# went through it on main, and the only check here is that the tag names the version being built.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos-15, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        shell: bash
+        run: rustup toolchain install
+
+      - name: Check that the tag matches the workspace version
+        shell: bash
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "monospace"))')"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match the workspace version v${version}" >&2
+            exit 1
+          fi
+
+      - name: Build
+        shell: bash
+        run: cargo build --release --locked -p monospace --target "${{ matrix.target }}"
+
+      - name: Package
+        shell: bash
+        run: |
+          name="monospace-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir "$name"
+          cp LICENSE* README.md "$name/" 2>/dev/null || true
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/monospace.exe" "$name/"
+            7z a "$name.zip" "$name" > /dev/null
+            asset="$name.zip"
+          else
+            cp "target/${{ matrix.target }}/release/monospace" "$name/"
+            tar -czf "$name.tar.gz" "$name"
+            asset="$name.tar.gz"
+          fi
+          if command -v sha256sum > /dev/null; then
+            sha256sum "$asset" > "$asset.sha256"
+          else
+            shasum -a 256 "$asset" > "$asset.sha256"
+          fi
+          echo "ASSET=$asset" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET }}.sha256
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag
