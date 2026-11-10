@@ -84,7 +84,7 @@
           <div class="hero-content">
             <div class="hero-pill">
               <span class="dot"></span>
-              <span>v<span data-config="version">0.1.0</span> in development</span>
+              <span>v<span data-config="version">0.1.0</span> released</span>
             </div>
             <h1 class="hero-title">Monospace</h1>
             <p class="hero-tagline">
@@ -399,7 +399,12 @@
           <h2 class="section-title">Download &amp; installation</h2>
           <p class="section-desc">
             Download pre-built binary packages for your operating system, or install directly from
-            source via Cargo.
+            source via Cargo. Every archive has a SHA-256 checksum on the
+            <a
+              href="https://github.com/andresmoschini/monospace/releases"
+              data-config="release-link"
+              >release page</a
+            >.
           </p>
 
           <div class="download-grid">
@@ -410,7 +415,7 @@
                   <span class="download-platform-name">Windows</span>
                   <span class="badge" data-download-status="windows">Coming soon</span>
                 </div>
-                <span class="download-meta">x86_64 (.exe / .zip)</span>
+                <span class="download-meta">x86_64 (.zip)</span>
               </div>
               <div class="download-card-body">
                 Standalone 64-bit binary for Windows. Unzip and run directly from Windows Terminal
@@ -430,15 +435,18 @@
                   <span class="download-platform-name">macOS</span>
                   <span class="badge" data-download-status="macos">Coming soon</span>
                 </div>
-                <span class="download-meta">Universal (.tar.gz)</span>
+                <span class="download-meta">Apple Silicon and Intel (.tar.gz)</span>
               </div>
               <div class="download-card-body">
-                Universal binary for Apple Silicon (M1/M2/M3) and Intel Macs. Extract and place into
-                your system PATH.
+                Native binaries for Apple Silicon (M1 and later) and Intel Macs. Extract and place
+                into your system PATH.
               </div>
               <div class="download-card-bottom">
-                <a href="#" class="btn btn-secondary" data-download-platform="macos"
-                  >Download for macOS</a
+                <a href="#" class="btn btn-secondary" data-download-platform="macos-arm64"
+                  >Download for Apple Silicon</a
+                >
+                <a href="#" class="btn btn-secondary" data-download-platform="macos-x86_64"
+                  >Download for Intel</a
                 >
               </div>
             </div>
@@ -450,15 +458,18 @@
                   <span class="download-platform-name">Linux</span>
                   <span class="badge" data-download-status="linux">Coming soon</span>
                 </div>
-                <span class="download-meta">x86_64 (.tar.gz)</span>
+                <span class="download-meta">x86_64 and ARM64 (.tar.gz)</span>
               </div>
               <div class="download-card-body">
-                Statically linked 64-bit binary for modern Linux distributions. Works in all
-                standard terminal emulators.
+                64-bit binaries for glibc-based Linux distributions. Works in all standard terminal
+                emulators.
               </div>
               <div class="download-card-bottom">
-                <a href="#" class="btn btn-secondary" data-download-platform="linux"
-                  >Download for Linux</a
+                <a href="#" class="btn btn-secondary" data-download-platform="linux-x86_64"
+                  >Download for x86_64</a
+                >
+                <a href="#" class="btn btn-secondary" data-download-platform="linux-arm64"
+                  >Download for ARM64</a
                 >
               </div>
             </div>

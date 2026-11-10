@@ -885,6 +885,9 @@ samp {
 
 .download-card-bottom {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .download-card-bottom .btn {
