@@ -63,10 +63,10 @@ status bar along the bottom.** The bar takes 1 row across the top, the status ba
 the bottom (the top row for diagram or shape status, the bottom row for contextual commands),
 whatever the size of the screen; the region between them takes the rest of it, and a screen too
 short to hold the three of them gives the region what is left over. The bar offers the menus —
-`File` (holding `New`, `Open`, `Save`, `Open Demo`, and `Quit`), `Edit` (holding `Undo` and `Redo`),
-and `Help` (holding `About`). `Delete` is not a menu entry: it is a contextual action of the
-selected figure on the canvas and is offered in the status bar's command row rather than in the
-global menu.
+`File` (holding `New`, `Open`, `Save`, `Export as Text`, `Open Demo`, and `Quit`), `Edit` (holding
+`Undo` and `Redo`), and `Help` (holding `About`). `Delete` is not a menu entry: it is a contextual
+action of the selected figure on the canvas and is offered in the status bar's command row rather
+than in the global menu.
 
 **Every cell of the screen is painted on every frame.** The terminal diffs against the previous
 frame rather than clearing, so a cell that is not painted keeps whatever was last in it. The frame
@@ -77,11 +77,11 @@ left in a cell is gone with the frame that follows it.
 **The order the screen is painted in is part of the picture.** The bar, then the region, then the
 status bar, then the drop-down, and the overlay last of all: a widget drawn later covers the one
 before it, and a drop-down drawn under the region could not be seen, let alone clicked. **The
-overlay layer at the end of the draw order holds the save dialog, the open dialog, the message
-dialog, and the text editor** (at most one is up at a time), so it covers the drop-down as well, and
-it sets the terminal's screen cursor when an open or save dialog's text field or the text editor's
-buffer holds the focus. A drop-down or a dialog that closes therefore leaves the region exactly as
-it was, byte for byte.
+overlay layer at the end of the draw order holds the save dialog, the open dialog, the export
+dialog, the message dialog, and the text editor** (at most one is up at a time), so it covers the
+drop-down as well, and it sets the terminal's screen cursor when an open, save, or export dialog's
+text field or the text editor's buffer holds the focus. A drop-down or a dialog that closes
+therefore leaves the region exactly as it was, byte for byte.
 
 **The region's interior is the diagram's window.** The frame is the region's, and the diagram is
 drawn inside it: the window is the interior, one cell in from each side, and a click's column and
@@ -125,15 +125,16 @@ the last frame put on the screen, the origin is where in the plane that drawing 
 selection is the shape that drawing answered with, and the chrome's own is what the widgets of the
 screen hold between frames — which label of the bar is selected, whether a drop-down is open, which
 of the two leaves holds the keyboard, and what the message dialog, the open dialog, the save dialog,
-and the text editor hold (`MsgDialogState`, `OpenDialogState`, `SaveDialogState`, and
-`TextEditorState`). **Each of the four is an `Overlay` of its own state**: down, or up over the
-state of the widget inside it, so an overlay that is down holds no buffer, no field and no box.
-Opening the text editor selects all the text of the box. They are one thing because they change
-together: a frame that changes one of them changes the others. Replacing the session on `New`,
-`OpenFile` or `OpenDemo` resets the state as a fresh startup does: the diagram is drawn at `(0, 0)`,
-nothing is selected, the undo and redo history is empty, and the dialogs are down. Saving via
-`SaveFile` writes the description to disk and leaves the session, its selection, and its history
-untouched.
+the export dialog, and the text editor hold (`MsgDialogState`, `OpenDialogState`, `SaveDialogState`,
+`ExportDialogState`, and `TextEditorState`). **Each of the five is an `Overlay` of its own state**:
+down, or up over the state of the widget inside it, so an overlay that is down holds no buffer, no
+field and no box. Opening the text editor selects all the text of the box. They are one thing
+because they change together: a frame that changes one of them changes the others. Replacing the
+session on `New`, `OpenFile` or `OpenDemo` resets the state as a fresh startup does: the diagram is
+drawn at `(0, 0)`, nothing is selected, the undo and redo history is empty, and the dialogs are
+down. Saving via `SaveFile` writes the description to disk and exporting via `ExportTextFile`
+renders the diagram over its footprint to plain text; both leave the session, its selection, and its
+history untouched.
 
 **The drawing of the last frame is kept because a click is a question about it.** A click on the
 diagram asks which shape decided the position it landed on, and the answer belongs to the drawing
@@ -553,14 +554,22 @@ dialog closes it and answers `SaveFile(String)` with the path typed in the field
 is written and the current session, selection, and history remain untouched; on any failure it
 leaves the current session untouched and opens the message dialog via `ShowError(String)`.
 
+**`ExportText` is the chrome's own, and `ExportTextFile` is the write.** Taking
+`File > Export as Text` is the action `ExportText`, which opens the prompt without touching the
+session; accepting the dialog closes it and answers `ExportTextFile(String)` with the path typed in
+the field. Carrying out `ExportTextFile(String)` measures and renders the session's diagram over its
+footprint (or produces `""` for an empty diagram) and writes the plain text to the path: on success
+the file is written and the current session, selection, and history remain untouched; on any failure
+it leaves the current session untouched and opens the message dialog via `ShowError(String)`.
+
 **A meaning that is carried out leaves the keyboard on the region.** `Undo`, `Redo`, `Command`,
-`About`, `New`, `Open`, `OpenFile`, `OpenDemo`, `Save`, `SaveFile`, `ShowError`, and `EditText` are
-asked for with the keyboard on the bar and leave nothing to do there — a walk changes what the
-drawing shows, a removal takes out what was selected, a move displaces it, and the dialog takes the
-whole screen while it is up — so carrying them out puts the leaf back where the person is looking,
-and the drop-down the bar was showing closes with it. **Only two things are not that**: a change of
-the screen, which is `Reply::Repaint` and not a meaning, and the way out, which is not carried out
-at all. The rule is one place and not a line in each action (rule 13 of
+`About`, `New`, `Open`, `OpenFile`, `OpenDemo`, `Save`, `SaveFile`, `ExportText`, `ExportTextFile`,
+`ShowError`, and `EditText` are asked for with the keyboard on the bar and leave nothing to do there
+— a walk changes what the drawing shows, a removal takes out what was selected, a move displaces it,
+and the dialog takes the whole screen while it is up — so carrying them out puts the leaf back where
+the person is looking, and the drop-down the bar was showing closes with it. **Only two things are
+not that**: a change of the screen, which is `Reply::Repaint` and not a meaning, and the way out,
+which is not carried out at all. The rule is one place and not a line in each action (rule 13 of
 [#189](https://github.com/andresmoschini/monospace/issues/189)).
 
 **`Ctrl+Shift+Q` is not the way out.** It is the forced exit: it ends the application whatever the
@@ -614,11 +623,11 @@ what to do at the start, what to paint, what to do about an event, and what to d
 and the loop owns everything else about when they are asked.
 
 **The widgets are the framework's.** The menu bar, the drop-down it opens, the `MsgDialog` the
-message dialog is drawn in, the `DialogFrame` and `TextInput` of the open and save dialogs, and the
-`DialogFrame` and `TextArea` of the text editor are widgets, and what they look like, how they are
-drawn and which keys they answer to are theirs. So is the rectangle a click is tested against: the
-widget knows where its labels are only once it has been drawn, and a click is tested against the
-areas of the frame before it.
+message dialog is drawn in, the `DialogFrame` and `TextInput` of the open, save, and export dialogs,
+and the `DialogFrame` and `TextArea` of the text editor are widgets, and what they look like, how
+they are drawn and which keys they answer to are theirs. So is the rectangle a click is tested
+against: the widget knows where its labels are only once it has been drawn, and a click is tested
+against the areas of the frame before it.
 
 **The scrollbar is the framework's.** The bar is the helper's, with its own symbols, style and
 thumb, its own mapping from a cell of the track to an offset, and its own reading of the wheel and
@@ -679,14 +688,16 @@ framework's buffer one at a time.
   it closes the dialog and mints `OpenFile(path)`, and `Cancel` or `Esc` closes it.
 - `File > Save` and `Ctrl+S` open the save dialog with an empty field holding the focus; accepting
   it closes the dialog and mints `SaveFile(path)`, and `Cancel` or `Esc` closes it.
+- `File > Export as Text` opens the export dialog with an empty field holding the focus; accepting
+  it closes the dialog and mints `ExportTextFile(path)`, and `Cancel` or `Esc` closes it.
 - `File > New` and `Ctrl+N` apply `New`, starting a fresh session with a blank diagram and resetting
   the state.
 - `File > Open Demo` applies `OpenDemo`, starting a fresh session with the built-in demonstration
   diagram and resetting the state.
 - Launching with no arguments starts with a blank diagram (`nothing drawn`).
-- An overlay (the message dialog, the open dialog, the save dialog, or the text editor) is drawn
-  last of all, sets the terminal's screen cursor when a field or buffer holds the focus, and leaves
-  the region byte-identical when it closes.
+- An overlay (the message dialog, the open dialog, the save dialog, the export dialog, or the text
+  editor) is drawn last of all, sets the terminal's screen cursor when a field or buffer holds the
+  focus, and leaves the region byte-identical when it closes.
 - `Esc` and `Ok` close the overlay, and the closing event reaches nothing else.
 - `Ctrl+Q` does nothing while an overlay is up, and a click on the bar behind it reaches nothing.
 - `OpenFile` with a valid file starts a fresh session and resets the state; on any failure the
@@ -694,6 +705,9 @@ framework's buffer one at a time.
 - `SaveFile` serializes the current diagram and writes it to disk; on success the current session,
   selection, and history remain untouched; on any failure the current session is untouched and
   `ShowError` opens the error dialog.
+- `ExportTextFile` renders the current diagram over its footprint to plain text and writes it to
+  disk; on success the current session, selection, and history remain untouched; on any failure the
+  current session is untouched and `ShowError` opens the error dialog.
 - The palette is the dark BASE16 theme, read once.
 - The way out is reached by the shortcut and by the menu's entry.
 - A click on the entry and its shortcut apply the same action.

@@ -1,5 +1,7 @@
 ---
-status: draft
+status: implemented
+decided: "#353"
+implemented: "#354"
 date: 2026-11-10
 ---
 
@@ -243,7 +245,7 @@ and `main.rs`.
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1    | `taking_the_export_as_text_entry_becomes_the_action_of_the_export_dialog`, `opening_the_export_dialog_changes_no_session`, `the_drop_down_open_over_the_region` (snapshot)                |
 | 2    | `the_export_dialog_holds_a_field_and_two_buttons`, `tab_moves_from_the_field_to_the_ok`, `the_focused_ok_is_reversed`, `typing_reaches_the_field`, `the_field_says_where_the_cursor_goes` |
-| 3    | `control_q_does_nothing_while_the_export_dialog_is_up`, `control_c_ends_the_application_whatever_the_state_is`                                                                            |
+| 3    | `control_q_does_nothing_while_the_export_dialog_is_up`, `the_forced_exit_ends_the_application_whatever_the_state_is`                                                                      |
 | 4    | `escape_closes_the_export_dialog`, `escape_closes_the_export_dialog_and_the_event_reaches_nothing_else`                                                                                   |
 | 5    | `enter_closes_the_dialog_and_mints_export_text_file`                                                                                                                                      |
 | 6    | `a_diagram_is_exported_as_text_over_its_footprint_and_overwrites_existing_content`, `an_empty_diagram_exports_an_empty_file`, `exporting_leaves_the_current_session_and_history_intact`   |

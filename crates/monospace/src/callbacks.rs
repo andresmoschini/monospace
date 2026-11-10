@@ -25,6 +25,8 @@ use crate::diagram_widget;
 use crate::dialog;
 use crate::error;
 use crate::event::AppEvent;
+use crate::export;
+use crate::export::ExportDialogState;
 use crate::frame;
 use crate::menu;
 use crate::open;
@@ -147,7 +149,8 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
         .or_else(|| text::handle(event, state.text_mut()))
         .or_else(|| dialog::handle(event, state.dialog_mut()))
         .or_else(|| open::handle(event, state.open_mut()))
-        .or_else(|| save::handle(event, state.save_mut()));
+        .or_else(|| save::handle(event, state.save_mut()))
+        .or_else(|| export::handle(event, state.export_mut()));
 
     if before != Reply::Ignored {
         return before;
@@ -265,6 +268,18 @@ fn apply(action: &Action, state: &mut AppState) {
         // leaves the session untouched and reports through ShowError.
         Action::SaveFile(path) => {
             if let Err(error) = crate::save(path, state.diagram().session()) {
+                apply(&Action::ShowError(error.to_string()), state);
+            }
+        }
+
+        // **The export dialog is the chrome's own too**, and opening it changes no session.
+        Action::ExportText => state.export_mut().show(ExportDialogState::new()),
+
+        // **The session's diagram is rendered over its footprint and written to path** (D3, D4
+        // and D5 of #352): on success the file is written and the current session is untouched;
+        // on any error it leaves the session untouched and reports through ShowError.
+        Action::ExportTextFile(path) => {
+            if let Err(error) = crate::export_text(path, state.diagram().session()) {
                 apply(&Action::ShowError(error.to_string()), state);
             }
         }
@@ -683,6 +698,32 @@ mod tests {
         assert!(
             !state.chrome().popup_active(),
             "taking Save left the drop-down open"
+        );
+    }
+
+    /// Opens the export dialog the way a person does: `File > Export as Text` by pointer.
+    ///
+    /// **It also checks the keyboard goes back to the region** (rule 13): the dialog takes the
+    /// whole screen while it is up, so the leaf is already where it will be given back.
+    fn open_the_export_dialog(state: &mut AppState) {
+        let outcome = take_the_entry(state, 'f', "Export as Text");
+
+        assert!(
+            matches!(outcome, Control::Changed),
+            "taking Export as Text owed no frame: {outcome:?}"
+        );
+        assert!(
+            state.export().is_up(),
+            "taking Export as Text opened no dialog"
+        );
+        assert_eq!(
+            state.chrome().leaf(),
+            Focus::Region,
+            "taking Export as Text left the keyboard on the bar"
+        );
+        assert!(
+            !state.chrome().popup_active(),
+            "taking Export as Text left the drop-down open"
         );
     }
 
@@ -1519,6 +1560,328 @@ mod tests {
         );
     }
 
+    /// **The chrome's own and no session**: opening the export dialog records no step and changes
+    /// no selection, so the drawing is exactly what it was.
+    #[test]
+    fn opening_the_export_dialog_changes_no_session() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(
+            selected.is_some(),
+            "the box was not selected, so the test proves nothing"
+        );
+
+        open_the_export_dialog(&mut state);
+
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the dialog changed the selection"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "opening the dialog recorded a step"
+        );
+        assert!(
+            !state.diagram().can_redo(),
+            "opening the dialog left a step ahead"
+        );
+        assert!(
+            state.diagram().owner(Offset { x: 2, y: 1 }).is_some(),
+            "opening the dialog removed the box"
+        );
+    }
+
+    /// **The closing event reaches nothing else**: `Esc` closes the export dialog, leaves the
+    /// keyboard on the region, opens no drop-down, and changes neither the selection nor history.
+    #[test]
+    fn escape_closes_the_export_dialog_and_the_event_reaches_nothing_else() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        open_the_export_dialog(&mut state);
+        assert!(state.export().is_up(), "the export dialog is not open");
+        let focus = state.chrome().leaf();
+
+        let outcome = send(&key(KeyCode::Esc), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.export().is_up(),
+            "escape did not close the export dialog"
+        );
+        assert_eq!(
+            state.chrome().leaf(),
+            focus,
+            "the closing event moved the keyboard"
+        );
+        assert!(
+            !state.chrome().popup_active(),
+            "the closing event opened a drop-down"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the closing event changed the selection"
+        );
+        assert!(
+            !state.diagram().can_undo(),
+            "the closing event recorded a step"
+        );
+    }
+
+    /// **The overlay takes the controls behind it**: `Ctrl+Q` does nothing while the export dialog
+    /// is up, and a click on the bar behind it moves no keyboard and opens no menu.
+    #[test]
+    fn control_q_does_nothing_while_the_export_dialog_is_up() {
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_export_dialog(&mut state);
+        let (column, row) = frame::cell_of(&draw(&mut state), "File");
+        let focus = state.chrome().leaf();
+
+        let outcome = send(
+            &key_with(KeyCode::Char('q'), KeyModifiers::CONTROL),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Continue),
+            "the way out was answered through the export dialog: {outcome:?}"
+        );
+        assert!(state.export().is_up(), "Ctrl+Q closed the export dialog");
+
+        let _ = send(&click(column, row), &mut state);
+
+        assert_eq!(
+            state.chrome().leaf(),
+            focus,
+            "the click on the bar moved the keyboard"
+        );
+        assert!(
+            !state.chrome().popup_active(),
+            "the click behind the export dialog opened a drop-down"
+        );
+        assert!(
+            state.export().is_up(),
+            "the click on the bar closed the export dialog"
+        );
+    }
+
+    /// **A diagram is exported as text over its footprint and overwrites existing content** (rule
+    /// 6 of #352): exporting renders the tight footprint of the current diagram to the path,
+    /// creating or replacing the file.
+    #[test]
+    fn a_diagram_is_exported_as_text_over_its_footprint_and_overwrites_existing_content() {
+        let path = std::env::temp_dir().join(format!(
+            "monospace-export-overwrite-{}.txt",
+            std::process::id()
+        ));
+        let path_str = path.to_str().expect("temp path is UTF-8");
+        std::fs::write(&path, "old content").expect("temp file is writable");
+
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_export_dialog(&mut state);
+        state
+            .export_mut()
+            .get_mut()
+            .expect("the export dialog is up")
+            .set_path(path_str);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.export().is_up(),
+            "exporting left the export dialog up"
+        );
+        assert_eq!(
+            state.chrome().leaf(),
+            Focus::Region,
+            "exporting moved the keyboard off the region"
+        );
+
+        let read = std::fs::read_to_string(&path).expect("exported file can be read");
+        assert_eq!(
+            read, "┌──┐\n│  │\n└──┘\n",
+            "exported text did not match the 4x3 box footprint"
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// **An empty diagram exports an empty file** (rule 6 of #352): when nothing is drawn, the
+    /// footprint is `None` and the exported file is `""` (0 bytes).
+    #[test]
+    fn an_empty_diagram_exports_an_empty_file() {
+        let path =
+            std::env::temp_dir().join(format!("monospace-export-empty-{}.txt", std::process::id()));
+        let path_str = path.to_str().expect("temp path is UTF-8");
+        std::fs::write(&path, "old content").expect("temp file is writable");
+
+        let mut state = a_drawn_state_over(
+            r#"{
+                "next_id": 1,
+                "shapes": []
+            }"#,
+        );
+        open_the_export_dialog(&mut state);
+        state
+            .export_mut()
+            .get_mut()
+            .expect("the export dialog is up")
+            .set_path(path_str);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.export().is_up(),
+            "exporting left the export dialog up"
+        );
+
+        let read = std::fs::read_to_string(&path).expect("exported file can be read");
+        assert_eq!(read, "", "empty diagram did not export an empty file");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// **Exporting leaves the current session and history intact** (rule 6 of #352): the file is
+    /// written, but the current diagram, selection, and undo/redo stacks remain unchanged.
+    #[test]
+    fn exporting_leaves_the_current_session_and_history_intact() {
+        let path = std::env::temp_dir().join(format!(
+            "monospace-export-intact-{}.txt",
+            std::process::id()
+        ));
+        let path_str = path.to_str().expect("temp path is UTF-8");
+
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+        assert!(selected.is_some(), "the box was not selected");
+
+        let _ = send(&key(KeyCode::Right), &mut state);
+        assert!(state.diagram().can_undo(), "movement created no undo step");
+
+        open_the_export_dialog(&mut state);
+        state
+            .export_mut()
+            .get_mut()
+            .expect("the export dialog is up")
+            .set_path(path_str);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.export().is_up(),
+            "exporting left the export dialog up"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "exporting changed the selection"
+        );
+        assert!(
+            state.diagram().can_undo(),
+            "exporting dropped the undo stack"
+        );
+        assert!(!state.diagram().can_redo(), "exporting modified redo stack");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// **An empty path closes the export dialog and opens the error dialog** (rule 7 of #352): the
+    /// session is untouched and the failure reports `": a file name is needed"`.
+    #[test]
+    fn an_empty_path_closes_the_export_dialog_and_opens_the_error_dialog() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        open_the_export_dialog(&mut state);
+        assert_eq!(
+            state
+                .export()
+                .get()
+                .expect("the export dialog is up")
+                .path(),
+            ""
+        );
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.export().is_up(),
+            "the failure left the export dialog up"
+        );
+        assert!(
+            state.dialog().is_up(),
+            "the failure did not open the error dialog"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the failure changed the selection"
+        );
+        assert!(!state.diagram().can_undo(), "the failure recorded a step");
+
+        let area = Rect::new(0, 0, WIDTH, 12);
+        let mut buffer = Buffer::empty(area);
+        frame::draw(area, &mut buffer, &mut state, &a_global());
+        let shown: String = (0..12).map(|line| row_of(&buffer, line)).collect();
+        assert!(
+            shown.contains(": a file name is needed"),
+            "the error dialog does not report the empty path message: {shown:?}"
+        );
+    }
+
+    /// **A path in a missing directory closes the export dialog and opens the error dialog**
+    /// (rule 7 of #352): the session is untouched and the failure names the missing directory.
+    #[test]
+    fn a_path_in_a_missing_directory_closes_the_export_dialog_and_opens_the_error_dialog() {
+        let mut state = a_drawn_state_over(A_BOX);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected();
+
+        open_the_export_dialog(&mut state);
+        let missing_path = "nonexistent_dir_12345/exported.txt";
+        state
+            .export_mut()
+            .get_mut()
+            .expect("the export dialog is up")
+            .set_path(missing_path);
+
+        let outcome = send(&key(KeyCode::Enter), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            !state.export().is_up(),
+            "the failure left the export dialog up"
+        );
+        assert!(
+            state.dialog().is_up(),
+            "the failure did not open the error dialog"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            selected,
+            "the failure changed the selection"
+        );
+        assert!(!state.diagram().can_undo(), "the failure recorded a step");
+
+        let area = Rect::new(0, 0, WIDTH, 12);
+        let mut buffer = Buffer::empty(area);
+        frame::draw(area, &mut buffer, &mut state, &a_global());
+        let shown: String = (0..12).map(|line| row_of(&buffer, line)).collect();
+        assert!(
+            shown.contains("nonexistent_dir_12345"),
+            "the error dialog does not name the missing directory: {shown:?}"
+        );
+    }
+
     /// **The overlay takes the controls behind it** (rule 10): `Ctrl+Q` is `Unclaimed`, so while
     /// the dialog is up the dialog answers it and nothing happens, and a click on the bar behind
     /// it moves no keyboard and opens no menu. `Ctrl+Shift+Q` is answered before the dialog, and
@@ -1686,6 +2049,24 @@ mod tests {
         assert!(
             matches!(outcome, Control::Quit),
             "the save dialog swallowed the forced exit: {outcome:?}"
+        );
+
+        // The export dialog is up: the overlay takes every control but this one.
+        let mut state = a_drawn_state();
+        open_the_export_dialog(&mut state);
+        assert!(state.export().is_up(), "the export dialog is not open");
+
+        let outcome = send(
+            &key_with(
+                KeyCode::Char('Q'),
+                KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+            ),
+            &mut state,
+        );
+
+        assert!(
+            matches!(outcome, Control::Quit),
+            "the export dialog swallowed the forced exit: {outcome:?}"
         );
 
         // The text editor is up: the overlay takes every control but this one.
@@ -1915,11 +2296,11 @@ mod tests {
     #[test]
     fn a_press_in_the_region_closes_the_drop_down_and_selects() {
         let mut state = a_drawn_state_over(A_BOX_AND_WHAT_HANGS_FROM_IT);
-        open_the_drop_down(&mut state, 'f');
+        open_the_drop_down(&mut state, 'h');
         assert!(state.chrome().popup_active(), "the drop-down did not open");
 
-        // The right box's top-left is outside the File drop-down, so the press is the region's.
-        let outcome = send(&click(17, 3), &mut state);
+        // The left box's top-left is outside the Help drop-down, so the press is the region's.
+        let outcome = send(&click(1, 3), &mut state);
 
         assert_eq!(
             state.chrome().leaf(),

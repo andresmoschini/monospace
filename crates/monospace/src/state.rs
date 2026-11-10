@@ -14,6 +14,7 @@ use ratatui_core::layout::Position;
 
 use crate::chrome::{Chrome, Target};
 use crate::diagram_state::DiagramState;
+use crate::export::ExportDialogState;
 use crate::open::OpenDialogState;
 use crate::overlay::Overlay;
 use crate::save::SaveDialogState;
@@ -47,6 +48,12 @@ pub(crate) struct AppState {
     /// gives the keyboard back unchanged. It is an overlay at the frame's top layer.
     save: Overlay<SaveDialogState>,
 
+    /// The export dialog, while it is up: the path being typed and its frame.
+    ///
+    /// **The dialog runs its own focus** while it is up, as the message dialog does, so closing it
+    /// gives the keyboard back unchanged. It is an overlay at the frame's top layer.
+    export: Overlay<ExportDialogState>,
+
     /// The text editor, while it is up: the box it edits, its buffer and its frame.
     ///
     /// **The dialog runs its own focus** while it is up, as the message, open and save dialogs do,
@@ -69,6 +76,7 @@ impl AppState {
             dialog: Overlay::Down,
             open: Overlay::Down,
             save: Overlay::Down,
+            export: Overlay::Down,
             text: Overlay::Down,
         }
     }
@@ -154,6 +162,18 @@ impl AppState {
     /// that open it.
     pub(crate) fn save_mut(&mut self) -> &mut Overlay<SaveDialogState> {
         &mut self.save
+    }
+
+    /// The export dialog, for the tests that say whether it is up.
+    #[cfg(test)]
+    pub(crate) fn export(&self) -> &Overlay<ExportDialogState> {
+        &self.export
+    }
+
+    /// The export dialog, for the frame that paints it, the handler that answers it and the actions
+    /// that open it.
+    pub(crate) fn export_mut(&mut self) -> &mut Overlay<ExportDialogState> {
+        &mut self.export
     }
 
     /// The text editor, for the tests that say whether it is up.

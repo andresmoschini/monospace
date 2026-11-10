@@ -19,6 +19,7 @@ mod dialog;
 mod dialog_style;
 mod error;
 mod event;
+mod export;
 mod frame;
 mod menu;
 mod open;
@@ -166,12 +167,64 @@ pub(crate) fn save(path: &str, session: &Session) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Renders `session`'s current diagram over its footprint and writes it to `path`.
+///
+/// **The path is part of every failure**: an empty path, an unrepresentable span and a file that
+/// cannot be written all name it, so the error dialog can show `{path}: {error}` directly. An
+/// empty diagram writes an empty file `""`.
+pub(crate) fn export_text(path: &str, session: &Session) -> Result<(), AppError> {
+    if path.is_empty() {
+        return Err(": a file name is needed".into());
+    }
+
+    let text =
+        render_diagram_text(session.diagram()).map_err(|error| format!("{path}: {error}"))?;
+    std::fs::write(path, text).map_err(|error| format!("{path}: {error}"))?;
+    Ok(())
+}
+
+/// Renders `diagram` over its tight [`monospace_core::FootprintSink`] bounding box, or returns `""`
+/// when empty.
+fn render_diagram_text(diagram: &monospace_diagram::Diagram) -> Result<String, AppError> {
+    use monospace_core::{Buffer, FootprintSink, Pos, Size, Window};
+
+    let mut measure_buf = Buffer::new(Window {
+        origin: Pos { x: 0, y: 0 },
+        size: Size {
+            width: 0,
+            height: 0,
+        },
+    });
+    let footprint = {
+        let mut sink = FootprintSink::new(&mut measure_buf);
+        diagram.draw(&mut sink);
+        sink.footprint()
+    };
+
+    let Some(footprint) = footprint else {
+        return Ok(String::new());
+    };
+
+    let width = u16::try_from(i64::from(footprint.max.x) - i64::from(footprint.min.x) + 1)?;
+    let height = u16::try_from(i64::from(footprint.max.y) - i64::from(footprint.min.y) + 1)?;
+    let window = Window {
+        origin: footprint.min,
+        size: Size { width, height },
+    };
+
+    let mut buffer = Buffer::new(window);
+    diagram.draw(&mut buffer);
+
+    let catalog = monospace_glyph_sets::all();
+    Ok(monospace_core::render(&buffer, &catalog, window))
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write as _;
     use std::path::PathBuf;
 
-    use super::{demo, load, save, start};
+    use super::{demo, export_text, load, save, start};
 
     /// Writes `contents` to a fresh file under the system temp directory, named after the calling
     /// test so parallel tests never collide.
@@ -275,6 +328,58 @@ mod tests {
 
         // Overwrites without error
         assert!(save(path_str, &session).is_ok());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn exporting_to_an_empty_path_fails_naming_empty_prefix() {
+        let session = start(None).expect("blank session starts");
+        let Err(error) = export_text("", &session) else {
+            panic!("exporting to an empty path succeeded");
+        };
+        assert_eq!(error.to_string(), ": a file name is needed");
+    }
+
+    #[test]
+    fn exporting_an_empty_diagram_writes_an_empty_file() {
+        let session = start(None).expect("blank session starts");
+        let path = std::env::temp_dir().join(format!(
+            "monospace-test-export-empty-{}.txt",
+            std::process::id()
+        ));
+        let path_str = path.to_str().expect("valid utf8");
+
+        assert!(export_text(path_str, &session).is_ok());
+        let read = std::fs::read_to_string(&path).expect("file was written");
+        assert_eq!(read, "");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn exporting_a_session_writes_the_footprint_text_and_overwrites() {
+        let description = write_description(
+            "export-source",
+            r#"{
+                "next_id": 2,
+                "shapes": [ { "kind": "box", "id": 1, "at": { "x": 3, "y": 2 },
+                              "size": { "width": 6, "height": 3 }, "stroke": "light", "text": "Node" } ]
+            }"#,
+        );
+        let session =
+            start(Some(description.to_str().expect("valid utf8"))).expect("session starts");
+        let path = std::env::temp_dir().join(format!(
+            "monospace-test-export-box-{}.txt",
+            std::process::id()
+        ));
+        let path_str = path.to_str().expect("valid utf8");
+        std::fs::write(&path, "old content").expect("temp file is writable");
+
+        assert!(export_text(path_str, &session).is_ok());
+        let read = std::fs::read_to_string(&path).expect("file was written");
+        assert_eq!(read, "┌────┐\n│Node│\n└────┘\n");
+
+        let _ = std::fs::remove_file(&description);
         let _ = std::fs::remove_file(&path);
     }
 }

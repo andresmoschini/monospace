@@ -54,6 +54,7 @@ static MENU: StaticMenu = StaticMenu {
                 "_New|Ctrl+N",
                 "_Open|Ctrl+O",
                 "_Save|Ctrl+S",
+                "_Export as Text",
                 "Open _Demo",
                 "_Quit|Ctrl+Q",
             ],
@@ -75,11 +76,14 @@ const OPEN: usize = 1;
 /// The entry that saves a description by name.
 const SAVE: usize = 2;
 
+/// The entry that exports the diagram as plain text by name.
+const EXPORT_TEXT: usize = 3;
+
 /// The entry that loads the demonstration description.
-const OPEN_DEMO: usize = 3;
+const OPEN_DEMO: usize = 4;
 
 /// The entry of the way out.
-const QUIT: usize = 4;
+const QUIT: usize = 5;
 
 /// The label of the editing commands.
 const EDIT: usize = 1;
@@ -295,6 +299,7 @@ fn meaning(label: usize, entry: usize) -> Reply {
         (FILE, NEW) => Reply::Act(Action::New),
         (FILE, OPEN) => Reply::Act(Action::Open),
         (FILE, SAVE) => Reply::Act(Action::Save),
+        (FILE, EXPORT_TEXT) => Reply::Act(Action::ExportText),
         (FILE, OPEN_DEMO) => Reply::Act(Action::OpenDemo),
         (FILE, QUIT) => Reply::quit(),
         (EDIT, UNDO) => Reply::Act(Action::Undo),
@@ -996,6 +1001,23 @@ mod tests {
         assert!(
             frame.contains("Ctrl+Q"),
             "the drop-down shows no shortcut: {frame:?}"
+        );
+    }
+
+    #[test]
+    fn taking_the_export_as_text_entry_becomes_the_action_of_the_export_dialog() {
+        let mut chrome = drawn();
+        open(&mut chrome);
+
+        let outcome = take(&mut chrome, "Export as Text");
+
+        assert!(
+            matches!(outcome, Reply::Act(Action::ExportText)),
+            "the entry did not become the action of the export dialog: {outcome:?}"
+        );
+        assert!(
+            !chrome.popup_active(),
+            "the drop-down stayed open behind it"
         );
     }
 }
