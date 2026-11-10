@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monospace — Plain-Text &amp; ASCII Diagramming in Rust</title>
+    <meta
+      name="description"
+      content="A set of applications and libraries for creating plain-text diagrams with ASCII/Unicode characters, self-routing connectors, and zero binary diffs."
+    />
+    <meta property="og:title" content="Monospace — Plain-Text &amp; ASCII Diagramming in Rust" />
+    <meta
+      property="og:description"
+      content="ASCII diagramming, built one honest commit at a time. Plain-text boxes, self-routing connectors, and architecture sketches rendered in monospaced characters."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="./assets/hero.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Monospace — Plain-Text &amp; ASCII Diagramming in Rust" />
+    <meta
+      name="twitter:description"
+      content="ASCII diagramming, built one honest commit at a time."
+    />
+    <meta name="twitter:image" content="./assets/hero.png" />
+
+    <!-- Minimal ASCII Favicon -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23151921'/><text x='16' y='22' font-family='monospace' font-size='18' font-weight='bold' fill='%23e5a83b' text-anchor='middle'>[ ]</text></svg>"
+      type="image/svg+xml"
+    />
+
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <!-- Top Navigation Bar -->
+    <header class="site-header">
+      <div class="container nav-bar">
+        <a href="#" class="brand-link" aria-label="Monospace Home">
+          <span class="brand-glyph">[+]</span>
+          <span>monospace</span>
+        </a>
+
+        <nav aria-label="Primary Navigation">
+          <ul class="nav-links">
+            <li><a href="#about">About</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#gallery">Gallery</a></li>
+            <li><a href="#download">Download</a></li>
+            <li>
+              <a
+                href="https://github.com/andresmoschini/monospace#readme"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Docs</a
+              >
+            </li>
+          </ul>
+        </nav>
+
+        <div class="header-actions">
+          <a
+            href="https://github.com/andresmoschini/monospace"
+            class="github-badge"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="View on GitHub"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+              ></path>
+            </svg>
+            <span class="github-badge-text">View on GitHub</span>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- Hero Section -->
+      <section class="site-section hero">
+        <div class="container">
+          <div class="hero-content">
+            <div class="hero-pill">
+              <span class="dot"></span>
+              <span>v<span data-config="version">0.1.0</span> in development</span>
+            </div>
+            <h1 class="hero-title">Monospace</h1>
+            <p class="hero-tagline">
+              ASCII diagramming, built one honest commit at a time.<span
+                class="cursor-blink"
+                aria-hidden="true"
+                >_</span
+              >
+            </p>
+            <p class="hero-desc">
+              A set of applications and libraries for creating plain-text boxes, self-routing
+              connectors, and architecture sketches rendered in honest monospaced characters.
+            </p>
+            <div class="hero-cta">
+              <a href="#download" class="btn btn-primary">Download</a>
+              <a href="#crates-io" class="btn btn-secondary">Install with cargo</a>
+            </div>
+          </div>
+
+          <!-- Hero Main Showcase Visual -->
+          <div class="terminal-window">
+            <div class="terminal-header">
+              <div class="terminal-dots">
+                <span class="dot-red"></span>
+                <span class="dot-yellow"></span>
+                <span class="dot-green"></span>
+              </div>
+              <span class="terminal-title">monospace (61x28)</span>
+              <div style="width: 42px"></div>
+            </div>
+            <div class="terminal-body">
+              <img
+                src="./assets/hero.png"
+                alt="Showcase of Monospace shapes, lines, connectors, and border strokes"
+                width="1136"
+                height="883"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- What is it Section -->
+      <section id="about" class="site-section">
+        <div class="container">
+          <span class="section-tag">[ 01 / WHAT IS IT ]</span>
+          <h2 class="section-title">Portable diagrams as plain text</h2>
+          <p class="section-desc">
+            Diagrams belong where engineers read and write: alongside code, commit messages, and
+            design discussions.
+          </p>
+
+          <div class="prose-grid">
+            <div class="prose-card">
+              <h3><span class="icon">#</span> What is Monospace?</h3>
+              <p>
+                Monospace is a toolkit and suite of applications written in Rust for designing
+                diagrams rendered entirely in monospaced ASCII and Unicode box-drawing characters.
+                It includes a portable core engine, a lightning-fast command-line interface, and an
+                interactive terminal editor.
+              </p>
+            </div>
+
+            <div class="prose-card">
+              <h3><span class="icon">&gt;</span> Why ASCII and plain text?</h3>
+              <p>
+                Binary image assets and proprietary canvas formats do not blend well with version
+                control. ASCII diagrams live in plain text: diff them cleanly with
+                <code>git diff</code>, embed them in Markdown fences, paste them into pull request
+                summaries, or read them directly in terminal logs without specialized viewers.
+              </p>
+              <p>
+                Shapes compose naturally at shared cells: intersecting lines form true junctions,
+                adjacent boxes cleanly share borders, and connectors calculate their own routes.
+              </p>
+            </div>
+
+            <div class="prose-card">
+              <h3><span class="icon">*</span> Spec-Driven &amp; Honest Rust</h3>
+              <p>
+                This project is an intentional exercise in
+                <strong>Spec-Driven Development</strong> and principled Rust architecture. Every
+                feature starts with a concrete issue and an agreed specification before code is
+                written. Domain logic is strictly isolated from terminal handling, cross-compiling
+                seamlessly to WebAssembly.
+              </p>
+              <div class="docs-callout">
+                Explore the methodology in
+                <a
+                  href="https://github.com/andresmoschini/monospace#readme"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >README.md</a
+                >
+                and dive into design rationale in
+                <a
+                  href="https://github.com/andresmoschini/monospace/tree/main/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >docs/</a
+                >.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- See it in action Section -->
+      <section id="features" class="site-section">
+        <div class="container">
+          <span class="section-tag">[ 02 / SEE IT IN ACTION ]</span>
+          <h2 class="section-title">Interactive terminal editing</h2>
+          <p class="section-desc">
+            Direct manipulation with terminal precision. Experience fluid connectors, inline
+            editing, and complete command history.
+          </p>
+
+          <div class="feature-list">
+            <!-- Feature 1: Self-Routing Connectors -->
+            <article class="feature-item">
+              <div class="feature-text">
+                <span class="feature-badge">Routing Engine</span>
+                <h3 class="feature-title">Self-routing connectors</h3>
+                <p class="feature-desc">
+                  Connectors automatically navigate between shapes with clean orthogonal paths,
+                  adjusting smoothly as endpoints move across the canvas without overlapping
+                  intermediate nodes.
+                </p>
+              </div>
+              <div class="feature-media">
+                <img
+                  src="./assets/demo-connectors.gif"
+                  alt="Animated demonstration of self-routing orthogonal connectors in Monospace"
+                  loading="lazy"
+                  width="640"
+                  height="400"
+                />
+              </div>
+            </article>
+
+            <!-- Feature 2: In-place text editing & resizing (reversed) -->
+            <article class="feature-item reverse">
+              <div class="feature-text">
+                <span class="feature-badge">Direct Manipulation</span>
+                <h3 class="feature-title">Direct text editing &amp; shape resizing</h3>
+                <p class="feature-desc">
+                  Click to select, edit labels directly in place, and resize boxes or lines with
+                  immediate visual feedback while all stroke junctions recalculate live.
+                </p>
+              </div>
+              <div class="feature-media">
+                <img
+                  src="./assets/demo-edit-text-resize.gif"
+                  alt="Animated demonstration of in-place label editing and interactive shape resizing"
+                  loading="lazy"
+                  width="640"
+                  height="400"
+                />
+              </div>
+            </article>
+
+            <!-- Feature 3: Menus and undo/redo -->
+            <article class="feature-item">
+              <div class="feature-text">
+                <span class="feature-badge">Command History</span>
+                <h3 class="feature-title">Intuitive menu bar &amp; undo</h3>
+                <p class="feature-desc">
+                  Every mutation is recorded as an atomic reversible step. Navigate menus with mouse
+                  or keyboard shortcuts, and undo or redo changes fearlessly.
+                </p>
+              </div>
+              <div class="feature-media">
+                <img
+                  src="./assets/demo-undo-menu.gif"
+                  alt="Animated demonstration of top menu navigation and undo redo actions"
+                  loading="lazy"
+                  width="640"
+                  height="400"
+                />
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Gallery Section -->
+      <section id="gallery" class="site-section">
+        <div class="container">
+          <span class="section-tag">[ 03 / GALLERY ]</span>
+          <h2 class="section-title">Diagram gallery</h2>
+          <p class="section-desc">
+            From technical architecture blueprints to sequence flows and annotated notes. Click any
+            image to view in full resolution.
+          </p>
+
+          <div class="gallery-grid">
+            <!-- Item 1: Showcase -->
+            <div class="gallery-card">
+              <button
+                type="button"
+                class="gallery-thumb-btn"
+                data-lightbox="./assets/screenshot-showcase.png"
+                data-caption="Shapes &amp; strokes showcase — Light, heavy, and double box-drawing glyphs composing at junctions."
+                aria-label="Expand Shapes &amp; strokes showcase screenshot"
+              >
+                <img
+                  src="./assets/screenshot-showcase.png"
+                  alt="Showcase of strokes, boxes, lines, and self-routing connectors"
+                  loading="lazy"
+                  width="480"
+                  height="300"
+                />
+                <span class="gallery-overlay-hint">[ Click to zoom ]</span>
+              </button>
+              <div class="gallery-info">
+                <h4>Shapes &amp; strokes showcase</h4>
+                <p>
+                  Light, heavy, and double border glyph tables composing seamlessly at junctions and
+                  corners.
+                </p>
+              </div>
+            </div>
+
+            <!-- Item 2: Diagram with Edit Menu -->
+            <div class="gallery-card">
+              <button
+                type="button"
+                class="gallery-thumb-btn"
+                data-lightbox="./assets/screenshot-diagram-edit-menu.png"
+                data-caption="Terminal UI — Interactive canvas with top menu bar and shape manipulation."
+                aria-label="Expand Diagram with edit menu screenshot"
+              >
+                <img
+                  src="./assets/screenshot-diagram-edit-menu.png"
+                  alt="Interactive editor showing open menu and structured diagram boxes"
+                  loading="lazy"
+                  width="480"
+                  height="300"
+                />
+                <span class="gallery-overlay-hint">[ Click to zoom ]</span>
+              </button>
+              <div class="gallery-info">
+                <h4>Editor menu &amp; canvas</h4>
+                <p>
+                  Interactive terminal interface with menu navigation, keyboard traversal, and
+                  canvas inspection.
+                </p>
+              </div>
+            </div>
+
+            <!-- Item 3: Diagram with Note -->
+            <div class="gallery-card">
+              <button
+                type="button"
+                class="gallery-thumb-btn"
+                data-lightbox="./assets/screenshot-diagram-note.png"
+                data-caption="Architecture diagram with callout note — Clean component blocks with routed connections."
+                aria-label="Expand Diagram with note screenshot"
+              >
+                <img
+                  src="./assets/screenshot-diagram-note.png"
+                  alt="Architecture diagram featuring component boxes and a callout note"
+                  loading="lazy"
+                  width="480"
+                  height="300"
+                />
+                <span class="gallery-overlay-hint">[ Click to zoom ]</span>
+              </button>
+              <div class="gallery-info">
+                <h4>Architecture with callout notes</h4>
+                <p>
+                  Component layouts with descriptive annotations, custom fill patterns, and
+                  connected lifelines.
+                </p>
+              </div>
+            </div>
+
+            <!-- Item 4: Sequence Diagram with Selection -->
+            <div class="gallery-card">
+              <button
+                type="button"
+                class="gallery-thumb-btn"
+                data-lightbox="./assets/screenshot-sequence-diagram-selection.png"
+                data-caption="Sequence diagram with active element selection — Precise bounding boxes and handle highlights."
+                aria-label="Expand Sequence diagram screenshot"
+              >
+                <img
+                  src="./assets/screenshot-sequence-diagram-selection.png"
+                  alt="Sequence diagram showing messages between entities with active selection outline"
+                  loading="lazy"
+                  width="480"
+                  height="300"
+                />
+                <span class="gallery-overlay-hint">[ Click to zoom ]</span>
+              </button>
+              <div class="gallery-info">
+                <h4>Sequence flows &amp; selection</h4>
+                <p>
+                  Lifelines and directional messages with focused shape selection and status
+                  reporting.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Download & Installation Section -->
+      <section id="download" class="site-section">
+        <div class="container">
+          <span class="section-tag">[ 04 / GET MONOSPACE ]</span>
+          <h2 class="section-title">Download &amp; installation</h2>
+          <p class="section-desc">
+            Download pre-built binary packages for your operating system, or install directly from
+            source via Cargo.
+          </p>
+
+          <div class="download-grid">
+            <!-- Windows Card -->
+            <div class="download-card">
+              <div class="download-card-top">
+                <div class="download-platform-header">
+                  <span class="download-platform-name">Windows</span>
+                  <span class="badge" data-download-status="windows">Coming soon</span>
+                </div>
+                <span class="download-meta">x86_64 (.exe / .zip)</span>
+              </div>
+              <div class="download-card-body">
+                Standalone 64-bit binary for Windows. Unzip and run directly from Windows Terminal
+                or Command Prompt.
+              </div>
+              <div class="download-card-bottom">
+                <a href="#" class="btn btn-secondary" data-download-platform="windows"
+                  >Download for Windows</a
+                >
+              </div>
+            </div>
+
+            <!-- macOS Card -->
+            <div class="download-card">
+              <div class="download-card-top">
+                <div class="download-platform-header">
+                  <span class="download-platform-name">macOS</span>
+                  <span class="badge" data-download-status="macos">Coming soon</span>
+                </div>
+                <span class="download-meta">Universal (.tar.gz)</span>
+              </div>
+              <div class="download-card-body">
+                Universal binary for Apple Silicon (M1/M2/M3) and Intel Macs. Extract and place into
+                your system PATH.
+              </div>
+              <div class="download-card-bottom">
+                <a href="#" class="btn btn-secondary" data-download-platform="macos"
+                  >Download for macOS</a
+                >
+              </div>
+            </div>
+
+            <!-- Linux Card -->
+            <div class="download-card">
+              <div class="download-card-top">
+                <div class="download-platform-header">
+                  <span class="download-platform-name">Linux</span>
+                  <span class="badge" data-download-status="linux">Coming soon</span>
+                </div>
+                <span class="download-meta">x86_64 (.tar.gz)</span>
+              </div>
+              <div class="download-card-body">
+                Statically linked 64-bit binary for modern Linux distributions. Works in all
+                standard terminal emulators.
+              </div>
+              <div class="download-card-bottom">
+                <a href="#" class="btn btn-secondary" data-download-platform="linux"
+                  >Download for Linux</a
+                >
+              </div>
+            </div>
+
+            <!-- Crates.io Card -->
+            <div id="crates-io" class="download-card download-card-featured">
+              <div class="download-card-top">
+                <div class="download-platform-header">
+                  <span class="download-platform-name">crates.io</span>
+                  <span class="badge" data-config="crates-status">Coming soon</span>
+                </div>
+                <span class="download-meta">Cargo package</span>
+              </div>
+              <div class="download-card-body">
+                Compile and install locally with Rust toolchain:
+                <div class="terminal-code-block">
+                  <code>cargo install monospace</code>
+                  <button
+                    type="button"
+                    class="copy-btn"
+                    data-copy="cargo install monospace"
+                    title="Copy to clipboard"
+                    aria-label="Copy cargo install command"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <div class="download-card-bottom">
+                <a
+                  href="#"
+                  class="btn btn-primary"
+                  data-config="crates-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >View on crates.io</a
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Lightbox Modal -->
+    <div
+      id="lightbox"
+      class="lightbox-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-label="Enlarged screenshot view"
+    >
+      <div class="lightbox-container">
+        <button
+          type="button"
+          class="lightbox-close"
+          id="lightbox-close-btn"
+          aria-label="Close enlarged view"
+        >
+          &times;
+        </button>
+        <img id="lightbox-img" class="lightbox-img" src="" alt="" />
+        <p id="lightbox-caption" class="lightbox-caption"></p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div class="footer-brand">
+          <a href="#" class="brand-link">
+            <span class="brand-glyph">[+]</span>
+            <span>monospace</span>
+          </a>
+          <p>
+            ASCII diagramming, built one honest commit at a time. Spec-Driven Development in Rust.
+          </p>
+        </div>
+
+        <div class="footer-nav">
+          <div class="footer-col">
+            <h5>Project</h5>
+            <ul>
+              <li>
+                <a
+                  href="https://github.com/andresmoschini/monospace"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >GitHub Repository</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/andresmoschini/monospace/issues"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Issues</a
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div class="footer-col">
+            <h5>Documentation</h5>
+            <ul>
+              <li>
+                <a
+                  href="https://github.com/andresmoschini/monospace#readme"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >README</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/andresmoschini/monospace/tree/main/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Architecture &amp; Model Docs</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/andresmoschini/monospace/blob/main/CONTRIBUTING.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Contributing Guide</a
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div class="footer-col">
+            <h5>License</h5>
+            <ul>
+              <li>
+                <a
+                  href="https://github.com/andresmoschini/monospace/blob/main/LICENSE"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >MIT License</a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="container footer-bottom">
+        <div>&copy; Andrés Moschini. Open source under the MIT License.</div>
+      </div>
+    </footer>
+
+    <!-- Configuration & Interaction Scripts -->
+    <script src="./config.js"></script>
+    <script>
+      (function () {
+        // Lightbox modal logic
+        var lightbox = document.getElementById("lightbox");
+        var lightboxImg = document.getElementById("lightbox-img");
+        var lightboxCaption = document.getElementById("lightbox-caption");
+        var closeBtn = document.getElementById("lightbox-close-btn");
+        var triggers = document.querySelectorAll("[data-lightbox]");
+
+        function openLightbox(src, caption, alt) {
+          if (!lightbox || !lightboxImg) return;
+          lightboxImg.src = src;
+          lightboxImg.alt = alt || caption || "Enlarged preview";
+          if (lightboxCaption) {
+            lightboxCaption.innerHTML = caption || "";
+          }
+          lightbox.classList.add("active");
+          lightbox.setAttribute("aria-hidden", "false");
+          if (closeBtn) closeBtn.focus();
+        }
+
+        function closeLightbox() {
+          if (!lightbox) return;
+          lightbox.classList.remove("active");
+          lightbox.setAttribute("aria-hidden", "true");
+          if (lightboxImg) lightboxImg.src = "";
+        }
+
+        triggers.forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var src = btn.getAttribute("data-lightbox");
+            var caption = btn.getAttribute("data-caption");
+            var img = btn.querySelector("img");
+            var alt = img ? img.getAttribute("alt") : "";
+            openLightbox(src, caption, alt);
+          });
+        });
+
+        if (closeBtn) {
+          closeBtn.addEventListener("click", closeLightbox);
+        }
+
+        if (lightbox) {
+          lightbox.addEventListener("click", function (e) {
+            if (e.target === lightbox) {
+              closeLightbox();
+            }
+          });
+        }
+
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape" && lightbox && lightbox.classList.contains("active")) {
+            closeLightbox();
+          }
+        });
+
+        // Copy button logic
+        var copyBtns = document.querySelectorAll("[data-copy]");
+        copyBtns.forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var text = btn.getAttribute("data-copy");
+            if (!text) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(function () {
+                var originalText = btn.textContent;
+                btn.textContent = "Copied!";
+                setTimeout(function () {
+                  btn.textContent = originalText;
+                }, 2000);
+              });
+            }
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

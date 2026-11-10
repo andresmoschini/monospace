@@ -13,6 +13,7 @@ HAMT
 insta
 ISIG
 keymap
+lightbox
 Moschini
 msvc
 msgdialog
