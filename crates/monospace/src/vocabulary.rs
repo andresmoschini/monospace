@@ -119,7 +119,6 @@ pub(crate) enum Action {
     /// **The chrome's own and no session**, as [`Self::Save`] is: opening the dialog records no
     /// step, leaves the keyboard on the region, and exports only when [`Self::ExportTextFile`] is
     /// taken.
-    #[allow(dead_code)]
     ExportText,
 
     /// The current session's diagram is rendered over its footprint and written to disk at this

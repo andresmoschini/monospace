@@ -166,7 +166,6 @@ impl AppState {
 
     /// The export dialog, for the tests that say whether it is up.
     #[cfg(test)]
-    #[allow(dead_code)]
     pub(crate) fn export(&self) -> &Overlay<ExportDialogState> {
         &self.export
     }
