@@ -404,6 +404,13 @@ impl DiagramState {
         id
     }
 
+    /// Clones the currently selected shape, adds it to the session at the front of the drawing
+    /// order, selects the newly assigned identity, and returns it.
+    pub(crate) fn duplicate_selected(&mut self) -> Option<ShapeId> {
+        let shape = self.selected_shape()?.clone();
+        Some(self.add_shape(shape))
+    }
+
     /// Creates a 5×5 box with `"light"` stroke at the viewport center and selects it.
     pub(crate) fn create_box(&mut self) -> ShapeId {
         let center = self.viewport_center();
@@ -1906,5 +1913,85 @@ mod tests {
         // Empty cells are NOT inverted
         assert!(!state.is_cell_selected(Offset { x: 28, y: 8 }));
         assert_eq!(state.owner(Offset { x: 28, y: 8 }), None);
+    }
+
+    #[test]
+    fn duplicate_selected_clones_box_line_and_connector_properties_in_place() {
+        let text = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 1, "y": 1 }, "size": { "width": 6, "height": 3 }, "stroke": "double", "fill": "░", "text": "API" },
+                { "kind": "line", "id": 2, "at": { "x": 10, "y": 2 }, "len": 7, "orientation": "vertical", "stroke": "heavy" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right", "offset": { "dx": 0, "dy": 0 }, "out": 0 }, "terminal": { "kind": "arm" } },
+                  "to": { "at": { "kind": "point", "x": 10, "y": 3 }, "leaving": "left", "terminal": { "kind": "symbol", "style": "solid" } },
+                  "stroke": "double" }
+            ]
+        }"#;
+        let mut state = a_diagram_over(text);
+
+        // When no shape is selected, duplicate_selected returns None.
+        assert_eq!(state.selected(), None);
+        assert_eq!(state.duplicate_selected(), None);
+
+        let box_id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let line_id = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let conn_id = ShapeId::new(NonZeroU16::new(3).unwrap());
+
+        // 1. Duplicate the Box (#1 -> #4): exact properties preserved, placed at front, selected.
+        state.select(Some(box_id));
+        let original_box = state.selected_shape().unwrap().clone();
+        let dup_box_id = state.duplicate_selected().expect("box duplicated");
+        assert_eq!(dup_box_id, ShapeId::new(NonZeroU16::new(4).unwrap()));
+        assert_eq!(state.selected(), Some(dup_box_id));
+        assert_eq!(state.selected_shape(), Some(&original_box));
+        assert_eq!(
+            state.session.diagram().shapes().last().map(|(id, _)| id),
+            Some(dup_box_id)
+        );
+
+        // Existing connector #3 still references original box #1, not duplicate #4.
+        let (_, conn_shape) = state
+            .session
+            .diagram()
+            .shapes()
+            .find(|(id, _)| *id == conn_id)
+            .expect("connector #3 exists");
+        let Shape::Connector { from, .. } = conn_shape else {
+            panic!("expected connector");
+        };
+        assert_eq!(
+            from.at,
+            monospace_diagram::EndpointAt::Reference(monospace_diagram::Reference {
+                id: box_id,
+                anchor: monospace_diagram::Anchor::Right,
+                offset: monospace_diagram::Delta { dx: 0, dy: 0 },
+                out: 0,
+            })
+        );
+
+        // 2. Duplicate the Line (#2 -> #5): exact properties preserved, placed at front, selected.
+        state.select(Some(line_id));
+        let original_line = state.selected_shape().unwrap().clone();
+        let dup_line_id = state.duplicate_selected().expect("line duplicated");
+        assert_eq!(dup_line_id, ShapeId::new(NonZeroU16::new(5).unwrap()));
+        assert_eq!(state.selected(), Some(dup_line_id));
+        assert_eq!(state.selected_shape(), Some(&original_line));
+        assert_eq!(
+            state.session.diagram().shapes().last().map(|(id, _)| id),
+            Some(dup_line_id)
+        );
+
+        // 3. Duplicate the Connector (#3 -> #6): retains Reference and Absolute endpoints and Terminals.
+        state.select(Some(conn_id));
+        let original_conn = state.selected_shape().unwrap().clone();
+        let dup_conn_id = state.duplicate_selected().expect("connector duplicated");
+        assert_eq!(dup_conn_id, ShapeId::new(NonZeroU16::new(6).unwrap()));
+        assert_eq!(state.selected(), Some(dup_conn_id));
+        assert_eq!(state.selected_shape(), Some(&original_conn));
+        assert_eq!(
+            state.session.diagram().shapes().last().map(|(id, _)| id),
+            Some(dup_conn_id)
+        );
     }
 }
