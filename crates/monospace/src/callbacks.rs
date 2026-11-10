@@ -3688,6 +3688,73 @@ mod tests {
     }
 
     #[test]
+    fn pressing_r_on_selected_line_toggles_orientation_and_updates_status() {
+        let fixture = r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "line", "id": 1, "at": { "x": 1, "y": 1 },
+                          "len": 5, "orientation": "vertical", "stroke": "light" } ]
+        }"#;
+        let mut state = a_drawn_state_over(fixture);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.diagram_mut().select(Some(id));
+
+        assert_eq!(
+            crate::status::status_line(state.diagram()),
+            "Line #1 · Pos: (1, 1) · Length: 5 · Orientation: Vertical · Stroke: light"
+        );
+        assert!(
+            crate::status::command_line(state.diagram()).contains("RESIZE: Shift+↑↓ · ROTATE: [r]")
+        );
+
+        let r_key = Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE));
+        let outcome = send(&r_key, &mut state);
+        assert!(matches!(outcome, Control::Changed));
+
+        let shape = state.diagram().session().diagram().get(id);
+        let Some(monospace_diagram::Shape::Line {
+            orientation,
+            at,
+            len,
+            stroke,
+        }) = shape
+        else {
+            panic!("expected line");
+        };
+        assert_eq!(*orientation, monospace_core::Orientation::Horizontal);
+        assert_eq!(*at, monospace_core::Pos { x: 1, y: 1 });
+        assert_eq!(*len, 5);
+        assert_eq!(*stroke, monospace_diagram::Stroke::from("light"));
+
+        assert_eq!(
+            crate::status::status_line(state.diagram()),
+            "Line #1 · Pos: (1, 1) · Length: 5 · Orientation: Horizontal · Stroke: light"
+        );
+        assert!(
+            crate::status::command_line(state.diagram()).contains("RESIZE: Shift+←→ · ROTATE: [r]")
+        );
+        assert!(state.diagram().session().can_undo());
+
+        // Second 'r' toggles back to Vertical
+        let outcome2 = send(&r_key, &mut state);
+        assert!(matches!(outcome2, Control::Changed));
+        assert_eq!(
+            crate::status::status_line(state.diagram()),
+            "Line #1 · Pos: (1, 1) · Length: 5 · Orientation: Vertical · Stroke: light"
+        );
+
+        // Undo restores Horizontal in a single step
+        let undo_key = Event::Key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        let undo_outcome = send(&undo_key, &mut state);
+        assert!(matches!(undo_outcome, Control::Changed));
+
+        let shape_restored = state.diagram().session().diagram().get(id);
+        let Some(monospace_diagram::Shape::Line { orientation, .. }) = shape_restored else {
+            panic!("expected line");
+        };
+        assert_eq!(*orientation, monospace_core::Orientation::Horizontal);
+    }
+
+    #[test]
     fn enter_remains_ignored_on_a_box() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);

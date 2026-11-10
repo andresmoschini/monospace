@@ -42,6 +42,11 @@ pub enum Command {
         /// for a line the component along its orientation changes its length.
         by: Delta,
     },
+    /// The line's orientation is toggled between horizontal and vertical.
+    RotateLine {
+        /// The line whose orientation is being toggled.
+        id: ShapeId,
+    },
     /// The figure's stroke is replaced with `stroke`.
     SetStroke {
         /// The figure whose stroke is being set.
@@ -179,6 +184,7 @@ impl Command {
             Self::Add { ref shape } => Some(diagram.add(shape.clone()).0),
             Self::Move { id, by } => changed(diagram, id, |shape| shape.displaced_by(by)),
             Self::Resize { id, by } => changed(diagram, id, |shape| shape.resized_by(by)),
+            Self::RotateLine { id } => changed(diagram, id, Shape::with_rotated_orientation),
             Self::SetStroke { id, ref stroke } => {
                 let stroke = stroke.clone();
                 changed(diagram, id, |shape| shape.with_stroke(stroke))

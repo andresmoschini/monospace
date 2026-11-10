@@ -15,7 +15,8 @@
 use std::num::NonZeroU16;
 
 use monospace_core::{
-    Buffer, Direction, Glyph, GlyphCatalog, Pos, Size, Stroke, Terminal, Text, Window, render,
+    Buffer, Direction, Glyph, GlyphCatalog, Orientation, Pos, Size, Stroke, Terminal, Text, Window,
+    render,
 };
 use monospace_diagram::{
     Anchor, Delta, Diagram, End, Endpoint, EndpointAt, Reference, Shape, ShapeId,
@@ -357,6 +358,19 @@ fn each_command_becomes_one_of_the_diagrams_seven_operations() {
             }
         }),
         "`InvertTerminals` is `replace` with the figure's terminals swapped"
+    );
+
+    assert_eq!(
+        after(&Command::RotateLine { id: id(1) }),
+        after_operating(|diagram| {
+            let updated = diagram.get(id(1)).map(Shape::with_rotated_orientation);
+            if let Some(updated) = updated {
+                diagram.replace(id(1), updated)
+            } else {
+                diagram.clone()
+            }
+        }),
+        "`RotateLine` is `replace` with the line's orientation toggled"
     );
 
     assert_eq!(
@@ -1660,6 +1674,76 @@ fn inverting_terminals_on_a_box_or_nonexistent_shape_records_no_step() {
     assert!(
         !no_op_missing.can_undo(),
         "inverting terminals on nonexistent shape should record no step"
+    );
+}
+
+#[test]
+fn rotating_a_line_toggles_its_orientation_and_records_one_step() {
+    let mut diagram = Diagram::new();
+    diagram = diagram
+        .add(Shape::Line {
+            at: Pos { x: 1, y: 1 },
+            len: 5,
+            orientation: Orientation::Vertical,
+            stroke: Stroke::from("light"),
+        })
+        .0;
+
+    let session = Session::new(diagram);
+    let initial_pic = picture_in(session.diagram(), FIXTURE);
+
+    let rotated = session.perform(Command::RotateLine { id: id(1) });
+    assert!(rotated.can_undo(), "rotating a line should record one step");
+    assert!(!rotated.can_redo());
+
+    let Shape::Line {
+        orientation,
+        at,
+        len,
+        stroke,
+    } = rotated.diagram().get(id(1)).expect("line")
+    else {
+        panic!("expected line");
+    };
+    assert_eq!(*orientation, Orientation::Horizontal);
+    assert_eq!(*at, Pos { x: 1, y: 1 });
+    assert_eq!(*len, 5);
+    assert_eq!(*stroke, Stroke::from("light"));
+
+    let rotated_pic = picture_in(rotated.diagram(), FIXTURE);
+    assert_ne!(initial_pic, rotated_pic);
+
+    let undone = rotated.undo();
+    assert_eq!(picture_in(undone.diagram(), FIXTURE), initial_pic);
+}
+
+#[test]
+fn rotating_a_box_connector_or_nonexistent_shape_records_no_step() {
+    let session = Session::new(the_fixture());
+    let initial_pic = picture_in(session.diagram(), FIXTURE);
+
+    // Box id(1)
+    let no_op_box = session.perform(Command::RotateLine { id: id(1) });
+    assert_eq!(picture_in(no_op_box.diagram(), FIXTURE), initial_pic);
+    assert!(
+        !no_op_box.can_undo(),
+        "rotating a box should record no step"
+    );
+
+    // Connector id(3)
+    let no_op_conn = session.perform(Command::RotateLine { id: id(3) });
+    assert_eq!(picture_in(no_op_conn.diagram(), FIXTURE), initial_pic);
+    assert!(
+        !no_op_conn.can_undo(),
+        "rotating a connector should record no step"
+    );
+
+    // Nonexistent id(99)
+    let no_op_missing = session.perform(Command::RotateLine { id: id(99) });
+    assert_eq!(picture_in(no_op_missing.diagram(), FIXTURE), initial_pic);
+    assert!(
+        !no_op_missing.can_undo(),
+        "rotating nonexistent shape should record no step"
     );
 }
 

@@ -550,6 +550,43 @@ impl Shape {
         }
     }
 
+    /// This figure with its orientation toggled between horizontal and vertical, or itself
+    /// unchanged when it is not a line.
+    ///
+    /// **Only a line has an orientation.** A box and a connector have no orientation to toggle;
+    /// `with_rotated_orientation` leaves both unchanged, exactly as `with_text` leaves lines and
+    /// connectors unchanged.
+    ///
+    /// **It pivots around the line's origin `at`**, preserving `at`, `len`, and `stroke`
+    /// unchanged.
+    ///
+    /// **It takes `&self` and gives back a `Self`**, composing with `Diagram::get` the way
+    /// [`Self::with_stroke`] does:
+    /// `diagram.get(&id).map(Shape::with_rotated_orientation)` is the whole read-and-rotate step.
+    #[must_use]
+    pub fn with_rotated_orientation(&self) -> Self {
+        match self {
+            Self::Line {
+                at,
+                len,
+                orientation,
+                stroke,
+            } => {
+                let toggled = match orientation {
+                    Orientation::Horizontal => Orientation::Vertical,
+                    Orientation::Vertical => Orientation::Horizontal,
+                };
+                Self::Line {
+                    at: *at,
+                    len: *len,
+                    orientation: toggled,
+                    stroke: stroke.clone(),
+                }
+            }
+            Self::Box { .. } | Self::Connector { .. } => self.clone(),
+        }
+    }
+
     /// This figure with `from.terminal` and `to.terminal` swapped, or itself unchanged when it is not
     /// a connector.
     ///
@@ -1785,6 +1822,45 @@ mod tests {
             }
             _ => unreachable!(),
         }
+    }
+
+    #[test]
+    fn with_rotated_orientation_toggles_a_line_and_keeps_position_length_and_stroke() {
+        let horizontal = Shape::Line {
+            at: Pos { x: 2, y: 3 },
+            len: 5,
+            orientation: Orientation::Horizontal,
+            stroke: light(),
+        };
+        let rotated = horizontal.with_rotated_orientation();
+        assert_eq!(
+            rotated,
+            Shape::Line {
+                at: Pos { x: 2, y: 3 },
+                len: 5,
+                orientation: Orientation::Vertical,
+                stroke: light(),
+            }
+        );
+        assert_eq!(rotated.with_rotated_orientation(), horizontal);
+    }
+
+    #[test]
+    fn with_rotated_orientation_on_a_box_or_connector_changes_nothing() {
+        let the_box = Shape::Box {
+            at: Pos { x: 2, y: 3 },
+            size: Size {
+                width: 5,
+                height: 4,
+            },
+            stroke: light(),
+            fill: None,
+            text: None,
+        };
+        assert_eq!(the_box.with_rotated_orientation(), the_box);
+
+        let the_connector = connector(Terminal::Arm, Terminal::Arm);
+        assert_eq!(the_connector.with_rotated_orientation(), the_connector);
     }
 
     #[test]

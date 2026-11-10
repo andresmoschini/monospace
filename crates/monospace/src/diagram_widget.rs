@@ -1026,6 +1026,52 @@ mod tests {
         assert_eq!(idle_answer, Reply::Ignored);
     }
 
+    #[test]
+    fn pressing_r_rotates_selected_line_and_is_ignored_otherwise() {
+        let mut state = a_state_over(A_LINE);
+        let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+        state.select(Some(id));
+
+        let answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE)),
+            &mut state,
+            Focus::Region,
+        );
+        assert_eq!(
+            answer,
+            Reply::Act(Action::Command(Command::RotateLine { id }))
+        );
+
+        // Pressing r when a box is selected is ignored.
+        let mut box_state = a_state_over(A_BOX);
+        box_state.select(Some(id));
+        let box_answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE)),
+            &mut box_state,
+            Focus::Region,
+        );
+        assert_eq!(box_answer, Reply::Ignored);
+
+        // Pressing r when a connector is selected is ignored.
+        let mut conn_state = a_state_over(A_CONNECTOR);
+        conn_state.select(Some(id));
+        let conn_answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE)),
+            &mut conn_state,
+            Focus::Region,
+        );
+        assert_eq!(conn_answer, Reply::Ignored);
+
+        // Pressing r when nothing is selected is ignored.
+        let mut idle_state = a_state_over(A_LINE);
+        let idle_answer = handle(
+            &Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE)),
+            &mut idle_state,
+            Focus::Region,
+        );
+        assert_eq!(idle_answer, Reply::Ignored);
+    }
+
     /// **In `STROKE_SELECT`, key acceptance matches what the contextual bar offers**: the bar offers
     /// digits 1..=5 and Esc Cancel; offered keys are accepted, and unoffered keys are ignored.
     #[test]
