@@ -305,6 +305,8 @@ pub(crate) enum ContextMeaning {
     CreateLine,
     /// Creates a detached connector at viewport center and selects it.
     CreateConnector,
+    /// Clones the selected figure in place and selects the duplicate.
+    Duplicate,
     /// Answered by the region's click, never by a key.
     Pick,
 }
@@ -495,6 +497,15 @@ static SELECTION: &[ContextBlock] = &[
                 meaning: ContextMeaning::SelectPrevious,
             },
         ],
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: &[ContextAction {
+            trigger: Trigger::Key(KeyPattern::Char('d')),
+            label: "Duplicate",
+            meaning: ContextMeaning::Duplicate,
+        }],
     },
     ContextBlock {
         category: None,
@@ -1297,6 +1308,13 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
             state.create_connector();
             Reply::Repaint
         }
+        ContextMeaning::Duplicate => {
+            if state.duplicate_selected().is_some() {
+                Reply::Repaint
+            } else {
+                Reply::Ignored
+            }
+        }
         ContextMeaning::Pick => Reply::Ignored,
         ContextMeaning::MoveEndpoint => {
             dispatch_endpoint_meaning(EndpointMeaning::Move, state, key)
@@ -1565,7 +1583,7 @@ mod tests {
         box_selected.select(Some(id1));
         assert_eq!(
             format_command_line(&box_selected),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
         );
 
         // 4. Selection: Horizontal Line
@@ -1573,7 +1591,7 @@ mod tests {
         horizontal_line_selected.select(Some(id1));
         assert_eq!(
             format_command_line(&horizontal_line_selected),
-            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
         );
 
         // 5. Selection: Vertical Line
@@ -1581,7 +1599,7 @@ mod tests {
         vertical_line_selected.select(Some(id1));
         assert_eq!(
             format_command_line(&vertical_line_selected),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
         );
 
         // 6. Selection: Connector
@@ -1589,7 +1607,7 @@ mod tests {
         conn_selected.select(Some(id1));
         assert_eq!(
             format_command_line(&conn_selected),
-            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
         );
     }
 

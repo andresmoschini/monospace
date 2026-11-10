@@ -4636,4 +4636,61 @@ mod tests {
     fn the_loop_set_the_terminal_up_itself_so_there_is_nothing_to_init() {
         assert!(init(&mut a_state(), &mut a_global()).is_ok());
     }
+
+    #[test]
+    fn pressing_d_duplicates_selected_shape_selects_new_id_and_undoes_in_one_step() {
+        let fixture = r#"{
+            "next_id": 2,
+            "shapes": [ { "kind": "box", "id": 1, "at": { "x": 1, "y": 1 },
+                          "size": { "width": 6, "height": 3 }, "stroke": "double", "text": "API" } ]
+        }"#;
+        let mut state = a_drawn_state_over(fixture);
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+
+        // In IDLE, 'd' is ignored.
+        let d_key = Event::Key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+        let idle_outcome = send(&d_key, &mut state);
+        assert!(matches!(idle_outcome, Control::Continue));
+        assert_eq!(state.diagram().session().diagram().shape_count(), 1);
+
+        // Select Box #1.
+        state.diagram_mut().select(Some(id1));
+        assert_eq!(
+            crate::status::status_line(state.diagram()),
+            "Box #1 \"API\" · Pos: (1, 1) · Size: 6×3 · Stroke: double · Fill: None"
+        );
+        assert!(
+            crate::status::command_line(state.diagram())
+                .ends_with("· [d] Duplicate · [Del] Delete · [Esc] Deselect")
+        );
+
+        // Pressing 'd' duplicates Box #1 into Box #2 and selects #2.
+        let dup_outcome = send(&d_key, &mut state);
+        assert!(matches!(dup_outcome, Control::Changed));
+        assert_eq!(state.diagram().session().diagram().shape_count(), 2);
+        assert_eq!(state.diagram().selected(), Some(id2));
+        assert_eq!(
+            crate::status::status_line(state.diagram()),
+            "Box #2 \"API\" · Pos: (1, 1) · Size: 6×3 · Stroke: double · Fill: None"
+        );
+
+        // Undo (Ctrl+z) removes the duplicate in a single step and reconciles selection.
+        let undo_key = Event::Key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+        let undo_outcome = send(&undo_key, &mut state);
+        assert!(matches!(undo_outcome, Control::Changed));
+        assert_eq!(state.diagram().session().diagram().shape_count(), 1);
+        assert_eq!(state.diagram().selected(), None);
+        assert!(!state.diagram().session().can_undo());
+
+        // Redo (Ctrl+Shift+Z) restores the duplicate in a single step.
+        let redo_key = Event::Key(KeyEvent::new(
+            KeyCode::Char('Z'),
+            KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        ));
+        let redo_outcome = send(&redo_key, &mut state);
+        assert!(matches!(redo_outcome, Control::Changed));
+        assert_eq!(state.diagram().session().diagram().shape_count(), 2);
+        assert!(state.diagram().session().diagram().get(id2).is_some());
+    }
 }

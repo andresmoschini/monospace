@@ -1,5 +1,7 @@
 ---
-status: draft
+status: implemented
+decided: "#350"
+implemented: "#351"
 date: 2026-11-10
 ---
 
@@ -253,7 +255,7 @@ properties at `(1, 1)` and selects Box 2; pressing `→` eight times moves Box 2
 
 | Rule        | Test                                                                                                                                                                                                                                                                                                                                                           |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1, 2, 3     | `status::tests::selected_box_shows_identity_pos_size_stroke_text_and_selection_commands`, `status::tests::selected_line_shows_identity_pos_length_orientation_stroke_and_selection_commands`, `status::tests::selected_connector_shows_identity_endpoints_stroke_and_selection_commands`                                                                       |
+| 1, 2, 3     | `status::tests::selected_box_shows_identity_label_pos_size_stroke_fill_and_selection_commands`, `status::tests::selected_line_shows_identity_pos_length_orientation_stroke_and_selection_commands`, `status::tests::selected_connector_shows_stroke_before_both_endpoints_and_selection_commands`                                                              |
 | 4, 5, 6     | `diagram_state::tests::duplicate_selected_clones_box_line_and_connector_properties_in_place`                                                                                                                                                                                                                                                                   |
 | 7, 8, 9     | `callbacks::tests::pressing_d_duplicates_selected_shape_selects_new_id_and_undoes_in_one_step`                                                                                                                                                                                                                                                                 |
 | 1, 2, 3, 10 | `diagram_widget::tests::key_acceptance_matches_contextual_bar_for_selected_box`, `diagram_widget::tests::key_acceptance_matches_contextual_bar_for_selected_horizontal_line`, `diagram_widget::tests::key_acceptance_matches_contextual_bar_for_selected_vertical_line`, `diagram_widget::tests::key_acceptance_matches_contextual_bar_for_selected_connector` |
