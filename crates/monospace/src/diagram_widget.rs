@@ -2032,15 +2032,38 @@ mod tests {
         assert!(universe.contains(&(KeyCode::Char('d'), KeyModifiers::NONE)));
         assert!(universe.contains(&(KeyCode::Char('0'), KeyModifiers::NONE)));
 
-        // For a selected box, neither 'd' nor '0' is offered, so both are ignored.
+        // In IDLE, neither 'd' nor '0' is offered, so both are ignored.
+        let mut idle_state = a_state_over(A_BOX);
+        assert_eq!(
+            handle(&key(KeyCode::Char('d')), &mut idle_state, Focus::Region),
+            Reply::Ignored
+        );
+        assert_eq!(
+            handle(&key(KeyCode::Char('0')), &mut idle_state, Focus::Region),
+            Reply::Ignored
+        );
+
+        // For a selected box, 'd' is offered (Duplicate) while '0' is ignored.
         let mut box_state = a_state_over(A_BOX);
         box_state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
         assert_eq!(
             handle(&key(KeyCode::Char('d')), &mut box_state, Focus::Region),
-            Reply::Ignored
+            Reply::Repaint
         );
         assert_eq!(
             handle(&key(KeyCode::Char('0')), &mut box_state, Focus::Region),
+            Reply::Ignored
+        );
+
+        // In StrokeSelect and OrderMode sub-modes, 'd' is not offered and is ignored.
+        box_state.set_sub_mode(Some(SubMode::StrokeSelect));
+        assert_eq!(
+            handle(&key(KeyCode::Char('d')), &mut box_state, Focus::Region),
+            Reply::Ignored
+        );
+        box_state.set_sub_mode(Some(SubMode::OrderMode));
+        assert_eq!(
+            handle(&key(KeyCode::Char('d')), &mut box_state, Focus::Region),
             Reply::Ignored
         );
 
