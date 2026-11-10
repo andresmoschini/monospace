@@ -16,10 +16,11 @@ site/
 │   ├── demo-connectors.gif                 # Connector auto-routing demonstration
 │   ├── demo-edit-text-resize.gif           # In-place text editing and resizing demo
 │   ├── demo-undo-menu.gif                  # Menu navigation and undo/redo history demo
+│   ├── hero.png                            # Terminal showcase canvas (hero visual)
 │   ├── screenshot-diagram-edit-menu.png    # Interactive editor interface preview
 │   ├── screenshot-diagram-note.png         # Architecture diagram with notes preview
 │   ├── screenshot-sequence-diagram-selection.png # Sequence diagram preview
-│   └── screenshot-showcase.png             # Stroke and shape showcase (hero visual)
+│   └── screenshot-showcase.png             # Stroke and shape showcase
 ├── config.js                               # Centralized link, version, and download configuration
 ├── index.html                              # Main landing page markup
 ├── README.md                               # Site maintainer and editing documentation
@@ -39,7 +40,7 @@ Open `site/config.js` and edit the values in `window.MONOSPACE_CONFIG`:
 window.MONOSPACE_CONFIG = {
   version: "0.1.0", // Change when cutting a release
   repoUrl: "https://github.com/andresmoschini/monospace",
-  cratesIoUrl: "https://crates.io/crates/monospace-cli", // Replace with real crates.io URL
+  cratesIoUrl: "https://crates.io/crates/monospace", // Replace with real crates.io URL
   downloads: {
     windows: {
       url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-windows-x86_64.zip",
@@ -79,7 +80,7 @@ All copy lives directly in [`site/index.html`](./index.html), organized into sem
 - `#features`: Three feature highlights paired with animated GIFs.
 - `#gallery`: Showcase grid with modal zoom overlay triggers.
 - `#download`: Platform cards for pre-compiled binaries and crates.io instructions.
-- `footer`: Links to repository, issue tracker, project board roadmap, and license.
+- `footer`: Links to repository, issue tracker, and license.
 
 ### Adding or replacing screenshots and GIFs
 
