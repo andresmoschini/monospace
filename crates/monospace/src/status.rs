@@ -635,7 +635,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -656,7 +656,7 @@ mod tests {
         );
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
     }
 
@@ -824,13 +824,13 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             command_line(&state),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
 
         state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));

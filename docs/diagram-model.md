@@ -482,6 +482,15 @@ its current length when it is already 0) and never exceeds `u16::MAX`; a delta a
 orientation changes nothing. A connector still comes back unchanged. Resizing builds a value and
 changes nothing in a diagram; replacing is what puts the value in.
 
+Rotating a line is a replacement too: `with_rotated_orientation` produces a new line with its
+`orientation` toggled between `Orientation::Horizontal` and `Orientation::Vertical`, keeping origin
+`at`, length `len`, and `stroke` unchanged. Only a line has an orientation; a box and a connector
+come back unchanged. Pivoting around `at` is an involution
+(`shape.with_rotated_orientation().with_rotated_orientation() == shape`) for every length.
+Connectors referencing the line dynamically resolve their anchor coordinates against the new
+geometry. Rotating builds a value and changes nothing in a diagram; replacing is what puts the value
+in.
+
 Re-stroking is a replacement too: the new shape is the old one with another stroke. Setting the
 stroke of a box, a line, or a connector replaces its `stroke` while keeping every other parameter
 unchanged. Re-stroking builds a value and changes nothing in a diagram; replacing is what puts the
@@ -547,11 +556,12 @@ standoff `out = 0`, and its departure direction is derived from `anchor.leaving(
 targeted endpoint is already attached, the target is absent or does not answer the anchor, or the
 figure is not a connector, the shape comes back unchanged.
 
-Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_stroke`, `Shape::with_text`,
-`Shape::with_inverted_terminals`, `Shape::with_endpoint_moved`, `Shape::with_endpoint_reset`,
-`Shape::with_endpoint_terminal`, `Shape::with_endpoint_detached`, `Shape::with_endpoint_leaving`,
-and `Shape::with_endpoint_attached` are the eleven figure mutations: each produces a new shape
-value, so looking up a figure and replacing it with the modified copy is the complete operation.
+Together, `Shape::displaced_by`, `Shape::resized_by`, `Shape::with_rotated_orientation`,
+`Shape::with_stroke`, `Shape::with_text`, `Shape::with_inverted_terminals`,
+`Shape::with_endpoint_moved`, `Shape::with_endpoint_reset`, `Shape::with_endpoint_terminal`,
+`Shape::with_endpoint_detached`, `Shape::with_endpoint_leaving`, and `Shape::with_endpoint_attached`
+are the twelve figure mutations: each produces a new shape value, so looking up a figure and
+replacing it with the modified copy is the complete operation.
 
 Removing a shape freezes what hung from it, which _Positions_ states: every reference naming it
 becomes the absolute point it was resolving to, and nothing else about the diagram is rewritten. A

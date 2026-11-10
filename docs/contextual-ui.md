@@ -288,22 +288,22 @@ MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit [a] Auto-fit 
 
 A `Shape::Line` is selected.
 
-- **Status:** Implemented (`MOVE: ↑↓←→`, orientation-aware `RESIZE`, `STROKE: [s]`, `ORDER: [z]`,
-  `[Tab] Next [Shift+Tab] Prev` via [#307](https://github.com/andresmoschini/monospace/issues/307),
-  `[Del] Delete`, `[Esc] Deselect`).
+- **Status:** Implemented (`MOVE: ↑↓←→`, orientation-aware `RESIZE`, `ROTATE: [r]`, `STROKE: [s]`,
+  `ORDER: [z]`, `[Tab] Next [Shift+Tab] Prev` via
+  [#307](https://github.com/andresmoschini/monospace/issues/307), `[Del] Delete`, `[Esc] Deselect`).
 
 _Horizontal line mockup:_
 
 ```text
 Line #3 · Pos: (20, 10) · Length: 12 · Orientation: Horizontal · Stroke: light
-MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+←→ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
 ```
 
 _Vertical line mockup:_
 
 ```text
 Line #3 · Pos: (20, 10) · Length: 8 · Orientation: Vertical · Stroke: light
-MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect
 ```
 
 - **Behavior:**
@@ -311,6 +311,8 @@ MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Tab]
     horizontal lines offer and accept only `Shift+←→` (`len += 1` or `len -= 1`, minimum 1);
     vertical lines offer and accept only `Shift+↑↓`. Shifted arrows on the orthogonal axis are
     ignored (`Control::Continue`) without generating a command or history step.
+  - `r`: Toggles line orientation between `Horizontal` and `Vertical`, pivoting around `Pos`,
+    updating the status row and the `RESIZE` key hint immediately, and recording 1 step.
   - `s`: Opens `STROKE_SELECT`.
   - `z`: Opens `ORDER_MODE`.
   - `Delete`: Removes line and returns to `IDLE`.

@@ -328,6 +328,18 @@ identical terminals (#285), in which case no step is recorded. The status row (r
 endpoint's terminal name and oriented glyph alongside its position. With a box or line selected,
 with nothing selected (`IDLE`), or in an ephemeral sub-mode, `i` is ignored.
 
+**`RotateLine` toggles a line's orientation via `Command::RotateLine`.** It is offered in the
+contextual command line as `ROTATE: [r]` between `RESIZE` and `STROKE: [s]` whenever a line is
+selected (`SELECTED_LINE`), and pressing `r` is dispatched by the diagram region from the active
+context table as `Action::Command(Command::RotateLine { id })`. The session performs the command,
+toggling `orientation` between `Orientation::Horizontal` and `Orientation::Vertical` while keeping
+`at`, `len`, and `stroke` unchanged. Exactly one step is recorded in the session. The status row
+(row 0) immediately updates `Orientation: Horizontal` ↔ `Orientation: Vertical`, and the command row
+updates `RESIZE: Shift+←→` ↔ `RESIZE: Shift+↑↓`. Pressing `r` a second time restores the initial
+orientation and records a second step; `Undo` restores the prior orientation in a single step. With
+a box or connector selected, with nothing selected (`IDLE`), or in an ephemeral sub-mode, `r` is
+ignored.
+
 **`SetEndpointTerminal` sets an endpoint's terminal style via `Command::SetEndpointTerminal`.** It
 is offered in the contextual command line as
 `TERMINAL: [1] arm ─ [2] solid ▶ [3] outline ▷ [4] ascii > [5] diamond ◆ · [Esc] Cancel` whenever
@@ -698,6 +710,9 @@ framework's buffer one at a time.
 - A figure moved past the window's edge is not drawn.
 - `Shift` with an arrow resizes the selected box one cell along the arrow's axis, or a selected line
   one cell along its orientation, records one step, and leaves the selection on it.
+- An unmodified `r` while a line is selected toggles its orientation between horizontal and
+  vertical, records one step, and leaves the selection on it; pressing `r` when not a line or in a
+  sub-mode performs no command.
 - A command that changes nothing records no step: a resize at the smallest size, a figure brought
   forward or to the front at the front, a figure moved backward or to the back at the back, and a
   command naming a figure the drawing does not hold all leave the history where it was, what was

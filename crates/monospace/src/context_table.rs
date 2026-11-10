@@ -29,6 +29,8 @@ pub(crate) enum Condition {
     HorizontalLine,
     /// Active only if the selected figure is a vertical line.
     VerticalLine,
+    /// Active only if the selected figure is a horizontal or vertical line.
+    Line,
     /// Active only if the selected figure is a box or a line.
     BoxOrLine,
     /// Active only if the selected figure is a connector.
@@ -252,6 +254,8 @@ pub(crate) enum ContextMeaning {
     DetachEndpoint,
     /// Resizes the selected figure by the arrow direction.
     Resize,
+    /// Toggles the orientation of the selected line.
+    RotateLine,
     /// Inverts the terminals of the selected connector.
     InvertTerminals,
     /// Removes the selected figure.
@@ -413,6 +417,15 @@ static SELECTION: &[ContextBlock] = &[
             trigger: Trigger::Key(KeyPattern::ShiftVerticalArrows),
             label: "",
             meaning: ContextMeaning::Resize,
+        }],
+    },
+    ContextBlock {
+        category: Some("ROTATE"),
+        condition: Condition::Line,
+        actions: &[ContextAction {
+            trigger: Trigger::Key(KeyPattern::Char('r')),
+            label: "",
+            meaning: ContextMeaning::RotateLine,
         }],
     },
     ContextBlock {
@@ -944,6 +957,7 @@ pub(crate) fn context_blocks(
     let is_box = kind == Some(SelectionKind::Box);
     let is_horizontal_line = kind == Some(SelectionKind::HorizontalLine);
     let is_vertical_line = kind == Some(SelectionKind::VerticalLine);
+    let is_line = is_horizontal_line || is_vertical_line;
     let is_connector = kind == Some(SelectionKind::Connector);
     let is_box_or_line = matches!(
         kind,
@@ -996,6 +1010,7 @@ pub(crate) fn context_blocks(
         Condition::Box => is_box,
         Condition::HorizontalLine => is_horizontal_line,
         Condition::VerticalLine => is_vertical_line,
+        Condition::Line => is_line,
         Condition::BoxOrLine => is_box_or_line,
         Condition::Connector => is_connector,
         Condition::EndpointDetached => is_endpoint_detached,
@@ -1113,6 +1128,12 @@ fn execute_meaning(meaning: &ContextMeaning, state: &mut DiagramState, key: &Key
                 id,
                 by: (dx, dy).into(),
             }))
+        }
+        ContextMeaning::RotateLine => {
+            let Some(id) = selected_id(state) else {
+                return Reply::Ignored;
+            };
+            Reply::Act(Action::Command(Command::RotateLine { id }))
         }
         ContextMeaning::InvertTerminals => {
             let Some(id) = selected_id(state) else {
@@ -1552,7 +1573,7 @@ mod tests {
         horizontal_line_selected.select(Some(id1));
         assert_eq!(
             format_command_line(&horizontal_line_selected),
-            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+←→ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
 
         // 5. Selection: Vertical Line
@@ -1560,7 +1581,7 @@ mod tests {
         vertical_line_selected.select(Some(id1));
         assert_eq!(
             format_command_line(&vertical_line_selected),
-            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect"
         );
 
         // 6. Selection: Connector

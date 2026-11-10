@@ -73,25 +73,26 @@ what became of it.
 The set is **open**, and a command added to it is additive: the session already does whatever a
 command says, and one more meaning is one more arm.
 
-| Command                                     | What it means                                                            | The change it becomes                           |
-| ------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------- |
-| `Move { id, by }`                           | the figure goes so much, along each axis                                 | `replace` with it displaced                     |
-| `Resize { id, by }`                         | the figure becomes so much wider and taller, or a line longer or shorter | `replace` with it resized                       |
-| `SetStroke { id, stroke }`                  | figure cells are drawn in another stroke                                 | `replace` with `Shape::with_stroke`             |
-| `SetText { id, text }`                      | a box's text is replaced with this block, or taken out                   | `replace` with `Shape::with_text`               |
-| `InvertTerminals { id }`                    | a connector's terminals are swapped                                      | `replace` with `Shape::with_inverted_terminals` |
-| `MoveEndpoint { id, end, by, out }`         | an endpoint's offset or coordinates and standoff are adjusted            | `replace` with `Shape::with_endpoint_moved`     |
-| `ResetEndpoint { id, end }`                 | an endpoint's offset and standoff are reset to zero                      | `replace` with `Shape::with_endpoint_reset`     |
-| `SetEndpointTerminal { id, end, terminal }` | an endpoint's terminal style is set                                      | `replace` with `Shape::with_endpoint_terminal`  |
-| `DetachEndpoint { id, end }`                | an attached endpoint is detached to open canvas                          | `replace` with `Shape::with_endpoint_detached`  |
-| `SetEndpointLeaving { id, end, leaving }`   | a detached endpoint's leaving direction is set                           | `replace` with `Shape::with_endpoint_leaving`   |
-| `Hang { id, end, target, anchor }`          | one end of a connector hangs from a figure's side                        | `replace` with `Shape::with_endpoint_attached`  |
-| `Forward { id }`                            | one place toward the front of the order                                  | `forward`                                       |
-| `Backward { id }`                           | one place toward the back of the order                                   | `backward`                                      |
-| `ToFront { id }`                            | to the front of the order                                                | `to_front`                                      |
-| `ToBack { id }`                             | to the back of the order                                                 | `to_back`                                       |
-| `Add { shape }`                             | a shape is added to the diagram                                          | `add`                                           |
-| `Remove { id }`                             | the figure is taken out                                                  | `remove`                                        |
+| Command                                     | What it means                                                            | The change it becomes                            |
+| ------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------ |
+| `Move { id, by }`                           | the figure goes so much, along each axis                                 | `replace` with it displaced                      |
+| `Resize { id, by }`                         | the figure becomes so much wider and taller, or a line longer or shorter | `replace` with it resized                        |
+| `RotateLine { id }`                         | a line's orientation is toggled between horizontal and vertical          | `replace` with `Shape::with_rotated_orientation` |
+| `SetStroke { id, stroke }`                  | figure cells are drawn in another stroke                                 | `replace` with `Shape::with_stroke`              |
+| `SetText { id, text }`                      | a box's text is replaced with this block, or taken out                   | `replace` with `Shape::with_text`                |
+| `InvertTerminals { id }`                    | a connector's terminals are swapped                                      | `replace` with `Shape::with_inverted_terminals`  |
+| `MoveEndpoint { id, end, by, out }`         | an endpoint's offset or coordinates and standoff are adjusted            | `replace` with `Shape::with_endpoint_moved`      |
+| `ResetEndpoint { id, end }`                 | an endpoint's offset and standoff are reset to zero                      | `replace` with `Shape::with_endpoint_reset`      |
+| `SetEndpointTerminal { id, end, terminal }` | an endpoint's terminal style is set                                      | `replace` with `Shape::with_endpoint_terminal`   |
+| `DetachEndpoint { id, end }`                | an attached endpoint is detached to open canvas                          | `replace` with `Shape::with_endpoint_detached`   |
+| `SetEndpointLeaving { id, end, leaving }`   | a detached endpoint's leaving direction is set                           | `replace` with `Shape::with_endpoint_leaving`    |
+| `Hang { id, end, target, anchor }`          | one end of a connector hangs from a figure's side                        | `replace` with `Shape::with_endpoint_attached`   |
+| `Forward { id }`                            | one place toward the front of the order                                  | `forward`                                        |
+| `Backward { id }`                           | one place toward the back of the order                                   | `backward`                                       |
+| `ToFront { id }`                            | to the front of the order                                                | `to_front`                                       |
+| `ToBack { id }`                             | to the back of the order                                                 | `to_back`                                        |
+| `Add { shape }`                             | a shape is added to the diagram                                          | `add`                                            |
+| `Remove { id }`                             | the figure is taken out                                                  | `remove`                                         |
 
 The commands above are what [`docs/model.md`](model.md) calls _The initial set_ for shapes: enough
 to work with, and no promise that this is the final number. `Hang` is the one that shows what the
@@ -107,6 +108,11 @@ records the step, and returns the assigned identity alongside the advanced sessi
 `InvertTerminals` asks the shape to swap `from.terminal` and `to.terminal` while preserving
 attachments and coordinates, and records no step when both endpoints carry identical terminals or
 when the shape is not a connector (#285).
+
+`RotateLine` asks the shape to toggle its `orientation` between `Orientation::Horizontal` and
+`Orientation::Vertical` via `Shape::with_rotated_orientation`, keeping `at`, `len`, and `stroke`
+unchanged. It records one step when applied to a line, and records no step when `id` is a box, a
+connector, or nonexistent (#285).
 
 `MoveEndpoint` asks the shape to move the targeted endpoint (`End::From` or `End::To`) by `by` and
 adjust standoff by `out`. On an attached endpoint, `offset` is grown by `by` on both axes and
