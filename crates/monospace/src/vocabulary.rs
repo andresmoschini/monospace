@@ -114,6 +114,23 @@ pub(crate) enum Action {
     /// session untouched**, overwriting any existing file without confirmation.
     SaveFile(String),
 
+    /// The export dialog is opened, and the frame is owed.
+    ///
+    /// **The chrome's own and no session**, as [`Self::Save`] is: opening the dialog records no
+    /// step, leaves the keyboard on the region, and exports only when [`Self::ExportTextFile`] is
+    /// taken.
+    #[allow(dead_code)]
+    ExportText,
+
+    /// The current session's diagram is rendered over its footprint and written to disk at this
+    /// path.
+    ///
+    /// **The path is carried by the action**, and rendering and writing are done when the action
+    /// is carried out. **A failure changes no session**: the error is reported via
+    /// [`Self::ShowError`] and the current session is untouched. **A success leaves the current
+    /// session untouched**, overwriting any existing file without confirmation.
+    ExportTextFile(String),
+
     /// The error dialog is opened over this text, and the frame is owed.
     ///
     /// **The text is whoever failed's**, so it is owned and not a word of a table. Like

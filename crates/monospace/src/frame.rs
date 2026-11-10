@@ -20,7 +20,7 @@ use ratatui_widgets::clear::Clear;
 
 use crate::context::AppGlobal;
 use crate::state::AppState;
-use crate::{diagram_widget, dialog, menu, open, save, status, text};
+use crate::{diagram_widget, dialog, export, menu, open, save, status, text};
 
 /// The height of the bar across the top.
 pub(crate) const BAR_HEIGHT: u16 = 1;
@@ -98,15 +98,23 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     // drop-down and everything else, and a control behind it is not there to be seen or clicked.
     dialog::draw(regions.region, buf, state.dialog_mut(), &global.cfg.theme);
 
-    // **The open dialog and save dialog are overlays at the top layer.** At most one of the
-    // overlays is ever up, and the frame says where the field's cursor goes when one is.
+    // **The open dialog, save dialog and export dialog are overlays at the top layer.** At most
+    // one of the overlays is ever up, and the frame says where the field's cursor goes when one
+    // is.
     let open_cursor = open::draw(regions.region, buf, state.open_mut(), &global.cfg.theme);
     let save_cursor = save::draw(regions.region, buf, state.save_mut(), &global.cfg.theme);
+    let export_cursor = export::draw(regions.region, buf, state.export_mut(), &global.cfg.theme);
 
-    // **The text editor is the last overlay**, after the open and save dialogs, and at most one
-    // overlay is up at a time. It sets the terminal's cursor when its buffer holds the focus.
+    // **The text editor is the last overlay**, after the open, save and export dialogs, and at
+    // most one overlay is up at a time. It sets the terminal's cursor when its buffer holds the
+    // focus.
     let text_cursor = text::draw(regions.region, buf, state.text_mut(), &global.cfg.theme);
-    global.set_screen_cursor(text_cursor.or(open_cursor).or(save_cursor));
+    global.set_screen_cursor(
+        text_cursor
+            .or(open_cursor)
+            .or(save_cursor)
+            .or(export_cursor),
+    );
 }
 
 /// Where a piece of text is on a frame, found in the frame itself so that a growing label

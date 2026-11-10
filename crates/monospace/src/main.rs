@@ -19,6 +19,7 @@ mod dialog;
 mod dialog_style;
 mod error;
 mod event;
+mod export;
 mod frame;
 mod menu;
 mod open;
@@ -171,7 +172,6 @@ pub(crate) fn save(path: &str, session: &Session) -> Result<(), AppError> {
 /// **The path is part of every failure**: an empty path, an unrepresentable span and a file that
 /// cannot be written all name it, so the error dialog can show `{path}: {error}` directly. An
 /// empty diagram writes an empty file `""`.
-#[allow(dead_code)]
 pub(crate) fn export_text(path: &str, session: &Session) -> Result<(), AppError> {
     if path.is_empty() {
         return Err(": a file name is needed".into());
@@ -185,7 +185,6 @@ pub(crate) fn export_text(path: &str, session: &Session) -> Result<(), AppError>
 
 /// Renders `diagram` over its tight [`monospace_core::FootprintSink`] bounding box, or returns `""`
 /// when empty.
-#[allow(dead_code)]
 fn render_diagram_text(diagram: &monospace_diagram::Diagram) -> Result<String, AppError> {
     use monospace_core::{Buffer, FootprintSink, Pos, Size, Window};
 

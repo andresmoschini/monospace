@@ -1,0 +1,379 @@
+//! The export dialog: a path typed by hand, an `Ok` and a `Cancel`.
+//!
+//! **The framework's frame and buttons, and the application's field.** `rat-widget`'s
+//! `DialogFrame` draws the box, the two buttons and the row they sit in, and its `TextInput` is the
+//! one field: the application says what the dialog is called and what the field holds. The dialog
+//! is an overlay, after the message dialog, and it takes every key and every control while it is
+//! up, the same way (D2 of #352).
+//!
+//! **The dialog says a path and nothing else.** Rendering and writing are `crate::export_text`'s,
+//! and the action that carries them out is `callbacks::apply`'s, so the dialog does not know how
+//! a diagram is rendered or written out (D2 of #352).
+//!
+//! **The focus runs inside the dialog.** The field starts focused, `Tab` moves to the buttons, and
+//! the focused button is drawn in reverse video, which is the cue the message dialog and the menu bar
+//! already use (D2 of #352).
+
+use rat_theme4::WidgetStyle;
+use rat_theme4::theme::SalsaTheme;
+use rat_widget::dialog_frame::{DialogFrame, DialogFrameState};
+use rat_widget::event::{ButtonOutcome, HandleEvent, Outcome, Regular};
+use rat_widget::focus::{Focus, FocusBuilder, HasFocus};
+use rat_widget::text::HasScreenCursor;
+use rat_widget::text_input::{TextInput, TextInputState};
+use ratatui_core::buffer::Buffer;
+use ratatui_core::layout::{Constraint, Layout, Rect};
+use ratatui_core::widgets::{StatefulWidget, Widget};
+use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui_widgets::block::Block;
+use ratatui_widgets::paragraph::Paragraph;
+
+use crate::overlay::Overlay;
+use crate::vocabulary::{Action, Reply};
+
+/// The largest the dialog grows: wide enough for a path, short enough to leave the chrome around
+/// it visible.
+const MAX_WIDTH: u16 = 44;
+
+/// The largest the dialog grows, in rows.
+const MAX_HEIGHT: u16 = 7;
+
+/// The label above the field.
+const LABEL: &str = "File name";
+
+/// The title of the dialog.
+const TITLE: &str = "Export as text";
+
+/// What the export dialog holds while it is up.
+pub(crate) struct ExportDialogState {
+    frame: DialogFrameState,
+    input: TextInputState,
+}
+
+impl ExportDialogState {
+    /// Opens the dialog with an empty field holding the focus.
+    #[must_use]
+    pub(crate) fn new() -> Self {
+        let state = Self {
+            frame: DialogFrameState::default(),
+            input: TextInputState::default(),
+        };
+        state.input.focus.set(true);
+        state.frame.ok.focus.set(false);
+        state.frame.cancel.focus.set(false);
+        state
+    }
+
+    /// The path typed in the field, trimmed of surrounding whitespace.
+    #[must_use]
+    pub(crate) fn path(&self) -> &str {
+        self.input.text().trim()
+    }
+
+    /// Where the terminal cursor goes when the field holds the focus.
+    #[must_use]
+    pub(crate) fn screen_cursor(&self) -> Option<(u16, u16)> {
+        if self.input.is_focused() {
+            self.input.screen_cursor()
+        } else {
+            None
+        }
+    }
+
+    /// The focus ring inside the dialog: the field, `Ok`, and `Cancel`.
+    fn build_focus(&self) -> Focus {
+        let mut builder = FocusBuilder::default();
+        builder
+            .widget(&self.input)
+            .widget(&self.frame.ok)
+            .widget(&self.frame.cancel);
+        builder.build()
+    }
+
+    /// Sets the field's text, for the tests that exercise the dialog's accept path.
+    #[cfg(test)]
+    pub(crate) fn set_path(&mut self, path: &str) {
+        self.input.set_value(path);
+    }
+}
+
+/// Gives `event` to the export dialog when it is up.
+///
+/// **While it is up, nothing behind it is reached**: accepting closes the dialog and returns
+/// [`Action::ExportTextFile`], `Cancel` and `Esc` close it and return [`Reply::Repaint`], and any
+/// other event is either handled by the field/focus ring (`Repaint`) or swallowed (`Consumed`).
+pub(crate) fn handle(event: &Event, dialog: &mut Overlay<ExportDialogState>) -> Reply {
+    let Some(state) = dialog.get_mut() else {
+        return Reply::Ignored;
+    };
+
+    let mut changed = false;
+
+    if state.build_focus().handle(event, Regular) == Outcome::Changed {
+        changed = true;
+    }
+
+    let input: Outcome = state.input.handle(event, Regular).into();
+    if input == Outcome::Changed {
+        changed = true;
+    }
+
+    if state.frame.cancel.handle(event, Regular) == ButtonOutcome::Pressed {
+        dialog.close();
+        return Reply::Repaint;
+    }
+
+    if state.frame.ok.handle(event, Regular) == ButtonOutcome::Pressed {
+        let path = state.path().to_owned();
+        dialog.close();
+        return Reply::Act(Action::ExportTextFile(path));
+    }
+
+    if is_escape(event) {
+        dialog.close();
+        return Reply::Repaint;
+    }
+
+    if is_enter(event) {
+        let path = state.path().to_owned();
+        dialog.close();
+        return Reply::Act(Action::ExportTextFile(path));
+    }
+
+    if changed {
+        Reply::Repaint
+    } else {
+        Reply::Consumed
+    }
+}
+
+/// Paints the export dialog centered over `area` when it is up, and returns the field's screen
+/// cursor when the field holds the focus.
+pub(crate) fn draw(
+    area: Rect,
+    buf: &mut Buffer,
+    dialog: &mut Overlay<ExportDialogState>,
+    theme: &SalsaTheme,
+) -> Option<(u16, u16)> {
+    let state = dialog.get_mut()?;
+    let pop_up = area.centered(Constraint::Max(MAX_WIDTH), Constraint::Max(MAX_HEIGHT));
+
+    DialogFrame::new()
+        .block(Block::bordered().title(TITLE))
+        .styles(crate::dialog_style::style(theme))
+        .left(Constraint::Length(2))
+        .right(Constraint::Length(2))
+        .top(Constraint::Length(0))
+        .bottom(Constraint::Length(0))
+        .render(pop_up, buf, &mut state.frame);
+
+    let content = state.frame.widget_area;
+    let [label, input] =
+        Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(content);
+
+    Paragraph::new(LABEL).render(label, buf);
+    TextInput::new()
+        .styles(theme.style(WidgetStyle::TEXT))
+        .render(input, buf, &mut state.input);
+
+    state.screen_cursor()
+}
+
+fn is_escape(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key(KeyEvent {
+            code: KeyCode::Esc,
+            kind: KeyEventKind::Press,
+            ..
+        })
+    )
+}
+
+fn is_enter(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key(KeyEvent {
+            code: KeyCode::Enter,
+            kind: KeyEventKind::Press,
+            modifiers: KeyModifiers::NONE,
+            ..
+        })
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rat_widget::focus::HasFocus;
+    use ratatui_core::style::Modifier;
+    use ratatui_crossterm::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    /// The region the dialog is drawn into: the same size the frame gives it on a 40×10 screen.
+    const REGION: Rect = Rect::new(0, 1, 40, 8);
+
+    fn theme() -> SalsaTheme {
+        crate::config::Config::default().theme
+    }
+
+    fn drawn() -> (Overlay<ExportDialogState>, Buffer) {
+        let mut dialog = Overlay::up(ExportDialogState::new());
+
+        let mut buffer = Buffer::empty(REGION);
+        let _ = draw(REGION, &mut buffer, &mut dialog, &theme());
+
+        (dialog, buffer)
+    }
+
+    /// The dialog's own state, while it is up.
+    fn state_of(dialog: &Overlay<ExportDialogState>) -> &ExportDialogState {
+        dialog.get().expect("the export dialog is up")
+    }
+
+    /// The dialog's own state, for the test that types into it.
+    fn state_of_mut(dialog: &mut Overlay<ExportDialogState>) -> &mut ExportDialogState {
+        dialog.get_mut().expect("the export dialog is up")
+    }
+
+    fn picture(buffer: &Buffer) -> String {
+        (buffer.area.top()..buffer.area.bottom())
+            .map(|line| {
+                (buffer.area.left()..buffer.area.right())
+                    .map(|column| buffer[(column, line)].symbol().to_string())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
+            .collect::<Vec<String>>()
+            .join("\n")
+    }
+
+    fn reversed(buffer: &Buffer, column: u16, line: u16) -> bool {
+        buffer[(column, line)]
+            .style()
+            .add_modifier
+            .contains(Modifier::REVERSED)
+    }
+
+    fn key(code: KeyCode) -> Event {
+        Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
+    }
+
+    #[test]
+    fn the_export_dialog_holds_a_field_and_two_buttons() {
+        let (_, buffer) = drawn();
+        let frame = picture(&buffer);
+
+        assert!(frame.contains(TITLE), "the dialog has no title: {frame:?}");
+        assert!(
+            frame.contains(LABEL),
+            "the dialog has no field label: {frame:?}"
+        );
+        assert!(frame.contains("Ok"), "the dialog has no Ok: {frame:?}");
+        assert!(
+            frame.contains("Cancel"),
+            "the dialog has no Cancel: {frame:?}"
+        );
+    }
+
+    #[test]
+    fn tab_moves_from_the_field_to_the_ok() {
+        let (mut state, _) = drawn();
+
+        assert!(
+            state_of(&state).input.is_focused(),
+            "the field did not start focused, so the test proves nothing"
+        );
+
+        let outcome = handle(&key(KeyCode::Tab), &mut state);
+
+        assert_eq!(outcome, Reply::Repaint, "Tab changed nothing");
+        assert!(
+            !state_of(&state).input.is_focused(),
+            "Tab left the focus in the field"
+        );
+        assert!(
+            state_of(&state).frame.ok.is_focused(),
+            "Tab did not reach the Ok"
+        );
+    }
+
+    #[test]
+    fn the_focused_ok_is_reversed() {
+        let (mut state, _) = drawn();
+        let _ = handle(&key(KeyCode::Tab), &mut state);
+
+        let mut buffer = Buffer::empty(REGION);
+        let _ = draw(REGION, &mut buffer, &mut state, &theme());
+
+        let (column, line) = crate::frame::cell_of(&buffer, "Ok");
+        assert!(
+            reversed(&buffer, column, line),
+            "the focused Ok is not reversed"
+        );
+    }
+
+    #[test]
+    fn typing_reaches_the_field() {
+        let (mut state, _) = drawn();
+
+        for character in "out.txt".chars() {
+            let _ = handle(&key(KeyCode::Char(character)), &mut state);
+        }
+
+        assert_eq!(
+            state_of(&state).path(),
+            "out.txt",
+            "the field did not take the keys"
+        );
+    }
+
+    #[test]
+    fn the_field_says_where_the_cursor_goes() {
+        let (mut state, _) = drawn();
+        state_of_mut(&mut state).set_path("out.txt");
+
+        let mut buffer = Buffer::empty(REGION);
+        let cursor = draw(REGION, &mut buffer, &mut state, &theme());
+
+        assert!(cursor.is_some(), "the field has no cursor");
+        assert!(
+            REGION.contains(cursor.expect("the cursor is set").into()),
+            "the cursor is outside the region"
+        );
+    }
+
+    #[test]
+    fn escape_closes_the_export_dialog() {
+        let (mut state, _) = drawn();
+
+        assert_eq!(handle(&key(KeyCode::Esc), &mut state), Reply::Repaint);
+        assert!(!state.is_up(), "escape did not close the dialog");
+    }
+
+    #[test]
+    fn enter_closes_the_dialog_and_mints_export_text_file() {
+        let (mut state, _) = drawn();
+        state_of_mut(&mut state).set_path("out.txt");
+
+        assert_eq!(
+            handle(&key(KeyCode::Enter), &mut state),
+            Reply::Act(Action::ExportTextFile("out.txt".to_owned())),
+            "Enter in the field did not accept"
+        );
+        assert!(!state.is_up(), "the dialog remained open after accept");
+    }
+
+    #[test]
+    fn a_dialog_that_is_down_ignores_events() {
+        let mut dialog = Overlay::Down;
+        assert_eq!(handle(&key(KeyCode::Enter), &mut dialog), Reply::Ignored);
+        assert_eq!(handle(&key(KeyCode::Esc), &mut dialog), Reply::Ignored);
+    }
+
+    #[test]
+    fn an_unused_event_is_consumed_while_it_is_up() {
+        let (mut state, _) = drawn();
+        assert_eq!(handle(&key(KeyCode::Right), &mut state), Reply::Consumed);
+    }
+}

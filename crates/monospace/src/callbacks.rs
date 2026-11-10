@@ -25,6 +25,8 @@ use crate::diagram_widget;
 use crate::dialog;
 use crate::error;
 use crate::event::AppEvent;
+use crate::export;
+use crate::export::ExportDialogState;
 use crate::frame;
 use crate::menu;
 use crate::open;
@@ -147,7 +149,8 @@ fn route(event: &Event, state: &mut AppState) -> Reply {
         .or_else(|| text::handle(event, state.text_mut()))
         .or_else(|| dialog::handle(event, state.dialog_mut()))
         .or_else(|| open::handle(event, state.open_mut()))
-        .or_else(|| save::handle(event, state.save_mut()));
+        .or_else(|| save::handle(event, state.save_mut()))
+        .or_else(|| export::handle(event, state.export_mut()));
 
     if before != Reply::Ignored {
         return before;
@@ -265,6 +268,18 @@ fn apply(action: &Action, state: &mut AppState) {
         // leaves the session untouched and reports through ShowError.
         Action::SaveFile(path) => {
             if let Err(error) = crate::save(path, state.diagram().session()) {
+                apply(&Action::ShowError(error.to_string()), state);
+            }
+        }
+
+        // **The export dialog is the chrome's own too**, and opening it changes no session.
+        Action::ExportText => state.export_mut().show(ExportDialogState::new()),
+
+        // **The session's diagram is rendered over its footprint and written to path** (D3, D4
+        // and D5 of #352): on success the file is written and the current session is untouched;
+        // on any error it leaves the session untouched and reports through ShowError.
+        Action::ExportTextFile(path) => {
+            if let Err(error) = crate::export_text(path, state.diagram().session()) {
                 apply(&Action::ShowError(error.to_string()), state);
             }
         }
