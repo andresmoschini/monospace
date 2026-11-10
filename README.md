@@ -6,6 +6,34 @@
 think boxes, connectors, flowcharts, and architecture sketches, all rendered in plain monospaced
 text.
 
+🌐 **Project page:** <https://andresmoschini.github.io/monospace/> — features, gallery and
+downloads.
+
+![Monospace editing a diagram in the terminal](site/assets/hero.png)
+
+## What is Monospace?
+
+Diagrams belong where engineers read and write: next to the code, in commit messages and in design
+discussions. Monospace draws them in plain text, with monospaced ASCII and Unicode box-drawing
+characters, so a diagram diffs cleanly with `git diff`, sits inside a Markdown fence, pastes into a
+pull request and reads in a terminal without a special viewer.
+
+- **Shapes that compose.** Crossing lines become junctions, adjacent boxes share their borders, and
+  the front-most fill covers what is behind it.
+- **Connectors that route themselves.** They find an orthogonal path between two shapes and follow
+  along as the shapes move.
+- **Edit in the terminal.** Select, type labels in place, resize boxes and lines, and drive
+  everything from a menu bar with the mouse or the keyboard.
+- **Undo without fear.** Every change is a reversible step.
+
+![Self-routing connectors](site/assets/demo-connectors.gif)
+
+![Editing text and resizing shapes](site/assets/demo-edit-text-resize.gif)
+
+More pictures are in the [gallery](https://andresmoschini.github.io/monospace/#gallery), and
+pre-built binaries, as they become available, on the
+[project page](https://andresmoschini.github.io/monospace/).
+
 ## Why this project exists
 
 This isn't primarily about shipping a diagramming tool. It's a deliberate exercise in learning how
