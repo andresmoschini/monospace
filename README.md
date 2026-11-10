@@ -31,8 +31,23 @@ pull request and reads in a terminal without a special viewer.
 ![Editing text and resizing shapes](site/assets/demo-edit-text-resize.gif)
 
 More pictures are in the [gallery](https://andresmoschini.github.io/monospace/#gallery), and
-pre-built binaries, as they become available, on the
-[project page](https://andresmoschini.github.io/monospace/).
+pre-built binaries on the [project page](https://andresmoschini.github.io/monospace/).
+
+## Install
+
+The application is the [`monospace`](https://crates.io/crates/monospace) crate on crates.io:
+
+```sh
+cargo install monospace
+```
+
+The libraries it is built from are published beside it, under the same version:
+[`monospace-core`](https://crates.io/crates/monospace-core),
+[`monospace-diagram`](https://crates.io/crates/monospace-diagram),
+[`monospace-editing`](https://crates.io/crates/monospace-editing),
+[`monospace-description`](https://crates.io/crates/monospace-description),
+[`monospace-glyph-sets`](https://crates.io/crates/monospace-glyph-sets), and the non-interactive
+renderer [`monospace-cli`](https://crates.io/crates/monospace-cli).
 
 ## Why this project exists
 
