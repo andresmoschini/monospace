@@ -4,8 +4,8 @@
 // ============================================================================
 // HOW TO EDIT THIS FILE
 // ============================================================================
-// 1. Version: Update the version string when a new release is cut.
-// 2. Download URLs: Replace each "https://example.com/TODO-..." placeholder with
+// 1. Version: Update the version string and releaseUrl when a new release is cut.
+// 2. Download URLs: Point each entry (or a "https://example.com/TODO-..." placeholder) at
 //    the direct download link for that platform's release archive or installer.
 // 3. crates.io: Replace the placeholder with the published package page.
 //
@@ -19,24 +19,24 @@ window.MONOSPACE_CONFIG = {
   version: "0.1.0",
   repoUrl: "https://github.com/andresmoschini/monospace",
   cratesIoUrl: "https://example.com/TODO-crates-io",
+  releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.0",
+  // Keyed by the value of each button's data-download-platform attribute. A card's
+  // data-download-status badge reads "Available" once any of its buttons has a real URL.
   downloads: {
     windows: {
-      url: "https://example.com/TODO-download-windows",
-      filename: "monospace-windows-x86_64.zip",
-      label: "Download for Windows",
-      badge: "x86_64 (.exe / .zip)",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-pc-windows-msvc.zip",
     },
-    macos: {
-      url: "https://example.com/TODO-download-macos",
-      filename: "monospace-macos-universal.tar.gz",
-      label: "Download for macOS",
-      badge: "Universal binary (.tar.gz)",
+    "macos-arm64": {
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-aarch64-apple-darwin.tar.gz",
     },
-    linux: {
-      url: "https://example.com/TODO-download-linux",
-      filename: "monospace-linux-x86_64.tar.gz",
-      label: "Download for Linux",
-      badge: "x86_64 (.tar.gz)",
+    "macos-x86_64": {
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-apple-darwin.tar.gz",
+    },
+    "linux-x86_64": {
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-unknown-linux-gnu.tar.gz",
+    },
+    "linux-arm64": {
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-aarch64-unknown-linux-gnu.tar.gz",
     },
   },
 };
@@ -88,34 +88,39 @@ window.MONOSPACE_CONFIG = {
       }
     }
 
+    // Release page link
+    document.querySelectorAll("[data-config='release-link']").forEach(function (el) {
+      if (!isPlaceholder(cfg.releaseUrl)) el.setAttribute("href", cfg.releaseUrl);
+    });
+
     // Platform downloads
-    var platforms = ["windows", "macos", "linux"];
-    platforms.forEach(function (platform) {
-      var entry = (cfg.downloads && cfg.downloads[platform]) || {};
-      var button = document.querySelector("[data-download-platform='" + platform + "']");
-      var statusBadge = document.querySelector("[data-download-status='" + platform + "']");
-
-      if (!button) return;
-
+    var available = {};
+    document.querySelectorAll("[data-download-platform]").forEach(function (button) {
+      var key = button.getAttribute("data-download-platform");
+      var platform = key.split("-")[0];
+      var entry = (cfg.downloads && cfg.downloads[key]) || {};
       if (isPlaceholder(entry.url)) {
         button.setAttribute("aria-disabled", "true");
         button.classList.add("disabled");
         button.removeAttribute("href");
         button.setAttribute("tabindex", "-1");
-        if (statusBadge) {
-          statusBadge.textContent = "Coming soon";
-          statusBadge.classList.add("badge-pending");
-        }
+        if (!(platform in available)) available[platform] = false;
       } else {
         button.removeAttribute("aria-disabled");
         button.classList.remove("disabled");
         button.setAttribute("href", entry.url);
         button.removeAttribute("tabindex");
-        if (statusBadge) {
-          statusBadge.textContent = "Available";
-          statusBadge.classList.remove("badge-pending");
-          statusBadge.classList.add("badge-active");
-        }
+        available[platform] = true;
+      }
+    });
+    document.querySelectorAll("[data-download-status]").forEach(function (badge) {
+      if (available[badge.getAttribute("data-download-status")]) {
+        badge.textContent = "Available";
+        badge.classList.remove("badge-pending");
+        badge.classList.add("badge-active");
+      } else {
+        badge.textContent = "Coming soon";
+        badge.classList.add("badge-pending");
       }
     });
   }

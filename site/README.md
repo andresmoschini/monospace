@@ -41,18 +41,23 @@ window.MONOSPACE_CONFIG = {
   version: "0.1.0", // Change when cutting a release
   repoUrl: "https://github.com/andresmoschini/monospace",
   cratesIoUrl: "https://crates.io/crates/monospace", // Replace with real crates.io URL
+  releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.0", // Checksums link
+  // One entry per download button, keyed by its data-download-platform attribute.
   downloads: {
     windows: {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-windows-x86_64.zip",
-      // ...
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-pc-windows-msvc.zip",
     },
-    macos: {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-macos-universal.tar.gz",
-      // ...
+    "macos-arm64": {
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-aarch64-apple-darwin.tar.gz",
     },
-    linux: {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-linux-x86_64.tar.gz",
-      // ...
+    "macos-x86_64": {
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-apple-darwin.tar.gz",
+    },
+    "linux-x86_64": {
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-unknown-linux-gnu.tar.gz",
+    },
+    "linux-arm64": {
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-aarch64-unknown-linux-gnu.tar.gz",
     },
   },
 };
