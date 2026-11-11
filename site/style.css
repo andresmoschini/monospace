@@ -311,6 +311,18 @@ samp {
   border-color: var(--accent-hover);
 }
 
+/* Ko-fi Badge */
+.kofi-badge {
+  background-color: #72a4f2;
+  color: #121214 !important;
+  border-color: #72a4f2;
+}
+
+.kofi-badge:hover {
+  background-color: #8bb6f7;
+  border-color: #8bb6f7;
+}
+
 /* --------------------------------------------------------------------------
    Hero Section
    -------------------------------------------------------------------------- */
@@ -940,6 +952,176 @@ samp {
 
 .copy-btn:hover {
   color: var(--text-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Support Section
+   -------------------------------------------------------------------------- */
+.support-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  max-width: 52rem;
+}
+
+.support-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.25rem;
+  transition:
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.support-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+
+.support-card-featured {
+  border-color: rgba(114, 164, 242, 0.4);
+}
+
+.support-card-featured:hover {
+  border-color: #72a4f2;
+}
+
+.support-card-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.support-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.support-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.support-icon-github {
+  background-color: var(--badge-pending-bg);
+  color: var(--accent);
+}
+
+.support-icon-kofi {
+  background-color: rgba(114, 164, 242, 0.16);
+  color: #72a4f2;
+}
+
+.support-card-title {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.support-pill {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--bg-subtle);
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.support-pill-direct {
+  background-color: rgba(74, 222, 128, 0.16);
+  color: #4ade80;
+}
+
+.support-card-desc {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.support-card-action {
+  margin-top: auto;
+}
+
+.support-btn-github {
+  width: 100%;
+  background-color: var(--accent);
+  color: #121214 !important;
+  border-color: var(--accent);
+  text-align: center;
+  justify-content: center;
+}
+
+.support-btn-github:hover {
+  background-color: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.support-btn-kofi {
+  width: 100%;
+  background-color: #00b9fe;
+  color: #ffffff !important;
+  border: 1px solid #00b9fe;
+  text-align: center;
+  justify-content: center;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.support-btn-kofi:hover {
+  background-color: #00a4e4;
+  border-color: #00a4e4;
+  transform: translateY(-1px);
+}
+
+/* cspell:ignore floatingchat mobi */
+/* Ko-fi Floating Launcher Hide (Overlay modal remains active via on-page buttons) */
+.floatingchat-container-wrap,
+.floatingchat-container-wrap-mobi {
+  position: fixed !important;
+  left: -9999px !important;
+  bottom: -9999px !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+.floating-chat-kofi-popup-iframe,
+.floating-chat-kofi-popup-iframe-mobi {
+  bottom: 24px !important;
+  left: 24px !important;
+}
+
+@media (max-width: 600px) {
+  .floating-chat-kofi-popup-iframe,
+  .floating-chat-kofi-popup-iframe-mobi {
+    bottom: 12px !important;
+    left: 12px !important;
+  }
 }
 
 /* --------------------------------------------------------------------------

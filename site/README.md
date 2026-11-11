@@ -89,6 +89,8 @@ All copy lives directly in [`site/index.html`](./index.html), organized into sem
 - `#features`: Three feature highlights paired with animated GIFs.
 - `#gallery`: Showcase grid with modal zoom overlay triggers.
 - `#download`: Platform cards for pre-compiled binaries and crates.io instructions.
+- `#faq`: Common questions about ASCII and box-drawing diagramming.
+- `#support`: Visual sponsorship cards for GitHub Sponsors and Ko-fi (with direct on-page checkout).
 - `footer`: Links to repository, issue tracker, crates.io, GitHub Sponsors, Ko-fi, and license.
 
 ### Adding or replacing screenshots and GIFs

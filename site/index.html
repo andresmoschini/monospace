@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Google Tag Manager / Analytics -->
+    <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-NH5XQPGK"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+    </script>
     <title>Monospace — ASCII &amp; Box-Drawing Diagram Editor (Rust)</title>
     <meta
       name="description"
@@ -145,6 +154,7 @@
             <li><a href="#gallery">Gallery</a></li>
             <li><a href="#download">Download</a></li>
             <li><a href="#faq">FAQ</a></li>
+            <li><a href="#support">Support</a></li>
             <li>
               <a
                 href="https://github.com/andresmoschini/monospace#readme"
@@ -185,6 +195,22 @@
               ></path>
             </svg>
             <span class="github-badge-text">Sponsor</span>
+          </a>
+          <a
+            href="#"
+            class="github-badge kofi-badge"
+            data-config="ko-fi-link"
+            data-kofi-trigger="true"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Support Monospace"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.683-2.566l4.604-.012c4.133 0 2.798-4.049 2.02-8.072zm-4.786 3.655h-1.638v-4.13h1.638c1.372 0 1.996 1.054 1.996 2.065 0 1.012-.624 2.065-1.996 2.065z"
+              ></path>
+            </svg>
+            <span class="github-badge-text">Support me</span>
           </a>
         </div>
       </div>
@@ -675,6 +701,77 @@
           </div>
         </div>
       </section>
+
+      <!-- Support Section -->
+      <section id="support" class="site-section">
+        <div class="container">
+          <span class="section-tag">[ 06 / SUPPORT ]</span>
+          <h2 class="section-title">Support Monospace</h2>
+          <p class="section-desc">
+            Monospace is built in the open, one honest commit at a time, and stays free under the
+            MIT License. If it saves you time or you want to support development, consider
+            sponsoring the project.
+          </p>
+
+          <div class="support-grid">
+            <div class="support-card">
+              <div class="support-card-header">
+                <div class="support-icon support-icon-github">
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M8 2.748l-.717-.737C5.6.281 2.514.878 1.4 3.053c-.523 1.023-.641 2.5.314 4.385.92 1.815 2.834 3.989 6.286 6.357 3.452-2.368 5.365-4.542 6.286-6.357.955-1.886.838-3.362.314-4.385C13.486.878 10.4.28 8.717 2.01L8 2.748z"
+                    ></path>
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="support-card-title">GitHub Sponsors</h3>
+                  <span class="support-pill">Recurring &amp; One-time</span>
+                </div>
+              </div>
+              <p class="support-card-desc">
+                Sponsor directly through your GitHub account. Perfect for developers and teams who
+                want GitHub profile badges and tier recognition.
+              </p>
+              <div class="support-card-action">
+                <a
+                  href="#"
+                  class="btn btn-primary support-btn-github"
+                  data-config="sponsor-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Sponsor on GitHub
+                </a>
+              </div>
+            </div>
+
+            <div class="support-card support-card-featured">
+              <div class="support-card-header">
+                <div class="support-icon support-icon-kofi">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.683-2.566l4.604-.012c4.133 0 2.798-4.049 2.02-8.072zm-4.786 3.655h-1.638v-4.13h1.638c1.372 0 1.996 1.054 1.996 2.065 0 1.012-.624 2.065-1.996 2.065z"
+                    ></path>
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="support-card-title">Ko-fi</h3>
+                  <span class="support-pill support-pill-direct">Contribute directly</span>
+                </div>
+              </div>
+              <p class="support-card-desc">
+                Support instantly with a coffee tip, card, or PayPal. You can contribute directly
+                from this page without leaving the site.
+              </p>
+              <div class="support-card-action">
+                <button type="button" class="support-btn-kofi" data-kofi-trigger="true">
+                  Support on Ko-fi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Lightbox Modal -->
@@ -747,7 +844,12 @@
                 >
               </li>
               <li>
-                <a href="#" data-config="ko-fi-link" target="_blank" rel="noopener noreferrer"
+                <a
+                  href="#"
+                  data-config="ko-fi-link"
+                  data-kofi-trigger="true"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   >Support on Ko-fi</a
                 >
               </li>
@@ -879,6 +981,55 @@
               });
             }
           });
+        });
+        // Ko-fi widget trigger logic
+        function triggerKoFi() {
+          try {
+            var iframes = document.querySelectorAll("iframe[id^='kofi-wo-container']");
+            for (var i = 0; i < iframes.length; i++) {
+              var doc = iframes[i].contentDocument;
+              if (doc) {
+                var btn = doc.querySelector("[id$='-donate-button']");
+                if (btn) {
+                  btn.click();
+                  return true;
+                }
+              }
+            }
+          } catch (e) {
+            // Graceful fallback
+          }
+          return false;
+        }
+
+        document.querySelectorAll("[data-kofi-trigger]").forEach(function (btn) {
+          btn.addEventListener("click", function (e) {
+            if (triggerKoFi()) {
+              e.preventDefault();
+            } else if (btn.tagName === "BUTTON") {
+              var url =
+                (window.MONOSPACE_CONFIG && window.MONOSPACE_CONFIG.koFiUrl) ||
+                "https://ko-fi.com/andresmoschini";
+              window.open(url, "_blank", "noopener,noreferrer");
+            }
+          });
+        });
+      })();
+    </script>
+
+    <!-- Ko-fi Overlay Widget -->
+    <script src="https://storage.ko-fi.com/cdn/scripts/overlay-widget.js"></script>
+    <script>
+      (function () {
+        var koFiPage =
+          (window.MONOSPACE_CONFIG && window.MONOSPACE_CONFIG.koFiUrl) ||
+          "https://ko-fi.com/andresmoschini";
+        var koFiHandle = koFiPage.split("/").filter(Boolean).pop();
+        kofiWidgetOverlay.draw(koFiHandle, {
+          type: "floating-chat",
+          "floating-chat.donateButton.text": "Support me",
+          "floating-chat.donateButton.background-color": "#00b9fe",
+          "floating-chat.donateButton.text-color": "#fff",
         });
       })();
     </script>

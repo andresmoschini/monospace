@@ -220,8 +220,10 @@ rustdoc, the model documents, or the pull request body where it was taken — is
 
 Monospace is built in the open, one honest commit at a time, and it stays free under the MIT
 License. If it saves you time — or you want to support the specs, the tests and the drawings that go
-into it — you can do it through [GitHub Sponsors](https://github.com/sponsors/andresmoschini) or
-[Ko-fi](https://ko-fi.com/andresmoschini).
+into it — you can sponsor or support the work through GitHub Sponsors or Ko-fi:
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor_on-GitHub_Sponsors-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/andresmoschini)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L8B22AHS6N)
 
 Supporting the project is optional and buys no priority, no private access and no say in the
 roadmap: issues and pull requests are the contribution path, and they stay open to everyone.
