@@ -18,7 +18,7 @@ footprint ([#238](https://github.com/andresmoschini/monospace/issues/238)). Furt
 (separating `Reference.out` from `offset` and deriving connector endpoint `leaving` direction).
 
 However, the current bottom bar (`crates/monospace/src/status.rs`) remains a single static row from
-`rat-widget` displaying only `monospace`, the footprint, and the version (`0.1.0`):
+`rat-widget` displaying only `monospace`, the footprint, and the version (`0.1.1`):
 
 1. When a shape is selected, nothing on the screen indicates what kind of shape it is, its identity
    (`#id`), its position, or its style properties (the problem
@@ -189,7 +189,7 @@ is `crates/monospace/assets/demo.json`: 27 shapes, reaching from `(0, 0)` to `(4
 ### 1. `IDLE` (the demonstration diagram loaded)
 
 ```text
-monospace 0.1.0 · Footprint: 46×17 at 0,0 · 27 shapes · Viewport: (0, 0)
+monospace 0.1.1 · Footprint: 46×17 at 0,0 · 27 shapes · Viewport: (0, 0)
 SELECT: [Click] Pick
 ```
 

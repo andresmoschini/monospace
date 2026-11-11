@@ -1,6 +1,6 @@
 [package]
 name = "monospace-editing"
-description = "The layer that holds a diagram while it is being changed: a session, the commands performed against it, and what it gives back"
+description = "Editing sessions over a plain-text diagram, with undo and redo: commands, steps and history"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

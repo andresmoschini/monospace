@@ -3,25 +3,53 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Monospace — Plain-Text &amp; ASCII Diagramming in Rust</title>
+    <title>Monospace — ASCII &amp; Box-Drawing Diagram Editor (Rust)</title>
     <meta
       name="description"
-      content="A set of applications and libraries for creating plain-text diagrams with ASCII/Unicode characters, self-routing connectors, and zero binary diffs."
+      content="Draw ASCII and box-drawing diagrams in your terminal. A Rust editor and CLI for plain-text flowcharts and architecture sketches that diff in git."
     />
-    <meta property="og:title" content="Monospace — Plain-Text &amp; ASCII Diagramming in Rust" />
+    <link rel="canonical" href="https://andresmoschini.github.io/monospace/" />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="Andrés Moschini" />
+    <meta name="theme-color" content="#151921" />
+
+    <meta property="og:title" content="Monospace — ASCII &amp; Box-Drawing Diagram Editor (Rust)" />
     <meta
       property="og:description"
-      content="ASCII diagramming, built one honest commit at a time. Plain-text boxes, self-routing connectors, and architecture sketches rendered in monospaced characters."
+      content="ASCII diagramming, built one honest commit at a time. Draw boxes, connectors and architecture sketches in plain text that diffs cleanly and lives in git."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="./assets/hero.png" />
+    <meta property="og:url" content="https://andresmoschini.github.io/monospace/" />
+    <meta property="og:site_name" content="Monospace" />
+    <meta property="og:locale" content="en_US" />
+    <meta
+      property="og:image"
+      content="https://andresmoschini.github.io/monospace/assets/hero.png"
+    />
+    <meta property="og:image:width" content="1136" />
+    <meta property="og:image:height" content="883" />
+    <meta
+      property="og:image:alt"
+      content="Monospace terminal editor drawing boxes and connectors with box-drawing characters"
+    />
+
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Monospace — Plain-Text &amp; ASCII Diagramming in Rust" />
+    <meta
+      name="twitter:title"
+      content="Monospace — ASCII &amp; Box-Drawing Diagram Editor (Rust)"
+    />
     <meta
       name="twitter:description"
-      content="ASCII diagramming, built one honest commit at a time."
+      content="Draw ASCII and box-drawing diagrams in your terminal. A Rust editor and CLI for plain-text flowcharts and architecture sketches that diff in git."
     />
-    <meta name="twitter:image" content="./assets/hero.png" />
+    <meta
+      name="twitter:image"
+      content="https://andresmoschini.github.io/monospace/assets/hero.png"
+    />
+    <meta
+      name="twitter:image:alt"
+      content="Monospace terminal editor drawing boxes and connectors with box-drawing characters"
+    />
 
     <!-- Minimal ASCII Favicon -->
     <link
@@ -31,7 +59,76 @@
     />
 
     <link rel="stylesheet" href="./style.css" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Monospace",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Windows, macOS, Linux",
+        "description": "Draw ASCII and box-drawing diagrams in your terminal. A Rust editor and CLI for plain-text flowcharts and architecture sketches that diff in git.",
+        "url": "https://andresmoschini.github.io/monospace/",
+        "codeRepository": "https://github.com/andresmoschini/monospace",
+        "installUrl": "https://crates.io/crates/monospace",
+        "license": "https://opensource.org/licenses/MIT",
+        "programmingLanguage": "Rust",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "screenshot": "https://andresmoschini.github.io/monospace/assets/hero.png",
+        "sameAs": [
+          "https://github.com/andresmoschini/monospace",
+          "https://crates.io/crates/monospace"
+        ],
+        "keywords": "ASCII art, box-drawing characters, plain-text diagram, terminal diagram editor, flowchart, architecture diagram"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I make an ASCII diagram?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Describe the shapes in JSON and render them with monospace-cli, or open the interactive editor and draw them directly. Both produce plain text you can paste into a file, a Markdown fence or a terminal."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does it support Unicode box-drawing characters?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Nine glyph tables are built in, from ASCII fallbacks to light, heavy and double box-drawing characters, so the same diagram can render in whichever set the target medium displays."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I embed the diagrams in Markdown?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. The output is plain text, so it fits inside a fenced code block and keeps its layout in a monospaced renderer."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I use it in scripts or CI?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. monospace-cli is non-interactive: it reads a description and prints the picture, which makes it usable in a build step or a documentation pipeline."
+            }
+          }
+        ]
+      }
+    </script>
   </head>
+
   <body>
     <!-- Top Navigation Bar -->
     <header class="site-header">
@@ -47,6 +144,7 @@
             <li><a href="#features">Features</a></li>
             <li><a href="#gallery">Gallery</a></li>
             <li><a href="#download">Download</a></li>
+            <li><a href="#faq">FAQ</a></li>
             <li>
               <a
                 href="https://github.com/andresmoschini/monospace#readme"
@@ -84,7 +182,7 @@
           <div class="hero-content">
             <div class="hero-pill">
               <span class="dot"></span>
-              <span>v<span data-config="version">0.1.0</span> released</span>
+              <span>v<span data-config="version">0.1.1</span> released</span>
             </div>
             <h1 class="hero-title">Monospace</h1>
             <p class="hero-tagline">
@@ -508,6 +606,56 @@
                   >View on crates.io</a
                 >
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ Section -->
+      <section id="faq" class="site-section">
+        <div class="container">
+          <span class="section-tag">[ 05 / FAQ ]</span>
+          <h2 class="section-title">ASCII and box-drawing questions</h2>
+          <p class="section-desc">
+            The questions people ask before drawing their first plain-text diagram.
+          </p>
+
+          <div class="prose-grid">
+            <div class="prose-card">
+              <h3><span class="icon">?</span> How do I make an ASCII diagram?</h3>
+              <p>
+                Describe the shapes in JSON and render them with <code>monospace-cli</code>, or open
+                the interactive editor and draw them directly. Both produce plain text you can paste
+                into a file, a Markdown fence or a terminal.
+              </p>
+            </div>
+
+            <div class="prose-card">
+              <h3>
+                <span class="icon">&gt;</span> Does it support Unicode box-drawing characters?
+              </h3>
+              <p>
+                Yes. Nine glyph tables are built in, from ASCII fallbacks to light, heavy and double
+                box-drawing characters, so the same diagram can render in whichever set the target
+                medium displays.
+              </p>
+            </div>
+
+            <div class="prose-card">
+              <h3><span class="icon">#</span> Can I embed the diagrams in Markdown?</h3>
+              <p>
+                Yes. The output is plain text, so it fits inside a fenced code block and keeps its
+                layout in a monospaced renderer.
+              </p>
+            </div>
+
+            <div class="prose-card">
+              <h3><span class="icon">*</span> Can I use it in scripts or CI?</h3>
+              <p>
+                Yes. <code>monospace-cli</code> is non-interactive: it reads a description and
+                prints the picture, which makes it usable in a build step or a documentation
+                pipeline.
+              </p>
             </div>
           </div>
         </div>

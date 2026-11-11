@@ -1,6 +1,6 @@
 [package]
 name = "monospace-diagram"
-description = "The model that holds a diagram after it is drawn: shapes in an order, drawable"
+description = "An ordered set of shapes that draws as an ASCII or box-drawing diagram"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

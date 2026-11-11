@@ -16,7 +16,7 @@
 // ============================================================================
 
 window.MONOSPACE_CONFIG = {
-  version: "0.1.0",
+  version: "0.1.1",
   repoUrl: "https://github.com/andresmoschini/monospace",
   cratesIoUrl: "https://crates.io/crates/monospace",
   releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.0",
@@ -59,7 +59,7 @@ window.MONOSPACE_CONFIG = {
     // Version label
     var versionEls = document.querySelectorAll("[data-config='version']");
     versionEls.forEach(function (el) {
-      el.textContent = cfg.version || "0.1.0";
+      el.textContent = cfg.version || "0.1.1";
     });
 
     // crates.io link

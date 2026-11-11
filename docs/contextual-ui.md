@@ -226,7 +226,7 @@ No figure is selected. The user is navigating the diagram or inspecting the canv
   [#307](https://github.com/andresmoschini/monospace/issues/307)).
 
 ```text
-monospace 0.1.0 · Footprint: 46×17 at 0,0 · 27 shapes · Viewport: (0, 0)
+monospace 0.1.1 · Footprint: 46×17 at 0,0 · 27 shapes · Viewport: (0, 0)
 CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick
 ```
 
@@ -234,7 +234,7 @@ _When the diagram is empty (`0 shapes`), `Condition::HasShapes` is false and row
 alone:_
 
 ```text
-monospace 0.1.0 · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)
+monospace 0.1.1 · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)
 CREATE: [b] Box [l] Line [c] Connector
 ```
 

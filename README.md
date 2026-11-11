@@ -1,5 +1,10 @@
 # Monospace
 
+[![crates.io](https://img.shields.io/crates/v/monospace.svg)](https://crates.io/crates/monospace)
+[![docs.rs](https://docs.rs/monospace/badge.svg)](https://docs.rs/monospace)
+[![CI](https://github.com/andresmoschini/monospace/actions/workflows/ci.yml/badge.svg)](https://github.com/andresmoschini/monospace/actions/workflows/ci.yml)
+[![MIT license](https://img.shields.io/crates/l/monospace.svg)](LICENSE)
+
 > ASCII diagramming, built one honest commit at a time.
 
 **Monospace** is a set of applications and libraries for creating diagrams using ASCII characters —
