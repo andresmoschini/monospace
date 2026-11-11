@@ -409,7 +409,7 @@ run.
 
 | Context                  | Status Row (Row 0)                                                            | Command Row (Row 1)                                                                                   |
 | ------------------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `IDLE`                   | `monospace 0.1.0 · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)`    | `SELECT: [Click] Pick`                                                                                |
+| `IDLE`                   | `monospace 0.1.1 · Footprint: nothing drawn · 0 shapes · Viewport: (0, 0)`    | `SELECT: [Click] Pick`                                                                                |
 | `SELECTED_BOX` #1        | `Box #1 · Pos: (2, 2) · Size: 10×4 · Stroke: light · Fill: None`              | `MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect`                       |
 | `SELECTED_LINE` #2       | `Line #2 · Pos: (0, 0) · Length: 6 · Orientation: Horizontal · Stroke: light` | `MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect`                                            |
 | `SELECTED_CONNECTOR` #3  | `Connector #3 · Stroke: light · 1. From: ... · 2. To: ...`                    | `MOVE: ↑↓←→ · STROKE: [s] · [Del] Delete · [Esc] Deselect`                                            |

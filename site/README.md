@@ -40,7 +40,7 @@ Open `site/config.js` and edit the values in `window.MONOSPACE_CONFIG`:
 
 ```javascript
 window.MONOSPACE_CONFIG = {
-  version: "0.1.0", // Change when cutting a release
+  version: "0.1.1", // Change when cutting a release
   repoUrl: "https://github.com/andresmoschini/monospace",
   cratesIoUrl: "https://crates.io/crates/monospace", // Replace with real crates.io URL
   releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.0", // Checksums link
