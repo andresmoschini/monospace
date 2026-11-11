@@ -43,6 +43,7 @@ window.MONOSPACE_CONFIG = {
   version: "0.1.1", // Change when cutting a release
   repoUrl: "https://github.com/andresmoschini/monospace",
   sponsorUrl: "https://github.com/sponsors/andresmoschini", // Sponsor button and footer link
+  koFiUrl: "https://ko-fi.com/andresmoschini", // Ko-fi link in the footer
   cratesIoUrl: "https://crates.io/crates/monospace", // Replace with real crates.io URL
   releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.0", // Checksums link
   // One entry per download button, keyed by its data-download-platform attribute.
@@ -88,7 +89,7 @@ All copy lives directly in [`site/index.html`](./index.html), organized into sem
 - `#features`: Three feature highlights paired with animated GIFs.
 - `#gallery`: Showcase grid with modal zoom overlay triggers.
 - `#download`: Platform cards for pre-compiled binaries and crates.io instructions.
-- `footer`: Links to repository, issue tracker, crates.io, sponsorship, and license.
+- `footer`: Links to repository, issue tracker, crates.io, GitHub Sponsors, Ko-fi, and license.
 
 ### Adding or replacing screenshots and GIFs
 
