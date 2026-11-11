@@ -17,10 +17,10 @@ edition = "2024"
 authors = ["Andrés Moschini <andresmoschini@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/andresmoschini/monospace"
-homepage = "https://github.com/andresmoschini/monospace"
+homepage = "https://andresmoschini.github.io/monospace/"
 readme = "README.md"
-keywords = ["ascii", "diagram", "monospace", "text", "drawing"]
-categories = ["text-processing", "visualization"]
+keywords = ["ascii-art", "diagram", "box-drawing", "plain-text", "tui"]
+categories = ["command-line-utilities", "text-processing", "visualization", "rendering"]
 
 [workspace.dependencies]
 # Each path carries a version as well, because crates.io refuses a dependency that has only a path.

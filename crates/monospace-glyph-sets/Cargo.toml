@@ -1,6 +1,6 @@
 [package]
 name = "monospace-glyph-sets"
-description = "Glyph sets that monospace-core does not ship, such as ASCII"
+description = "ASCII, double, heavy and mixed box-drawing glyph tables for monospace-core"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

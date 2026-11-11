@@ -1,6 +1,6 @@
 [package]
 name = "monospace"
-description = "The interactive full-screen terminal application: the chrome around a diagram being edited"
+description = "Interactive terminal editor for ASCII and Unicode box-drawing diagrams"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

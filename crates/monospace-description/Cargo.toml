@@ -1,6 +1,6 @@
 [package]
 name = "monospace-description"
-description = "The diagram description format: JSON deserialized into a monospace_diagram::Diagram"
+description = "JSON description format for ASCII and box-drawing diagrams, read into a Diagram"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -24,6 +24,8 @@ site/
 ├── config.js                               # Centralized link, version, and download configuration
 ├── index.html                              # Main landing page markup
 ├── README.md                               # Site maintainer and editing documentation
+├── robots.txt                              # Crawler policy and sitemap location
+├── sitemap.xml                             # The page's single URL, for search engines
 └── style.css                               # Mobile-first stylesheet with CSS custom properties
 ```
 
@@ -155,7 +157,29 @@ GitHub Pages deployment requires the repository Pages source to be set to **GitH
 
 ---
 
-## 6. Customizing styling and branding
+## 6. Search engine and social metadata
+
+The page carries the metadata search engines and social networks read:
+
+- `title`, `meta name="description"` and `link rel="canonical"` name the page and its one public
+  URL.
+- Open Graph and Twitter tags use absolute URLs, so the preview image resolves wherever the link is
+  shared.
+- Two `application/ld+json` blocks describe the project as a `SoftwareApplication` and answer four
+  `FAQPage` questions. Keep each answer in the JSON-LD identical to the visible FAQ section.
+- `sitemap.xml` lists the page, and `robots.txt` points at it.
+
+GitHub Pages serves this directory under `/monospace/`, so the `robots.txt` here is not the host's
+root `robots.txt` (`https://andresmoschini.github.io/robots.txt`) and crawlers are not required to
+read it. Submit `https://andresmoschini.github.io/monospace/sitemap.xml` in Google Search Console
+and Bing Webmaster Tools for the sitemap to be discovered; the remaining tags work without that
+step.
+
+The social preview image is `assets/hero.png`, declared at its real size. A dedicated 1200×630 card
+would fit social networks better; if one is added, update the Open Graph and Twitter image tags with
+its absolute URL and dimensions.
+
+## 7. Customizing styling and branding
 
 Theme variables are declared at the top of [`site/style.css`](./style.css) under `:root` and
 `@media (prefers-color-scheme: light)`:

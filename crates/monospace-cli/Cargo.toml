@@ -1,6 +1,6 @@
 [package]
 name = "monospace-cli"
-description = "Minimal non-interactive command-line application for rendering ASCII diagrams"
+description = "Render ASCII and Unicode box-drawing diagrams from JSON on the command line"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

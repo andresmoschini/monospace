@@ -1,6 +1,6 @@
 [package]
 name = "monospace-core"
-description = "Core library for Monospace: parsing, layout and ASCII rendering of diagrams"
+description = "Core library for ASCII and box-drawing diagrams: cell buffer, layout and glyph composition"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
