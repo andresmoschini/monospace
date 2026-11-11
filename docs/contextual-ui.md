@@ -61,10 +61,11 @@ the session ([#285](https://github.com/andresmoschini/monospace/issues/285)).
 Following every command execution on the canvas, the diagram state automatically reconciles
 selection (`reconcile_selection`): if the selected shape was removed, selection and any active
 sub-mode reset to `None` ([#313](https://github.com/andresmoschini/monospace/issues/313)).
-Furthermore, when effective undo or redo walks the session history, selection and any active
-sub-mode clear back to `IDLE` ([#297](https://github.com/andresmoschini/monospace/issues/297)). If
-an undo or redo walk has no effect (silence at the boundary of history), the active selection and
-sub-mode remain intact.
+Furthermore, when effective undo or redo walks the session history, the figure the step touched
+becomes the selection, or nothing is selected when the restored drawing does not hold it
+([#299](https://github.com/andresmoschini/monospace/issues/299)), and any active sub-mode ends
+either way. If an undo or redo walk has no effect (silence at the boundary of history), the active
+selection and sub-mode remain intact.
 
 ### Zero free-text input in the bar
 
@@ -502,6 +503,8 @@ The settled architectural foundations backing the contextual interface are:
   [#292](https://github.com/andresmoschini/monospace/issues/292)
 - **Selection cleared on effective undo/redo:**
   [#297](https://github.com/andresmoschini/monospace/issues/297)
+- **Selection follows the figure a walk touched:**
+  [#299](https://github.com/andresmoschini/monospace/issues/299)
 - **Orientation-aware line resize:** [#301](https://github.com/andresmoschini/monospace/issues/301)
 - **Multiline box text editing with `[t]`:**
   [#304](https://github.com/andresmoschini/monospace/issues/304)

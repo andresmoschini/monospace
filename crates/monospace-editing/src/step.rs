@@ -2,7 +2,7 @@
 //! See the _Vocabulary_ row for `Step` and §5 of
 //! [`docs/editing-model.md`](../../../docs/editing-model.md).
 
-use monospace_diagram::Diagram;
+use monospace_diagram::{Diagram, ShapeId};
 
 use crate::Command;
 
@@ -43,11 +43,25 @@ pub(crate) struct Step {
         reason = "the model requires it beside the diagram; nothing reads it yet"
     )]
     pub(crate) command: Command,
+
+    /// The figure the command touched, which is what a walk over the history selects.
+    ///
+    /// **Recorded rather than derived, because one command cannot name what it created.**
+    /// `Command::Add` has no identity to read — the diagram assigns one — so `Command::apply_to`
+    /// hands the identity back beside the diagram for that command as for every other. For the
+    /// commands that name a figure this is the `id`; for `Hang` it is the connector, not the target
+    /// it hangs from.
+    pub(crate) affected: ShapeId,
 }
 
 impl Step {
-    /// The step `command` leaves behind: `diagram` as that command made it.
-    pub(crate) fn new(command: Command, diagram: Diagram) -> Self {
-        Self { diagram, command }
+    /// The step `command` leaves behind: `diagram` as that command made it, beside the figure
+    /// `affected` it touched.
+    pub(crate) fn new(command: Command, affected: ShapeId, diagram: Diagram) -> Self {
+        Self {
+            diagram,
+            command,
+            affected,
+        }
     }
 }

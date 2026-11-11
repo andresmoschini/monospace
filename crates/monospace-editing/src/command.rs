@@ -178,27 +178,36 @@ impl Command {
     /// not hold, a change that gives the figure back as it was, and a figure brought forward or to
     /// the front when it is already at the front, or backward or to the back when it is already at
     /// the back are one answer: nothing changed. What `Some` holds is the whole diagram the command
-    /// left, and the session records it as the step.
-    pub(crate) fn apply_to(&self, diagram: &Diagram) -> Option<Diagram> {
+    /// left beside the identity it touched, and the session records both as the step.
+    ///
+    /// **The identity is handed back rather than read off the command at walk time**, because
+    /// `Add` is the one command that cannot name the figure it creates: the diagram assigns it, and
+    /// this is the call that learns which one it was. Every other command names its figure, and
+    /// `Hang` names the connector rather than the target it hangs from — the figure the command
+    /// changed is the one a walk has to select.
+    pub(crate) fn apply_to(&self, diagram: &Diagram) -> Option<(Diagram, ShapeId)> {
         match *self {
-            Self::Add { ref shape } => Some(diagram.add(shape.clone()).0),
-            Self::Move { id, by } => changed(diagram, id, |shape| shape.displaced_by(by)),
-            Self::Resize { id, by } => changed(diagram, id, |shape| shape.resized_by(by)),
-            Self::RotateLine { id } => changed(diagram, id, Shape::with_rotated_orientation),
+            Self::Add { ref shape } => {
+                let (made, id) = diagram.add(shape.clone());
+                Some((made, id))
+            }
+            Self::Move { id, by } => touched(diagram, id, |shape| shape.displaced_by(by)),
+            Self::Resize { id, by } => touched(diagram, id, |shape| shape.resized_by(by)),
+            Self::RotateLine { id } => touched(diagram, id, Shape::with_rotated_orientation),
             Self::SetStroke { id, ref stroke } => {
                 let stroke = stroke.clone();
-                changed(diagram, id, |shape| shape.with_stroke(stroke))
+                touched(diagram, id, |shape| shape.with_stroke(stroke))
             }
             Self::SetText { id, ref text } => {
                 let text = text.clone();
-                changed(diagram, id, |shape| shape.with_text(text))
+                touched(diagram, id, |shape| shape.with_text(text))
             }
-            Self::InvertTerminals { id } => changed(diagram, id, Shape::with_inverted_terminals),
+            Self::InvertTerminals { id } => touched(diagram, id, Shape::with_inverted_terminals),
             Self::MoveEndpoint { id, end, by, out } => {
-                changed(diagram, id, |shape| shape.with_endpoint_moved(end, by, out))
+                touched(diagram, id, |shape| shape.with_endpoint_moved(end, by, out))
             }
             Self::ResetEndpoint { id, end } => {
-                changed(diagram, id, |shape| shape.with_endpoint_reset(end))
+                touched(diagram, id, |shape| shape.with_endpoint_reset(end))
             }
             Self::SetEndpointTerminal {
                 id,
@@ -206,14 +215,14 @@ impl Command {
                 ref terminal,
             } => {
                 let terminal = terminal.clone();
-                changed(diagram, id, |shape| {
+                touched(diagram, id, |shape| {
                     shape.with_endpoint_terminal(end, terminal)
                 })
             }
-            Self::DetachEndpoint { id, end } => changed(diagram, id, |shape| {
+            Self::DetachEndpoint { id, end } => touched(diagram, id, |shape| {
                 shape.with_endpoint_detached(end, diagram)
             }),
-            Self::SetEndpointLeaving { id, end, leaving } => changed(diagram, id, |shape| {
+            Self::SetEndpointLeaving { id, end, leaving } => touched(diagram, id, |shape| {
                 shape.with_endpoint_leaving(end, leaving)
             }),
             Self::Hang {
@@ -221,35 +230,36 @@ impl Command {
                 end,
                 target,
                 anchor,
-            } => changed(diagram, id, |shape| {
+            } => touched(diagram, id, |shape| {
                 shape.with_endpoint_attached(
                     end,
                     Reference::new(target, anchor, Delta::ZERO, 0),
                     diagram,
                 )
             }),
-            Self::Forward { id } => diagram.can_forward(id).then(|| diagram.forward(id)),
-            Self::Backward { id } => diagram.can_backward(id).then(|| diagram.backward(id)),
-            Self::ToFront { id } => diagram.can_forward(id).then(|| diagram.to_front(id)),
-            Self::ToBack { id } => diagram.can_backward(id).then(|| diagram.to_back(id)),
-            Self::Remove { id } => diagram.get(id).map(|_| diagram.remove(id)),
+            Self::Forward { id } => diagram.can_forward(id).then(|| (diagram.forward(id), id)),
+            Self::Backward { id } => diagram.can_backward(id).then(|| (diagram.backward(id), id)),
+            Self::ToFront { id } => diagram.can_forward(id).then(|| (diagram.to_front(id), id)),
+            Self::ToBack { id } => diagram.can_backward(id).then(|| (diagram.to_back(id), id)),
+            Self::Remove { id } => diagram.get(id).map(|_| (diagram.remove(id), id)),
         }
     }
 }
 
-/// The diagram `change` leaves, or `None` when it leaves the figure `id` names as it found it.
+/// The diagram `change` leaves beside the figure `id` names, or `None` when it leaves that figure as
+/// it found it.
 ///
 /// **A figure that is not there and a change that gives the same figure back are one answer**: the
 /// diagram a command leaves is the one it was given, and nothing above this line needs to tell the
 /// two apart. `Shape` compares by value, which is the diagram's own notion of the same figure and
 /// not a second one written here.
-fn changed(
+fn touched(
     diagram: &Diagram,
     id: ShapeId,
     change: impl FnOnce(&Shape) -> Shape,
-) -> Option<Diagram> {
+) -> Option<(Diagram, ShapeId)> {
     let before = diagram.get(id)?;
     let after = change(before);
 
-    (after != *before).then(|| diagram.replace(id, after))
+    (after != *before).then(|| (diagram.replace(id, after), id))
 }
