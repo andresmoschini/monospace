@@ -253,12 +253,12 @@ impl Session {
     /// which a diagram has no way of doing.
     #[must_use]
     pub fn perform(&self, command: Command) -> Self {
-        let Some(made) = command.apply_to(self.diagram()) else {
+        let Some((made, affected)) = command.apply_to(self.diagram()) else {
             return self.clone();
         };
 
         let mut steps = kept_first(&self.steps, self.position);
-        steps.push_back_mut(Step::new(command, made));
+        steps.push_back_mut(Step::new(command, affected, made));
 
         Self {
             initial_diagram: self.initial_diagram.clone(),
@@ -284,7 +284,7 @@ impl Session {
     pub fn add(&self, shape: Shape) -> (Self, ShapeId) {
         let (made, id) = self.diagram().add(shape.clone());
         let mut steps = kept_first(&self.steps, self.position);
-        steps.push_back_mut(Step::new(Command::Add { shape }, made));
+        steps.push_back_mut(Step::new(Command::Add { shape }, id, made));
 
         (
             Self {
