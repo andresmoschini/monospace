@@ -4,6 +4,7 @@
 [![docs.rs](https://docs.rs/monospace/badge.svg)](https://docs.rs/monospace)
 [![CI](https://github.com/andresmoschini/monospace/actions/workflows/ci.yml/badge.svg)](https://github.com/andresmoschini/monospace/actions/workflows/ci.yml)
 [![MIT license](https://img.shields.io/crates/l/monospace.svg)](LICENSE)
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/andresmoschini)
 
 > ASCII diagramming, built one honest commit at a time.
 
@@ -213,6 +214,16 @@ rules are in [CONTRIBUTING.md](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md) —
 are enforced from, not merely listed. Where the reasoning behind a decision lives — the module's
 rustdoc, the model documents, or the pull request body where it was taken — is
 [the section on it](CONTRIBUTING.md#where-the-reasoning-lives).
+
+## Sponsoring
+
+Monospace is built in the open, one honest commit at a time, and it stays free under the MIT
+License. If it saves you time — or you want to support the specs, the tests and the drawings that go
+into it — you can sponsor the work through
+[GitHub Sponsors](https://github.com/sponsors/andresmoschini).
+
+Sponsoring is optional and buys no priority, no private access and no say in the roadmap: issues and
+pull requests are the contribution path, and they stay open to everyone.
 
 ## License
 

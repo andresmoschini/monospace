@@ -299,6 +299,18 @@ samp {
   fill: currentColor;
 }
 
+/* Sponsor Badge */
+.sponsor-badge {
+  background-color: var(--accent);
+  color: #121214 !important;
+  border-color: var(--accent);
+}
+
+.sponsor-badge:hover {
+  background-color: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
 /* --------------------------------------------------------------------------
    Hero Section
    -------------------------------------------------------------------------- */

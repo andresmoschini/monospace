@@ -18,6 +18,7 @@
 window.MONOSPACE_CONFIG = {
   version: "0.1.1",
   repoUrl: "https://github.com/andresmoschini/monospace",
+  sponsorUrl: "https://github.com/sponsors/andresmoschini",
   cratesIoUrl: "https://crates.io/crates/monospace",
   releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.0",
   // Keyed by the value of each button's data-download-platform attribute. A card's
@@ -91,6 +92,11 @@ window.MONOSPACE_CONFIG = {
     // Release page link
     document.querySelectorAll("[data-config='release-link']").forEach(function (el) {
       if (!isPlaceholder(cfg.releaseUrl)) el.setAttribute("href", cfg.releaseUrl);
+    });
+
+    // Sponsor link
+    document.querySelectorAll("[data-config='sponsor-link']").forEach(function (el) {
+      if (!isPlaceholder(cfg.sponsorUrl)) el.setAttribute("href", cfg.sponsorUrl);
     });
 
     // Platform downloads
