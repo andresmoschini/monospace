@@ -51,10 +51,6 @@ pub(crate) struct Step {
     /// hands the identity back beside the diagram for that command as for every other. For the
     /// commands that name a figure this is the `id`; for `Hang` it is the connector, not the target
     /// it hangs from.
-    #[expect(
-        dead_code,
-        reason = "the session reads it in the change that adds affected_by_undo and affected_by_redo"
-    )]
     pub(crate) affected: ShapeId,
 }
 

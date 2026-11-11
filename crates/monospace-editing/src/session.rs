@@ -154,6 +154,33 @@ impl Session {
         self.position < self.steps.len()
     }
 
+    /// The figure the step behind the position touched, or `None` when there is nothing behind.
+    ///
+    /// **Answerable without walking, like [`can_undo`](Session::can_undo)**, which is why the walk
+    /// keeps its signature (§4 of the application model asks before it gives the step back). A
+    /// caller that has to know where to leave the selection asks this first and keeps the answer
+    /// across the one call that moves the position.
+    ///
+    /// **The answer is the step's and not the command's.** For every command that names a figure it
+    /// is that `id`, and for `Command::Add` it is the identity the diagram assigned — the one case
+    /// the command alone cannot name, which is why the step records it (§5 of the editing model).
+    #[must_use]
+    pub fn affected_by_undo(&self) -> Option<ShapeId> {
+        self.position
+            .checked_sub(1)
+            .and_then(|index| self.steps.get(index))
+            .map(|step| step.affected)
+    }
+
+    /// The figure the step ahead of the position touched, or `None` when there is nothing ahead.
+    ///
+    /// **The other direction of [`affected_by_undo`](Session::affected_by_undo)**, asked the same
+    /// way and recorded the same way.
+    #[must_use]
+    pub fn affected_by_redo(&self) -> Option<ShapeId> {
+        self.steps.get(self.position).map(|step| step.affected)
+    }
+
     /// Gives the step behind the position back: what the session this returns holds is one step
     /// earlier than what this one holds.
     ///

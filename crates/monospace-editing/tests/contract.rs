@@ -2227,3 +2227,230 @@ fn performing_command_add_via_session_perform_records_step_and_adds_shape() {
     let undone = added.undo();
     assert_eq!(undone.diagram().shape_count(), 0);
 }
+
+/// **Rules 1–4 of the specification**: the figure a step records is the one its command named, and
+/// the session answers it in both directions without walking.
+///
+/// **Every command that names a figure is here, and the awkward one is `Hang`**: what it touches is
+/// the connector whose end moves, not the `target` it hangs from. `DetachEndpoint`, `ResetEndpoint`
+/// and `RotateLine` need a state to change and are checked from the state they change.
+#[test]
+fn affected_by_undo_and_redo_name_the_figure_each_step_touched() {
+    let fixture = the_fixture();
+
+    for (command, expected) in commands_that_name_their_figure() {
+        holds_the_figure(&fixture, &command, expected);
+    }
+
+    let line = Diagram::new()
+        .add(Shape::Line {
+            at: ORIGIN,
+            len: 4,
+            orientation: Orientation::Horizontal,
+            stroke: Stroke::from("light"),
+        })
+        .0;
+    let rotated = Session::new(line).perform(Command::RotateLine { id: id(1) });
+    assert_eq!(
+        rotated.affected_by_undo(),
+        Some(id(1)),
+        "`RotateLine` named another figure"
+    );
+
+    let hung = Session::new(fixture.clone()).perform(Command::Hang {
+        id: id(3),
+        end: End::From,
+        target: id(1),
+        anchor: Anchor::Right,
+    });
+    let detached = hung.perform(Command::DetachEndpoint {
+        id: id(3),
+        end: End::From,
+    });
+    assert_eq!(
+        detached.affected_by_undo(),
+        Some(id(3)),
+        "`DetachEndpoint` named another figure"
+    );
+
+    let moved = Session::new(fixture).perform(Command::MoveEndpoint {
+        id: id(3),
+        end: End::From,
+        by: Delta { dx: 1, dy: 0 },
+        out: 2,
+    });
+    let reset = moved.perform(Command::ResetEndpoint {
+        id: id(3),
+        end: End::From,
+    });
+    assert_eq!(
+        reset.affected_by_undo(),
+        Some(id(3)),
+        "`ResetEndpoint` named another figure"
+    );
+}
+
+/// Every command that names the figure it touches, beside the identity it names.
+///
+/// **A table rather than fourteen cases**, so "every command that names one" is a list a reader can
+/// check against the enum rather than an argument made by repetition.
+fn commands_that_name_their_figure() -> [(Command, ShapeId); 14] {
+    let text = Text::new("hi").expect("\"hi\" holds no control character");
+
+    [
+        (
+            Command::Move {
+                id: id(1),
+                by: Delta { dx: 1, dy: 0 },
+            },
+            id(1),
+        ),
+        (
+            Command::Resize {
+                id: id(1),
+                by: Delta { dx: 1, dy: 0 },
+            },
+            id(1),
+        ),
+        (
+            Command::SetStroke {
+                id: id(2),
+                stroke: Stroke::from("double"),
+            },
+            id(2),
+        ),
+        (
+            Command::SetText {
+                id: id(1),
+                text: Some(text),
+            },
+            id(1),
+        ),
+        (Command::InvertTerminals { id: id(3) }, id(3)),
+        (
+            Command::MoveEndpoint {
+                id: id(3),
+                end: End::From,
+                by: Delta { dx: 1, dy: 1 },
+                out: 2,
+            },
+            id(3),
+        ),
+        (
+            Command::SetEndpointTerminal {
+                id: id(3),
+                end: End::To,
+                terminal: Terminal::Arm,
+            },
+            id(3),
+        ),
+        (
+            Command::SetEndpointLeaving {
+                id: id(3),
+                end: End::To,
+                leaving: Direction::Up,
+            },
+            id(3),
+        ),
+        (
+            Command::Hang {
+                id: id(3),
+                end: End::From,
+                target: id(1),
+                anchor: Anchor::Right,
+            },
+            id(3),
+        ),
+        (Command::Forward { id: id(1) }, id(1)),
+        (Command::Backward { id: id(3) }, id(3)),
+        (Command::ToFront { id: id(1) }, id(1)),
+        (Command::ToBack { id: id(2) }, id(2)),
+        (Command::Remove { id: id(2) }, id(2)),
+    ]
+}
+
+/// Carries `command` out over `diagram` and holds that the step it records names `expected`, that
+/// nothing is ahead of it, and that walking it back names the same figure in the other direction.
+///
+/// **Both directions and the empty ends are asserted**, which is rules 1 and 2 together with rule 3:
+/// a session recording the first command's identity forever would pass the first read and fail the
+/// second, and one recording anything always would fail the empty ones.
+fn holds_the_figure(diagram: &Diagram, command: &Command, expected: ShapeId) {
+    let session = Session::new(diagram.clone());
+    assert_eq!(
+        session.affected_by_undo(),
+        None,
+        "a session with no history named a figure behind it"
+    );
+    assert_eq!(
+        session.affected_by_redo(),
+        None,
+        "a session with no history named a figure ahead of it"
+    );
+
+    let walked = session.perform(command.clone());
+
+    assert_eq!(
+        walked.affected_by_undo(),
+        Some(expected),
+        "{command:?} recorded the wrong figure"
+    );
+    assert_eq!(
+        walked.affected_by_redo(),
+        None,
+        "{command:?} left a step ahead"
+    );
+
+    let given_back = walked.undo();
+
+    assert_eq!(
+        given_back.affected_by_undo(),
+        None,
+        "{command:?} left a second step behind"
+    );
+    assert_eq!(
+        given_back.affected_by_redo(),
+        Some(expected),
+        "{command:?} lost its figure when it was walked back"
+    );
+}
+
+/// **Rule 5 of the specification**: the one command that cannot name what it made records the
+/// identity the diagram assigned.
+///
+/// **Both doors record it, and both record the same one**: `Session::add` learns the identity from
+/// `Diagram::add` to hand it to the caller, and `Session::perform(Command::Add)` records it from the
+/// answer `apply_to` gives. The second `add` is here so that a session recording a constant would
+/// not pass.
+#[test]
+fn the_affected_figure_of_an_add_is_the_one_the_diagram_assigned() {
+    let (added, assigned) = Session::new(Diagram::new()).add(small_box(ORIGIN));
+
+    assert_eq!(assigned, id(1), "the diagram assigned another identity");
+    assert_eq!(
+        added.affected_by_undo(),
+        Some(assigned),
+        "`add` recorded another figure"
+    );
+
+    let performed = Session::new(Diagram::new()).perform(Command::Add {
+        shape: small_box(ORIGIN),
+    });
+    assert_eq!(
+        performed.affected_by_undo(),
+        Some(assigned),
+        "`perform(Add)` recorded another figure than `add`"
+    );
+
+    let second = added.add(small_box(Pos { x: 2, y: 0 })).0;
+    assert_eq!(
+        second.affected_by_undo(),
+        Some(id(2)),
+        "the second add recorded the first identity"
+    );
+    assert_eq!(
+        second.undo().affected_by_redo(),
+        Some(id(2)),
+        "walking the second add back lost its figure"
+    );
+}
