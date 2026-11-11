@@ -9,10 +9,12 @@ COLORTERM
 crossterm
 doctests
 frontmatter
+gtag
 HAMT
 insta
 ISIG
 keymap
+kofi
 lightbox
 Moschini
 msvc

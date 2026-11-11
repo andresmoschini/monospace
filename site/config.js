@@ -18,25 +18,27 @@
 window.MONOSPACE_CONFIG = {
   version: "0.1.1",
   repoUrl: "https://github.com/andresmoschini/monospace",
+  sponsorUrl: "https://github.com/sponsors/andresmoschini",
+  koFiUrl: "https://ko-fi.com/andresmoschini",
   cratesIoUrl: "https://crates.io/crates/monospace",
-  releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.0",
+  releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.1",
   // Keyed by the value of each button's data-download-platform attribute. A card's
   // data-download-status badge reads "Available" once any of its buttons has a real URL.
   downloads: {
     windows: {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-pc-windows-msvc.zip",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.1/monospace-v0.1.1-x86_64-pc-windows-msvc.zip",
     },
     "macos-arm64": {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-aarch64-apple-darwin.tar.gz",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.1/monospace-v0.1.1-aarch64-apple-darwin.tar.gz",
     },
     "macos-x86_64": {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-apple-darwin.tar.gz",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.1/monospace-v0.1.1-x86_64-apple-darwin.tar.gz",
     },
     "linux-x86_64": {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-unknown-linux-gnu.tar.gz",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.1/monospace-v0.1.1-x86_64-unknown-linux-gnu.tar.gz",
     },
     "linux-arm64": {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-aarch64-unknown-linux-gnu.tar.gz",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.1/monospace-v0.1.1-aarch64-unknown-linux-gnu.tar.gz",
     },
   },
 };
@@ -91,6 +93,14 @@ window.MONOSPACE_CONFIG = {
     // Release page link
     document.querySelectorAll("[data-config='release-link']").forEach(function (el) {
       if (!isPlaceholder(cfg.releaseUrl)) el.setAttribute("href", cfg.releaseUrl);
+    });
+
+    // Sponsor and Ko-fi links
+    document.querySelectorAll("[data-config='sponsor-link']").forEach(function (el) {
+      if (!isPlaceholder(cfg.sponsorUrl)) el.setAttribute("href", cfg.sponsorUrl);
+    });
+    document.querySelectorAll("[data-config='ko-fi-link']").forEach(function (el) {
+      if (!isPlaceholder(cfg.koFiUrl)) el.setAttribute("href", cfg.koFiUrl);
     });
 
     // Platform downloads
