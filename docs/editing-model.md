@@ -214,6 +214,14 @@ across the diagram differ as gestures and are identical as states — so whateve
 those apart has nothing to read in a pair of diagrams. That is what the command beside it is for,
 and it is why the command is stored rather than derived.
 
+**A step also names the figure its command touched, and for one command that is not the command's to
+say.** Every command that carries an `id` names it there; `Add` carries no identity, because the
+diagram assigns one, so `apply_to` hands the identity back beside the diagram and the step records
+it. **`Hang` names the connector whose end moved**, not the `target` it hangs from: what the step
+changed is the figure a walk over the history has to find. **Recorded rather than derived**, because
+the one command that cannot name what it made leaves nothing to read it off, and comparing the two
+diagrams would not tell a figure moved one cell from the same figure teleported.
+
 **The state a command found is the step before it.** A step therefore says what a command produced
 rather than what it started from, and what it started from is one place further back — which is what
 makes undo a walk over the sequence rather than a subtraction from it.
@@ -325,6 +333,9 @@ ambiguity is worth one sentence rather than two names, because both are diagrams
 
 - Giving back every step in order reaches the diagram the session was created over.
 - Redoing them reaches the diagram the session held before any of it was given back.
+- A step names the figure its command touched — the `id` for every command that carries one, and for
+  `Add` the identity the diagram assigned — and a session answers which figure the step behind and
+  the step ahead touched without walking either.
 - A command that changes nothing — a figure the diagram does not hold, a box at its smallest, a line
   at its shortest shrunk again, a connector resized, a figure brought forward or to the front at the
   front, or backward or to the back at the back — leaves the diagram equal, records no step, and
@@ -347,6 +358,3 @@ that needs one of them answered amends this document first and then implements t
 - **Can a session be handed a diagram that has already been edited?** A diagram is a value, so one
   can be produced any way and opened. Whether the session should care where its diagram came from is
   _Deliberately unresolved_, and this question is what settles it.
-- **Does a command know what it did?** It answers whether it changed the diagram, which is what the
-  session records on, and no more: a caller still cannot ask it what happened. Nothing needs that
-  answer yet.

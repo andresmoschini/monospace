@@ -214,11 +214,13 @@ same as an unfocused one. The status bar is not a leaf: a press on it moves noth
 ahead are the session's, and the state holds no position and no copy of a step: `Session::undo` and
 `Session::redo` are one call each, and the next frame is drawn from what the session holds then.
 **Nothing on the screen is drawn from where the walk stands** — every entry is offered all the time
-— so there is nothing for the application to remember. **A walk clears the selection**
-([#297](https://github.com/andresmoschini/monospace/issues/297)): walking history moves the drawing
-across its chronological timeline, clears the selection to return the application to `IDLE`, and
-makes the restored drawing a clean starting point. Any active sub-mode ends when the selection
-drops.
+— so there is nothing for the application to remember. **A walk selects the figure its step
+touched** ([#299](https://github.com/andresmoschini/monospace/issues/299)):
+`Session::affected_by_undo` and `Session::affected_by_redo` name it before the position moves, and
+the walk leaves it selected. A figure the resulting drawing does not hold — an undo of a creation, a
+redo of a removal — leaves nothing selected, and any active sub-mode ends either way, because the
+step may have changed the attribute the sub-mode edits. The view does not move: a figure the walk
+selects off screen stays off screen.
 
 **The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
 interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`, `ENDPOINT_EDIT`
@@ -444,16 +446,18 @@ sub-mode (such as `STROKE_SELECT`) is active:
    unclaimed by any layer are ignored by the application (`Control::Continue`), preserving the
    active sub-mode and canvas state without unwanted mutation. The forced exit `Ctrl+Shift+Q` is
    `Reach::Always` and is answered before the region, so it is not part of this rule. A history walk
-   clears the selection and drops any active sub-mode
-   ([#297](https://github.com/andresmoschini/monospace/issues/297)).
+   selects the figure the step it crossed touched and drops any active sub-mode
+   ([#299](https://github.com/andresmoschini/monospace/issues/299)).
 
-**A sub-mode ends when the thing it edits stops being the thing selected.** A click that changes the
-selection — another figure, or no figure at all —, walking history
-([#297](https://github.com/andresmoschini/monospace/issues/297)), or removing the selected figure
-drops it (`sub_mode = None`). While the figure remains selected, moving keyboard focus to the menu
-bar or opening an application-level overlay (`Save`, `Open`, `About`, `ShowError`) preserves the
-active sub-mode, resuming it when focus returns to the diagram. A dialog that belongs to the
-sub-mode itself is not an application-level overlay and does not end it either.
+**A sub-mode ends when the thing it edits stops being the thing selected, and a walk ends it whether
+that changed or not.** A click that changes the selection — another figure, or no figure at all —,
+or removing the selected figure, drops it (`sub_mode = None`), and so does a history walk
+([#299](https://github.com/andresmoschini/monospace/issues/299)), even when it selects the figure
+that was already selected: the step may have changed the very attribute the sub-mode edits. While
+the figure remains selected, moving keyboard focus to the menu bar or opening an application-level
+overlay (`Save`, `Open`, `About`, `ShowError`) preserves the active sub-mode, resuming it when focus
+returns to the diagram. A dialog that belongs to the sub-mode itself is not an application-level
+overlay and does not end it either.
 
 **The four arrows move what is selected, dispatched as `Command::Move`.** A press of an arrow while
 the region holds the keyboard and a box or a line is selected displaces the selected figure one cell
@@ -789,9 +793,12 @@ framework's buffer one at a time.
 - The Edit menu's Undo and Redo entries carry the same actions as the keys, and they are offered at
   every position of the history: no entry is drawn differently when there is nothing to give back.
 - Taking an entry with nothing to give back changes nothing and still paints.
-- Undo and redo clear the selection
-  ([#297](https://github.com/andresmoschini/monospace/issues/297)), returning the application to
-  `IDLE`.
+- Undo and redo select the figure their step touched
+  ([#299](https://github.com/andresmoschini/monospace/issues/299)), replacing whatever was selected
+  and not restoring what was selected when the command was performed.
+- A walk whose figure the resulting drawing does not hold selects nothing: undo of a creation and
+  redo of a removal both leave `IDLE`
+  ([#299](https://github.com/andresmoschini/monospace/issues/299)).
 - Pressing `s` while a box, line, or connector is selected transitions `DiagramState` to
   `SubMode::StrokeSelect` and requests a repaint.
 - In `StrokeSelect`, keys `1..=5` set the corresponding stroke, reset `sub_mode = None`, and return
@@ -804,8 +811,8 @@ framework's buffer one at a time.
 - In `StrokeSelect`, a key the unclaimed global shortcut table answers (`Ctrl+Z`, `Ctrl+Shift+Z`,
   `Ctrl+S`, `Ctrl+Q`, `Ctrl+N`, `Ctrl+O`) is ignored by the region (`Reply::Ignored`) and falls
   through to the global handler; `Ctrl+Shift+Q` is answered before the region.
-- A history walk ends an active sub-mode, because it clears the selection
-  ([#297](https://github.com/andresmoschini/monospace/issues/297)).
+- A history walk ends an active sub-mode, even when the figure it selects is the one that was
+  already selected ([#299](https://github.com/andresmoschini/monospace/issues/299)).
 - Losing or changing the selection (clicking another figure or outside, or removing the selected
   figure) cancels an active sub-mode (`sub_mode = None`); transferring focus to the menu bar or
   opening an application dialog keeps the sub-mode while the figure remains selected.
@@ -953,10 +960,6 @@ framework's buffer one at a time.
   table of actions would be another. Contextual actions (such as `Delete`) are removed from the
   global menu and managed by the unified context table (Option D), leaving only universal actions
   (`Undo`, `Redo`) in the Edit menu.
-- **The selection when the history is walked.** #297 settled that a walk clears the selection,
-  returning the application to `IDLE` and dropping any active sub-mode. Selecting the figure
-  modified by an undo or redo is tracked by
-  [#299](https://github.com/andresmoschini/monospace/issues/299).
 - **What the status bar says.** The contextual two-row bar format and its idle and selection content
   are settled by [#279](https://github.com/andresmoschini/monospace/issues/279). The non-binding
   design direction and three-stage roadmap for the remaining contextual states and connector editing
