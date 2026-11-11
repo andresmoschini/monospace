@@ -3520,8 +3520,8 @@ mod tests {
 
         assert_eq!(
             state.diagram().selected(),
-            None,
-            "the undo kept the selection"
+            selected,
+            "the undo lost the figure whose stroke it gave back"
         );
         let restored_shape = state
             .diagram()
@@ -3540,9 +3540,9 @@ mod tests {
         );
     }
 
-    /// **Undo and redo walk the history from inside the sub-mode and clear the selection** (#297):
-    /// the global keys fall through the region, the walk clears the selection, and dropping the
-    /// selection ends the active sub-mode.
+    /// **Undo and redo walk the history from inside the sub-mode and select the figure the step
+    /// touched** (#299): the global keys fall through the region, the walk selects the box, and the
+    /// sub-mode the walk began in ends.
     #[test]
     fn undo_and_redo_in_stroke_select_walk_history() {
         let mut state = a_drawn_state_over(A_BOX);
@@ -3579,8 +3579,8 @@ mod tests {
         );
         assert_eq!(
             state.diagram().selected(),
-            None,
-            "the undo kept the selection"
+            selected,
+            "the undo lost the figure whose stroke it gave back"
         );
 
         let outcome = send(&redo_key(), &mut state);
@@ -3604,8 +3604,8 @@ mod tests {
         );
         assert_eq!(
             state.diagram().selected(),
-            None,
-            "the redo restored a selection"
+            selected,
+            "the redo lost the figure whose stroke it gave back"
         );
     }
 
@@ -3749,7 +3749,11 @@ mod tests {
             !state.diagram().session().can_undo(),
             "more than one step recorded"
         );
-        assert_eq!(state.diagram().selected(), None);
+        assert_eq!(
+            state.diagram().selected(),
+            Some(id1),
+            "the undo lost the figure it moved to the front"
+        );
         assert_eq!(state.diagram().sub_mode(), None);
     }
 
@@ -3862,7 +3866,11 @@ mod tests {
 
         let undo_outcome = send(&undo_key(), &mut state);
         assert!(matches!(undo_outcome, Control::Changed), "{undo_outcome:?}");
-        assert_eq!(state.diagram().selected(), None);
+        assert_eq!(
+            state.diagram().selected(),
+            Some(id1),
+            "the undo lost the figure whose place it gave back"
+        );
         assert_eq!(state.diagram().sub_mode(), None);
         assert_eq!(
             state.diagram().session().diagram().place_of(id1),
@@ -3872,7 +3880,11 @@ mod tests {
 
         let redo_outcome = send(&redo_key(), &mut state);
         assert!(matches!(redo_outcome, Control::Changed), "{redo_outcome:?}");
-        assert_eq!(state.diagram().selected(), None);
+        assert_eq!(
+            state.diagram().selected(),
+            Some(id1),
+            "the redo lost the figure whose place it gave back"
+        );
         assert_eq!(state.diagram().sub_mode(), None);
         assert_eq!(
             state.diagram().session().diagram().place_of(id1),
@@ -4535,51 +4547,79 @@ mod tests {
         );
     }
 
-    /// **A walk clears the selection** (#297). The box is selected before the undo; the undo gives
-    /// the step back and clears the selection, returning the application to `IDLE`. Selecting the
-    /// box again and redoing clears the selection too, leaving the frame with no cell inverted.
+    /// **Undo of a creation selects nothing, and redo selects the figure it creates** (#299, rules
+    /// 5 and 8): the figure is gone after the undo, so there is nothing to select, and it is back
+    /// after the redo, so it is the walk's figure.
     #[test]
-    fn the_undo_and_redo_keys_clear_the_selection() {
+    fn undo_of_a_creation_selects_nothing_and_redo_selects_the_created_figure() {
+        let mut state = a_drawn_state_over(A_BOX);
+
+        let outcome = send(&key(KeyCode::Char('b')), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        let created = state
+            .diagram()
+            .selected()
+            .expect("the created box is not selected");
+        assert!(state.diagram().can_undo(), "the creation recorded no step");
+
+        let outcome = send(&undo_key(), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.diagram().session().diagram().get(created).is_none(),
+            "the undo kept the figure it was supposed to take out"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            None,
+            "the undo selected the figure it took out"
+        );
+        assert!(state.diagram().can_redo(), "the undo left nothing to redo");
+
+        let outcome = send(&redo_key(), &mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(
+            state.diagram().session().diagram().get(created).is_some(),
+            "the redo did not bring the figure back"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            Some(created),
+            "the redo did not select the figure it created"
+        );
+    }
+
+    /// **Undo of a removal selects the restored figure** (#299, rule 9): the box was selected when
+    /// it was deleted, the deletion dropped the selection because the figure stopped being there,
+    /// and giving it back puts the figure in hand again.
+    #[test]
+    fn undo_of_a_removal_selects_the_restored_figure() {
         let mut state = a_drawn_state_over(A_BOX);
         let _ = send(&click(3, 3), &mut state);
-        let _ = send(&key(KeyCode::Right), &mut state);
+        let removed = state
+            .diagram()
+            .selected()
+            .expect("the box was not selected");
+        let _ = send(&key(KeyCode::Delete), &mut state);
         assert!(
-            state.diagram().selected().is_some(),
-            "the box was not selected"
+            state.diagram().session().diagram().get(removed).is_none(),
+            "the box was not removed, so the test proves nothing"
+        );
+        assert_eq!(
+            state.diagram().selected(),
+            None,
+            "the removal kept the selection"
         );
 
         let outcome = send(&undo_key(), &mut state);
-        let buffer = draw(&mut state);
 
         assert!(matches!(outcome, Control::Changed), "{outcome:?}");
         assert_eq!(
             state.diagram().selected(),
-            None,
-            "the undo kept the selection"
-        );
-        assert!(
-            !reversed(&buffer, 3, 3),
-            "the frame after the undo inverts a cell"
-        );
-
-        let _ = send(&click(3, 3), &mut state);
-        assert!(
-            state.diagram().selected().is_some(),
-            "the box was not selected again"
-        );
-
-        let outcome = send(&redo_key(), &mut state);
-        let buffer = draw(&mut state);
-
-        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
-        assert_eq!(
-            state.diagram().selected(),
-            None,
-            "the redo kept the selection"
-        );
-        assert!(
-            !reversed(&buffer, 4, 3),
-            "the frame after the redo inverts a cell"
+            Some(removed),
+            "the undo did not select the figure it brought back"
         );
     }
 

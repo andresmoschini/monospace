@@ -76,8 +76,8 @@ pub(crate) struct DiagramState {
     ///
     /// **An identity rather than the cells it inverted** (D2): what is inverted is recomputed from
     /// the drawing of each frame, so a resize gives the window another size and the selection
-    /// follows the shape rather than a rectangle left where it was. A walk over the history clears
-    /// the selection (#297).
+    /// follows the shape rather than a rectangle left where it was. A walk over the history selects
+    /// the figure the step touched (#299).
     ///
     /// **An identity names a figure the diagram holds, or nothing is selected**: `perform`
     /// reconciles the selection with the diagram after every command, so one that takes the figure
@@ -527,13 +527,17 @@ impl DiagramState {
     /// session holds then. At the oldest position nothing comes back, and the caller still owes the
     /// frame because its action was carried out.
     ///
-    /// **The walk clears the selection** (#297): walking history returns the application to `IDLE`
-    /// and makes the restored drawing a clean starting point. Any active sub-mode drops with it.
+    /// **The walk selects the figure the step touched** (#299): the question is asked before the
+    /// position moves, and the answer is what the frame after it inverts. When the restored diagram
+    /// does not hold that figure — an undo of an `Add` — nothing is selected. Any active sub-mode
+    /// drops either way.
     pub(crate) fn undo(&mut self) {
-        if self.session.can_undo() {
-            self.session = self.session.undo();
-            self.select(None);
-        }
+        let Some(affected) = self.session.affected_by_undo() else {
+            return;
+        };
+
+        self.session = self.session.undo();
+        self.walked_to(affected);
     }
 
     /// Gives back the step ahead of the session, if there is one.
@@ -542,13 +546,34 @@ impl DiagramState {
     /// application keeps no copy of where the walk stands. At the newest position nothing comes
     /// back, and the caller still owes the frame.
     ///
-    /// **The walk clears the selection, here too** (#297): the restored drawing starts with
-    /// nothing selected and any active sub-mode dropped.
+    /// **The walk selects the figure the step touched, here too** (#299): the answer is asked before
+    /// the position moves, and a figure the resulting diagram does not hold — a redo of a `Remove` —
+    /// leaves nothing selected. Any active sub-mode drops either way.
     pub(crate) fn redo(&mut self) {
-        if self.session.can_redo() {
-            self.session = self.session.redo();
-            self.select(None);
-        }
+        let Some(affected) = self.session.affected_by_redo() else {
+            return;
+        };
+
+        self.session = self.session.redo();
+        self.walked_to(affected);
+    }
+
+    /// Selects `affected` when the diagram the walk produced holds it, and ends any active sub-mode
+    /// whether it does or not.
+    ///
+    /// **A figure the walk did not leave behind selects nothing** (D3 of #299): undo of an `Add` and
+    /// redo of a `Remove` both take the figure the step touched out of the drawing, and a selection
+    /// names a figure the diagram holds.
+    ///
+    /// **The sub-mode always drops, even when the identity does not change** (D4): `select` would
+    /// answer that nothing changed and keep it, and the step may have changed the very attribute the
+    /// sub-mode edits — an endpoint, a stroke, a place in the order.
+    ///
+    /// **Nothing here moves the view** (D5): the origin is the state's, and a walk is not a scroll.
+    fn walked_to(&mut self, affected: ShapeId) {
+        let selection = self.session.diagram().get(affected).map(|_| affected);
+        self.select(selection);
+        self.sub_mode = None;
     }
 
     /// Whether a step is behind the session.
@@ -1379,9 +1404,128 @@ mod tests {
         assert!(!state.session().can_undo());
     }
 
-    /// **A walk clears the selection and any active sub-mode** (#297).
+    /// **A walk selects the figure its step touched, and takes the selection from whatever held it**
+    /// (#299, rules 6, 7, 9 and 10).
+    ///
+    /// **The figure is the step's, not the selection's**: the box is moved, another figure is
+    /// clicked, and giving the move back selects the box that moved rather than the one in hand. The
+    /// undo of a removal selects the figure it brings back, and the redo of the move selects it
+    /// again, which is the same rule from the other end of the walk.
     #[test]
-    fn undo_and_redo_clear_the_selection_and_sub_mode() {
+    fn undo_and_redo_select_the_figure_the_step_touched() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        let moved = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+        let other = ShapeId::new(NonZeroU16::new(2).expect("2 is not zero"));
+
+        state.perform(Command::Move {
+            id: moved,
+            by: (1, 0).into(),
+        });
+        state.select(Some(other));
+
+        state.undo();
+
+        assert_eq!(
+            state.selected(),
+            Some(moved),
+            "the walk kept the figure that was in hand rather than the one the step moved"
+        );
+
+        state.select(None);
+
+        state.redo();
+
+        assert_eq!(
+            state.selected(),
+            Some(moved),
+            "the redo did not select the figure it moved"
+        );
+
+        state.select(Some(other));
+        state.perform(Command::Remove { id: other });
+
+        state.undo();
+
+        assert_eq!(
+            state.selected(),
+            Some(other),
+            "undo of a removal did not select the figure it brought back"
+        );
+    }
+
+    /// **A walk selects nothing when the diagram it produced does not hold the figure the step
+    /// touched** (#299, rule 8).
+    ///
+    /// **Both directions are the same absence**: an undo of an `Add` and a redo of a `Remove` take
+    /// the figure out of the drawing, and a selection names a figure the diagram holds — so the
+    /// application is left in `IDLE`, which is #297's answer for the two cases where it survives.
+    #[test]
+    fn a_walk_selects_nothing_when_the_figure_is_gone() {
+        let diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let mut state = DiagramState::new(Session::new(diagram));
+        let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+
+        let added = state.add_shape(Shape::Line {
+            at: Pos { x: 0, y: 0 },
+            len: 2,
+            orientation: Orientation::Horizontal,
+            stroke: Stroke::from("light"),
+        });
+        assert_eq!(
+            state.selected(),
+            Some(added),
+            "the added figure was not selected, so the test proves nothing"
+        );
+
+        state.undo();
+
+        assert!(
+            state.session().diagram().get(added).is_none(),
+            "the undo kept the figure it was supposed to take out"
+        );
+        assert_eq!(
+            state.selected(),
+            None,
+            "the undo selected the figure it took out"
+        );
+
+        state.redo();
+        assert_eq!(
+            state.selected(),
+            Some(added),
+            "the redo did not select the figure it brought back"
+        );
+
+        state.perform(Command::Remove { id: shape });
+        state.undo();
+        assert_eq!(
+            state.selected(),
+            Some(shape),
+            "the undo selected nothing when a removal came back"
+        );
+
+        state.redo();
+
+        assert!(
+            state.session().diagram().get(shape).is_none(),
+            "the redo kept the figure it was supposed to take out"
+        );
+        assert_eq!(
+            state.selected(),
+            None,
+            "the redo selected the figure it took out"
+        );
+    }
+
+    /// **An effective walk ends any active sub-mode, even when the selected identity does not
+    /// change** (#299, rules 3 and 11 of the specification, D4).
+    ///
+    /// **The second half is the one that matters**: the walk selects the figure that was already
+    /// selected, `select` answers that nothing changed, and the sub-mode still drops — because the
+    /// step may have changed the very attribute the sub-mode edits.
+    #[test]
+    fn an_effective_walk_ends_the_sub_mode() {
         let diagram =
             monospace_description::parse(A_BOX).expect("the test's description is readable");
         let mut state = DiagramState::new(Session::new(diagram));
@@ -1396,7 +1540,11 @@ mod tests {
 
         state.undo();
 
-        assert_eq!(state.selected(), None, "the undo kept the selection");
+        assert_eq!(
+            state.selected(),
+            Some(shape),
+            "the undo did not select the figure the step moved"
+        );
         assert_eq!(state.sub_mode(), None, "the undo kept the sub-mode");
 
         state.select(Some(shape));
@@ -1404,43 +1552,131 @@ mod tests {
 
         state.redo();
 
-        assert_eq!(state.selected(), None, "the redo kept the selection");
-        assert_eq!(state.sub_mode(), None, "the redo kept the sub-mode");
+        assert_eq!(
+            state.selected(),
+            Some(shape),
+            "the redo moved the selection off the figure it moved"
+        );
+        assert_eq!(
+            state.sub_mode(),
+            None,
+            "the redo kept a sub-mode over the attribute its step changed"
+        );
+    }
 
-        // When can_undo or can_redo is false, no action is performed and selection is preserved.
+    /// **A walk with nothing to give changes neither the selection nor the sub-mode** (#299,
+    /// rule 12).
+    ///
+    /// **The press is still carried out and the frame still owed**, which is the caller's business;
+    /// what is held here is that the state is untouched.
+    #[test]
+    fn a_walk_with_nothing_to_give_changes_nothing() {
+        let diagram =
+            monospace_description::parse(A_BOX).expect("the test's description is readable");
+        let mut state = DiagramState::new(Session::new(diagram));
+        let shape = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+
+        state.perform(Command::Move {
+            id: shape,
+            by: (1, 0).into(),
+        });
         state.select(Some(shape));
         state.set_sub_mode(Some(SubMode::StrokeSelect));
 
-        assert!(!state.can_redo());
+        assert!(
+            !state.can_redo(),
+            "the walk left a step ahead, so this holds nothing"
+        );
         state.redo();
+
         assert_eq!(
             state.selected(),
             Some(shape),
-            "ineffective redo cleared the selection"
+            "the ineffective redo cleared the selection"
         );
         assert_eq!(
             state.sub_mode(),
             Some(SubMode::StrokeSelect),
-            "ineffective redo cleared the sub-mode"
+            "the ineffective redo cleared the sub-mode"
         );
 
         state.undo();
-        assert_eq!(state.selected(), None);
-
         state.select(Some(shape));
         state.set_sub_mode(Some(SubMode::StrokeSelect));
 
-        assert!(!state.can_undo());
+        assert!(
+            !state.can_undo(),
+            "the walk left a step behind, so this holds nothing"
+        );
         state.undo();
+
         assert_eq!(
             state.selected(),
             Some(shape),
-            "ineffective undo cleared the selection"
+            "the ineffective undo cleared the selection"
         );
         assert_eq!(
             state.sub_mode(),
             Some(SubMode::StrokeSelect),
-            "ineffective undo cleared the sub-mode"
+            "the ineffective undo cleared the sub-mode"
+        );
+    }
+
+    /// **A walk does not move the view, and a figure it selects off-screen stays off-screen**
+    /// (#299, rule 13 and D5).
+    ///
+    /// **The figure is moved while the view stands at the far end of the content**, so the step's
+    /// own figure is outside the window; the walk selects it and no cell of the window inverts.
+    #[test]
+    fn a_walk_keeps_the_view() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        let first = ShapeId::new(NonZeroU16::new(1).expect("1 is not zero"));
+        state.origin = Pos { x: 7, y: 2 };
+        state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+
+        state.perform(Command::Move {
+            id: first,
+            by: (1, 0).into(),
+        });
+        let view = state.origin();
+
+        state.undo();
+
+        assert_eq!(
+            state.origin(),
+            view,
+            "the undo scrolled the figure into view"
+        );
+        assert_eq!(
+            state.selected(),
+            Some(first),
+            "the undo did not select the figure it moved"
+        );
+        assert!(
+            (0..EXAMPLE_INTERIOR.width)
+                .all(|x| (0..EXAMPLE_INTERIOR.height)
+                    .all(|y| !state.is_cell_selected(Offset { x, y }))),
+            "the window inverts a cell, so the selected figure is on screen"
+        );
+
+        state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+        assert_eq!(
+            state.origin(),
+            view,
+            "the frame after the undo moved the view"
+        );
+
+        state.redo();
+
+        assert_eq!(
+            state.origin(),
+            view,
+            "the redo scrolled the figure into view"
+        );
+        assert_eq!(
+            state.selected(),
+            Some(first),
+            "the redo did not select the figure it moved"
         );
     }
 
