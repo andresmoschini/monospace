@@ -1,7 +1,7 @@
 # Monospace
 
 [![crates.io](https://img.shields.io/crates/v/monospace.svg)](https://crates.io/crates/monospace)
-[![docs.rs](https://docs.rs/monospace/badge.svg)](https://docs.rs/monospace)
+[![docs.rs](https://docs.rs/monospace-core/badge.svg)](https://docs.rs/monospace-core)
 [![CI](https://github.com/andresmoschini/monospace/actions/workflows/ci.yml/badge.svg)](https://github.com/andresmoschini/monospace/actions/workflows/ci.yml)
 [![MIT license](https://img.shields.io/crates/l/monospace.svg)](LICENSE)
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/andresmoschini)
@@ -56,6 +56,11 @@ The libraries it is built from are published beside it, under the same version:
 [`monospace-glyph-sets`](https://crates.io/crates/monospace-glyph-sets), and the non-interactive
 renderer [`monospace-cli`](https://crates.io/crates/monospace-cli).
 
+The libraries' API documentation is built on docs.rs, and the badge above opens it at
+[`monospace-core`](https://docs.rs/monospace-core), the crate that holds the domain. The two
+applications are binaries with no library API of their own, so docs.rs has nothing to build for
+them.
+
 ## Why this project exists
 
 This isn't primarily about shipping a diagramming tool. It's a deliberate exercise in learning how
@@ -96,10 +101,10 @@ binary, which is why this one is `monospace-cli`.
 
 ## Current status
 
-🚧 **It draws.** Boxes, optionally filled; lines; and connectors that route themselves between two
-endpoints, however far apart those are. Where two shapes meet, their strokes compose into a single
-cell rather than one overwriting the other, so a crossing becomes a junction and two boxes share a
-corner — and the front-most shape's fill is what covers what is behind it:
+🚧 **It draws, and it edits.** Boxes, optionally filled; lines; text; and connectors that route
+themselves between two endpoints, however far apart those are. Where two shapes meet, their strokes
+compose into a single cell rather than one overwriting the other, so a crossing becomes a junction
+and two boxes share a corner — and the front-most shape's fill is what covers what is behind it:
 
 <!-- render: 20x7
 {
@@ -139,9 +144,18 @@ draws front to back into a window the caller gives it — which is what makes mo
 change the picture. Nine glyph tables are in reach: the core's own Light and eight more held beside
 it, so the same box draws in ASCII, Double, Heavy and their combinations without a second code path.
 
+**The interactive application is here.** It starts from a blank diagram or from the demonstration,
+opens a description by name, saves it and exports it as plain text; it selects a shape with a click
+or with `Tab` and `Shift+Tab`, moves it with the arrows and resizes it with `Shift` and the arrows,
+rotates a line, duplicates a shape, edits a box's text in place, chooses a stroke, moves a shape
+through the order with `z`, attaches, detaches and restyles a connector's two endpoints, deletes,
+undoes and redoes, and scrolls the view with the wheel and with the bars. The two rows along the
+bottom say what the diagram reaches — or what the selected shape is — and offer only the commands
+that shape can take.
+
 Behind that, and all of it enforced rather than merely intended:
 
-- **136** tests in `monospace-core`, **610** across the workspace.
+- **162** tests in `monospace-core`, **1012** across the workspace.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
@@ -149,15 +163,14 @@ Behind that, and all of it enforced rather than merely intended:
   that keeps the portable crates compiling for WebAssembly, so stage 4 stays reachable instead of
   becoming a rewrite.
 
-Still missing, and named here rather than implied: the editing **surface** — the interactive
-application's frame, its menu, its way out, the diagram it was given, selecting one of its shapes
-with a click, deleting the selected shape, moving it with the arrow keys, giving that change back,
-the keyboard moving between the bar and the diagram, `Alt` or `F10` reaching a menu, the About
-dialog, and a view that the wheel and the bars move are here, and editing one beyond that is not —
-and persistence. The view moves with the wheel and with the bars on the region's border; no key
-moves it yet, which is [#237](https://github.com/andresmoschini/monospace/issues/237)'s, and what
-the status bar says about where it stands is
-[#226](https://github.com/andresmoschini/monospace/issues/226)'s.
+Still missing, and named here rather than implied: choosing a box's fill from the keyboard, which
+the description sets and the application does not
+([#306](https://github.com/andresmoschini/monospace/issues/306)); keys that move the view, which the
+wheel and the bars already do ([#237](https://github.com/andresmoschini/monospace/issues/237)); a
+status line too long for the screen, which is truncated rather than wrapped
+([#280](https://github.com/andresmoschini/monospace/issues/280)); and undo and redo, which say
+nothing when there is nothing to give back
+([#231](https://github.com/andresmoschini/monospace/issues/231)).
 
 ## Getting started
 
@@ -199,8 +212,11 @@ prints every style the catalog holds and the seven symbols each draws, which is
 | `site/`                        | The static landing page published to GitHub Pages. See [site/README.md](site/README.md). |
 | `docs/model.md`                | The domain's design, its provenance, and its open questions.                             |
 | `docs/diagram-model.md`        | The diagram model's rules: shapes, order, positions.                                     |
+| `docs/diagram-demo.md`         | What a diagram can draw, every picture generated from its description.                   |
 | `docs/editing-model.md`        | The editing layer above it: commands, steps, giving back.                                |
 | `docs/application-model.md`    | The layer above that one: the frame, the state, the actions.                             |
+| `docs/connector-editing.md`    | The non-binding direction for editing connectors and their terminals.                    |
+| `docs/contextual-ui.md`        | The non-binding direction for the contextual bar and its workflows.                      |
 | `docs/glyph-sets.md`           | The glyph tables and how they degrade.                                                   |
 | `docs/symbols.md`              | The seven symbols, the styles that draw them, and the sheet.                             |
 | `docs/tui-conventions.md`      | A survey of terminal interface conventions. Decides nothing.                             |
