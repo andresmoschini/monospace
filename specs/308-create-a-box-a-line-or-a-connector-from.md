@@ -218,7 +218,7 @@ vertical line `#2` of length 5 at `(8, 0)`, and a connector `#3` from `(12, 0)` 
 Starting in `IDLE` on an empty diagram (`0 shapes`):
 
 ```text
-monospace 0.1.1 · 0 shapes · Viewport: (0, 0)
+monospace 0.1.2 · 0 shapes · Viewport: (0, 0)
 CREATE: [b] Box [l] Line [c] Connector
 ```
 
@@ -227,7 +227,7 @@ CREATE: [b] Box [l] Line [c] Connector
   - Row 1:
     `MOVE: ↑↓←→ · RESIZE: Shift+↑↓←→ · TEXT: [t] Edit · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [Del] Delete · [Esc] Deselect`
 - Pressing `Esc` deselects Box `#1`, returning to `IDLE` with 1 shape:
-  - Row 0: `monospace 0.1.1 · Footprint: 5×5 at 0,0 · 1 shape · Viewport: (0, 0)`
+  - Row 0: `monospace 0.1.2 · Footprint: 5×5 at 0,0 · 1 shape · Viewport: (0, 0)`
   - Row 1:
     `CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick`
 - Calling `undo` removes Box `#1`, returning to the empty diagram in `IDLE`.

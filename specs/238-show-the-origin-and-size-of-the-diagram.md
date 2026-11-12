@@ -203,9 +203,9 @@ behind owns no cell at all, and the drawing still reaches where it stands.
 **The bar, as text.** Three sections at their fixed widths; the name takes what is left:
 
 ```text
-monospace        46×13 at 0,0      0.1.1
-monospace        nothing drawn     0.1.1
-monospace        4×3 at -4,-3      0.1.1
+monospace        46×13 at 0,0      0.1.2
+monospace        nothing drawn     0.1.2
+monospace        4×3 at -4,-3      0.1.2
 ```
 
 **A span that does not fit.** The plane's full corner is `65536×65536 at -32768,-32768`; the section

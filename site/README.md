@@ -40,28 +40,28 @@ Open `site/config.js` and edit the values in `window.MONOSPACE_CONFIG`:
 
 ```javascript
 window.MONOSPACE_CONFIG = {
-  version: "0.1.1", // Change when cutting a release
+  version: "0.1.2", // Change when cutting a release
   repoUrl: "https://github.com/andresmoschini/monospace",
   sponsorUrl: "https://github.com/sponsors/andresmoschini", // Sponsor button and footer link
   koFiUrl: "https://ko-fi.com/andresmoschini", // Ko-fi link in the footer
   cratesIoUrl: "https://crates.io/crates/monospace", // Replace with real crates.io URL
-  releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.0", // Checksums link
+  releaseUrl: "https://github.com/andresmoschini/monospace/releases/tag/v0.1.2", // Checksums link
   // One entry per download button, keyed by its data-download-platform attribute.
   downloads: {
     windows: {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-pc-windows-msvc.zip",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.2/monospace-v0.1.2-x86_64-pc-windows-msvc.zip",
     },
     "macos-arm64": {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-aarch64-apple-darwin.tar.gz",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.2/monospace-v0.1.2-aarch64-apple-darwin.tar.gz",
     },
     "macos-x86_64": {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-apple-darwin.tar.gz",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.2/monospace-v0.1.2-x86_64-apple-darwin.tar.gz",
     },
     "linux-x86_64": {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-x86_64-unknown-linux-gnu.tar.gz",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.2/monospace-v0.1.2-x86_64-unknown-linux-gnu.tar.gz",
     },
     "linux-arm64": {
-      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.0/monospace-v0.1.0-aarch64-unknown-linux-gnu.tar.gz",
+      url: "https://github.com/andresmoschini/monospace/releases/download/v0.1.2/monospace-v0.1.2-aarch64-unknown-linux-gnu.tar.gz",
     },
   },
 };

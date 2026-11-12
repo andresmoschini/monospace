@@ -229,7 +229,7 @@ joining `#1` to `#2` (`Diagram::shapes()` order: `#1`, `#2`, `#3`):
 Starting in `IDLE`:
 
 ```text
-monospace 0.1.1 · Footprint: 26×3 at 0,0 · 3 shapes
+monospace 0.1.2 · Footprint: 26×3 at 0,0 · 3 shapes
 SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick
 ```
 
