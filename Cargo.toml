@@ -12,7 +12,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["Andrés Moschini <andresmoschini@gmail.com>"]
 license = "MIT"
@@ -31,11 +31,11 @@ categories = [
 # Each path carries a version as well, because crates.io refuses a dependency that has only a path.
 # It is pinned with `=` and must match `workspace.package.version`: the crates are released together,
 # and bumping the version means bumping these five with it.
-monospace-core = { path = "crates/monospace-core", version = "=0.1.1" }
-monospace-description = { path = "crates/monospace-description", version = "=0.1.1" }
-monospace-diagram = { path = "crates/monospace-diagram", version = "=0.1.1" }
-monospace-editing = { path = "crates/monospace-editing", version = "=0.1.1" }
-monospace-glyph-sets = { path = "crates/monospace-glyph-sets", version = "=0.1.1" }
+monospace-core = { path = "crates/monospace-core", version = "=0.1.2" }
+monospace-description = { path = "crates/monospace-description", version = "=0.1.2" }
+monospace-diagram = { path = "crates/monospace-diagram", version = "=0.1.2" }
+monospace-editing = { path = "crates/monospace-editing", version = "=0.1.2" }
+monospace-glyph-sets = { path = "crates/monospace-glyph-sets", version = "=0.1.2" }
 
 # Lints are declared here rather than passed on the command line so that rust-analyzer shows them
 # while editing, and so that a crate added later inherits them instead of quietly opting out.
