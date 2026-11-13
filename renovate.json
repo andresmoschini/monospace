@@ -10,8 +10,14 @@
   "minimumReleaseAge": "7 days",
   "packageRules": [
     {
-      "description": "Automerge minor and patch updates after CI passes",
-      "matchUpdateTypes": ["minor", "patch"],
+      "description": "Automerge patch updates after CI passes",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "Automerge minor updates only on >=1.0.0 dependencies (0.x minors can break)",
+      "matchUpdateTypes": ["minor"],
+      "matchCurrentVersion": ">=1.0.0",
       "automerge": true
     },
     {
