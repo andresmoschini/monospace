@@ -22,7 +22,10 @@ use rat_theme4::WidgetStyle;
 use rat_theme4::theme::SalsaTheme;
 use rat_widget::event::MenuOutcome;
 use rat_widget::menu::menubar;
-use rat_widget::menu::{MenuStyle, Menubar, MenubarLine, MenubarPopup, MenubarState, StaticMenu};
+use rat_widget::menu::{
+    MenuBuilder, MenuStructure, MenuStyle, Menubar, MenubarLine, MenubarPopup, MenubarState,
+    StaticMenu,
+};
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
 use ratatui_core::style::Style;
@@ -46,6 +49,81 @@ use crate::vocabulary::{Action, Reply};
 /// **The label's navigation character is the letter after its `_`**, and it is the only table of
 /// names: `Alt` reaches the same character here that a bare press answers when the bar holds the
 /// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
+/// The top-level labels on the bar, in display order.
+///
+/// **The label's navigation character is the letter after its `_`**, and it is the only table of
+/// names: `Alt` reaches the same character here that a bare press answers when the bar holds the
+/// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
+const TOP_LABELS: [&str; 3] = ["_File", "_Edit", "_Help"];
+
+/// Per-frame flags saying which conditional menu entries are active.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[allow(
+    dead_code,
+    reason = "wired into draw_bar and draw_drop_down in the next commit"
+)]
+pub(crate) struct MenuFlags {
+    /// Whether `Edit > Undo` can walk a step back.
+    pub(crate) can_undo: bool,
+
+    /// Whether `Edit > Redo` can walk a step forward.
+    pub(crate) can_redo: bool,
+}
+
+/// The per-frame menu structure built from [`MenuFlags`].
+#[derive(Debug, Clone, Copy)]
+#[allow(
+    dead_code,
+    reason = "wired into draw_bar and draw_drop_down in the next commit"
+)]
+struct Menu {
+    flags: MenuFlags,
+}
+
+impl Menu {
+    /// Builds the menu structure for this frame's `flags`.
+    #[allow(
+        dead_code,
+        reason = "wired into draw_bar and draw_drop_down in the next commit"
+    )]
+    fn new(flags: MenuFlags) -> Self {
+        Self { flags }
+    }
+}
+
+impl<'a> MenuStructure<'a> for Menu {
+    fn menus(&'a self, menu: &mut MenuBuilder<'a>) {
+        for label in TOP_LABELS {
+            menu.item_parsed(label);
+        }
+    }
+
+    fn submenu(&'a self, n: usize, submenu: &mut MenuBuilder<'a>) {
+        match n {
+            FILE => {
+                submenu
+                    .item_parsed("_New|Ctrl+N")
+                    .item_parsed("_Open|Ctrl+O")
+                    .item_parsed("_Save|Ctrl+S")
+                    .item_parsed("_Export as Text")
+                    .item_parsed("Open _Demo")
+                    .item_parsed("_Quit|Ctrl+Q");
+            }
+            EDIT => {
+                submenu
+                    .item_parsed("_Undo|Ctrl+Z")
+                    .disabled(!self.flags.can_undo)
+                    .item_parsed("_Redo|Ctrl+Shift+Z")
+                    .disabled(!self.flags.can_redo);
+            }
+            HELP => {
+                submenu.item_parsed("_About");
+            }
+            _ => {}
+        }
+    }
+}
+
 static MENU: StaticMenu = StaticMenu {
     menu: &[
         (
@@ -232,9 +310,9 @@ fn alt_navigation(raw: &Event) -> Option<char> {
     };
     let character = character.to_ascii_lowercase();
 
-    MENU.menu
+    TOP_LABELS
         .iter()
-        .any(|(label, _)| navigation(label) == Some(character))
+        .any(|label| navigation(label) == Some(character))
         .then_some(character)
 }
 
@@ -1019,5 +1097,28 @@ mod tests {
             !chrome.popup_active(),
             "the drop-down stayed open behind it"
         );
+    }
+
+    #[test]
+    fn edit_entries_follow_menu_flags_while_file_and_help_stay_enabled() {
+        for (can_undo, can_redo) in [(false, false), (true, false), (false, true), (true, true)] {
+            let menu = Menu::new(MenuFlags { can_undo, can_redo });
+
+            let mut edit = MenuBuilder::new();
+            menu.submenu(EDIT, &mut edit);
+            let edit_items = edit.items();
+            assert_eq!(edit_items.len(), 2);
+            assert_eq!(edit_items[UNDO].disabled, !can_undo);
+            assert_eq!(edit_items[REDO].disabled, !can_redo);
+
+            for submenu_index in [FILE, HELP] {
+                let mut builder = MenuBuilder::new();
+                menu.submenu(submenu_index, &mut builder);
+                assert!(
+                    builder.items().iter().all(|item| !item.disabled),
+                    "submenu {submenu_index} had a disabled entry for ({can_undo}, {can_redo})"
+                );
+            }
+        }
     }
 }
