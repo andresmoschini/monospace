@@ -106,13 +106,28 @@ maintainer, in #170.
   argument; two paragraphs describing two options are a preference.
 - **At most seven.** More means the cut is too coarse: say so and split the change.
 
-## The ceiling is 250 lines, and it is not a limit to get under
+## The 300-line signal, and when a spec runs past it
 
-Exceeding it is not a violation to justify with better wording. It means the cut is too coarse, and
-the first answer is to **split the change**, not to compress the prose. Prettier reflows prose at a
-hundred columns rather than refusing it, so rewording a paragraph to make it shorter buys nothing:
-the words come back on the next `cargo xtask fix`. The blocks `cargo xtask render` generates do not
-count — they replace prose rather than adding to it.
+Three hundred lines — **not counting diagrams or `render` blocks** — is a signal that the cut may be
+too coarse, not a limit to squeeze under. Both `<!-- render: ... -->` blocks (the marker, its JSON,
+and the generated fence) and inline text diagrams in fenced blocks are excluded from the count:
+pictures replace prose rather than adding to it.
+
+When a spec runs past 300 lines, apply one test: **would splitting it produce two changes that are
+each defensible on their own?**
+
+- **If yes**, split the change. More than seven decisions points the same way.
+- **If no**, keep the spec together and let it run past 300 lines. Two cases fail the test: a
+  structural preparation that exists only to make a behavioral change simple (whose standalone pull
+  request would change no behavior), and a new behavior paired with the demonstration that lets a
+  reader see it work (where splitting the demonstration out leaves the reader with a claim).
+
+Never compress prose that exists to be read, merge sections, or drop a generated picture or example
+to stay under 300 lines. Prettier reflows prose at a hundred columns rather than refusing it, so
+rewording a paragraph to look shorter buys nothing: the words come back on the next
+`cargo xtask fix`. When a spec exceeds the 300-line signal, add one or two sentences — in
+`## Why now` or `## Scope` — stating why its parts are one change and cannot be split into two
+independently defensible ones.
 
 ## A spec is never deleted
 
