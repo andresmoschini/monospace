@@ -27,7 +27,7 @@ use rat_widget::menu::{
 };
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
-use ratatui_core::style::Style;
+use ratatui_core::style::{Modifier, Style};
 use ratatui_core::widgets::StatefulWidget;
 use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -400,6 +400,33 @@ pub(crate) fn draw_drop_down(
     let menu = Menu::new(flags);
     let (_, drop_down) = widgets(&menu, theme);
     drop_down.render(area, buf, state);
+
+    if state.popup_active() {
+        normalize_disabled_rows(buf, state, theme);
+    }
+}
+
+/// Resets every cell of each disabled drop-down row to `MENU_BASE + Modifier::DIM` (D3 of #231).
+///
+/// `rat-menu` applies `popup_disabled` only to plain label spans, leaving the navigation character
+/// underlined and the right-hand shortcut in `KEY_BINDING`, and paints item `0` in `REVERSED`
+/// whenever selection falls on it. Resetting each disabled item row clears those per-span styles
+/// while keeping the row's glyphs intact.
+fn normalize_disabled_rows(buf: &mut Buffer, state: &MenubarState, theme: &SalsaTheme) {
+    let base_style = menu_base_style(theme);
+    let disabled_style = Style::reset().patch(base_style).add_modifier(Modifier::DIM);
+
+    for (idx, &item_area) in state.popup.item_areas.iter().enumerate() {
+        if state.popup.disabled.get(idx).copied().unwrap_or(false) {
+            buf.set_style(item_area, disabled_style);
+        }
+    }
+}
+
+/// Base style of the menu bar and pop-up (`MENU_BASE`).
+fn menu_base_style(theme: &SalsaTheme) -> Style {
+    let style: MenuStyle = theme.style(WidgetStyle::MENU);
+    style.popup_style.unwrap_or(style.style)
 }
 
 /// The bar and the drop-down, as the two widgets the menu splits itself into.
@@ -1137,5 +1164,99 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn disabled_rows_paint_with_menu_base_and_dim_across_label_nav_and_shortcut() {
+        let theme = theme();
+        let menu_style: MenuStyle = theme.style(WidgetStyle::MENU);
+        let base_style = menu_style.popup_style.unwrap_or(menu_style.style);
+        let key_binding_bg = menu_style.popup_right.and_then(|s| s.bg);
+        let theme_disabled_bg = menu_style.popup_disabled.and_then(|s| s.bg);
+
+        let mut chrome = drawn();
+        let flags = MenuFlags {
+            can_undo: false,
+            can_redo: false,
+        };
+        open_with_flags(&mut chrome, 'e', flags);
+        let buffer = draw_flags(&mut chrome, flags);
+
+        for item_idx in [UNDO, REDO] {
+            let row_area = chrome.menu().popup.item_areas[item_idx];
+            assert!(row_area.width > 0 && row_area.height == 1);
+            for col in row_area.left()..row_area.right() {
+                let style = buffer[(col, row_area.y)].style();
+                assert_eq!(style.fg, base_style.fg, "col {col} fg mismatch");
+                assert_eq!(style.bg, base_style.bg, "col {col} bg mismatch");
+                assert!(
+                    style.add_modifier.contains(Modifier::DIM),
+                    "col {col} missing DIM: {style:?}"
+                );
+                assert!(
+                    !style.add_modifier.contains(Modifier::REVERSED),
+                    "col {col} has REVERSED: {style:?}"
+                );
+                assert!(
+                    !style.add_modifier.contains(Modifier::UNDERLINED),
+                    "col {col} has UNDERLINED: {style:?}"
+                );
+                if let Some(kb_bg) = key_binding_bg {
+                    assert_ne!(style.bg, Some(kb_bg), "col {col} kept KEY_BINDING bg");
+                }
+                if let Some(dis_bg) = theme_disabled_bg {
+                    assert_ne!(style.bg, Some(dis_bg), "col {col} used Style::DISABLED bg");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn enabled_entries_keep_active_styling_and_underlined_nav_char() {
+        let theme = theme();
+        let menu_style: MenuStyle = theme.style(WidgetStyle::MENU);
+        let key_binding_bg = menu_style.popup_right.and_then(|s| s.bg);
+
+        let mut chrome = drawn();
+        let flags = MenuFlags {
+            can_undo: true,
+            can_redo: true,
+        };
+        open_with_flags(&mut chrome, 'e', flags);
+        let buffer = draw_flags(&mut chrome, flags);
+
+        // Undo is selected by default; Redo is unselected and enabled.
+        let redo_area = chrome.menu().popup.item_areas[REDO];
+        for col in redo_area.left()..redo_area.right() {
+            let style = buffer[(col, redo_area.y)].style();
+            assert!(
+                !style.add_modifier.contains(Modifier::DIM),
+                "enabled Redo col {col} is DIM"
+            );
+            assert!(
+                !style.add_modifier.contains(Modifier::REVERSED),
+                "unselected Redo col {col} is REVERSED"
+            );
+        }
+
+        let r_col = (redo_area.left()..redo_area.right())
+            .find(|&col| buffer[(col, redo_area.y)].symbol() == "R")
+            .expect("R cell in Redo");
+        assert!(
+            buffer[(r_col, redo_area.y)]
+                .style()
+                .add_modifier
+                .contains(Modifier::UNDERLINED),
+            "enabled Redo navigation character is not underlined"
+        );
+
+        let shortcut_col = (redo_area.left()..redo_area.right())
+            .find(|&col| buffer[(col, redo_area.y)].symbol() == "C")
+            .expect("Ctrl+Shift+Z cell in Redo");
+        assert_eq!(
+            buffer[(shortcut_col, redo_area.y)].style().bg,
+            key_binding_bg,
+            "enabled Redo shortcut lost KEY_BINDING background"
+        );
     }
 }
