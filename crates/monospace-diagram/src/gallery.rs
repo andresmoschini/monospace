@@ -437,17 +437,17 @@ fn an_endpoint_hangs_from_a_side_and_follows_it() {
     );
 
     // And the third displaces the **connector**, which is the other direction and the other rule:
-    // the endpoint slides off the side rather than following it, and the arrow draws as a
-    // translation of itself.
+    // the attached endpoint stays on the side it hangs from and the fixed end takes the delta, so
+    // the arrow bends instead of translating.
     //
     // **Reached from the arrangement as written rather than from the block beside it**, and a second
     // diagram in this test is what that costs — six lines rather than a `get` and a `replace`. The
     // reason is measured rather than stylistic: the second block above left the box's right side
     // centre on `{7, 1}`, which is where the connector's own free end already stood, so a
-    // displacement applied to *that* diagram would have put both endpoints on `{7, 3}` and drawn
-    // nothing at all — degenerate in the same way the second block above is, one step further
-    // along. Reaching the arrangement as written is also what keeps the third block comparable with
-    // the first: the two differ by the one displacement between them and by nothing else.
+    // displacement applied to *that* diagram would have moved the free end down from a cell the box
+    // was then holding, and drawn a picture about two displacements rather than one. Reaching the
+    // arrangement as written is also what keeps the third block comparable with the first: the two
+    // differ by the one displacement between them and by nothing else.
     let from_as_written = Diagram::new();
     let (from_as_written, second_box_id) = from_as_written.add(small_box(at(0, 0), None));
     let (mut from_as_written, arrow_id) = from_as_written.add(hanging_connector(second_box_id));

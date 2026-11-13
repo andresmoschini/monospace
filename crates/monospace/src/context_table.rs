@@ -31,8 +31,9 @@ pub(crate) enum Condition {
     VerticalLine,
     /// Active only if the selected figure is a horizontal or vertical line.
     Line,
-    /// Active only if the selected figure is a box or a line.
-    BoxOrLine,
+    /// Active only if the selected figure is a box, a line, or a connector with at least one fixed
+    /// endpoint — the figures a bare arrow can move.
+    Movable,
     /// Active only if the selected figure is a connector.
     Connector,
     /// Active only if the active endpoint is detached.
@@ -387,7 +388,7 @@ static IDLE: &[ContextBlock] = &[
 static SELECTION: &[ContextBlock] = &[
     ContextBlock {
         category: Some("MOVE"),
-        condition: Condition::BoxOrLine,
+        condition: Condition::Movable,
         actions: &[ContextAction {
             trigger: Trigger::Key(KeyPattern::Arrows),
             label: "",
@@ -974,6 +975,12 @@ pub(crate) fn context_blocks(
         kind,
         Some(SelectionKind::Box | SelectionKind::HorizontalLine | SelectionKind::VerticalLine)
     );
+    let is_movable_connector = matches!(
+        state.selected_shape(),
+        Some(Shape::Connector { from, to, .. })
+            if matches!(from.at, EndpointAt::Absolute { .. })
+                || matches!(to.at, EndpointAt::Absolute { .. })
+    );
     let has_shapes = state.session().diagram().shape_count() > 0;
     let has_attachable_shapes = state
         .session()
@@ -1022,7 +1029,7 @@ pub(crate) fn context_blocks(
         Condition::HorizontalLine => is_horizontal_line,
         Condition::VerticalLine => is_vertical_line,
         Condition::Line => is_line,
-        Condition::BoxOrLine => is_box_or_line,
+        Condition::Movable => is_box_or_line || is_movable_connector,
         Condition::Connector => is_connector,
         Condition::EndpointDetached => is_endpoint_detached,
         Condition::EndpointAttached => is_endpoint_attached,
@@ -1471,6 +1478,25 @@ mod tests {
         ]
     }"#;
 
+    /// A connector attached at both ends, so a bare arrow has nothing fixed to move.
+    const A_HANGING_CONNECTOR: &str = r#"{
+        "next_id": 3,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 12, "y": 0 },
+              "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "connector", "id": 3,
+              "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
+                                "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                        "terminal": { "kind": "arm" } },
+              "to": { "at": { "kind": "reference", "shape": 2, "anchor": "left",
+                              "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                      "terminal": { "kind": "arm" } },
+              "stroke": "light" }
+        ]
+    }"#;
+
     fn a_state_over(json: &str) -> DiagramState {
         let diagram =
             monospace_description::parse(json).expect("the test's description is readable");
@@ -1602,11 +1628,20 @@ mod tests {
             "MOVE: ↑↓←→ · RESIZE: Shift+↑↓ · ROTATE: [r] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
         );
 
-        // 6. Selection: Connector
+        // 6. Selection: Connector with a fixed endpoint offers MOVE first
         let mut conn_selected = a_state_over(A_CONNECTOR);
         conn_selected.select(Some(id1));
         assert_eq!(
             format_command_line(&conn_selected),
+            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
+        );
+
+        // 7. Selection: Connector with two references has nothing fixed to move
+        let id3 = ShapeId::new(NonZeroU16::new(3).expect("3 is non-zero"));
+        let mut hanging_selected = a_state_over(A_HANGING_CONNECTOR);
+        hanging_selected.select(Some(id3));
+        assert_eq!(
+            format_command_line(&hanging_selected),
             "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
         );
     }

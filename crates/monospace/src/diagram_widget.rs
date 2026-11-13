@@ -981,13 +981,58 @@ mod tests {
         assert_offer_matches_acceptance(A_VERTICAL_LINE, Some(1), None);
     }
 
-    /// **For a selected connector, key acceptance matches what the contextual bar offers**: the bar
-    /// offers ENDPOINTS, INVERT, STROKE, ORDER, selection cycling, Delete, and Deselect, but neither
-    /// MOVE nor RESIZE; plain arrows and Shift+arrows are ignored, while endpoint selectors, invert,
-    /// stroke, order, and Esc are accepted.
+    /// **For a selected connector, key acceptance matches what the contextual bar offers**: with a
+    /// fixed endpoint the bar offers MOVE first, and plain arrows are accepted; with two attached
+    /// endpoints there is no MOVE, and plain arrows are ignored. Resize is absent either way, and
+    /// endpoint selectors, invert, stroke, order, and Esc are accepted.
     #[test]
     fn key_acceptance_matches_contextual_bar_for_selected_connector() {
         assert_offer_matches_acceptance(A_CONNECTOR, Some(1), None);
+        assert_offer_matches_acceptance(AN_ATTACHED_CONNECTOR, Some(3), None);
+    }
+
+    /// **The four arrows move a selected connector that has a fixed endpoint** (rules 6 and 8 of
+    /// #373): each arrow carries the delta of its own axis and the connector's identity, exactly as
+    /// it does for a box and a line.
+    #[test]
+    fn arrows_move_a_selected_connector_with_a_fixed_endpoint() {
+        for (arrow, delta) in [
+            (KeyCode::Right, (1, 0)),
+            (KeyCode::Left, (-1, 0)),
+            (KeyCode::Up, (0, -1)),
+            (KeyCode::Down, (0, 1)),
+        ] {
+            let mut state = a_state_over(A_CONNECTOR);
+            let id = ShapeId::new(NonZeroU16::new(1).unwrap());
+            state.select(Some(id));
+
+            assert_eq!(
+                handle(&key(arrow), &mut state, Focus::Region),
+                Reply::Act(Action::Command(Command::Move {
+                    id,
+                    by: delta.into(),
+                })),
+                "{arrow:?} did not answer the movement"
+            );
+        }
+    }
+
+    /// **The four arrows are ignored for a connector without a fixed endpoint** (rule 7 of #373):
+    /// the bar offers no `MOVE`, so there is no key for the region to answer. The connector itself
+    /// stands still — a domain move on it comes back equal — which is why ignoring the key is the
+    /// whole of the answer rather than an error.
+    #[test]
+    fn arrows_are_ignored_for_a_connector_without_a_fixed_endpoint() {
+        for arrow in [KeyCode::Right, KeyCode::Left, KeyCode::Up, KeyCode::Down] {
+            let mut state = a_state_over(AN_ATTACHED_CONNECTOR);
+            state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
+
+            assert_eq!(
+                handle(&key(arrow), &mut state, Focus::Region),
+                Reply::Ignored,
+                "{arrow:?} was not ignored for a connector with two attached endpoints"
+            );
+        }
     }
 
     #[test]

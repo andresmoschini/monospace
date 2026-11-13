@@ -159,10 +159,10 @@ is signed, so a negative `out` is a point inside the shape; like every other amo
 is not checked against the side or clamped, so an `out` and an offset pushing one axis in opposite
 directions add and may cancel, and nothing reports it. **A reference stores both `offset` and `out`
 separately and sums them when resolving**, so both amounts can be inspected, serialized and edited
-independently. A displacement reaches the `offset`, sliding the endpoint and growing that gap while
-preserving `out` unchanged. The amount _along_ the side gets no second spelling, because it is the
-other of the two amounts the offset already carries — and one pair of screen amounts is one gap,
-which is what tells a gap from a slide.
+independently. **A displacement reaches neither amount**: it moves a fixed point and leaves a
+reference exactly as it stands, so a reference's gap belongs to whoever placed it rather than to the
+figure that happens to be moving. The amount _along_ the side gets no second spelling, because it is
+the other of the two amounts the offset already carries, and one pair of screen amounts is one gap.
 
 **Only a connector's endpoint holds a reference, for now.** Every other shape's position is
 absolute, and _Attachment_ below is where the reference lives. A reference therefore names a box or
@@ -175,10 +175,12 @@ answers anchor points — is the slice that has to make resolution cycle-safe an
 resolves to, and it inherits the intended answer rather than a blank page: nothing, like any other
 reference that does not resolve.
 
-Displacing a figure moves every position it holds. A position that is a reference has no coordinates
-to add to, so a displacement reaches its offsets instead, and displacing a connector whose endpoint
-holds a reference slides that endpoint rather than carrying the connector with the shape it hangs
-from. That is what makes a displacement a property of one figure rather than of a diagram.
+Displacing a figure moves every position it holds, and a fixed point moves by the delta. A reference
+has no coordinates to add to and is left exactly as it stands, so displacing a connector whose
+endpoint hangs from a box moves the connector's fixed end and leaves the attachment alone — a
+half-attached connector stretches rather than sliding. That is what makes a displacement a property
+of one figure rather than of a diagram. The other direction still holds, because resolution is
+dynamic: moving the box carries the endpoint with it.
 
 **Taking a shape out freezes what hung from it.** Every reference **naming the removed shape**
 becomes the absolute point it was resolving to at that moment, so what hung from it stays drawn
@@ -468,10 +470,12 @@ survives a replacement is what the diagram owns — the identity and the place i
 everything the shape owns is the new shape's: its kind, its parameters and its position.
 
 Moving is a replacement like any other: the new shape is the old one displaced by a delta. A box and
-a line are displaced through their own position, and a connector through both of its endpoints at
-once — a connector is not the exception to this. Displacing a figure builds a value and changes
-nothing in a diagram; replacing is what puts the value in. What a displacement means for a position
-that is a reference is stated under _Positions_.
+a line are displaced through their own position, and a connector through its **fixed** endpoints
+only: a displacement moves every `EndpointAt::Absolute` and leaves every attached endpoint exactly
+where it hangs, so a half-attached connector stretches rather than sliding and one attached at both
+ends comes back equal. Displacing a figure builds a value and changes nothing in a diagram;
+replacing is what puts the value in. What a displacement means for a position that is a reference is
+stated under _Positions_.
 
 Resizing is a replacement too: the new shape is the old one resized by a delta in width and height.
 Resizing a box changes its `size` while keeping its anchor `at`, clamped so that neither dimension
@@ -613,12 +617,13 @@ that needs one of them answered amends this document first and then implements t
 - **Does moving a set of figures keep their gaps?** The two directions of a single displacement are
   settled and they are **not** the same rule: displacing the figure a reference hangs from carries
   the endpoint with it and leaves the gap, while displacing the figure that holds the reference
-  slides the endpoint and grows the gap — see _Positions_. What is not settled is what a caller gets
-  who moves several figures in a row, since each displacement belongs to one figure and the two
-  compose into an arrangement nobody chose. Nothing displaces more than one figure today: there is
-  no selection, no group and no consumer that moves a set. The arrangement two displacements compose
-  into is already pinned, derived from the rule rather than decided by it, so a slice that decides
-  it otherwise has to say so rather than discover it in a picture:
+  moves its fixed points and leaves the reference standing where it stands — see _Positions_. What
+  is not settled is what a caller gets who moves several figures in a row, since each displacement
+  belongs to one figure and the two compose into an arrangement nobody chose. Nothing displaces more
+  than one figure today: there is no selection, no group and no consumer that moves a set. The
+  arrangement two displacements compose into is already pinned, derived from the rule rather than
+  decided by it, so a slice that decides it otherwise has to say so rather than discover it in a
+  picture:
   [`displacing_the_box_and_then_the_connector`](../crates/monospace-diagram/src/diagram.rs). What
   would settle it: the first consumer that displaces more than one figure at a time, which is a
   selection.

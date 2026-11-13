@@ -173,41 +173,6 @@ impl From<Pos> for Position {
     }
 }
 
-impl Position {
-    /// This position, moved by `by`, changing nothing else.
-    ///
-    /// A displacement adds coordinates, and a point has coordinates to add to. A
-    /// [`Position::Reference`] has none — it names **which** figure and **which** of its four sides,
-    /// and neither is a place — so what it has instead is a gap, and the gap is what grows: `offset`
-    /// takes `by` on each screen axis and comes back a larger [`Delta`].
-    ///
-    /// **The two fields that name are unchanged, and the reason each is unchanged is what makes the
-    /// third one move.** `id` and `anchor` are read at draw time, so they are where the endpoint
-    /// will be, and a displacement does not change where a figure it did not name is going to be;
-    /// `offset` is a gap from that side rather than a point, and a gap is measured from something
-    /// that stayed. A displacement therefore slides the endpoint away from the figure it hangs from
-    /// — which is what a displacement of **one** figure means, and why the model's §4 says a
-    /// displacement is a property of one figure rather than of a diagram.
-    ///
-    /// Nothing here is cloned: the identity is two bytes and the side is a unit variant, so the
-    /// only field a displacement grows is the gap. A displacement of nothing returns the position
-    /// equal to itself, and a reference naming something this diagram does not hold comes back the
-    /// same reference with a larger offset and still resolves to nothing — the arithmetic builds a
-    /// value and cannot fail, so there is no error path here and nothing to report.
-    #[must_use]
-    pub(crate) fn displaced_by(self, by: Delta) -> Self {
-        match self {
-            Self::Absolute(at) => Self::Absolute(by.apply(at)),
-            Self::Reference(reference) => Self::Reference(Reference {
-                id: reference.id,
-                anchor: reference.anchor,
-                offset: reference.offset.grow(by),
-                out: reference.out,
-            }),
-        }
-    }
-}
-
 /// The middle of one side of a figure occupying `at` through `at + (size - 1)`.
 ///
 /// Two rules rather than four, and the four anchors are those two read in four directions: a side
@@ -488,59 +453,6 @@ mod tests {
         }
     }
 
-    /// A displacement moves an absolute position, and grows a reference's offset while its
-    /// identity and its anchor come back as they went in.
-    ///
-    /// **Rewritten rather than deleted, because one sentence of the old test is still true and only
-    /// its reason was wrong.** It read "a displacement moves a point and leaves a reference alone",
-    /// and "a reference comes back equal to itself" is still true — of a displacement of **nothing**.
-    /// What was false was the reason, and the reason was the whole claim.
-    ///
-    /// Compared by value rather than by picture, because a gap that failed to grow is what there is
-    /// nothing to see. Both sides carry an `assert_ne!`, and that is the point of the rewrite: this
-    /// test was the bug's own hiding place, since a `displaced_by` that changed **nothing at all**
-    /// would satisfy every equality here by doing exactly what the code used to do.
-    #[test]
-    fn a_displacement_moves_a_point_and_grows_a_references_offset() {
-        let by = Delta { dx: 4, dy: 0 };
-        let reference = super::Position::Reference(crate::Reference::new(
-            identity(1),
-            Anchor::Right,
-            Delta { dx: 0, dy: 0 },
-            0,
-        ));
-        let point = super::Position::Absolute(Pos { x: 1, y: 1 });
-
-        assert_eq!(
-            point.displaced_by(by),
-            super::Position::Absolute(Pos { x: 5, y: 1 })
-        );
-        assert_ne!(point.displaced_by(by), point);
-
-        // The one field that grows, asked on its own so a rule that grew `id` or `anchor` instead
-        // cannot pass on the other two being right.
-        let super::Position::Reference(moved) = reference.displaced_by(by) else {
-            unreachable!("the position above is a reference")
-        };
-        assert_eq!(moved.offset, by);
-        assert_ne!(reference.displaced_by(by), reference);
-
-        // The two fields that name, each equal to what went in — and the offset is asserted not
-        // equal to its old value, since an offset of nothing would satisfy both equalities.
-        let super::Position::Reference(went_in) = &reference else {
-            unreachable!("the position above is a reference")
-        };
-        assert_eq!(moved.id, went_in.id);
-        assert_eq!(moved.anchor, went_in.anchor);
-        assert_ne!(moved.offset, went_in.offset);
-
-        // A displacement of nothing is the sentence that survived the rewrite, and it is a
-        // statement about the arithmetic rather than an exception to it.
-        let nothing = Delta { dx: 0, dy: 0 };
-        assert_eq!(reference.displaced_by(nothing), reference);
-        assert_eq!(point.displaced_by(nothing), point);
-    }
-
     /// Draws `diagram` into a `size` window at the origin and renders it as text, so that a claim
     /// about what a gap draws is made in the vocabulary a reader reads a picture in.
     ///
@@ -773,15 +685,16 @@ mod tests {
         assert_eq!(resolve(as_out, &diagram), Some(Pos { x: 1, y: 3 }));
     }
 
-    /// A displacement grows the offset of a reference written with an `out` exactly as it grows any
-    /// other: the gap comes out of the same field and the point slides by the displacement.
+    /// A displacement does not reach a reference written with an `out`: the attached endpoint keeps
+    /// its offset, its `out` and the point it resolves to, and only the fixed end takes the delta.
     ///
-    /// The displacement is of **the figure holding the reference**, which is what the rule is about —
-    /// a gap from a side grows with the figure it is hung on rather than traveling with the figure
-    /// the side belongs to. The box is left where it is precisely so that the slide is the only
-    /// thing the two resolutions can differ by.
+    /// **Rewritten rather than deleted**, because this test is the one place that pairs a
+    /// displacement with a standoff of its own: a rule that zeroed `out` on the way past would leave
+    /// the offset and the anchor intact and still move the reference, and only this arrangement can
+    /// see that. The box is left where it is, so the point the reference resolves to is the same
+    /// before and after — which is what "an attached endpoint stands still" means as a picture.
     #[test]
-    fn a_displacement_grows_the_offset_of_a_reference_written_with_an_out_as_it_grows_any_other() {
+    fn a_displacement_does_not_reach_a_reference_written_with_an_out() {
         let by = Delta { dx: 0, dy: 3 };
         let diagram = Diagram::new();
         let (diagram, id) = diagram.add(the_box_at_the_origin());
@@ -792,23 +705,22 @@ mod tests {
             stroke: light(),
         };
 
-        let Shape::Connector { from, .. } = connector.displaced_by(by) else {
+        let Shape::Connector { from, to, .. } = connector.displaced_by(by) else {
             unreachable!("the figure above is a connector")
-        };
-        let EndpointAt::Reference(moved) = from.at else {
-            unreachable!("its near end was a reference")
         };
 
         assert_eq!(
-            moved.offset,
-            Delta { dx: 0, dy: 3 },
-            "three rows of displacement added to the offset"
+            from.at,
+            EndpointAt::Reference(hanging),
+            "the displacement reached the attached endpoint"
         );
-        assert_eq!(moved.out, 1, "out is preserved across displacement");
         assert_eq!(
-            resolve(moved, &diagram),
-            Some(Pos { x: 1, y: 6 }),
-            "{{1, 3}} slid three rows down and nothing else moved"
+            to.at,
+            EndpointAt::Absolute {
+                at: Pos { x: 1, y: 8 },
+                leaving: Direction::Up,
+            },
+            "the fixed endpoint did not take the delta"
         );
         assert_eq!(
             resolve(hanging, &diagram),

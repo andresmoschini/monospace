@@ -460,11 +460,14 @@ returns to the diagram. A dialog that belongs to the sub-mode itself is not an a
 overlay and does not end it either.
 
 **The four arrows move what is selected, dispatched as `Command::Move`.** A press of an arrow while
-the region holds the keyboard and a box or a line is selected displaces the selected figure one cell
-along the arrow's own axis: the contextual table mints `Action::Command(Command::Move { id, by })`
-naming the selected figure and the arrow's delta. When a connector is selected, whole-figure
-movement is not offered (`MOVE: ↑↓←→` is restricted to boxes and lines) and bare arrows are ignored
-(`Control::Continue`): connectors edit their geometry endpoint-by-endpoint in `ENDPOINT_EDIT`
+the region holds the keyboard and a box, a line, or a connector with at least one fixed endpoint is
+selected displaces the selected figure one cell along the arrow's own axis: the contextual table
+mints `Action::Command(Command::Move { id, by })` naming the selected figure and the arrow's delta.
+A connector follows through its fixed endpoints only, so its attached endpoints stay on the figures
+they hang from and the connector stretches. When both of a connector's endpoints are attached,
+whole-figure movement is not offered (`MOVE: ↑↓←→` is restricted to a connector with a fixed
+endpoint) and bare arrows are ignored (`Control::Continue`): there is nothing fixed to move, and
+such a connector edits its geometry endpoint-by-endpoint in `ENDPOINT_EDIT`
 (`SubMode::Endpoint(End)`). **One press is one `Command::Move` and one step**, so `Undo` gives back
 one cell per press. **The selection survives**, because the figure is still there one cell along,
 and the next frame inverts the cells it now owns. **An arrow with nothing selected ignores the key**

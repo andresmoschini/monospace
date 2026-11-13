@@ -476,13 +476,13 @@ The complete endpoint interaction model is specified in detail in
 [`connector-editing.md`](connector-editing.md). The table below summarizes the connector state
 catalog:
 
-| State                | Type                | Trigger                                                        | Key commands & transitions                                                                                                                     | Description                                                                            |
-| :------------------- | :------------------ | :------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
-| `SELECTED_CONNECTOR` | Base selection      | Click connector or `Tab`                                       | `[1]` / `[2]` endpoint edit, `[i]` invert terminals, `[s]` stroke, `[z]` order, `[Tab]`/`[Shift+Tab]` cycle, `[d]` duplicate, `[Del]`, `[Esc]` | Top-level connector inspection. Shows endpoints, stroke, and terminals in row 0.       |
-| `ENDPOINT_EDIT`      | Continuous sub-mode | `[1]` (start) or `[2]` (end)                                   | `↑↓←→` offset/position, `+`/`-` out, `[r]` reset, `[0]` detach, `[t]` terminal, `[2]` / `[1]` switch, `[Esc]` Done                             | Fine-grained endpoint adjustment. Operates directly on `from` or `to`.                 |
-| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                                       | `[1]` arm ─, `[2]` solid ▶, `[3]` outline ▷, `[4]` ascii >, `[5]` diamond ◆, `[Esc]` Cancel                                                    | Selects head symbol or arm for the active endpoint.                                    |
-| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)                            | `[1]` ↑ North, `[2]` → East, `[3]` ↓ South, `[4]` ← West, `[Esc]` Cancel                                                                       | Sets explicit departure direction for detached (`Absolute`) endpoints.                 |
-| `ATTACH_SELECT`      | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` (detached, with `Box`/`Line` present) | `Tab`/`Shift+Tab` cycle target focus, click candidate to focus, `1..=4` pick anchor (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel         | Attaches a detached endpoint to a shape face; does not re-attach an existing endpoint. |
+| State                | Type                | Trigger                                                        | Key commands & transitions                                                                                                                                                                               | Description                                                                            |
+| :------------------- | :------------------ | :------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
+| `SELECTED_CONNECTOR` | Base selection      | Click connector or `Tab`                                       | `↑↓←→` move fixed endpoints (only with a fixed endpoint), `[1]` / `[2]` endpoint edit, `[i]` invert terminals, `[s]` stroke, `[z]` order, `[Tab]`/`[Shift+Tab]` cycle, `[d]` duplicate, `[Del]`, `[Esc]` | Top-level connector inspection. Shows endpoints, stroke, and terminals in row 0.       |
+| `ENDPOINT_EDIT`      | Continuous sub-mode | `[1]` (start) or `[2]` (end)                                   | `↑↓←→` offset/position, `+`/`-` out, `[r]` reset, `[0]` detach, `[t]` terminal, `[2]` / `[1]` switch, `[Esc]` Done                                                                                       | Fine-grained endpoint adjustment. Operates directly on `from` or `to`.                 |
+| `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                                       | `[1]` arm ─, `[2]` solid ▶, `[3]` outline ▷, `[4]` ascii >, `[5]` diamond ◆, `[Esc]` Cancel                                                                                                              | Selects head symbol or arm for the active endpoint.                                    |
+| `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)                            | `[1]` ↑ North, `[2]` → East, `[3]` ↓ South, `[4]` ← West, `[Esc]` Cancel                                                                                                                                 | Sets explicit departure direction for detached (`Absolute`) endpoints.                 |
+| `ATTACH_SELECT`      | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` (detached, with `Box`/`Line` present) | `Tab`/`Shift+Tab` cycle target focus, click candidate to focus, `1..=4` pick anchor (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel                                                                   | Attaches a detached endpoint to a shape face; does not re-attach an existing endpoint. |
 
 ---
 
@@ -536,8 +536,11 @@ capabilities without waiting for complex attachment wizards:
 - **Slice 3: Move endpoint with cursor arrows (`↑↓←→`):** Adjusts `offset: Delta { dx, dy }` along
   the attached face for `Reference` endpoints, or moves canvas `Pos(x, y)` for detached `Absolute`
   endpoints.
-- **Slice 4: Retire general whole-connector `MOVE`:** Removes `MOVE: ↑↓←→` from
-  `SELECTED_CONNECTOR`. Connectors are positioned and shaped exclusively through their endpoints.
+- **Slice 4: Whole-connector `MOVE` on the fixed ends:** Retired `MOVE: ↑↓←→` for every connector in
+  [#328](https://github.com/andresmoschini/monospace/issues/328), and restored it in
+  [#373](../specs/373-a-connector-moves-by-its-fixed-endpoints.md) for a connector with at least one
+  fixed endpoint: the arrows move those ends and leave attached ones where they hang. A connector
+  attached at both ends shows no `MOVE` and ignores the arrows.
 - **Slice 5: Adjust orthogonal standoff `out` with `+` / `-`:** Adjusts perpendicular separation
   clearance `out: i16` away from the attached shape face.
 - **Slice 6: Reset `offset` and `out` to zero with `[r]`:** Offers `[r] Reset` whenever

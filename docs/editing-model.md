@@ -100,6 +100,11 @@ layer is for — it reads the connector that is there, keeps what it does not ch
 detached endpoint to a figure's side with zero offset and standoff, and leaves an already-attached
 endpoint intact, which is logic a caller otherwise writes and gets subtly wrong.
 
+`Move` asks the shape to displace itself by `by`. A box or a line moves through its own position; a
+**connector moves through its fixed endpoints only**, leaving every attached endpoint exactly where
+it hangs, so a half-attached connector stretches, one whose endpoints are both attached comes back
+equal and records no step (#285), and an attached endpoint is moved by `MoveEndpoint` instead.
+
 `Add` places a new figure at the front of the drawing order via the diagram's `add` operation. When
 the caller needs the assigned `ShapeId` immediately (for instance to select the newly created figure
 in an interactive editor), `Session::add(&self, shape) -> (Session, ShapeId)` performs the addition,

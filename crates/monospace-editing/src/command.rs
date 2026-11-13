@@ -28,6 +28,10 @@ use monospace_diagram::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     /// The figure goes `by`, along each axis.
+    ///
+    /// A connector moves through its fixed endpoints only: an attached endpoint stays on the figure
+    /// it hangs from, so a half-attached connector stretches and one attached at both ends comes
+    /// back equal and records no step.
     Move {
         /// The figure to move.
         id: ShapeId,

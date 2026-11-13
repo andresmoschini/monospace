@@ -1312,6 +1312,113 @@ fn a_move_by_nothing_records_no_step() {
     assert!(!after_move.can_undo());
 }
 
+/// A connector hanging from a box at one end and fixed at the other, with the box's identity and its
+/// own. Built here rather than shared with [`the_fixture`], whose connector is fixed at both ends and
+/// therefore says nothing about attachments.
+fn a_connector_hanging_from_a_box() -> (Diagram, ShapeId, ShapeId) {
+    let diagram = Diagram::new();
+    let (diagram, box_id) = diagram.add(small_box(ORIGIN));
+    let (diagram, connector_id) = diagram.add(Shape::Connector {
+        from: Endpoint::reference(
+            Reference::new(box_id, Anchor::Right, Delta::ZERO, 0),
+            Terminal::Arm,
+        ),
+        to: Endpoint::absolute(Pos { x: 10, y: 1 }, Direction::Left, Terminal::Arm),
+        stroke: Stroke::from("light"),
+    });
+    (diagram, box_id, connector_id)
+}
+
+/// A connector with one attached and one fixed endpoint moves through the fixed end alone, keeps the
+/// attachment, and records **one** step.
+///
+/// The picture is the half that says "keeps the attachment": the moved connector hangs from the same
+/// box and reaches two rows lower, so it bends rather than sliding off the side. The step count is
+/// the other half: the figure changed, so #285 has something to remember and one undo reverses it.
+#[test]
+fn moving_a_connector_with_a_fixed_endpoint_records_one_step_and_keeps_attachments() {
+    let (diagram, box_id, connector_id) = a_connector_hanging_from_a_box();
+    let session = Session::new(diagram);
+    let before = picture_in(session.diagram(), FIXTURE);
+
+    let moved = session.perform(Command::Move {
+        id: connector_id,
+        by: Delta { dx: 0, dy: 2 },
+    });
+
+    assert!(moved.can_undo(), "the move recorded no step");
+    assert!(!moved.can_redo(), "the move recorded more than one step");
+
+    let Shape::Connector { from, .. } = moved.diagram().get(connector_id).expect("connector")
+    else {
+        unreachable!("the figure moved is a connector")
+    };
+    let EndpointAt::Reference(reference) = from.at else {
+        unreachable!("its near end was a reference")
+    };
+    assert_eq!(reference.id, box_id);
+    assert_eq!(reference.anchor, Anchor::Right);
+    assert_eq!(reference.offset, Delta::ZERO);
+
+    let expected = Diagram::new();
+    let (expected, expected_box) = expected.add(small_box(ORIGIN));
+    let expected = expected
+        .add(Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(expected_box, Anchor::Right, Delta::ZERO, 0),
+                Terminal::Arm,
+            ),
+            to: Endpoint::absolute(Pos { x: 10, y: 3 }, Direction::Left, Terminal::Arm),
+            stroke: Stroke::from("light"),
+        })
+        .0;
+    let after = picture_in(moved.diagram(), FIXTURE);
+
+    assert_eq!(
+        after,
+        picture_in(&expected, FIXTURE),
+        "the moved connector did not stay attached to the box it hangs from"
+    );
+    assert_ne!(after, before, "the move changed nothing");
+}
+
+/// A connector attached at **both** ends has no fixed point for a move to displace, so it comes back
+/// equal and #285 records **no** step.
+///
+/// The command is still performed and still answers a session: it is neither an error nor a mode
+/// change, which is what the bar and the key table already say by not offering the gesture.
+#[test]
+fn moving_a_connector_with_two_references_records_no_step() {
+    let diagram = Diagram::new();
+    let (diagram, left) = diagram.add(small_box(ORIGIN));
+    let (diagram, right) = diagram.add(small_box(Pos { x: 8, y: 0 }));
+    let (diagram, connector_id) = diagram.add(Shape::Connector {
+        from: Endpoint::reference(
+            Reference::new(left, Anchor::Right, Delta { dx: 1, dy: 0 }, 0),
+            Terminal::Arm,
+        ),
+        to: Endpoint::reference(
+            Reference::new(right, Anchor::Left, Delta { dx: -1, dy: 0 }, 0),
+            Terminal::Arm,
+        ),
+        stroke: Stroke::from("light"),
+    });
+    let session = Session::new(diagram);
+    let before = picture_in(session.diagram(), FIXTURE);
+
+    let moved = session.perform(Command::Move {
+        id: connector_id,
+        by: Delta { dx: 2, dy: -1 },
+    });
+
+    assert_eq!(
+        picture_in(moved.diagram(), FIXTURE),
+        before,
+        "the move drew something on a connector with nothing fixed to move"
+    );
+    assert!(!moved.can_undo(), "the move recorded a step");
+}
+
 #[test]
 fn a_command_that_changes_nothing_leaves_what_was_ahead() {
     let session = Session::new(one_box(ORIGIN));
