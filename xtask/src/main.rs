@@ -69,8 +69,11 @@ enum Action {
 
 /// Every step of the quality gate, in the order they run.
 ///
-/// Steps are added here as the gate grows. Order is presentation only: all of them run on every
-/// invocation, so that one pass reports every problem rather than only the first.
+/// Steps are added here as the gate grows. Order is presentation only: all of them run when the
+/// gate runs, so that one pass reports every problem rather than only the first.
+///
+/// A partial run (`cargo xtask check [step...]`) is a development loop only; the gate is `cargo
+/// xtask check` with no arguments, which is what the `pre-commit` hook and CI run.
 ///
 /// A step passes or fails on its exit code alone. This is a deliberate limit rather than an
 /// oversight, and it has known holes: `rustfmt` reports `can't set group_imports, unstable features
@@ -292,7 +295,7 @@ fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
 
     match args.next().as_deref() {
-        Some("check") => run_gate(),
+        Some("check") => run_gate(args),
         Some("fix") => run_fix(),
         Some("setup") => run_setup(),
         Some("render") => render::run(args),
@@ -310,14 +313,28 @@ fn main() -> ExitCode {
     }
 }
 
-/// Runs every step of the gate and reports which ones failed.
+/// Runs the selected steps of the gate (or every step when none are named) and reports which ones
+/// failed.
 ///
-/// All steps run even after one fails. A gate that stops at the first problem turns one broken
-/// commit into several round trips, and the steps here are cheap enough that finishing is free.
-fn run_gate() -> ExitCode {
+/// All selected steps run even after one fails. A gate that stops at the first problem turns one
+/// broken commit into several round trips, and the steps here are cheap enough that finishing is
+/// free.
+fn run_gate(args: impl Iterator<Item = String>) -> ExitCode {
+    let names: Vec<String> = args.collect();
+    let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let selected = match select_steps(&name_refs) {
+        Ok(steps) => steps,
+        Err(problem) => {
+            eprintln!("{problem}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let root = workspace_root();
 
-    if let Err(problem) = node_tooling_state(&root) {
+    if needs_node_tooling(&selected)
+        && let Err(problem) = node_tooling_state(&root)
+    {
         eprintln!("{problem}");
         eprintln!();
         eprintln!("    Run `cargo xtask setup` and try again.");
@@ -329,27 +346,29 @@ fn run_gate() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    if selected.len() < GATE.len() {
+        println!("{}", partial_opening(&selected));
+    }
+
     let mut failed = Vec::new();
 
-    for step in GATE {
+    for step in &selected {
         println!("\n--- {} ---", step.name);
         if !run(&root, step) {
             failed.push(step.name);
         }
     }
 
-    if failed.is_empty() {
-        println!("\nall {} checks passed", GATE.len());
-        return ExitCode::SUCCESS;
+    match gate_summary(&selected, &failed) {
+        Ok(summary) => {
+            println!("\n{summary}");
+            ExitCode::SUCCESS
+        }
+        Err(summary) => {
+            eprintln!("\n{summary}");
+            ExitCode::FAILURE
+        }
     }
-
-    eprintln!(
-        "\n{} of {} checks failed: {}",
-        failed.len(),
-        GATE.len(),
-        failed.join(", ")
-    );
-    ExitCode::FAILURE
 }
 
 /// Runs every step in `FIX`, in order, and reports which ones still have something left to fix by
@@ -574,7 +593,6 @@ fn print_usage() {
 }
 
 /// All gate step names in `GATE` order, separated by commas.
-#[allow(dead_code)]
 fn gate_step_names() -> String {
     GATE.iter()
         .map(|step| step.name)
@@ -587,7 +605,6 @@ fn gate_step_names() -> String {
 /// An empty list selects all of `GATE`. Otherwise every name must belong to `GATE`; unknown names
 /// fail before any step runs, with a dedicated message when the name belongs to `FIX`. The
 /// returned slice follows `GATE` order and runs each selected step once.
-#[allow(dead_code)]
 fn select_steps(names: &[&str]) -> Result<Vec<&'static Step>, String> {
     if names.is_empty() {
         return Ok(GATE.iter().collect());
@@ -615,7 +632,6 @@ fn select_steps(names: &[&str]) -> Result<Vec<&'static Step>, String> {
 }
 
 /// Whether any step in `steps` spawns an executable from `node_modules/.bin`.
-#[allow(dead_code)]
 fn needs_node_tooling(steps: &[&Step]) -> bool {
     steps.iter().any(|step| match step.action {
         Action::Spawn { program, .. } => program.starts_with("node_modules/.bin/"),
@@ -624,7 +640,6 @@ fn needs_node_tooling(steps: &[&Step]) -> bool {
 }
 
 /// Opening line printed before the first step of a partial gate run.
-#[allow(dead_code)]
 fn partial_opening(selected: &[&Step]) -> String {
     let names: Vec<_> = selected.iter().map(|step| step.name).collect();
     format!(
@@ -636,7 +651,6 @@ fn partial_opening(selected: &[&Step]) -> String {
 }
 
 /// Closing report for a gate run: `Ok` when every selected step passed, `Err` when any failed.
-#[allow(dead_code)]
 fn gate_summary(selected: &[&Step], failed: &[&str]) -> Result<String, String> {
     let partial = selected.len() < GATE.len();
     if failed.is_empty() {
