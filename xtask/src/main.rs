@@ -572,3 +572,96 @@ fn print_usage() {
     println!("  pr       Prepare and open a pull request; `cargo xtask pr help` lists its verbs");
     println!("  help     Show this message");
 }
+
+/// All gate step names in `GATE` order, separated by commas.
+#[allow(dead_code)]
+fn gate_step_names() -> String {
+    GATE.iter()
+        .map(|step| step.name)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Validates and orders a gate step selection.
+///
+/// An empty list selects all of `GATE`. Otherwise every name must belong to `GATE`; unknown names
+/// fail before any step runs, with a dedicated message when the name belongs to `FIX`. The
+/// returned slice follows `GATE` order and runs each selected step once.
+#[allow(dead_code)]
+fn select_steps(names: &[&str]) -> Result<Vec<&'static Step>, String> {
+    if names.is_empty() {
+        return Ok(GATE.iter().collect());
+    }
+
+    for &name in names {
+        if !GATE.iter().any(|step| step.name == name) {
+            if FIX.iter().any(|step| step.name == name) {
+                return Err(format!(
+                    "xtask: `{name}` is a fixer, not a step of the gate. `cargo xtask fix` runs \
+                     it."
+                ));
+            }
+            return Err(format!(
+                "xtask: `{name}` is not a step of the gate.\nThe steps are: {}.",
+                gate_step_names()
+            ));
+        }
+    }
+
+    Ok(GATE
+        .iter()
+        .filter(|step| names.contains(&step.name))
+        .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_names_select_every_step() {
+        let selected = select_steps(&[]).expect("empty selection should succeed");
+        let names: Vec<_> = selected.iter().map(|step| step.name).collect();
+        let expected: Vec<_> = GATE.iter().map(|step| step.name).collect();
+        assert_eq!(names, expected);
+    }
+
+    #[test]
+    fn names_run_in_gate_order_whatever_the_order_typed() {
+        let selected = select_steps(&["specs", "prettier"]).expect("valid step names");
+        let names: Vec<_> = selected.iter().map(|step| step.name).collect();
+        assert_eq!(names, vec!["prettier", "specs"]);
+    }
+
+    #[test]
+    fn a_name_typed_twice_runs_once() {
+        let selected = select_steps(&["specs", "specs"]).expect("duplicate valid step name");
+        let names: Vec<_> = selected.iter().map(|step| step.name).collect();
+        assert_eq!(names, vec!["specs"]);
+    }
+
+    #[test]
+    fn an_unknown_name_is_refused_with_the_steps() {
+        let error = select_steps(&["spec"])
+            .map(|_| ())
+            .expect_err("unknown step name should fail");
+        assert_eq!(
+            error,
+            format!(
+                "xtask: `spec` is not a step of the gate.\nThe steps are: {}.",
+                gate_step_names()
+            )
+        );
+    }
+
+    #[test]
+    fn a_fixer_name_points_at_fix() {
+        let error = select_steps(&["eol"])
+            .map(|_| ())
+            .expect_err("fixer-only name should fail");
+        assert_eq!(
+            error,
+            "xtask: `eol` is a fixer, not a step of the gate. `cargo xtask fix` runs it."
+        );
+    }
+}
