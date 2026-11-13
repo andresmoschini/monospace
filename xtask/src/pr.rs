@@ -65,9 +65,10 @@ impl Stage {
     /// A branch that carries no issue closes nothing and says `Closes` about the number it was
     /// given, which is the only number there is to write.
     fn keyword(self) -> &'static str {
-        match self {
-            Stage::Deciding => "Refs",
-            Stage::Building | Stage::Single => "Closes",
+        if self.closes_issue() {
+            "Closes"
+        } else {
+            "Refs"
         }
     }
 

@@ -126,9 +126,10 @@ cargo xtask change open 170 deciding
 ```
 
 It fetches, reads the issue title with `gh`, derives the slug from it in kebab-case up to forty
-characters, pads the number to three digits, creates the branch linked to the issue with
-`gh issue develop`, checks it out, and prints what the next two steps need: where the spec will
-live, the branch, the stage, and what to do next.
+characters, pads the number to three digits, creates and checks out the branch (without linking it
+via `gh issue develop` for `deciding`, because a linked branch makes GitHub close the issue when the
+deciding pull request merges even with `Refs #N`), and prints what the next two steps need: where
+the spec will live, the branch, the stage, and what to do next.
 
 **It writes no spec file.** That is deliberate: a template emitted here would be a file nobody has
 agreed to, which is the same thing as a draft nobody is writing. The spec is the deciding pull
@@ -147,9 +148,11 @@ cargo xtask change open 170 building   # the building stage, once the deciding o
 cargo xtask change open 170            # a change of one stage, and no spec file anywhere
 ```
 
-All three link the branch to the issue, so the issue's page lists it and the name is not the only
-record of which issue it carries. For a change of one stage the printed block is one line shorter,
-because there is no `Spec:` line to print: a path that will never exist is worse than no line.
+The `building` and one-stage branches link to the issue with `gh issue develop`, so the issue's page
+lists them and closing works in both places; `deciding` stays a plain git branch referenced via
+`Refs #N` in its pull request body so the issue remains open until the building stage finishes it.
+For a change of one stage the printed block is one line shorter, because there is no `Spec:` line to
+print: a path that will never exist is worse than no line.
 
 Asked as an instruction it is one line:
 

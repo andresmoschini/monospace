@@ -35,9 +35,11 @@
 //! same shape: a name per line. Asking the remote as well would be a second code path, and a second
 //! failure mode, for a question this module has already answered.
 //!
-//! **A branch is tied to its issue by `gh issue develop`, for all three names.** It is the only thing
-//! that ties one, and a branch name alone is a name: without the link the issue's page cannot list
-//! the branch, and which issue it carries is a thing somebody has to remember.
+//! **Only closing stages are tied to their issue by `gh issue develop`.** A branch created with
+//! `gh issue develop` enters the issue's Development panel, and GitHub closes every issue in that
+//! panel when a pull request from the branch merges into `main` even when the body says `Refs #N`.
+//! `Building` and `Single` branches link via `gh issue develop` so the issue lists them; `Deciding`
+//! opens as a plain git branch instead so merging the spec leaves the issue open until `Building`.
 //!
 //! **`open` refuses to cut a building branch before the deciding stage merged.** It is the check
 //! `pr open` already made, called one step earlier, and the reader of it is the same function: a
@@ -126,6 +128,17 @@ impl Stage {
         self.suffix().is_some()
     }
 
+    /// Whether merging this stage's pull request finishes the issue.
+    ///
+    /// A branch linked via `gh issue develop` causes GitHub to close the issue on merge even when
+    /// the pull request body uses `Refs #N`, so only closing stages link their branch to the issue.
+    pub(crate) fn closes_issue(self) -> bool {
+        match self {
+            Stage::Deciding => false,
+            Stage::Building | Stage::Single => true,
+        }
+    }
+
     /// What to do once this stage's branch is checked out.
     ///
     /// This is printed output rather than documentation, so it says what to do under this flow rather
@@ -204,7 +217,7 @@ fn open(root: &Path, args: &[String]) -> Result<(), String> {
     if stage == Stage::Building {
         verify_deciding_merged(root, &branch)?;
     }
-    ensure_branch(root, issue, &branch)?;
+    ensure_branch(root, issue, stage, &branch)?;
 
     announce(&issue_number, &slug, stage, &branch);
     Ok(())
@@ -446,29 +459,44 @@ fn refuse_two_stage(root: &Path, issue_number: &str) -> Result<(), String> {
 }
 
 /// Ensures `branch` exists, checking it out. Uses the branch on `origin` if this command or a person
-/// already created it; otherwise creates it on `origin` linked to `issue`.
-///
-/// This is the only thing that ties a branch to an issue, and `gh issue develop` is what does it —
-/// the branch name alone is a name.
-fn ensure_branch(root: &Path, issue: u32, branch: &str) -> Result<(), String> {
+/// already created it; otherwise creates it on `origin` from `origin/main`, linking it to `issue`
+/// with `gh issue develop` only for stages that close the issue on merge.
+fn ensure_branch(root: &Path, issue: u32, stage: Stage, branch: &str) -> Result<(), String> {
     if branch_exists(root, branch)? {
         return checkout_branch(root, branch);
     }
-    let issue_str = issue.to_string();
+    if stage.closes_issue() {
+        let issue_str = issue.to_string();
+        run_visible(
+            root,
+            "gh",
+            &[
+                "issue",
+                "develop",
+                &issue_str,
+                "--name",
+                branch,
+                "--base",
+                "main",
+                "--checkout",
+            ],
+        )
+    } else {
+        create_plain_branch(root, branch)
+    }
+}
+
+/// Creates `branch` from `origin/main` without `gh issue develop`, checks it out, and pushes it.
+///
+/// Deciding branches take this path because `gh issue develop` adds a Development link that makes
+/// GitHub close the issue when the deciding pull request merges, even with `Refs #N`.
+fn create_plain_branch(root: &Path, branch: &str) -> Result<(), String> {
     run_visible(
         root,
-        "gh",
-        &[
-            "issue",
-            "develop",
-            &issue_str,
-            "--name",
-            branch,
-            "--base",
-            "main",
-            "--checkout",
-        ],
-    )
+        "git",
+        &["checkout", "-b", branch, "--no-track", "origin/main"],
+    )?;
+    run_visible(root, "git", &["push", "--set-upstream", "origin", branch])
 }
 
 /// Checks out `branch`, creating a local tracking branch from `origin/<branch>` if there is no
@@ -1063,9 +1091,75 @@ fn print_usage() {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use super::{
-        ACCENTED, Stage, branch_name, find_slug, format_issue_number, slug_from_branch, slugify,
+        ACCENTED, Stage, branch_name, create_plain_branch, find_slug, format_issue_number,
+        local_branch_exists, remote_branch_exists, slug_from_branch, slugify,
     };
+    use crate::process::capture;
+
+    struct ScratchClone {
+        base: PathBuf,
+        clone: PathBuf,
+    }
+
+    impl ScratchClone {
+        fn new() -> Self {
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let base = std::env::temp_dir().join(format!(
+                "monospace-change-scratch-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            let _ = fs::remove_dir_all(&base);
+            let origin = base.join("origin.git");
+            let seed = base.join("seed");
+            let clone = base.join("clone");
+            fs::create_dir_all(&origin).expect("origin dir created");
+            fs::create_dir_all(&seed).expect("seed dir created");
+
+            run_git(&origin, &["init", "--bare", "--quiet"]);
+            run_git(&seed, &["init", "-b", "main", "--quiet"]);
+            run_git(&seed, &["config", "user.name", "Test"]);
+            run_git(&seed, &["config", "user.email", "test@example.com"]);
+            fs::write(seed.join("README.md"), "seed\n").expect("seed file written");
+            run_git(&seed, &["add", "README.md"]);
+            run_git(&seed, &["commit", "--no-gpg-sign", "-m", "init", "--quiet"]);
+            let origin_str = origin.to_string_lossy().to_string();
+            run_git(&seed, &["remote", "add", "origin", &origin_str]);
+            run_git(&seed, &["push", "-u", "origin", "main", "--quiet"]);
+            run_git(&origin, &["symbolic-ref", "HEAD", "refs/heads/main"]);
+
+            let clone_str = clone.to_string_lossy().to_string();
+            run_git(&base, &["clone", "--quiet", &origin_str, &clone_str]);
+            Self { base, clone }
+        }
+    }
+
+    impl Drop for ScratchClone {
+        fn drop(&mut self) {
+            for _ in 0..2 {
+                if fs::remove_dir_all(&self.base).is_ok() {
+                    return;
+                }
+            }
+        }
+    }
+
+    fn run_git(root: &Path, args: &[&str]) {
+        let status = crate::process::command(root, "git")
+            .args(args)
+            .status()
+            .expect("git runs");
+        assert!(
+            status.success(),
+            "git {args:?} failed in {}",
+            root.display()
+        );
+    }
 
     #[test]
     fn slugify_plain_title() {
@@ -1249,6 +1343,42 @@ mod tests {
         assert!(
             error.contains("specs/163-light-spec-driven.md"),
             "error did not name what was found: {error}"
+        );
+    }
+
+    #[test]
+    fn only_closing_stages_link_to_the_issue() {
+        assert!(!Stage::Deciding.closes_issue());
+        assert!(Stage::Building.closes_issue());
+        assert!(Stage::Single.closes_issue());
+    }
+
+    #[test]
+    fn create_plain_branch_cuts_from_origin_main_and_tracks_upstream() {
+        let scratch = ScratchClone::new();
+        let branch = "170-sample-change-deciding";
+
+        create_plain_branch(&scratch.clone, branch).expect("plain branch creates and pushes");
+
+        assert!(local_branch_exists(&scratch.clone, branch).unwrap());
+        assert!(remote_branch_exists(&scratch.clone, branch).unwrap());
+        assert_eq!(
+            capture(
+                &scratch.clone,
+                "git",
+                &["rev-parse", "--abbrev-ref", "HEAD"]
+            )
+            .unwrap(),
+            branch
+        );
+        assert_eq!(
+            capture(
+                &scratch.clone,
+                "git",
+                &["rev-parse", "--abbrev-ref", "@{u}"]
+            )
+            .unwrap(),
+            format!("origin/{branch}")
         );
     }
 }
