@@ -614,6 +614,67 @@ fn select_steps(names: &[&str]) -> Result<Vec<&'static Step>, String> {
         .collect())
 }
 
+/// Whether any step in `steps` spawns an executable from `node_modules/.bin`.
+#[allow(dead_code)]
+fn needs_node_tooling(steps: &[&Step]) -> bool {
+    steps.iter().any(|step| match step.action {
+        Action::Spawn { program, .. } => program.starts_with("node_modules/.bin/"),
+        Action::Here(_) => false,
+    })
+}
+
+/// Opening line printed before the first step of a partial gate run.
+#[allow(dead_code)]
+fn partial_opening(selected: &[&Step]) -> String {
+    let names: Vec<_> = selected.iter().map(|step| step.name).collect();
+    format!(
+        "running {} of {} steps: {}",
+        selected.len(),
+        GATE.len(),
+        names.join(", ")
+    )
+}
+
+/// Closing report for a gate run: `Ok` when every selected step passed, `Err` when any failed.
+#[allow(dead_code)]
+fn gate_summary(selected: &[&Step], failed: &[&str]) -> Result<String, String> {
+    let partial = selected.len() < GATE.len();
+    if failed.is_empty() {
+        if !partial {
+            return Ok(format!("all {} checks passed", GATE.len()));
+        }
+        let not_run: Vec<_> = GATE
+            .iter()
+            .filter(|step| !selected.iter().any(|chosen| chosen.name == step.name))
+            .map(|step| step.name)
+            .collect();
+        return Ok(format!(
+            "{} of {} checks passed; {} not run: {}\n\
+             This was not the gate. Run `cargo xtask check` with no arguments before committing.",
+            selected.len(),
+            GATE.len(),
+            not_run.len(),
+            not_run.join(", ")
+        ));
+    }
+
+    if partial {
+        Err(format!(
+            "{} of {} selected checks failed: {}",
+            failed.len(),
+            selected.len(),
+            failed.join(", ")
+        ))
+    } else {
+        Err(format!(
+            "{} of {} checks failed: {}",
+            failed.len(),
+            GATE.len(),
+            failed.join(", ")
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -662,6 +723,51 @@ mod tests {
         assert_eq!(
             error,
             "xtask: `eol` is a fixer, not a step of the gate. `cargo xtask fix` runs it."
+        );
+    }
+
+    #[test]
+    fn only_node_backed_steps_need_the_node_tooling() {
+        let rust_and_here = select_steps(&["clippy", "build", "test", "specs"]).unwrap();
+        assert!(!needs_node_tooling(&rust_and_here));
+
+        for node_step in ["prettier", "markdownlint", "editorconfig", "cspell"] {
+            let single = select_steps(&[node_step]).unwrap();
+            assert!(
+                needs_node_tooling(&single),
+                "{node_step} needs Node tooling"
+            );
+        }
+
+        let mixed = select_steps(&["clippy", "prettier"]).unwrap();
+        assert!(needs_node_tooling(&mixed));
+    }
+
+    #[test]
+    fn a_partial_run_says_what_it_did_not_run() {
+        let selected = select_steps(&["specs", "prettier", "markdownlint", "cspell"]).unwrap();
+        assert_eq!(
+            partial_opening(&selected),
+            "running 4 of 13 steps: prettier, markdownlint, specs, cspell"
+        );
+        assert_eq!(
+            gate_summary(&selected, &[]).unwrap(),
+            "4 of 13 checks passed; 9 not run: fmt, editorconfig, numbering, clippy, build, wasm, \
+             test, doc, render\n\
+             This was not the gate. Run `cargo xtask check` with no arguments before committing."
+        );
+
+        let two = select_steps(&["specs", "cspell"]).unwrap();
+        assert_eq!(
+            gate_summary(&two, &["cspell"]).unwrap_err(),
+            "1 of 2 selected checks failed: cspell"
+        );
+
+        let all = select_steps(&[]).unwrap();
+        assert_eq!(gate_summary(&all, &[]).unwrap(), "all 13 checks passed");
+        assert_eq!(
+            gate_summary(&all, &["fmt"]).unwrap_err(),
+            "1 of 13 checks failed: fmt"
         );
     }
 }
