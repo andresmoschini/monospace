@@ -29,7 +29,9 @@ use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
 use ratatui_core::style::{Modifier, Style};
 use ratatui_core::widgets::StatefulWidget;
-use ratatui_crossterm::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui_crossterm::crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind,
+};
 
 use crate::chrome::Chrome;
 use crate::vocabulary::{Action, Reply};
@@ -75,6 +77,17 @@ impl Menu {
     /// Builds the menu structure for this frame's `flags`.
     fn new(flags: MenuFlags) -> Self {
         Self { flags }
+    }
+
+    /// Disabled flags for every entry in submenu `n`, matching [`MenuStructure::submenu`].
+    fn submenu_disabled(self, n: usize) -> Vec<bool> {
+        let mut builder = MenuBuilder::new();
+        self.submenu(n, &mut builder);
+        builder
+            .items()
+            .into_iter()
+            .map(|item| item.disabled)
+            .collect()
     }
 }
 
@@ -205,7 +218,8 @@ pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
     }
 
     let translated;
-    let (raw, arriving) = match alt_navigation(raw) {
+    let alt_char = alt_navigation(raw);
+    let (raw, arriving) = match alt_char {
         Some(character) => {
             translated = Event::Key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
             let arrived = !chrome.is_bar();
@@ -214,6 +228,12 @@ pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
         }
         None => (raw, false),
     };
+
+    if alt_char.is_none()
+        && let Some(reply) = guard_disabled_popup_event(raw, chrome)
+    {
+        return reply;
+    }
 
     let before_open = chrome.popup_active();
     let before_focus = chrome.leaf();
@@ -267,6 +287,93 @@ pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
     } else {
         answer
     }
+}
+
+/// Guards an open drop-down against `rat-menu 3.1.1` paths that ignore `disabled` (D5 of #231).
+///
+/// Prevents `Enter`, left mouse clicks, `Up`, `Down`, `Home`, `End`, and bare navigation keys from
+/// selecting or activating a disabled entry, activating another entry, panicking when
+/// `selected == None`, closing the drop-down, or leaking a disabled navigation character behind it.
+fn guard_disabled_popup_event(raw: &Event, chrome: &mut Chrome) -> Option<Reply> {
+    if !(chrome.is_bar() && chrome.popup_active()) {
+        return None;
+    }
+
+    let popup = &mut chrome.menu_mut().popup;
+
+    if let Event::Mouse(mouse) = raw {
+        if mouse.kind == MouseEventKind::Down(MouseButton::Left)
+            && let Some(idx) = popup.item_at((mouse.column, mouse.row))
+            && popup.disabled.get(idx).copied().unwrap_or(false)
+        {
+            return Some(Reply::Consumed);
+        }
+        return None;
+    }
+
+    let Event::Key(key) = raw else {
+        return None;
+    };
+    if key.kind != KeyEventKind::Press {
+        return None;
+    }
+
+    if key.modifiers == KeyModifiers::NONE {
+        match key.code {
+            KeyCode::Enter => {
+                let disabled_or_none = popup
+                    .selected
+                    .is_none_or(|idx| popup.disabled.get(idx).copied().unwrap_or(true));
+                return disabled_or_none.then_some(Reply::Consumed);
+            }
+            KeyCode::Up | KeyCode::Down if !popup.disabled.is_empty() => {
+                let enabled_count = popup.disabled.iter().filter(|&&d| !d).count();
+                if enabled_count == 0
+                    || (enabled_count == 1
+                        && popup.selected == popup.disabled.iter().position(|&d| !d))
+                {
+                    return Some(Reply::Consumed);
+                }
+            }
+            KeyCode::Home | KeyCode::End if !popup.disabled.is_empty() => {
+                let target = if key.code == KeyCode::Home {
+                    popup.disabled.iter().position(|&d| !d)
+                } else {
+                    popup
+                        .disabled
+                        .iter()
+                        .enumerate()
+                        .rev()
+                        .find_map(|(idx, &d)| (!d).then_some(idx))
+                };
+                return Some(match target {
+                    Some(idx) if popup.selected != Some(idx) => {
+                        popup.selected = Some(idx);
+                        Reply::Repaint
+                    }
+                    _ => Reply::Consumed,
+                });
+            }
+            _ => {}
+        }
+    }
+
+    if let KeyCode::Char(character) = key.code
+        && !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+    {
+        let lower = character.to_ascii_lowercase();
+        // cspell:ignore navchar -- external field name on rat_menu::PopupMenuState
+        let matches_disabled = popup.navchar.iter().enumerate().any(|(idx, &nav)| {
+            nav == Some(lower) && popup.disabled.get(idx).copied().unwrap_or(false)
+        });
+        if matches_disabled {
+            return Some(Reply::Consumed);
+        }
+    }
+
+    None
 }
 
 /// The navigation character an `Alt` press names, or `None` where the event is not one.
@@ -398,11 +505,39 @@ pub(crate) fn draw_drop_down(
     flags: MenuFlags,
 ) {
     let menu = Menu::new(flags);
+    let active_disabled = state
+        .bar
+        .selected()
+        .filter(|_| state.popup_active())
+        .map(|label| menu.submenu_disabled(label));
+
+    // Normalize before rendering so `rat-menu`'s `Some(0)` fallback does not select or reverse a
+    // disabled first entry, and using `menu.submenu_disabled` avoids stale flags after switching
+    // top-level labels (D4 of #231).
+    if let Some(disabled) = &active_disabled {
+        normalize_selection(state, disabled);
+    }
+
     let (_, drop_down) = widgets(&menu, theme);
     drop_down.render(area, buf, state);
 
-    if state.popup_active() {
+    // Normalize again after rendering because `render_popup_menu` overwrites `None` with
+    // `Some(0)` whenever all entries in the submenu are disabled.
+    if let Some(disabled) = &active_disabled {
+        normalize_selection(state, disabled);
         normalize_disabled_rows(buf, state, theme);
+    }
+}
+
+/// Moves `state.popup.selected` to the first enabled entry (or `None` when none is enabled) when
+/// it is unset, out of bounds, or pointing at a disabled entry.
+fn normalize_selection(state: &mut MenubarState, disabled: &[bool]) {
+    let invalid = match state.popup.selected {
+        None => true,
+        Some(idx) => disabled.get(idx).copied().unwrap_or(true),
+    };
+    if invalid {
+        state.popup.selected = disabled.iter().position(|&is_disabled| !is_disabled);
     }
 }
 
@@ -453,7 +588,7 @@ mod tests {
     use crate::chrome::{Chrome, Focus};
     use crate::config::Config;
     use ratatui_crossterm::crossterm::event::{
-        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent, MouseEventKind,
     };
 
     /// The width of the screen these tests draw.
@@ -1258,5 +1393,235 @@ mod tests {
             key_binding_bg,
             "enabled Redo shortcut lost KEY_BINDING background"
         );
+    }
+
+    #[test]
+    fn initial_selection_lands_on_first_enabled_entry_or_none() {
+        // Neither Undo nor Redo enabled -> None, no cell reversed in either row.
+        let mut both_off = drawn();
+        let none_flags = MenuFlags {
+            can_undo: false,
+            can_redo: false,
+        };
+        open_with_flags(&mut both_off, 'e', none_flags);
+        let buf = draw_flags(&mut both_off, none_flags);
+        assert_eq!(both_off.menu().popup.selected(), None);
+        for idx in [UNDO, REDO] {
+            let area = both_off.menu().popup.item_areas[idx];
+            assert!(!reversed(&buf, area.left(), area.y));
+        }
+
+        // Only Undo enabled -> Some(0), Undo reversed.
+        let mut undo_only = drawn();
+        let undo_flags = MenuFlags {
+            can_undo: true,
+            can_redo: false,
+        };
+        open_with_flags(&mut undo_only, 'e', undo_flags);
+        let buf = draw_flags(&mut undo_only, undo_flags);
+        assert_eq!(undo_only.menu().popup.selected(), Some(UNDO));
+        let undo_area = undo_only.menu().popup.item_areas[UNDO];
+        let redo_area = undo_only.menu().popup.item_areas[REDO];
+        assert!(reversed(&buf, undo_area.left(), undo_area.y));
+        assert!(!reversed(&buf, redo_area.left(), redo_area.y));
+
+        // Only Redo enabled -> Some(1), Redo reversed and Undo not reversed.
+        let mut redo_only = drawn();
+        let redo_flags = MenuFlags {
+            can_undo: false,
+            can_redo: true,
+        };
+        open_with_flags(&mut redo_only, 'e', redo_flags);
+        let buf = draw_flags(&mut redo_only, redo_flags);
+        assert_eq!(redo_only.menu().popup.selected(), Some(REDO));
+        let undo_area = redo_only.menu().popup.item_areas[UNDO];
+        let redo_area = redo_only.menu().popup.item_areas[REDO];
+        assert!(!reversed(&buf, undo_area.left(), undo_area.y));
+        assert!(reversed(&buf, redo_area.left(), redo_area.y));
+    }
+
+    #[test]
+    fn switching_from_file_to_edit_normalizes_selection_on_frame_one() {
+        let mut chrome = drawn();
+        let flags = MenuFlags {
+            can_undo: false,
+            can_redo: true,
+        };
+        open_with_flags(&mut chrome, 'f', flags);
+        let _ = on_the_bar(&key(KeyCode::Down), &mut chrome);
+        let _ = on_the_bar(&key(KeyCode::Down), &mut chrome);
+        assert_eq!(chrome.menu().popup.selected(), Some(SAVE));
+
+        // Switch from File to Edit and paint a single frame.
+        let _ = on_the_bar(&key(KeyCode::Right), &mut chrome);
+        let buf = draw_flags(&mut chrome, flags);
+
+        assert_eq!(chrome.menu().bar.selected(), Some(EDIT));
+        assert_eq!(chrome.menu().popup.selected(), Some(REDO));
+        let undo_area = chrome.menu().popup.item_areas[UNDO];
+        let redo_area = chrome.menu().popup.item_areas[REDO];
+        assert!(!reversed(&buf, undo_area.left(), undo_area.y));
+        assert!(reversed(&buf, redo_area.left(), redo_area.y));
+    }
+
+    #[test]
+    fn arrows_home_and_end_respect_disabled_entries_and_keep_menu_open() {
+        // Both disabled -> Up, Down, Home, End keep selection None and return Consumed.
+        let mut none_enabled = drawn();
+        let none_flags = MenuFlags {
+            can_undo: false,
+            can_redo: false,
+        };
+        open_with_flags(&mut none_enabled, 'e', none_flags);
+        for code in [KeyCode::Up, KeyCode::Down, KeyCode::Home, KeyCode::End] {
+            let reply = on_the_bar(&key(code), &mut none_enabled);
+            assert_eq!(reply, Reply::Consumed, "{code:?} on all-disabled");
+            assert!(none_enabled.popup_active(), "{code:?} closed menu");
+            assert_eq!(
+                none_enabled.menu().popup.selected(),
+                None,
+                "{code:?} selected disabled entry"
+            );
+        }
+
+        // Only Redo enabled -> Up, Down, Home, End stay on Some(REDO) with Consumed.
+        let mut redo_only = drawn();
+        let redo_flags = MenuFlags {
+            can_undo: false,
+            can_redo: true,
+        };
+        open_with_flags(&mut redo_only, 'e', redo_flags);
+        assert_eq!(redo_only.menu().popup.selected(), Some(REDO));
+        for code in [KeyCode::Up, KeyCode::Down, KeyCode::Home, KeyCode::End] {
+            let reply = on_the_bar(&key(code), &mut redo_only);
+            assert_eq!(reply, Reply::Consumed, "{code:?} on sole Redo");
+            assert!(redo_only.popup_active(), "{code:?} closed menu");
+            assert_eq!(
+                redo_only.menu().popup.selected(),
+                Some(REDO),
+                "{code:?} moved off sole enabled Redo"
+            );
+        }
+
+        // Only Undo enabled -> Up, Down, Home, End stay on Some(UNDO) with Consumed.
+        let mut undo_only = drawn();
+        let undo_flags = MenuFlags {
+            can_undo: true,
+            can_redo: false,
+        };
+        open_with_flags(&mut undo_only, 'e', undo_flags);
+        assert_eq!(undo_only.menu().popup.selected(), Some(UNDO));
+        for code in [KeyCode::Up, KeyCode::Down, KeyCode::Home, KeyCode::End] {
+            let reply = on_the_bar(&key(code), &mut undo_only);
+            assert_eq!(reply, Reply::Consumed, "{code:?} on sole Undo");
+            assert!(undo_only.popup_active(), "{code:?} closed menu");
+            assert_eq!(
+                undo_only.menu().popup.selected(),
+                Some(UNDO),
+                "{code:?} moved off sole enabled Undo"
+            );
+        }
+    }
+
+    #[test]
+    fn enter_and_nav_keys_do_not_activate_disabled_entries() {
+        // Both disabled: Enter, 'u', and 'r' all return Consumed and keep popup open.
+        let mut none_enabled = drawn();
+        let none_flags = MenuFlags {
+            can_undo: false,
+            can_redo: false,
+        };
+        open_with_flags(&mut none_enabled, 'e', none_flags);
+        for code in [KeyCode::Enter, KeyCode::Char('u'), KeyCode::Char('r')] {
+            let reply = on_the_bar(&key(code), &mut none_enabled);
+            assert_eq!(reply, Reply::Consumed, "{code:?} on all-disabled");
+            assert!(none_enabled.popup_active(), "{code:?} closed menu");
+            assert_eq!(none_enabled.menu().popup.selected(), None);
+        }
+
+        // Only Redo enabled: 'u' is consumed without closing or changing selection; 'r' activates.
+        let mut redo_only = drawn();
+        let redo_flags = MenuFlags {
+            can_undo: false,
+            can_redo: true,
+        };
+        open_with_flags(&mut redo_only, 'e', redo_flags);
+        assert_eq!(
+            on_the_bar(&key(KeyCode::Char('u')), &mut redo_only),
+            Reply::Consumed
+        );
+        assert!(redo_only.popup_active());
+        assert_eq!(redo_only.menu().popup.selected(), Some(REDO));
+
+        assert_eq!(
+            on_the_bar(&key(KeyCode::Char('r')), &mut redo_only),
+            Reply::Act(Action::Redo)
+        );
+        assert!(!redo_only.popup_active());
+
+        // Only Undo enabled: 'r' is consumed; 'u' activates Undo.
+        let mut undo_only = drawn();
+        let undo_flags = MenuFlags {
+            can_undo: true,
+            can_redo: false,
+        };
+        open_with_flags(&mut undo_only, 'e', undo_flags);
+        assert_eq!(
+            on_the_bar(&key(KeyCode::Char('r')), &mut undo_only),
+            Reply::Consumed
+        );
+        assert!(undo_only.popup_active());
+        assert_eq!(undo_only.menu().popup.selected(), Some(UNDO));
+
+        assert_eq!(
+            on_the_bar(&key(KeyCode::Char('u')), &mut undo_only),
+            Reply::Act(Action::Undo)
+        );
+        assert!(!undo_only.popup_active());
+    }
+
+    #[test]
+    fn mouse_hover_and_click_on_disabled_entries_stay_consumed_and_open() {
+        // Both disabled (selected == None): hover and click on Undo and Redo stay Consumed and do not panic.
+        let mut none_enabled = drawn();
+        let none_flags = MenuFlags {
+            can_undo: false,
+            can_redo: false,
+        };
+        open_with_flags(&mut none_enabled, 'e', none_flags);
+        for idx in [UNDO, REDO] {
+            let area = none_enabled.menu().popup.item_areas[idx];
+            assert_eq!(
+                on_the_bar(&moved(area.left(), area.y), &mut none_enabled),
+                Reply::Consumed
+            );
+            assert_eq!(none_enabled.menu().popup.selected(), None);
+            assert_eq!(
+                on_the_bar(&click(area.left(), area.y), &mut none_enabled),
+                Reply::Consumed
+            );
+            assert!(none_enabled.popup_active());
+            assert_eq!(none_enabled.menu().popup.selected(), None);
+        }
+
+        // Only Redo enabled (selected == Some(REDO)): hover and click on disabled Undo do not activate Redo.
+        let mut redo_only = drawn();
+        let redo_flags = MenuFlags {
+            can_undo: false,
+            can_redo: true,
+        };
+        open_with_flags(&mut redo_only, 'e', redo_flags);
+        let undo_area = redo_only.menu().popup.item_areas[UNDO];
+        assert_eq!(
+            on_the_bar(&moved(undo_area.left(), undo_area.y), &mut redo_only),
+            Reply::Consumed
+        );
+        assert_eq!(redo_only.menu().popup.selected(), Some(REDO));
+        assert_eq!(
+            on_the_bar(&click(undo_area.left(), undo_area.y), &mut redo_only),
+            Reply::Consumed
+        );
+        assert!(redo_only.popup_active());
+        assert_eq!(redo_only.menu().popup.selected(), Some(REDO));
     }
 }

@@ -4320,8 +4320,9 @@ mod tests {
         assert_eq!(state.chrome().leaf(), leaf, "the click moved the keyboard");
     }
 
-    /// **An entry with nothing to give back changes nothing and paints** (rule 11): the drop-down
-    /// closes, the drawing is the one it already showed, and no step is recorded either way.
+    /// **A disabled entry with nothing to give back keeps the drop-down open and changes nothing**
+    /// (#231, D5): clicking disabled `Undo` or `Redo` returns `Control::Continue`, leaves the menu
+    /// open with `selected == None`, and records no step either way.
     #[test]
     fn taking_an_entry_with_nothing_to_give_back_changes_nothing() {
         let mut state = a_drawn_state_over(A_BOX);
@@ -4329,16 +4330,18 @@ mod tests {
 
         let outcome = take_the_entry(&mut state, 'e', "Undo");
 
-        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
-            !state.chrome().popup_active(),
-            "the entry left the menu open"
+            state.chrome().popup_active(),
+            "clicking disabled Undo closed the menu"
         );
+        assert_eq!(state.chrome().menu().popup.selected(), None);
         assert!(!state.diagram().can_undo(), "the entry recorded a step");
         assert!(!state.diagram().can_redo(), "the entry left a step ahead");
 
+        // Close the menu so the underlying frame can be compared row by row.
+        let _ = send(&key(KeyCode::Esc), &mut state);
         let after = draw(&mut state);
-
         for line in 0..HEIGHT {
             assert_eq!(
                 row_of(&before, line),
@@ -4349,11 +4352,12 @@ mod tests {
 
         let outcome = take_the_entry(&mut state, 'e', "Redo");
 
-        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
         assert!(
-            !state.chrome().popup_active(),
-            "the entry left the menu open"
+            state.chrome().popup_active(),
+            "clicking disabled Redo closed the menu"
         );
+        assert_eq!(state.chrome().menu().popup.selected(), None);
         assert!(
             !state.diagram().can_undo(),
             "the redo entry recorded a step"
