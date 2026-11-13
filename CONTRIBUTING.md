@@ -307,10 +307,13 @@ Every commit that lands leaves the workspace building, all validations green, an
 `cargo run -p monospace-cli` producing output. **A bare `cargo run` is not the acceptance command**:
 the workspace holds more than one binary, so it is ambiguous.
 
-**Specs are sliced thin.** Several small changes beat one large one, and a spec over 250 lines means
-the cut is too coarse — split the change rather than compressing the prose. Prettier reflows at a
-hundred columns rather than refusing, so rewording buys nothing: the words come back on the next
-`cargo xtask fix`.
+**Specs are sliced thin.** Several small changes beat one large one, and a spec past 300 lines — not
+counting diagrams or `render` blocks — is a signal to check the cut. Ask whether splitting it would
+produce two changes that are each defensible on their own: if so, split the change; if not, let the
+spec run past 300 lines with a short note saying why, rather than compressing prose that exists to
+be read or dropping a picture. Prettier reflows at a hundred columns rather than refusing, so
+rewording buys nothing: the words come back on the next `cargo xtask fix`. See
+[`specs/README.md`](specs/README.md) for the rule in full.
 
 **Where the fastest route to a change conflicts with the route that teaches better Rust design or
 better spec-driven practice, the second is taken.** A plan that saves effort by collapsing the

@@ -192,8 +192,10 @@ rather than the file, and ask what it did _not_ cover as well as what it did:
   normal case.
 - **One decision per paragraph**, each a question and its answer, and **why not the alternative** is
   the part that matters: a decision with no rejected alternative was not taken, it was typed. An
-  unanswered one reads `_pending_` exactly. **At most seven**, and over 250 lines the answer is to
-  split the change rather than compress it.
+  unanswered one reads `_pending_` exactly. **At most seven** decisions, and past 300 lines (not
+  counting diagrams or `render` blocks) ask whether splitting would produce two changes defensible
+  on their own — if not, let the spec run longer with a short note saying why, rather than
+  compressing prose or dropping a picture.
 - **Examples with their expected output**, because a rule stated in prose can be read two ways and
   an example cannot. An example nobody ran says so in the spec rather than pretending to be a
   record.
