@@ -452,10 +452,13 @@ tooling in this repository.
 Write the body for someone who was not there. What the diff does is visible; why it does that is
 not.
 
-One thing to know about the body: do not let a colon-terminated word start a line. commitlint reads
-`word:` at the beginning of a line as a footer token, splits the message there, and warns that the
-footer has no blank line before it. It is only a warning, so it lands unnoticed. Reword with an em
-dash, or re-wrap so the word sits mid-line.
+`footer-leading-blank` is disabled in [`.commitlintrc.json`](.commitlintrc.json).
+`conventional-commits-parser` reads any line starting with `word:` or `word #<issue>` as a footer
+token, so a prose body wrapped before a colon or an issue reference makes commitlint split the
+message mid-paragraph and warn that the footer lacks a leading blank line — printing that warning
+right beneath the session trailer even when the trailer itself has one. Since `commit-msg` stamps
+session trailers with `git interpret-trailers --in-place`, which writes the separating blank line
+itself, the rule produced false-positive noise on prose without protecting the trailer.
 
 **Fixing a commit.** A correction that changed nothing for anyone — a typo, a wrong status line, a
 formatting slip — belongs in the commit that got it wrong. When something was actually wrong, in
