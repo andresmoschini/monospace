@@ -1624,4 +1624,45 @@ mod tests {
         assert!(redo_only.popup_active());
         assert_eq!(redo_only.menu().popup.selected(), Some(REDO));
     }
+
+    #[test]
+    fn home_and_end_move_between_first_and_last_enabled_entries() {
+        let mut chrome = drawn();
+        let both_flags = MenuFlags {
+            can_undo: true,
+            can_redo: true,
+        };
+        open_with_flags(&mut chrome, 'e', both_flags);
+        assert_eq!(chrome.menu().popup.selected(), Some(UNDO));
+
+        assert_eq!(on_the_bar(&key(KeyCode::End), &mut chrome), Reply::Repaint);
+        assert_eq!(chrome.menu().popup.selected(), Some(REDO));
+        assert_eq!(on_the_bar(&key(KeyCode::End), &mut chrome), Reply::Consumed);
+        assert_eq!(chrome.menu().popup.selected(), Some(REDO));
+
+        assert_eq!(on_the_bar(&key(KeyCode::Home), &mut chrome), Reply::Repaint);
+        assert_eq!(chrome.menu().popup.selected(), Some(UNDO));
+        assert_eq!(
+            on_the_bar(&key(KeyCode::Home), &mut chrome),
+            Reply::Consumed
+        );
+        assert_eq!(chrome.menu().popup.selected(), Some(UNDO));
+    }
+
+    #[test]
+    fn enter_activates_enabled_redo_when_undo_is_disabled() {
+        let mut chrome = drawn();
+        let redo_flags = MenuFlags {
+            can_undo: false,
+            can_redo: true,
+        };
+        open_with_flags(&mut chrome, 'e', redo_flags);
+        assert_eq!(chrome.menu().popup.selected(), Some(REDO));
+
+        assert_eq!(
+            on_the_bar(&key(KeyCode::Enter), &mut chrome),
+            Reply::Act(Action::Redo)
+        );
+        assert!(!chrome.popup_active());
+    }
 }

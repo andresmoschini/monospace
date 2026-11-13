@@ -4467,6 +4467,59 @@ mod tests {
         );
     }
 
+    /// **`Ctrl+Z` stays global even when `Edit` is open with `Undo` disabled** (rule 10 of #231):
+    /// the key reaches `Action::Undo`, leaves history at `0`, closes the drop-down, and returns
+    /// focus to the region.
+    #[test]
+    fn the_undo_key_with_open_edit_menu_and_undo_disabled_still_reaches_undo() {
+        let mut state = a_drawn_state_over(A_BOX);
+        open_the_drop_down(&mut state, 'e');
+        assert!(state.chrome().popup_active());
+        assert!(!state.diagram().can_undo());
+
+        let outcome = send(&undo_key(), &mut state);
+        let buffer = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Changed), "{outcome:?}");
+        assert!(!state.diagram().can_undo(), "no step behind");
+        assert!(!state.diagram().can_redo(), "no step ahead");
+        assert!(!state.chrome().popup_active(), "drop-down closed");
+        assert_eq!(state.chrome().leaf(), Focus::Region);
+        assert_eq!(buffer[(3, 3)].symbol(), "┌", "the box stayed intact");
+    }
+
+    /// **Pressing `r` while `Edit` is open with `Redo` disabled stays on the menu** (D5 of #231):
+    /// the navigation key is consumed by the open drop-down and never falls through to rotate a
+    /// selected line on the canvas.
+    #[test]
+    fn pressing_r_with_disabled_redo_does_not_rotate_a_selected_line() {
+        let mut state = a_drawn_state_over(A_HORIZONTAL_LINE);
+        let _ = send(&click(3, 3), &mut state);
+        let selected = state.diagram().selected().expect("line should be selected");
+
+        open_the_drop_down(&mut state, 'e');
+        assert!(state.chrome().popup_active());
+        assert!(!state.diagram().can_redo());
+
+        let outcome = send(&key(KeyCode::Char('r')), &mut state);
+        let _ = draw(&mut state);
+
+        assert!(matches!(outcome, Control::Continue), "{outcome:?}");
+        assert!(state.chrome().popup_active(), "drop-down stays open");
+        assert!(!state.diagram().can_undo(), "no rotation edit recorded");
+        let shape = state.diagram().session().diagram().get(selected);
+        assert!(
+            matches!(
+                shape,
+                Some(monospace_diagram::Shape::Line {
+                    orientation: monospace_core::Orientation::Horizontal,
+                    ..
+                })
+            ),
+            "expected line orientation to remain Horizontal, got {shape:?}"
+        );
+    }
+
     /// **Both keys are `Unclaimed`, so an open drop-down does not keep either** (rule 7): the
     /// history walks behind the menu, the shape comes back and goes again, and **the keyboard then
     /// goes back to the region, which closes the drop-down with it** (rule 13).
