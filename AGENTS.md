@@ -46,8 +46,9 @@ does not rename anything.
    are what the spec is for. What surfaces mid-change and opens future work is another issue, never
    a section of the current spec.
 2. **A branch.** `cargo xtask change open <issue> [deciding|building]`, with no stage at all for a
-   change of one stage. It derives the slug, links the branch to the issue and checks it out, and it
-   refuses a `building` branch until the deciding stage has merged.
+   change of one stage. It derives the slug, cuts and checks out the branch (linking closing stages
+   to the issue; `-deciding` stays unlinked so merging it does not close the issue), and it refuses
+   a `building` branch until the deciding stage has merged.
 3. **Settle the question by reading the model.** `docs/model.md` and `docs/diagram-model.md` are the
    design. If the slice needs a rule the model does not have, the model changes first, in the same
    increment. A spec names the sections it implements or amends and does not restate them.
