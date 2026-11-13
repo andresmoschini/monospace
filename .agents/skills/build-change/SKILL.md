@@ -31,6 +31,8 @@ The deciding pull request must be merged before opening or building on this stag
    - Use the fast feedback loop:
      - `cargo check -p <crate>` for instant syntax and type feedback (~100 ms).
      - `cargo test -p <crate>` for fast unit and contract test feedback.
+     - `cargo xtask check [step...]` (e.g., `cargo xtask check clippy test`) for targeted gate steps
+       while iterating.
    - Commit incrementally using Conventional Commits (`feat(<crate>): ...`, `test(<crate>): ...`).
 
 4. **Mark the specification implemented:** Update the frontmatter in `specs/NNN-slug.md`:
@@ -39,8 +41,8 @@ The deciding pull request must be merged before opening or building on this stag
 
 5. **Run the quality gate:**
    - Run `cargo xtask fix` first to clean up formatting (`rustfmt`, `prettier`, `eol`).
-   - Run `cargo xtask check` for full validation. Wait for completion without polling if it runs in
-     the background.
+   - Run `cargo xtask check` with no arguments for full validation before committing. Wait for
+     completion without polling if it runs in the background.
 
 6. **Open the pull request:**
    - Run `cargo xtask pr body`.

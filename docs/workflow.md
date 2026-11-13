@@ -245,14 +245,16 @@ hypothetical, and nothing can tell them apart for you.
 Then commit. Two things about the order:
 
 ```sh
-git add specs/170-the-change.md   # the gate reads the index, not the working tree
-cargo xtask check                  # what the pre-commit hook runs anyway
+git add specs/170-the-change.md                       # the gate reads the index, not the working tree
+cargo xtask check prettier markdownlint specs cspell  # fast loop while editing prose
+cargo xtask check                                     # the whole gate, which the pre-commit hook runs
 ```
 
 `render`, `numbering` and `specs` all read `git ls-files`, so a spec that has not been staged is
-invisible to all three. The `pre-commit` hook runs the whole thirteen-step gate on the commit itself
-and `commit-msg` checks the message and stamps which session wrote it, so neither needs doing by
-hand.
+invisible to all three — stage a new spec before running `cargo xtask check specs`, or it passes
+without seeing the file. The `pre-commit` hook runs the whole thirteen-step gate (with no arguments)
+on the commit itself and `commit-msg` checks the message and stamps which session wrote it, so
+neither needs doing by hand.
 
 **How.** The commit is one command, and the message carries what the diff cannot:
 
