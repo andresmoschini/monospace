@@ -608,8 +608,7 @@ of its own. **Two meanings are written in both** — the menu draws `Ctrl+Z` and
 the table answers `Undo` and `Redo` — so the two places can disagree about two, and nothing checks
 that they do not. (Contextual actions such as `Delete` are offered exclusively in the status bar's
 command row and dispatched by the region, leaving the global shortcut table for application-wide
-shortcuts). Joining them is not this document's problem and not this slice's: #180 is where reading
-one from the other is worth doing, and the two entries this slice adds did not force the join.
+shortcuts). Joining them is left open in §8.
 
 **An error is reported once, and the loop does not spin on it.** The framework hands a failure to
 the application's handler and takes back a control; answering with the failure again is the
@@ -969,8 +968,8 @@ framework's buffer one at a time.
   live in [`contextual-ui.md`](contextual-ui.md) and [`connector-editing.md`](connector-editing.md).
   Multi-line wrapping without truncation and dynamic bar height are tracked in
   [#280](https://github.com/andresmoschini/monospace/issues/280). What the bar says about the state
-  of the session — what has been changed and what can be undone — is the editing surface's, and
-  [#226](https://github.com/andresmoschini/monospace/issues/226) owns it.
+  of the session — the current file name and unsaved-changes state — is the editing surface's, and
+  [#380](https://github.com/andresmoschini/monospace/issues/380) tracks it.
 - **The light terminal.** The framework has light palettes and a light theme, and the light theme is
   the dark one over a light palette, so "looks right on a light terminal" is a palette to choose
   rather than a style set that exists.
