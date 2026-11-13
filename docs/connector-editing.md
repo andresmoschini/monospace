@@ -134,30 +134,35 @@ stateDiagram-v2
 ### 2.1 SELECTED_CONNECTOR
 
 When a connector is selected, the 2-line contextual bar inspects the connector's stroke and both
-endpoints in Row 0, and offers connector-level actions in Row 1. Whole-connector `MOVE` is retired
-(connectors are shaped exclusively through their endpoints):
+endpoints in Row 0, and offers connector-level actions in Row 1. Whole-connector `MOVE` is offered
+when at least one endpoint is fixed (`EndpointAt::Absolute`): only a fixed end is the author's to
+place, and moving the connector moves those ends and leaves every attached endpoint where it hangs.
+A connector attached at both ends has nothing fixed to move, so it is shaped exclusively through its
+endpoints and shows no `MOVE`:
 
 ```text
 Connector #4 · Stroke: light · 1. From: Box #1 [right (0, 0) out:0] (arm ─) · 2. To: Box #2 [left (0, 0) out:0] (solid ▶)
-ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
+ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect
 ```
 
-When an endpoint is detached, Row 0 formats its absolute coordinates and leaving direction:
+When an endpoint is detached, Row 0 formats its absolute coordinates and leaving direction, and Row
+1 leads with `MOVE`:
 
 ```text
 Connector #7 · Stroke: heavy · 1. From: Box #3 [bottom (0, 0) out:0] (arm │) · 2. To: (40, 12) [up] (arrow ↓)
-ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Del] Delete · [Esc] Deselect
+MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect
 ```
 
-| Key                 | Action / Command                                          | History Step                            |
-| :------------------ | :-------------------------------------------------------- | :-------------------------------------- |
-| `1` / `2`           | Enter `ENDPOINT_EDIT` for endpoint 1 (`From`) or 2 (`To`) | None (mode transition)                  |
-| `i`                 | Invert terminals (`Command::InvertTerminals`, #320)       | One step (silent if identical per #285) |
-| `s`                 | Open stroke selector (`STROKE_SELECT`)                    | None (selector sub-mode)                |
-| `z`                 | Open ordering mode (`ORDER_MODE`)                         | None (selector sub-mode)                |
-| `Tab` / `Shift+Tab` | Cycle selection to next / previous shape (#307)           | None                                    |
-| `Del`               | Delete connector (`Command::Remove`)                      | One step                                |
-| `Esc`               | Deselect connector (return to `IDLE`)                     | None                                    |
+| Key                 | Action / Command                                                       | History Step                                  |
+| :------------------ | :--------------------------------------------------------------------- | :-------------------------------------------- |
+| `↑↓←→`              | Move every fixed endpoint one cell (`Command::Move`, offered as above) | One step (silent if nothing changed per #285) |
+| `1` / `2`           | Enter `ENDPOINT_EDIT` for endpoint 1 (`From`) or 2 (`To`)              | None (mode transition)                        |
+| `i`                 | Invert terminals (`Command::InvertTerminals`, #320)                    | One step (silent if identical per #285)       |
+| `s`                 | Open stroke selector (`STROKE_SELECT`)                                 | None (selector sub-mode)                      |
+| `z`                 | Open ordering mode (`ORDER_MODE`)                                      | None (selector sub-mode)                      |
+| `Tab` / `Shift+Tab` | Cycle selection to next / previous shape (#307)                        | None                                          |
+| `Del`               | Delete connector (`Command::Remove`)                                   | One step                                      |
+| `Esc`               | Deselect connector (return to `IDLE`)                                  | None                                          |
 
 ### 2.2 ENDPOINT_EDIT (Attached endpoint)
 
@@ -287,16 +292,17 @@ popup dialog, terminal selection is resolved entirely within Row 1 of the contex
 keystroke selects the style, commits a reversible command, and returns focus immediately to
 `ENDPOINT_EDIT`. Extended Unicode glyph palettes are reserved strictly for advanced customization.
 
-### 3.2 Retiring whole-connector MOVE
+### 3.2 Whole-connector MOVE moves the fixed ends only
 
-In early iterations, connectors inherited the generic `MOVE: ↑↓←→` action from `SELECTION`. However,
-moving a connector as a whole is conceptually contradictory when its endpoints are attached to other
-figures: displacing the connector would either silently break attachments or produce invalid
-geometries.
+In early iterations, connectors inherited the generic `MOVE: ↑↓←→` action from `SELECTION`, and
+moving a connector whose endpoints were attached to other figures either broke the attachment or
+produced invalid geometry — so Slice 4 retired the gesture entirely. The concern was right and the
+remedy was not: what a displacement may move is decided per endpoint, not per figure.
 
-Once Slices 2 and 3 introduce individual endpoint movement (`[1]` From and `[2]` To),
-whole-connector displacement becomes redundant and confusing. Slice 4 permanently removes
-`MOVE: ↑↓←→` from `SELECTED_CONNECTOR`.
+A displacement moves a **fixed** endpoint and leaves an **attached** one exactly where it hangs, so
+a half-attached connector stretches and a connector attached at both ends has nothing to move. That
+rule restores `MOVE: ↑↓←→` for the connectors that have something fixed to move (#373), while an
+attached endpoint's `offset` and `out` remain edited in `ENDPOINT_EDIT`, where they belong.
 
 ### 3.3 Continuous ENDPOINT_EDIT with direct switching
 
@@ -499,9 +505,10 @@ with [`contextual-ui.md`](contextual-ui.md):
   `↑↓←→` adjust tangential `offset` on attached endpoints (clamped to the face span) or canvas
   coordinates `Pos(x, y)` on detached endpoints.
 - **Slice 4 — Retire general connector MOVE:** Implemented in
-  [#328](../specs/328-move-connector-endpoints-with-arrows-adj.md). Removes `MOVE: ↑↓←→` from
-  `SELECTED_CONNECTOR`. With individual endpoint movement active, whole-connector displacement is
-  retired to eliminate contradictory attachment semantics.
+  [#328](../specs/328-move-connector-endpoints-with-arrows-adj.md). Removed `MOVE: ↑↓←→` from
+  `SELECTED_CONNECTOR`, because whole-connector displacement silently broke attachments. **Amended
+  by [#373](../specs/373-a-connector-moves-by-its-fixed-endpoints.md)**: `MOVE` is offered again for
+  a connector with at least one fixed endpoint, and it moves those endpoints only (§2.1, §3.2).
 - **Slice 5 — Adjust orthogonal standoff `out` with `+` / `-`:** Implemented in
   [#328](../specs/328-move-connector-endpoints-with-arrows-adj.md). In `ENDPOINT_EDIT`, `+`
   increments and `-` decrements `out` on the active endpoint. Decrementing at `out == 0` is a silent
@@ -531,7 +538,9 @@ with [`contextual-ui.md`](contextual-ui.md):
 ### 5.2 Stage 1: Easy connector functions
 
 All Stage 1 easy connector functions (Slices 1–8) and attachment of detached endpoints (Slices 9–10)
-are completed.
+are completed. The whole-connector `MOVE` that Slice 4 retired came back in
+[#373](../specs/373-a-connector-moves-by-its-fixed-endpoints.md), limited to a connector with a
+fixed endpoint and moving only those ends.
 
 ### 5.3 Stage 3: Deferred capabilities
 
