@@ -296,7 +296,7 @@ fn main() -> ExitCode {
 
     match args.next().as_deref() {
         Some("check") => run_gate(args),
-        Some("fix") => run_fix(),
+        Some("fix") => run_fix(args),
         Some("setup") => run_setup(),
         Some("render") => render::run(args),
         Some("change") => change::run(args),
@@ -379,7 +379,14 @@ fn run_gate(args: impl Iterator<Item = String>) -> ExitCode {
 /// intermediate state, so there is nothing later steps need protecting from. Run `cargo xtask
 /// check` afterward to see the full picture, including `clippy` and `cspell`, which this command
 /// does not touch.
-fn run_fix() -> ExitCode {
+fn run_fix(args: impl Iterator<Item = String>) -> ExitCode {
+    let names: Vec<String> = args.collect();
+    let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    if let Err(problem) = validate_fix_args(&name_refs) {
+        eprintln!("{problem}");
+        return ExitCode::FAILURE;
+    }
+
     let root = workspace_root();
 
     if let Err(problem) = node_tooling_state(&root) {
@@ -575,21 +582,36 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// Rejects any argument passed to `cargo xtask fix`.
+fn validate_fix_args(args: &[&str]) -> Result<(), String> {
+    if args.is_empty() {
+        return Ok(());
+    }
+    Err("xtask: `fix` takes no arguments. It runs all six fixers in order.".to_string())
+}
+
+/// Command overview printed by `cargo xtask help` and on unknown commands.
+fn usage_text() -> String {
+    format!(
+        "Repository automation for Monospace.\n\
+         \n\
+         Usage: cargo xtask <command>\n\
+         \n\
+         Commands:\n  \
+         check [step...]  Run the quality gate, or only the named steps\n                   \
+         steps: {}\n  \
+         fix              Run every step of the gate that can fix what it finds\n  \
+         setup            Install the Node tooling the gate needs, from package-lock.json\n  \
+         render           Regenerate the pictures tracked Markdown files carry\n  \
+         change           Open, switch to, or report on a change's branch; `cargo xtask change help` lists its verbs\n  \
+         pr               Prepare and open a pull request; `cargo xtask pr help` lists its verbs\n  \
+         help             Show this message\n",
+        gate_step_names()
+    )
+}
+
 fn print_usage() {
-    println!("Repository automation for Monospace.");
-    println!();
-    println!("Usage: cargo xtask <command>");
-    println!();
-    println!("Commands:");
-    println!("  check    Run every quality gate step; this is what the hook and CI run");
-    println!("  fix      Run every step of the gate that can fix what it finds");
-    println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
-    println!("  render   Regenerate the pictures tracked Markdown files carry");
-    println!(
-        "  change   Open, switch to, or report on a change's branch; `cargo xtask change help` lists its verbs"
-    );
-    println!("  pr       Prepare and open a pull request; `cargo xtask pr help` lists its verbs");
-    println!("  help     Show this message");
+    print!("{}", usage_text());
 }
 
 /// All gate step names in `GATE` order, separated by commas.
@@ -782,6 +804,31 @@ mod tests {
         assert_eq!(
             gate_summary(&all, &["fmt"]).unwrap_err(),
             "1 of 13 checks failed: fmt"
+        );
+    }
+
+    #[test]
+    fn the_usage_lists_the_steps_the_gate_has() {
+        let usage = usage_text();
+        assert!(
+            usage.contains("  check [step...]  Run the quality gate, or only the named steps\n"),
+            "{usage}"
+        );
+        assert!(
+            usage.contains(&format!(
+                "                   steps: {}\n",
+                gate_step_names()
+            )),
+            "{usage}"
+        );
+    }
+
+    #[test]
+    fn fix_takes_no_arguments() {
+        assert!(validate_fix_args(&[]).is_ok());
+        assert_eq!(
+            validate_fix_args(&["eol"]).unwrap_err(),
+            "xtask: `fix` takes no arguments. It runs all six fixers in order."
         );
     }
 }
