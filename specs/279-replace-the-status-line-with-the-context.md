@@ -1,5 +1,7 @@
 ---
-status: draft
+status: implemented
+decided: "#282"
+implemented: "#283"
 date: 2026-11-02
 ---
 

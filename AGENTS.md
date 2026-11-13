@@ -169,5 +169,3 @@ Every call re-reads the whole context, so a session costs its length squared. Fi
 
 - **`commitlint` is not in the gate.** It runs from the `commit-msg` hook, so a commit made where
   the hooks are not installed gets no convention check and CI does not catch it either.
-  [Issue #162](https://github.com/andresmoschini/monospace/issues/162) tracks putting it in
-  `cargo xtask check`, which is the only definition of green.
