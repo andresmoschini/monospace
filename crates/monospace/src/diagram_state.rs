@@ -580,7 +580,6 @@ impl DiagramState {
     ///
     /// **Read each frame to decide whether `Edit > Undo` is enabled**, and by the tests to tell a
     /// walk from a press that performed none.
-    #[allow(dead_code, reason = "wired to frame::draw in the next commit")]
     pub(crate) fn can_undo(&self) -> bool {
         self.session.can_undo()
     }
@@ -589,7 +588,6 @@ impl DiagramState {
     ///
     /// **Read each frame to decide whether `Edit > Redo` is enabled**, and by the tests for the
     /// same reason [`Self::can_undo`] is.
-    #[allow(dead_code, reason = "wired to frame::draw in the next commit")]
     pub(crate) fn can_redo(&self) -> bool {
         self.session.can_redo()
     }

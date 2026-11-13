@@ -69,12 +69,17 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     Clear.render(area, buf);
 
     let focused = state.chrome().is_bar();
+    let menu_flags = menu::MenuFlags {
+        can_undo: state.diagram().can_undo(),
+        can_redo: state.diagram().can_redo(),
+    };
     menu::draw_bar(
         regions.bar,
         buf,
         state.chrome_mut().menu_mut(),
         &global.cfg.theme,
         focused,
+        menu_flags,
     );
 
     diagram_widget::draw(
@@ -92,7 +97,13 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
 
     // The drop-down is drawn after the region: it hangs from the bar and covers the region, and
     // a region painted after it would erase it.
-    menu::draw_drop_down(area, buf, state.chrome_mut().menu_mut(), &global.cfg.theme);
+    menu::draw_drop_down(
+        area,
+        buf,
+        state.chrome_mut().menu_mut(),
+        &global.cfg.theme,
+        menu_flags,
+    );
 
     // **The message dialog is drawn after the drop-down** (D6): it is an overlay, so it covers the
     // drop-down and everything else, and a control behind it is not there to be seen or clicked.
@@ -1172,9 +1183,9 @@ mod tests {
         }
     }
 
-    /// **The entries do not move with the history** (rule 10). The same drop-down is drawn over a
-    /// fresh session and over one a deletion has left, and the two pictures are equal: no entry
-    /// carries a flag, and `can_undo` and `can_redo` are not read by the frame.
+    /// **The Edit menu's labels and positions do not move with the history** (#231). The same
+    /// drop-down text is drawn over a fresh session and over one a deletion has left, and the two
+    /// text pictures are equal while `can_undo` and `can_redo` control enabled/disabled styling.
     #[test]
     fn the_edit_menu_offers_undo_and_redo_at_every_position() {
         let mut state = a_state_over(A_BOX);
@@ -1240,8 +1251,8 @@ mod tests {
         );
     }
 
-    /// **The Edit drop-down is the picture the two extra entries make.** Undo, Redo and Delete are
-    /// drawn in that order, each with the shortcut the table answers to.
+    /// **The Edit drop-down lists Undo and Redo in that order**, each with the shortcut the table
+    /// answers to.
     #[test]
     fn the_edit_drop_down() {
         let mut state = a_state();

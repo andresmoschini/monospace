@@ -24,7 +24,6 @@ use rat_widget::event::MenuOutcome;
 use rat_widget::menu::menubar;
 use rat_widget::menu::{
     MenuBuilder, MenuStructure, MenuStyle, Menubar, MenubarLine, MenubarPopup, MenubarState,
-    StaticMenu,
 };
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
@@ -58,10 +57,6 @@ const TOP_LABELS: [&str; 3] = ["_File", "_Edit", "_Help"];
 
 /// Per-frame flags saying which conditional menu entries are active.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-#[allow(
-    dead_code,
-    reason = "wired into draw_bar and draw_drop_down in the next commit"
-)]
 pub(crate) struct MenuFlags {
     /// Whether `Edit > Undo` can walk a step back.
     pub(crate) can_undo: bool,
@@ -72,20 +67,12 @@ pub(crate) struct MenuFlags {
 
 /// The per-frame menu structure built from [`MenuFlags`].
 #[derive(Debug, Clone, Copy)]
-#[allow(
-    dead_code,
-    reason = "wired into draw_bar and draw_drop_down in the next commit"
-)]
 struct Menu {
     flags: MenuFlags,
 }
 
 impl Menu {
     /// Builds the menu structure for this frame's `flags`.
-    #[allow(
-        dead_code,
-        reason = "wired into draw_bar and draw_drop_down in the next commit"
-    )]
     fn new(flags: MenuFlags) -> Self {
         Self { flags }
     }
@@ -124,24 +111,16 @@ impl<'a> MenuStructure<'a> for Menu {
     }
 }
 
-static MENU: StaticMenu = StaticMenu {
-    menu: &[
-        (
-            "_File",
-            &[
-                "_New|Ctrl+N",
-                "_Open|Ctrl+O",
-                "_Save|Ctrl+S",
-                "_Export as Text",
-                "Open _Demo",
-                "_Quit|Ctrl+Q",
-            ],
-        ),
-        ("_Edit", &["_Undo|Ctrl+Z", "_Redo|Ctrl+Shift+Z"]),
-        ("_Help", &["_About"]),
-    ],
-};
-
+/// The bar, and what each of its entries means.
+///
+/// **The shortcut on the right of the entry is drawn by the widget and answered to by the
+/// application**, which is what the table in `shortcuts` is for. The two are two places that can
+/// disagree, and joining them is #180's.
+///
+/// **Edit entries reflect [`MenuFlags`] on every frame while keeping the same labels and
+/// positions**: `Edit > Undo` is disabled when `!can_undo` and `Edit > Redo` is disabled when
+/// `!can_redo`. All `File` and `Help` entries remain enabled.
+///
 /// The label of the way out.
 const FILE: usize = 0;
 
@@ -399,8 +378,10 @@ pub(crate) fn draw_bar(
     state: &mut MenubarState,
     theme: &SalsaTheme,
     focused: bool,
+    flags: MenuFlags,
 ) {
-    let (bar, _) = widgets(theme);
+    let menu = Menu::new(flags);
+    let (bar, _) = widgets(&menu, theme);
     state.bar.focus.set(focused);
     bar.render(area, buf, state);
 }
@@ -414,8 +395,10 @@ pub(crate) fn draw_drop_down(
     buf: &mut Buffer,
     state: &mut MenubarState,
     theme: &SalsaTheme,
+    flags: MenuFlags,
 ) {
-    let (_, drop_down) = widgets(theme);
+    let menu = Menu::new(flags);
+    let (_, drop_down) = widgets(&menu, theme);
     drop_down.render(area, buf, state);
 }
 
@@ -425,11 +408,16 @@ pub(crate) fn draw_drop_down(
 /// are replaced with the modifier alone, so the base style painted under the label keeps its
 /// colors and the widget adds `Modifier::REVERSED` to the cells it owns. The theme's `focus`
 /// background is not used, which is what makes the bar and the dialog's `Ok` say the same thing.
-fn widgets(theme: &SalsaTheme) -> (MenubarLine<'static>, MenubarPopup<'static>) {
+///
+/// **Disabled pop-up items take `Modifier::DIM` instead of `Style::DISABLED`** (D3 of #231):
+/// `rat-theme4`'s `Style::DISABLED` paints a high-contrast light-gray block, so `popup_disabled` is
+/// replaced with `Style::new().dim()`.
+fn widgets<'a>(menu: &'a Menu, theme: &SalsaTheme) -> (MenubarLine<'a>, MenubarPopup<'a>) {
     let mut style: MenuStyle = theme.style(WidgetStyle::MENU);
     style.focus = Some(Style::new().reversed());
     style.popup_focus = Some(Style::new().reversed());
-    Menubar::new(&MENU).styles(style).into_widgets()
+    style.popup_disabled = Some(Style::new().dim());
+    Menubar::new(menu).styles(style).into_widgets()
 }
 
 #[cfg(test)]
@@ -457,8 +445,18 @@ mod tests {
         draw_with(chrome, true)
     }
 
+    /// The bar and its drop-down, drawn with explicit `flags`.
+    fn draw_flags(chrome: &mut Chrome, flags: MenuFlags) -> Buffer {
+        draw_with_flags(chrome, true, flags)
+    }
+
     /// The bar and its drop-down, with the keyboard on the bar or not.
     fn draw_with(chrome: &mut Chrome, focused: bool) -> Buffer {
+        draw_with_flags(chrome, focused, MenuFlags::default())
+    }
+
+    /// The bar and its drop-down, with the keyboard on the bar or not and explicit `flags`.
+    fn draw_with_flags(chrome: &mut Chrome, focused: bool, flags: MenuFlags) -> Buffer {
         let area = Rect::new(0, 0, WIDTH, HEIGHT);
         let mut buffer = Buffer::empty(area);
         draw_bar(
@@ -467,8 +465,9 @@ mod tests {
             chrome.menu_mut(),
             &theme(),
             focused,
+            flags,
         );
-        draw_drop_down(area, &mut buffer, chrome.menu_mut(), &theme());
+        draw_drop_down(area, &mut buffer, chrome.menu_mut(), &theme(), flags);
         buffer
     }
 
@@ -520,8 +519,13 @@ mod tests {
     /// holds only once it has been drawn, and a frame that is not drawn leaves the drop-down
     /// without an entry to take.
     fn open_with(chrome: &mut Chrome, navigation: char) {
+        open_with_flags(chrome, navigation, MenuFlags::default());
+    }
+
+    /// Opens the drop-down of the label with explicit `flags`.
+    fn open_with_flags(chrome: &mut Chrome, navigation: char, flags: MenuFlags) {
         let _ = on_the_bar(&key(KeyCode::Char(navigation)), chrome);
-        draw(chrome);
+        draw_flags(chrome, flags);
     }
 
     /// Opens the File drop-down.
@@ -536,7 +540,12 @@ mod tests {
     /// first. **The pointer moves onto it before the button goes down**, because the widget
     /// activates the entry it has selected and a press alone selects nothing.
     fn take(chrome: &mut Chrome, text: &str) -> Reply {
-        let buffer = draw(chrome);
+        take_with_flags(chrome, text, MenuFlags::default())
+    }
+
+    /// Takes the entry whose text is `text` after drawing with explicit `flags`.
+    fn take_with_flags(chrome: &mut Chrome, text: &str, flags: MenuFlags) -> Reply {
+        let buffer = draw_flags(chrome, flags);
         let (column, row) = cell_of(&buffer, text);
         let _ = on_the_bar(&moved(column, row), chrome);
 
@@ -873,14 +882,18 @@ mod tests {
         );
     }
 
-    /// **The Edit menu's entries are the keys' actions.** The undo is the first, and taking it says
-    /// `Action::Undo` rather than a second spelling of the walk.
+    /// **The Edit menu's entries are the keys' actions.** The undo is the first, and taking it when
+    /// enabled says `Action::Undo` rather than a second spelling of the walk.
     #[test]
     fn taking_the_undo_entry_becomes_the_action_of_the_key() {
+        let flags = MenuFlags {
+            can_undo: true,
+            can_redo: false,
+        };
         let mut chrome = drawn();
-        open_with(&mut chrome, 'e');
+        open_with_flags(&mut chrome, 'e', flags);
 
-        let outcome = take(&mut chrome, "Undo");
+        let outcome = take_with_flags(&mut chrome, "Undo", flags);
 
         assert!(
             matches!(outcome, Reply::Act(Action::Undo)),
@@ -939,10 +952,14 @@ mod tests {
     /// **The redo entry is the redo key's action**, the same way.
     #[test]
     fn taking_the_redo_entry_becomes_the_action_of_the_key() {
+        let flags = MenuFlags {
+            can_undo: false,
+            can_redo: true,
+        };
         let mut chrome = drawn();
-        open_with(&mut chrome, 'e');
+        open_with_flags(&mut chrome, 'e', flags);
 
-        let outcome = take(&mut chrome, "Redo");
+        let outcome = take_with_flags(&mut chrome, "Redo", flags);
 
         assert!(
             matches!(outcome, Reply::Act(Action::Redo)),
