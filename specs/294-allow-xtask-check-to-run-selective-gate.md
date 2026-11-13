@@ -10,11 +10,11 @@ date: 2026-11-13
 
 The gate is one command with thirteen steps, and the hook and CI run it whole because green has to
 mean one thing (`CONTRIBUTING.md`, _The quality gate_). That is the right shape for the boundary and
-the wrong shape for a loop: the five steps that read text alone took 20.8 seconds on this machine on
-2026-11-13, `prettier` 10.3 of them and `cspell` 5.9, and each of the eight steps that compile,
-tests or documents pays for the whole workspace. A change that adds a paragraph to a spec pays for
-all thirteen, and the step people drop when the gate is slow is the gate itself, which is worse than
-either alternative.
+the wrong shape for a loop: five of the seven steps that read text or the tracked tree alone took
+20.8 seconds on this machine on 2026-11-13, `prettier` 10.3 of them and `cspell` 5.9, and each of
+the six steps that compile, test, document or render pays for the whole workspace. A change that
+adds a paragraph to a spec pays for all thirteen, and the step people drop when the gate is slow is
+the gate itself, which is worse than either alternative.
 
 This cut is the smallest one that answers that: selection, not caching, not parallelism, and not a
 second definition of green. It is a change of two stages because several of its choices have more
@@ -33,15 +33,15 @@ sets for a spec that runs past three hundred lines.
 
 ### In
 
-- `cargo xtask check [STEP]...` runs the named steps and nothing else; with no names it runs all
+- `cargo xtask check [step...]` runs the named steps and nothing else; with no names it runs all
   thirteen, exactly as today.
 - A selection is a set and `GATE` is the order: names run in gate order regardless of the order
   typed, and a name typed twice runs once.
 - The Node tooling precondition applies only to a selection that contains a step which runs a tool
   from `node_modules/.bin`.
-- A partial run says so: an opening line naming the selection, and a closing line with how many of
-  the thirteen passed, the names of the steps that did not run, and one sentence that this was not
-  the gate.
+- A partial run says so: an opening line naming the selection, and two closing lines — one with how
+  many of the thirteen passed and the names of the steps that did not run, and one saying that this
+  was not the gate.
 - A name the gate does not have fails the command before any step runs, naming the unknown word and
   listing the steps from `GATE`; a name that belongs to `FIX` says it is a fixer.
 - `cargo xtask fix` keeps running its six fixers and now refuses an argument instead of ignoring
@@ -92,21 +92,22 @@ parse to say what the positional list already says.
 **Answer:** a run whose selection is smaller than `GATE` opens with
 `running 4 of 13 steps: prettier, markdownlint, specs, cspell` and closes with
 `4 of 13 checks passed; 9 not run: fmt, editorconfig, numbering, clippy, build, wasm, test, doc, render`
-and then `This was not the gate. Run cargo xtask check with no arguments before committing.` A
-failure counts the selection — `2 of 4 selected checks failed` — and the exit code stays what it is
-today. The whole gate's two lines (`all 13 checks passed`, `2 of 13 checks failed`) are untouched.
-The rule that the hook and CI pass no arguments stays prose, in the gate section and in the headers
-both files already carry. **Why not** keep the whole gate's wording for any run:
-`all 4 checks passed` beside thirteen configured steps is the false green `node_tooling_state`
-already refuses to print, and its own message says so — a summary reading "all 6 checks passed" when
-thirteen are configured is worse than an error. **Why not** list only the count: the names are how a
-reader learns what the gate holds and what they owe before committing, and the line is one line
-either way. **Why not** a test that reads `.claude/git-hooks/pre-commit` and
-`.github/workflows/ci.yml` and fails on an argument: it asserts a shell line by text in two files by
-path, which is the kind of brittle check this crate declines elsewhere — a step passes or fails on
-its exit code alone — and what it would catch is a deliberate edit to files whose own headers say
-what they do. The boundary is also not what makes a partial run safe: the hook still runs the whole
-gate on every commit, so a partial green cannot reach `main`, only a person's judgment.
+and then ``This was not the gate. Run `cargo xtask check` with no arguments before committing.`` A
+failure counts the selection — `2 of 4 selected checks failed: prettier, cspell` — and the exit code
+stays what it is today. The whole gate's two lines (`all 13 checks passed`,
+`2 of 13 checks failed: ...`) are untouched. The rule that the hook and CI pass no arguments stays
+prose, in the gate section and in the headers both files already carry. **Why not** keep the whole
+gate's wording for any run: `all 4 checks passed` beside thirteen configured steps is the false
+green `node_tooling_state` already refuses to print, and its own message says so — a summary reading
+"all 6 checks passed" when thirteen are configured is worse than an error. **Why not** list only the
+count: the names are how a reader learns what the gate holds and what they owe before committing,
+and the line is one line either way. **Why not** a test that reads `.claude/git-hooks/pre-commit`
+and `.github/workflows/ci.yml` and fails on an argument: it asserts a shell line by text in two
+files by path, which is the kind of brittle check this crate declines elsewhere — a step passes or
+fails on its exit code alone — and what it would catch is a deliberate edit to files whose own
+headers say what they do. The boundary is also not what makes a partial run safe: the hook still
+runs the whole gate on every commit, so a partial green cannot reach `main`, only a person's
+judgment.
 
 **D3 — Node tooling is required by the steps that use it, not by the command.**
 
@@ -169,7 +170,7 @@ about.
 The `cargo xtask` command line, and nothing else:
 
 ```text
-cargo xtask check [STEP]...
+cargo xtask check [step...]
 ```
 
 - Zero names: all thirteen steps of `GATE`, in order, with today's output and exit code.
@@ -198,10 +199,12 @@ cargo xtask check [STEP]...
    missing or stale, with today's message and exit 1.
 8. A partial run prints, before its first step, `running N of 13 steps:` and the selected names in
    `GATE` order.
-9. A partial run that passes prints one line with `N of 13 checks passed;`, the names that did not
-   run in `GATE` order, and a sentence that this was not the gate; it exits 0.
-10. A partial run that fails prints `N of M selected checks failed:` with the failed names, and
-    exits 1; every selected step still runs after a failure.
+9. A partial run that passes prints two closing lines — `N of 13 checks passed; M not run:` with the
+   names that did not run in `GATE` order, followed by
+   ``This was not the gate. Run `cargo xtask check` with no arguments before committing.`` — and
+   exits 0.
+10. A partial run that fails prints `N of M selected checks failed:` with the failed names in `GATE`
+    order, and exits 1; every selected step still runs after a failure.
 11. `cargo xtask help` prints the `check [step...]` form and a `steps:` line with the names from
     `GATE`.
 12. `cargo xtask fix` still runs its six fixers in `FIX` order, and `cargo xtask fix anything` exits
@@ -229,6 +232,21 @@ running 4 of 13 steps: prettier, markdownlint, specs, cspell
 This was not the gate. Run `cargo xtask check` with no arguments before committing.
 ```
 
+When a selected check fails, the remaining selected checks still run and the failure line counts the
+selection:
+
+```text
+$ cargo xtask check specs cspell
+running 2 of 13 steps: specs, cspell
+
+--- specs ---
+...
+--- cspell ---
+...
+
+1 of 2 selected checks failed: cspell
+```
+
 A selection with nothing Node-backed runs where `setup` was never run:
 
 ```text
@@ -242,7 +260,8 @@ running 1 of 13 steps: clippy
 This was not the gate. Run `cargo xtask check` with no arguments before committing.
 ```
 
-The same selection with a Node-backed step, where `node_modules` is missing, runs nothing:
+The same selection with a Node-backed step, where `node_modules` is missing, runs nothing and keeps
+today's refusal message:
 
 ```text
 $ cargo xtask check prettier
@@ -252,11 +271,11 @@ xtask: the Node tooling is not installed.
 
     Run `cargo xtask setup` and try again.
 
-Nothing was checked. Running the steps that do not need it would print a passing summary for part
-of what was asked, which is worse than refusing to start.
+Nothing was checked. Running only the Rust steps would print a passing summary for half a gate,
+which is worse than refusing to start.
 ```
 
-Two words that are wrong in two different ways:
+Three invocations that fail before any step or fixer runs:
 
 ```text
 $ cargo xtask check spec
@@ -265,6 +284,28 @@ The steps are: fmt, prettier, markdownlint, editorconfig, numbering, specs, cspe
 
 $ cargo xtask check eol
 xtask: `eol` is a fixer, not a step of the gate. `cargo xtask fix` runs it.
+
+$ cargo xtask fix eol
+xtask: `fix` takes no arguments. It runs all six fixers in order.
+```
+
+`cargo xtask help` prints the `check [step...]` form and generates the `steps:` line from `GATE`:
+
+```text
+$ cargo xtask help
+Repository automation for Monospace.
+
+Usage: cargo xtask <command>
+
+Commands:
+  check [step...]  Run the quality gate, or only the named steps
+                   steps: fmt, prettier, markdownlint, editorconfig, numbering, specs, cspell, clippy, build, wasm, test, doc, render
+  fix              Run every step of the gate that can fix what it finds
+  setup            Install the Node tooling the gate needs, from package-lock.json
+  render           Regenerate the pictures tracked Markdown files carry
+  change           Open, switch to, or report on a change's branch; `cargo xtask change help` lists its verbs
+  pr               Prepare and open a pull request; `cargo xtask pr help` lists its verbs
+  help             Show this message
 ```
 
 And the whole gate, which is what the hook and CI run and what none of the above replaces:
@@ -281,8 +322,9 @@ None of this has been observed: it is what the acceptance list checks, not the r
 ## What proves it
 
 Rules 1 to 12 are unit tests in `xtask/src/main.rs`, beside the code they hold. The lines a partial
-run prints are built by functions that return a `String` rather than written to stdout in place, so
-they are asserted without capturing output; the same is true of the two error messages:
+run prints, the usage text, and the three argument-refusal messages are built by functions that
+return a `String` rather than written to stdout or stderr in place, so they are asserted without
+capturing output:
 
 | Rule     | Test                                               |
 | -------- | -------------------------------------------------- |
