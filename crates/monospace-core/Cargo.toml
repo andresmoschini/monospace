@@ -15,7 +15,7 @@ categories.workspace = true
 unicode-segmentation = "=1.13.3"
 
 [dev-dependencies]
-insta = "1.48.0"
+insta = "=1.48.0"
 
 [lints]
 workspace = true

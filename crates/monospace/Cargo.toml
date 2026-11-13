@@ -58,7 +58,7 @@ ratatui-widgets = "=0.3.2"
 
 [dev-dependencies]
 # The pictures of the screen are snapshots, and this is what writes them.
-insta = "1.48.0"
+insta = "=1.48.0"
 
 [lints]
 workspace = true
