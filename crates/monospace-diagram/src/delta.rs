@@ -62,15 +62,16 @@ impl Delta {
     /// The second of the two additions in this crate, and it saturates for the reason
     /// [`Delta::apply`] gives: a wrapped amount could land inside a window a caller could really
     /// hold, and a saturated one cannot. An offset is a gap rather than a point, so it is the one
-    /// that reaches this — a displacement of a figure that holds a reference adds to the gap that
-    /// reference carries, and §4 of the model is where that rule is stated.
+    /// that reaches this — editing an attached endpoint adds to the gap that reference carries, and
+    /// §4 of the model is where that rule is stated.
     ///
-    /// It keeps no memory, so a displacement back does not undo a saturating one: the second half
-    /// of what the specification's saturation edge case asks, and the reason this is a function over
-    /// two values rather than anything that accumulates.
+    /// It keeps no memory, so a move back does not undo a saturating one: the second half of what
+    /// the specification's saturation edge case asks, and the reason this is a function over two
+    /// values rather than anything that accumulates.
     ///
-    /// `pub(crate)` because nothing outside this crate adds one delta to another — a displacement
-    /// reaches an offset through [`Position::displaced_by`](crate::Position) and nowhere else.
+    /// `pub(crate)` because nothing outside this crate adds one delta to another — an attached
+    /// endpoint's `offset` grows through [`Shape::with_endpoint_moved`](crate::Shape) and nowhere
+    /// else.
     pub(crate) fn grow(self, by: Delta) -> Delta {
         Delta {
             dx: self.dx.saturating_add(by.dx),

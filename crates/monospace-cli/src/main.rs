@@ -12,10 +12,10 @@
 //! pictures — as written,
 //! with the back-most shape moved one place toward the front, with that same shape displaced,
 //! with that same shape taken out, with the arrow rehung from the box it already pointed at and
-//! that box displaced, with the arrow itself displaced as well, with the box the arrow hangs from
-//! taken out, and with whichever shape the first picture records as deciding the position
-//! `(20, 2)` taken out instead — and then **one picture per step, walked back**, until the session
-//! holds the picture it began with.
+//! that box displaced, with the arrow's far end detached and the arrow displaced as well, with the
+//! box the arrow hangs from taken out, and with whichever shape the first picture records as
+//! deciding the position `(20, 2)` taken out instead — and then **one picture per step, walked
+//! back**, until the session holds the picture it began with.
 //!
 //! That split exists because the changes the bare run shows say something only about the
 //! shipped demonstration, whose first two entries are two partially overlapping opaque boxes.
@@ -33,11 +33,11 @@
 //! **The whole demonstration runs on a `Session`, and this is the one caller in the repository
 //! that fits without anything invented.** Every change below is a `Command` performed against it
 //! rather than an operation on a diagram it holds, which is what turns the editing layer's
-//! ownership rule from a sentence into something exercised. The seven pictures before the walk
+//! ownership rule from a sentence into something exercised. The eight pictures before the walk
 //! back are the diagram model's own and this crate contributes only the lines under them.
 //!
 //! **The walk back is one picture per step, and a step exists only where the command changed the
-//! diagram.** So the shipped description walks seven (#285) and an empty one walks none, and what a
+//! diagram.** So the shipped description walks eight (#285) and an empty one walks none, and what a
 //! reader counts is what the session holds rather than what this function chose to draw.
 //!
 //! **The demonstration reads its shapes out of the drawing rather than naming them, and there is
@@ -432,8 +432,9 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, window: Window) -> String 
 /// Renders `diagram` as written, then again with its first entry moved one place toward the
 /// front, then again with that same entry displaced, then again with it taken out, then once with the
 /// arrow rehung from the box it already pointed at and that box displaced, then once more with the
-/// arrow itself displaced, then once more again with the box the arrow hangs from taken out, and
-/// once more again with whichever shape the first picture records as deciding `(20, 2)` taken out.
+/// arrow's far end detached and the arrow displaced, then once more again with the box the arrow
+/// hangs from taken out, and once more again with whichever shape the first picture records as
+/// deciding `(20, 2)` taken out.
 /// Each picture is under a caption, and then the whole run is walked back one picture per step.
 ///
 /// This is the shipped demonstration's output, and every one of its pictures carries a caption.
@@ -454,12 +455,12 @@ fn picture(diagram: &Diagram, catalog: &GlyphCatalog, window: Window) -> String 
 /// decided one position and takes that shape out, so a reader sees the record decide something
 /// rather than being told that it does.
 ///
-/// **The three identities the first seven steps need are read out of the first drawing rather than
-/// written by hand.** A description names its shapes by the identity it wrote, so the demonstration
+/// **The three identities the steps need are read out of the first drawing rather than written by
+/// hand.** A description names its shapes by the identity it wrote, so the demonstration
 /// could always say which entry it meant — but "which entry" and "which shape owns that cell" are
 /// different questions, and only the second one is what the rest of this function acts on. Asking
 /// replaces a written assumption about this description with the record, which is what an interactive
-/// front end would have to do and what the first seven steps have no way to check. A figure added
+/// front end would have to do and what no step here has a way to check. A figure added
 /// before any of the three would move the answer, and the pictures below it are what catch that.
 fn demonstrate(diagram: Diagram, window: Window) -> String {
     let catalog = monospace_glyph_sets::all();
@@ -581,20 +582,31 @@ fn demonstrate(diagram: Diagram, window: Window) -> String {
     out.push_str("\nWith the arrow now hanging from that box, and the box displaced:\n");
     out.push_str(&picture(session.diagram(), &catalog, window));
 
-    // And now the arrow itself moves, which is the sixth picture and the reason the fifth exists:
-    // at this point **both** of the arrow's endpoints are references — its `from` rehung above and
-    // the shipped `to`, which names `5`'s bottom with an offset of one in each axis — so a
-    // displacement that did not reach a reference's offsets would draw a picture byte for byte
-    // identical to the fifth, and that is the defect this step exists to show is gone. The sixth is
-    // therefore the fifth with the arrow two rows lower and **both boxes standing exactly where
-    // they stood**, which is the claim a reader checks with their eyes.
+    // And the arrow's far end is detached before the arrow moves, which is the premise of the move
+    // below: **a connector whose two ends both hang from a figure has nothing fixed to move**, so
+    // `Command::Move` on it would produce an equal shape, record no step and draw the fifth picture
+    // again. Detaching the far end freezes it where it already stands — this command changes no
+    // cell — and makes it the one point the move below carries.
+    if let Some(the_arrow) = the_arrow {
+        session = session.perform(Command::DetachEndpoint {
+            id: the_arrow,
+            end: End::To,
+        });
+    }
+
+    // And now the arrow itself moves, which is the sixth picture and the reason the detach above is
+    // here: **the near end stays on the box it hangs from and only the frozen far end moves**, so
+    // the connector stretches rather than sliding and **both boxes stand exactly where they stood**.
+    // That is `docs/diagram-model.md` §4's rule — a displacement moves a fixed point and leaves a
+    // reference as it stands — and it is the picture a displacement that grew a reference's offset
+    // could not draw: that one carried the near end down the box's side and left a gap.
     if let Some(the_arrow) = the_arrow {
         session = session.perform(Command::Move {
             id: the_arrow,
             by: two_down,
         });
     }
-    out.push_str("\nWith the arrow displaced as well:\n");
+    out.push_str("\nWith the arrow's far end detached, and the arrow displaced:\n");
     out.push_str(&picture(session.diagram(), &catalog, window));
 
     // And the seventh takes the figure the arrow hangs from **away**, which is the sixth picture with
@@ -647,11 +659,15 @@ fn demonstrate(diagram: Diagram, window: Window) -> String {
     // the position left to give.
     //
     // **The loop asks `can_undo` rather than counting, so the number of pictures is what the session
-    // holds and not what this function chose to draw.** Eight commands reach it for the shipped
-    // description — including the two the fifth picture shares. The rehang changes nothing and
-    // records no step (#285), which is what makes the count of walked back pictures seven where
-    // eight commands were performed — and an empty description walks nowhere, printing the same eight
-    // pictures it always did.
+    // holds and not what this function chose to draw.** Nine commands reach it for the shipped
+    // description — including the rehang and the detach, which share a picture with the step beside
+    // them. The rehang changes nothing and records no step (#285), which is what makes the count of
+    // walked back pictures eight where nine commands were performed — and an empty description walks
+    // nowhere, printing the same eight pictures it always did.
+    //
+    // **One walked picture has no forward picture of its own, and that is the detach**: it freezes the
+    // far end where it already stands, so the state it produces draws the fifth picture. The walk
+    // therefore prints the fifth twice, which is the honest picture of a step that changed no cell.
     //
     // **The last caption says what is true rather than what is counted**: after the final `undo`
     // there is nothing behind the position, so what the picture shows is the diagram the session
@@ -1016,15 +1032,15 @@ mod tests {
         );
     }
 
-    /// A bare run prints **fifteen** captioned pictures: eight as it changes the diagram and seven
+    /// A bare run prints **sixteen** captioned pictures: eight as it changes the diagram and eight
     /// walked back (#285).
     ///
     /// The count comes from the blank lines the output holds, and no caption's wording is pinned —
-    /// what is claimed is that there are fifteen of them and that the first is the one a file's run
+    /// what is claimed is that there are sixteen of them and that the first is the one a file's run
     /// prints on its own. Which picture the sixth holds is `the_sixth_picture_moves_only_the_arrow`'s
     /// claim, which the seventh holds is
     /// `the_seventh_picture_takes_the_box_away_and_leaves_the_arrow`'s, and which the eighth holds is
-    /// `the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names`'s. The seven after them
+    /// `the_shape_the_demonstration_finds_is_the_one_the_crossing_cell_names`'s. The eight after them
     /// are `the_demonstration_runs_every_step_through_a_session`'s.
     #[test]
     fn a_bare_run_prints_eight_captioned_pictures_the_first_being_the_description_as_written() {
@@ -1032,8 +1048,8 @@ mod tests {
 
         assert_eq!(
             output.split("\n\n").count(),
-            15,
-            "eight pictures as the diagram changes and seven walked back: {output:?}"
+            16,
+            "eight pictures as the diagram changes and eight walked back: {output:?}"
         );
 
         let (first, ..) = demonstrated_pictures(super::DEMO, super::DEMO_WINDOW);
@@ -1043,11 +1059,12 @@ mod tests {
     /// Rule 14 — the demonstration wraps its diagram in a session once and performs every step
     /// through it.
     ///
-    /// **Seven pictures after the eighth, one for each step that changed the diagram, which is the whole of what "through a
-    /// session" is observable as.** The eight commands are not the seven pictures that follow the
-    /// first: the fifth picture is printed after both the rehang and the displacement of the box it
-    /// was rehung from. The rehang changes nothing, so it records no step (#285), and the displacement
-    /// records its one step, so the walk back walks the seven steps that changed the diagram.
+    /// **Eight pictures after the eighth, one for each step that changed the diagram, which is the
+    /// whole of what "through a session" is observable as.** The nine commands are not the eight
+    /// pictures that follow the first: the fifth picture is printed after both the rehang and the
+    /// displacement of the box it was rehung from, and the sixth after both the detach and the
+    /// arrow's displacement. The rehang changes nothing, so it records no step (#285), and every
+    /// other command records one, so the walk back walks the eight steps that changed the diagram.
     ///
     /// **A description with less in it walks a shorter way, and that is the claim that says the
     /// count comes from the session rather than from a loop.** An empty description records no step
@@ -1060,8 +1077,8 @@ mod tests {
 
         assert_eq!(
             blocks.len(),
-            15,
-            "eight pictures as the diagram changes and seven steps walked back"
+            16,
+            "eight pictures as the diagram changes and eight steps walked back"
         );
 
         let empty = demonstrated_blocks(
@@ -1082,15 +1099,17 @@ mod tests {
     /// Rule 15 — the demonstration walks back one picture per step after its last, and its final
     /// picture is the one it began with.
     ///
-    /// **The final picture is the first one, byte for byte.** That is the whole of the walk: seven
+    /// **The final picture is the first one, byte for byte.** That is the whole of the walk: eight
     /// steps that changed the diagram walked back and the description as written out again, with no
     /// figure rebuilt and no reference re-resolved on the way — which is what a diagram alone could
     /// not have done, because `Diagram::remove` freezes what hung from the figure it takes and nothing
     /// re-hangs it.
     ///
     /// **The rehang changed no cell and records no step** (#285): the arrow already hung where it
-    /// was hung, so `Session::perform` recorded no step and the walk back has seven pictures rather
-    /// than eight. Each walked-back picture is the picture the forward run printed for that state.
+    /// was hung, so `Session::perform` recorded no step and the walk back has eight pictures rather
+    /// than nine. Each walked-back picture is the picture the forward run printed for that state,
+    /// with one exception: the detach froze the far end exactly where it stood, so the state it
+    /// produced draws the fifth picture and the walk prints the fifth twice.
     #[test]
     fn the_demonstration_walks_back_to_the_picture_it_began_with() {
         let blocks = demonstrated_blocks(super::DEMO, super::DEMO_WINDOW);
@@ -1101,9 +1120,18 @@ mod tests {
             "the last picture walked back is the one the run began with"
         );
 
-        for step in 0..7 {
+        for step in 0..8 {
             let walked = 8 + step;
-            let forward = 6 - step;
+            // The state the walk reaches, and the forward picture that draws it: the pictures are not
+            // numbered by state, because the rehang and the detach each share a picture with the step
+            // beside them. Every state has a picture of its own except the one the detach produced —
+            // it changed no cell, so it draws the fifth and the walk prints the fifth twice.
+            let state = 7 - step;
+            let forward = match state {
+                5 => 4,
+                state if state > 5 => state - 1,
+                state => state,
+            };
             assert_eq!(
                 blocks[walked], blocks[forward],
                 "the picture walked back at step {step} matches the forward picture for that state"
@@ -1411,7 +1439,7 @@ mod tests {
     }
 
     /// The two boxes' footprints at the fifth picture, and the one cell of the first that the arrow
-    /// legitimately writes.
+    /// writes.
     ///
     /// **Quoted rather than read from the code that produces them**, because a contract test that
     /// asks the demonstration the same questions it answers itself checks nothing. `3` is the
@@ -1422,18 +1450,19 @@ mod tests {
     /// **The attachment cell is named because a footprint is not the same as a figure's own cells.**
     /// The arrow's `from` hangs from `3`'s **right side**, whose centre is `{16, 3}` — and `{16, 3}`
     /// is inside `3`'s own rectangle, because the rectangle is the box and the box's border is its
-    /// rightmost column. The fifth picture has the arrow's arm welded to that border cell and the
-    /// sixth has it detached, so that one cell inside a footprint **must** change for the arrow to
-    /// have moved at all. A test that forbade every cell inside either footprint would therefore
-    /// fail on the very behavior it is meant to certify, and quoting the footprint alone would hide
-    /// that. The far end is not in this position: `to` names `5`'s bottom with offset `(1, 1)`, and
-    /// `{21, 3} + (1, 1)` is `{22, 4}` — **one row below** `5`, outside its rectangle — which is
-    /// why the second box's footprint is untouched entire.
+    /// rightmost column. Both pictures write it, and the sixth must leave it exactly as the fifth had
+    /// it: that is what "the near end stays on the side it hangs from" means in cells. The far end is
+    /// not in this position: `to` names `5`'s bottom with offset `(1, 1)`, and `{21, 3} + (1, 1)` is
+    /// `{22, 4}` — **one row below** `5`, outside its rectangle — which is why the second box's
+    /// footprint is untouched entire.
     fn the_two_boxes_and_the_attachment() -> [(Range<usize>, Range<usize>); 2] {
         [(13..17, 2..5), (20..24, 1..4)]
     }
 
     /// The one cell inside a box's footprint the arrow writes: `3`'s right side centre, `{16, 3}`.
+    ///
+    /// The seventh picture still writes it: the removal freezes the near end at the point it was
+    /// resolving to, which is that cell, so it is the one cell the box held that does not go blank.
     const THE_ATTACHMENT: (usize, usize) = (16, 3);
 
     /// The rectangle the arrow's own cells fall inside at the sixth picture, and the rectangle the
@@ -1442,19 +1471,23 @@ mod tests {
     /// **Quoted rather than read from the code that produces them**, because a contract test that
     /// asks the demonstration the same questions it answers itself checks nothing. `3` is the
     /// shipped description's third entry, a four-by-three box at `{9, 2}` that the fifth picture
-    /// displaces four columns right into `x 13..16, y 2..4`. The arrow's `from` stands at
-    /// `{16, 5}` — `3`'s right side centre at `{16, 3}` plus the offset `(0, 2)` the sixth picture
-    /// grew — and its `to` names `5`'s bottom with offset `(1, 3)`, which is `{22, 6}`.
+    /// displaces four columns right into `x 13..16, y 2..4`. The arrow's `from` hangs from `3`'s right
+    /// side at `{16, 3}` and its frozen `to` stands at `{22, 6}` — `5`'s bottom with offset `(1, 1)`,
+    /// `{22, 4}`, carried two rows down by the demonstration's own delta.
+    ///
+    /// **The bound starts one row below that attachment**, because `5`'s bottom border runs across
+    /// `x 20..23` on row 3 and is not the arrow's; the three cells the route writes on that row are
+    /// outside it, and the assertion that no cell outside `3`'s rectangle changed is what covers them.
     ///
     /// **The arrow's rectangle is a bound and not its footprint, and that is the point.** Between
-    /// those two cells the route writes **ten** of the twenty-one the rectangle holds, and it writes
-    /// them in three rows: four across the top, two in the middle and four along the bottom. It is
-    /// neither contiguous nor a rectangle, so nothing that reads it off a picture gets it right —
-    /// which is how the specification's own `22 − 10 = 12` was wrong and how measurement corrected
-    /// it. The count is therefore **asserted against the pictures** and the rectangle is only what
-    /// bounds where to look.
+    /// those two cells the route writes **eight** of the twenty-four the rectangle holds, and it
+    /// writes them in four rows: one in the second, one in the third, one in the fourth and four
+    /// along the bottom with the one above its end. It is neither contiguous nor a rectangle, so
+    /// nothing that reads it off a picture gets it right — which is how the specification's own
+    /// `22 − 10 = 12` was wrong and how measurement corrected it. The count is therefore **asserted
+    /// against the pictures** and the rectangle is only what bounds where to look.
     fn the_arrow_and_its_removed_box() -> [(Range<usize>, Range<usize>); 2] {
-        [(16..23, 5..8), (13..17, 2..5)]
+        [(17..23, 4..8), (13..17, 2..5)]
     }
 
     /// The seventh picture differs from the sixth **only** in the cells `3` held, which is the
@@ -1474,8 +1507,9 @@ mod tests {
         let (arrow_columns, arrow_rows) = (arrow.0, arrow.1);
 
         // What the removal may reach: exactly the twelve cells `3` stood in, and all twelve blank
-        // rather than carrying a different glyph — a box's border cells are the only thing that
-        // could still be written there.
+        // rather than carrying a different glyph — with one exception, which is the arrow's own
+        // near end. It was welded to `3`'s right border, so the freeze leaves it standing on the one
+        // cell a box held that the seventh still writes; every other cell the box held goes blank.
         let changed = differing(&sixth, &seventh);
         assert_eq!(
             changed.len(),
@@ -1490,21 +1524,34 @@ mod tests {
             "the removal reached outside the box's own rectangle: {changed:?}"
         );
         assert!(
-            changed.iter().all(|at| the_glyph_at(&seventh, *at) == ' '),
+            changed
+                .iter()
+                .all(|at| *at == THE_ATTACHMENT || the_glyph_at(&seventh, *at) == ' '),
             "a cell the removed box held is still drawn in the seventh: {changed:?}"
+        );
+        assert_ne!(
+            the_glyph_at(&sixth, THE_ATTACHMENT),
+            ' ',
+            "the exception above has to be a cell the box actually wrote, and the sixth does"
+        );
+        assert_ne!(
+            the_glyph_at(&seventh, THE_ATTACHMENT),
+            ' ',
+            "the arrow's near end has to stand on the attachment cell once the box is gone, or it \
+             was not welded there"
         );
 
         // What it may not touch: every cell the arrow held in the sixth, found rather than quoted —
         // the written cells inside the bound `the_arrow_and_its_removed_box` names, which is a
-        // rectangle holding ten written cells out of twenty-one.
+        // rectangle holding eight written cells out of twenty-four.
         let the_arrow_held: Vec<(usize, usize)> = arrow_rows
             .flat_map(|y| arrow_columns.clone().map(move |x| (x, y)))
             .filter(|at| the_glyph_at(&sixth, *at) != ' ')
             .collect();
         assert_eq!(
             the_arrow_held.len(),
-            10,
-            "the arrow's footprint is not the ten cells this test measured: {the_arrow_held:?}"
+            8,
+            "the arrow's footprint is not the eight cells this test measured: {the_arrow_held:?}"
         );
         for at in the_arrow_held {
             assert_eq!(
@@ -1516,17 +1563,16 @@ mod tests {
     }
 
     /// The sixth picture differs from the fifth **only** in the cells the arrow holds before and
-    /// after, which is the only statement that says both boxes stood still.
+    /// after, which is what says both boxes stood still and nothing was detached into a gap.
     ///
     /// Modelled on `the_fifth_picture_moves_the_box_and_takes_the_arrow_with_it` and reusing its
     /// `differing` helper, with the claim **mirrored**: that test bounds what the fifth may reach,
     /// and this one bounds what the sixth may reach in the same shape.
     ///
-    /// The bound is **exact rather than one-sided**, and that is what makes it say "both boxes stood
-    /// still" rather than "no box moved very far": the cells that changed inside the two footprints
-    /// are exactly the one attachment cell and nothing else. A displacement that rewrote the shape a
-    /// reference names — moving `3` or `5` to follow the arrow — would change cells inside a
-    /// footprint that are not the attachment, and the assertion below is what rules it out.
+    /// **No cell inside either box's footprint changes**, which is the whole of the rule this
+    /// picture exists for: the arrow's near end hangs from `3`'s right side and stays welded to it
+    /// while its frozen far end travels. The old rule grew the reference's offset instead, which
+    /// pulled the near end two rows down the box's side and changed the attachment cell with it.
     #[test]
     fn the_sixth_picture_moves_only_the_arrow() {
         let (_first, _second, _third, _fourth, fifth, sixth, _seventh, _eighth) =
@@ -1549,9 +1595,9 @@ mod tests {
             .collect();
         assert_eq!(
             inside,
-            vec![THE_ATTACHMENT],
-            "the sixth picture changed a cell inside a box's own footprint other than the one the \
-             arrow attaches to, so a box moved: {changed:?}"
+            vec![],
+            "the sixth picture changed a cell inside a box's own footprint, so the arrow's near end \
+             left the side it hangs from or a box moved: {changed:?}"
         );
 
         // And the arrow did move, which the bound above cannot say on its own: the far end left the

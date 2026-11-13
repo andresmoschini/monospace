@@ -4585,29 +4585,25 @@ mod tests {
         );
     }
 
-    /// A connector with one endpoint absolute and one hanging, displaced, moves **both** of them
-    /// — and what the hanging one moved is its gap.
+    /// A connector with one endpoint absolute and one hanging, displaced, moves **only the absolute
+    /// one**: the hanging end keeps its gap and stays on the side it hangs from.
     ///
-    /// **This test used to say the opposite, and it was not among the four places the
-    /// specification named.** It read `…_leaves_its_hanging_one` and asserted that the cell the
-    /// hanging end stood on was byte-identical before and after, which is true of the rule this
-    /// slice reverses and false of the rule it lands. It escaped the inventory because it cited a
-    /// rule by number and never named this issue, so `grep -rn "143"` — the measurement behind
-    /// that inventory — did not return it. The count was four and the truth is five.
+    /// **This test used to say the opposite, twice over.** It first read
+    /// `…_leaves_its_hanging_one` and asserted the hanging end stood still, which was true of the
+    /// rule before #143 and false of the one that change landed; it was rewritten there to assert the
+    /// gap grew, and #373 reverses that half. What survives both rewrites is the case: the reference
+    /// sits in the **`to`** slot with an absolute in `from`, where the test beside it puts it in
+    /// `from`. A `match` written to suit one slot and read wrongly in the other passes each of them
+    /// alone, which is the reason both exist.
     ///
-    /// **It is rewritten rather than deleted, and the case is kept** because this is the arrangement
-    /// its sibling does not reach: the reference sits in the **`to`** slot with an absolute in
-    /// `from`, where the test beside it puts it in `from`. A `match` written to suit one slot and
-    /// read wrongly in the other passes each of them alone, which is the reason both exist.
-    ///
-    /// The two halves of the claim are separate assertions rather than one picture. The gap grew by
-    /// the delta — the hanging end stands at `{3, 3}` while the side it hangs from is still `{3, 1}`
-    /// — and the figure that side belongs to did not move, which is what makes it a gap growing
-    /// rather than a route following. The `assert_ne!` is what keeps it honest: a `displaced_by` that
-    /// changed nothing at all would satisfy a comparison of before against after by doing exactly
-    /// what the old rule did.
+    /// The two halves of the claim are separate assertions rather than one picture. The gap did not
+    /// grow — the hanging end stands on `{3, 1}` while the side it hangs from is still `{3, 1}` —
+    /// and the figure that side belongs to did not move, which is what makes it an endpoint standing
+    /// still rather than a route following. The `assert_ne!` is what keeps it honest: a
+    /// `displaced_by` that changed nothing at all would satisfy a comparison of before against after
+    /// by doing exactly that.
     #[test]
-    fn a_displaced_connector_moves_its_absolute_end_and_its_hanging_one_too() {
+    fn a_displaced_connector_moves_only_its_absolute_end() {
         let Window { origin, size } = the_window();
 
         let diagram = Diagram::new();
@@ -4651,39 +4647,38 @@ mod tests {
         let after = draw_of(&diagram, origin, size);
 
         // The same two figures with the connector standing where the rule put it: the absolute end
-        // at `{0, 3}` and the hanging one at `{3, 1}` plus the two cells its gap grew by. Built
-        // from the two positions rather than pinned as text, so what is claimed is where a
-        // displacement puts a figure and not how a connector draws.
+        // at `{0, 3}` and the hanging one still on the border at `{3, 1}`, so the connector bends
+        // rather than sliding off the side. Built from the two positions rather than pinned as text,
+        // so what is claimed is where a displacement puts a figure and not how a connector draws.
         let mut expected = Diagram::new();
         expected = expected.add(the_box()).0;
         expected = expected
             .add(connector_leaving(
                 Pos { x: 0, y: 3 }.into(),
                 Direction::Right,
-                Pos { x: 3, y: 3 }.into(),
+                Pos { x: 3, y: 1 }.into(),
                 Direction::Right,
             ))
             .0;
 
         assert_eq!(cells(&after), cells(&draw_of(&expected, origin, size)));
 
-        // The gap grew by the delta, and the figure the gap is measured from is exactly where it
-        // was: the two are separate claims, and only the pair says the endpoint slid rather than
-        // followed.
-        assert_eq!(the_hanging_end(&diagram), Some(Pos { x: 3, y: 3 }));
-        assert_ne!(the_hanging_end(&diagram), Some(THE_SIDE_CENTRE));
+        // The hanging end stayed on the border it hangs from, and the figure that border belongs to
+        // is exactly where it was: the two are separate claims, and only the pair says the endpoint
+        // stood still rather than followed.
+        assert_eq!(the_hanging_end(&diagram), Some(THE_SIDE_CENTRE));
         assert_eq!(
             the_box().anchor(Anchor::Right),
             Some(THE_SIDE_CENTRE),
             "the box the endpoint hangs from moved, so this would be a following endpoint"
         );
 
-        // The cell the old rule pinned — the one the hanging end stood on before — is no longer
-        // written, which is the assertion this test used to make the other way round.
-        assert_ne!(
+        // The cell the hanging end stands on still carries the box's border, which is the assertion
+        // the rule that grew the gap made the other way round.
+        assert_eq!(
             before.cell(THE_SIDE_CENTRE),
             after.cell(THE_SIDE_CENTRE),
-            "the hanging end did not move off the border it hangs from"
+            "the hanging end moved off the border it hangs from"
         );
     }
 
@@ -4832,9 +4827,10 @@ mod tests {
     ///
     /// The two directions are the two directions this rule has: displacing the box (which the
     /// reference hangs from) carries the endpoint and leaves the gap, and displacing the connector
-    /// (which holds the reference) slides the endpoint and grows the gap. The helper exists so the
-    /// two halves of `both_directions_move_the_endpoint_differently` cannot drift apart by
-    /// construction — they are the same arrangement by definition, not by agreement.
+    /// (which holds the reference) leaves the endpoint where it stands and moves only its fixed
+    /// end. The helper exists so the two halves of `both_directions_move_the_endpoint_differently`
+    /// cannot drift apart by construction — they are the same arrangement by definition, not by
+    /// agreement.
     fn the_arrangement_with_a_gap(gap: Delta, far_end: Pos) -> (Diagram, ShapeId, ShapeId) {
         let diagram = Diagram::new();
         let (diagram, box_id) = diagram.add(the_box());
@@ -4875,21 +4871,23 @@ mod tests {
         (from.resolve(d), to.resolve(d))
     }
 
-    /// Displacing the connector grows the reference's offset and moves the absolute end, **asked
-    /// by value and then drawn** — which is the order the two halves are only worth anything in.
+    /// Displacing the connector **leaves the reference exactly as it was** and moves the absolute
+    /// end — asked by value and then drawn, which is the order the two halves are only worth
+    /// anything in.
     ///
-    /// The value half catches a rule that grew the wrong field: `id` and `anchor` are held equal to
-    /// what went in, and each is asked on its own rather than as a pair. The drawn half catches one
-    /// that grew nothing, which the value half would also catch but that a reader cannot see, and it
-    /// is the half that says the figure draws as a translation of itself rather than bending its
-    /// route to reach a side that stayed put.
+    /// The value half catches a rule that reached the wrong field: the whole reference is held equal
+    /// to what went in, so an `offset` that grew, an `out` that was reset or an anchor that moved all
+    /// fail here, and the reference is asked as a value rather than field by field because the claim
+    /// is that nothing about it changed. The drawn half is what says the connector draws bent to the
+    /// side that stayed put rather than as a translation of itself, which a rule that moved both
+    /// endpoints would draw.
     ///
-    /// **The expected picture is built from the two positions the rule yields** — a reference to the
-    /// same side carrying the grown offset, and a `to` at the moved point — rather than pinned as
-    /// text and rather than read back out of the displaced value, so what the two drawings are asked
-    /// to agree about is the rule and not itself.
+    /// **The expected picture is built from the reference as written and the point the rule yields**
+    /// — the same side, the same gap, and a `to` at the moved point — rather than pinned as text and
+    /// rather than read back out of the displaced value, so what the two drawings are asked to agree
+    /// about is the rule and not itself.
     #[test]
-    fn a_displacement_grows_a_references_offsets() {
+    fn a_displacement_leaves_a_reference_where_it_stands() {
         let Window { origin, size } = the_window();
         let (mut diagram, box_id, connector_id) = the_arrangement();
         let as_written = diagram
@@ -4911,23 +4909,17 @@ mod tests {
         else {
             unreachable!("the figure above is a connector")
         };
-        let EndpointAt::Reference(grown) = from.at else {
+
+        // The reference came back whole: both fields that name and the two that say how far from the
+        // side, asked as one value so that a rule reaching any one of them fails here.
+        assert_eq!(from, was_from, "the displacement reached the reference");
+        let EndpointAt::Reference(reference) = from.at else {
             unreachable!("the `from` above is a reference")
         };
-        let EndpointAt::Reference(was) = was_from.at else {
-            unreachable!("the `from` above is a reference")
-        };
-
-        // The one field that grew, on its own, and not equal to what it was.
-        assert_eq!(grown.offset, by);
-        assert_ne!(grown.offset, was.offset);
-
-        // The two that name, each equal to what went in — and the identity is the one `add` issued,
-        // so a rule that reached some other figure's side cannot pass on the anchor being right.
-        assert_eq!(grown.id, was.id);
-        assert_eq!(grown.id, box_id);
-        assert_eq!(grown.anchor, Anchor::Right);
-        assert_eq!(grown.anchor, was.anchor);
+        assert_eq!(reference.id, box_id);
+        assert_eq!(reference.anchor, Anchor::Right);
+        assert_eq!(reference.offset, Delta { dx: 0, dy: 0 });
+        assert_eq!(reference.out, 0);
 
         // The absolute end moved by the same delta, and the figure as a whole is not what it was.
         assert_eq!(
@@ -4949,7 +4941,7 @@ mod tests {
         let (mut expected, expected_box) = expected.add(the_box());
         expected = expected
             .add(arm_connector(
-                Position::Reference(Reference::new(expected_box, Anchor::Right, by, 0)),
+                Position::Reference(Reference::new(expected_box, Anchor::Right, Delta::ZERO, 0)),
                 Pos { x: 7, y: 3 }.into(),
             ))
             .0;
@@ -4957,7 +4949,7 @@ mod tests {
         assert_eq!(
             cells(&after),
             cells(&draw_of(&expected, origin, size)),
-            "the displaced connector drew something other than a translation of itself"
+            "the displaced connector drew something other than a bend to the side that stayed put"
         );
 
         // The displacement reached cells, which is the half that says the two pictures above are two
@@ -4970,20 +4962,19 @@ mod tests {
         );
     }
 
-    /// A figure holding **two** references grows both offsets by the same amount and is
-    /// translated rigidly — the rule above, twice, and one test.
+    /// A connector holding **two** references comes back equal: neither endpoint has a point of its
+    /// own, so a displacement reaches nothing and moves no cell.
     ///
     /// A diagram of **two** boxes rather than one, because a shape holding a single reference cannot
-    /// ask this and an implementation that moved only the first endpoint would pass the test above.
-    /// The two offsets start out **different** from each other — one cell out and one cell in — so
-    /// "grew by the same amount" is a claim about the delta rather than two equal values that happen
-    /// to add up, and the two identities are different figures rather than the same one twice.
+    /// ask this and an implementation that reached only the first endpoint would pass the test
+    /// above. The two offsets are **different** from each other — one cell out and one cell in — so
+    /// "unchanged" is a claim about both values rather than about two zeros that happen to match,
+    /// and the two identities are different figures rather than the same one twice.
     ///
-    /// The drawn half is what "rigidly" means as cells: the same two boxes and the same connector
-    /// with both offsets written at their grown values, built by a diagram that never displaced
-    /// anything, so the comparison is against the values rather than against the value under test.
+    /// The drawn half is what "nothing moved" means as cells: the same two boxes and the same
+    /// connector as the arrangement was built with, and the two boxes' own cells byte for byte.
     #[test]
-    fn a_displacement_grows_both_offsets_of_one_connector() {
+    fn a_displacement_leaves_a_connector_hanging_at_both_ends_where_it_stands() {
         let Window { origin, size } = the_window();
         let by = Delta { dx: 3, dy: 2 };
 
@@ -5019,100 +5010,77 @@ mod tests {
         let before = draw_of(&diagram, origin, size);
         assert_eq!(the_gap(&diagram, connector_id), written);
 
-        let moved = diagram
+        let was = diagram
             .get(connector_id)
             .expect("the connector is held")
-            .displaced_by(by);
-        diagram = diagram.replace(connector_id, moved);
+            .clone();
+        let moved = was.displaced_by(by);
+        diagram = diagram.replace(connector_id, moved.clone());
         let after = draw_of(&diagram, origin, size);
 
-        // Both grew by the delta, on both axes, and each is not what it was. The second offset is
-        // asserted as a value of its own rather than read off the drawing below, because "both" is
-        // the claim and reading one of them off a picture is how a test stops being about it.
-        assert_eq!(the_gap(&diagram, connector_id), Delta { dx: 4, dy: 2 });
-        assert_ne!(the_gap(&diagram, connector_id), written);
+        // The whole figure is what it was, and the two offsets are each what the caller wrote.
+        assert_eq!(moved, was, "a displacement reached an attached endpoint");
+        assert_eq!(the_gap(&diagram, connector_id), written);
+        assert_ne!(the_gap(&diagram, connector_id), Delta::ZERO);
 
-        let Shape::Connector { from, to, .. } =
-            diagram.get(connector_id).expect("the connector is held")
-        else {
+        let Shape::Connector { from, to, .. } = &moved else {
             unreachable!("the figure above is a connector")
         };
         let (EndpointAt::Reference(from), EndpointAt::Reference(to)) = (from.at, to.at) else {
             unreachable!("both ends of this connector are references")
         };
-        assert_eq!(from.offset, Delta { dx: 4, dy: 2 });
-        assert_ne!(from.offset, written);
-        assert_eq!(to.offset, Delta { dx: 2, dy: 2 });
-        assert_ne!(to.offset, inward);
+        assert_eq!(from.offset, written);
+        assert_eq!(to.offset, inward);
         assert_eq!(from.anchor, Anchor::Right);
         assert_eq!(to.anchor, Anchor::Left);
         assert_ne!(from.id, to.id, "both ends hang from the same figure");
-        assert_ne!(
-            from.offset, to.offset,
-            "the two offsets were the same to begin with"
-        );
 
         // The two resolved ends, each against the point its own reference and anchor name, so a
         // `resolve` that answered both wrongly cannot pass on the two being wrong together.
         assert_eq!(
             the_ends(&diagram, connector_id),
-            (Some(Pos { x: 7, y: 3 }), Some(Pos { x: 11, y: 3 }))
+            (Some(Pos { x: 4, y: 1 }), Some(Pos { x: 8, y: 1 }))
         );
 
+        // Nothing was drawn differently: the connector and both boxes are byte for byte what they
+        // were, which is what "reaches nothing" means as a picture.
         assert_eq!(
             cells(&after),
-            cells(&draw_of(
-                &hanging_from_both(Delta { dx: 4, dy: 2 }, Delta { dx: 2, dy: 2 }),
-                origin,
-                size
-            )),
-            "the connector was not translated rigidly: both offsets did not grow together"
-        );
-
-        // Neither box moved, which is the other half of "rigidly": every cell either one holds is
-        // byte for byte what it was. Their footprints are quoted rather than derived, and the route
-        // is excluded from the claim on purpose — it ran along row 1 before and row 3 after, so
-        // those cells are the connector's and the claim is about the two boxes alone.
-        let a_box_holds = |at: &Pos| {
-            let in_the_first = (0..=3).contains(&at.x) && (0..=2).contains(&at.y);
-            let in_the_second = (9..=11).contains(&at.x) && (0..=2).contains(&at.y);
-            in_the_first || in_the_second
-        };
-        let reached = differing(&before, &after);
-        assert!(
-            !reached.is_empty(),
-            "the displacement reached nothing at all"
-        );
-        assert!(
-            !reached.iter().any(a_box_holds),
-            "a box moved when only the connector was displaced: {reached:?}"
+            cells(&before),
+            "a connector hanging at both ends moved when it was displaced"
         );
     }
 
-    /// The first of the specification's two **derived** arrangements, derived from the rule rather
-    /// than decided by it, and pinned so that a later slice which changes it has to say so.
+    /// An **absolute endpoint** at the end of the coordinates stays there when a displacement would
+    /// carry it past, and **the arithmetic keeps no memory**: a displacement back leaves it one cell
+    /// short rather than where it started.
     ///
-    /// The arithmetic is three assertions and all three are about the value. The drawing is a fourth
-    /// and it is the half that is **measured rather than derived**, because the specification's own
-    /// sentence about it turned out to be false on this branch: it claims that "an absolute position
-    /// that saturates draws nothing and an offset that saturating draws a very far away endpoint",
-    /// and that the two differ. Built and drawn, **the two draw the same thing** — the route is
-    /// clipped to whatever of it falls inside the window, whichever of the two positions was
-    /// saturated. What does differ from a saturated coordinate is an **unresolved** reference, which
-    /// takes the whole figure out of the output, and that is the assertion this test holds.
+    /// The drawing half below is the other way of reaching that same point, and it is **measured
+    /// rather than derived** because the specification's own sentence about it turned out to be false
+    /// on this branch: it claims that "an absolute position that saturates draws nothing and an
+    /// offset that saturating draws a very far away endpoint", and that the two differ. Built and
+    /// drawn, **the two draw the same thing** — the route is clipped to whatever of it falls inside
+    /// the window, whichever of the two positions was saturated. What does differ from a saturated
+    /// coordinate is an **unresolved** reference, which takes the whole figure out of the output, and
+    /// that is the assertion this half holds.
+    ///
+    /// **The displacement half is about a point rather than a gap now.** A displacement reaches only
+    /// a fixed endpoint (#373), so the field a displacement can saturate is an absolute one; a
+    /// reference's offset is edited by `Command::MoveEndpoint` and reaches the same arithmetic from
+    /// `Shape::with_endpoint_moved`, which `Delta::grow` names.
     #[test]
-    fn an_offset_that_saturated_stays_saturated() {
+    fn a_coordinate_that_saturated_stays_saturated_and_keeps_no_memory() {
         let Window { origin, size } = the_window();
         let the_other_end: Position = Pos { x: 8, y: 1 }.into();
         let at_the_end = Delta {
             dx: i16::MAX,
             dy: 0,
         };
+        let the_point_at_the_end = Pos { x: i16::MAX, y: 1 };
 
-        // The figure that has nothing to do with either end is in this diagram from the start, so
-        // the three drawings compared below differ only in the connector and not in what is beside
-        // it — otherwise "the connector is still there" would be the same claim as "the drawing
-        // stopped".
+        // The figure that has nothing to do with either end is in these diagrams from the start, so
+        // the drawings compared below differ only in the connector and not in what is beside it —
+        // otherwise "the connector is still there" would be the same claim as "the drawing stopped".
         let hanging_from = |offset: Delta| {
             let diagram = Diagram::new();
             let (mut diagram, box_id) = diagram.add(the_box());
@@ -5124,10 +5092,24 @@ mod tests {
             (diagram, connector_id)
         };
 
-        let (mut diagram, connector_id) = hanging_from(at_the_end);
-        assert_eq!(the_gap(&diagram, connector_id), at_the_end);
+        // The arrangement the displacement half is asked in: the same box and the unrelated one, and
+        // a connector whose **fixed** end is the point at the end of the coordinates.
+        let fixed_at_the_end = || {
+            let diagram = Diagram::new();
+            let (mut diagram, box_id) = diagram.add(the_box());
+            diagram = diagram.add(the_unrelated_box()).0;
+            let (diagram, connector_id) = diagram.add(arm_connector(
+                Position::Reference(Reference::new(box_id, Anchor::Right, Delta::ZERO, 0)),
+                the_point_at_the_end.into(),
+            ));
+            (diagram, connector_id)
+        };
 
-        // One displacement too large for the room left: the offset is already at the end of the
+        let (mut diagram, connector_id) = fixed_at_the_end();
+        let the_fixed_end = |d: &Diagram| the_ends(d, connector_id).1;
+        assert_eq!(the_fixed_end(&diagram), Some(the_point_at_the_end));
+
+        // One displacement too large for the room left: the point is already at the end of the
         // coordinates, so it stays there. The wrapped value is named rather than left implicit,
         // because wrapping is exactly what a plain `+` would do here and it would land back inside
         // a window a caller could hold.
@@ -5136,18 +5118,18 @@ mod tests {
             .expect("the connector is held")
             .displaced_by(Delta { dx: 5, dy: 0 });
         diagram = diagram.replace(connector_id, moved);
-        assert_eq!(the_gap(&diagram, connector_id), at_the_end);
+        assert_eq!(the_fixed_end(&diagram), Some(the_point_at_the_end));
         assert_ne!(
-            the_gap(&diagram, connector_id),
-            Delta {
-                dx: i16::MIN + 4,
-                dy: 0
-            }
+            the_fixed_end(&diagram),
+            Some(Pos {
+                x: i16::MIN + 4,
+                y: 1
+            })
         );
 
         // And a displacement back does **not** undo it, because the addition that saturated is not
-        // remembered. Four of the five cells are gone, so one back leaves the offset one cell short
-        // of the end rather than at the end: a displacement of nothing, or of a delta the offset
+        // remembered. Four of the five cells are gone, so one back leaves the point one cell short
+        // of the end rather than at the end: a displacement of nothing, or of a delta the coordinate
         // had room for, is the only way the value comes back to where it started.
         let back = diagram
             .get(connector_id)
@@ -5155,24 +5137,22 @@ mod tests {
             .displaced_by(Delta { dx: -1, dy: 0 });
         diagram = diagram.replace(connector_id, back);
         assert_eq!(
-            the_gap(&diagram, connector_id),
-            Delta {
-                dx: i16::MAX - 1,
-                dy: 0
-            }
+            the_fixed_end(&diagram),
+            Some(Pos {
+                x: i16::MAX - 1,
+                y: 1
+            })
         );
         assert_ne!(
-            the_gap(&diagram, connector_id),
-            at_the_end,
+            the_fixed_end(&diagram),
+            Some(the_point_at_the_end),
             "the displacement back undid a saturating one, so the arithmetic kept a memory"
         );
-        // Drawn from a diagram **built** at that offset rather than from the one the three
-        // displacements above ran on, and the reason is worth stating: a displacement moves **both**
-        // endpoints, so the free end has walked `+5`, `-1`, `+1` and now stands at `{13, 1}` — one
-        // column past the right edge of a thirteen-wide window. What the drawing below is about is
-        // what an offset *at the end of the coordinates* draws, and the value assertions above
-        // already say this arrangement holds one. Drawing the mutated figure would have measured
-        // the free end's drift as well, and measured it as though it were about the offset.
+
+        // Drawn from a diagram **built** at the saturated offset rather than from the one the
+        // displacements above ran on, because the two are different arrangements: the displaced one
+        // carries a fixed endpoint at the end of the coordinates, and this half is about the other
+        // way of reaching that point, an offset written at the end of the coordinates.
         let (built_at_the_end, _) = hanging_from(at_the_end);
         let with_the_offset = draw_of(&built_at_the_end, origin, size);
 
@@ -5224,6 +5204,12 @@ mod tests {
     /// degenerate case cannot tell the two rules apart. The gap is read off the reference rather
     /// than measured off the drawing, because the drawing can only show where the two ends landed
     /// and not what was between them and the border.
+    ///
+    /// **What the two directions share is the gap, and what they differ in is the endpoint.** Since
+    /// #373 a displacement never reaches a reference's `offset`, so both halves leave the gap alone
+    /// and the contrast is the cell the attached end landed on: the box carries it and the connector
+    /// leaves it behind. That is the pair the contrast is drawn on now, and an implementation that
+    /// reached one place in both directions would land both ends on the same cell.
     #[test]
     fn both_directions_move_the_endpoint_differently() {
         let Window { origin, size } = the_window();
@@ -5272,7 +5258,7 @@ mod tests {
             cells(&draw_of(&expected_box, origin, size))
         );
 
-        // ---- the figure that holds the reference: the endpoint slides and the box stands still
+        // ---- the figure that holds the reference: the endpoint stays and the box stands still
         let (mut connector_moved, box_id, connector_id) = the_arrangement();
         let side_before = the_right_side(&connector_moved, box_id);
         let ends_before = the_ends(&connector_moved, connector_id);
@@ -5299,20 +5285,20 @@ mod tests {
         );
         assert_eq!(
             the_ends(&connector_moved, connector_id),
-            (Some(Pos { x: 5, y: 3 }), Some(Pos { x: 11, y: 3 }))
+            (Some(Pos { x: 5, y: 1 }), Some(Pos { x: 11, y: 3 }))
         );
         assert_ne!(the_ends(&connector_moved, connector_id), ends_before);
         assert_eq!(
             the_gap(&connector_moved, connector_id),
-            Delta { dx: 2, dy: 2 },
-            "the gap did not grow, so the endpoint moved with the figure rather than sliding off it"
+            gap,
+            "the connector's displacement grew the gap, so its attached endpoint slid off the side"
         );
 
         let mut expected_connector = Diagram::new();
         expected_connector = expected_connector.add(the_box()).0;
         expected_connector = expected_connector
             .add(arm_connector(
-                Pos { x: 5, y: 3 }.into(),
+                Pos { x: 5, y: 1 }.into(),
                 Pos { x: 11, y: 3 }.into(),
             ))
             .0;
@@ -5322,14 +5308,14 @@ mod tests {
         );
 
         // ---- and the contrast, across the two halves rather than inside either. **The two gaps
-        // are not the same number**, and that is the claim: the same arrangement, the same
-        // connector, two different figures displaced, and the gap is untouched in one and grown in
-        // the other. An implementation that reached one place in both directions would have them
-        // equal.
-        assert_ne!(
+        // are the same number** — a displacement never reaches a reference — and **the two attached
+        // ends are not the same cell**: the box carries its endpoint four cells right, and the
+        // connector leaves its own where the box still holds it. An implementation that reached one
+        // place in both directions would land the two ends on one cell.
+        assert_eq!(
             the_gap(&connector_moved, connector_id),
             the_gap(&box_moved, connector_id),
-            "the two halves left the same gap, so the two directions are one rule"
+            "a displacement reached the gap in one direction and not in the other"
         );
         assert_ne!(
             the_ends(&connector_moved, connector_id).0,
@@ -5344,12 +5330,12 @@ mod tests {
     }
 
     /// A reference that resolves to nothing still resolves to nothing after a displacement —
-    /// **and its offsets grew anyway**.
+    /// **and it comes back exactly as it went in**.
     ///
     /// That second half is the assertion that makes this test worth writing, and it is why the
-    /// test is not simply the one beside it with a displacement added. A `displaced_by` that grew
-    /// nothing would satisfy "still resolves to nothing" by doing exactly what the code did before
-    /// this rule, and the first half alone cannot tell the two apart.
+    /// test is not simply the one beside it with a displacement added: a rule that reached the
+    /// reference would show nothing in the picture, since an unresolved endpoint draws nothing
+    /// either way, and only the value says which rule ran.
     ///
     /// **Two cases, and they are two different pieces of code.** An identity this diagram does not
     /// hold, and an anchor whose kind does not answer — a connector, which is the answer that keeps
@@ -5363,9 +5349,10 @@ mod tests {
     /// check that a displaced figure leaves every other shape byte for byte. What it does **not**
     /// check is the general claim — that a displacement reaches no shape the caller did not name —
     /// which is a claim about the whole diagram rather than about the value that moved, and no
-    /// single fixture can establish it for every diagram. The same is true of an endpoint pushed
-    /// outside the window by the gap growing: it is clipped without a report, which is the model's
-    /// own rule for any figure and nothing this slice adds, and it is left where §4 and §9 state it.
+    /// single fixture can establish it for every diagram. The same is true of a fixed endpoint
+    /// pushed outside the window by the displacement: it is clipped without a report, which is the
+    /// model's own rule for any figure and nothing this slice adds, and it is left where §4 and §9
+    /// state it.
     #[test]
     fn a_reference_that_resolves_to_nothing_still_does() {
         let Window { origin, size } = the_window();
@@ -5400,6 +5387,14 @@ mod tests {
             );
             let before = draw_of(&diagram, origin, size);
 
+            let Shape::Connector { from: was_from, .. } = diagram
+                .get(the_figure_under_test)
+                .expect("the figure under test is held")
+                .clone()
+            else {
+                unreachable!("the figure under test is a connector")
+            };
+
             let moved = diagram
                 .get(the_figure_under_test)
                 .expect("the figure under test is held")
@@ -5407,14 +5402,18 @@ mod tests {
             diagram = diagram.replace(the_figure_under_test, moved);
             let after = draw_of(&diagram, origin, size);
 
-            // The offsets grew, on both axes, and this one is asked by value rather than by
-            // drawing because a figure that draws nothing cannot show that anything changed.
+            // The reference is the one the caller wrote, asked by value rather than by drawing
+            // because a figure that draws nothing cannot show that anything changed.
             assert_eq!(
                 the_gap(&diagram, the_figure_under_test),
-                Delta { dx: 7, dy: 3 },
-                "{what}: the offsets did not grow"
+                large,
+                "{what}: the displacement reached the reference"
             );
-            assert_ne!(the_gap(&diagram, the_figure_under_test), large);
+            let Shape::Connector { from, .. } = diagram.get(the_figure_under_test).expect("held")
+            else {
+                unreachable!("the figure under test is a connector")
+            };
+            assert_eq!(from, &was_from, "{what}: the endpoint changed");
 
             // Still nothing, and every other figure drew exactly what it drew — which is what
             // distinguishes "this figure is not drawn" from "the drawing stopped".
@@ -5450,16 +5449,16 @@ mod tests {
     ///
     /// **Derived from the rule rather than decided by it**, and stated so a reader is not surprised
     /// by it and so a later slice that changes it has to say so rather than discover it in a
-    /// picture: no displacement moves an anchor and its holder together and keeps the gap. Moving
-    /// the box carries the endpoint, and moving the endpoint grows the gap, so one caller asking
-    /// for two figures gets two displacements and the arrangement that follows from them.
+    /// picture: moving the box carries its endpoint, and moving the connector leaves that endpoint
+    /// on the side it hangs from while the fixed end takes the delta. The gap is the caller's and
+    /// neither displacement reaches it (#373).
     ///
     /// Asserted by resolved coordinate rather than by picture, and the coordinates are written out
     /// rather than computed, because what is being claimed is arithmetic. Measured on this branch:
-    /// the hanging end is at `{3, 5}` — four down from where it started, one move of the side and
-    /// two cells of gap — the free end is at `{7, 3}`, two down, because the box was not the figure
-    /// that was displaced and a displacement reaches one figure rather than the diagram. The box
-    /// itself is at `{0, 2}`, so nothing in the arrangement cascaded.
+    /// the hanging end stands at `{3, 3}` — the box's side, two cells down, with the gap still
+    /// empty — and the free end is at `{7, 3}`, two down from where it started, because the box was
+    /// not the figure that was displaced and a displacement reaches one figure rather than the
+    /// diagram. The box itself is at `{0, 2}`, so nothing in the arrangement cascaded.
     #[test]
     fn displacing_the_box_and_then_the_connector() {
         let (mut diagram, box_id, connector_id) = the_arrangement();
@@ -5482,8 +5481,8 @@ mod tests {
         );
         assert_eq!(the_gap(&diagram, connector_id), Delta { dx: 0, dy: 0 });
 
-        // Then the connector itself, which holds the reference: the endpoint slides off the side and
-        // the free end moves with it.
+        // Then the connector itself, which holds the reference: the endpoint stays on the side the
+        // box still draws and the free end moves with the displacement — so the connector bends.
         let moved_connector = diagram
             .get(connector_id)
             .expect("the connector is held")
@@ -5492,12 +5491,12 @@ mod tests {
 
         assert_eq!(
             the_ends(&diagram, connector_id),
-            (Some(Pos { x: 3, y: 5 }), Some(Pos { x: 7, y: 3 }))
+            (Some(Pos { x: 3, y: 3 }), Some(Pos { x: 7, y: 3 }))
         );
         assert_eq!(
             the_gap(&diagram, connector_id),
-            Delta { dx: 0, dy: 2 },
-            "the gap did not grow by the second displacement"
+            Delta { dx: 0, dy: 0 },
+            "the connector's displacement grew the gap"
         );
         assert_eq!(
             diagram
@@ -5507,8 +5506,8 @@ mod tests {
             "the box moved a second time, so the two displacements were not one each"
         );
 
-        // The two displacements belonged to two figures, so each was applied once: the gap is the
-        // one that grew and not the two that would have come from a cascading displacement.
+        // The two displacements belonged to two figures, so each was applied once: the free end
+        // moved with the second one and the attached end only with the first.
         assert_ne!(the_ends(&diagram, connector_id), ends_before);
     }
 

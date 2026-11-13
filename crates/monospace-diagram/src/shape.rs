@@ -100,14 +100,25 @@ impl EndpointAt {
     }
 
     /// This endpoint, moved by `by`, changing nothing else.
+    ///
+    /// **Only a fixed endpoint moves.** An [`Absolute`](Self::Absolute) endpoint owns its point on
+    /// the canvas, so the point takes the delta and the leaving direction comes back as it went in.
+    ///
+    /// An [`Reference`](Self::Reference) endpoint owns nothing: it names a figure and a side, and
+    /// its `offset` and `out` describe the gap the author left between that side and the connector.
+    /// A displacement of the connector did not move the figure the endpoint hangs from, so the
+    /// endpoint stays where it is and comes back **equal** — same figure, same anchor, same
+    /// `offset`, same `out`, same terminal. The connector stretches rather than sliding off the
+    /// figure. Displacing **that** figure is what carries the endpoint, because resolution is
+    /// dynamic and the side it is measured from moved with it.
     #[must_use]
     pub(crate) fn displaced_by(self, by: Delta) -> Self {
-        match self.position().displaced_by(by) {
-            Position::Absolute(at) => Self::Absolute {
-                at,
-                leaving: self.leaving(),
+        match self {
+            Self::Absolute { at, leaving } => Self::Absolute {
+                at: by.apply(at),
+                leaving,
             },
-            Position::Reference(reference) => Self::Reference(reference),
+            Self::Reference(reference) => Self::Reference(reference),
         }
     }
 }
@@ -341,29 +352,23 @@ impl Shape {
 
     /// Builds a new figure, this one moved by `by`, changing nothing.
     ///
-    /// Every position this variant holds moves: a `Box` and a `Line` their own `at`, a `Connector`
-    /// `from.at` and `to.at` **together**. A connector is not the exception to displacement. Its
-    /// route is derived from its two endpoints and never described by the caller, so displacing
-    /// both is sufficient and displacing one would leave a value whose route means something the
-    /// caller never asked for. Everything else is copied through, because a displacement is about
-    /// where a figure stands and not about what it is.
+    /// A `Box` and a `Line` move their own `at`. A `Connector` moves through **its endpoints**, and
+    /// only a fixed one takes the delta: an [`EndpointAt::Absolute`] owns its point and moves by
+    /// it, while an [`EndpointAt::Reference`] names a figure, a side and the author's gap from
+    /// them, and comes back **equal**. A connector with one fixed and one attached endpoint
+    /// therefore stretches; one with two attached endpoints comes back **equal to itself**, and
+    /// `Session` records no step for it under #285; one with two fixed endpoints translates as a
+    /// whole. Everything else is copied through, because a displacement is about where a figure
+    /// stands and not about what it is.
     ///
     /// It takes `&self` and gives back a `Self` rather than consuming either, so it composes with
     /// `Diagram::get`, which borrows: `diagram.get(&id).map(|shape| shape.displaced_by(by))` is
     /// the whole read-and-displace step, and nothing is cloned at the call site. A delta of
     /// nothing gives back the same figure, which is what the widened derives are for.
     ///
-    /// An endpoint that holds a **reference** moves by the same delta, and **what it moves is its
-    /// gap rather than its place**: the reference's `id` and `anchor` come back as they went in —
-    /// they name which figure and which side, and a displacement does not move either — while its
-    /// `offset` grows on each screen axis. So displacing the connector slides that endpoint away
-    /// from the border the figure it hangs from still draws, and the connector draws as a
-    /// translation of itself rather than bending its route to reach a side that stayed put. The
-    /// model's §4 _Positions_ states where this lands, and §9 _Changing a diagram_ points there.
-    ///
-    /// That is the whole of the difference from displacing the figure a reference hangs from, and
-    /// the two are not the same rule: displacing **that** figure carries the endpoint with it and
-    /// leaves the gap alone, because the side it is measured from moved too.
+    /// Displacing the figure a reference hangs from is the other direction and not the same rule:
+    /// the side moves, so the endpoint is carried with it and the gap stays alone. The model's §4
+    /// _Positions_ states both directions, and §9 _Changing a diagram_ points there.
     #[must_use]
     pub fn displaced_by(&self, by: Delta) -> Self {
         match self {
@@ -1083,6 +1088,106 @@ mod tests {
         ] {
             assert_eq!(shape.displaced_by(nothing), shape);
         }
+    }
+
+    /// A connector displaced through **one attached and one fixed endpoint** moves only the fixed
+    /// one, and the attached one comes back byte for byte.
+    ///
+    /// The attached endpoint is built with a **non-zero offset, a non-zero `out` and a symbol
+    /// terminal** so that each of the three is a value a wrong rule would have to preserve on
+    /// purpose: growing the offset, resetting the standoff or falling back to an arm terminal all
+    /// change something here. Compared by value rather than by picture, because the endpoint that
+    /// must not move is the half a picture cannot show.
+    #[test]
+    fn displacing_a_connector_moves_only_its_absolute_endpoints() {
+        let beside = Diagram::new();
+        let (_beside, box_id) = beside.add(box_at(0));
+        let attached = Endpoint::reference(
+            Reference::new(box_id, Anchor::Right, Delta { dx: 1, dy: 2 }, 3),
+            Terminal::Glyph {
+                glyph: Glyph::new("▶").expect("one glyph"),
+            },
+        );
+        let fixed = Endpoint::absolute(Pos { x: 9, y: 1 }, Direction::Left, Terminal::Arm);
+        let connector = Shape::Connector {
+            from: attached.clone(),
+            to: fixed.clone(),
+            stroke: light(),
+        };
+
+        let Shape::Connector { from, to, .. } = connector.displaced_by(Delta { dx: 2, dy: -1 })
+        else {
+            unreachable!("the figure above is a connector")
+        };
+
+        assert_eq!(
+            from, attached,
+            "the attached endpoint moved, or lost a part of what it carried"
+        );
+        assert_eq!(
+            to,
+            Endpoint::absolute(Pos { x: 11, y: 0 }, Direction::Left, Terminal::Arm),
+            "the fixed endpoint did not take the delta, or its leaving direction changed"
+        );
+        assert_ne!(to, fixed, "the fixed endpoint did not move");
+    }
+
+    /// A connector whose **two endpoints are attached** comes back equal: there is nothing fixed for
+    /// a displacement to move, and neither gap grows.
+    ///
+    /// The two references carry different figures, anchors, offsets and standoffs, so "equal" is a
+    /// claim about the whole of both endpoints rather than about two values that happen to match.
+    #[test]
+    fn displacing_a_connector_with_two_references_comes_back_equal() {
+        let beside = Diagram::new();
+        let (beside, one) = beside.add(box_at(0));
+        let (_beside, two) = beside.add(box_at(8));
+        let connector = Shape::Connector {
+            from: Endpoint::reference(
+                Reference::new(one, Anchor::Right, Delta { dx: 1, dy: 2 }, 1),
+                Terminal::Arm,
+            ),
+            to: Endpoint::reference(
+                Reference::new(two, Anchor::Left, Delta { dx: 3, dy: 4 }, 5),
+                Terminal::Glyph {
+                    glyph: Glyph::new("◄").expect("one glyph"),
+                },
+            ),
+            stroke: light(),
+        };
+
+        assert_eq!(connector.displaced_by(Delta { dx: 2, dy: -1 }), connector);
+    }
+
+    /// A connector whose **two endpoints are fixed** translates as a whole: both points take the
+    /// delta, and neither leaving direction nor terminal changes.
+    #[test]
+    fn displacing_a_connector_with_two_absolute_endpoints_moves_both() {
+        let connector = connector(Terminal::Arm, Terminal::Arm);
+        let by = Delta { dx: -1, dy: 2 };
+
+        let Shape::Connector { from, to, .. } = connector.displaced_by(by) else {
+            unreachable!("the figure above is a connector")
+        };
+        let Shape::Connector {
+            from: was_from,
+            to: was_to,
+            ..
+        } = &connector
+        else {
+            unreachable!("the figure above is a connector")
+        };
+
+        assert_eq!(
+            from,
+            Endpoint::absolute(Pos { x: 1, y: 3 }, Direction::Right, Terminal::Arm)
+        );
+        assert_ne!(from, *was_from, "the starting endpoint did not move");
+        assert_eq!(
+            to,
+            Endpoint::absolute(Pos { x: 7, y: 3 }, Direction::Left, Terminal::Arm)
+        );
+        assert_ne!(to, *was_to, "the ending endpoint did not move");
     }
 
     fn draw(shapes: Vec<Shape>) -> Buffer {

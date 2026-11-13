@@ -32,7 +32,7 @@ const DEMO_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/demo.json")
 /// The first of the eight captioned pictures the no-argument run prints, with its caption line and
 /// the blank line after it stripped. Pins no caption's wording.
 ///
-/// The seven pictures below it are appended rather than inserted, so the coordinates `char_at`
+/// The pictures below it are appended rather than inserted, so the coordinates `char_at`
 /// reads in the tests further down still name the same cells of the first picture — which is why
 /// this function needs no change of its own when a picture is added.
 ///
