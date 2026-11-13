@@ -13,9 +13,10 @@
 //! or `Connector`). For a box or line, the lower row offers `MOVE: ↑↓←→`, with `RESIZE` between
 //! `MOVE` and `TEXT` or `STROKE` offering the cursor keys the figure can use — all four for a box
 //! (`Shift+↑↓←→`), the row's two for a horizontal line (`Shift+←→`), and the column's two for a
-//! vertical line (`Shift+↑↓`). `TEXT: [t] Edit` is offered only for a box. For a connector,
-//! whole-shape movement and resizing are absent, and the lower row offers
-//! `ENDPOINTS: [1] From [2] To · INVERT: [i]` instead. All selected figures conclude with
+//! vertical line (`Shift+↑↓`). `TEXT: [t] Edit` is offered only for a box. For a connector, `MOVE`
+//! is offered when at least one endpoint is fixed and the row begins with it; a connector attached
+//! at both ends has nothing to move, so its row begins with `ENDPOINTS: [1] From [2] To` and resizing
+//! is absent either way. All selected figures conclude with
 //! `STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect`.
 //!
 //! **In `STROKE_SELECT`**, the upper row reports the figure and the stroke it carries, and the
@@ -731,8 +732,14 @@ mod tests {
         );
     }
 
+    /// **A selected connector with a fixed endpoint offers `MOVE` as the first block**, and the
+    /// endpoint blocks follow it (D4 of #373).
+    ///
+    /// The connector carries two fixed points here, which is the widest form of "at least one": an
+    /// implementation that required *both* endpoints to be fixed would pass this and fail nothing
+    /// else in the file, so the one-attached case is asked beside it with the same expectation.
     #[test]
-    fn selected_connector_omits_move_and_starts_with_endpoints() {
+    fn selected_connector_with_a_fixed_endpoint_offers_move_first() {
         let text = r#"{
             "next_id": 2,
             "shapes": [
@@ -747,6 +754,58 @@ mod tests {
 
         let mut state = a_state_over(text);
         state.select(Some(ShapeId::new(NonZeroU16::new(1).unwrap())));
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
+        );
+
+        let half_attached = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 2,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
+                                    "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "point", "x": 9, "y": 1 }, "leaving": "left",
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(half_attached);
+        state.select(Some(ShapeId::new(NonZeroU16::new(2).unwrap())));
+        assert_eq!(
+            command_line(&state),
+            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
+        );
+    }
+
+    /// **A selected connector with two references offers no `MOVE`**, and its row 1 begins with
+    /// `ENDPOINTS` (rule 7 of #373): the bar does not promise a key that cannot change the figure.
+    #[test]
+    fn selected_connector_with_two_references_starts_with_endpoints() {
+        let text = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 12, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "connector", "id": 3,
+                  "from": { "at": { "kind": "reference", "shape": 1, "anchor": "right",
+                                    "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "arm" } },
+                  "to":   { "at": { "kind": "reference", "shape": 2, "anchor": "left",
+                                    "offset": { "dx": 0, "dy": 0 }, "out": 0 },
+                            "terminal": { "kind": "arm" } },
+                  "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(text);
+        state.select(Some(ShapeId::new(NonZeroU16::new(3).unwrap())));
         assert_eq!(
             command_line(&state),
             "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
@@ -836,7 +895,7 @@ mod tests {
         state.select(Some(ShapeId::new(NonZeroU16::new(4).unwrap())));
         assert_eq!(
             command_line(&state),
-            "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
+            "MOVE: ↑↓←→ · ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
         );
     }
 
