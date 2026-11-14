@@ -86,9 +86,18 @@ more than a table.
 
 ## Roadmap
 
-Core library, then a minimal CLI, then an interactive TUI, then WebAssembly, then the web app — each
-stage on a working foundation from the one before it. The phases and the capabilities the work is
-heading towards live on the [GitHub Project](https://github.com/users/andresmoschini/projects/2).
+Two boards carry the plan, both built from the open issues:
+
+- **[Roadmap](https://github.com/users/andresmoschini/projects/2/views/1)** lanes every open issue
+  under **Now**, **Next** or **Later**. Each one also carries an `Area` — `core`, `tui`, `tooling`,
+  `wasm` or `web` — which is the stage of the project it belongs to.
+- **[Active](https://github.com/users/andresmoschini/projects/2/views/2)** narrows the same items to
+  what is in flight: the ones under `Now` and the ones marked `In Progress`.
+
+**Where it stands.** The stages are the core library, a minimal CLI, the interactive TUI,
+WebAssembly, then the web app, each on a working foundation from the one before it. The terminal
+application is the stage being built; `wasm` and `web` are the two stages after it. The horizons say
+what comes next, not when: nothing on the board is a promise of a date.
 
 **Why the CLI comes before the TUI.** The CLI is the smallest consumer that can prove the domain
 works end to end: it has no editing surface, no state and no event loop, so what it exercises is the

@@ -88,10 +88,14 @@ All copy lives directly in [`site/index.html`](./index.html), organized into sem
 - `#about`: What Monospace is, why ASCII matters, and the Spec-Driven Development philosophy.
 - `#features`: Three feature highlights paired with animated GIFs.
 - `#gallery`: Showcase grid with modal zoom overlay triggers.
+- `#roadmap`: The three horizons (Now, Next, Later) and the links to the live project board. It
+  names no issue: the board carries the items, so this section does not go stale when one is filed,
+  closed or moved between horizons.
 - `#download`: Platform cards for pre-compiled binaries and crates.io instructions.
 - `#faq`: Common questions about ASCII and box-drawing diagramming.
 - `#support`: Visual sponsorship cards for GitHub Sponsors and Ko-fi (with direct on-page checkout).
-- `footer`: Links to repository, issue tracker, crates.io, GitHub Sponsors, Ko-fi, and license.
+- `footer`: Links to repository, issue tracker, project board, crates.io, GitHub Sponsors, Ko-fi,
+  and license.
 
 ### Adding or replacing screenshots and GIFs
 
