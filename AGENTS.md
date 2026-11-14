@@ -65,6 +65,7 @@ does not rename anything.
 
 ```sh
 cargo xtask check                   # the whole quality gate; the hook and CI run this and nothing else
+cargo xtask check [step...]         # targeted gate steps while iterating; not a replacement for the gate
 cargo xtask fix                     # every automatic fix the gate knows about; run before check to save turns
 cargo xtask setup                   # install the Node tooling the gate needs
 cargo xtask render                  # rewrite every picture a tracked document carries, from its description
@@ -156,8 +157,11 @@ Every call re-reads the whole context, so a session costs its length squared. Fi
   investigations rather than performing sequential `read_file` calls in the primary thread.
 - **Run `fix` before `check`, and iterate with targeted checks.** Run `cargo xtask fix` first to let
   automatic formatters resolve layout in one pass without failing the gate. During code development,
-  iterate with `cargo check -p <crate>` and `cargo test -p <crate>`. Reserve `cargo xtask check` for
-  final pre-commit and pre-PR validation.
+  iterate with `cargo check -p <crate>`, `cargo test -p <crate>`, and `cargo xtask check [step...]`
+  (for example `cargo xtask check prettier markdownlint specs cspell` for prose, or
+  `cargo xtask check clippy test` for Rust; stage new specs first so `specs`, `numbering`, and
+  `render` see them via `git ls-files`). Reserve `cargo xtask check` with no arguments for final
+  pre-commit and pre-PR validation.
 - **Do not poll background tasks.** Long-running commands (such as `cargo xtask check` on Windows)
   yield and run in the background when they exceed the sync timeout. Do not invoke `manage_task` or
   loop to poll their status; stop tool calls and let the harness's reactive system notification wake

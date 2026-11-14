@@ -184,6 +184,7 @@ cargo run -p monospace-cli -- --symbols         # the sheet: one row per style, 
 cargo run -p monospace                          # the interactive application: the frame, the menu, the diagram and the way out
 cargo run -p monospace -- path/to.json          # the same screen, drawing the description you give it
 cargo xtask check                               # the whole quality gate
+cargo xtask check [step...]                     # only the named steps of the gate while iterating
 ```
 
 A description is JSON: an ordinal and a list of shapes, documented by the crate that owns it,

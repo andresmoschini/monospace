@@ -41,6 +41,7 @@ hooks_ first, because without it nothing checks your commits until CI does.
 
 ```sh
 cargo xtask check                   # the whole quality gate, about 3.5 seconds
+cargo xtask check [step...]         # only the named steps of the gate while iterating
 cargo xtask fix                     # apply every automatic fix the gate knows about
 cargo xtask render                  # rewrite the pictures documents carry, from the descriptions beside them
 cargo xtask change open 163         # open the branch of a change of one stage
@@ -59,9 +60,16 @@ of one stage. Which one applies is the answer to the question in step 2 of
 ## The quality gate
 
 `cargo xtask check` is the whole gate, and it is the **only** definition of green: the `pre-commit`
-hook runs it, CI runs it, and a new check is added to that entrypoint rather than to either of them.
-Two definitions of green is the failure this arrangement exists to prevent — passing locally and
-passing in CI have to mean the same thing.
+hook runs it with no arguments, CI runs it with no arguments, and a new check is added to that
+entrypoint rather than to either of them. Two definitions of green is the failure this arrangement
+exists to prevent — passing locally and passing in CI have to mean the same thing.
+
+A partial run (`cargo xtask check [step...]`) is a development loop, not a replacement for the gate:
+for example, `cargo xtask check prettier markdownlint specs cspell` checks prose without compiling
+Rust, and `cargo xtask check clippy test` checks Rust without requiring Node tooling. A partial run
+names what it skipped and reminds you to run the whole gate before committing; `specs`, `numbering`
+and `render` read `git ls-files`, so a new spec has to be staged before `cargo xtask check specs`
+can see it.
 
 Every step runs even after one fails, so a single run reports everything wrong rather than making
 you fix problems one at a time.

@@ -36,8 +36,10 @@ defensible answers.
 4. **Verify formatting and the gate:**
    - Always run `cargo xtask fix` first so formatters (Prettier, Markdownlint) resolve layout in one
      pass.
-   - Run `cargo xtask check`. If it moves to the background on Windows, wait for the reactive system
-     notification rather than polling.
+   - While iterating, you can run `cargo xtask check prettier markdownlint specs cspell` (stage a
+     new spec with `git add` first, because `specs`, `numbering`, and `render` read `git ls-files`).
+   - Run `cargo xtask check` with no arguments before committing. If it moves to the background on
+     Windows, wait for the reactive system notification rather than polling.
 
 5. **Commit and open the PR:**
    - Stage the spec: `git add specs/NNN-slug.md`.

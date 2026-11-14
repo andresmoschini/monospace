@@ -69,8 +69,11 @@ enum Action {
 
 /// Every step of the quality gate, in the order they run.
 ///
-/// Steps are added here as the gate grows. Order is presentation only: all of them run on every
-/// invocation, so that one pass reports every problem rather than only the first.
+/// Steps are added here as the gate grows. Order is presentation only: all of them run when the
+/// gate runs, so that one pass reports every problem rather than only the first.
+///
+/// A partial run (`cargo xtask check [step...]`) is a development loop only; the gate is `cargo
+/// xtask check` with no arguments, which is what the `pre-commit` hook and CI run.
 ///
 /// A step passes or fails on its exit code alone. This is a deliberate limit rather than an
 /// oversight, and it has known holes: `rustfmt` reports `can't set group_imports, unstable features
@@ -292,8 +295,8 @@ fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
 
     match args.next().as_deref() {
-        Some("check") => run_gate(),
-        Some("fix") => run_fix(),
+        Some("check") => run_gate(args),
+        Some("fix") => run_fix(args),
         Some("setup") => run_setup(),
         Some("render") => render::run(args),
         Some("change") => change::run(args),
@@ -310,14 +313,28 @@ fn main() -> ExitCode {
     }
 }
 
-/// Runs every step of the gate and reports which ones failed.
+/// Runs the selected steps of the gate (or every step when none are named) and reports which ones
+/// failed.
 ///
-/// All steps run even after one fails. A gate that stops at the first problem turns one broken
-/// commit into several round trips, and the steps here are cheap enough that finishing is free.
-fn run_gate() -> ExitCode {
+/// All selected steps run even after one fails. A gate that stops at the first problem turns one
+/// broken commit into several round trips, and the steps here are cheap enough that finishing is
+/// free.
+fn run_gate(args: impl Iterator<Item = String>) -> ExitCode {
+    let names: Vec<String> = args.collect();
+    let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let selected = match select_steps(&name_refs) {
+        Ok(steps) => steps,
+        Err(problem) => {
+            eprintln!("{problem}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let root = workspace_root();
 
-    if let Err(problem) = node_tooling_state(&root) {
+    if needs_node_tooling(&selected)
+        && let Err(problem) = node_tooling_state(&root)
+    {
         eprintln!("{problem}");
         eprintln!();
         eprintln!("    Run `cargo xtask setup` and try again.");
@@ -329,27 +346,29 @@ fn run_gate() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    if selected.len() < GATE.len() {
+        println!("{}", partial_opening(&selected));
+    }
+
     let mut failed = Vec::new();
 
-    for step in GATE {
+    for step in &selected {
         println!("\n--- {} ---", step.name);
         if !run(&root, step) {
             failed.push(step.name);
         }
     }
 
-    if failed.is_empty() {
-        println!("\nall {} checks passed", GATE.len());
-        return ExitCode::SUCCESS;
+    match gate_summary(&selected, &failed) {
+        Ok(summary) => {
+            println!("\n{summary}");
+            ExitCode::SUCCESS
+        }
+        Err(summary) => {
+            eprintln!("\n{summary}");
+            ExitCode::FAILURE
+        }
     }
-
-    eprintln!(
-        "\n{} of {} checks failed: {}",
-        failed.len(),
-        GATE.len(),
-        failed.join(", ")
-    );
-    ExitCode::FAILURE
 }
 
 /// Runs every step in `FIX`, in order, and reports which ones still have something left to fix by
@@ -360,7 +379,14 @@ fn run_gate() -> ExitCode {
 /// intermediate state, so there is nothing later steps need protecting from. Run `cargo xtask
 /// check` afterward to see the full picture, including `clippy` and `cspell`, which this command
 /// does not touch.
-fn run_fix() -> ExitCode {
+fn run_fix(args: impl Iterator<Item = String>) -> ExitCode {
+    let names: Vec<String> = args.collect();
+    let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    if let Err(problem) = validate_fix_args(&name_refs) {
+        eprintln!("{problem}");
+        return ExitCode::FAILURE;
+    }
+
     let root = workspace_root();
 
     if let Err(problem) = node_tooling_state(&root) {
@@ -556,19 +582,253 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// Rejects any argument passed to `cargo xtask fix`.
+fn validate_fix_args(args: &[&str]) -> Result<(), String> {
+    if args.is_empty() {
+        return Ok(());
+    }
+    Err("xtask: `fix` takes no arguments. It runs all six fixers in order.".to_string())
+}
+
+/// Command overview printed by `cargo xtask help` and on unknown commands.
+fn usage_text() -> String {
+    format!(
+        "Repository automation for Monospace.\n\
+         \n\
+         Usage: cargo xtask <command>\n\
+         \n\
+         Commands:\n  \
+         check [step...]  Run the quality gate, or only the named steps\n                   \
+         steps: {}\n  \
+         fix              Run every step of the gate that can fix what it finds\n  \
+         setup            Install the Node tooling the gate needs, from package-lock.json\n  \
+         render           Regenerate the pictures tracked Markdown files carry\n  \
+         change           Open, switch to, or report on a change's branch; `cargo xtask change help` lists its verbs\n  \
+         pr               Prepare and open a pull request; `cargo xtask pr help` lists its verbs\n  \
+         help             Show this message\n",
+        gate_step_names()
+    )
+}
+
 fn print_usage() {
-    println!("Repository automation for Monospace.");
-    println!();
-    println!("Usage: cargo xtask <command>");
-    println!();
-    println!("Commands:");
-    println!("  check    Run every quality gate step; this is what the hook and CI run");
-    println!("  fix      Run every step of the gate that can fix what it finds");
-    println!("  setup    Install the Node tooling the gate needs, from package-lock.json");
-    println!("  render   Regenerate the pictures tracked Markdown files carry");
-    println!(
-        "  change   Open, switch to, or report on a change's branch; `cargo xtask change help` lists its verbs"
-    );
-    println!("  pr       Prepare and open a pull request; `cargo xtask pr help` lists its verbs");
-    println!("  help     Show this message");
+    print!("{}", usage_text());
+}
+
+/// All gate step names in `GATE` order, separated by commas.
+fn gate_step_names() -> String {
+    GATE.iter()
+        .map(|step| step.name)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Validates and orders a gate step selection.
+///
+/// An empty list selects all of `GATE`. Otherwise every name must belong to `GATE`; unknown names
+/// fail before any step runs, with a dedicated message when the name belongs to `FIX`. The
+/// returned slice follows `GATE` order and runs each selected step once.
+fn select_steps(names: &[&str]) -> Result<Vec<&'static Step>, String> {
+    if names.is_empty() {
+        return Ok(GATE.iter().collect());
+    }
+
+    for &name in names {
+        if !GATE.iter().any(|step| step.name == name) {
+            if FIX.iter().any(|step| step.name == name) {
+                return Err(format!(
+                    "xtask: `{name}` is a fixer, not a step of the gate. `cargo xtask fix` runs \
+                     it."
+                ));
+            }
+            return Err(format!(
+                "xtask: `{name}` is not a step of the gate.\nThe steps are: {}.",
+                gate_step_names()
+            ));
+        }
+    }
+
+    Ok(GATE
+        .iter()
+        .filter(|step| names.contains(&step.name))
+        .collect())
+}
+
+/// Whether any step in `steps` spawns an executable from `node_modules/.bin`.
+fn needs_node_tooling(steps: &[&Step]) -> bool {
+    steps.iter().any(|step| match step.action {
+        Action::Spawn { program, .. } => program.starts_with("node_modules/.bin/"),
+        Action::Here(_) => false,
+    })
+}
+
+/// Opening line printed before the first step of a partial gate run.
+fn partial_opening(selected: &[&Step]) -> String {
+    let names: Vec<_> = selected.iter().map(|step| step.name).collect();
+    format!(
+        "running {} of {} steps: {}",
+        selected.len(),
+        GATE.len(),
+        names.join(", ")
+    )
+}
+
+/// Closing report for a gate run: `Ok` when every selected step passed, `Err` when any failed.
+fn gate_summary(selected: &[&Step], failed: &[&str]) -> Result<String, String> {
+    let partial = selected.len() < GATE.len();
+    if failed.is_empty() {
+        if !partial {
+            return Ok(format!("all {} checks passed", GATE.len()));
+        }
+        let not_run: Vec<_> = GATE
+            .iter()
+            .filter(|step| !selected.iter().any(|chosen| chosen.name == step.name))
+            .map(|step| step.name)
+            .collect();
+        return Ok(format!(
+            "{} of {} checks passed; {} not run: {}\n\
+             This was not the gate. Run `cargo xtask check` with no arguments before committing.",
+            selected.len(),
+            GATE.len(),
+            not_run.len(),
+            not_run.join(", ")
+        ));
+    }
+
+    if partial {
+        Err(format!(
+            "{} of {} selected checks failed: {}",
+            failed.len(),
+            selected.len(),
+            failed.join(", ")
+        ))
+    } else {
+        Err(format!(
+            "{} of {} checks failed: {}",
+            failed.len(),
+            GATE.len(),
+            failed.join(", ")
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_names_select_every_step() {
+        let selected = select_steps(&[]).expect("empty selection should succeed");
+        let names: Vec<_> = selected.iter().map(|step| step.name).collect();
+        let expected: Vec<_> = GATE.iter().map(|step| step.name).collect();
+        assert_eq!(names, expected);
+    }
+
+    #[test]
+    fn names_run_in_gate_order_whatever_the_order_typed() {
+        let selected = select_steps(&["specs", "prettier"]).expect("valid step names");
+        let names: Vec<_> = selected.iter().map(|step| step.name).collect();
+        assert_eq!(names, vec!["prettier", "specs"]);
+    }
+
+    #[test]
+    fn a_name_typed_twice_runs_once() {
+        let selected = select_steps(&["specs", "specs"]).expect("duplicate valid step name");
+        let names: Vec<_> = selected.iter().map(|step| step.name).collect();
+        assert_eq!(names, vec!["specs"]);
+    }
+
+    #[test]
+    fn an_unknown_name_is_refused_with_the_steps() {
+        let error = select_steps(&["spec"])
+            .map(|_| ())
+            .expect_err("unknown step name should fail");
+        assert_eq!(
+            error,
+            format!(
+                "xtask: `spec` is not a step of the gate.\nThe steps are: {}.",
+                gate_step_names()
+            )
+        );
+    }
+
+    #[test]
+    fn a_fixer_name_points_at_fix() {
+        let error = select_steps(&["eol"])
+            .map(|_| ())
+            .expect_err("fixer-only name should fail");
+        assert_eq!(
+            error,
+            "xtask: `eol` is a fixer, not a step of the gate. `cargo xtask fix` runs it."
+        );
+    }
+
+    #[test]
+    fn only_node_backed_steps_need_the_node_tooling() {
+        let rust_and_here = select_steps(&["clippy", "build", "test", "specs"]).unwrap();
+        assert!(!needs_node_tooling(&rust_and_here));
+
+        for node_step in ["prettier", "markdownlint", "editorconfig", "cspell"] {
+            let single = select_steps(&[node_step]).unwrap();
+            assert!(
+                needs_node_tooling(&single),
+                "{node_step} needs Node tooling"
+            );
+        }
+
+        let mixed = select_steps(&["clippy", "prettier"]).unwrap();
+        assert!(needs_node_tooling(&mixed));
+    }
+
+    #[test]
+    fn a_partial_run_says_what_it_did_not_run() {
+        let selected = select_steps(&["specs", "prettier", "markdownlint", "cspell"]).unwrap();
+        assert_eq!(
+            partial_opening(&selected),
+            "running 4 of 13 steps: prettier, markdownlint, specs, cspell"
+        );
+        assert_eq!(
+            gate_summary(&selected, &[]).unwrap(),
+            "4 of 13 checks passed; 9 not run: fmt, editorconfig, numbering, clippy, build, wasm, \
+             test, doc, render\n\
+             This was not the gate. Run `cargo xtask check` with no arguments before committing."
+        );
+
+        let two = select_steps(&["specs", "cspell"]).unwrap();
+        assert_eq!(
+            gate_summary(&two, &["cspell"]).unwrap_err(),
+            "1 of 2 selected checks failed: cspell"
+        );
+
+        let all = select_steps(&[]).unwrap();
+        assert_eq!(gate_summary(&all, &[]).unwrap(), "all 13 checks passed");
+        assert_eq!(
+            gate_summary(&all, &["fmt"]).unwrap_err(),
+            "1 of 13 checks failed: fmt"
+        );
+    }
+
+    #[test]
+    fn the_usage_lists_the_steps_the_gate_has() {
+        let usage = usage_text();
+        assert!(
+            usage.contains("  check [step...]  Run the quality gate, or only the named steps\n"),
+            "{usage}"
+        );
+        assert!(
+            usage.contains(&format!(
+                "                   steps: {}\n",
+                gate_step_names()
+            )),
+            "{usage}"
+        );
+    }
+
+    #[test]
+    fn fix_takes_no_arguments() {
+        assert!(validate_fix_args(&[]).is_ok());
+        assert_eq!(
+            validate_fix_args(&["eol"]).unwrap_err(),
+            "xtask: `fix` takes no arguments. It runs all six fixers in order."
+        );
+    }
 }
