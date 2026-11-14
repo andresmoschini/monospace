@@ -69,12 +69,17 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
     Clear.render(area, buf);
 
     let focused = state.chrome().is_bar();
+    let menu_flags = menu::MenuFlags {
+        can_undo: state.diagram().can_undo(),
+        can_redo: state.diagram().can_redo(),
+    };
     menu::draw_bar(
         regions.bar,
         buf,
         state.chrome_mut().menu_mut(),
         &global.cfg.theme,
         focused,
+        menu_flags,
     );
 
     diagram_widget::draw(
@@ -92,7 +97,13 @@ pub(crate) fn draw(area: Rect, buf: &mut Buffer, state: &mut AppState, global: &
 
     // The drop-down is drawn after the region: it hangs from the bar and covers the region, and
     // a region painted after it would erase it.
-    menu::draw_drop_down(area, buf, state.chrome_mut().menu_mut(), &global.cfg.theme);
+    menu::draw_drop_down(
+        area,
+        buf,
+        state.chrome_mut().menu_mut(),
+        &global.cfg.theme,
+        menu_flags,
+    );
 
     // **The message dialog is drawn after the drop-down** (D6): it is an overlay, so it covers the
     // drop-down and everything else, and a control behind it is not there to be seen or clicked.
@@ -1172,16 +1183,45 @@ mod tests {
         }
     }
 
-    /// **The entries do not move with the history** (rule 10). The same drop-down is drawn over a
-    /// fresh session and over one a deletion has left, and the two pictures are equal: no entry
-    /// carries a flag, and `can_undo` and `can_redo` are not read by the frame.
+    /// **The Edit menu's labels and positions do not move with the history** (#231). The same
+    /// drop-down text is drawn over a fresh session, over one a deletion has left, and after an
+    /// undo, while `Undo` and `Redo` cell styles follow `can_undo` and `can_redo`.
     #[test]
     fn the_edit_menu_offers_undo_and_redo_at_every_position() {
         let mut state = a_state_over(A_BOX);
         let global = a_global();
 
         open_the_drop_down(&mut state, &global, 'e');
-        let fresh = drop_down_picture(&paint(&mut state, &global, WIDTH, HEIGHT));
+        let fresh_buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+        let fresh = drop_down_picture(&fresh_buffer);
+        let undo_area = state.chrome().menu().popup.item_areas[0];
+        let redo_area = state.chrome().menu().popup.item_areas[1];
+
+        let menu_style: rat_widget::menu::MenuStyle =
+            global.cfg.theme.style(rat_theme4::WidgetStyle::MENU);
+        let base_bg = menu_style.popup_style.unwrap_or(menu_style.style).bg;
+
+        let assert_row_disabled = |buffer: &Buffer, area: Rect, label: &str| {
+            for col in area.left()..area.right() {
+                let style = buffer[(col, area.y)].style();
+                assert!(
+                    style.add_modifier.contains(Modifier::DIM),
+                    "{label} col {col} not DIM"
+                );
+                assert!(
+                    !style.add_modifier.contains(Modifier::REVERSED),
+                    "{label} col {col} is REVERSED"
+                );
+                assert!(
+                    !style.add_modifier.contains(Modifier::UNDERLINED),
+                    "{label} col {col} is UNDERLINED"
+                );
+                assert_eq!(style.bg, base_bg, "{label} col {col} bg changed");
+            }
+        };
+
+        assert_row_disabled(&fresh_buffer, undo_area, "fresh Undo");
+        assert_row_disabled(&fresh_buffer, redo_area, "fresh Redo");
 
         // The drop-down closes, the box is removed, and the same drop-down opens over the newest
         // position.
@@ -1190,7 +1230,34 @@ mod tests {
         state.diagram_mut().perform(Command::Remove { id: shape });
         let _ = paint(&mut state, &global, WIDTH, HEIGHT);
         open_the_drop_down(&mut state, &global, 'e');
-        let after_the_delete = drop_down_picture(&paint(&mut state, &global, WIDTH, HEIGHT));
+        let delete_buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+        let after_the_delete = drop_down_picture(&delete_buffer);
+
+        assert!(
+            !delete_buffer[(undo_area.left(), undo_area.y)]
+                .style()
+                .add_modifier
+                .contains(Modifier::DIM),
+            "enabled Undo after delete is DIM"
+        );
+        assert_row_disabled(&delete_buffer, redo_area, "disabled Redo after delete");
+
+        // Undo the deletion: Undo becomes disabled and Redo becomes enabled.
+        state.chrome_mut().menu_mut().set_popup_active(false);
+        state.diagram_mut().undo();
+        let _ = paint(&mut state, &global, WIDTH, HEIGHT);
+        open_the_drop_down(&mut state, &global, 'e');
+        let undo_buffer = paint(&mut state, &global, WIDTH, HEIGHT);
+        let after_the_undo = drop_down_picture(&undo_buffer);
+
+        assert_row_disabled(&undo_buffer, undo_area, "disabled Undo after undo");
+        assert!(
+            !undo_buffer[(redo_area.left(), redo_area.y)]
+                .style()
+                .add_modifier
+                .contains(Modifier::DIM),
+            "enabled Redo after undo is DIM"
+        );
 
         assert!(
             fresh.contains("Undo"),
@@ -1204,6 +1271,7 @@ mod tests {
             fresh, after_the_delete,
             "the Edit menu moves with the history"
         );
+        assert_eq!(fresh, after_the_undo, "the Edit menu moves after undo");
     }
 
     #[test]
@@ -1240,8 +1308,8 @@ mod tests {
         );
     }
 
-    /// **The Edit drop-down is the picture the two extra entries make.** Undo, Redo and Delete are
-    /// drawn in that order, each with the shortcut the table answers to.
+    /// **The Edit drop-down lists Undo and Redo in that order**, each with the shortcut the table
+    /// answers to.
     #[test]
     fn the_edit_drop_down() {
         let mut state = a_state();

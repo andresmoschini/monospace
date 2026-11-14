@@ -213,14 +213,15 @@ same as an unfocused one. The status bar is not a leaf: a press on it moves noth
 **The application keeps no history of its own, and the walk is the session's.** The steps behind and
 ahead are the session's, and the state holds no position and no copy of a step: `Session::undo` and
 `Session::redo` are one call each, and the next frame is drawn from what the session holds then.
-**Nothing on the screen is drawn from where the walk stands** — every entry is offered all the time
-— so there is nothing for the application to remember. **A walk selects the figure its step
-touched** ([#299](https://github.com/andresmoschini/monospace/issues/299)):
-`Session::affected_by_undo` and `Session::affected_by_redo` name it before the position moves, and
-the walk leaves it selected. A figure the resulting drawing does not hold — an undo of a creation, a
-redo of a removal — leaves nothing selected, and any active sub-mode ends either way, because the
-step may have changed the attribute the sub-mode edits. The view does not move: a figure the walk
-selects off screen stays off screen.
+**`Edit > Undo` and `Edit > Redo` read `can_undo` and `can_redo` from the session each frame** while
+keeping the same menu labels and geometry, so the chrome stores no copy of either flag. **A walk
+selects the figure its step touched**
+([#299](https://github.com/andresmoschini/monospace/issues/299)): `Session::affected_by_undo` and
+`Session::affected_by_redo` name it before the position moves, and the walk leaves it selected. A
+figure the resulting drawing does not hold — an undo of a creation, a redo of a removal — leaves
+nothing selected, and any active sub-mode ends either way, because the step may have changed the
+attribute the sub-mode edits. The view does not move: a figure the walk selects off screen stays off
+screen.
 
 **The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
 interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`, `ENDPOINT_EDIT`
@@ -514,11 +515,14 @@ survives every move**, because the figure is still there under the same identity
 menu's entry, and both apply that same action rather than a code path each: `Ctrl+Z` and **Undo**,
 `Ctrl+Shift+Z` and **Redo**. **The application keeps no position**, so each action asks the session
 to walk one step rather than naming where to go; at either end the session answers with itself, and
-a press there changes nothing and still owes the frame, because the action was carried out. **The
-entries are offered all the time**: the list never changes, no entry carries a flag, and nothing on
-the screen says the walk has reached an end. Drawing one disabled needs the three states of a
-control, which §6 leaves to #189, and greying the two here is
-[#231](https://github.com/andresmoschini/monospace/issues/231)'s.
+a press of `Ctrl+Z` or `Ctrl+Shift+Z` there changes nothing and still owes the frame, because the
+shortcut stays `Reach::Unclaimed` and the action was carried out. **The Edit entries keep their
+labels and positions while reflecting what the walk can give back**
+([#231](https://github.com/andresmoschini/monospace/issues/231)): `Edit > Undo` is disabled when
+`!can_undo` and `Edit > Redo` is disabled when `!can_redo`. A disabled entry is drawn with
+`Modifier::DIM` across the whole row, is never selected or reversed (opening `Edit` lands on the
+first enabled entry or `None` when both are disabled), and ignores activation by keyboard or mouse
+with the drop-down kept open (`Reply::Consumed`).
 
 **The two walks are shortcuts nobody has claimed**, so an open drop-down does not keep them: the
 history walks behind the menu and the menu stays open. Nothing in the bar's own vocabulary is
@@ -791,10 +795,13 @@ framework's buffer one at a time.
 - A drawing larger than the window gains a bar on each axis without losing a cell of the window it
   had.
 - `Ctrl+Z` gives the step behind back and `Ctrl+Shift+Z` the step ahead, each with no other
-  modifier, and both stop at the ends of the history.
-- The Edit menu's Undo and Redo entries carry the same actions as the keys, and they are offered at
-  every position of the history: no entry is drawn differently when there is nothing to give back.
-- Taking an entry with nothing to give back changes nothing and still paints.
+  modifier; both stop at the ends of the history, where a press still changes nothing and owes a
+  frame.
+- `Edit > Undo` and `Edit > Redo` keep their text and positions at every position of the history,
+  while their enabled/disabled styling (`Modifier::DIM` across disabled rows, `Modifier::REVERSED`
+  only on the selected enabled entry), initial selection (first enabled entry or `None`), and
+  `Up`/`Down`/`Home`/`End`/`Enter`/click/navigation-key behavior follow `can_undo` and `can_redo`
+  (disabled entries cannot be selected or activated and keep the drop-down open).
 - Undo and redo select the figure their step touched
   ([#299](https://github.com/andresmoschini/monospace/issues/299)), replacing whatever was selected
   and not restoring what was selected when the command was performed.
