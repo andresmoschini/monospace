@@ -42,19 +42,15 @@ use crate::vocabulary::{Action, Reply};
 /// application**, which is what the table in `shortcuts` is for. The two are two places that can
 /// disagree, and joining them is #180's.
 ///
-/// **Every entry is offered all the time.** The bar carries no state about what is selected or
-/// whether a step can be given back, so the Edit menu's entries are active at every position of the
-/// history: taking one with nothing to do is an action that changes nothing and repaints all the
-/// same, the same answer the key gives (D2 of #181).
+/// **An entry whose precondition the session can answer is disabled while it does not hold**
+/// (D1 of #231): `Edit > Undo` and `Edit > Redo` take [`MenuFlags`] on every frame, keep their
+/// labels and positions, and are drawn dimmed while they cannot give a step back or forward.
+/// Every `File` and `Help` entry stays enabled.
 ///
 /// **The label's navigation character is the letter after its `_`**, and it is the only table of
 /// names: `Alt` reaches the same character here that a bare press answers when the bar holds the
 /// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
 /// The top-level labels on the bar, in display order.
-///
-/// **The label's navigation character is the letter after its `_`**, and it is the only table of
-/// names: `Alt` reaches the same character here that a bare press answers when the bar holds the
-/// keyboard (D4 of #189). Help is last, so adding it leaves File and Edit where they were.
 const TOP_LABELS: [&str; 3] = ["_File", "_Edit", "_Help"];
 
 /// Per-frame flags saying which conditional menu entries are active.
@@ -217,6 +213,13 @@ pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
         return Reply::Repaint;
     }
 
+    // **The guard reads the event as it arrived, before the `Alt` translation** (D5 of #231): it
+    // never matches an `Alt` press, so a character that names a top-level label still reaches the
+    // bar.
+    if let Some(reply) = guard_disabled_popup_event(raw, chrome) {
+        return reply;
+    }
+
     let translated;
     let alt_char = alt_navigation(raw);
     let (raw, arriving) = match alt_char {
@@ -228,12 +231,6 @@ pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
         }
         None => (raw, false),
     };
-
-    if alt_char.is_none()
-        && let Some(reply) = guard_disabled_popup_event(raw, chrome)
-    {
-        return reply;
-    }
 
     let before_open = chrome.popup_active();
     let before_focus = chrome.leaf();
@@ -295,7 +292,9 @@ pub(crate) fn handle(raw: &Event, chrome: &mut Chrome) -> Reply {
 /// selecting or activating a disabled entry, activating another entry, panicking when
 /// `selected == None`, closing the drop-down, or leaking a disabled navigation character behind it.
 ///
-/// Called on the event as it arrived: an `Alt` press is never a bare key, so it never matches here.
+/// Called before the `Alt` translation, on the event as it arrived: every arm asks for
+/// `KeyModifiers::NONE` or rejects `ALT`, so an `Alt` press that names a top-level label is left
+/// for the bar.
 fn guard_disabled_popup_event(raw: &Event, chrome: &mut Chrome) -> Option<Reply> {
     if !(chrome.is_bar() && chrome.popup_active()) {
         return None;
@@ -525,6 +524,11 @@ pub(crate) fn draw_drop_down(
 
 /// Moves `state.popup.selected` to the first enabled entry (or `None` when none is enabled) when
 /// it is unset, out of bounds, or pointing at a disabled entry.
+///
+/// **An active drop-down never holds a disabled entry as `selected`**: after every frame
+/// `selected` is `Some` exactly when the submenu has an enabled entry, and `None` exactly when all
+/// of them are disabled. Events arrive between frames and read that invariant: it is what tells
+/// [`guard_disabled_popup_event`] whether `Up` and `Down` have anywhere to move.
 fn normalize_selection(state: &mut MenubarState, disabled: &[bool]) {
     let invalid = match state.popup.selected {
         None => true,
@@ -541,6 +545,10 @@ fn normalize_selection(state: &mut MenubarState, disabled: &[bool]) {
 /// underlined and the right-hand shortcut in `KEY_BINDING`, and paints item `0` in `REVERSED`
 /// whenever selection falls on it. Resetting each disabled item row clears those per-span styles
 /// while keeping the row's glyphs intact.
+///
+/// `Style::reset` carries `Modifier::all()` as its `sub_modifier`, and that is what makes
+/// `Buffer::set_style` remove the `REVERSED` and `UNDERLINED` already painted into the cells;
+/// `base_style.add_modifier(Modifier::DIM)` alone would keep them.
 fn normalize_disabled_rows(buf: &mut Buffer, state: &MenubarState, theme: &SalsaTheme) {
     let base_style = menu_base_style(theme);
     let disabled_style = Style::reset().patch(base_style).add_modifier(Modifier::DIM);
