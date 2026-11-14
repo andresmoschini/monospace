@@ -97,6 +97,15 @@ All copy lives directly in [`site/index.html`](./index.html), organized into sem
 - `footer`: Links to repository, issue tracker, project board, crates.io, GitHub Sponsors, Ko-fi,
   and license.
 
+### The header row
+
+The top bar holds the brand, five section links and three badges, and that is close to the width of
+the container, so adding a sixth link is a decision rather than an edit. The links are the sections
+worth jumping to; About sits directly under the hero, the GitHub badge is the repository and the
+README, and Support is the last section plus the Sponsor badge beside it. Below 1150px the badges
+drop their text and keep their glyph, `aria-label` and `title`; below 780px the link row leaves and
+the brand and the badges stay. Both thresholds are in `style.css` beside the rules they change.
+
 ### Adding or replacing screenshots and GIFs
 
 1. Place new media into [`site/assets/`](./assets/). Use descriptive, stable lowercase filenames.

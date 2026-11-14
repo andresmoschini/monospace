@@ -234,7 +234,9 @@ samp {
   list-style: none;
 }
 
-@media (max-width: 700px) {
+/* Five links, the brand and three icon badges need about 700px; below that the
+   row would wrap, so the links leave rather than the bar grow. */
+@media (max-width: 780px) {
   .nav-links {
     display: none;
   }
@@ -279,7 +281,9 @@ samp {
   white-space: nowrap;
 }
 
-@media (max-width: 600px) {
+/* The full badge row needs the whole 1040px container; below that the icons
+   carry the meaning and the accessible name stays in aria-label and title. */
+@media (max-width: 1150px) {
   .github-badge-text {
     display: none;
   }
