@@ -83,6 +83,10 @@ The title is load-bearing, because the slug is derived from it, so it is worth t
 make it the name of the change rather than a description of the symptom. An agent can draft both and
 hand them over; what it cannot do is decide what is wanted.
 
+Open and known work is on the [project board](https://github.com/users/andresmoschini/projects/2),
+where its horizon decides when it is taken. The board changes nothing about the change: the issue is
+still what a branch starts from, whether it was on the board first or not.
+
 ### 2. The one question
 
 **Human**, with the agent's reading of the model attached. Answer it now: the shape of everything

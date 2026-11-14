@@ -57,6 +57,14 @@ of one stage. Which one applies is the answer to the question in step 2 of
 [`docs/workflow.md`](docs/workflow.md), so it is given rather than guessed —
 `cargo xtask change open 163 deciding` is the form that takes it.
 
+**Where the open work is.** The open issues are on the project
+[board](https://github.com/users/andresmoschini/projects/2): the
+[roadmap](https://github.com/users/andresmoschini/projects/2/views/1) lanes them under Now, Next and
+Later, the [active](https://github.com/users/andresmoschini/projects/2/views/2) board holds the ones
+in flight, and the [triage](https://github.com/users/andresmoschini/projects/2/views/3) table shows
+them with their fields in columns. Where an issue sits on the board decides when it is taken; it
+changes nothing about the change, which still starts from the issue.
+
 ## The quality gate
 
 `cargo xtask check` is the whole gate, and it is the **only** definition of green: the `pre-commit`
