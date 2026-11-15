@@ -46,6 +46,9 @@ they are decided rather than repeating them.
 | `Shortcut`          | A key the application answers to, and how far it reaches before the chrome is asked        |
 | `Configuration`     | What the application is configured with, read once at startup                              |
 | `Session`           | The diagram being edited — [the editing model](editing-model.md) owns it                   |
+| `Selection`         | The set of figures the drawing inverts: zero, one, or several members                      |
+| `Member`            | One figure of a selection; the set holds identities in drawing order                       |
+| `Multi-selection`   | A selection holding more than one member                                                   |
 | `Sub-mode`          | An ephemeral modal interaction of the diagram region for focused attribute editing         |
 | `Global action`     | An action of the process lifecycle, session, history, or chrome, valid regardless of mode  |
 | `Contextual action` | An action belonging to the selected shape or active sub-mode, governed by representation   |
@@ -119,13 +122,13 @@ before `[d] Duplicate · [Del] Delete · [Esc] Deselect`.
 
 ## 3. The state
 
-**The state is a session, the drawing of the last frame, the scroll origin, the shape a click
-selected, and the chrome's own.** The session is what the person is working on, the drawing is what
-the last frame put on the screen, the origin is where in the plane that drawing was seen from, the
-selection is the shape that drawing answered with, and the chrome's own is what the widgets of the
-screen hold between frames — which label of the bar is selected, whether a drop-down is open, which
-of the two leaves holds the keyboard, and what the message dialog, the open dialog, the save dialog,
-the export dialog, and the text editor hold (`MsgDialogState`, `OpenDialogState`, `SaveDialogState`,
+**The state is a session, the drawing of the last frame, the scroll origin, the selected figures,
+and the chrome's own.** The session is what the person is working on, the drawing is what the last
+frame put on the screen, the origin is where in the plane that drawing was seen from, the selection
+is the shape that drawing answered with, and the chrome's own is what the widgets of the screen hold
+between frames — which label of the bar is selected, whether a drop-down is open, which of the two
+leaves holds the keyboard, and what the message dialog, the open dialog, the save dialog, the export
+dialog, and the text editor hold (`MsgDialogState`, `OpenDialogState`, `SaveDialogState`,
 `ExportDialogState`, and `TextEditorState`). **Each of the five is an `Overlay` of its own state**:
 down, or up over the state of the widget inside it, so an overlay that is down holds no buffer, no
 field and no box. Opening the text editor selects all the text of the box. They are one thing
@@ -158,24 +161,36 @@ comes first**: the window a frame draws through depends on the drawing rather th
 round, so the frame measures the session into a window of no size, clamps the origin, and draws at
 it.
 
-**The selection is an identity and not a rectangle.** What a click selects is the identity the
-drawing records beside the cell under it, and what the frame inverts is recomputed from the drawing
-of each frame: a resize gives the window another size, a scroll moves the origin, and a command may
-move the shape, so a rectangle would mark cells the shape no longer holds while missing the ones it
-gained. A selection no cell of a later drawing records inverts nothing; **and a selection names a
-figure the diagram holds, or nothing is selected**: after every command the application reconciles
-the identity with the diagram, so a command that takes the selected figure away drops it without
-naming the selection (see §4), and the frame that follows inverts nothing because nothing is
-selected rather than because the record and the selection disagree. Naming the selected shape in
-words is the status bar's (see §2), derived directly from the diagram state rather than stored.
+**The selection is a set of members and not a rectangle.** The state holds the identities in drawing
+order, and what the frame inverts is recomputed from the drawing of each frame: a resize gives the
+window another size, a scroll moves the origin, and a command may move a figure, so a rectangle
+would mark cells the figure no longer holds while missing the ones it gained. **Every member is a
+figure the diagram holds**: after every command the application reconciles the set with the diagram,
+so a command that removes a figure drops that member and leaves the rest, and no member left clears
+the selection (see §4). A selection no cell of a later drawing records inverts nothing, and a member
+the drawing does not record inverts nothing either. **There is no primary member and no cursor**
+([#378](https://github.com/andresmoschini/monospace/issues/378)): with the keyboard gesture
+deferred, nothing names or traverses one. **A sub-mode requires exactly one member**, so entering
+one is not offered while a multi-selection exists. Naming the selection in words is the status bar's
+(see §2): one member is described by its identity and geometry, several by their count, both derived
+directly from the diagram state rather than stored.
+
+**`Ctrl` plus a left press on a figure toggles it in and out of the selection**
+([#378](https://github.com/andresmoschini/monospace/issues/378)). A figure absent from the set joins
+it and one already there leaves it; a press on a cell nobody owns changes nothing, and removing the
+last member leaves nothing selected. The set is replaced whole by a plain press (§4) or by `Tab` /
+`Shift+Tab`, so **no key builds it**: with more than one member the contextual table offers
+`SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect`, and every single-figure editing key is
+ignored.
 
 **`Tab` and `Shift+Tab` cycle the selection through the diagram's figures in drawing order**
-([#307](https://github.com/andresmoschini/monospace/issues/307)). In `IDLE` on a diagram with at
-least one figure (`Condition::HasShapes`), `Tab` selects the back-most figure (the first shape
-yielded by `Diagram::shapes()`) and `Shift+Tab` (`BackTab`) selects the front-most figure (the last
-shape), both answering `Reply::Repaint`. While a figure is selected, `Tab` advances selection to the
-next figure in drawing order (wrapping from front-most to back-most) and `Shift+Tab` retreats to the
-previous figure (wrapping from back-most to front-most). On a single-figure diagram, cycling from
+([#307](https://github.com/andresmoschini/monospace/issues/307)), replacing whatever was selected.
+In `IDLE` on a diagram with at least one figure (`Condition::HasShapes`), or while a multi-selection
+is active, `Tab` selects the back-most figure (the first shape yielded by `Diagram::shapes()`) and
+`Shift+Tab` (`BackTab`) selects the front-most figure (the last shape), both answering
+`Reply::Repaint`. While one figure is selected, `Tab` advances selection to the next figure in
+drawing order (wrapping from front-most to back-most) and `Shift+Tab` retreats to the previous
+figure (wrapping from back-most to front-most). On a single-figure diagram, cycling from
 `SELECTED_*` stays on the sole figure and answers `Reply::Consumed` with no repaint or history step.
 On an empty diagram, `Condition::HasShapes` is false, cycling is not offered, and `Tab` /
 `Shift+Tab` return `Reply::Ignored`.
@@ -217,11 +232,12 @@ ahead are the session's, and the state holds no position and no copy of a step: 
 keeping the same menu labels and geometry, so the chrome stores no copy of either flag. **A walk
 selects the figure its step touched**
 ([#299](https://github.com/andresmoschini/monospace/issues/299)): `Session::affected_by_undo` and
-`Session::affected_by_redo` name it before the position moves, and the walk leaves it selected. A
-figure the resulting drawing does not hold — an undo of a creation, a redo of a removal — leaves
-nothing selected, and any active sub-mode ends either way, because the step may have changed the
-attribute the sub-mode edits. The view does not move: a figure the walk selects off screen stays off
-screen.
+`Session::affected_by_redo` name it before the position moves, and the walk collapses the selection
+to that figure — one member, or none when the figure is gone
+([#378](https://github.com/andresmoschini/monospace/issues/378)). A figure the resulting drawing
+does not hold — an undo of a creation, a redo of a removal — leaves nothing selected, and any active
+sub-mode ends either way, because the step may have changed the attribute the sub-mode edits. The
+view does not move: a figure the walk selects off screen stays off screen.
 
 **The sub-mode is an ephemeral interaction state of the diagram region.** When an attribute-specific
 interaction mode is entered (`STROKE_SELECT` via `s`, `ORDER_MODE` via `z`, `ENDPOINT_EDIT`
@@ -236,10 +252,11 @@ keys performs one action and stays (in `ENDPOINT_EDIT`, `1` and `2` switch betwe
 `LEAVING_SELECT`, and `ATTACH_SELECT` are discrete: selecting an option via `1..=5` or `1..=4`
 dispatches the command and returns directly to `SubMode::Endpoint(End)`, and `Esc` cancels directly
 back to `SubMode::Endpoint(End)`. In `ATTACH_SELECT`, `Tab` and `Shift+Tab` move target candidate
-focus without dispatching a command, and `1..=4` confirm by selecting the anchor face. Losing or
-changing the selection — clicking another figure or outside, or removing the selected figure — drops
-it immediately (`sub_mode = None`). While the figure remains selected, transferring focus to the
-menu bar or opening an application dialog keeps the sub-mode.
+focus without dispatching a command, and `1..=4` confirm by selecting the anchor face. **A sub-mode
+requires exactly one member**, so a multi-selection offers none. Losing or changing the selection —
+clicking another figure or outside, toggling the figure out of the set, or removing it — drops it
+immediately (`sub_mode = None`). While the figure remains selected, transferring focus to the menu
+bar or opening an application dialog keeps the sub-mode.
 
 **The frame's interior is kept beside the drawing, for the click's own arithmetic.** A click arrives
 as a column and a row of the screen, and the drawing is a window of the plane with an origin of its
@@ -293,10 +310,16 @@ selection moving — and a key that changed nothing at all answers `Consumed` an
 **A click on the diagram selects, and selecting is the same kind of change.** A left press inside
 the region's interior selects the shape the drawing records under it, or drops the selection where
 nobody owns the cell; what it answers is `Reply::Repaint` when the selection moved and `Consumed`
-when it did not. **It is not a command**: the session is read and never changed, no step is
-recorded, and the editing layer is not reached. A press anywhere else — the bar, the region's
-border, the status bar, or any button but the left — is nobody's and the event goes on to the next
-handler. The drop-down is asked before the region, so a click it answers never reaches the diagram.
+when it did not. **`Ctrl` held makes the press a toggle**
+([#378](https://github.com/andresmoschini/monospace/issues/378)): the figure under the pointer joins
+the set if absent and leaves it if present, an unowned cell changes nothing, and a toggle that
+changed the set ends any active sub-mode. **No other modifier changes what a press does** — a press
+without `Ctrl` is a plain click whatever else it carries — because several terminals reserve `Shift`
+plus the mouse for local text selection. **It is not a command**: the session is read and never
+changed, no step is recorded, and the editing layer is not reached. A press anywhere else — the bar,
+the region's border, the status bar, or any button but the left — is nobody's and the event goes on
+to the next handler. The drop-down is asked before the region, so a click it answers never reaches
+the diagram.
 
 **A scroll changes the view and not the session.** A wheel turn over the region moves the view by
 the helper's step — a tenth of the window, at least one cell — on the axis it reports, and `Alt`
@@ -311,6 +334,17 @@ and not a click on the drawing, and it still gives the region the keyboard, beca
 border is the region's. **No key moves the view**:
 [#237](https://github.com/andresmoschini/monospace/issues/237) decides which keys do and how far a
 press moves, and the plain arrows stay what #179 made them.
+
+**A multi-selection is inert to editing actions until a later slice makes an action work on it**
+([#378](https://github.com/andresmoschini/monospace/issues/378)). With more than one member the
+contextual table offers `SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect`: `Tab` and
+`Shift+Tab` replace the set with the back-most or front-most figure just as from `IDLE`, `Esc`
+clears every member and records no step (because a selection is application state and not a
+command), and every single-figure editing action — move, resize, rotate, text, stroke, fill, order,
+duplicate, delete, invert, the endpoint keys and `Space` — is neither offered nor accepted:
+`dispatch_key` answers `Reply::Ignored`, and entering a sub-mode is not offered either. Leaning on
+the first member instead would change one of several inverted figures the person cannot pick out,
+which is the opposite of offer equals acceptance (#288).
 
 **`Delete` is a contextual key that changes the session via `Command::Remove`.** It is offered on
 the contextual status bar as `[Del] Delete` whenever a figure is selected (`SELECTED_BOX`,
@@ -412,15 +446,17 @@ steps. While in `AttachSelect`, any key not offered is ignored (`Reply::Ignored`
 to unclaimed universal shortcuts.
 
 **`SelectNext` and `SelectPrevious` cycle the selection without touching the session.** Offered in
-`IDLE` when `Condition::HasShapes` holds, and in `SELECTED_BOX`, `SELECTED_LINE`, and
-`SELECTED_CONNECTOR` as uncategorized `[Tab] Next [Shift+Tab] Prev` immediately preceding
-`[d] Duplicate · [Del] Delete · [Esc] Deselect`. `Tab` dispatches `ContextMeaning::SelectNext` and
-`Shift+Tab` (`BackTab`) dispatches `ContextMeaning::SelectPrevious`. Neither action modifies session
-history or records an undo step. While an inline sub-mode (`STROKE_SELECT`, `ORDER_MODE`,
-`ENDPOINT_EDIT`, `TERMINAL_SELECT`, `LEAVING_SELECT`) is active, `Tab` and `Shift+Tab` are not
-offered and return `Reply::Ignored` (in `ATTACH_SELECT`, they cycle target candidate focus instead).
-While a modal overlay (`DialogFrame`) is open, keyboard routing directs `Tab` and `Shift+Tab` to
-dialog widget focus traversal ([#304](https://github.com/andresmoschini/monospace/issues/304),
+`IDLE` when `Condition::HasShapes` holds, in `MULTI_SELECTION` as
+`SELECT: [Tab] Next [Shift+Tab] Prev` preceding `[Esc] Deselect`, and in `SELECTED_BOX`,
+`SELECTED_LINE`, and `SELECTED_CONNECTOR` as uncategorized `[Tab] Next [Shift+Tab] Prev` immediately
+preceding `[d] Duplicate · [Del] Delete · [Esc] Deselect`. `Tab` dispatches
+`ContextMeaning::SelectNext` and `Shift+Tab` (`BackTab`) dispatches
+`ContextMeaning::SelectPrevious`. Neither action modifies session history or records an undo step.
+While an inline sub-mode (`STROKE_SELECT`, `ORDER_MODE`, `ENDPOINT_EDIT`, `TERMINAL_SELECT`,
+`LEAVING_SELECT`) is active, `Tab` and `Shift+Tab` are not offered and return `Reply::Ignored` (in
+`ATTACH_SELECT`, they cycle target candidate focus instead). While a modal overlay (`DialogFrame`)
+is open, keyboard routing directs `Tab` and `Shift+Tab` to dialog widget focus traversal
+([#304](https://github.com/andresmoschini/monospace/issues/304),
 [#311](https://github.com/andresmoschini/monospace/issues/311)), never reaching the diagram region.
 
 **`Duplicate` clones the selected figure via `Command::Add`.** It is offered on the contextual
@@ -734,6 +770,20 @@ framework's buffer one at a time.
 - A press outside the interior, and a press of any button but the left, is nobody's.
 - The selected shape's cells are inverted and no others, and a selection the drawing does not record
   inverts nothing.
+- Every member of a multi-selection is inverted, and no member is singled out by underline or color.
+- A plain click replaces the selection with the figure that owns the cell, or clears it on a cell
+  nobody owns; `Ctrl` plus a click toggles a figure in or out, leaves an unowned cell alone, and
+  clears the selection when the last member leaves.
+- A press without `Ctrl` is a plain click whatever other modifiers it carries.
+- With more than one member the command row is
+  `SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect`, the status row is
+  `MULTI SELECTION · <n> shapes`, `Tab` and `Shift+Tab` replace the set from the ends of drawing
+  order, and every single-figure editing key is ignored rather than offered.
+- `Esc` clears a multi-selection and records no step, and a sub-mode cannot be entered while one
+  exists.
+- A command that removes one member drops that member and leaves the rest; a walk collapses the
+  selection to the figure the step touched.
+- Creating or duplicating a figure leaves only the new figure selected.
 - The selection survives a resize, because it is an identity rather than the cells it covered.
 - A click changes no diagram: it is not a command and it records no step.
 - `Delete` removes the selected figure, records one step, and leaves the state holding no selection:

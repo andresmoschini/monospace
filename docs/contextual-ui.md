@@ -163,6 +163,9 @@ stateDiagram-v2
     [*] --> IDLE
     IDLE --> SELECTED_SHAPE: Click / Tab
     SELECTED_SHAPE --> IDLE: Esc / Del / Click canvas
+    SELECTED_SHAPE --> MULTI_SELECTION: Ctrl+click
+    MULTI_SELECTION --> SELECTED_SHAPE: Ctrl+click / Click / Tab
+    MULTI_SELECTION --> IDLE: Esc / Click canvas
 
     state SELECTED_SHAPE {
         [*] --> BASE_SELECTION
@@ -181,9 +184,12 @@ stateDiagram-v2
 ### 1. Base selection states
 
 The primary resting states of the editor: `IDLE` (no shape selected), `SELECTED_BOX`,
-`SELECTED_LINE`, and `SELECTED_CONNECTOR`. Keystrokes directly dispatch immediate domain commands
-(`Move`, `Resize`, `Remove`), navigate selection (`Tab` / `Shift+Tab`), or transition into sub-modes
-or overlays.
+`SELECTED_LINE`, `SELECTED_CONNECTOR`, and `MULTI_SELECTION` (more than one member). Keystrokes
+directly dispatch immediate domain commands (`Move`, `Resize`, `Remove`), navigate selection (`Tab`
+/ `Shift+Tab`), or transition into sub-modes or overlays. `MULTI_SELECTION` is entered by `Ctrl`
+plus a click ([#378](https://github.com/andresmoschini/monospace/issues/378)), is left by a plain
+click, by `Tab` / `Shift+Tab`, by `Esc`, or by a history walk, and offers selection cycling and
+deselection.
 
 ### 2. Inline sub-modes (`SubMode`)
 
@@ -483,6 +489,39 @@ catalog:
 | `TERMINAL_SELECT`    | Discrete sub-mode   | `[t]` in `ENDPOINT_EDIT`                                       | `[1]` arm ─, `[2]` solid ▶, `[3]` outline ▷, `[4]` ascii >, `[5]` diamond ◆, `[Esc]` Cancel                                                                                                              | Selects head symbol or arm for the active endpoint.                                    |
 | `LEAVING_SELECT`     | Discrete sub-mode   | `[d]` in `ENDPOINT_EDIT` (detached)                            | `[1]` ↑ North, `[2]` → East, `[3]` ↓ South, `[4]` ← West, `[Esc]` Cancel                                                                                                                                 | Sets explicit departure direction for detached (`Absolute`) endpoints.                 |
 | `ATTACH_SELECT`      | Discrete sub-mode   | `[a]` in `ENDPOINT_EDIT` (detached, with `Box`/`Line` present) | `Tab`/`Shift+Tab` cycle target focus, click candidate to focus, `1..=4` pick anchor (`Top`, `Right`, `Bottom`, `Left`), `[Esc]` Cancel                                                                   | Attaches a detached endpoint to a shape face; does not re-attach an existing endpoint. |
+
+---
+
+### 4.10 MULTI_SELECTION
+
+More than one figure is selected, built with `Ctrl` plus a click
+([#378](https://github.com/andresmoschini/monospace/issues/378)). No member is singled out: there is
+no cursor and no primary member, and every member is painted in reverse video.
+
+- **Status:** Implemented selection, gesture, picture and bar. Every action across a set is a later
+  slice ([#382](https://github.com/andresmoschini/monospace/issues/382),
+  [#383](https://github.com/andresmoschini/monospace/issues/383),
+  [#384](https://github.com/andresmoschini/monospace/issues/384)); the keyboard gesture that builds
+  a set is deferred.
+
+```text
+MULTI SELECTION · 2 shapes
+SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect
+```
+
+- **Behavior:**
+  - `Ctrl+click` on a figure toggles it in or out of the set; on a cell nobody owns it changes
+    nothing. Removing the last member returns to `IDLE`.
+  - Click on a figure replaces the set with that figure and returns to `SELECTED_*`; click on a cell
+    nobody owns clears the set and returns to `IDLE`.
+  - `Tab` / `Shift+Tab`: replaces the set with the back-most (`Tab`) or front-most (`Shift+Tab`)
+    figure in drawing order, returning to `SELECTED_*`.
+  - `Esc`: clears every member and records no step.
+  - Every single-figure editing key — `Space`, `Move`, `Resize`, `Rotate`, `Text`, `Stroke`, `Fill`,
+    `Order`, `Invert`, the endpoint keys, `d` and `Del` — is neither offered nor accepted
+    (`Reply::Ignored`), and no sub-mode can be entered.
+  - `Undo` and `Redo` collapse the set to the figure the step touched, which returns to a
+    single-selection state or to `IDLE`.
 
 ---
 

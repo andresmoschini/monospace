@@ -72,17 +72,22 @@ pub(crate) struct DiagramState {
     /// rectangle is kept beside the interior rather than derived from it.
     region: Rect,
 
-    /// The shape a click selected, or `None` while no cell of the last frame is inverted.
+    /// The identities of the selected figures, in drawing order, and empty while nothing is
+    /// selected.
+    ///
+    /// **A set of members and not one identity** (D1 of #378): `Ctrl` plus a click toggles a figure
+    /// in and out, so a selection may hold several. There is no primary member and no cursor: with
+    /// the keyboard gesture deferred, nothing names or traverses one.
     ///
     /// **An identity rather than the cells it inverted** (D2): what is inverted is recomputed from
     /// the drawing of each frame, so a resize gives the window another size and the selection
     /// follows the shape rather than a rectangle left where it was. A walk over the history selects
     /// the figure the step touched (#299).
     ///
-    /// **An identity names a figure the diagram holds, or nothing is selected**: `perform`
-    /// reconciles the selection with the diagram after every command, so one that takes the figure
-    /// away drops it without naming the selection.
-    selected: Option<ShapeId>,
+    /// **Every member is a figure the diagram holds**: `perform` reconciles the set with the
+    /// diagram after every command, so one that takes a figure away drops that member without
+    /// naming the selection.
+    selected: Vec<ShapeId>,
 
     /// The active sub-mode, or `None` if in normal mode.
     sub_mode: Option<SubMode>,
@@ -146,7 +151,7 @@ impl DiagramState {
             hscroll: ScrollState::new(),
             interior: Rect::new(0, 0, 0, 0),
             region: Rect::new(0, 0, 0, 0),
-            selected: None,
+            selected: Vec::new(),
             sub_mode: None,
             session,
         }
@@ -196,21 +201,38 @@ impl DiagramState {
         self.origin
     }
 
-    /// The shape a click selected, or `None` while no shape is selected.
+    /// The identities of the selected figures, in drawing order, and empty while nothing is
+    /// selected.
+    ///
+    /// **The reader of a set**: a multi-selection is visible here and nowhere else. The single-
+    /// figure readers below answer `None` for it, so no existing consumer acts on one member of
+    /// several by accident (D1 of #378).
+    pub(crate) fn selected_ids(&self) -> Vec<ShapeId> {
+        self.selected.clone()
+    }
+
+    /// The selected identity when the set holds exactly one member, or `None` while nothing is
+    /// selected and while several are.
     ///
     /// **The identity and not the cells it covers**: a resize, a scroll or a command that moves
     /// the shape changes what is inverted without changing this (D2).
+    ///
+    /// **`None` for a set of several is the guarantee** (D1 of #378): every single-figure action
+    /// reads this, so a multi-selection can never act on its first member.
     pub(crate) fn selected(&self) -> Option<ShapeId> {
-        self.selected
+        match self.selected.as_slice() {
+            [id] => Some(*id),
+            _ => None,
+        }
     }
 
-    /// The selected identity and the shape it names, or `None` if nothing is selected or the
-    /// selected id is not in the diagram.
+    /// The selected identity and the shape it names, or `None` if nothing is selected, several are,
+    /// or the selected id is not in the diagram.
     ///
     /// **One answer rather than two reads**: a caller that needs the identity and the shape asks
     /// once, so the two cannot name different figures.
     pub(crate) fn selected_entry(&self) -> Option<(ShapeId, &Shape)> {
-        let id = self.selected?;
+        let id = self.selected()?;
         self.session.diagram().get(id).map(|shape| (id, shape))
     }
 
@@ -327,8 +349,11 @@ impl DiagramState {
         true
     }
 
-    /// Makes `selection` the shape a click selected, and says whether the screen has to be painted
-    /// again.
+    /// Replaces the selection with `selection`, one member or none, and says whether the screen has
+    /// to be painted again.
+    ///
+    /// **A plain click replaces the set**, which is why a selection of several is replaced whole
+    /// rather than compared member by member (D2 of #378).
     ///
     /// **A click that selects what is already selected changed nothing**, and neither did one on a
     /// cell nobody owns with no selection to drop: the answer is `false` and the frame is not owed.
@@ -336,53 +361,83 @@ impl DiagramState {
     /// **Changing or dropping the selection ends any active sub-mode**: the sub-mode belongs to the
     /// figure that was selected, so another selection or no selection starts fresh.
     pub(crate) fn select(&mut self, selection: Option<ShapeId>) -> bool {
-        if self.selected == selection {
+        let members: Vec<ShapeId> = selection.into_iter().collect();
+        if self.selected == members {
             return false;
         }
 
-        self.selected = selection;
+        self.selected = members;
+        self.sub_mode = None;
+        true
+    }
+
+    /// Toggles `id` in the set, keeping the members in drawing order, and says whether the screen
+    /// has to be painted again.
+    ///
+    /// **`Ctrl` plus a click is the only caller** (D2 of #378): a figure absent from the set joins
+    /// it and one already there leaves it. **Removing the last member leaves nothing selected**,
+    /// and **a set that changed ends any active sub-mode**, for the reason [`Self::select`] does.
+    ///
+    /// **An identity the diagram does not hold changes nothing**: the invariants of the field say
+    /// every member is a figure the diagram holds, and this is where a caller could break it.
+    pub(crate) fn toggle_selected(&mut self, id: ShapeId) -> bool {
+        if self.session.diagram().get(id).is_none() {
+            return false;
+        }
+
+        let mut members = self.selected.clone();
+        match members.iter().position(|&member| member == id) {
+            Some(index) => {
+                members.remove(index);
+            }
+            None => members.push(id),
+        }
+        members.sort_by_key(|&member| self.session.diagram().place_of(member));
+
+        if members == self.selected {
+            return false;
+        }
+
+        self.selected = members;
         self.sub_mode = None;
         true
     }
 
     /// Selects the next figure in drawing order (`Diagram::shapes()`, back-to-front), wrapping from
-    /// the front-most figure back to the first. When nothing is selected, selects the first
-    /// (back-most) figure. Returns `true` if the selection changed.
+    /// the front-most figure back to the first. When nothing is selected or several figures are,
+    /// selects the first (back-most) figure. Returns `true` if the selection changed.
     pub(crate) fn select_next(&mut self) -> bool {
-        let ids: Vec<ShapeId> = self.session.diagram().shapes().map(|(id, _)| id).collect();
-        if ids.is_empty() {
-            return false;
-        }
-        let next = match self
-            .selected
-            .and_then(|current| ids.iter().position(|&id| id == current))
-        {
-            Some(index) => ids[(index + 1) % ids.len()],
-            None => ids[0],
-        };
-        self.select(Some(next))
+        self.cycle_selection(true)
     }
 
     /// Selects the previous figure in drawing order (`Diagram::shapes()`, front-to-back), wrapping
-    /// from the first (back-most) figure to the last (front-most). When nothing is selected,
-    /// selects the last (front-most) figure. Returns `true` if the selection changed.
+    /// from the first (back-most) figure to the last (front-most). When nothing is selected or
+    /// several figures are, selects the last (front-most) figure. Returns `true` if the selection
+    /// changed.
     pub(crate) fn select_previous(&mut self) -> bool {
+        self.cycle_selection(false)
+    }
+
+    /// Replaces the selection with the next (`forward`) or previous figure in drawing order.
+    ///
+    /// **Empty and multi-selection answer identically**: `self.selected()` yields `None` for both,
+    /// so cycling from a multi-selection lands on the first (`forward`) or last figure just as it
+    /// does from `IDLE`, without tracking a primary member or cursor.
+    fn cycle_selection(&mut self, forward: bool) -> bool {
         let ids: Vec<ShapeId> = self.session.diagram().shapes().map(|(id, _)| id).collect();
         if ids.is_empty() {
             return false;
         }
-        let prev = if let Some(index) = self
-            .selected
+        let target = match self
+            .selected()
             .and_then(|current| ids.iter().position(|&id| id == current))
         {
-            ids[(index + ids.len() - 1) % ids.len()]
-        } else {
-            let Some(&prev) = ids.last() else {
-                return false;
-            };
-            prev
+            Some(index) if forward => ids[(index + 1) % ids.len()],
+            Some(index) => ids[(index + ids.len() - 1) % ids.len()],
+            None if forward => ids[0],
+            None => ids[ids.len() - 1],
         };
-        self.select(Some(prev))
+        self.select(Some(target))
     }
 
     /// The canvas position at the center of the viewport window.
@@ -507,16 +562,21 @@ impl DiagramState {
     /// selection.** Asking the diagram whether the figure is still there is what makes the rule
     /// hold for every command that removes a figure, not only the one whose name says remove.
     ///
-    /// **A command that leaves the figure in place changes nothing here**: Move, Resize, `SetStroke`
-    /// and `SetText` rewrite the figure under the same identity, and the selection survives them as
-    /// it did.
+    /// **A command that leaves the members in place changes nothing here**: Move, Resize,
+    /// `SetStroke` and `SetText` rewrite the figure under the same identity, and the selection
+    /// survives them as it did.
+    ///
+    /// **A removal drops only what it removed** (D6 of #378): a command that takes one figure of
+    /// several away leaves the rest selected, and no member left clears the set. A set that changed
+    /// ends any active sub-mode, because the figure the sub-mode belonged to may be the one gone.
     fn reconcile_selection(&mut self) {
-        let Some(selected) = self.selected else {
-            return;
-        };
+        let diagram = self.session.diagram();
+        let before = self.selected.len();
+        self.selected
+            .retain(|&member| diagram.get(member).is_some());
 
-        if self.session.diagram().get(selected).is_none() {
-            self.select(None);
+        if self.selected.len() != before {
+            self.sub_mode = None;
         }
     }
 
@@ -592,17 +652,20 @@ impl DiagramState {
         self.session.can_redo()
     }
 
-    /// Whether the shape that owns `at` of the last frame's drawing is the selected shape or
-    /// the focused attach target in [`SubMode::AttachSelect`].
+    /// Whether the shape that owns `at` of the last frame's drawing is a member of the set or the
+    /// focused attach target in [`SubMode::AttachSelect`].
     ///
     /// **This is where the inversion is decided, and it is decided from the record** (D1): a
     /// position nobody owns is never the selection, and an identity no cell records inverts
     /// nothing because no cell asks about it (rule 7).
+    ///
+    /// **Every member inverts** (D4 of #378): the question is membership, not equality with one
+    /// identity, and no member is singled out.
     pub(crate) fn is_cell_selected(&self, at: Offset) -> bool {
         let Some(owner) = self.owner(at) else {
             return false;
         };
-        self.selected() == Some(owner)
+        self.selected.contains(&owner)
             || matches!(self.sub_mode, Some(SubMode::AttachSelect { target, .. }) if target == owner)
     }
 
@@ -2227,5 +2290,174 @@ mod tests {
             state.session.diagram().shapes().last().map(|(id, _)| id),
             Some(dup_conn_id)
         );
+    }
+
+    /// The identity `n` names.
+    fn shape_id(n: u16) -> ShapeId {
+        ShapeId::new(NonZeroU16::new(n).expect("a test identity is not zero"))
+    }
+
+    /// **The set keeps its members in drawing order** (D1 of #378): an identity joins where the
+    /// diagram draws it rather than where it was toggled, so the two readers agree on one order.
+    #[test]
+    fn the_selection_keeps_its_members_in_drawing_order() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+
+        assert!(state.toggle_selected(shape_id(3)));
+        assert!(state.toggle_selected(shape_id(1)));
+        assert!(state.toggle_selected(shape_id(2)));
+
+        assert_eq!(
+            state.selected_ids(),
+            vec![shape_id(1), shape_id(2), shape_id(3)],
+            "the members are not in drawing order"
+        );
+    }
+
+    /// **`selected()` answers `None` for a set of several** (D1 of #378): every single-figure
+    /// consumer reads it, so a multi-selection cannot act on its first member by accident.
+    #[test]
+    fn selected_answers_none_for_more_than_one_member() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+
+        assert!(state.toggle_selected(shape_id(1)));
+        assert_eq!(state.selected(), Some(shape_id(1)), "one member is not one");
+
+        assert!(state.toggle_selected(shape_id(2)));
+        assert_eq!(state.selected(), None, "a set of two answered one identity");
+        assert_eq!(state.selected_entry(), None);
+        assert_eq!(state.selected_shape(), None);
+    }
+
+    /// **A plain click replaces the set** (rule 1 of #378) and **`Ctrl` plus a click removes a
+    /// member** (rule 3), with removing the last one clearing the selection.
+    #[test]
+    fn toggle_selected_removes_a_member_and_the_last_one_clears_the_selection() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        state.toggle_selected(shape_id(1));
+        state.toggle_selected(shape_id(2));
+
+        assert!(state.toggle_selected(shape_id(1)));
+        assert_eq!(state.selected_ids(), vec![shape_id(2)]);
+        assert_eq!(state.selected(), Some(shape_id(2)));
+
+        assert!(state.toggle_selected(shape_id(2)));
+        assert_eq!(state.selected_ids(), Vec::new());
+        assert_eq!(state.selected(), None);
+    }
+
+    /// **A plain click on a figure selects only that figure** (rule 1 of #378): the set is replaced
+    /// whole, not added to.
+    #[test]
+    fn select_replaces_the_whole_set() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        state.toggle_selected(shape_id(1));
+        state.toggle_selected(shape_id(2));
+
+        assert!(state.select(Some(shape_id(3))));
+        assert_eq!(state.selected_ids(), vec![shape_id(3)]);
+    }
+
+    /// **A change to the set ends any active sub-mode** (rule 3 of #378): the sub-mode belonged to
+    /// the figure whose membership changed.
+    #[test]
+    fn toggle_selected_ends_an_active_sub_mode() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        state.toggle_selected(shape_id(1));
+        state.set_sub_mode(Some(SubMode::StrokeSelect));
+
+        assert!(state.toggle_selected(shape_id(2)));
+        assert_eq!(state.sub_mode(), None);
+
+        state.set_sub_mode(Some(SubMode::StrokeSelect));
+        assert!(state.toggle_selected(shape_id(2)));
+        assert_eq!(state.sub_mode(), None);
+    }
+
+    /// **A command drops only the member it removed** (rule 10 of #378): the figures still in the
+    /// diagram stay selected, and no member left clears the set.
+    #[test]
+    fn a_command_drops_only_the_member_it_removed() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        state.toggle_selected(shape_id(1));
+        state.toggle_selected(shape_id(2));
+
+        state.perform(Command::Remove { id: shape_id(1) });
+        assert_eq!(
+            state.selected_ids(),
+            vec![shape_id(2)],
+            "the removal dropped a member that is still drawn"
+        );
+
+        state.perform(Command::Remove { id: shape_id(2) });
+        assert_eq!(
+            state.selected_ids(),
+            Vec::new(),
+            "the last member stayed selected after its figure went"
+        );
+    }
+
+    /// **Adding and duplicating select only the new figure** (rule 11 of #378): the set is
+    /// replaced, not extended.
+    #[test]
+    fn creating_and_duplicating_select_only_the_new_figure() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        state.toggle_selected(shape_id(1));
+        state.toggle_selected(shape_id(2));
+
+        state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+        let created = state.create_box();
+        assert_eq!(
+            state.selected_ids(),
+            vec![created],
+            "creating a figure kept the set it was made in"
+        );
+
+        state.select(Some(shape_id(1)));
+        let duplicated = state.duplicate_selected().expect("the one member is one");
+        assert_eq!(
+            state.selected_ids(),
+            vec![duplicated],
+            "duplicating kept the set it was made in"
+        );
+    }
+
+    /// **A walk collapses the set to the figure the step touched** (rule 9 of #378): undo and redo
+    /// leave one member, or none when the figure is gone.
+    #[test]
+    fn undo_and_redo_collapse_the_set_to_the_affected_figure() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        state.toggle_selected(shape_id(1));
+        state.toggle_selected(shape_id(2));
+        state.perform(Command::Move {
+            id: shape_id(1),
+            by: (1, 0).into(),
+        });
+
+        state.undo();
+        assert_eq!(state.selected_ids(), vec![shape_id(1)]);
+
+        state.toggle_selected(shape_id(3));
+        assert_eq!(state.selected_ids(), vec![shape_id(1), shape_id(3)]);
+
+        state.redo();
+        assert_eq!(state.selected_ids(), vec![shape_id(1)]);
+    }
+
+    /// **`select_next` and `select_previous` collapse a multi-selection to the ends**: because
+    /// `selected()` answers `None` for a set of several, cycling treats it like `IDLE` — forward
+    /// lands on the back-most figure and backward on the front-most.
+    #[test]
+    fn select_next_and_select_previous_replace_a_multi_selection() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        state.toggle_selected(shape_id(1));
+        state.toggle_selected(shape_id(2));
+
+        assert!(state.select_next());
+        assert_eq!(state.selected_ids(), vec![shape_id(1)]);
+
+        state.toggle_selected(shape_id(2));
+        assert!(state.select_previous());
+        assert_eq!(state.selected_ids(), vec![shape_id(3)]);
     }
 }

@@ -27,7 +27,7 @@ use ratatui_core::{
     style::Style,
     widgets::{StatefulWidget, Widget},
 };
-use ratatui_crossterm::crossterm::event::Event;
+use ratatui_crossterm::crossterm::event::{Event, KeyModifiers};
 
 use crate::chrome::{Focus, Target};
 use crate::diagram_state::{DiagramState, SubMode};
@@ -68,7 +68,7 @@ pub(crate) fn handle(raw: &Event, state: &mut DiagramState, focus: Focus, target
     }
 
     match raw {
-        Event::Mouse(_) => click(target, state),
+        Event::Mouse(mouse) => click(target, mouse.modifiers, state),
         Event::Key(key) if focus == Focus::Region => crate::context_table::dispatch_key(state, key),
         _ => Reply::Ignored,
     }
@@ -102,16 +102,22 @@ fn scroll(raw: &Event, state: &mut DiagramState) -> Reply {
 /// [`Target::Interior`]'s, counted from the interior's corner, so the region never reads the
 /// pointer a second time.
 ///
+/// **`Ctrl` turns the press into a toggle** (D2 of #378): with `CONTROL` held, a figure under the
+/// pointer joins the set or leaves it, and a cell nobody owns changes nothing. **No other
+/// modifier changes what a press does**: without `CONTROL` it is a plain click that replaces the
+/// selection, whether `Shift`, `Alt` or both accompany it. `Shift` was left out of the toggle
+/// because several terminals reserve `Shift` plus the mouse for local text selection.
+///
 /// **Everything else is not the region's**, and it is answered with nothing so that the event goes
 /// on to the next handler (rule 3): a press on the bar, the region's border or the status bar, and
 /// a press on a rectangle no frame drew into. A press of another button is no target at all, and a
 /// release is not a press, so neither is the region's either.
 ///
 /// **The answer is `Repaint` only when the selection or focus moved.** Selecting what is already
-/// selected, focusing the candidate that already holds the focus, or dropping a selection that is
-/// not there, changed nothing and owes no frame — but the press was still the region's, so it is
-/// `Consumed` rather than `Ignored`.
-fn click(target: Target, state: &mut DiagramState) -> Reply {
+/// selected, a toggle that changed nothing, focusing the candidate that already holds the focus,
+/// or dropping a selection that is not there, changed nothing and owes no frame — but the press
+/// was still the region's, so it is `Consumed` rather than `Ignored`.
+fn click(target: Target, modifiers: KeyModifiers, state: &mut DiagramState) -> Reply {
     let Target::Interior(offset) = target else {
         return Reply::Ignored;
     };
@@ -127,7 +133,13 @@ fn click(target: Target, state: &mut DiagramState) -> Reply {
         return Reply::Consumed;
     }
 
-    if state.select(owner) {
+    let changed = if modifiers.contains(KeyModifiers::CONTROL) {
+        owner.is_some_and(|owner| state.toggle_selected(owner))
+    } else {
+        state.select(owner)
+    };
+
+    if changed {
         Reply::Repaint
     } else {
         Reply::Consumed
@@ -140,10 +152,10 @@ fn click(target: Target, state: &mut DiagramState) -> Reply {
 /// draws, so a cell the diagram does not speak for keeps the space the clear painted.
 ///
 /// **The inversion is decided while the cell is copied** (D1): the cell's recorded owner is
-/// compared with the selected identity (and in [`SubMode::AttachSelect`], also with the candidate
-/// target), and the copy paints reverse video where they agree. A style on the core's cell would
-/// be a front end's decision in the domain, and a picture built for the inversion would be one
-/// nobody clicked.
+/// compared with the set of members (and in [`SubMode::AttachSelect`], also with the candidate
+/// target), and the copy paints reverse video where it is a member. A style on the core's cell
+/// would be a front end's decision in the domain, and a picture built for the inversion would be
+/// one nobody clicked. **Every member is inverted and none is singled out** (D4 of #378).
 ///
 /// **A selected shape is not a second drawing.** The cells that are inverted are the ones the copy
 /// writes and the record says belong to the selection, so a shape clipped by the window inverts the
@@ -267,6 +279,16 @@ mod tests {
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
     }"#;
 
+    /// A description with two light `4×3` boxes at `(0, 0)` and `(8, 0)` of the window, far enough
+    /// apart that a press can land on either or on the cells between them.
+    const TWO_BOXES: &str = r#"{
+        "next_id": 3,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 8, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" }
+        ]
+    }"#;
+
     /// A description whose only shape is a light horizontal line of length 6 at `(2, 1)`.
     const A_LINE: &str = r#"{
         "next_id": 2,
@@ -350,6 +372,29 @@ mod tests {
     /// The event the terminal reports for a left press on the screen position `(column, row)`.
     fn click(column: u16, row: u16) -> Event {
         press(MouseButton::Left, column, row)
+    }
+
+    /// The event the terminal reports for a left press with `modifiers` held at the screen position
+    /// `(column, row)`.
+    fn press_with(modifiers: KeyModifiers, column: u16, row: u16) -> Event {
+        Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers,
+        })
+    }
+
+    /// `Ctrl` plus a left press on the screen position `(column, row)`: the gesture that toggles a
+    /// figure in and out of the set.
+    fn control_click(column: u16, row: u16) -> Event {
+        press_with(KeyModifiers::CONTROL, column, row)
+    }
+
+    /// `Shift` plus a left press on the screen position `(column, row)`: a plain click, because
+    /// several terminals never deliver it.
+    fn shift_click(column: u16, row: u16) -> Event {
+        press_with(KeyModifiers::SHIFT, column, row)
     }
 
     /// The screen position of the window's `(x, y)`: the interior's corner is the region's plus one
@@ -874,10 +919,21 @@ mod tests {
         selected: Option<u16>,
         sub_mode: Option<crate::diagram_state::SubMode>,
     ) {
+        let selected: Vec<u16> = selected.into_iter().collect();
+        assert_offer_matches_acceptance_with(fixture, &selected, sub_mode);
+    }
+
+    /// The same rule for a selection of any size: each identity in `selected` is toggled into the
+    /// set, so one identity is today's single selection and several are a multi-selection.
+    fn assert_offer_matches_acceptance_with(
+        fixture: &str,
+        selected: &[u16],
+        sub_mode: Option<crate::diagram_state::SubMode>,
+    ) {
         let make_state = || {
             let mut state = a_state_over(fixture);
-            if let Some(id) = selected {
-                state.select(Some(ShapeId::new(NonZeroU16::new(id).unwrap())));
+            for &id in selected {
+                state.toggle_selected(ShapeId::new(NonZeroU16::new(id).unwrap()));
             }
             if let Some(mode) = sub_mode {
                 state.set_sub_mode(Some(mode));
@@ -2390,6 +2446,315 @@ mod tests {
             })
         );
         assert_eq!(state.selected(), Some(id3));
+    }
+
+    /// **A plain click on a figure selects exactly that figure** (rule 1 of #378): the set of two
+    /// becomes the one under the pointer.
+    #[test]
+    fn a_plain_click_selects_only_the_figure_under_the_pointer() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&control_click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+        assert_eq!(state.selected_ids(), vec![shape_id(1), shape_id(2)]);
+
+        let reply = handle(&click(1, 1), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(state.selected_ids(), vec![shape_id(1)]);
+        assert_eq!(state.selected(), Some(shape_id(1)));
+    }
+
+    /// **A plain click on a cell nobody owns clears every member** (rule 2 of #378).
+    #[test]
+    fn a_plain_click_on_an_unowned_cell_clears_every_member() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&control_click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+
+        let reply = handle(&click(6, 1), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(state.selected_ids(), Vec::new());
+    }
+
+    /// **`Ctrl` plus a click on a figure adds it to the set** (rule 3 of #378).
+    #[test]
+    fn control_click_adds_a_figure_to_the_set() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+
+        let reply = handle(&control_click(9, 1), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(state.selected_ids(), vec![shape_id(1), shape_id(2)]);
+        assert_eq!(state.selected(), None);
+    }
+
+    /// **`Ctrl` plus a click on a member takes it out and leaves the rest** (rule 3 of #378).
+    #[test]
+    fn control_click_removes_a_member() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&control_click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+
+        let reply = handle(&control_click(1, 1), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(state.selected_ids(), vec![shape_id(2)]);
+        assert_eq!(
+            state.selected(),
+            Some(shape_id(2)),
+            "one member left is one selection"
+        );
+    }
+
+    /// **`Ctrl` plus a click that removes the last member leaves nothing selected** (rule 3 of
+    /// #378).
+    #[test]
+    fn control_click_that_removes_the_last_member_clears_the_selection() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+
+        let reply = handle(&control_click(1, 1), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(state.selected_ids(), Vec::new());
+        assert_eq!(state.selected(), None);
+    }
+
+    /// **A toggle ends an active sub-mode** (rule 3 of #378): the sub-mode belonged to the figure
+    /// whose membership changed.
+    #[test]
+    fn control_click_ends_an_active_sub_mode() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+        assert_eq!(
+            handle(&key(KeyCode::Char('s')), &mut state, Focus::Region),
+            Reply::Repaint
+        );
+        assert_eq!(state.sub_mode(), Some(SubMode::StrokeSelect));
+
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+
+        assert_eq!(state.sub_mode(), None);
+        assert_eq!(state.selected_ids(), vec![shape_id(1), shape_id(2)]);
+    }
+
+    /// **`Ctrl` plus a click on a cell nobody owns changes nothing** (rule 4 of #378).
+    #[test]
+    fn control_click_on_an_unowned_cell_changes_nothing() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&control_click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+
+        let reply = handle(&control_click(6, 1), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Consumed, "an untouched set owed a frame");
+        assert_eq!(state.selected_ids(), vec![shape_id(1), shape_id(2)]);
+    }
+
+    /// **A press without `Ctrl` is a plain click whatever else it carries** (rule 5 of #378).
+    #[test]
+    fn shift_click_is_a_plain_click() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+
+        let reply = handle(&shift_click(9, 1), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(state.selected_ids(), vec![shape_id(2)]);
+    }
+
+    /// **With exactly one member `Tab` and `Shift+Tab` still replace the selection** (rule 6 of
+    /// #378): a one-member set is today's single selection.
+    #[test]
+    fn tab_and_shift_tab_still_replace_a_single_selection() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+
+        let reply = handle(&key(KeyCode::Tab), &mut state, Focus::Region);
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(state.selected_ids(), vec![shape_id(2)]);
+
+        let back_tab = Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        let reply = handle(&back_tab, &mut state, Focus::Region);
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(state.selected_ids(), vec![shape_id(1)]);
+    }
+
+    /// **With more than one member `Tab` and `Shift+Tab` replace the set from the ends**:
+    /// because `selected()` answers `None` for a set of several, cycling treats it like `IDLE` —
+    /// `Tab` selects the back-most figure and `Shift+Tab` selects the front-most, recording no
+    /// history step.
+    #[test]
+    fn tab_and_shift_tab_replace_a_multi_selection() {
+        const THREE_BOXES: &str = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 5, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 3, "at": { "x": 10, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(THREE_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(6, 1), &mut state, Focus::Region);
+        let steps_before = state.can_undo();
+
+        assert_eq!(
+            handle(&key(KeyCode::Tab), &mut state, Focus::Region),
+            Reply::Repaint
+        );
+        assert_eq!(state.selected_ids(), vec![shape_id(1)]);
+        assert_eq!(state.can_undo(), steps_before);
+
+        handle(&control_click(6, 1), &mut state, Focus::Region);
+        assert_eq!(state.selected_ids(), vec![shape_id(1), shape_id(2)]);
+
+        let back_tab = Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        assert_eq!(handle(&back_tab, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected_ids(), vec![shape_id(3)]);
+        assert_eq!(state.can_undo(), steps_before);
+    }
+
+    /// **With more than one member every single-figure editing key is ignored**: `Space` and the
+    /// single-figure actions neither act on the set nor enter a sub-mode.
+    #[test]
+    fn space_and_single_figure_keys_are_ignored_while_a_set_exists() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+
+        let ignored = [
+            key(KeyCode::Char(' ')),
+            key(KeyCode::Char('s')),
+            key(KeyCode::Char('z')),
+            key(KeyCode::Char('d')),
+            key(KeyCode::Char('t')),
+            key(KeyCode::Char('r')),
+            key(KeyCode::Char('i')),
+            key(KeyCode::Char('1')),
+            key(KeyCode::Char('2')),
+            key(KeyCode::Delete),
+            key(KeyCode::Left),
+            key(KeyCode::Up),
+            Event::Key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT)),
+        ];
+
+        for event in ignored {
+            assert_eq!(
+                handle(&event, &mut state, Focus::Region),
+                Reply::Ignored,
+                "{event:?} was accepted while a set exists"
+            );
+            assert_eq!(state.selected_ids(), vec![shape_id(1), shape_id(2)]);
+            assert_eq!(state.sub_mode(), None, "{event:?} entered a sub-mode");
+        }
+    }
+
+    /// **`Esc` clears the whole set and records no step** (rule 8 of #378).
+    #[test]
+    fn escape_clears_the_whole_set_and_records_no_step() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+        let steps_before = state.can_undo();
+
+        let reply = handle(&key(KeyCode::Esc), &mut state, Focus::Region);
+
+        assert_eq!(reply, Reply::Repaint);
+        assert_eq!(state.selected_ids(), Vec::new());
+        assert_eq!(
+            state.can_undo(),
+            steps_before,
+            "clearing the set recorded a step"
+        );
+    }
+
+    /// **A sub-mode cannot be entered with more than one member** (rule 12 of #378): every key
+    /// that opens one is not offered, so none of them changes the sub-mode.
+    #[test]
+    fn a_sub_mode_cannot_be_entered_with_more_than_one_member() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+
+        for (code, modifiers) in [
+            (KeyCode::Char('s'), KeyModifiers::NONE),
+            (KeyCode::Char('z'), KeyModifiers::NONE),
+            (KeyCode::Char('1'), KeyModifiers::NONE),
+            (KeyCode::Char('2'), KeyModifiers::NONE),
+            (KeyCode::Char('i'), KeyModifiers::NONE),
+            (KeyCode::Char('t'), KeyModifiers::NONE),
+            (KeyCode::Char('f'), KeyModifiers::NONE),
+        ] {
+            let event = Event::Key(KeyEvent::new(code, modifiers));
+            assert_eq!(
+                handle(&event, &mut state, Focus::Region),
+                Reply::Ignored,
+                "{code:?} was accepted while a set exists"
+            );
+            assert_eq!(state.sub_mode(), None, "{code:?} entered a sub-mode");
+        }
+    }
+
+    /// **Every member is inverted and no figure is underlined** (rule 13 of #378).
+    #[test]
+    fn every_member_is_inverted_and_no_figure_is_underlined() {
+        use ratatui_core::style::Modifier;
+
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+        let buffer = paint(&mut state);
+
+        for (column, row) in [(1, 1), (9, 1)] {
+            let modifier = buffer[(column, row)].style().add_modifier;
+            assert!(
+                modifier.contains(Modifier::REVERSED),
+                "the member at ({column}, {row}) is not inverted"
+            );
+            assert!(
+                !modifier.contains(Modifier::UNDERLINED),
+                "the member at ({column}, {row}) is underlined"
+            );
+        }
+
+        assert!(
+            !buffer[(7, 2)]
+                .style()
+                .add_modifier
+                .contains(Modifier::REVERSED),
+            "a cell nobody owns was inverted"
+        );
+    }
+
+    /// **The bar offers `Tab`, `Shift+Tab` and `Esc` while a set exists and the keys the region
+    /// accepts are exactly those**.
+    #[test]
+    fn key_acceptance_matches_contextual_bar_in_multi_selection() {
+        assert_offer_matches_acceptance_with(TWO_BOXES, &[1, 2], None);
+    }
+
+    /// The identity `n` names.
+    fn shape_id(n: u16) -> ShapeId {
+        ShapeId::new(NonZeroU16::new(n).expect("a test identity is not zero"))
     }
 
     #[test]
