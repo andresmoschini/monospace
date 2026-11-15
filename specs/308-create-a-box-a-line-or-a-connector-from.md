@@ -160,10 +160,10 @@ figure creation while editing an existing figure (press `Esc` to return to `IDLE
    `"CREATE: [b] Box [l] Line [c] Connector"` alone, without `SELECT`.
 3. On a non-empty diagram ($\ge 1$ figure), `Condition::HasShapes` is `true`: row 1 displays
    `"CREATE: [b] Box [l] Line [c] Connector · SELECT: [Tab] Next [Shift+Tab] Prev [Click] Pick"`.
-4. In `IDLE`, pressing `b` computes viewport center
-   $C = (x_0 + \lfloor W / 2 \rfloor, y_0 + \lfloor H / 2 \rfloor)$, constructs `Shape::Box` at $C$
-   with size 5×5, stroke `"light"`, fill `None`, and text `None`, calls `Session::add`, selects the
-   assigned `ShapeId` (`SELECTED_BOX`), and returns `Reply::Repaint`.
+4. In `IDLE`, pressing `b` computes viewport center $C = (x_0 + \lfloor W / 2 \rfloor, y_0 + \lfloor
+   H / 2 \rfloor)$, constructs `Shape::Box` at $C$ with size 5×5, stroke `"light"`, fill `None`, and
+   text `None`, calls `Session::add`, selects the assigned `ShapeId` (`SELECTED_BOX`), and returns
+   `Reply::Repaint`.
 5. In `IDLE`, pressing `l` computes viewport center $C$, constructs `Shape::Line` at $C$ with length
    $5$, orientation `Orientation::Vertical`, and stroke `"light"`, calls `Session::add`, selects the
    assigned `ShapeId` (`SELECTED_LINE`), and returns `Reply::Repaint`.
