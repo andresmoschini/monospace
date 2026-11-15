@@ -164,7 +164,7 @@ stateDiagram-v2
     IDLE --> SELECTED_SHAPE: Click / Tab
     SELECTED_SHAPE --> IDLE: Esc / Del / Click canvas
     SELECTED_SHAPE --> MULTI_SELECTION: Ctrl+click
-    MULTI_SELECTION --> SELECTED_SHAPE: Ctrl+click / Click
+    MULTI_SELECTION --> SELECTED_SHAPE: Ctrl+click / Click / Tab
     MULTI_SELECTION --> IDLE: Esc / Click canvas
 
     state SELECTED_SHAPE {
@@ -188,7 +188,8 @@ The primary resting states of the editor: `IDLE` (no shape selected), `SELECTED_
 directly dispatch immediate domain commands (`Move`, `Resize`, `Remove`), navigate selection (`Tab`
 / `Shift+Tab`), or transition into sub-modes or overlays. `MULTI_SELECTION` is entered by `Ctrl`
 plus a click ([#378](https://github.com/andresmoschini/monospace/issues/378)), is left by a plain
-click, by `Esc`, or by a history walk, and offers only the way out.
+click, by `Tab` / `Shift+Tab`, by `Esc`, or by a history walk, and offers selection cycling and
+deselection.
 
 ### 2. Inline sub-modes (`SubMode`)
 
@@ -505,7 +506,7 @@ no cursor and no primary member, and every member is painted in reverse video.
 
 ```text
 MULTI SELECTION · 2 shapes
-SELECT: [Esc] Deselect
+SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect
 ```
 
 - **Behavior:**
@@ -513,10 +514,12 @@ SELECT: [Esc] Deselect
     nothing. Removing the last member returns to `IDLE`.
   - Click on a figure replaces the set with that figure and returns to `SELECTED_*`; click on a cell
     nobody owns clears the set and returns to `IDLE`.
+  - `Tab` / `Shift+Tab`: replaces the set with the back-most (`Tab`) or front-most (`Shift+Tab`)
+    figure in drawing order, returning to `SELECTED_*`.
   - `Esc`: clears every member and records no step.
-  - Every single-figure key — `Tab`, `Shift+Tab`, `Space`, `Move`, `Resize`, `Rotate`, `Text`,
-    `Stroke`, `Fill`, `Order`, `Invert`, the endpoint keys, `d` and `Del` — is neither offered nor
-    accepted (`Reply::Ignored`), and no sub-mode can be entered.
+  - Every single-figure editing key — `Space`, `Move`, `Resize`, `Rotate`, `Text`, `Stroke`, `Fill`,
+    `Order`, `Invert`, the endpoint keys, `d` and `Del` — is neither offered nor accepted
+    (`Reply::Ignored`), and no sub-mode can be entered.
   - `Undo` and `Redo` collapse the set to the figure the step touched, which returns to a
     single-selection state or to `IDLE`.
 

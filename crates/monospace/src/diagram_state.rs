@@ -404,43 +404,40 @@ impl DiagramState {
     }
 
     /// Selects the next figure in drawing order (`Diagram::shapes()`, back-to-front), wrapping from
-    /// the front-most figure back to the first. When nothing is selected, selects the first
-    /// (back-most) figure. Returns `true` if the selection changed.
+    /// the front-most figure back to the first. When nothing is selected or several figures are,
+    /// selects the first (back-most) figure. Returns `true` if the selection changed.
     pub(crate) fn select_next(&mut self) -> bool {
-        let ids: Vec<ShapeId> = self.session.diagram().shapes().map(|(id, _)| id).collect();
-        if ids.is_empty() {
-            return false;
-        }
-        let next = match self
-            .selected()
-            .and_then(|current| ids.iter().position(|&id| id == current))
-        {
-            Some(index) => ids[(index + 1) % ids.len()],
-            None => ids[0],
-        };
-        self.select(Some(next))
+        self.cycle_selection(true)
     }
 
     /// Selects the previous figure in drawing order (`Diagram::shapes()`, front-to-back), wrapping
-    /// from the first (back-most) figure to the last (front-most). When nothing is selected,
-    /// selects the last (front-most) figure. Returns `true` if the selection changed.
+    /// from the first (back-most) figure to the last (front-most). When nothing is selected or
+    /// several figures are, selects the last (front-most) figure. Returns `true` if the selection
+    /// changed.
     pub(crate) fn select_previous(&mut self) -> bool {
+        self.cycle_selection(false)
+    }
+
+    /// Replaces the selection with the next (`forward`) or previous figure in drawing order.
+    ///
+    /// **Empty and multi-selection answer identically**: `self.selected()` yields `None` for both,
+    /// so cycling from a multi-selection lands on the first (`forward`) or last figure just as it
+    /// does from `IDLE`, without tracking a primary member or cursor.
+    fn cycle_selection(&mut self, forward: bool) -> bool {
         let ids: Vec<ShapeId> = self.session.diagram().shapes().map(|(id, _)| id).collect();
         if ids.is_empty() {
             return false;
         }
-        let prev = if let Some(index) = self
+        let target = match self
             .selected()
             .and_then(|current| ids.iter().position(|&id| id == current))
         {
-            ids[(index + ids.len() - 1) % ids.len()]
-        } else {
-            let Some(&prev) = ids.last() else {
-                return false;
-            };
-            prev
+            Some(index) if forward => ids[(index + 1) % ids.len()],
+            Some(index) => ids[(index + ids.len() - 1) % ids.len()],
+            None if forward => ids[0],
+            None => ids[ids.len() - 1],
         };
-        self.select(Some(prev))
+        self.select(Some(target))
     }
 
     /// The canvas position at the center of the viewport window.
@@ -2445,5 +2442,22 @@ mod tests {
 
         state.redo();
         assert_eq!(state.selected_ids(), vec![shape_id(1)]);
+    }
+
+    /// **`select_next` and `select_previous` collapse a multi-selection to the ends**: because
+    /// `selected()` answers `None` for a set of several, cycling treats it like `IDLE` — forward
+    /// lands on the back-most figure and backward on the front-most.
+    #[test]
+    fn select_next_and_select_previous_replace_a_multi_selection() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        state.toggle_selected(shape_id(1));
+        state.toggle_selected(shape_id(2));
+
+        assert!(state.select_next());
+        assert_eq!(state.selected_ids(), vec![shape_id(1)]);
+
+        state.toggle_selected(shape_id(2));
+        assert!(state.select_previous());
+        assert_eq!(state.selected_ids(), vec![shape_id(3)]);
     }
 }

@@ -178,21 +178,22 @@ directly from the diagram state rather than stored.
 **`Ctrl` plus a left press on a figure toggles it in and out of the selection**
 ([#378](https://github.com/andresmoschini/monospace/issues/378)). A figure absent from the set joins
 it and one already there leaves it; a press on a cell nobody owns changes nothing, and removing the
-last member leaves nothing selected. The set is replaced whole by a plain press (§4), so **no key
-builds it**: with more than one member the contextual table offers only `Esc`, and every
-single-figure key is ignored.
+last member leaves nothing selected. The set is replaced whole by a plain press (§4) or by `Tab` /
+`Shift+Tab`, so **no key builds it**: with more than one member the contextual table offers
+`SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect`, and every single-figure editing key is
+ignored.
 
 **`Tab` and `Shift+Tab` cycle the selection through the diagram's figures in drawing order**
-([#307](https://github.com/andresmoschini/monospace/issues/307)). **They mean this while the
-selection holds at most one member**, because their meaning is to replace the selection. In `IDLE`
-on a diagram with at least one figure (`Condition::HasShapes`), `Tab` selects the back-most figure
-(the first shape yielded by `Diagram::shapes()`) and `Shift+Tab` (`BackTab`) selects the front-most
-figure (the last shape), both answering `Reply::Repaint`. While a figure is selected, `Tab` advances
-selection to the next figure in drawing order (wrapping from front-most to back-most) and
-`Shift+Tab` retreats to the previous figure (wrapping from back-most to front-most). On a
-single-figure diagram, cycling from `SELECTED_*` stays on the sole figure and answers
-`Reply::Consumed` with no repaint or history step. On an empty diagram, `Condition::HasShapes` is
-false, cycling is not offered, and `Tab` / `Shift+Tab` return `Reply::Ignored`.
+([#307](https://github.com/andresmoschini/monospace/issues/307)), replacing whatever was selected.
+In `IDLE` on a diagram with at least one figure (`Condition::HasShapes`), or while a multi-selection
+is active, `Tab` selects the back-most figure (the first shape yielded by `Diagram::shapes()`) and
+`Shift+Tab` (`BackTab`) selects the front-most figure (the last shape), both answering
+`Reply::Repaint`. While one figure is selected, `Tab` advances selection to the next figure in
+drawing order (wrapping from front-most to back-most) and `Shift+Tab` retreats to the previous
+figure (wrapping from back-most to front-most). On a single-figure diagram, cycling from
+`SELECTED_*` stays on the sole figure and answers `Reply::Consumed` with no repaint or history step.
+On an empty diagram, `Condition::HasShapes` is false, cycling is not offered, and `Tab` /
+`Shift+Tab` return `Reply::Ignored`.
 
 **`b`, `l`, and `c` create default figures in `IDLE` at the viewport center**
 ([#308](https://github.com/andresmoschini/monospace/issues/308)). In `IDLE` (`selected == None` and
@@ -334,14 +335,16 @@ border is the region's. **No key moves the view**:
 [#237](https://github.com/andresmoschini/monospace/issues/237) decides which keys do and how far a
 press moves, and the plain arrows stay what #179 made them.
 
-**A multi-selection is inert until a later slice makes an action work on it**
+**A multi-selection is inert to editing actions until a later slice makes an action work on it**
 ([#378](https://github.com/andresmoschini/monospace/issues/378)). With more than one member the
-contextual table offers only `Esc`, and every single-figure action — move, resize, rotate, text,
-stroke, fill, order, duplicate, delete, invert, the endpoint keys, `Tab`, `Shift+Tab` and `Space` —
-is neither offered nor accepted: `dispatch_key` answers `Reply::Ignored`, and entering a sub-mode is
-not offered either. Leaning on the first member instead would change one of several inverted figures
-the person cannot pick out, which is the opposite of offer equals acceptance (#288). `Esc` clears
-every member and records no step, because a selection is application state and not a command.
+contextual table offers `SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect`: `Tab` and
+`Shift+Tab` replace the set with the back-most or front-most figure just as from `IDLE`, `Esc`
+clears every member and records no step (because a selection is application state and not a
+command), and every single-figure editing action — move, resize, rotate, text, stroke, fill, order,
+duplicate, delete, invert, the endpoint keys and `Space` — is neither offered nor accepted:
+`dispatch_key` answers `Reply::Ignored`, and entering a sub-mode is not offered either. Leaning on
+the first member instead would change one of several inverted figures the person cannot pick out,
+which is the opposite of offer equals acceptance (#288).
 
 **`Delete` is a contextual key that changes the session via `Command::Remove`.** It is offered on
 the contextual status bar as `[Del] Delete` whenever a figure is selected (`SELECTED_BOX`,
@@ -443,15 +446,17 @@ steps. While in `AttachSelect`, any key not offered is ignored (`Reply::Ignored`
 to unclaimed universal shortcuts.
 
 **`SelectNext` and `SelectPrevious` cycle the selection without touching the session.** Offered in
-`IDLE` when `Condition::HasShapes` holds, and in `SELECTED_BOX`, `SELECTED_LINE`, and
-`SELECTED_CONNECTOR` as uncategorized `[Tab] Next [Shift+Tab] Prev` immediately preceding
-`[d] Duplicate · [Del] Delete · [Esc] Deselect`. `Tab` dispatches `ContextMeaning::SelectNext` and
-`Shift+Tab` (`BackTab`) dispatches `ContextMeaning::SelectPrevious`. Neither action modifies session
-history or records an undo step. While an inline sub-mode (`STROKE_SELECT`, `ORDER_MODE`,
-`ENDPOINT_EDIT`, `TERMINAL_SELECT`, `LEAVING_SELECT`) is active, `Tab` and `Shift+Tab` are not
-offered and return `Reply::Ignored` (in `ATTACH_SELECT`, they cycle target candidate focus instead).
-While a modal overlay (`DialogFrame`) is open, keyboard routing directs `Tab` and `Shift+Tab` to
-dialog widget focus traversal ([#304](https://github.com/andresmoschini/monospace/issues/304),
+`IDLE` when `Condition::HasShapes` holds, in `MULTI_SELECTION` as
+`SELECT: [Tab] Next [Shift+Tab] Prev` preceding `[Esc] Deselect`, and in `SELECTED_BOX`,
+`SELECTED_LINE`, and `SELECTED_CONNECTOR` as uncategorized `[Tab] Next [Shift+Tab] Prev` immediately
+preceding `[d] Duplicate · [Del] Delete · [Esc] Deselect`. `Tab` dispatches
+`ContextMeaning::SelectNext` and `Shift+Tab` (`BackTab`) dispatches
+`ContextMeaning::SelectPrevious`. Neither action modifies session history or records an undo step.
+While an inline sub-mode (`STROKE_SELECT`, `ORDER_MODE`, `ENDPOINT_EDIT`, `TERMINAL_SELECT`,
+`LEAVING_SELECT`) is active, `Tab` and `Shift+Tab` are not offered and return `Reply::Ignored` (in
+`ATTACH_SELECT`, they cycle target candidate focus instead). While a modal overlay (`DialogFrame`)
+is open, keyboard routing directs `Tab` and `Shift+Tab` to dialog widget focus traversal
+([#304](https://github.com/andresmoschini/monospace/issues/304),
 [#311](https://github.com/andresmoschini/monospace/issues/311)), never reaching the diagram region.
 
 **`Duplicate` clones the selected figure via `Command::Add`.** It is offered on the contextual
@@ -770,8 +775,10 @@ framework's buffer one at a time.
   nobody owns; `Ctrl` plus a click toggles a figure in or out, leaves an unowned cell alone, and
   clears the selection when the last member leaves.
 - A press without `Ctrl` is a plain click whatever other modifiers it carries.
-- With more than one member the command row is `SELECT: [Esc] Deselect`, the status row is
-  `MULTI SELECTION · <n> shapes`, and every key but `Esc` is ignored rather than offered.
+- With more than one member the command row is
+  `SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect`, the status row is
+  `MULTI SELECTION · <n> shapes`, `Tab` and `Shift+Tab` replace the set from the ends of drawing
+  order, and every single-figure editing key is ignored rather than offered.
 - `Esc` clears a multi-selection and records no step, and a sub-mode cannot be entered while one
   exists.
 - A command that removes one member drops that member and leaves the rest; a walk collapses the

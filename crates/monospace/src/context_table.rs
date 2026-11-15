@@ -385,18 +385,42 @@ static IDLE: &[ContextBlock] = &[
     },
 ];
 
-/// **A set of more than one member offers only the way out** (D5 of #378): every action in
-/// `SELECTION` works on one figure, so none of them is offered against several. `Esc` is the
-/// existing deselection, and no key builds the set here — `Ctrl` plus a click did.
-static MULTI: &[ContextBlock] = &[ContextBlock {
-    category: Some("SELECT"),
-    condition: Condition::Always,
-    actions: &[ContextAction {
-        trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
-        label: "Deselect",
-        meaning: ContextMeaning::Deselect,
-    }],
+/// Selection cycling actions shared by `MULTI` and `SELECTION`.
+const CYCLE_SELECTION: &[ContextAction] = &[
+    ContextAction {
+        trigger: Trigger::Key(KeyPattern::Code(KeyCode::Tab)),
+        label: "Next",
+        meaning: ContextMeaning::SelectNext,
+    },
+    ContextAction {
+        trigger: Trigger::Key(KeyPattern::BackTab),
+        label: "Prev",
+        meaning: ContextMeaning::SelectPrevious,
+    },
+];
+
+/// Exit action shared by `MULTI` and `SELECTION`.
+const DESELECT: &[ContextAction] = &[ContextAction {
+    trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+    label: "Deselect",
+    meaning: ContextMeaning::Deselect,
 }];
+
+/// **A set of more than one member offers selection cycling and deselection**: every single-figure
+/// editing action in `SELECTION` works on one figure, so none of them is offered against several.
+/// `Tab` / `Shift+Tab` replace the set with a single figure, and `Esc` clears it.
+static MULTI: &[ContextBlock] = &[
+    ContextBlock {
+        category: Some("SELECT"),
+        condition: Condition::Always,
+        actions: CYCLE_SELECTION,
+    },
+    ContextBlock {
+        category: None,
+        condition: Condition::Always,
+        actions: DESELECT,
+    },
+];
 
 static SELECTION: &[ContextBlock] = &[
     ContextBlock {
@@ -499,18 +523,7 @@ static SELECTION: &[ContextBlock] = &[
     ContextBlock {
         category: None,
         condition: Condition::Always,
-        actions: &[
-            ContextAction {
-                trigger: Trigger::Key(KeyPattern::Code(KeyCode::Tab)),
-                label: "Next",
-                meaning: ContextMeaning::SelectNext,
-            },
-            ContextAction {
-                trigger: Trigger::Key(KeyPattern::BackTab),
-                label: "Prev",
-                meaning: ContextMeaning::SelectPrevious,
-            },
-        ],
+        actions: CYCLE_SELECTION,
     },
     ContextBlock {
         category: None,
@@ -533,11 +546,7 @@ static SELECTION: &[ContextBlock] = &[
     ContextBlock {
         category: None,
         condition: Condition::Always,
-        actions: &[ContextAction {
-            trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
-            label: "Deselect",
-            meaning: ContextMeaning::Deselect,
-        }],
+        actions: DESELECT,
     },
 ];
 
@@ -870,6 +879,7 @@ static ATTACH_SELECT: &[ContextBlock] = &[
 pub(crate) static ALL_TABLES: &[&[ContextBlock]] = &[
     IDLE,
     SELECTION,
+    MULTI,
     STROKE_SELECT,
     ORDER_MODE,
     ENDPOINT,
@@ -931,7 +941,7 @@ impl SelectionKind {
 pub(crate) enum Context {
     Idle,
     Selection,
-    /// A set of more than one member: only the way out is offered.
+    /// A set of more than one member: selection cycling and deselection are offered.
     Multi,
     Stroke,
     Order,
@@ -1672,16 +1682,20 @@ mod tests {
         );
     }
 
-    /// **A set of more than one member offers only the way out** (rule 15 of #378): the bar reads
-    /// `SELECT: [Esc] Deselect`, and no key that builds the set is offered.
+    /// **A set of more than one member offers selection cycling and deselection**: the bar reads
+    /// `SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect`, and no single-figure editing key is
+    /// offered.
     #[test]
-    fn the_multi_row_offers_only_escape() {
+    fn the_multi_row_offers_cycling_and_escape() {
         let mut state = a_state_over(TWO_BOXES);
         state.toggle_selected(ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero")));
         state.toggle_selected(ShapeId::new(NonZeroU16::new(2).expect("2 is non-zero")));
 
         assert_eq!(context(&state), Context::Multi);
-        assert_eq!(format_command_line(&state), "SELECT: [Esc] Deselect");
+        assert_eq!(
+            format_command_line(&state),
+            "SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect"
+        );
     }
 
     #[test]
@@ -1938,6 +1952,13 @@ mod tests {
         // Selection: connector
         let mut s = a_state_over(A_CONNECTOR);
         s.select(Some(id1));
+        states.push(s);
+
+        // Multi-selection
+        let id2 = ShapeId::new(NonZeroU16::new(2).expect("2 is non-zero"));
+        let mut s = a_state_over(TWO_BOXES);
+        s.toggle_selected(id1);
+        s.toggle_selected(id2);
         states.push(s);
 
         // Stroke select

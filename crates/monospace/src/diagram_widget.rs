@@ -2592,18 +2592,53 @@ mod tests {
         assert_eq!(state.selected_ids(), vec![shape_id(1)]);
     }
 
-    /// **With more than one member every key but `Esc` is ignored** (rules 7 and 12 of #378): no
-    /// key builds, cycles, or acts on the set, and no sub-mode is entered.
+    /// **With more than one member `Tab` and `Shift+Tab` replace the set from the ends**:
+    /// because `selected()` answers `None` for a set of several, cycling treats it like `IDLE` —
+    /// `Tab` selects the back-most figure and `Shift+Tab` selects the front-most, recording no
+    /// history step.
     #[test]
-    fn tab_space_and_single_figure_keys_are_ignored_while_a_set_exists() {
+    fn tab_and_shift_tab_replace_a_multi_selection() {
+        const THREE_BOXES: &str = r#"{
+            "next_id": 4,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 5, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 3, "at": { "x": 10, "y": 0 }, "size": { "width": 3, "height": 3 }, "stroke": "light" }
+            ]
+        }"#;
+
+        let mut state = a_state_over(THREE_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(6, 1), &mut state, Focus::Region);
+        let steps_before = state.can_undo();
+
+        assert_eq!(
+            handle(&key(KeyCode::Tab), &mut state, Focus::Region),
+            Reply::Repaint
+        );
+        assert_eq!(state.selected_ids(), vec![shape_id(1)]);
+        assert_eq!(state.can_undo(), steps_before);
+
+        handle(&control_click(6, 1), &mut state, Focus::Region);
+        assert_eq!(state.selected_ids(), vec![shape_id(1), shape_id(2)]);
+
+        let back_tab = Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+        assert_eq!(handle(&back_tab, &mut state, Focus::Region), Reply::Repaint);
+        assert_eq!(state.selected_ids(), vec![shape_id(3)]);
+        assert_eq!(state.can_undo(), steps_before);
+    }
+
+    /// **With more than one member every single-figure editing key is ignored**: `Space` and the
+    /// single-figure actions neither act on the set nor enter a sub-mode.
+    #[test]
+    fn space_and_single_figure_keys_are_ignored_while_a_set_exists() {
         let mut state = a_state_over(TWO_BOXES);
         let _ = paint(&mut state);
         handle(&click(1, 1), &mut state, Focus::Region);
         handle(&control_click(9, 1), &mut state, Focus::Region);
 
         let ignored = [
-            key(KeyCode::Tab),
-            Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::NONE)),
             key(KeyCode::Char(' ')),
             key(KeyCode::Char('s')),
             key(KeyCode::Char('z')),
@@ -2710,8 +2745,8 @@ mod tests {
         );
     }
 
-    /// **The bar offers only `Esc` while a set exists and the keys the region accepts are exactly
-    /// those** (rule 16 of #378).
+    /// **The bar offers `Tab`, `Shift+Tab` and `Esc` while a set exists and the keys the region
+    /// accepts are exactly those**.
     #[test]
     fn key_acceptance_matches_contextual_bar_in_multi_selection() {
         assert_offer_matches_acceptance_with(TWO_BOXES, &[1, 2], None);

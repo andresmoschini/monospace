@@ -1394,7 +1394,10 @@ mod tests {
         state.toggle_selected(id2);
 
         assert_eq!(status_line(&state), "MULTI SELECTION · 2 shapes");
-        assert_eq!(command_line(&state), "SELECT: [Esc] Deselect");
+        assert_eq!(
+            command_line(&state),
+            "SELECT: [Tab] Next [Shift+Tab] Prev · [Esc] Deselect"
+        );
 
         state.toggle_selected(id2);
         assert_eq!(
