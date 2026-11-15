@@ -2650,6 +2650,34 @@ mod tests {
         );
     }
 
+    /// **A sub-mode cannot be entered with more than one member** (rule 12 of #378): every key
+    /// that opens one is not offered, so none of them changes the sub-mode.
+    #[test]
+    fn a_sub_mode_cannot_be_entered_with_more_than_one_member() {
+        let mut state = a_state_over(TWO_BOXES);
+        let _ = paint(&mut state);
+        handle(&click(1, 1), &mut state, Focus::Region);
+        handle(&control_click(9, 1), &mut state, Focus::Region);
+
+        for (code, modifiers) in [
+            (KeyCode::Char('s'), KeyModifiers::NONE),
+            (KeyCode::Char('z'), KeyModifiers::NONE),
+            (KeyCode::Char('1'), KeyModifiers::NONE),
+            (KeyCode::Char('2'), KeyModifiers::NONE),
+            (KeyCode::Char('i'), KeyModifiers::NONE),
+            (KeyCode::Char('t'), KeyModifiers::NONE),
+            (KeyCode::Char('f'), KeyModifiers::NONE),
+        ] {
+            let event = Event::Key(KeyEvent::new(code, modifiers));
+            assert_eq!(
+                handle(&event, &mut state, Focus::Region),
+                Reply::Ignored,
+                "{code:?} was accepted while a set exists"
+            );
+            assert_eq!(state.sub_mode(), None, "{code:?} entered a sub-mode");
+        }
+    }
+
     /// **Every member is inverted and no figure is underlined** (rule 13 of #378).
     #[test]
     fn every_member_is_inverted_and_no_figure_is_underlined() {
