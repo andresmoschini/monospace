@@ -207,10 +207,6 @@ impl DiagramState {
     /// **The reader of a set**: a multi-selection is visible here and nowhere else. The single-
     /// figure readers below answer `None` for it, so no existing consumer acts on one member of
     /// several by accident (D1 of #378).
-    #[allow(
-        dead_code,
-        reason = "the click handler of #378 reads it in the next commit"
-    )]
     pub(crate) fn selected_ids(&self) -> Vec<ShapeId> {
         self.selected.clone()
     }
@@ -384,10 +380,6 @@ impl DiagramState {
     ///
     /// **An identity the diagram does not hold changes nothing**: the invariants of the field say
     /// every member is a figure the diagram holds, and this is where a caller could break it.
-    #[allow(
-        dead_code,
-        reason = "the click handler of #378 calls it in the next commit"
-    )]
     pub(crate) fn toggle_selected(&mut self, id: ShapeId) -> bool {
         if self.session.diagram().get(id).is_none() {
             return false;
@@ -2405,6 +2397,31 @@ mod tests {
             state.selected_ids(),
             Vec::new(),
             "the last member stayed selected after its figure went"
+        );
+    }
+
+    /// **Adding and duplicating select only the new figure** (rule 11 of #378): the set is
+    /// replaced, not extended.
+    #[test]
+    fn creating_and_duplicating_select_only_the_new_figure() {
+        let mut state = a_diagram_over(THE_EXAMPLE);
+        state.toggle_selected(shape_id(1));
+        state.toggle_selected(shape_id(2));
+
+        state.redraw(EXAMPLE_REGION, EXAMPLE_INTERIOR);
+        let created = state.create_box();
+        assert_eq!(
+            state.selected_ids(),
+            vec![created],
+            "creating a figure kept the set it was made in"
+        );
+
+        state.select(Some(shape_id(1)));
+        let duplicated = state.duplicate_selected().expect("the one member is one");
+        assert_eq!(
+            state.selected_ids(),
+            vec![duplicated],
+            "duplicating kept the set it was made in"
         );
     }
 

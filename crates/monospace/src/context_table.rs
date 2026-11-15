@@ -385,6 +385,19 @@ static IDLE: &[ContextBlock] = &[
     },
 ];
 
+/// **A set of more than one member offers only the way out** (D5 of #378): every action in
+/// `SELECTION` works on one figure, so none of them is offered against several. `Esc` is the
+/// existing deselection, and no key builds the set here — `Ctrl` plus a click did.
+static MULTI: &[ContextBlock] = &[ContextBlock {
+    category: Some("SELECT"),
+    condition: Condition::Always,
+    actions: &[ContextAction {
+        trigger: Trigger::Key(KeyPattern::Code(KeyCode::Esc)),
+        label: "Deselect",
+        meaning: ContextMeaning::Deselect,
+    }],
+}];
+
 static SELECTION: &[ContextBlock] = &[
     ContextBlock {
         category: Some("MOVE"),
@@ -918,6 +931,8 @@ impl SelectionKind {
 pub(crate) enum Context {
     Idle,
     Selection,
+    /// A set of more than one member: only the way out is offered.
+    Multi,
     Stroke,
     Order,
     Endpoint(End),
@@ -932,6 +947,7 @@ pub(crate) fn context(state: &DiagramState) -> Context {
     let kind = state.selected_shape().map(SelectionKind::of);
 
     match state.sub_mode() {
+        None if state.selected_ids().len() > 1 => Context::Multi,
         None => match kind {
             None => Context::Idle,
             Some(_) => Context::Selection,
@@ -997,6 +1013,7 @@ pub(crate) fn context_blocks(
     ) = match context(state) {
         Context::Idle => (IDLE, None, false, false, false),
         Context::Selection => (SELECTION, None, false, false, false),
+        Context::Multi => (MULTI, None, false, false, false),
         Context::Stroke => (STROKE_SELECT, None, false, false, false),
         Context::Order => (ORDER_MODE, None, false, false, false),
         Context::Endpoint(end) => {
@@ -1442,6 +1459,15 @@ mod tests {
                       "size": { "width": 4, "height": 3 }, "stroke": "light" } ]
     }"#;
 
+    /// Two light `4×3` boxes, far enough apart that a test can toggle both into one set.
+    const TWO_BOXES: &str = r#"{
+        "next_id": 3,
+        "shapes": [
+            { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" },
+            { "kind": "box", "id": 2, "at": { "x": 8, "y": 0 }, "size": { "width": 4, "height": 3 }, "stroke": "light" }
+        ]
+    }"#;
+
     const A_LINE: &str = r#"{
         "next_id": 2,
         "shapes": [ { "kind": "line", "id": 1, "at": { "x": 2, "y": 1 },
@@ -1644,6 +1670,18 @@ mod tests {
             format_command_line(&hanging_selected),
             "ENDPOINTS: [1] From [2] To · INVERT: [i] · STROKE: [s] · ORDER: [z] · [Tab] Next [Shift+Tab] Prev · [d] Duplicate · [Del] Delete · [Esc] Deselect"
         );
+    }
+
+    /// **A set of more than one member offers only the way out** (rule 15 of #378): the bar reads
+    /// `SELECT: [Esc] Deselect`, and no key that builds the set is offered.
+    #[test]
+    fn the_multi_row_offers_only_escape() {
+        let mut state = a_state_over(TWO_BOXES);
+        state.toggle_selected(ShapeId::new(NonZeroU16::new(1).expect("1 is non-zero")));
+        state.toggle_selected(ShapeId::new(NonZeroU16::new(2).expect("2 is non-zero")));
+
+        assert_eq!(context(&state), Context::Multi);
+        assert_eq!(format_command_line(&state), "SELECT: [Esc] Deselect");
     }
 
     #[test]

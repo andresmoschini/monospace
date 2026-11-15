@@ -264,6 +264,11 @@ pub(crate) fn status_line(diagram_state: &DiagramState) -> String {
         };
     }
 
+    let members = diagram_state.selected_ids();
+    if members.len() > 1 {
+        return format!("MULTI SELECTION · {} shapes", members.len());
+    }
+
     if let Some((id, shape)) = selected_shape {
         selected_shape_line(id, shape, diagram)
     } else {
@@ -1365,6 +1370,40 @@ mod tests {
             status_line(&state),
             base_line,
             "expected fallback to selected shape line when target does not exist"
+        );
+    }
+
+    /// **The multi status row names the count** (rule 14 of #378), and the single-selection row is
+    /// the one it always was.
+    #[test]
+    fn the_multi_status_row_names_the_count() {
+        let two_boxes = r#"{
+            "next_id": 3,
+            "shapes": [
+                { "kind": "box", "id": 1, "at": { "x": 0, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" },
+                { "kind": "box", "id": 2, "at": { "x": 8, "y": 0 },
+                  "size": { "width": 4, "height": 3 }, "stroke": "light" }
+            ]
+        }"#;
+        let id1 = ShapeId::new(NonZeroU16::new(1).unwrap());
+        let id2 = ShapeId::new(NonZeroU16::new(2).unwrap());
+        let mut state = a_state_over(two_boxes);
+
+        state.toggle_selected(id1);
+        state.toggle_selected(id2);
+
+        assert_eq!(status_line(&state), "MULTI SELECTION · 2 shapes");
+        assert_eq!(command_line(&state), "SELECT: [Esc] Deselect");
+
+        state.toggle_selected(id2);
+        assert_eq!(
+            status_line(&state),
+            selected_shape_line(
+                id1,
+                state.selected_shape().expect("one member left"),
+                state.session().diagram()
+            )
         );
     }
 }
