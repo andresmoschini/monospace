@@ -155,16 +155,17 @@ it, so the same box draws in ASCII, Double, Heavy and their combinations without
 
 **The interactive application is here.** It starts from a blank diagram or from the demonstration,
 opens a description by name, saves it and exports it as plain text; it selects a shape with a click
-or with `Tab` and `Shift+Tab`, moves it with the arrows and resizes it with `Shift` and the arrows,
-rotates a line, duplicates a shape, edits a box's text in place, chooses a stroke, moves a shape
-through the order with `z`, attaches, detaches and restyles a connector's two endpoints, deletes,
-undoes and redoes, and scrolls the view with the wheel and with the bars. The two rows along the
-bottom say what the diagram reaches — or what the selected shape is — and offer only the commands
-that shape can take.
+or with `Tab` and `Shift+Tab` (and builds a multi-selection with `Ctrl+Click`), moves it with the
+arrows and resizes it with `Shift` and the arrows, rotates a line, duplicates a shape, edits a box's
+text in place, chooses a stroke, moves a shape through the order with `z`, attaches, detaches and
+restyles a connector's two endpoints, deletes, undoes and redoes (disabling each menu entry when
+nothing is left to give back), and scrolls the view with the wheel and with the bars. The two rows
+along the bottom say what the diagram reaches — or what the selected shape is — and offer only the
+commands that shape can take.
 
 Behind that, and all of it enforced rather than merely intended:
 
-- **162** tests in `monospace-core`, **1012** across the workspace.
+- **162** tests in `monospace-core`, **1068** across the workspace.
 - **1856** renderings across 8 snapshots, pinning every arrangement of the connector's route — a
   range too wide to assert by hand, so a change to it is **reported** rather than reviewed: how many
   cases moved, in which families, and three examples with before and after.
@@ -175,11 +176,9 @@ Behind that, and all of it enforced rather than merely intended:
 Still missing, and named here rather than implied: choosing a box's fill from the keyboard, which
 the description sets and the application does not
 ([#306](https://github.com/andresmoschini/monospace/issues/306)); keys that move the view, which the
-wheel and the bars already do ([#237](https://github.com/andresmoschini/monospace/issues/237)); a
-status line too long for the screen, which is truncated rather than wrapped
-([#280](https://github.com/andresmoschini/monospace/issues/280)); and undo and redo, which say
-nothing when there is nothing to give back
-([#231](https://github.com/andresmoschini/monospace/issues/231)).
+wheel and the bars already do ([#237](https://github.com/andresmoschini/monospace/issues/237)); and
+a status line too long for the screen, which is truncated rather than wrapped
+([#280](https://github.com/andresmoschini/monospace/issues/280)).
 
 ## Getting started
 
